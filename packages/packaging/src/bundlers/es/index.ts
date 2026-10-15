@@ -2,6 +2,7 @@ import { packagingMessages } from '../../runtime-contracts';
 import type { CreatePackagingError, EsBuildActions, StpBuildpackInput } from '../../runtime-contracts';
 import type { BunPlugin } from 'bun';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '../constants';
@@ -17,7 +18,7 @@ import {
 } from '../../es/native-dependencies';
 import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../../es/bun-plugins';
 import { getBunMinifyConfig } from '../../es/minify';
-import { writePackagedSourceMap } from '../../es/packaged-source-map';
+import { takeSourceMapsOutOfPackage, writePackagedSourceMap } from '../../es/packaged-source-map';
 import { writeEditedJavaScript } from '../../es/source-map-edits';
 import { normalizeBundleIdentity } from '../../es/artifact-identity';
 import {
@@ -30,7 +31,7 @@ import {
   getDependenciesOfIncludedFiles,
   getLambdaRuntimeFromNodeTarget,
   getLockFileData,
-  resolveDifferentSourceMapLocation,
+  saveSourceMapCopy,
   resolvePrisma
 } from './utils';
 import {
@@ -714,6 +715,7 @@ export const createEsBundle = async ({
   excludeFiles = [],
   dependenciesToExcludeFromBundle,
   outputSourceMapsTo,
+  keepSourceMapsInPackage,
   emitTsDecoratorMetadata,
   tsConfigPath,
   minify,
@@ -759,6 +761,9 @@ export const createEsBundle = async ({
   await installDependencies({ rootProjectDirPath: entrypointDirectory, progressLogger });
 
   const distIndexFilePath = join(distFolderPath, 'index.js');
+  // A Lambda ZIP keeps its maps outside the package unless the configuration keeps them in (see
+  // `takeSourceMapsOutOfPackage`). Nothing then reads a map at runtime.
+  const mapsLeavePackage = Boolean(lambdaZip && !keepSourceMapsInPackage);
 
   const hasSharedLayerExternals = externals.length > 0;
   const buildDescription = hasSharedLayerExternals
@@ -781,7 +786,10 @@ export const createEsBundle = async ({
     // TypeScript expands decorators before Bun sees the module. Bun does not compose the transform's source map,
     // so emitting its map would produce incorrect stack-trace line numbers. Prefer no map over a misleading one.
     sourceMaps: emitTsDecoratorMetadata ? 'disabled' : sourceMaps || 'external',
-    sourceMapBannerType: sourceMapBannerType || 'pre-compiled',
+    // The CommonJS banner installs `source-map-support`, which only reads maps beside the code. The ESM banner is the
+    // `require`/`__dirname` shim, which every ESM bundle needs.
+    sourceMapBannerType:
+      sourceMapBannerType || (mapsLeavePackage && outputModuleFormat !== 'esm' ? 'disabled' : 'pre-compiled'),
     externals,
     dependenciesToExcludeFromBundle,
     emitTsDecoratorMetadata,
@@ -797,12 +805,18 @@ export const createEsBundle = async ({
     createPackagingError,
     sourceMapInstallPath
   });
-  // A Lambda ZIP ships its map without `sourcesContent`. It is stripped before the digest, so the identity describes
-  // what is packaged. `outputSourceMapsTo` still receives the full map and ships none, so that map is left whole.
+  // `outputSourceMapsTo` receives the complete map. A Lambda ZIP's map then loses `sourcesContent` before the digest,
+  // so the identity describes what is deployed, and leaves the package unless the configuration keeps it there.
   const packagedSourceMapPath = join(distFolderPath, 'index.js.map');
-  if (lambdaZip && !outputSourceMapsTo && existsSync(packagedSourceMapPath)) {
+  if (outputSourceMapsTo && existsSync(packagedSourceMapPath)) {
+    await saveSourceMapCopy({ outputSourceMapsTo, distFolderPath, workingDir: cwd, name });
+  }
+  if (lambdaZip && existsSync(packagedSourceMapPath)) {
     await writePackagedSourceMap({ from: packagedSourceMapPath, to: packagedSourceMapPath });
   }
+  const sourceMapsOutsidePackage = mapsLeavePackage
+    ? await takeSourceMapsOutOfPackage({ packagePath: distFolderPath, runtimeRoot: '/var/task', directories: [''] })
+    : undefined;
 
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
@@ -879,7 +893,9 @@ export const createEsBundle = async ({
       additionalDigestInput: [
         additionalDigestInput,
         explicitlyIncludedFilesDigestHex,
-        dockerBuildOutputArchitecture
+        dockerBuildOutputArchitecture,
+        // Maps kept outside the package are still part of the artifact: a map-only change is a new deployment.
+        sourceMapsOutsidePackage ? `source-maps:${sourceMapsOutsidePackage.sha256}` : ''
       ].join(''),
       lambdaZip,
       createPackagingError
@@ -930,8 +946,8 @@ export const createEsBundle = async ({
         runDocker
       }),
     copyExplicitlyIncludedFiles({ cwd, explicitlyIncludedFiles, outputDirectory: distFolderPath }),
-    outputSourceMapsTo &&
-      resolveDifferentSourceMapLocation({ outputSourceMapsTo, distFolderPath, workingDir: cwd, name })
+    // An image with `outputSourceMapsTo` ships no map; the saved copy is the only one.
+    outputSourceMapsTo && !lambdaZip && rm(packagedSourceMapPath, { force: true })
   ]);
   await removeExplicitlyExcludedFiles({ createPackagingError, excludeFiles, outputDirectory: distFolderPath });
   await progressLogger.finishEvent({ eventType: 'RESOLVE_DEPENDENCIES' });
@@ -945,7 +961,8 @@ export const createEsBundle = async ({
     languageSpecificBundleOutput: {
       es: { externalDependencies, packageManager }
     },
-    resolvedModules: allModules
+    resolvedModules: allModules,
+    sourceMapsPath: sourceMapsOutsidePackage?.path
   };
 };
 

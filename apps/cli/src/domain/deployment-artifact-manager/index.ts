@@ -44,7 +44,9 @@ import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
-import { selectObsoleteArtifacts, type StoredArtifact } from './retention';
+import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
+import { getSourceMapManifest, selectObsoleteSourceMapKeys, sourceMapKeyForArtifact } from './source-maps';
+import { SOURCE_MAP_KEY_PREFIX } from '@stacktape/console-api/source-maps';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 
@@ -98,6 +100,8 @@ class DeploymentArtifactManager {
   previouslyUploadedS3KeysUsedInDeployment: string[] = [];
   previouslyUploadedImageTagsUsedInDeployment: string[] = [];
   uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
+  /** Source-map bundles in the deployment bucket, including those this run uploaded (`sourceMapKeyForArtifact`). */
+  #storedSourceMapKeys = new Set<string>();
 
   getLambdasToUpload() {
     return [...configManager.allLambdasToUpload, ...configManager.uptimeProberUploadArtifacts]
@@ -479,10 +483,39 @@ class DeploymentArtifactManager {
       }
     });
 
+  /** See `keepLayersOfRetainedReleases`. The retained templates are read only when a layer is about to go. */
+  #withoutLayersOfRetainedReleases = async <T extends { s3Key: string; name: string }>(obsolete: T[]) => {
+    const obsoleteLayers = obsolete.filter(({ name }) => name.startsWith('shared-layer-'));
+    if (!obsoleteLayers.length) return obsolete;
+    const deletedKeys = new Set(obsolete.map(({ s3Key }) => s3Key));
+    const retainedVersions = this.previousObjects
+      .filter(({ name, s3Key }) => name === CF_TEMPLATE_FILE_NAME_WITHOUT_EXT && !deletedKeys.has(s3Key))
+      .map(({ version }) => version);
+    try {
+      const retainedTemplates = await Promise.all(retainedVersions.map((version) => this.getTemplate({ version })));
+      return keepLayersOfRetainedReleases({
+        obsolete,
+        retainedTemplates,
+        deploymentBucketName: this.deploymentBucketName
+      });
+    } catch (error) {
+      // Without the releases' templates there is no telling which layers they need, so none is deleted this time.
+      tuiManager.debug(`Kept every shared layer: a retained release's template could not be read (${error}).`);
+      return obsolete.filter((artifact) => !obsoleteLayers.includes(artifact));
+    }
+  };
+
   deleteAllObsoleteArtifacts = async () => {
     const obsoleteImages = this.getObsoleteItems(this.previousImages);
-    const obsoleteObjects = this.getObsoleteItems(this.previousObjects);
-    if (obsoleteImages.length || obsoleteObjects.length) {
+    const obsoleteObjects = await this.#withoutLayersOfRetainedReleases(this.getObsoleteItems(this.previousObjects));
+    const deletedKeys = new Set(obsoleteObjects.map(({ s3Key }) => s3Key));
+    const obsoleteSourceMapKeys = selectObsoleteSourceMapKeys({
+      storedKeys: this.#storedSourceMapKeys,
+      remainingArtifactKeys: [...this.previousObjects, ...this.successfullyCreatedObjects]
+        .map(({ s3Key }) => s3Key)
+        .filter((s3Key) => !deletedKeys.has(s3Key))
+    });
+    if (obsoleteImages.length || obsoleteObjects.length || obsoleteSourceMapKeys.length) {
       await operationReporter.startEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
         description: 'Deleting obsolete artifacts'
@@ -493,12 +526,13 @@ class DeploymentArtifactManager {
           // for deleting untagged images
           obsoleteImages.filter(({ tag }) => !tag).map(({ dockerDigest }) => dockerDigest)
         ),
-        this.deleteObjectsFromDeploymentBucket(obsoleteObjects.map((obj) => obj.s3Key))
+        this.deleteObjectsFromDeploymentBucket([...obsoleteObjects.map((obj) => obj.s3Key), ...obsoleteSourceMapKeys])
       ]);
+      obsoleteSourceMapKeys.forEach((key) => this.#storedSourceMapKeys.delete(key));
       await operationReporter.finishEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
         finalMessage: 'Obsolete artifacts deleted',
-        data: { obsoleteImages, obsoleteObjects }
+        data: { obsoleteImages, obsoleteObjects, obsoleteSourceMapKeys }
       });
     }
   };
@@ -604,6 +638,10 @@ class DeploymentArtifactManager {
     }
 
     this.getLambdasToUpload().forEach(({ artifactName, artifactPath, s3Key, copyFromS3Key }) => {
+      // A copied artifact keeps its digest, so its maps are already stored.
+      const sourceMapsPath =
+        !copyFromS3Key && this.packagingSource.getPackagingOutputForJob(artifactName)?.sourceMapsPath;
+      if (sourceMapsPath) jobs.push(() => this.#uploadSourceMaps({ artifactS3Key: s3Key, sourceMapsPath }));
       jobs.push(async () => {
         if (!copyFromS3Key) return this.uploadLambda({ artifactName, artifactPath, s3Key });
         await awsSdkManager.s3.copyObject({
@@ -727,7 +765,10 @@ class DeploymentArtifactManager {
   };
 
   deleteAllObjects = async () => {
-    await this.deleteObjectsFromDeploymentBucket(this.previousObjects.map((obj) => obj.s3Key));
+    await this.deleteObjectsFromDeploymentBucket([
+      ...this.previousObjects.map((obj) => obj.s3Key),
+      ...this.#storedSourceMapKeys
+    ]);
     return this.previousObjects;
   };
 
@@ -761,6 +802,10 @@ class DeploymentArtifactManager {
     }
     objects.forEach((object) => {
       const s3Key = object.Key;
+      if (s3Key.startsWith(SOURCE_MAP_KEY_PREFIX)) {
+        this.#storedSourceMapKeys.add(s3Key);
+        return;
+      }
       const parsed = parseBucketObjectS3Key(s3Key);
       if (!parsed) {
         tuiManager.debug(`Ignoring ${s3Key} in deployment bucket ${deploymentBucketName}: not a Stacktape artifact.`);
@@ -977,6 +1022,9 @@ class DeploymentArtifactManager {
 
       // Upload each layer to S3 using the S3 key computed during packaging
       for (const layer of layersToUpload) {
+        if (layer.sourceMapsPath) {
+          await this.#uploadSourceMaps({ artifactS3Key: layer.s3Key, sourceMapsPath: layer.sourceMapsPath });
+        }
         const zipPath = `${layer.layerPath}.zip`;
         // Use the S3 key computed during packaging (ensures consistency with CF template)
         const s3Key = layer.s3Key;
@@ -1006,6 +1054,30 @@ class DeploymentArtifactManager {
       throw error;
     }
   };
+
+  /**
+   * Stores the source maps of the artifact at `artifactS3Key` (`sourceMapKeyForArtifact`), unless they are stored
+   * already. A failed deployment deletes them with its other uploads.
+   */
+  #uploadSourceMaps = async ({ artifactS3Key, sourceMapsPath }: { artifactS3Key: string; sourceMapsPath: string }) => {
+    const s3Key = sourceMapKeyForArtifact(artifactS3Key);
+    if (!s3Key || this.#storedSourceMapKeys.has(s3Key)) return;
+    await this.uploadToDeploymentBucket({
+      artifactName: 'source-maps',
+      artifactPath: sourceMapsPath,
+      contentType: 'application/json',
+      s3Key
+    });
+    this.#storedSourceMapKeys.add(s3Key);
+  };
+
+  /** Which stored source maps describe each function of `template`; see `getSourceMapManifest`. */
+  getSourceMapManifest = (template: CloudFormationTemplate) =>
+    getSourceMapManifest({
+      template,
+      deploymentBucketName: this.deploymentBucketName,
+      storedKeys: this.#storedSourceMapKeys
+    });
 
   /**
    * Get S3 info for a specific layer.
@@ -1065,7 +1137,7 @@ class DeploymentArtifactManager {
   };
 
   /**
-   * Stores the template of `sourceVersion` as release `newVersion` and returns its URL.
+   * Stores the template of `sourceVersion` as release `newVersion` and returns it with its URL.
    *
    * The restored code is copied under the new release first, so every code reference in the template changes and
    * CloudFormation updates each function and container service, including those a fast deployment changed without
@@ -1111,7 +1183,7 @@ class DeploymentArtifactManager {
       body: stringifyToYaml(template),
       contentType: 'application/x-yaml'
     });
-    return this.getCloudformationTemplateUrlForVersion(newVersion);
+    return { templateUrl: this.getCloudformationTemplateUrlForVersion(newVersion), template };
   };
 
   #restoredFunctionDigests: { logicalId: string; digest: string }[] = [];

@@ -33,7 +33,7 @@ Function packaging bundles your code and dependencies into a Lambda deployment z
 
 | Type | Use when |
 |------|----------|
-| [**`js-bundle`**](/packaging/function/js-bundle) | JavaScript or TypeScript. Point to the entry file. Stacktape bundles it into one minified file with source maps, leaves the AWS SDK to the Lambda runtime, moves code shared between functions into a shared layer, and installs dependencies with native binaries separately. |
+| [**`js-bundle`**](/packaging/function/js-bundle) | JavaScript or TypeScript. Point to the entry file. Stacktape bundles it into one minified file, keeps its source maps in the deployment bucket, leaves the AWS SDK to the Lambda runtime, moves code shared between functions into a shared layer, and installs dependencies with native binaries separately. |
 | [**`buildpack`**](/packaging/function/buildpack) | Python, Java, Go, Ruby, .NET or Rust. Point to the entry file. Stacktape installs dependencies and compiles the code in Docker on the Lambda build image of the function's `runtime`. |
 | [**`custom-artifact`**](/packaging/function/custom-artifact) | You build the deployment package yourself. Provide a zip, directory or other file. Stacktape zips directories and non-zip files automatically. |
 
@@ -61,7 +61,7 @@ export default defineConfig(() => {
   ]}
 />
 
-`js-bundle` options such as `nodeVersion`, `outputModuleFormat` and `disableSourceMaps` are direct properties next to `entryfilePath`. See [JS Bundle for Lambda](/packaging/function/js-bundle). For other languages, the function's `runtime` selects the language version; see [Buildpack for Lambda](/packaging/function/buildpack).
+`js-bundle` options such as `nodeVersion`, `outputModuleFormat` and `keepSourceMapsInPackage` are direct properties next to `entryfilePath`. See [JS Bundle for Lambda](/packaging/function/js-bundle). For other languages, the function's `runtime` selects the language version; see [Buildpack for Lambda](/packaging/function/buildpack).
 
 ## Container packaging
 

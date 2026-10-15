@@ -68,7 +68,17 @@ export const reportIssueEventInputSchema = z.object({
   region: z.string(),
   rawLog: z.string().max(20_000).optional(),
   /** How many occurrences this event stands for: the detector sends one event per distinct error per log batch. */
-  occurrenceWeight: z.number().int().min(1).max(MAX_ISSUE_OCCURRENCE_WEIGHT).optional()
+  occurrenceWeight: z.number().int().min(1).max(MAX_ISSUE_OCCURRENCE_WEIGHT).optional(),
+  /**
+   * When the Lambda execution environment that logged the error started (the first event of its log stream), in epoch
+   * milliseconds. An environment runs the code that was current when it started, so this picks the source maps.
+   */
+  environmentStartedAt: z.number().int().positive().optional(),
+  /**
+   * The function version the failing execution environment ran, from its log stream name (`[$LATEST]` or `[5]`). A
+   * published version picks the maps recorded for that version instead of going by `environmentStartedAt`.
+   */
+  executedVersion: z.string().max(64).optional()
 });
 
 export const reportUptimeResultsInputSchema = z.object({

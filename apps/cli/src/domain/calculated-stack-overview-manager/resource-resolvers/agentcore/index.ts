@@ -114,7 +114,7 @@ const resolveAgentCoreRuntimes = () => {
           packagingType,
           entryfilePath,
           nodeVersion: languageSpecificConfig?.nodeVersion,
-          sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+          sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'container')
         })
       ).map(({ Name, Value }) => [Name, Value])
     );

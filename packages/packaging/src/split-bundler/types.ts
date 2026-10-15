@@ -152,6 +152,8 @@ export type LayerArtifact = {
   sizeBytes: number;
   /** Content-based hash of the final publishable layer tree. */
   contentHash: string;
+  /** The chunks' source maps, kept outside the layer (`takeSourceMapsOutOfPackage`). */
+  sourceMapsPath?: string | undefined;
 };
 
 export type PackagingErrorDetails = {

@@ -73,6 +73,7 @@ const getCompatibilityKey = ({
     nodeVersion,
     tsConfigPath: esConfig?.tsConfigPath ?? 'tsconfig.json',
     disableSourceMaps: esConfig?.disableSourceMaps ?? false,
+    keepSourceMapsInPackage: esConfig?.keepSourceMapsInPackage ?? false,
     minify: esConfig?.minify ?? true,
     minifyIdentifiers: esConfig?.minifyIdentifiers ?? false,
     bundleAwsSdk: esConfig?.bundleAwsSdk ?? false,

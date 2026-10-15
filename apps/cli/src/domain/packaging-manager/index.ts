@@ -88,6 +88,7 @@ import type { EnvironmentVar } from '@stacktape/config/shared';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { getFileSizeBytes, getFolderSizeBytes } from '@stacktape/packaging/fs/files';
 import { getSplitFunctionDigest } from '@stacktape/packaging/split-bundler/function-digest';
+import { takeSourceMapsOutOfPackage } from '@stacktape/packaging/es/packaged-source-map';
 import {
   formatBytesAsMb,
   getLambdaCombinedUnzippedSizeBytes,
@@ -159,6 +160,8 @@ export class PackagingManager {
     contentHash: string;
     /** S3 key computed during packaging, used for both template and upload */
     s3Key: string;
+    /** The chunks' source maps, kept outside the layer for the deployment bucket. */
+    sourceMapsPath?: string | undefined;
   }> = [];
 
   /** Native/external dependency layers (bcrypt, sharp, explicit externals, etc.) - separate from chunk layers. */
@@ -686,13 +689,15 @@ export class PackagingManager {
       sizeBytes: number;
       contentHash: string;
       s3Key: string;
+      sourceMapsPath?: string | undefined;
     }> = [];
     if (layerAssignment.layeredChunks.length > 0) {
       const layerResult = await timeAsync('split:create-layer-artifacts', () =>
         createLayerArtifacts({
           lambdaOutputs: splitResult.lambdaOutputs,
           layerAssignment,
-          layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`
+          layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
+          keepSourceMapsInPackage: languageSpecificConfig.keepSourceMapsInPackage
         })
       );
 
@@ -785,11 +790,20 @@ export class PackagingManager {
           message: `A native dependency layer was assigned to function ${name}, but its artifact is missing.`
         });
       }
-      // Every final package file (local chunks and source maps included), the layers its imports point into, and the
+      // The function's maps leave the package for the deployment bucket unless the configuration keeps them in.
+      const sourceMaps = languageSpecificConfig.keepSourceMapsInPackage
+        ? undefined
+        : await takeSourceMapsOutOfPackage({
+            packagePath: distFolderPath,
+            runtimeRoot: '/var/task',
+            directories: ['', 'chunks']
+          });
+      // Every final package file (local chunks included), its source maps, the layers its imports point into, and the
       // archive layout it is zipped with.
       const endDigest = startTiming('split:function-digest', { job: jobName });
       const digest = await getSplitFunctionDigest({
         distFolderPath,
+        sourceMapsSha256: sourceMaps?.sha256,
         chunkLayers: Array.from(layerNumbers ?? []).map((layerNumber) => ({
           layerNumber,
           contentHash: this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber)?.contentHash
@@ -823,7 +837,7 @@ export class PackagingManager {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `Function ${name} is ${formatBytesAsMb(functionSizeBytes)}MB unzipped and its Stacktape layers add ${formatBytesAsMb(combinedUnzippedSizeBytes - functionSizeBytes)}MB (${layerSizes.join(', ')}), ${formatBytesAsMb(combinedUnzippedSizeBytes)}MB in total. AWS Lambda allows 250MB for a function and all its layers together. Layers attached outside Stacktape are not counted here.`,
-          hint: 'Exclude unnecessary files or dependencies, reduce source maps, or disable shared-layer optimization for this deployment.'
+          hint: 'Exclude unnecessary files or dependencies, or disable shared-layer optimization for this deployment.'
         });
       }
 
@@ -879,7 +893,8 @@ export class PackagingManager {
         skipped: false,
         size: unzippedSizeMB,
         artifactPath: adjustedZipPath,
-        resolvedModules: lambdaOutput.resolvedModules
+        resolvedModules: lambdaOutput.resolvedModules,
+        ...(sourceMaps && { sourceMapsPath: sourceMaps.path })
       });
     });
 

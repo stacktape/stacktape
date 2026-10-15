@@ -2,8 +2,9 @@ import { getArchiveLayoutDigest, listArchiveEntries } from '../artifact/archive-
 import { getArchiveInventoryChecksum, mergeHashes } from '../artifact/hashing';
 
 /**
- * The cache identity of one split-bundled function's ZIP: every file of its final package directory, the chunk layers
- * its imports point into, the native dependency layer it loads, and the archive layout it is zipped with.
+ * The cache identity of one split-bundled function's ZIP: every file of its final package directory, the source maps
+ * kept outside it, the chunk layers its imports point into, the native dependency layer it loads, and the archive
+ * layout it is zipped with.
  *
  * The CLI reuses a deployed function artifact exactly when this digest matches, and the offline packaging harness
  * measures with the same function, so the two cannot drift apart.
@@ -11,9 +12,12 @@ import { getArchiveInventoryChecksum, mergeHashes } from '../artifact/hashing';
 export const getSplitFunctionDigest = async ({
   distFolderPath,
   chunkLayers,
-  nativeLayer
+  nativeLayer,
+  sourceMapsSha256
 }: {
   distFolderPath: string;
+  /** The hash of the function's source-map bundle when its maps are kept outside the package. */
+  sourceMapsSha256?: string | undefined;
   /** Chunk layers the function imports from. Their content hashes decide its import paths. */
   chunkLayers: { layerNumber: number; contentHash: string | undefined }[];
   nativeLayer: { layerNumber: number; contentHash: string } | null;
@@ -27,5 +31,11 @@ export const getSplitFunctionDigest = async ({
         .join(',')
     : 'none';
   const nativeLayerPart = nativeLayer ? `native:${nativeLayer.layerNumber}:${nativeLayer.contentHash}` : 'native:none';
-  return mergeHashes(bundleDirectoryHash, chunkLayerPart, nativeLayerPart, getArchiveLayoutDigest(entries));
+  return mergeHashes(
+    bundleDirectoryHash,
+    chunkLayerPart,
+    nativeLayerPart,
+    getArchiveLayoutDigest(entries),
+    ...(sourceMapsSha256 ? [`source-maps:${sourceMapsSha256}`] : [])
+  );
 };

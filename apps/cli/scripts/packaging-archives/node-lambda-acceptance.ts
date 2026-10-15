@@ -14,10 +14,10 @@
  * The source CLI runs as a child process in an isolated home, with every AWS and Stacktape request routed to the
  * offline guard. Each function ZIP is extracted with `unzip` and invoked in the official Lambda image for its
  * runtime, as an unprivileged user that owns none of the files, with the shared layers at `/opt` as Lambda assembles
- * them and `--enable-source-maps` on. The responses prove that the shared chunk loads from the layer, the dynamic
- * import and the asset resolve under `/var/task`, the ESM-only and CommonJS dependencies run, the AWS SDK comes from
- * the runtime and is not in the ZIP, `__dirname` is the task directory, and a thrown error names the original
- * TypeScript file and line.
+ * them. The responses prove that the shared chunk loads from the layer, the dynamic import and the asset resolve under
+ * `/var/task`, the ESM-only and CommonJS dependencies run, the AWS SDK comes from the runtime and is not in the ZIP,
+ * `__dirname` is the task directory, and a thrown error maps, through the source maps the CLI kept outside the ZIPs,
+ * to the original TypeScript file and line.
  *
  * Then cache identity, with the same command: an unchanged repeat reproduces every digest and the layer bytes; an
  * edit of `esm`'s own source changes only `esm`'s digest; and the untouched project copied to another directory
@@ -29,6 +29,7 @@
  *     [--export <new or empty directory> | --import <directory>]
  */
 import { createHash } from 'node:crypto';
+import { SourceMap } from 'node:module';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -264,7 +265,15 @@ const writeFixture = async (project: string) => {
   );
 };
 
-type PackagedFunction = { jobName: string; digest: string; artifactPath: string };
+/** Source maps the CLI kept outside a package, by the runtime path of the JavaScript file they describe. */
+type SourceMapFiles = Record<string, ConstructorParameters<typeof SourceMap>[0]>;
+type PackagedFunction = {
+  jobName: string;
+  digest: string;
+  artifactPath: string;
+  /** The function's own maps; `null` when the package command reported none. */
+  sourceMaps: SourceMapFiles | null;
+};
 type PackageRun = {
   invocationId: string;
   /** The CLI's invocation directory, which `package` leaves behind with its artifacts and layers. */
@@ -272,8 +281,13 @@ type PackageRun = {
   functions: Record<FunctionName, PackagedFunction>;
   /** Every shared layer's directory and the sorted `path mode sha256` listing of its files. */
   layers: { path: string; listing: string[] }[];
+  /** The shared layers' maps, kept beside their directories. */
+  layerSourceMaps: SourceMapFiles;
   optDirectory: string | undefined;
 };
+
+const readSourceMapFiles = async (path: string) =>
+  (JSON.parse(await readFile(path, 'utf8')) as { files: SourceMapFiles }).files;
 
 /** One `package` of the project at `project`, leaving its build directory, with `/opt` assembled from its layers. */
 const packageProject = async ({
@@ -295,12 +309,15 @@ const packageProject = async ({
     command: 'package'
   });
   const functions = {} as Record<FunctionName, PackagedFunction>;
-  for (const workload of packaged.details.packagedWorkloads as Partial<PackagedFunction>[]) {
-    const { jobName, digest, artifactPath } = workload;
+  for (const workload of packaged.details.packagedWorkloads as Partial<
+    Omit<PackagedFunction, 'sourceMaps'> & { sourceMapsPath: string }
+  >[]) {
+    const { jobName, digest, artifactPath, sourceMapsPath } = workload;
     if (typeof jobName !== 'string' || typeof digest !== 'string' || typeof artifactPath !== 'string') {
       throw new Error(`The package command reported a workload without an artifact: ${JSON.stringify(workload)}`);
     }
-    functions[jobName as FunctionName] = { jobName, digest, artifactPath };
+    const sourceMaps = typeof sourceMapsPath === 'string' ? await readSourceMapFiles(sourceMapsPath) : null;
+    functions[jobName as FunctionName] = { jobName, digest, artifactPath, sourceMaps };
   }
   for (const name of FUNCTIONS) {
     if (!functions[name]) throw new Error(`The package command did not package ${name}.`);
@@ -308,7 +325,20 @@ const packageProject = async ({
   // `<invocation>/build/lambdas/<job>-<digest>.zip`; the layers of the same build are beside them.
   const buildDirectory = dirname(dirname(functions.esm.artifactPath));
   const layersRoot = join(buildDirectory, 'layers');
-  const layerNames = (await readdir(layersRoot).catch(() => [])).toSorted();
+  const layerEntries = await readdir(layersRoot, { withFileTypes: true }).catch(() => []);
+  const layerNames = layerEntries
+    .filter((entry) => entry.isDirectory())
+    .map(({ name }) => name)
+    .toSorted();
+  // Each layer's maps sit beside its directory, as `<layer>.source-maps.json`.
+  const layerSourceMaps: SourceMapFiles = Object.assign(
+    {},
+    ...(await Promise.all(
+      layerEntries
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.source-maps.json'))
+        .map(({ name }) => readSourceMapFiles(join(layersRoot, name)))
+    ))
+  );
   const layers = await Promise.all(
     layerNames.map(async (name) => ({
       path: join(layersRoot, name),
@@ -328,8 +358,20 @@ const packageProject = async ({
     invocationDirectory: dirname(buildDirectory),
     functions,
     layers,
+    layerSourceMaps,
     optDirectory
   };
+};
+
+/** Maps a V8 frame through `files`, as the Console maps a deployed function's frames, to `<source>:<line>:<column>`. */
+const mapFrame = (frame: string, files: SourceMapFiles) => {
+  const [, path, line, column] = /\(?(?:file:\/\/)?([^\s()]+):(\d+):(\d+)\)?$/.exec(frame) ?? [];
+  const payload = path ? files[path] : undefined;
+  if (!payload) return null;
+  const entry = new SourceMap(payload).findEntry(Number(line) - 1, Number(column) - 1);
+  return 'originalSource' in entry && entry.originalSource
+    ? `${entry.originalSource}:${entry.originalLine + 1}:${entry.originalColumn + 1}`
+    : null;
 };
 
 type Response = Record<string, unknown>;
@@ -346,16 +388,19 @@ const invoke = async ({
   const functionDirectory = await extractZip(run.functions[name].artifactPath);
   try {
     const entries = await listExtractedEntries(functionDirectory);
-    const map = await readPackagedMap(join(functionDirectory, 'index.js.map'));
-    const hostPaths = await findHostPaths([functionDirectory, ...(run.optDirectory ? [run.optDirectory] : [])]);
+    const ownMap = run.functions[name].sourceMaps?.['/var/task/index.js'];
+    const map = ownMap && describeMap(ownMap);
+    const hostPaths = [
+      ...(await findHostPaths([functionDirectory, ...(run.optDirectory ? [run.optDirectory] : [])])),
+      ...leakedHostPaths('stored source maps', { ...run.layerSourceMaps, ...run.functions[name].sourceMaps })
+    ];
     const invocation = await invokeInLambdaRuntime({
       functionDirectory,
       layerDirectory: run.optDirectory,
       // The handler the CLI deploys for every js-bundle function without `handlerFunction` (`getLambdaHandler`).
       handler: 'index.default',
       image: RUNTIME_IMAGE[name],
-      event,
-      environment: { NODE_OPTIONS: '--enable-source-maps' }
+      event
     });
     if (invocation.status !== 200) {
       throw new Error(`${name} returned HTTP ${invocation.status}: ${invocation.body}\n${invocation.logs.stderr}`);
@@ -375,32 +420,32 @@ const invoke = async ({
  * built in, or the home directory. A deployed artifact must carry neither (owner decision, 2026-10-09).
  */
 const findHostPaths = async (directories: string[]) => {
-  const forbidden = [tmpdir(), homedir()].map((path) => path.replace(/\\/g, '/'));
   const found: string[] = [];
   for (const directory of directories) {
     for (const entry of await readdir(directory, { recursive: true, withFileTypes: true })) {
       if (!entry.isFile()) continue;
       const path = join(entry.parentPath, entry.name);
-      const text = (await readFile(path)).toString('latin1').replace(/\\/g, '/');
-      const leaked = forbidden.find((candidate) => text.includes(candidate));
-      if (leaked !== undefined) found.push(`${path.slice(directory.length + 1)} mentions ${leaked}`);
+      found.push(...leakedHostPaths(path.slice(directory.length + 1), (await readFile(path)).toString('latin1')));
     }
   }
   return found;
 };
 
-/** What a shipped source map discloses: whether it carries the sources' text, and which files it names. */
+/** `label` when `value`, as text, mentions the temporary or home directory of this build host. */
+const leakedHostPaths = (label: string, value: unknown) => {
+  const text = (typeof value === 'string' ? value : JSON.stringify(value)).replace(/\\/g, '/');
+  const leaked = [tmpdir(), homedir()].map((path) => path.replace(/\\/g, '/')).find((path) => text.includes(path));
+  return leaked === undefined ? [] : [`${label} mentions ${leaked}`];
+};
+
+/** What a stored source map discloses: whether it carries the sources' text, and which files it names. */
 type PackagedMap = { hasSourcesContent: boolean; sources: string[] };
 
-const readPackagedMap = async (path: string): Promise<PackagedMap | undefined> => {
-  const text = await readFile(path, 'utf8').catch(() => undefined);
-  if (text === undefined) return undefined;
-  const map = JSON.parse(text) as { sources?: unknown; sourcesContent?: unknown };
+const describeMap = (map: unknown): PackagedMap => {
+  const { sources, sourcesContent } = map as { sources?: unknown; sourcesContent?: unknown };
   return {
-    hasSourcesContent: Array.isArray(map.sourcesContent) && map.sourcesContent.some((entry) => entry !== null),
-    sources: Array.isArray(map.sources)
-      ? map.sources.filter((source): source is string => typeof source === 'string')
-      : []
+    hasSourcesContent: Array.isArray(sourcesContent) && sourcesContent.some((entry) => entry !== null),
+    sources: Array.isArray(sources) ? sources.filter((source): source is string => typeof source === 'string') : []
   };
 };
 
@@ -468,10 +513,13 @@ const invokeFirst = async ({
     `importMetaUrl=${String(esm.response.importMetaUrl)}`
   );
   const stack = Array.isArray(esm.response.stack) ? (esm.response.stack as string[]) : [];
+  const mappedStack = stack.map((frame) =>
+    mapFrame(frame, { ...first.layerSourceMaps, ...first.functions.esm.sourceMaps })
+  );
   check(
-    'esm: a thrown error names the original TypeScript file and line',
-    stack.some((frame) => frame.includes(`src/lib/shared.ts:${sharedLine}:`)),
-    `stack=${JSON.stringify(stack)}`
+    'esm: a thrown error maps through the stored source maps to the original TypeScript file and line',
+    mappedStack.some((frame) => frame?.startsWith(`src/lib/shared.ts:${sharedLine}:`)),
+    `stack=${JSON.stringify(stack)} mapped=${JSON.stringify(mappedStack)}`
   );
   check(
     'legacy: CommonJS entry runs with require, module.exports and __dirname, and loads a left-out pnpm package through the links its ZIP keeps',
@@ -500,12 +548,18 @@ const invokeFirst = async ({
     ['plain', plain.map, 'src/plain.ts'],
     ['legacy', legacy.map, 'src/legacy.cjs']
   ] as const) {
+    const zipMaps = ({ esm, plain, legacy } as const)[name].entries.filter((entry) =>
+      entry.split(' ')[0]!.endsWith('.map')
+    );
     check(
-      `${name}: ZIP ships a source map naming the original file, without sourcesContent`,
-      map !== undefined && !map.hasSourcesContent && map.sources.some((entry) => entry.endsWith(source)),
+      `${name}: ZIP ships no source map; the stored map names the original file, without sourcesContent`,
+      zipMaps.length === 0 &&
+        map !== undefined &&
+        !map.hasSourcesContent &&
+        map.sources.some((entry) => entry.endsWith(source)),
       map === undefined
-        ? 'no index.js.map'
-        : `sourcesContent=${String(map.hasSourcesContent)} sources=${map.sources.slice(0, 4).join(', ')}`
+        ? `no stored map; maps in ZIP: ${zipMaps.join(', ') || 'none'}`
+        : `maps in ZIP: ${zipMaps.length}; sourcesContent=${String(map.hasSourcesContent)} sources=${map.sources.slice(0, 4).join(', ')}`
     );
   }
   for (const name of FUNCTIONS) {
@@ -532,7 +586,12 @@ type ExportedManifest = {
   sharedLine: number;
   runs: Record<
     'first' | 'edited',
-    { functions: Record<FunctionName, PackagedFunction>; layers: PackageRun['layers']; opt: string | null }
+    {
+      functions: Record<FunctionName, PackagedFunction>;
+      layers: PackageRun['layers'];
+      layerSourceMaps: SourceMapFiles;
+      opt: string | null;
+    }
   >;
 };
 
@@ -563,7 +622,7 @@ const exportArtifacts = async ({
       opt = `${label}/opt`;
       await cp(run.optDirectory, join(directory, opt), { recursive: true });
     }
-    manifest.runs[label] = { functions, layers: run.layers, opt };
+    manifest.runs[label] = { functions, layers: run.layers, layerSourceMaps: run.layerSourceMaps, opt };
   }
   await writeJsonAtomic(join(directory, 'manifest.json'), manifest);
 };
@@ -584,6 +643,7 @@ const importArtifacts = async (directory: string) => {
       invocationDirectory: '',
       functions,
       layers: exported.layers,
+      layerSourceMaps: exported.layerSourceMaps,
       optDirectory: exported.opt === null ? undefined : join(directory, exported.opt)
     };
   };

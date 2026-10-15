@@ -168,3 +168,14 @@ describe('review follow-ups', () => {
     expect(issueProcessor.toOccurrenceWeight(250_000)).toBe(100_000);
   });
 });
+
+describe('the function version an execution environment runs', () => {
+  test.each([
+    ['/aws/lambda/shop-dev-api', '2026/10/15/[$LATEST]3d353a0e36b241ca8bcfbc7748e5b7cf', '$LATEST'],
+    ['/aws/lambda/shop-dev-api', '2026/10/15/[12]3d353a0e36b241ca8bcfbc7748e5b7cf', '12'],
+    ['/stp/shop-dev/ecs/api/web', 'ecs/web/0123456789abcdef', undefined],
+    ['/aws/lambda/shop-dev-api', 'custom-stream', undefined]
+  ])('%s %s', (logGroup, logStream, version) => {
+    expect(issueProcessor.getExecutedVersion(logGroup, logStream)).toBe(version);
+  });
+});

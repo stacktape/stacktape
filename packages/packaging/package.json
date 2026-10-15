@@ -23,6 +23,7 @@
     "./bundlers/node-version": "./src/bundlers/node-version.ts",
     "./es/config": "./src/es/config.ts",
     "./es/native-dependencies": "./src/es/native-dependencies.ts",
+    "./es/packaged-source-map": "./src/es/packaged-source-map.ts",
     "./es/project-root": "./src/es/project-root.ts",
     "./fs/files": "./src/fs/files.ts",
     "./image/dockerfile": "./src/image/dockerfile.ts",

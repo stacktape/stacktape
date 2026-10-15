@@ -371,7 +371,7 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       packagingType,
       entryfilePath,
       nodeVersion,
-      sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+      sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'container')
     });
     if (workloadTracing) {
       const { environmentDefaults, environmentOverrides, warnings } = getContainerTracingEnvironment({

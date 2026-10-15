@@ -4114,6 +4114,7 @@ export const slices: readonly Slice[] = [
       'packages/console-api/src/privacy.test.ts',
       'packages/console-api/src/security.test.ts',
       'packages/console-api/src/sensitive-text.test.ts',
+      'packages/console-api/src/source-maps.test.ts',
       'packages/console-api/src/stages.test.ts'
     ],
     lanes: ['cli', 'cli-2', 'cli-3', 'console-api-test', 'console-database-cli-console']
@@ -4532,6 +4533,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
+      'apps/cli/src/commands/_utils/source-map-manifest.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/source-maps.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
@@ -5182,11 +5185,13 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
-      'apps/console/api/scripts/issues-database.test.ts'
+      'apps/console/api/scripts/issues-database.test.ts',
+      'apps/console/api/src/issues/source-maps.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
       'cli-test-helper-lambdas',
+      'console-api',
       'console-database-issues',
       'console-database-incident-journey'
     ],

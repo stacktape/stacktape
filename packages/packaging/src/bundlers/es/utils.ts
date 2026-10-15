@@ -1,7 +1,7 @@
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { getFolder, getPathRelativeTo, isFileAccessible } from '../../fs/files';
 import { findProjectRoot } from '../../es/project-root';
-import { chmod, copy, readFile, readJson, remove, stat } from 'fs-extra';
+import { chmod, copy, readFile, readJson, stat } from 'fs-extra';
 import kleur from 'kleur';
 import type {
   CreatePackagingError,
@@ -439,7 +439,8 @@ const copyToDeploymentPackage = async ({ from, to }: { from: string; to: string 
   await chmod(to, mode & 0o111 ? 0o755 : 0o644);
 };
 
-export const resolveDifferentSourceMapLocation = async ({
+/** Saves a copy of the bundle's complete map, `sourcesContent` included, under `outputSourceMapsTo/<name>/`. */
+export const saveSourceMapCopy = async ({
   distFolderPath,
   outputSourceMapsTo,
   workingDir,
@@ -449,11 +450,4 @@ export const resolveDifferentSourceMapLocation = async ({
   distFolderPath: string;
   workingDir: string;
   name: string;
-}) => {
-  const originalLocation = join(distFolderPath, 'index.js.map');
-  const distLocation = join(workingDir, outputSourceMapsTo, name, 'index.js.map');
-
-  await copy(originalLocation, distLocation);
-
-  return remove(originalLocation);
-};
+}) => copy(join(distFolderPath, 'index.js.map'), join(workingDir, outputSourceMapsTo, name, 'index.js.map'));

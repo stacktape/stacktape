@@ -114,6 +114,7 @@ export const buildJsBundleLambda = async ({
     distFolderPath: bundledDistFolderPath,
     sourceFiles,
     resolvedModules,
+    sourceMapsPath,
     ...otherOutputProps
   } = bundlingOutput;
 
@@ -141,6 +142,7 @@ export const buildJsBundleLambda = async ({
     artifactPath,
     details: { ...otherOutputProps },
     jobName: name,
-    resolvedModules
+    resolvedModules,
+    sourceMapsPath
   };
 };

@@ -7,6 +7,7 @@ import { getArchiveLayoutDigest, listArchiveEntries } from '../artifact/archive-
 import { getArchiveInventoryChecksum, mergeHashes } from '../artifact/hashing';
 import { getFolderSizeBytes } from '../fs/files';
 import { writeEditedJavaScript } from '../es/source-map-edits';
+import { takeSourceMapsOutOfPackage } from '../es/packaged-source-map';
 
 /** Where a published layer's chunks are mounted inside a Lambda execution environment. */
 const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
@@ -22,7 +23,8 @@ const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
 export const createLayerArtifacts = async ({
   lambdaOutputs,
   layerAssignment,
-  layerBasePath
+  layerBasePath,
+  keepSourceMapsInPackage = false
 }: {
   /** Lambda outputs from buildSplitBundle */
   lambdaOutputs: Map<string, LambdaSplitOutput>;
@@ -30,6 +32,8 @@ export const createLayerArtifacts = async ({
   layerAssignment: LayerAssignmentResult;
   /** Base path for layer directories (e.g., /build/layers/) */
   layerBasePath: string;
+  /** Leave the chunks' maps in the layer instead of a bundle beside it (`takeSourceMapsOutOfPackage`). */
+  keepSourceMapsInPackage?: boolean;
 }): Promise<{
   /** Layer artifacts with paths and content hashes */
   layerArtifacts: LayerArtifact[];
@@ -67,6 +71,14 @@ export const createLayerArtifacts = async ({
       // Create package.json for ESM support in layer
       await outputJSON(join(layerDir, 'nodejs', 'package.json'), { type: 'module' });
 
+      const sourceMaps = keepSourceMapsInPackage
+        ? undefined
+        : await takeSourceMapsOutOfPackage({
+            packagePath: layerDir,
+            runtimeRoot: '/opt',
+            directories: ['nodejs/chunks']
+          });
+
       // Hash and measure the final publishable tree, including rewritten code, source maps, and package metadata.
       const [{ entries }, sizeBytes] = await Promise.all([
         listArchiveEntries({ sourcePath: layerDir }),
@@ -81,7 +93,13 @@ export const createLayerArtifacts = async ({
         sizeBytes,
         // The layer's S3 key is built from this hash, so it carries the archive layout too: a layer zipped under
         // older rules gets a new key instead of being reused.
-        contentHash: mergeHashes(directoryChecksum, getArchiveLayoutDigest(entries)).slice(0, 12)
+        contentHash: mergeHashes(
+          directoryChecksum,
+          getArchiveLayoutDigest(entries),
+          // Maps kept outside the layer are part of its identity, so a map-only change publishes a new layer.
+          ...(sourceMaps ? [`source-maps:${sourceMaps.sha256}`] : [])
+        ).slice(0, 12),
+        ...(sourceMaps && { sourceMapsPath: sourceMaps.path })
       };
     })
   );

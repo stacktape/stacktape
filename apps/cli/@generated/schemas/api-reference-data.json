@@ -1126,8 +1126,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -1148,8 +1148,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -8872,8 +8872,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -8894,8 +8894,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -16121,8 +16121,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -16143,8 +16143,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -22857,6 +22857,29 @@
                   ]
                 },
                 {
+                  "name": "keepSourceMapsInPackage",
+                  "required": false,
+                  "shortDescription": "<p> Keep source maps inside the deployment package.</p>",
+                  "longDescription": "<p>By default, Stacktape stores a function&#39;s source maps in the stack&#39;s deployment bucket, outside the package. The\nStacktape Console uses them to show each error at the original file, line and function, while stack traces in\nCloudWatch logs point into the bundled code. Set this to <code>true</code> to ship the maps in the package and turn on\nNode.js <code>--enable-source-maps</code>, so logged stack traces are mapped too. The package gets larger, and Node.js reads\nthe maps on every cold start.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         keepSourceMapsInPackage: true\n         # [!code focus-end]\n     memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       keepSourceMapsInPackage: true\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -23109,8 +23132,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -23131,8 +23154,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -24346,6 +24369,29 @@
                   ]
                 },
                 {
+                  "name": "keepSourceMapsInPackage",
+                  "required": false,
+                  "shortDescription": "<p> Keep source maps inside the deployment package.</p>",
+                  "longDescription": "<p>By default, Stacktape stores a function&#39;s source maps in the stack&#39;s deployment bucket, outside the package. The\nStacktape Console uses them to show each error at the original file, line and function, while stack traces in\nCloudWatch logs point into the bundled code. Set this to <code>true</code> to ship the maps in the package and turn on\nNode.js <code>--enable-source-maps</code>, so logged stack traces are mapped too. The package gets larger, and Node.js reads\nthe maps on every cold start.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         keepSourceMapsInPackage: true\n         # [!code focus-end]\n     memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       keepSourceMapsInPackage: true\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -24598,8 +24644,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -24620,8 +24666,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -27060,6 +27106,29 @@
                   ]
                 },
                 {
+                  "name": "keepSourceMapsInPackage",
+                  "required": false,
+                  "shortDescription": "<p> Keep source maps inside the deployment package.</p>",
+                  "longDescription": "<p>By default, Stacktape stores a function&#39;s source maps in the stack&#39;s deployment bucket, outside the package. The\nStacktape Console uses them to show each error at the original file, line and function, while stack traces in\nCloudWatch logs point into the bundled code. Set this to <code>true</code> to ship the maps in the package and turn on\nNode.js <code>--enable-source-maps</code>, so logged stack traces are mapped too. The package gets larger, and Node.js reads\nthe maps on every cold start.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         keepSourceMapsInPackage: true\n         # [!code focus-end]\n     memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       keepSourceMapsInPackage: true\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -27312,8 +27381,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -27334,8 +27403,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -32235,8 +32304,8 @@
       {
         "name": "disableSourceMaps",
         "required": false,
-        "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Skip generating source maps.</p>",
+        "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -32459,8 +32528,8 @@
       {
         "name": "outputSourceMapsTo",
         "required": false,
-        "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-        "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+        "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+        "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -32554,7 +32623,7 @@
       "requiredCount": 1,
       "optionalCount": 17
     },
-    "typeDeclaration": "// [!code focus-start]\ntype JsBundleBjImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */\n  runtime?: \"bun\" | \"deno\" | \"node\";\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype JsBundleBjImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Also save complete source maps to a local directory. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */\n  runtime?: \"bun\" | \"deno\" | \"node\";\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "JsBundleCwImagePackaging": {
     "definitionName": "JsBundleCwImagePackaging",
@@ -32704,8 +32773,8 @@
       {
         "name": "disableSourceMaps",
         "required": false,
-        "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Skip generating source maps.</p>",
+        "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -32928,8 +32997,8 @@
       {
         "name": "outputSourceMapsTo",
         "required": false,
-        "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-        "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+        "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+        "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -33023,7 +33092,7 @@
       "requiredCount": 1,
       "optionalCount": 17
     },
-    "typeDeclaration": "// [!code focus-start]\ntype JsBundleCwImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */\n  runtime?: \"bun\" | \"deno\" | \"node\";\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype JsBundleCwImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Also save complete source maps to a local directory. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */\n  runtime?: \"bun\" | \"deno\" | \"node\";\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "JsBundleLambdaPackaging": {
     "definitionName": "JsBundleLambdaPackaging",
@@ -33147,8 +33216,8 @@
       {
         "name": "disableSourceMaps",
         "required": false,
-        "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Skip generating source maps.</p>",
+        "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -33286,6 +33355,29 @@
         ]
       },
       {
+        "name": "keepSourceMapsInPackage",
+        "required": false,
+        "shortDescription": "<p> Keep source maps inside the deployment package.</p>",
+        "longDescription": "<p>By default, Stacktape stores a function&#39;s source maps in the stack&#39;s deployment bucket, outside the package. The\nStacktape Console uses them to show each error at the original file, line and function, while stack traces in\nCloudWatch logs point into the bundled code. Set this to <code>true</code> to ship the maps in the package and turn on\nNode.js <code>--enable-source-maps</code>, so logged stack traces are mapped too. The package gets larger, and Node.js reads\nthe maps on every cold start.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         keepSourceMapsInPackage: true\n         # [!code focus-end]\n     memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       keepSourceMapsInPackage: true\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+          }
+        ]
+      },
+      {
         "name": "minify",
         "required": false,
         "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
@@ -33393,8 +33485,8 @@
       {
         "name": "outputSourceMapsTo",
         "required": false,
-        "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-        "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+        "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+        "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -33437,9 +33529,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 15
+      "optionalCount": 16
     },
-    "typeDeclaration": "// [!code focus-start]\ntype JsBundleLambdaPackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** The name of the handler function to be executed when the Lambda is invoked. */\n  handlerFunction?: string;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype JsBundleLambdaPackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** The name of the handler function to be executed when the Lambda is invoked. */\n  handlerFunction?: string;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Keep source maps inside the deployment package. */\n  keepSourceMapsInPackage?: boolean;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Also save complete source maps to a local directory. */\n  outputSourceMapsTo?: string;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "KafkaCluster": {
     "definitionName": "KafkaCluster",
@@ -35855,6 +35947,29 @@
                   ]
                 },
                 {
+                  "name": "keepSourceMapsInPackage",
+                  "required": false,
+                  "shortDescription": "<p> Keep source maps inside the deployment package.</p>",
+                  "longDescription": "<p>By default, Stacktape stores a function&#39;s source maps in the stack&#39;s deployment bucket, outside the package. The\nStacktape Console uses them to show each error at the original file, line and function, while stack traces in\nCloudWatch logs point into the bundled code. Set this to <code>true</code> to ship the maps in the package and turn on\nNode.js <code>--enable-source-maps</code>, so logged stack traces are mapped too. The package gets larger, and Node.js reads\nthe maps on every cold start.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         keepSourceMapsInPackage: true\n         # [!code focus-end]\n     memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       keepSourceMapsInPackage: true\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -36107,8 +36222,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -36129,8 +36244,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -44914,8 +45029,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -44936,8 +45051,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -51542,8 +51657,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -51564,8 +51679,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -61304,8 +61419,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -61326,8 +61441,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -64851,8 +64966,8 @@
                 {
                   "name": "disableSourceMaps",
                   "required": false,
-                  "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>",
-                  "longDescription": "",
+                  "shortDescription": "<p> Skip generating source maps.</p>",
+                  "longDescription": "<p>Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code\ninstead of your source files.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -64873,8 +64988,8 @@
                 {
                   "name": "outputSourceMapsTo",
                   "required": false,
-                  "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>",
-                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>",
+                  "shortDescription": "<p> Also save complete source maps to a local directory.</p>",
+                  "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original\nsource code (<code>sourcesContent</code>); the maps Stacktape deploys never do. A Lambda function&#39;s maps still go to the\nstack&#39;s deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack\ntraces point into the bundled code.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [

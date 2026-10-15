@@ -24,8 +24,13 @@ Never weaken these checks to make a canary run on a convenient machine or accoun
 
 ## Packaging canary
 
-This deploys the two-Lambda fixture in `_test-stacks/packaging-smoke`, invokes it, proves an exact redeploy is a no-op,
-changes one environment value without changing code/layer identity, and deletes the stack and owned log groups.
+This deploys the Lambda fixture in `_test-stacks/packaging-smoke` (two functions sharing a layer, one packaged on its
+own), invokes it, proves an exact redeploy is a no-op, changes one environment value without changing code/layer
+identity, and deletes the stack and owned log groups. It also checks that no deployed function or layer ZIP carries a
+`.map`, that the deployment bucket holds their map bundles without source code, and that a deliberate error (`?fail=1`),
+logged by the real Lambda runtime from the layer and from a bundle, maps through those bundles to its source line, in an
+execution environment that started after the function's `LastModified`. When the organization has several connected
+accounts, set `STP_AWS_CANARY_AWS_ACCOUNT` to the connection name of the expected account.
 
 ```sh
 export STACKTAPE_API_KEY='<development API key>'

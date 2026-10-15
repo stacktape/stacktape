@@ -264,7 +264,7 @@ const getBatchJobDefinitionContainerProperties = ({
     packagingType,
     entryfilePath,
     nodeVersion,
-    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'container')
   });
   const secrets = (workload.container.secrets || []).map(({ name: secretName, valueFrom }) => ({
     Name: secretName,

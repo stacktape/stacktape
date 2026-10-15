@@ -4,6 +4,7 @@ import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { getNumericVersion } from '@utils/versioning';
 
 import { initializeRollbackOperation } from '../_utils/initialization';
+import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
 
 type RollbackOperation = Awaited<ReturnType<typeof initializeRollbackOperation>>;
 
@@ -207,7 +208,9 @@ export const executeRollbackOperation = async ({
   // Prepare rollback template: download old template, patch version output, re-upload
   progress.setPhase('DEPLOY');
   const newVersion = stack.nextVersion;
-  const templateUrl = await deploymentArtifacts.prepareRollbackTemplate(targetVersion, newVersion);
+  const { templateUrl, template } = await deploymentArtifacts.prepareRollbackTemplate(targetVersion, newVersion);
+  // The restored code keeps its digests, so the maps stored with the release still describe it.
+  const sourceMapManifest = await recordSourceMapsBeforeSwitch(template);
 
   const spinner = tui.createSpinner({
     text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackName)}`
@@ -220,6 +223,9 @@ export const executeRollbackOperation = async ({
   } catch (err) {
     spinner.error(`Rollback deployment failed`);
     throw err;
+  } finally {
+    // Records what the rollback switched, also when it failed partway. It never throws.
+    await recordSourceMapActivation(sourceMapManifest);
   }
 
   // Restore bucket-synced content if versioning manifests are available

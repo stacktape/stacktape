@@ -150,16 +150,43 @@ describe('ECMAScript deployment-package file selection', () => {
   });
 });
 
-describe('the source map a Lambda ZIP ships', () => {
-  test('names the original file without carrying its text', async () => {
-    const cwd = await createProject({ 'handler.ts': 'export default async () => ({ statusCode: 200 });' });
+describe('the source maps of a Lambda ZIP', () => {
+  const handlerSource = "export default async () => {\n  throw new Error('bad order');\n};\n";
+  type Bundle = { files: Record<string, { sources: string[]; sourcesContent?: unknown }> };
 
-    const result = await bundle(cwd);
+  test('stay outside the package, under the runtime path of their code, without its text', async () => {
+    const cwd = await createProject({ 'handler.ts': handlerSource });
+
+    const result = await bundle(cwd, { minify: true });
+
+    expect(existsSync(`${result.distIndexFilePath}.map`)).toBe(false);
+    const sourceMaps = JSON.parse(await Bun.file(result.sourceMapsPath!).text()) as Bundle;
+    expect(Object.keys(sourceMaps.files)).toEqual(['/var/task/index.js']);
+    expect(sourceMaps.files['/var/task/index.js']!.sources).toContain('handler.ts');
+    expect(JSON.stringify(sourceMaps)).not.toContain('bad order');
+  });
+
+  test('are part of the digest: a change that moves only the original lines deploys again', async () => {
+    const first = await createProject({ 'handler.ts': handlerSource });
+    const shifted = await createProject({ 'handler.ts': `// a comment shifts every line\n${handlerSource}` });
+
+    const [before, after] = [await bundle(first, { minify: true }), await bundle(shifted, { minify: true })];
+
+    expect(await Bun.file(after.distIndexFilePath).text()).toBe(await Bun.file(before.distIndexFilePath).text());
+    expect(await Bun.file(after.sourceMapsPath!).text()).not.toBe(await Bun.file(before.sourceMapsPath!).text());
+    expect(after.digest).not.toBe(before.digest);
+  });
+
+  test('stay in the package, without the source text, when the configuration keeps them there', async () => {
+    const cwd = await createProject({ 'handler.ts': handlerSource });
+
+    const result = await bundle(cwd, { keepSourceMapsInPackage: true });
     const map = JSON.parse(await Bun.file(`${result.distIndexFilePath}.map`).text()) as {
       sources: string[];
       sourcesContent?: unknown;
     };
 
+    expect(result.sourceMapsPath).toBeUndefined();
     expect(map.sources).toContain('handler.ts');
     expect(map).not.toHaveProperty('sourcesContent');
   });

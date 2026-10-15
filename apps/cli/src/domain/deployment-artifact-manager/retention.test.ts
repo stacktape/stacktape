@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { DeploymentArtifactUsage } from './retention';
-import { selectObsoleteArtifacts } from './retention';
+import { keepLayersOfRetainedReleases, selectObsoleteArtifacts } from './retention';
 
 const noUsage: DeploymentArtifactUsage = {
   uploadedObjects: [],
@@ -51,5 +51,40 @@ describe('what a deployment may delete', () => {
 
     expect(namesOf(selectObsoleteArtifacts({ artifacts, usage: noUsage }))).toEqual(['api/v1.zip']);
     expect(namesOf(selectObsoleteArtifacts({ artifacts, usage: withUpload }))).toEqual(['api/v1.zip', 'api/v2.zip']);
+  });
+});
+
+describe('shared layers of retained releases', () => {
+  const bucket = 'stp-deployment-bucket-abc123';
+  const layerOf = (s3Key: string) => ({
+    Resources: {
+      SharedChunkLayer1: {
+        Type: 'AWS::Lambda::LayerVersion',
+        Properties: { Content: { S3Bucket: bucket, S3Key: s3Key } }
+      }
+    }
+  });
+
+  test('a layer the hash-ordered window drops stays while a retained release uses it', () => {
+    // previousVersionsToKeep: 1 keeps releases v2 and v3. Their layers are `b…` and `f…`; the window over hashes
+    // keeps `f…` and `e…` and would drop `b…`, which v2 still needs.
+    const artifacts = ['a1', 'b2', 'e5', 'f6'].map((hash) => ({
+      name: 'shared-layer-1',
+      version: hash,
+      s3Key: `shared-layer-1/${hash}.zip`
+    }));
+    const obsolete = selectObsoleteArtifacts({
+      artifacts,
+      usage: { ...noUsage, versionsToKeepPerName: 2, reusedS3Keys: ['shared-layer-1/f6.zip'] }
+    });
+    expect(namesOf(obsolete)).toEqual(['shared-layer-1/a1.zip', 'shared-layer-1/b2.zip']);
+
+    const kept = keepLayersOfRetainedReleases({
+      obsolete,
+      retainedTemplates: [layerOf('shared-layer-1/b2.zip'), layerOf('shared-layer-1/f6.zip')],
+      deploymentBucketName: bucket
+    });
+
+    expect(namesOf(kept)).toEqual(['shared-layer-1/a1.zip']);
   });
 });
