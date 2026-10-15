@@ -583,11 +583,13 @@ class DeploymentArtifactManager {
       }
       throw err;
     }
-    try {
-      await Promise.all([this.uploadCloudFormationTemplate(), this.uploadStacktapeTemplate()]);
-    } catch (err) {
+    // Both uploads settle before the marker can be removed, so a failed attempt never writes after another deployment
+    // claimed the release.
+    const uploads = await Promise.allSettled([this.uploadCloudFormationTemplate(), this.uploadStacktapeTemplate()]);
+    const failedUpload = uploads.find((upload): upload is PromiseRejectedResult => upload.status === 'rejected');
+    if (failedUpload) {
       await this.deleteObjectsFromDeploymentBucket([markerKey]).catch(() => {});
-      throw err;
+      throw failedUpload.reason;
     }
     this.successfullyCreatedObjects.push({ s3Key: markerKey, name: FAST_RELEASE_MARKER_NAME });
   };

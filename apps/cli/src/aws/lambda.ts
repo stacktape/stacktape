@@ -1,3 +1,4 @@
+import { pRateLimit } from 'p-ratelimit';
 import type { LambdaClient } from '@aws-sdk/client-lambda';
 import {
   GetFunctionCommand,
@@ -20,6 +21,11 @@ export type InvokeLambdaReturnValue = Omit<import('@aws-sdk/client-lambda').Invo
 };
 
 export class AwsLambda {
+  /**
+   * Status reads of all functions a deployment waits for share one budget, well below Lambda's GetFunction quota of 100
+   * requests per second, so a stack that updates many functions at once is not throttled.
+   */
+  readonly #readFunctionStatus = pRateLimit({ interval: 1000, rate: 25, concurrency: 10 });
   readonly #createClient: () => LambdaClient;
   readonly #getErrorHandler: ErrorHandlerFactory;
 
@@ -140,9 +146,9 @@ export class AwsLambda {
     const deadline = Date.now() + maxWaitTimeMs;
     for (let delayMs = 250; ; delayMs = Math.min(delayMs * 1.5, 1000)) {
       await sleep(delayMs);
-      const { Configuration } = await this.#createClient()
-        .send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
-        .catch(errorHandler);
+      const { Configuration } = await this.#readFunctionStatus(() =>
+        this.#createClient().send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+      ).catch(errorHandler);
       const { LastUpdateStatus, LastUpdateStatusReason } = Configuration ?? {};
       if (LastUpdateStatus === 'Successful') {
         return;
