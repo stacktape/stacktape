@@ -340,7 +340,11 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     Object.assign(lambdaFunctionResource.Properties, {
       VpcConfig: {
         SecurityGroupIds: [ref(securityGroupLogicalName)],
-        SubnetIds: vpcManager.getPublicSubnetIds()
+        // A function in the public subnets has no internet (no public IP). Once the stack has private subnets with
+        // NAT, every VPC function uses them and gets outbound internet through the NAT.
+        SubnetIds: configManager.allResourcesRequiringPrivateSubnets.length
+          ? vpcManager.getPrivateSubnetIds()
+          : vpcManager.getPublicSubnetIds()
       }
     });
   } else if (accessToResourcesPotentiallyRequiringSecurityGroupCreation.length) {

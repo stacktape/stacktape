@@ -16,6 +16,7 @@ import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-re
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
   getLegacySsmParameterStoreStackPrefix,
+  getNatInstanceHeartbeatParameterName,
   getSsmParameterStoreStackPrefix
 } from '@stacktape/naming/ssm-parameter-paths';
 import { tagNames } from '@stacktape/naming/tag-names';
@@ -612,6 +613,61 @@ export const getStacktapeServiceLambdaCustomTaggingInducedStatement = (): StpIam
         'ec2:CreateTags',
         'ec2:DescribeNetworkInterfaces'
       ]
+    }
+  ];
+};
+
+/**
+ * What the NAT failover handler may touch: the stack's own private route tables, NAT Auto Scaling groups and heartbeat
+ * parameters. Describe calls have no resource-level scope.
+ */
+export const getStacktapeServiceLambdaNatFailoverStatements = ({
+  activeConfig,
+  stackContext
+}: {
+  activeConfig: ConfigManager;
+  stackContext: StackContext;
+}): StpIamRoleStatement[] => {
+  const { kind, availabilityZones } = activeConfig.natSettings;
+  if (kind !== 'instance' || availabilityZones < 2 || !activeConfig.allResourcesRequiringPrivateSubnets.length) {
+    return [];
+  }
+  const { stackName, region, accountId } = stackContext;
+  const partition = getAwsPartition(region);
+  return [
+    {
+      Resource: ['*'],
+      Action: [
+        'ec2:DescribeRouteTables',
+        'ec2:DescribeInstanceStatus',
+        'ec2:DescribeInstances',
+        'autoscaling:DescribeAutoScalingGroups'
+      ]
+    },
+    {
+      Resource: [`arn:${partition}:ec2:${region}:${accountId}:route-table/*`],
+      Action: ['ec2:ReplaceRoute'],
+      Condition: { StringEquals: { [`aws:ResourceTag/${tagNames.stackName()}`]: stackName } }
+    },
+    {
+      // Auto Scaling group ARNs carry a generated id, so the stack tag is the usable scope (as for ECS redeploys).
+      Resource: ['*'],
+      Action: ['autoscaling:CompleteLifecycleAction'],
+      Condition: { StringEquals: { [`autoscaling:ResourceTag/${tagNames.stackName()}`]: stackName } }
+    },
+    {
+      Resource: Array.from(
+        { length: availabilityZones },
+        (_, azIndex) =>
+          `arn:${partition}:ssm:${region}:${accountId}:parameter${getNatInstanceHeartbeatParameterName({ stackName, region, azIndex })}`
+      ),
+      Action: ['ssm:GetParameter', 'ssm:GetParameters']
+    },
+    {
+      // The marker tag that remembers an open failover incident lives on the zone's own interface.
+      Resource: [`arn:${partition}:ec2:${region}:${accountId}:network-interface/*`],
+      Action: ['ec2:CreateTags', 'ec2:DeleteTags'],
+      Condition: { StringEquals: { [`aws:ResourceTag/${tagNames.stackName()}`]: stackName } }
     }
   ];
 };

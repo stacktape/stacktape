@@ -63,6 +63,34 @@ pnpm test:aws --aws-scenario=lambda-alias-configuration-update
 The project name defaults to a new `v4aliascanary-` name and the region to `eu-west-1`. If cleanup does not finish, the
 canary prints one exact `--cleanup-only` command for the same run.
 
+## NAT instance canaries
+
+Two runners for `stackConfig.nat` on `_test-stacks/nat-instance` (one VPC function that returns the public IP its
+request left through, so every call names the zone that served it). Both use the alias canary's guardrails and
+environment contract with the `STP_AWS_NAT_CANARY_` prefix, and both delete the stack and verify with AWS that the
+stack, NAT interfaces, Elastic IPs, instances, heartbeat parameters, function and log groups are gone.
+
+- `test:real-aws-nat-canary` (scenario `nat-instance-failover`): deploys `ha-ec2`, terminates one instance while
+  invoking every two seconds and measures the reroute, the replacement and the failed-call window, then runs a rolling
+  replacement (a new `instanceSize`) and an unchanged redeploy.
+- `test:real-aws-nat-switch-canary` (scenario `nat-kind-switch`): deploys `gateway`, switches to `ha-ec2` (the VPC,
+  subnets and route tables must survive, the gateways must be gone), breaks forwarding on one instance so the heartbeat
+  and probe path has to recover, then switches to `ec2`.
+
+```sh
+export STP_AWS_NAT_CANARY_DEPLOY=1
+export STP_AWS_NAT_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_NAT_CANARY_PROFILE='<profile>'
+export STP_AWS_NAT_CANARY_OWNER="local-nat-$(date -u +%s)"
+export STP_AWS_NAT_CANARY_STATE_FILE="$(pwd)/.stacktape-nat-canary-${STP_AWS_NAT_CANARY_OWNER}.json"
+export STP_AWS_NAT_CANARY_REPORT="$(pwd)/.stacktape-nat-canary-${STP_AWS_NAT_CANARY_OWNER}.report.json"
+pnpm test:aws --aws-scenario=nat-instance-failover
+```
+
+Each run takes 25 to 35 minutes and two `t4g.nano` or `t4g.micro` instances (plus two NAT gateways for the first few
+minutes of the switch scenario). The report records every measured window. A NAT instance that fails to boot tags
+itself with `stacktape:nat-failure` and the reason; the report's cleanup section lists those tags.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its

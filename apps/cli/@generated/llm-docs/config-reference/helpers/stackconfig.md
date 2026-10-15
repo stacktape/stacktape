@@ -3,11 +3,13 @@
 ## TypeScript definition
 
 ```typescript
-import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
+import type { CloudformationTag, NatSettings, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
 
 type StackConfig = {
   /** Stop saving stack info to a local file after each deployment. */
   disableStackInfoSaving?: boolean;
+  /** NAT: outbound internet for workloads in the private subnets. */
+  nat?: StackConfigNat;
   /** Custom values to display and save after each deployment. */
   outputs?: Array<StackOutput>;
   /** Directory for the stack info JSON file. */
@@ -30,9 +32,14 @@ to return different values for different stages. */
   tags?: Array<CloudformationTag>;
   /** Stack-wide distributed tracing default. */
   tracing?: TracingOptions;
-  /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */
+  /** VPC configuration: reuse an existing VPC. */
   vpc?: VpcSettings;
 };
+
+/** Union choices used by the properties above. */
+type StackConfigNat =
+  | NatSettings
+  | "option-2";
 ```
 
 ## Property: `disableStackInfoSaving`
@@ -77,6 +84,65 @@ export default defineConfig(() => {
 
   return {
     stackConfig: { disableStackInfoSaving: true },
+    resources: { api }
+  };
+});
+```
+
+## Property: `nat`
+
+- Required: no
+- Type: `NatSettings | option-2`
+
+NAT: outbound internet for workloads in the private subnets.
+
+Who uses it:
+
+container workloads with `usePrivateSubnetsWithNAT: true` (they cannot run without it, so setting that flag
+requires `nat`);
+Lambda functions with `joinDefaultVpc: true`, which have no internet access at all until `nat` is set;
+AgentCore runtimes that connect to VPC-only resources.
+
+Pick `ec2` (one small instance, ~$7/month, no failover), `ha-ec2` (one instance per availability zone with
+automatic failover, ~$7/month per zone) or `gateway` (AWS-managed NAT Gateways, ~$32/month per zone plus
+$0.045 per GB). Switching between kinds keeps the VPC and subnets, but the public IPs change.
+
+With `vpc.reuseVpc`, the reused VPC's own NAT is used and this setting creates nothing; set it to any kind to
+place this stack's VPC functions in the reused VPC's private subnets.
+
+Choices:
+- `NatSettings` (`NatSettings`). Properties: `type: string: "ec2" | "gateway" | "ha-ec2"`, `instanceSize?: string`, `availabilityZones?: number: 2 | 3`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat: ha-ec2
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      joinDefaultVpc: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
+    joinDefaultVpc: true
+  });
+
+  return {
+    stackConfig: { nat: 'ha-ec2' },
     resources: { api }
   };
 });
@@ -338,4 +404,4 @@ export default defineConfig(() => {
 - Required: no
 - Type: `VpcSettings`
 
-VPC configuration: reuse an existing VPC or configure NAT Gateways.
+VPC configuration: reuse an existing VPC.

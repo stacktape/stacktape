@@ -395,7 +395,7 @@ export default defineConfig(() => {
 ```
 
 
-**Cost:** NAT Gateway costs ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateway availability zones (1–3) in `stackConfig.vpc.nat.availabilityZones`.
+**Cost:** the flag requires `stackConfig.nat`. `ec2` is one Stacktape-managed NAT instance (~$7/month, no failover), `ha-ec2` one per availability zone with automatic failover (~$7/month per zone, no per-GB fee, about a minute of failed outbound calls when an instance dies), `gateway` NAT Gateways (~$32/month per zone plus data processing fees); see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 **When to enable:** Only when you need fixed outbound IPs for allowlisting with external APIs or payment providers, or when your security policy requires that containers never have public IPs.
 

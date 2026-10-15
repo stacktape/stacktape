@@ -9066,8 +9066,45 @@ The following list covers resources where the `connectTo` property is available 
 When you connect to [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis), Stacktape creates security group rules that allow the consuming resource to reach the target on the correct port. Workloads that need to reach VPC-bound databases or Redis clusters must be placed in the same VPC — see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [relational database](/resources/databases/relational-database) pages for VPC placement configuration.
 
 
-> **Warning:** Lambda functions placed in a VPC lose direct internet access. If your function needs to call external APIs while also connecting to a VPC database, you can configure NAT Gateways (see `stackConfig.vpc.nat`) or use a database with internet-accessible settings for development stages.
+> **Warning:** Lambda functions placed in a VPC lose direct internet access. If your function needs to call external APIs while also connecting to a VPC database, set `stackConfig.nat` (see below) or use a database with internet-accessible settings for development stages.
 
+
+### NAT: internet access from private subnets
+
+Workloads in the private subnets reach the internet through the stack's NAT, and their outbound traffic leaves through one static Elastic IP per availability zone, which you can allowlist with external services. Three kinds of resources use it:
+
+- container workloads with `usePrivateSubnetsWithNAT: true`; they cannot run without NAT, so that flag requires `stackConfig.nat`;
+- Lambda functions (and SSR frontends) with `joinDefaultVpc: true`, which have no internet access at all until `stackConfig.nat` is set, and use it automatically once it is;
+- AgentCore runtimes that connect to a VPC-only database or Redis.
+
+`stackConfig.nat` chooses the kind of NAT:
+
+```yaml
+stackConfig:
+  nat: ha-ec2 # or ec2, or gateway
+```
+
+| | `ec2` | `ha-ec2` | `gateway` |
+| --- | --- | --- | --- |
+| What it is | One small EC2 instance (`t4g.nano` by default), managed by Stacktape | One such instance per availability zone (two by default) | AWS-managed NAT Gateway per zone |
+| Cost | About $7 per month, no per-GB charge | About $7 per month per zone, no per-GB charge | About $32 per month per zone, plus $0.045 per GB processed |
+| Throughput | 5 Gbps burst on `t4g.nano`; pick a larger `instanceSize` for sustained load | Same, per zone | Up to 100 Gbps |
+| When an instance fails | AWS replaces it; about three minutes without outbound internet | Stacktape routes that zone through another zone's instance within about a minute, then back once the replacement is healthy. Outbound calls from that zone fail during that minute and open connections are reset | AWS handles it, no visible impact |
+| Updates | The instance is replaced when a newer Amazon Linux image or a new `instanceSize` is deployed, with the same short outage | Zones are replaced one at a time, with the same short failover per zone | None needed |
+
+Use `ec2` for development stages, `ha-ec2` for production stacks whose outbound traffic is moderate and can tolerate a minute of failed outbound calls once in a long while, and `gateway` for high sustained throughput or when every minute of outbound connectivity matters. You can switch kinds on a deployed stack: the VPC, subnets and route tables stay, the previous NAT keeps serving until the new one is ready, and the switch itself only resets the connections open at that moment. The Elastic IPs change, so update any allowlists afterwards.
+
+The object form sets the instance size (`ec2`, `ha-ec2`) and the number of zones (`ha-ec2`, `gateway`):
+
+```yaml
+stackConfig:
+  nat:
+    type: ha-ec2
+    instanceSize: t4g.small
+    availabilityZones: 3
+```
+
+Each failover raises an incident in the Console that says what happened, which zone was affected and that it recovered on its own, so nobody has to go looking in AWS. Stacktape reaches the instances through AWS Systems Manager only; they have no SSH access.
 
 ## FAQ
 
@@ -9093,7 +9130,7 @@ No — `connectTo` grants a fixed set of permissions per resource type and is al
 
 ### Why can't my Lambda function reach the database I connected to?
 
-`connectTo` opens the security group rules between the consuming resource and a [relational database](/resources/databases/relational-database) or [Redis cluster](/resources/databases/redis), but the consumer still has to sit in the same VPC to use them. A Lambda function that isn't placed in the VPC will have the `STP_*` variables and an open security group rule yet still fail to connect. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement. Note that putting a Lambda in a VPC removes its direct internet access — use a NAT Gateway (`stackConfig.vpc.nat`) if it also calls external APIs.
+`connectTo` opens the security group rules between the consuming resource and a [relational database](/resources/databases/relational-database) or [Redis cluster](/resources/databases/redis), but the consumer still has to sit in the same VPC to use them. A Lambda function that isn't placed in the VPC will have the `STP_*` variables and an open security group rule yet still fail to connect. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement. Note that putting a Lambda in a VPC removes its direct internet access — set `stackConfig.nat` if it also calls external APIs.
 
 ---
 
@@ -19274,7 +19311,7 @@ For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-git
 
 ## Avoid unnecessary NAT Gateways
 
-A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting or private subnet egress for a workload that needs it. Most workloads don't need one.
+A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 For details on VPC networking and private subnet configuration, see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [multi-container workload](/resources/compute/multi-container-workload) resource pages.
 
@@ -28476,7 +28513,7 @@ A Lambda function is the right default for event-driven code that finishes withi
 
 - **Tasks longer than 15 minutes** — the maximum `timeout` is `900` seconds. For processing that can exceed 15 minutes, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
 - **Always-on HTTP servers** — use a [web service](/resources/compute/web-service) when you need a continuously running container or a container-native web framework.
-- **VPC access with internet egress** — `joinDefaultVpc` gives VPC access but removes direct internet access (S3 and DynamoDB stay reachable via VPC endpoints). If you need both, use a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service).
+- **VPC access with heavy internet egress** — `joinDefaultVpc` removes direct internet access (S3 and DynamoDB stay reachable via VPC endpoints). Setting `stackConfig.nat` gives VPC functions internet access through NAT; for a workload that pushes a lot of traffic out, a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) in the public subnets avoids the NAT entirely.
 - **Persistent local state** — `/tmp` is ephemeral per invocation. Use [EFS](/resources/storage/efs-filesystem), an [S3 bucket](/resources/storage/s3-bucket), or a database for persistent data.
 - **Custom OS or daemon requirements** — Stacktape Lambda packaging builds a zip from source (`js-bundle`, `buildpack`) or uses your own zip (`custom-artifact`). If you need image-level control over system packages or daemons, use a [container workload](/resources/compute/multi-container-workload) or [web service](/resources/compute/web-service).
 
@@ -28930,7 +28967,9 @@ export default defineConfig(() => {
 
 A Lambda function does not need VPC attachment by default. Set `joinDefaultVpc: true` only when the function must reach VPC-only resources such as a [relational database](/resources/databases/relational-database) with `accessibilityMode: 'vpc'`, a [Redis cluster](/resources/databases/redis), or an [EFS filesystem](/resources/storage/efs-filesystem).
 
-The main tradeoff: when `joinDefaultVpc` is enabled, the function loses direct outbound internet access. Stacktape creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (payment providers, AI services, SaaS webhooks) will fail. If you need both VPC access and internet egress, use a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) instead.
+The main tradeoff: when `joinDefaultVpc` is enabled, the function loses direct outbound internet access. Stacktape creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (payment providers, AI services, SaaS webhooks) will fail.
+
+To give VPC functions internet access, set `stackConfig.nat`. Once it is set, every function with `joinDefaultVpc` is placed in the private subnets and reaches the internet through the NAT. Three kinds are available: `ec2` (one small Stacktape-managed instance, about $7 per month, no failover), `ha-ec2` (one instance per availability zone with automatic failover, about $7 per month per zone) and `gateway` (managed NAT Gateways, about $32 per month per zone plus $0.045 per GB). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking) for how to choose. Without it, `stacktape deploy` prints a warning for every VPC function that has no internet access. If you need VPC access and push a lot of traffic to the internet, a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) in the public subnets avoids NAT costs.
 
 ### Connecting to resources
 
@@ -29955,7 +29994,7 @@ By default, workload containers run in public subnets with direct internet acces
 Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outbound traffic routes through a NAT Gateway, giving you a static outbound IP that external services can whitelist. This is useful when third-party payment gateways, data providers, or partner APIs require you to send traffic from a fixed IP address.
 
 
-> **Warning:** NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.
+> **Warning:** `usePrivateSubnetsWithNAT` requires `stackConfig.nat`: `ec2` or `ha-ec2` (Stacktape-managed NAT instances, about $7/month per zone) or `gateway` (NAT Gateways, about $32/month per zone plus data processing fees). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 
 ## Logging
@@ -30445,7 +30484,7 @@ export default defineConfig(() => {
 By default, private service containers run in public subnets with direct internet access for outbound calls. Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outbound traffic routes through a NAT Gateway. This gives you a static outbound IP that external services can whitelist.
 
 
-> **Warning:** NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.
+> **Warning:** `usePrivateSubnetsWithNAT` requires `stackConfig.nat`: `ec2` or `ha-ec2` (Stacktape-managed NAT instances, about $7/month per zone) or `gateway` (NAT Gateways, about $32/month per zone plus data processing fees). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 
 Leave `usePrivateSubnetsWithNAT` unset for ordinary services that only need outbound internet access. Enable it when an external API, partner, or compliance rule requires a fixed egress IP for whitelisting.
@@ -30951,7 +30990,7 @@ The `deployment` property enables gradual traffic shifting when `loadBalancing.t
 
 ## Private subnets
 
-A Stacktape web service runs in the default networking mode unless you set `usePrivateSubnetsWithNAT: true`. Private subnets with NAT remove the container's public IP and route outbound traffic through NAT Gateways, which is useful when external APIs require fixed allowlisted IP addresses.
+A Stacktape web service runs in the default networking mode unless you set `usePrivateSubnetsWithNAT: true`. Private subnets with NAT remove the container's public IP and route outbound traffic through the stack's NAT, which is useful when external APIs require fixed allowlisted IP addresses. The flag requires `stackConfig.nat`, which picks the NAT: `ec2` or `ha-ec2` (small Stacktape-managed instances, about $7 a month per zone) or `gateway` (managed NAT Gateways, about $32 a month per zone plus a per-GB fee); see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 
 Example (TypeScript):
@@ -30968,17 +31007,13 @@ export default defineConfig(() => {
 
   return {
     resources: { api },
-    stackConfig: {
-      vpc: {
-        nat: { availabilityZones: 2 }
-      }
-    }
+    stackConfig: { nat: 'ha-ec2' }
   };
 });
 ```
 
 
-`stackConfig.vpc.nat.availabilityZones` controls whether one, two, or three availability zones get NAT Gateways; the default is `2`. NAT Gateways add approximately ~$32/month each plus data processing fees, so keep the default networking mode unless static outbound IPs or private subnet placement are real requirements.
+With `ha-ec2` and `gateway`, `stackConfig.nat.availabilityZones` controls whether two or three availability zones get their own NAT; the default is `2`. NAT Gateways add approximately ~$32/month each plus data processing fees, so keep the default networking mode unless static outbound IPs or private subnet placement are real requirements.
 
 ## Logging
 
@@ -31497,7 +31532,7 @@ export default defineConfig(() => {
 ```
 
 
-**Cost:** NAT Gateway costs ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateway availability zones (1–3) in `stackConfig.vpc.nat.availabilityZones`.
+**Cost:** the flag requires `stackConfig.nat`. `ec2` is one Stacktape-managed NAT instance (~$7/month, no failover), `ha-ec2` one per availability zone with automatic failover (~$7/month per zone, no per-GB fee, about a minute of failed outbound calls when an instance dies), `gateway` NAT Gateways (~$32/month per zone plus data processing fees); see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 **When to enable:** Only when you need fixed outbound IPs for allowlisting with external APIs or payment providers, or when your security policy requires that containers never have public IPs.
 
@@ -34503,7 +34538,7 @@ return { resources: { site } };
 
 Increase `memory` when SSR routes do meaningful server-side work, because Lambda CPU scales with memory and the source notes that `1,769` MB corresponds to `1` vCPU. Lowering `timeout` can fail slow requests earlier; leave it at the default `30` seconds when routes may need the full allowed execution window.
 
-Set `joinDefaultVpc` only when the SSR function must connect to VPC resources such as databases or Redis. Joining the VPC removes direct internet access from the function, so keep the default for public APIs, third-party HTTP calls, and sites that only need public outbound traffic. If the SSR function needs both VPC resources and outbound internet, configure NAT gateways via `stackConfig.vpc.nat`.
+Set `joinDefaultVpc` only when the SSR function must connect to VPC resources such as databases or Redis. Joining the VPC removes direct internet access from the function, so keep the default for public APIs, third-party HTTP calls, and sites that only need public outbound traffic. If the SSR function needs both VPC resources and outbound internet, set `stackConfig.nat` (see [VPC and networking](/configuration/connecting-resources#vpc-and-networking)).
 
 ## Custom domains
 
@@ -34584,7 +34619,7 @@ return { resources: { mediaBucket, site } };
 
 With the `mediaBucket` resource name shown above, the Astro SSR function receives `STP_MEDIA_BUCKET_NAME` and `STP_MEDIA_BUCKET_ARN` as environment variables. Use `environment` for application settings and directives such as `$Secret()` or `$ResourceParam()`, and use `iamRoleStatements` only for AWS permissions not covered by `connectTo`.
 
-When connecting to VPC resources such as relational databases or Redis, enable `serverLambda.joinDefaultVpc` on the Astro resource so the SSR function can reach those resources over the private network. Note that joining the VPC removes direct internet access from the function — if the SSR function also needs outbound internet, configure NAT gateways via `stackConfig.vpc.nat`.
+When connecting to VPC resources such as relational databases or Redis, enable `serverLambda.joinDefaultVpc` on the Astro resource so the SSR function can reach those resources over the private network. Note that joining the VPC removes direct internet access from the function — if the SSR function also needs outbound internet, set `stackConfig.nat` (see [VPC and networking](/configuration/connecting-resources#vpc-and-networking)).
 
 ## Dev mode
 
@@ -34638,7 +34673,7 @@ Add the database resource name to `connectTo` on the Astro resource and enable `
 
 ### Why can't my Astro SSR function reach the internet after connecting to a database?
 
-Enabling `serverLambda.joinDefaultVpc` (required to reach VPC resources like databases or Redis) removes the function's direct internet access. If the SSR routes also make outbound HTTP calls to third-party APIs, configure NAT gateways via `stackConfig.vpc.nat`. Leave `joinDefaultVpc` off for sites that only need public outbound traffic.
+Enabling `serverLambda.joinDefaultVpc` (required to reach VPC resources like databases or Redis) removes the function's direct internet access. If the SSR routes also make outbound HTTP calls to third-party APIs, set `stackConfig.nat` (see [VPC and networking](/configuration/connecting-resources#vpc-and-networking)). Leave `joinDefaultVpc` off for sites that only need public outbound traffic.
 
 ### How much does an Astro SSR app cost on AWS?
 
@@ -90272,33 +90307,39 @@ Route: `/config-reference/helpers`
 
 ```typescript
 type NatSettings = {
-  /** How many availability zones get a NAT Gateway (~$32/month each). */
-  availabilityZones?: 1 | 2 | 3;
+  /** Which kind of NAT the stack runs. */
+  type: "ec2" | "gateway" | "ha-ec2";
+  /** How many availability zones get their own NAT (`ha-ec2` and `gateway` only). */
+  availabilityZones?: 2 | 3;
+  /** EC2 instance size of the NAT instances (`ec2` and `ha-ec2` only). */
+  instanceSize?: string;
 };
 ```
 
-## Property: `availabilityZones`
+## Property: `type`
 
-- Required: no
-- Type: `number: 1 | 2 | 3`
-- Default: `2`
+- Required: yes
+- Type: `string: "ec2" | "gateway" | "ha-ec2"`
 
-How many availability zones get a NAT Gateway (~$32/month each).
+Which kind of NAT the stack runs.
 
-**1**: Cheapest, but no redundancy if that AZ goes down.
-**2**: Balanced cost and availability.
-**3**: Highest availability.
+**ec2**: one small EC2 instance (`t4g.nano` by default) managed by Stacktape. About $7/month, no per-GB
+charge. If the instance dies, AWS replaces it, which takes about three minutes without outbound internet.
+**ha-ec2**: one such instance per availability zone (two by default) with automatic failover. About $7/month
+per zone. When an instance fails, Stacktape routes its zone through another zone's instance within about a
+minute and routes back once the replacement is healthy; outbound calls from that zone fail during that minute
+and open connections are reset.
+**gateway**: AWS-managed NAT Gateways, one per availability zone. About $32/month per zone plus $0.045 per GB
+processed. No instances, scales to 100 Gbps; the choice for high sustained throughput and strict uptime.
 
-Each NAT Gateway gets a static Elastic IP that persists across deployments —
-useful for IP whitelisting with external services.
+The shorthand `nat: ha-ec2` is the same as `nat: { type: ha-ec2 }`.
 
 ### Example 1 (yaml)
 
 ```yaml
 stackConfig:
-  vpc:
-    nat:
-      availabilityZones: 1
+  nat:
+    type: ha-ec2
 resources:
   worker:
     type: worker-service
@@ -90326,7 +90367,113 @@ export default defineConfig(() => {
   });
 
   return {
-    stackConfig: { vpc: { nat: { availabilityZones: 1 } } },
+    stackConfig: { nat: { type: 'ha-ec2' } },
+    resources: { worker }
+  };
+});
+```
+
+## Property: `availabilityZones`
+
+- Required: no
+- Type: `number: 2 | 3`
+- Default: `2`
+
+How many availability zones get their own NAT (`ha-ec2` and `gateway` only).
+
+**2**: Balanced cost and availability.
+**3**: Highest availability.
+
+Each NAT gets a static Elastic IP that persists across deployments —
+useful for IP whitelisting with external services.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat:
+    type: gateway
+    availabilityZones: 3
+resources:
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/worker.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      usePrivateSubnetsWithNAT: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    usePrivateSubnetsWithNAT: true
+  });
+
+  return {
+    stackConfig: { nat: { type: 'gateway', availabilityZones: 3 } },
+    resources: { worker }
+  };
+});
+```
+
+## Property: `instanceSize`
+
+- Required: no
+- Type: `string`
+- Default: `t4g.nano`
+
+EC2 instance size of the NAT instances (`ec2` and `ha-ec2` only).
+
+Must be an arm64 (Graviton) size, for example `t4g.nano`, `t4g.micro`, `t4g.small` or `c7gn.medium`.
+`t4g.nano` bursts to 5 Gbps and is enough for most applications; pick a larger size for sustained
+high throughput.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat:
+    type: ha-ec2
+    instanceSize: t4g.small
+resources:
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/worker.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      usePrivateSubnetsWithNAT: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    usePrivateSubnetsWithNAT: true
+  });
+
+  return {
+    stackConfig: { nat: { type: 'ha-ec2', instanceSize: 't4g.small' } },
     resources: { worker }
   };
 });
@@ -91037,11 +91184,13 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
+import type { CloudformationTag, NatSettings, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
 
 type StackConfig = {
   /** Stop saving stack info to a local file after each deployment. */
   disableStackInfoSaving?: boolean;
+  /** NAT: outbound internet for workloads in the private subnets. */
+  nat?: StackConfigNat;
   /** Custom values to display and save after each deployment. */
   outputs?: Array<StackOutput>;
   /** Directory for the stack info JSON file. */
@@ -91064,9 +91213,14 @@ to return different values for different stages. */
   tags?: Array<CloudformationTag>;
   /** Stack-wide distributed tracing default. */
   tracing?: TracingOptions;
-  /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */
+  /** VPC configuration: reuse an existing VPC. */
   vpc?: VpcSettings;
 };
+
+/** Union choices used by the properties above. */
+type StackConfigNat =
+  | NatSettings
+  | "option-2";
 ```
 
 ## Property: `disableStackInfoSaving`
@@ -91111,6 +91265,65 @@ export default defineConfig(() => {
 
   return {
     stackConfig: { disableStackInfoSaving: true },
+    resources: { api }
+  };
+});
+```
+
+## Property: `nat`
+
+- Required: no
+- Type: `NatSettings | option-2`
+
+NAT: outbound internet for workloads in the private subnets.
+
+Who uses it:
+
+container workloads with `usePrivateSubnetsWithNAT: true` (they cannot run without it, so setting that flag
+requires `nat`);
+Lambda functions with `joinDefaultVpc: true`, which have no internet access at all until `nat` is set;
+AgentCore runtimes that connect to VPC-only resources.
+
+Pick `ec2` (one small instance, ~$7/month, no failover), `ha-ec2` (one instance per availability zone with
+automatic failover, ~$7/month per zone) or `gateway` (AWS-managed NAT Gateways, ~$32/month per zone plus
+$0.045 per GB). Switching between kinds keeps the VPC and subnets, but the public IPs change.
+
+With `vpc.reuseVpc`, the reused VPC's own NAT is used and this setting creates nothing; set it to any kind to
+place this stack's VPC functions in the reused VPC's private subnets.
+
+Choices:
+- `NatSettings` (`NatSettings`). Properties: `type: string: "ec2" | "gateway" | "ha-ec2"`, `instanceSize?: string`, `availabilityZones?: number: 2 | 3`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat: ha-ec2
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      joinDefaultVpc: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
+    joinDefaultVpc: true
+  });
+
+  return {
+    stackConfig: { nat: 'ha-ec2' },
     resources: { api }
   };
 });
@@ -91372,7 +91585,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `VpcSettings`
 
-VPC configuration: reuse an existing VPC or configure NAT Gateways.
+VPC configuration: reuse an existing VPC.
 
 ---
 
@@ -91856,25 +92069,13 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { NatSettings, VpcReuseConfig } from 'stacktape';
+import type { VpcReuseConfig } from 'stacktape';
 
 type VpcSettings = {
-  /** NAT Gateway configuration for private subnets. */
-  nat?: NatSettings;
   /** Share a VPC with another Stacktape stack or use an existing VPC. */
   reuseVpc?: VpcReuseConfig;
 };
 ```
-
-## Property: `nat`
-
-- Required: no
-- Type: `NatSettings`
-
-NAT Gateway configuration for private subnets.
-
-Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`.
-Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
 
 ## Property: `reuseVpc`
 
@@ -98798,7 +98999,7 @@ type ContainerWorkloadProps = {
   scaling?: ContainerWorkloadScaling;
   /** Distributed tracing for this workload. */
   tracing?: ContainerWorkloadTracing;
-  /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
 };
 
@@ -99288,13 +99489,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-Useful for IP whitelisting with third-party APIs. NAT Gateway costs ~$32/month per AZ + data processing fees.
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
+
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   app:
     type: multi-container-workload
@@ -99324,7 +99531,7 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 },
     usePrivateSubnetsWithNAT: true
   });
-  return { resources: { app } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { app } };
 });
 ```
 
@@ -104297,7 +104504,7 @@ export default defineConfig(() => {
   stopTimeout?: number;
   /** Distributed tracing for this service. */
   tracing?: PrivateServiceTracing;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -105124,18 +105331,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -105162,7 +105370,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 
@@ -127623,7 +127831,7 @@ export default defineConfig(() => {
   tracing?: WebServiceTracing;
   /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */
   useFirewall?: string;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -128772,18 +128980,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -128810,7 +129019,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 
@@ -129286,7 +129495,7 @@ export default defineConfig(() => {
   stopTimeout?: number;
   /** Distributed tracing for this service. */
   tracing?: WorkerServiceTracing;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -129950,18 +130159,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -129988,7 +130198,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 

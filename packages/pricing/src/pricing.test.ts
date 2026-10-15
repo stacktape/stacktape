@@ -237,6 +237,70 @@ describe('estimator', () => {
     });
   });
 
+  test('prices NAT gateways per zone when a container uses the private subnets', async () => {
+    commands.length = 0;
+    const result = await getCumulatedPriceInfoForStack({
+      dynamoDbTableName: 'pricing-table',
+      region: 'us-east-1',
+      stackConfig: {
+        stackConfig: { nat: 'gateway' },
+        resources: {
+          worker: {
+            type: 'worker-service',
+            properties: { usePrivateSubnetsWithNAT: true } as never
+          }
+        }
+      }
+    });
+    const nat = result.resourcesBreakdown['vpc nat'];
+    expect(nat).toBeDefined();
+    expect(nat.customComment).toContain('2 NAT Gateways');
+    expect(commands.at(-1)?.input).toEqual({
+      RequestItems: {
+        'pricing-table': { Keys: [{ productName: 'VPC-nat-gateway' }, { productName: 'EC2-public-ip' }] }
+      }
+    });
+    // The fake table prices every non-instance product at $0.005/hr: (2 gateways + 2 public IPs) × 720 hours.
+    expect(nat.priceInfo.totalMonthlyFlat).toBe(14.4);
+  });
+
+  test('prices NAT instances per zone and counts a VPC function as a NAT consumer once nat is configured', async () => {
+    commands.length = 0;
+    const result = await getCumulatedPriceInfoForStack({
+      dynamoDbTableName: 'pricing-table',
+      region: 'us-east-1',
+      stackConfig: {
+        stackConfig: { nat: 'ec2' },
+        resources: {
+          api: {
+            type: 'function',
+            properties: { joinDefaultVpc: true } as never
+          }
+        }
+      }
+    });
+    const nat = result.resourcesBreakdown['vpc nat'];
+    expect(nat.customComment).toContain('1 NAT instance ');
+    expect(commands.at(-1)?.input).toEqual({
+      RequestItems: {
+        'pricing-table': { Keys: [{ productName: 'EC2-instance-t4g.nano-Linux' }, { productName: 'EC2-public-ip' }] }
+      }
+    });
+  });
+
+  test('has no NAT entry when nothing uses the private subnets', async () => {
+    commands.length = 0;
+    const result = await getCumulatedPriceInfoForStack({
+      dynamoDbTableName: 'pricing-table',
+      region: 'us-east-1',
+      stackConfig: {
+        stackConfig: { nat: 'ha-ec2' },
+        resources: { adminBastion: { type: 'bastion', properties: { instanceSize: 't3.micro' } } }
+      }
+    });
+    expect(result.resourcesBreakdown['vpc nat']).toBeUndefined();
+  });
+
   test('logs and skips an unsupported resource while retaining supported estimates', async () => {
     commands.length = 0;
     const consoleError = spyOn(console, 'error').mockImplementation(() => undefined);
@@ -304,7 +368,7 @@ describe('refresh', () => {
       'AmazonApiGateway',
       'AWSLambda'
     ]);
-    expect(writtenCatalogs).toHaveLength(17);
+    expect(writtenCatalogs).toHaveLength(18);
     expect(Object.keys(writtenCatalogs[0])).toEqual(['downloaded-AmazonECS']);
     expect(writtenCatalogs.some((catalog) => 'Atlas-MongoDB-M2' in catalog)).toBe(true);
   });

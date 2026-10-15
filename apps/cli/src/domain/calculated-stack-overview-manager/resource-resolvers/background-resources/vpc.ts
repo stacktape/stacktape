@@ -9,6 +9,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
+import { getNatRouteToInstance, resolveNatInstances } from './nat-instances';
 
 const getInternetGateway = () => cfnResource('AWS::EC2::InternetGateway', {});
 const getGatewayAttachment = () =>
@@ -188,30 +189,37 @@ export const resolveAwsVpcDeployment = async () => {
   const requiresPrivateSubnets = configManager.allResourcesRequiringPrivateSubnets.length > 0;
 
   if (requiresPrivateSubnets) {
-    const natConfig = configManager.stackConfig.vpc?.nat;
-    const numNatGateways = natConfig?.availabilityZones ?? 2;
+    const { kind: natType, availabilityZones: numNatGateways } = configManager.natSettings;
+    const privateCidrs = ['172.16.48.0/20', '172.16.64.0/20', '172.16.80.0/20'];
 
     // Collect EIP references for metadata
-    const natEipRefs: any[] = [];
+    let natEipRefs: any[] = [];
 
-    // Create NAT Gateways
-    for (let i = 0; i < numNatGateways; i++) {
-      // Create Elastic IP (required for NAT Gateway)
-      calculatedStackOverviewManager.addCfChildResource({
-        cfLogicalName: cfLogicalNames.natElasticIp(i),
-        resource: getNatElasticIp(),
-        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
-      });
+    if (natType === 'instance') {
+      natEipRefs = resolveNatInstances({
+        availabilityZones: numNatGateways,
+        privateSubnetCount: privateCidrs.length
+      }).elasticIpRefs;
+    } else {
+      // Create NAT Gateways
+      for (let i = 0; i < numNatGateways; i++) {
+        // Create Elastic IP (required for NAT Gateway)
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.natElasticIp(i),
+          resource: getNatElasticIp(),
+          nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+        });
 
-      // Create NAT Gateway
-      calculatedStackOverviewManager.addCfChildResource({
-        cfLogicalName: cfLogicalNames.natGateway(i),
-        resource: getNatGateway(i),
-        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
-      });
+        // Create NAT Gateway
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.natGateway(i),
+          resource: getNatGateway(i),
+          nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+        });
 
-      // Collect EIP reference for metadata
-      natEipRefs.push(ref(cfLogicalNames.natElasticIp(i)));
+        // Collect EIP reference for metadata
+        natEipRefs.push(ref(cfLogicalNames.natElasticIp(i)));
+      }
     }
 
     // Add NAT Gateway EIPs to stack metadata as comma-separated list
@@ -222,8 +230,6 @@ export const resolveAwsVpcDeployment = async () => {
     });
 
     // Create 3 private subnets
-    const privateCidrs = ['172.16.48.0/20', '172.16.64.0/20', '172.16.80.0/20'];
-
     privateCidrs.forEach((cidr, i) => {
       // Create private subnet
       calculatedStackOverviewManager.addCfChildResource({
@@ -242,10 +248,11 @@ export const resolveAwsVpcDeployment = async () => {
       // Determine which NAT Gateway this subnet should use
       const natAzIndex = Math.min(i, numNatGateways - 1);
 
-      // Create NAT route
+      // Create NAT route. The same logical name for both NAT types: switching type updates the route in place.
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.natRoute(i),
-        resource: getNatRoute(i, natAzIndex),
+        resource:
+          natType === 'instance' ? getNatRouteToInstance({ subnetIndex: i, natAzIndex }) : getNatRoute(i, natAzIndex),
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
       });
 

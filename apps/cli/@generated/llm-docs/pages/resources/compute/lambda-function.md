@@ -17,7 +17,7 @@ A Lambda function is the right default for event-driven code that finishes withi
 
 - **Tasks longer than 15 minutes** — the maximum `timeout` is `900` seconds. For processing that can exceed 15 minutes, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
 - **Always-on HTTP servers** — use a [web service](/resources/compute/web-service) when you need a continuously running container or a container-native web framework.
-- **VPC access with internet egress** — `joinDefaultVpc` gives VPC access but removes direct internet access (S3 and DynamoDB stay reachable via VPC endpoints). If you need both, use a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service).
+- **VPC access with heavy internet egress** — `joinDefaultVpc` removes direct internet access (S3 and DynamoDB stay reachable via VPC endpoints). Setting `stackConfig.nat` gives VPC functions internet access through NAT; for a workload that pushes a lot of traffic out, a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) in the public subnets avoids the NAT entirely.
 - **Persistent local state** — `/tmp` is ephemeral per invocation. Use [EFS](/resources/storage/efs-filesystem), an [S3 bucket](/resources/storage/s3-bucket), or a database for persistent data.
 - **Custom OS or daemon requirements** — Stacktape Lambda packaging builds a zip from source (`js-bundle`, `buildpack`) or uses your own zip (`custom-artifact`). If you need image-level control over system packages or daemons, use a [container workload](/resources/compute/multi-container-workload) or [web service](/resources/compute/web-service).
 
@@ -471,7 +471,9 @@ export default defineConfig(() => {
 
 A Lambda function does not need VPC attachment by default. Set `joinDefaultVpc: true` only when the function must reach VPC-only resources such as a [relational database](/resources/databases/relational-database) with `accessibilityMode: 'vpc'`, a [Redis cluster](/resources/databases/redis), or an [EFS filesystem](/resources/storage/efs-filesystem).
 
-The main tradeoff: when `joinDefaultVpc` is enabled, the function loses direct outbound internet access. Stacktape creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (payment providers, AI services, SaaS webhooks) will fail. If you need both VPC access and internet egress, use a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) instead.
+The main tradeoff: when `joinDefaultVpc` is enabled, the function loses direct outbound internet access. Stacktape creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (payment providers, AI services, SaaS webhooks) will fail.
+
+To give VPC functions internet access, set `stackConfig.nat`. Once it is set, every function with `joinDefaultVpc` is placed in the private subnets and reaches the internet through the NAT. Three kinds are available: `ec2` (one small Stacktape-managed instance, about $7 per month, no failover), `ha-ec2` (one instance per availability zone with automatic failover, about $7 per month per zone) and `gateway` (managed NAT Gateways, about $32 per month per zone plus $0.045 per GB). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking) for how to choose. Without it, `stacktape deploy` prints a warning for every VPC function that has no internet access. If you need VPC access and push a lot of traffic to the internet, a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) in the public subnets avoids NAT costs.
 
 ### Connecting to resources
 

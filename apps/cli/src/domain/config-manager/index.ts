@@ -79,6 +79,7 @@ import {
   getStacktapeServiceLambdaAlarmNotificationInducedStatements,
   getStacktapeServiceLambdaCustomResourceInducedStatements,
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
+  getStacktapeServiceLambdaNatFailoverStatements,
   getStacktapeServiceLambdaEcsRedeployInducedStatements,
   getStacktapeServiceLambdaEnvironment,
   getStacktapeServiceLambdaIssueDetectionStatements,
@@ -115,6 +116,8 @@ import type {
 } from '@stacktape/config/events';
 import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
 import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/config/shared';
+import { DEFAULT_NAT_INSTANCE_SIZE } from './utils/nat';
+import { resolveConnectToList } from './utils/resource-references';
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 import { configErrors } from './errors';
 import type { StackContext } from '@domain-services/stack-context';
@@ -2221,8 +2224,73 @@ export class ConfigManager {
     ];
   }
 
+  /**
+   * `stackConfig.nat` with defaults applied. `ec2` is one instance in one zone, `ha-ec2` one instance per zone with
+   * failover, `gateway` managed NAT Gateways. `configured` tells whether the user set it at all: that alone moves VPC
+   * functions into the private subnets (see `natConsumers`).
+   */
+  get natSettings(): {
+    configured: boolean;
+    type: 'ec2' | 'ha-ec2' | 'gateway';
+    kind: 'instance' | 'gateway';
+    availabilityZones: 1 | 2 | 3;
+    instanceSize: string;
+  } {
+    const nat = this.stackConfig?.nat;
+    const settings = typeof nat === 'string' ? { type: nat } : nat;
+    const type = settings?.type ?? 'gateway';
+    return {
+      configured: Boolean(nat),
+      type,
+      kind: type === 'gateway' ? 'gateway' : 'instance',
+      availabilityZones: type === 'ec2' ? 1 : (settings?.availabilityZones ?? 2),
+      instanceSize: settings?.instanceSize ?? DEFAULT_NAT_INSTANCE_SIZE
+    };
+  }
+
+  /**
+   * VPC functions that get outbound internet through NAT. A function in the VPC has no internet in the public
+   * subnets, so once the user asks for NAT, every VPC function is placed in the private subnets.
+   */
+  get vpcLambdasUsingNat() {
+    if (!this.natSettings.configured) return [];
+    return this.vpcLambdas;
+  }
+
+  /** Functions that join the VPC; without `stackConfig.nat` they have no outbound internet access. */
+  get vpcLambdas() {
+    return [...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions].filter(
+      ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
+    );
+  }
+
+  /**
+   * AgentCore runtimes that connect to a VPC-only resource run in VPC mode, which AWS only offers in private subnets
+   * with NAT. They need `stackConfig.nat` like a container with `usePrivateSubnetsWithNAT`.
+   */
+  get agentCoreRuntimesInVpc() {
+    return this.agentCoreRuntimes.filter((runtime) => {
+      const { accessToResourcesPotentiallyRequiringSecurityGroupCreation } = resolveConnectToList({
+        activeConfig: this,
+        stpResourceNameOfReferencer: runtime.name,
+        stpResourceTypeOfReferencer: runtime.type,
+        connectTo: runtime.connectTo
+      });
+      return accessToResourcesPotentiallyRequiringSecurityGroupCreation.length > 0;
+    });
+  }
+
+  /** Resources that cannot run without NAT: they are what makes `stackConfig.nat` mandatory. */
+  get resourcesRequiringNat() {
+    return [
+      ...this.allContainerWorkloads.filter(({ usePrivateSubnetsWithNAT }) => usePrivateSubnetsWithNAT),
+      ...this.agentCoreRuntimesInVpc
+    ];
+  }
+
+  /** Resources placed in the private subnets; their presence is what creates the private subnets and the NAT. */
   get allResourcesRequiringPrivateSubnets() {
-    return this.allContainerWorkloads.filter(({ usePrivateSubnetsWithNAT }) => usePrivateSubnetsWithNAT);
+    return [...this.resourcesRequiringNat, ...this.vpcLambdasUsingNat];
   }
 
   /**
@@ -2310,6 +2378,7 @@ export class ConfigManager {
           stackName: this.stackContext.stackName
         }),
         ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
+        ...getStacktapeServiceLambdaNatFailoverStatements({ activeConfig: this, stackContext: this.stackContext }),
         ...getStacktapeServiceLambdaIssueDetectionStatements({
           issueDetectionEnabled: this.isIssueDetectionEnabled
         }),

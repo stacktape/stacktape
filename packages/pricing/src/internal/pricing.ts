@@ -142,6 +142,15 @@ const productsInfo = {
     })
   },
 
+  AmazonVPC: {
+    natGateway: () => {
+      return {
+        name: 'VPC-nat-gateway',
+        description: 'Price for a NAT Gateway (hourly; data processing of $0.045 per GB is charged on top)',
+        priceModel: 'flat'
+      };
+    }
+  },
   AmazonEC2: {
     publicIp: () => {
       return {
@@ -709,6 +718,7 @@ export const downloadSimplePricingInfo = async ({
 };
 
 const SERVICES_WITH_STATIC_PRICES: {
+  AmazonVPC: PricingInfo;
   AtlasMongo: PricingInfo;
   awswaf: PricingInfo;
   AWSEvents: PricingInfo;
@@ -796,6 +806,13 @@ const SERVICES_WITH_STATIC_PRICES: {
   AmazonEC2: {
     [productsInfo.AmazonEC2.publicIp().name]: {
       [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '0.005' }
+    }
+  },
+  AmazonVPC: {
+    // The lowest common regional price; a few regions charge up to $0.065/hr. The AmazonVPC offer file is large and
+    // the rate rarely changes, so it is kept static like the public IPv4 charge.
+    [productsInfo.AmazonVPC.natGateway().name]: {
+      [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '0.045' }
     }
   }
 };
@@ -1868,6 +1885,70 @@ export const loadProductPricesIntoDynamoTable = async ({
   );
 };
 
+/** The breakdown key of the stack-level NAT entry; it is not a resource name, which cannot contain a space. */
+export const NAT_BREAKDOWN_KEY = 'vpc nat';
+const DEFAULT_NAT_INSTANCE_SIZE = 't4g.nano';
+
+/**
+ * NAT is a stack-level cost that exists when a container workload uses the private subnets or when `vpc.nat` is set
+ * and a function joins the VPC. Each zone costs one gateway (or one instance) plus its public IP.
+ */
+const getNatPricingInformation = async ({
+  stackConfig,
+  region,
+  dynamoDbTableName
+}: {
+  stackConfig: StacktapeConfig;
+  region: string;
+  dynamoDbTableName: string;
+}): Promise<ResourcePricingInformation | null> => {
+  // A reused VPC brings its owner's NAT; this stack pays nothing for it.
+  if (stackConfig.stackConfig?.vpc?.reuseVpc) return null;
+  const rawNat = stackConfig.stackConfig?.nat;
+  const nat = typeof rawNat === 'string' ? { type: rawNat } : rawNat;
+  const resources = Object.values(stackConfig.resources ?? {});
+  const containerUsesNat = resources.some(
+    (resource) =>
+      (resource as { properties?: { usePrivateSubnetsWithNAT?: boolean } }).properties?.usePrivateSubnetsWithNAT
+  );
+  const functionUsesNat =
+    Boolean(nat) &&
+    resources.some(
+      (resource) => (resource as { properties?: { joinDefaultVpc?: boolean } }).properties?.joinDefaultVpc
+    );
+  if (!containerUsesNat && !functionUsesNat) return null;
+  const type = nat?.type ?? 'gateway';
+  const zones = type === 'ec2' ? 1 : (nat?.availabilityZones ?? 2);
+  const perZone =
+    type === 'gateway'
+      ? productsInfo.AmazonVPC.natGateway()
+      : productsInfo.AmazonEC2.instance({
+          instanceType: nat?.instanceSize || DEFAULT_NAT_INSTANCE_SIZE,
+          operatingSystem: 'Linux'
+        });
+  const priceInfo = await getCumulatedPriceInfoForProducts({
+    dynamoDbTableName,
+    region,
+    products: [
+      { ...perZone, multiplier: zones },
+      { ...productsInfo.AmazonEC2.publicIp(), multiplier: zones }
+    ]
+  });
+  return {
+    priceInfo,
+    customComment:
+      type === 'gateway'
+        ? `${zones} NAT Gateway${zones > 1 ? 's' : ''} (one per availability zone). AWS also charges $0.045 per GB processed by the gateways.`
+        : type === 'ec2'
+          ? '1 NAT instance (no failover). Data transfer out of AWS is charged at the EC2 rate; there is no per-GB NAT processing charge.'
+          : `${zones} NAT instances (one per availability zone, automatic failover). Data transfer out of AWS is charged at the EC2 rate; there is no per-GB NAT processing charge.`,
+    relatedAwsPricingDocs:
+      type === 'gateway'
+        ? { 'AWS NAT Gateway pricing': 'https://aws.amazon.com/vpc/pricing/' }
+        : { 'AWS EC2 pricing': 'https://aws.amazon.com/ec2/pricing/on-demand/' }
+  };
+};
+
 export const getCumulatedPriceInfoForStack = async ({
   stackConfig,
   region = 'us-east-1',
@@ -1879,8 +1960,8 @@ export const getCumulatedPriceInfoForStack = async ({
 }) => {
   const resourcesBreakdown: { [resourceName: string]: ResourcePricingInformation } = {};
   let flatMonthlyCost = 0;
-  await Promise.all(
-    Object.entries(stackConfig.resources).map(async ([resourceName, resourceConfig]) => {
+  await Promise.all([
+    ...Object.entries(stackConfig.resources).map(async ([resourceName, resourceConfig]) => {
       const priceBreakdown = await getPricingInformationForResource({
         resource: resourceConfig,
         region,
@@ -1893,8 +1974,18 @@ export const getCumulatedPriceInfoForStack = async ({
         resourcesBreakdown[resourceName] = priceBreakdown;
         flatMonthlyCost += priceBreakdown.priceInfo.totalMonthlyFlat;
       }
-    })
-  );
+    }),
+    (async () => {
+      const priceBreakdown = await getNatPricingInformation({ stackConfig, region, dynamoDbTableName }).catch((err) => {
+        console.error(err);
+        return null;
+      });
+      if (priceBreakdown !== null) {
+        resourcesBreakdown[NAT_BREAKDOWN_KEY] = priceBreakdown;
+        flatMonthlyCost += priceBreakdown.priceInfo.totalMonthlyFlat;
+      }
+    })()
+  ]);
   return {
     flatMonthlyCost,
     resourcesBreakdown

@@ -197,6 +197,25 @@ export type EcsServiceScheduledMaintenanceRuleInput = {
   codeDeployApplicationName?: string;
   codeDeployDeploymentGroupName?: string;
 };
+/**
+ * What the NAT failover handler needs to know about the stack's NAT instances. Both of its EventBridge rules (the
+ * one-minute probe and the Auto Scaling events) send this as their constant input.
+ */
+export type NatFailoverRuleInput = {
+  natFailover: {
+    stackName: string;
+    region: string | Intrinsic;
+    /** One entry per availability zone that has a NAT instance, in AZ order. */
+    zones: {
+      azIndex: number;
+      autoscalingGroupName: string;
+      networkInterfaceId: string | Intrinsic;
+      heartbeatParameterName: string;
+    }[];
+    /** One entry per private route table, with the zone whose instance it uses when everything is healthy. */
+    routeTables: { routeTableId: string | Intrinsic; homeAzIndex: number }[];
+  };
+};
 export type CustomTaggingScheduledRuleInput = {
   tagNetworkInterfaceWithSecurityGroup: {
     securityGroupId: string | Intrinsic;

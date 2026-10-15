@@ -9,6 +9,7 @@ import customResourcesHandler from './custom-resources';
 import customTaggingHandler from './custom-tagger';
 import ecsServiceScheduledMaintenanceHandler from './ecs-maintenance';
 import issueProcessorHandler from './issue-processor';
+import natFailoverHandler, { isNatFailoverEvent } from './nat-failover';
 
 const handler = async (event, context, callback) => {
   if (isCloudWatchLogsSubscriptionFilterEvent(event)) {
@@ -25,6 +26,9 @@ const handler = async (event, context, callback) => {
   }
   if (isCustomTaggingScheduledEvent(event)) {
     return customTaggingHandler(event);
+  }
+  if (isNatFailoverEvent(event)) {
+    return natFailoverHandler(event);
   }
 };
 

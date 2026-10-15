@@ -596,8 +596,45 @@ The following list covers resources where the `connectTo` property is available 
 When you connect to [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis), Stacktape creates security group rules that allow the consuming resource to reach the target on the correct port. Workloads that need to reach VPC-bound databases or Redis clusters must be placed in the same VPC — see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [relational database](/resources/databases/relational-database) pages for VPC placement configuration.
 
 
-> **Warning:** Lambda functions placed in a VPC lose direct internet access. If your function needs to call external APIs while also connecting to a VPC database, you can configure NAT Gateways (see `stackConfig.vpc.nat`) or use a database with internet-accessible settings for development stages.
+> **Warning:** Lambda functions placed in a VPC lose direct internet access. If your function needs to call external APIs while also connecting to a VPC database, set `stackConfig.nat` (see below) or use a database with internet-accessible settings for development stages.
 
+
+### NAT: internet access from private subnets
+
+Workloads in the private subnets reach the internet through the stack's NAT, and their outbound traffic leaves through one static Elastic IP per availability zone, which you can allowlist with external services. Three kinds of resources use it:
+
+- container workloads with `usePrivateSubnetsWithNAT: true`; they cannot run without NAT, so that flag requires `stackConfig.nat`;
+- Lambda functions (and SSR frontends) with `joinDefaultVpc: true`, which have no internet access at all until `stackConfig.nat` is set, and use it automatically once it is;
+- AgentCore runtimes that connect to a VPC-only database or Redis.
+
+`stackConfig.nat` chooses the kind of NAT:
+
+```yaml
+stackConfig:
+  nat: ha-ec2 # or ec2, or gateway
+```
+
+| | `ec2` | `ha-ec2` | `gateway` |
+| --- | --- | --- | --- |
+| What it is | One small EC2 instance (`t4g.nano` by default), managed by Stacktape | One such instance per availability zone (two by default) | AWS-managed NAT Gateway per zone |
+| Cost | About $7 per month, no per-GB charge | About $7 per month per zone, no per-GB charge | About $32 per month per zone, plus $0.045 per GB processed |
+| Throughput | 5 Gbps burst on `t4g.nano`; pick a larger `instanceSize` for sustained load | Same, per zone | Up to 100 Gbps |
+| When an instance fails | AWS replaces it; about three minutes without outbound internet | Stacktape routes that zone through another zone's instance within about a minute, then back once the replacement is healthy. Outbound calls from that zone fail during that minute and open connections are reset | AWS handles it, no visible impact |
+| Updates | The instance is replaced when a newer Amazon Linux image or a new `instanceSize` is deployed, with the same short outage | Zones are replaced one at a time, with the same short failover per zone | None needed |
+
+Use `ec2` for development stages, `ha-ec2` for production stacks whose outbound traffic is moderate and can tolerate a minute of failed outbound calls once in a long while, and `gateway` for high sustained throughput or when every minute of outbound connectivity matters. You can switch kinds on a deployed stack: the VPC, subnets and route tables stay, the previous NAT keeps serving until the new one is ready, and the switch itself only resets the connections open at that moment. The Elastic IPs change, so update any allowlists afterwards.
+
+The object form sets the instance size (`ec2`, `ha-ec2`) and the number of zones (`ha-ec2`, `gateway`):
+
+```yaml
+stackConfig:
+  nat:
+    type: ha-ec2
+    instanceSize: t4g.small
+    availabilityZones: 3
+```
+
+Each failover raises an incident in the Console that says what happened, which zone was affected and that it recovered on its own, so nobody has to go looking in AWS. Stacktape reaches the instances through AWS Systems Manager only; they have no SSH access.
 
 ## FAQ
 
@@ -623,4 +660,4 @@ No — `connectTo` grants a fixed set of permissions per resource type and is al
 
 ### Why can't my Lambda function reach the database I connected to?
 
-`connectTo` opens the security group rules between the consuming resource and a [relational database](/resources/databases/relational-database) or [Redis cluster](/resources/databases/redis), but the consumer still has to sit in the same VPC to use them. A Lambda function that isn't placed in the VPC will have the `STP_*` variables and an open security group rule yet still fail to connect. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement. Note that putting a Lambda in a VPC removes its direct internet access — use a NAT Gateway (`stackConfig.vpc.nat`) if it also calls external APIs.
+`connectTo` opens the security group rules between the consuming resource and a [relational database](/resources/databases/relational-database) or [Redis cluster](/resources/databases/redis), but the consumer still has to sit in the same VPC to use them. A Lambda function that isn't placed in the VPC will have the `STP_*` variables and an open security group rule yet still fail to connect. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement. Note that putting a Lambda in a VPC removes its direct internet access — set `stackConfig.nat` if it also calls external APIs.

@@ -18,7 +18,7 @@ export const SMOKE_CASE_IDS = [
 
 export type AwsQualificationScenario = {
   id: string;
-  runner: 'packaging' | 'init' | 'alias-publication';
+  runner: 'packaging' | 'init' | 'alias-publication' | 'nat-instance' | 'nat-switch';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -44,6 +44,24 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['lambda', 'codedeploy-alias', 'version-publication', 'environment-update', 'no-op-update', 'cleanup'],
     reason:
       'A configuration-only change must publish a version the alias serves, and an unchanged redeploy must publish none.'
+  },
+  {
+    id: 'nat-instance-failover',
+    runner: 'nat-instance',
+    policy: 'periodic',
+    costClass: 'low',
+    coverage: ['vpc', 'nat-instance', 'lambda-vpc-egress', 'failover', 'rolling-update', 'no-op-update', 'cleanup'],
+    reason:
+      "NAT instances must forward a VPC function's traffic, fail over to the other zone when one dies, come back, and survive a rolling replacement."
+  },
+  {
+    id: 'nat-kind-switch',
+    runner: 'nat-switch',
+    policy: 'periodic',
+    costClass: 'low',
+    coverage: ['vpc', 'nat-gateway', 'nat-instance', 'nat-kind-switch', 'probe-failover', 'cleanup'],
+    reason:
+      'Switching an existing stack between NAT gateways, two instances and one instance must keep the VPC and subnets, and a broken instance must be rerouted around and replaced.'
   },
   {
     id: 'init-static-site',
