@@ -6,12 +6,12 @@
  * the code and leaves those files behind, so it fails when it reads them. Like a native package, such a package stays
  * installed beside the bundle.
  *
- * A package that ships only code and documentation has nothing of its own to read, and most packages are like that, so
- * the check first lists the package's file names. For a package with data files, it reads the files its main entry
- * point loads, found by following their relative imports. Many packages also ship their sources or command-line
- * tools, which read files the published build does not, and a bundle never contains those. A file counts when it uses
- * its own location, calls an `fs` read and names a path that exists in the package. A few packages give no such sign
- * and are listed by name.
+ * The check reads the package's main entry points and, when the package ships data files, the files they load, found
+ * by following their relative imports. Most packages ship only code and documentation, so following imports only for
+ * the others keeps the check cheap. Many packages also ship their sources or command-line tools, which read files the
+ * published build does not, and a bundle never contains those. A file counts when it calls an `fs` read and either
+ * uses its own location with a path that exists in the package, or resolves one of the package's own files with
+ * `require.resolve`, as uglify-js does. A few packages give no such sign and are listed by name.
  */
 import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
@@ -43,6 +43,8 @@ const NON_NODE_CONDITIONS = new Set(['browser', 'types', 'typings', 'react-nativ
 const MAX_FILES = 2000;
 
 const OWN_LOCATION = /\b(?:__dirname|__filename|import\.meta\.(?:url|dirname|filename))\b/;
+/** `require.resolve('./x')` or `require.resolve('../x')`: a path in the package, which a bundle bakes in as absolute. */
+const RELATIVE_REQUIRE_RESOLVE = /\brequire\.resolve\s*\(\s*(['"])(\.\.?\/[^'"\n]+)\1/g;
 const FS_READ = /\b(?:readFileSync|readFile|createReadStream|readdirSync|readdir|openSync)\s*\(/;
 const RELATIVE_IMPORT = /(?:\brequire\s*\(\s*|\bimport\s*\(\s*|\bfrom\s*|\bimport\s+)(['"])(\.\.?\/[^'"\n]*)\1/g;
 /** A string literal that looks like a path to something named: a name with a slash or a file extension. */
@@ -115,8 +117,14 @@ const getEntryScripts = async (packageRoot: string) => {
 
 /** Whether a file builds a path from its own location, reads with `fs`, and names a file the package ships. */
 const readsPackageFile = (packageRoot: string, script: string, contents: string) => {
-  if (!OWN_LOCATION.test(contents) || !FS_READ.test(contents)) return false;
+  if (!FS_READ.test(contents)) return false;
   const directory = dirname(script);
+  // uglify-js finds the sources it reads with `require.resolve`; a bundle has neither the path nor the files.
+  for (const [, , specifier] of contents.matchAll(RELATIVE_REQUIRE_RESOLVE)) {
+    const target = specifier && resolve(directory, specifier);
+    if (target && isInside(packageRoot, target) && existsSync(target)) return true;
+  }
+  if (!OWN_LOCATION.test(contents)) return false;
   // A relative import names a module the bundle contains, not a file read from disk.
   const imports = new Set([...contents.matchAll(RELATIVE_IMPORT)].map(([, , specifier]) => specifier));
   for (const [, , literal] of contents.matchAll(PATH_LITERAL)) {
@@ -146,16 +154,20 @@ const shipsDataFiles = async (directory: string): Promise<boolean> => {
   return found.includes(true);
 };
 
-const findOwnFileRead = async (packageRoot: string): Promise<boolean> => {
+/**
+ * Reads the entry scripts, and the scripts they import when `followImports` is set, breadth-first, one level at a
+ * time, read in parallel.
+ */
+const findOwnFileRead = async (packageRoot: string, followImports: boolean): Promise<boolean> => {
   let wave = await getEntryScripts(packageRoot);
   const visited = new Set(wave);
-  // Breadth-first, one level of imports at a time, read in parallel.
   while (wave.length) {
     // oxlint-disable-next-line no-await-in-loop -- each level's imports are known only after the level is read.
     const scripts = await Promise.all(
       wave.map(async (script) => ({ script, contents: await readFile(script, 'utf8').catch(() => '') }))
     );
     if (scripts.some(({ script, contents }) => readsPackageFile(packageRoot, script, contents))) return true;
+    if (!followImports) return false;
     wave = [];
     for (const { script, contents } of scripts) {
       for (const [, , specifier] of contents.matchAll(RELATIVE_IMPORT)) {
@@ -179,7 +191,8 @@ export const readsOwnFilesAtRunTime = (packageRoot: string): Promise<boolean> =>
     result = (async () => {
       const { name } = await readPackageManifest(packageRoot);
       if (PACKAGES_READING_OWN_FILES.has(name ?? '')) return true;
-      return (await shipsDataFiles(packageRoot)) && findOwnFileRead(packageRoot);
+      // A package that ships only code can still read its own scripts; its entry points are checked for that.
+      return findOwnFileRead(packageRoot, await shipsDataFiles(packageRoot));
     })().catch(() => false);
     resultsByPackage.set(packageRoot, result);
   }

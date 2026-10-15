@@ -64,6 +64,32 @@ describe('packages that read their own files at run time', () => {
       reads: true
     },
     {
+      label: 'uglify-js: code-only package that reads its own sources found with require.resolve',
+      manifest: { main: 'tools/node.js' },
+      files: {
+        'tools/node.js': [
+          "const fs = require('fs');",
+          "const files = [require.resolve('../lib/utils.js'), require.resolve('./exports.js')];",
+          "module.exports = files.map((file) => fs.readFileSync(file, 'utf8'));"
+        ].join('\n'),
+        'tools/exports.js': 'exports.minify = () => "";',
+        'lib/utils.js': 'exports.noop = () => {};'
+      },
+      reads: true
+    },
+    {
+      label: 'handlebars-like: require.resolve of another package, not of its own files',
+      manifest: { main: 'lib/index.js' },
+      files: {
+        'lib/index.js': [
+          "const fs = require('fs');",
+          "try { require.resolve('uglify-js'); } catch {}",
+          "module.exports = (path) => fs.readFileSync(path, 'utf8');"
+        ].join('\n')
+      },
+      reads: false
+    },
+    {
       label: 'fontkit: a self-contained build beside sources that read data files',
       manifest: { main: 'dist/main.cjs', exports: { node: { require: './dist/main.cjs' } } },
       files: {

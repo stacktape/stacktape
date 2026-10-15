@@ -2,8 +2,8 @@
 /*
  * Node Lambda artifacts with dependencies the bundle leaves out, built from a pnpm project and run in the official
  * Lambda runtime. On this Linux x64 host, native packages that were installed for Linux (bcrypt's prebuilds, a napi-rs
- * platform package), pdfkit, which reads its font metrics from its own directory, and a scoped package excluded from
- * the bundle are copied from node_modules without Docker, while better-sqlite3, whose addon prebuild-install fetched
+ * platform package), pdfkit and uglify-js, which read their own files, and a scoped package excluded from the
+ * bundle are copied from node_modules without Docker, while better-sqlite3, whose addon prebuild-install fetched
  * for this machine's Node.js into build/, is installed again in the Lambda build image, for x64 and for arm64.
  */
 import { mkdtemp, readdir, realpath, rm, stat } from 'node:fs/promises';
@@ -154,7 +154,9 @@ try {
     bcrypt: '6.0.0',
     'better-sqlite3': '12.11.1',
     // Reads its font metrics from its own directory at run time, so it must stay out of the bundle.
-    pdfkit: '0.16.0'
+    pdfkit: '0.16.0',
+    // Finds the sources it compiles itself from with `require.resolve` and reads them at load.
+    'uglify-js': '3.19.3'
   };
   await write(
     join(root, 'package.json'),
@@ -443,6 +445,7 @@ try {
       'import { xxh64 } from "@node-rs/xxhash";',
       'import * as Boom from "@hapi/boom";',
       'import PDFDocument from "pdfkit";',
+      'import UglifyJS from "uglify-js";',
       'const renderPdf = () => new Promise((resolve, reject) => {',
       '  const document = new PDFDocument();',
       '  const chunks = [];',
@@ -456,7 +459,8 @@ try {
       '  bcrypt: await bcrypt.compare("secret", await bcrypt.hash("secret", 4)),',
       '  xxhash: xxh64("stacktape").toString(16),',
       '  boom: Boom.badRequest("invalid").output.statusCode,',
-      '  pdf: await renderPdf()',
+      '  pdf: await renderPdf(),',
+      '  minified: UglifyJS.minify("var answer = 40 + 2;").code',
       '});'
     ].join('\n')
   );
@@ -474,7 +478,8 @@ try {
     '@node-rs+xxhash@',
     '@node-rs+xxhash-linux-x64-gnu@',
     'bcrypt@',
-    'pdfkit@'
+    'pdfkit@',
+    'uglify-js@'
   ]) {
     if (!copiedPackages.some((name) => name.startsWith(expected))) {
       throw new Error(`${expected} is missing from the function's node_modules: ${copiedPackages.join(', ')}`);
@@ -490,7 +495,8 @@ try {
     copiedResponse.bcrypt !== true ||
     typeof copiedResponse.xxhash !== 'string' ||
     copiedResponse.boom !== 400 ||
-    copiedResponse.pdf !== '%PDF'
+    copiedResponse.pdf !== '%PDF' ||
+    copiedResponse.minified !== 'var answer=42;'
   ) {
     throw new Error(`Unexpected copied-dependency Lambda response: ${JSON.stringify(copiedResponse)}`);
   }
