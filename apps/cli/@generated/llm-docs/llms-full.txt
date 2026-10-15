@@ -22386,8 +22386,9 @@ The runtime image is based on Debian (trixie) with the resolved tool versions in
 A Python project that uses pip (`requirements.txt`) or uv (`uv.lock`) is built on the official `python:<version>-slim` image instead, with the Python version Railpack detected. The interpreter comes with the image, so nothing is installed with mise, and the same image is the runtime. A FastAPI app is about 50 MB compressed.
 
 - Dependencies are installed into `/app/.venv` with [uv](https://docs.astral.sh/uv/). A `requirements.txt` is installed with `uv pip install`, and the environment keeps pip, so `pip` and `python -m pip` work in build commands and at runtime. When `buildEnvironment` has `PIP_` variables, such as `PIP_INDEX_URL` for a private index, pip installs the requirements instead, because uv does not read them.
-- The slim image has no compiler. When a dependency has no prebuilt wheel for the platform, the build installs a C toolchain and common development headers (including `libpq-dev`) and installs the dependencies again with pip. The result is cached like any other dependency install.
-- Poetry, PDM and Pipenv projects, projects with other tools in `packages` or a version file, and builds with a custom `installCommand` or `railpackConfig` steps are built the Railpack way, with mise.
+- The slim image has no compiler. When a dependency has no prebuilt wheel for the platform, or a uv project compiles its own extension, the build installs a C toolchain and common development headers (including `libpq-dev`) and runs the install again (with pip for a `requirements.txt`). The result is cached like any other dependency install.
+- uv is in the runtime image only when the start command runs `uv` or `uvx`, for example `uv run --no-sync python main.py`.
+- Poetry, PDM and Pipenv projects, projects with other tools in `packages`, projects with a `.tool-versions` or `mise.toml` file, and builds with a custom `installCommand` or `railpackConfig` steps are built the Railpack way, with mise.
 
 ## Framework and platform notes
 

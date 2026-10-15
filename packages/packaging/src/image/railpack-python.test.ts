@@ -5,12 +5,20 @@ const BUILDER = 'ghcr.io/railwayapp/railpack-builder:mise-2026.9.15';
 const RUNTIME = 'ghcr.io/railwayapp/railpack-runtime:mise-2026.9.15';
 const MISE_OUTPUTS = ['/mise/shims', '/mise/installs', '/usr/local/bin/mise', '/etc/mise/config.toml'];
 
-const miseStep = (input: Record<string, unknown> = { image: BUILDER }) => ({
+/** The `[tools]` table of the mise configuration Railpack generates, followed by its fixed settings. */
+const generatedMiseConfig = (tools: string) =>
+  `[tools]\n${tools}\n[settings]\n  minimum_release_age = "14d"\n  paranoid = true\n`;
+
+const miseStep = (
+  input: Record<string, unknown> = { image: BUILDER },
+  { tools = '  python = "3.11.14"\n', configFile = '.python-version' } = {}
+) => ({
   name: 'packages:mise',
   inputs: [input],
+  assets: { 'generated-mise-toml': generatedMiseConfig(tools) },
   commands: [
     { path: '/mise/shims' },
-    { src: '.python-version', dest: '.python-version' },
+    { src: configFile, dest: configFile },
     { name: 'generated-mise-toml', path: '/etc/mise/config.toml', customName: 'create mise config' },
     { cmd: 'mise install', customName: 'install mise packages: python' }
   ],
@@ -128,19 +136,22 @@ describe('Python plans on the official slim image', () => {
     expect(rewritten.steps.map((step) => step.name)).toEqual(['install', 'build']);
     expect(stepNamed(rewritten, 'install')?.inputs).toEqual([{ image: SLIM }]);
     const install = commandsOf(rewritten, 'install');
-    expect(install[0]).toEqual({
-      image: `ghcr.io/astral-sh/uv:${STACKTAPE_UV_VERSION}`,
-      src: '/uv',
-      dest: '/usr/local/bin/uv'
-    });
-    expect(install.slice(1, 4)).toEqual([
-      'uv venv --seed /app/.venv',
+    const uv = `ghcr.io/astral-sh/uv:${STACKTAPE_UV_VERSION}`;
+    expect(install.slice(0, 2)).toEqual([
+      { image: uv, src: '/uv', dest: '/usr/local/bin/uv' },
+      { image: uv, src: '/uvx', dest: '/usr/local/bin/uvx' }
+    ]);
+    // The venv gets the pip wheel the image bundles, so creating it contacts no index.
+    expect(install[2]).toBe(
+      "sh -c 'uv venv /app/.venv && uv pip install --no-index --no-deps /usr/local/lib/python3*/ensurepip/_bundled/*.whl'"
+    );
+    expect(install.slice(3, 5)).toEqual([
       { path: '/app/.venv/bin' },
       { src: 'requirements.txt', dest: 'requirements.txt' }
     ]);
-    expect(String(install[4])).toStartWith("sh -c 'uv pip install -r requirements.txt || {");
-    expect(String(install[4])).toContain('apt-get install -y --no-install-recommends build-essential');
-    expect(String(install[4])).toEndWith("&& pip install -r requirements.txt; }'");
+    expect(String(install[5])).toStartWith("sh -c 'uv pip install -r requirements.txt || {");
+    expect(String(install[5])).toContain('apt-get install -y --no-install-recommends build-essential');
+    expect(String(install[5])).toEndWith("&& pip install -r requirements.txt; }'");
     expect(rewritten.caches as unknown).toEqual({
       pip: { directory: '/opt/pip-cache', type: 'shared' },
       uv: { directory: '/opt/uv-cache', type: 'shared' }
@@ -180,8 +191,32 @@ describe('Python plans on the official slim image', () => {
     expect(install[0]).toEqual({ image: 'ghcr.io/astral-sh/uv:0.11.3', src: '/uv', dest: '/usr/local/bin/uv' });
     expect(String(install.at(-1))).toStartWith("sh -c 'uv sync --locked --no-dev --no-install-project || {");
     expect(String(install.at(-1))).toEndWith("&& uv sync --locked --no-dev --no-install-project; }'");
-    expect(commandsOf(rewritten, 'build')).toEqual(['uv sync --locked --no-dev --no-editable']);
+    // Building the project itself can compile its own C extension, so that step has the fallback as well.
+    const [buildProject] = commandsOf(rewritten, 'build');
+    expect(String(buildProject)).toStartWith("sh -c 'uv sync --locked --no-dev --no-editable || {");
+    expect(String(buildProject)).toContain('build-essential');
+    expect(String(buildProject)).toEndWith("&& uv sync --locked --no-dev --no-editable; }'");
     expect(rewritten.deploy?.base).toEqual({ image: slim313 });
+    // The app does not start with uv, so the runtime image does not carry it.
+    expect(JSON.stringify(rewritten.deploy)).not.toContain('/usr/local/bin/uv');
+  });
+
+  test('an app that starts with uv gets uv in the runtime image', () => {
+    const info = pipInfo({ python: '3.13.16', uv: '0.11.3' });
+    const runtimeInputs = (startCommand: string) => {
+      const plan = uvPlan();
+      plan.deploy.startCommand = startCommand;
+      return usePythonSlimImage({ plan, info, keepPip: false })?.plan.deploy?.inputs;
+    };
+    const withoutMise = uvPlan().deploy.inputs.slice(1);
+    const uvLayer = { step: 'install', include: ['/usr/local/bin/uv', '/usr/local/bin/uvx'] };
+    for (const startCommand of ['uv run --no-sync python main.py', 'uvx gunicorn app:app', 'cd src && uv run app.py']) {
+      expect({ startCommand, inputs: runtimeInputs(startCommand) }).toEqual({
+        startCommand,
+        inputs: [...withoutMise, uvLayer]
+      });
+    }
+    expect(runtimeInputs('python -m uvicorn app:app')).toEqual(withoutMise);
   });
 
   test('apt packages Railpack adds for the build and the runtime are installed on the slim image', () => {
@@ -242,6 +277,30 @@ describe('Python plans on the official slim image', () => {
         info: pipInfo()
       },
       { label: 'a step that copies from mise', plan: buildCopyingFromMise(), info: pipInfo() },
+      {
+        label: 'Node.js declared in .tool-versions',
+        plan: {
+          ...pipPlan(),
+          steps: [miseStep(undefined, { configFile: '.tool-versions' }), ...pipPlan().steps.slice(1)]
+        },
+        info: pipInfo()
+      },
+      {
+        label: 'only Python declared in mise.toml',
+        plan: { ...pipPlan(), steps: [miseStep(undefined, { configFile: 'mise.toml' }), ...pipPlan().steps.slice(1)] },
+        info: pipInfo()
+      },
+      {
+        label: 'another tool in the generated mise configuration',
+        plan: {
+          ...pipPlan(),
+          steps: [
+            miseStep(undefined, { tools: '  python = "3.11.14"\n  node = "22.11.0"\n' }),
+            ...pipPlan().steps.slice(1)
+          ]
+        },
+        info: pipInfo()
+      },
       {
         label: 'another base image',
         plan: { ...pipPlan(), deploy: deploy({ image: 'debian:trixie' }) },

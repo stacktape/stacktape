@@ -63,6 +63,19 @@ const pythonSlimImage = (version: string) => `public.ecr.aws/docker/library/pyth
 const PIP_CREATE_VENV = 'python -m venv /app/.venv';
 const PIP_INSTALL = 'pip install -r requirements.txt';
 const UV_SYNC = 'uv sync --locked --no-dev --no-install-project';
+/** Railpack's build step command for a uv project: it builds and installs the project itself. */
+const UV_SYNC_PROJECT = 'uv sync --locked --no-dev --no-editable';
+/**
+ * A venv with the pip (and, before Python 3.12, setuptools) wheels the image bundles for `ensurepip`: what
+ * `python -m venv` creates, without the slow `ensurepip` run and, unlike `uv venv --seed`, without contacting an index,
+ * so it works where only a private index is reachable.
+ */
+const UV_CREATE_VENV =
+  "sh -c 'uv venv /app/.venv && uv pip install --no-index --no-deps /usr/local/lib/python3*/ensurepip/_bundled/*.whl'";
+/** A start command that runs `uv` or `uvx` needs them in the runtime image. */
+const RUNS_UV = /(^|[\s;&|(`])uvx?(\s|$)/;
+/** The only project file Railpack's mise step may copy: other mise or asdf files can declare more tools. */
+const PYTHON_VERSION_FILE = '.python-version';
 const UV_CACHE_DIRECTORY = '/opt/uv-cache';
 
 /**
@@ -86,7 +99,7 @@ const BUILD_TOOLCHAIN = [
 ].join(' ');
 
 const withToolchainFallback = ({ command, fallback }: { command: string; fallback: string }): PlanCommand => ({
-  cmd: `sh -c '${command} || { echo "Installing build tools to compile dependencies that have no prebuilt wheel" >&2; apt-get update && apt-get install -y --no-install-recommends ${BUILD_TOOLCHAIN} && ${fallback}; }'`,
+  cmd: `sh -c '${command} || { echo "Installing build tools to compile what has no prebuilt wheel" >&2; apt-get update && apt-get install -y --no-install-recommends ${BUILD_TOOLCHAIN} && ${fallback}; }'`,
   customName: command
 });
 
@@ -100,6 +113,25 @@ const isWholeStepLayer = (layer: unknown, step: string): boolean =>
   isObject(layer) && layer.step === step && Object.keys(layer).length === 1;
 const isLocalLayer = (layer: unknown): boolean => isObject(layer) && layer.local === true;
 
+/**
+ * Whether Railpack's mise step installs nothing but Python and uv. `info.resolvedPackages` does not list tools that a
+ * project's `.tool-versions` or `mise.toml` declares, and `mise install` installs those too, so a step that copies any
+ * project file other than `.python-version` keeps Railpack's plan, even when that file names only Python.
+ */
+const installsOnlyPython = (miseStep: PlanStep): boolean => {
+  const generatedConfig = isObject(miseStep.assets) ? miseStep.assets['generated-mise-toml'] : undefined;
+  if (typeof generatedConfig !== 'string') return false;
+  const tools = /^\[tools\]\n((?:[ \t]*\S+ = .*\n)*)/m.exec(generatedConfig)?.[1] ?? '';
+  const toolNames = tools.split('\n').flatMap((line) => line.trim().split(' = ')[0] || []);
+  if (toolNames.length === 0 || toolNames.some((name) => name !== 'python' && name !== 'uv')) return false;
+  return (miseStep.commands ?? []).every((command) => {
+    if (command.cmd !== undefined) return command.cmd === 'mise install';
+    if (command.src !== undefined) return command.src === PYTHON_VERSION_FILE && command.image === undefined;
+    if (command.name !== undefined) return command.name === 'generated-mise-toml';
+    return command.path === '/mise/shims';
+  });
+};
+
 /** The install commands, rewritten for the slim image, or `undefined` when they are not Railpack's own. */
 const rewriteInstallCommands = ({
   commands,
@@ -111,11 +143,11 @@ const rewriteInstallCommands = ({
   keepPip: boolean;
 }): { commands: PlanCommand[]; usesUv: boolean } | undefined => {
   const executed = commands.flatMap((command) => (command.cmd === undefined ? [] : [command.cmd]));
-  const copyUv: PlanCommand = {
-    image: uvImage(uvVersion ?? STACKTAPE_UV_VERSION),
-    src: '/uv',
-    dest: '/usr/local/bin/uv'
-  };
+  const uv = uvImage(uvVersion ?? STACKTAPE_UV_VERSION);
+  const copyUv: PlanCommand[] = [
+    { image: uv, src: '/uv', dest: '/usr/local/bin/uv' },
+    { image: uv, src: '/uvx', dest: '/usr/local/bin/uvx' }
+  ];
   if (executed.length === 2 && executed[0] === PIP_CREATE_VENV && executed[1] === PIP_INSTALL) {
     const pipInstall = withToolchainFallback({ command: PIP_INSTALL, fallback: PIP_INSTALL });
     if (keepPip) {
@@ -124,13 +156,13 @@ const rewriteInstallCommands = ({
         usesUv: false
       };
     }
-    // uv installs the same requirements several times faster than pip. The environment keeps pip (`--seed`), so
-    // `pip` and `python -m pip` in build commands and at run time behave as in Railpack's own environment.
+    // uv installs the same requirements several times faster than pip. The environment keeps pip, so `pip` and
+    // `python -m pip` in build commands and at run time behave as in Railpack's own environment.
     return {
       commands: [
-        copyUv,
+        ...copyUv,
         ...commands.map((command) => {
-          if (command.cmd === PIP_CREATE_VENV) return { cmd: 'uv venv --seed /app/.venv' };
+          if (command.cmd === PIP_CREATE_VENV) return { cmd: UV_CREATE_VENV, customName: 'uv venv /app/.venv' };
           if (command.cmd === PIP_INSTALL)
             return withToolchainFallback({ command: 'uv pip install -r requirements.txt', fallback: PIP_INSTALL });
           return command;
@@ -142,7 +174,7 @@ const rewriteInstallCommands = ({
   if (uvVersion !== undefined && executed.length === 1 && executed[0] === UV_SYNC) {
     return {
       commands: [
-        copyUv,
+        ...copyUv,
         ...commands.map((command) =>
           command.cmd === UV_SYNC ? withToolchainFallback({ command: UV_SYNC, fallback: UV_SYNC }) : command
         )
@@ -188,6 +220,7 @@ export const usePythonSlimImage = <Plan extends PythonPlan>({
   const installStep = stepNamed('install');
   const buildStep = stepNamed('build');
   if (!miseStep || !installStep || !buildStep) return undefined;
+  if (!installsOnlyPython(miseStep)) return undefined;
 
   const image = pythonSlimImage(pythonVersion);
   const imageLayer: PlanLayer = { image };
@@ -224,10 +257,27 @@ export const usePythonSlimImage = <Plan extends PythonPlan>({
   else return undefined;
   const deployInputs = (deploy.inputs as unknown[]).filter((layer) => !(isObject(layer) && layer.step === MISE_STEP));
   if (deployInputs.length !== (deploy.inputs as unknown[]).length - 1) return undefined;
+  // Railpack's runtime image had uv through mise; here it comes from the install step when the app starts with it.
+  if (install.usesUv && typeof deploy.startCommand === 'string' && RUNS_UV.test(deploy.startCommand)) {
+    deployInputs.push({ step: 'install', include: ['/usr/local/bin/uv', '/usr/local/bin/uvx'] });
+  }
 
   const rewrittenSteps = steps.flatMap((step): PlanStep[] => {
     if (step === miseStep) return [];
     if (step === buildAptStep || step === runtimeAptStep) return [{ ...step, inputs: [imageLayer] }];
+    // Building the project itself can compile its own extension, which needs the same fallback as the dependencies.
+    if (step === buildStep && install.usesUv && step.commands?.some((command) => command.cmd === UV_SYNC_PROJECT)) {
+      return [
+        {
+          ...step,
+          commands: step.commands.map((command) =>
+            command.cmd === UV_SYNC_PROJECT
+              ? withToolchainFallback({ command: UV_SYNC_PROJECT, fallback: UV_SYNC_PROJECT })
+              : command
+          )
+        }
+      ];
+    }
     if (step !== installStep) return [step];
     return [
       {

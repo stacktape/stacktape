@@ -340,7 +340,7 @@ const pythonServer = (body: string) =>
     ''
   ].join('\n');
 
-/** `uv lock` output for a project that depends on `idna==3.10`. */
+/** `uv lock` output for the uv project: it depends on `idna==3.10` and is itself a package (`editable`). */
 const UV_LOCK = `version = 1
 revision = 5
 requires-python = ">=3.12"
@@ -357,7 +357,7 @@ wheels = [
 [[package]]
 name = "railpack-uv"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "idna" },
 ]
@@ -660,22 +660,59 @@ const railpackScenarios = async (runRailpackPrepare: RunRailpackPrepare) => {
   if (!only || only === 'railpack') await pythonRailpackScenarios(railpack);
 };
 
-/** A uv project, and a pip project with a dependency that has no wheel, on the official Python image. */
+/**
+ * A uv project, and a pip project with a dependency that has no wheel, on the official Python image. The uv project
+ * compiles its own C extension when Railpack's build step installs it, and starts through `uv run`, so the compiler
+ * fallback must cover that step and uv must be in the runtime image.
+ */
 async function pythonRailpackScenarios(railpack: Omit<Parameters<typeof buildUsingRailpack>[0], 'name'>) {
-  console.log('Building and serving a uv project on the official Python image...');
+  console.log('Building and serving a uv project with its own C extension on the official Python image...');
   const uvRoot = join(projectsRoot, 'railpack-uv');
   await write(
     join(uvRoot, 'pyproject.toml'),
-    '[project]\nname = "railpack-uv"\nversion = "0.1.0"\nrequires-python = ">=3.12"\ndependencies = ["idna==3.10"]\n'
+    [
+      '[project]',
+      'name = "railpack-uv"',
+      'version = "0.1.0"',
+      'requires-python = ">=3.12"',
+      'dependencies = ["idna==3.10"]',
+      '',
+      '[build-system]',
+      'requires = ["setuptools>=75"]',
+      'build-backend = "setuptools.build_meta"',
+      '',
+      '[tool.setuptools]',
+      'py-modules = []',
+      'ext-modules = [{ name = "railpack_native", sources = ["native.c"] }]',
+      ''
+    ].join('\n')
   );
   await write(join(uvRoot, 'uv.lock'), UV_LOCK);
   await write(
+    join(uvRoot, 'native.c'),
+    [
+      '#include <Python.h>',
+      'static PyObject *answer(PyObject *self, PyObject *args) { return PyUnicode_FromString("native-ok"); }',
+      'static PyMethodDef methods[] = {{"answer", answer, METH_NOARGS, NULL}, {NULL, NULL, 0, NULL}};',
+      'static struct PyModuleDef module = {PyModuleDef_HEAD_INIT, "railpack_native", NULL, -1, methods};',
+      'PyMODINIT_FUNC PyInit_railpack_native(void) { return PyModule_Create(&module); }',
+      ''
+    ].join('\n')
+  );
+  await write(
     join(uvRoot, 'main.py'),
-    pythonServer('"railpack-uv-ok:" + __import__("idna").encode("münich").decode()')
+    pythonServer(
+      '"railpack-uv-ok:" + __import__("idna").encode("münich").decode() + ":" + __import__("railpack_native").answer()'
+    )
   );
   const uvTag = `stacktape-buildpack-smoke-railpack-uv:${runId}`;
-  const uvOutput = await buildUsingRailpack({ ...railpack, name: uvTag, sourceDirectoryPath: 'railpack-uv' });
-  assert.equal(await fetchFromContainer(uvTag), 'railpack-uv-ok:xn--mnich-kva');
+  const uvOutput = await buildUsingRailpack({
+    ...railpack,
+    name: uvTag,
+    sourceDirectoryPath: 'railpack-uv',
+    startCommand: 'uv run --no-sync python main.py'
+  });
+  assert.equal(await fetchFromContainer(uvTag), 'railpack-uv-ok:xn--mnich-kva:native-ok');
   assert.match(String(uvOutput.details?.detection), /built on python:/);
   record('railpack-uv-image', uvOutput);
 
@@ -695,7 +732,10 @@ async function pythonRailpackScenarios(railpack: Omit<Parameters<typeof buildUsi
     name: sdistTag,
     sourceDirectoryPath: 'railpack-python-sdist'
   });
-  assert.match(String(sdistOutput.details?.dockerOutput), /Installing build tools to compile dependencies/);
+  assert.match(
+    String(sdistOutput.details?.dockerOutput),
+    /Installing build tools to compile what has no prebuilt wheel/
+  );
   assert.equal(await fetchFromContainer(sdistTag), 'railpack-sdist-ok:True');
   record('railpack-python-sdist-image', sdistOutput);
 }
