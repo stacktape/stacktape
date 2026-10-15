@@ -163,15 +163,13 @@ npx stacktape delete --stage pr-42 --region us-east-1 --autoConfirmOperation
 > **Info:** If your CI pipeline deploys more than one Stacktape project, make the project selection explicit — set the project name in each configuration file or pass it as a CLI argument.
 
 
-### --hotSwap
+### --fullDeploy
 
-The `--hotSwap` flag attempts a faster deployment by updating eligible [Lambda functions](/resources/compute/lambda-function) and container workloads — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) — directly when Stacktape determines the stack changes are hot-swappable. If hot-swap is not possible, Stacktape warns, may repackage skipped packaging jobs for existing stacks, prepares the template again, and runs a full CloudFormation deploy.
+When only code changed, `stacktape deploy` updates the changed [Lambda functions](/resources/compute/lambda-function) and container workloads directly, without CloudFormation (see [Fast deployments](/cli/deploy#fast-deployments)). The `--fullDeploy` flag deploys every change through CloudFormation instead.
 
 ```bash
-npx stacktape deploy --stage staging --region us-east-1 --hotSwap --autoConfirmOperation
+npx stacktape deploy --stage staging --region us-east-1 --fullDeploy --autoConfirmOperation
 ```
-
-Hot-swap is recommended for development stacks where speed matters more than full CloudFormation tracking. Avoid it for production deployments.
 
 ### --disableAutoRollback
 
@@ -3101,26 +3099,33 @@ stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stac
 1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
 3. **Upload** — Uploads deployment artifacts for the stack.
-4. **Deploy** — Creates or updates a CloudFormation stack. Resources are provisioned, updated, or removed.
+4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
 5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
 After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
 
+## Fast deployments
+
+When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds; a container service runs a normal rolling deployment. Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
+
+A deployment uses CloudFormation when:
+
+- the stack is new, or the template changes anything other than function code or container images (configuration, environment variables, permissions, resources),
+- a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
+- the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
+- you pass `--fullDeploy`.
+
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
+
 ## Common flags
 
-### `--hotSwap`
+### `--fullDeploy`
 
-Hot-swap attempts a faster code-only deploy by updating eligible Lambda functions and container workloads (web services, private services, and worker services) directly, without CloudFormation.
+Deploys every change through CloudFormation, even when only code changed.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
-
-Hot-swap is attempted for code-only changes and is used only if Stacktape determines all stack changes are hot-swappable. If not, Stacktape runs a full CloudFormation deploy.
-
-
-> **Warning:** Use `--hotSwap` only on development stages. It bypasses CloudFormation's state tracking, so your stack's recorded state may drift from reality. For production, always use a full deploy.
-
 
 ### `--autoConfirmOperation`
 
@@ -3182,8 +3187,8 @@ Includes sensitive values in deploy output. Handle with care.
 | `--disableDockerRemoteCache (-drc)` | no | `boolean` | Disable Docker Remote Cache — Disables Docker layer caching using ECR as remote cache storage. By default, remote caching is enabled to speed up Docker builds by reusing layers. Set to `true` to disable remote caching. | - |
 | `--disableLayerOptimization (-dlo)` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
 | `--dockerArgs (-da)` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
+| `--fullDeploy (-fd)` | no | `boolean` | Full Deploy — If `true`, deploys every change through CloudFormation. By default, when only the code of `functions` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation. | - |
 | `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--hotSwap (-hs)` | no | `boolean` | Hotswap — If `true`, attempts a faster deployment for code-only changes by updating `functions` and `multi-container-workloads` directly, without using CloudFormation. This is recommended only for development stacks. Hotswap will only be used if all stack changes are hot-swappable. | - |
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--noCache (-nc)` | no | `boolean` | No Cache — If `true`, disables the use of cached artifacts and forces a fresh build of compute resources. | - |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
@@ -3209,10 +3214,10 @@ stacktape deploy --stage production --region us-east-1
 stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
 ```
 
-### Fast deploy for development
+### Deploy everything through CloudFormation
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
 
 ### Non-interactive deploy in CI/CD
@@ -3250,7 +3255,7 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 Source: `apps/docs/content/cli/deployment-script-run.mdx`
 Route: `/cli/deployment-script-run`
 
-The `deployment-script:run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, hot-swaps it onto the existing Lambda, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
+The `deployment-script:run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, updates the existing Lambda with it, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
 
 
 > **Warning:** This command updates the script's **source code** and resolves `parameters` from your local configuration. Changes to environment variables, memory, timeout, VPC settings, or other Lambda configuration require a full [`deploy`](/cli/deploy).
@@ -3314,7 +3319,7 @@ stacktape deployment-script:run --stage production --region us-west-2 --resource
 
 ## When to use this vs deploy
 
-Use `deployment-script:run` when you are iterating on the script's handler code and want fast feedback. The command rebuilds and hot-swaps only the script's function code, then invokes the Lambda — skipping a full stack update. The script's `parameters` are resolved from your current local configuration and sent as the invocation payload, so parameter changes take effect immediately without redeploying. Switch to a full [`deploy`](/cli/deploy) when you change Lambda configuration such as environment variables, memory, timeout, packaging settings, or VPC settings.
+Use `deployment-script:run` when you are iterating on the script's handler code and want fast feedback. The command rebuilds and updates only the script's function code, then invokes the Lambda — skipping a full stack update. The script's `parameters` are resolved from your current local configuration and sent as the invocation payload, so parameter changes take effect immediately without redeploying. Switch to a full [`deploy`](/cli/deploy) when you change Lambda configuration such as environment variables, memory, timeout, packaging settings, or VPC settings.
 
 ## Related commands
 
@@ -7211,7 +7216,7 @@ Pass `--agent` to switch from the formatted ASCII table to a structured JSON obj
 Source: `apps/docs/content/cli/rollback.mdx`
 Route: `/cli/rollback`
 
-The `stacktape rollback` command reverts a deployed stack to a previous deployment version. It downloads the CloudFormation template from a previous version and deploys it. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
+The `stacktape rollback` command reverts a deployed stack to a previous release. It downloads the CloudFormation template from that release and deploys it. Every deployment that changed something is a release, including fast deployments that updated code without CloudFormation. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
 
 ## When to use
 
@@ -7259,7 +7264,7 @@ Specifies the exact deployment version to roll back to, for example `v000003`. V
 
 ### `--rollbackSteps`
 
-Number of versions to step back from the current version. Defaults to `1` (the immediately previous deployment). For example, if the current version is `v000008`, `--rollbackSteps 3` targets `v000005`. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
+Number of stored releases to step back from the current one. Defaults to `1` (the previous release). For example, if the current release is `v000008` and all older releases are still stored, `--rollbackSteps 3` targets `v000005`. Releases removed by `previousVersionsToKeep` are skipped. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
 
 ### `--listVersions`
 
@@ -7275,11 +7280,11 @@ Stacktape stores CloudFormation templates and deployment artifacts for each depl
 
 
 ## Flow
-1. **Version resolution**: The target version is determined from --targetVersion, or calculated by subtracting --rollbackSteps from the current version.
+1. **Version resolution**: The target version is --targetVersion, or the release --rollbackSteps steps back among the stored releases.
 2. **Artifact verification**: Stacktape verifies that artifacts for the target version are available in the deployment bucket before proceeding.
 3. **Safety check**: The command reads rollback safety metadata from the deployed stack, when present, and prints warnings for directives, TypeScript transforms, custom directives, or after:deploy hooks.
-4. **Template preparation**: The old CloudFormation template is downloaded, its version output is updated to a new version number, and re-uploaded.
-5. **Deployment**: CloudFormation applies the uploaded rollback template. Artifacts such as Lambda zips and container images are reused, so workloads are not rebuilt. Stacktape still prepares and uploads a rollback CloudFormation template for the new deployment version.
+4. **Template preparation**: The old CloudFormation template is downloaded and stored as a new release. The function code and container images it uses are copied under the new release, so CloudFormation updates every function and container service to the restored code, including those a fast deployment changed.
+5. **Deployment**: CloudFormation applies the rollback template. Lambda zips and container images are reused, not rebuilt. Every container service runs a rolling deployment, even one whose code did not change.
 6. **Bucket content restoration**: If the stack includes static hosting with bucket-synced content, Stacktape attempts to restore the bucket contents from a version manifest.
 
 
@@ -12815,7 +12820,7 @@ A Stacktape deployment runs through several phases: configuration validation, wo
 2. **Package & prepare template**: Bundle Lambda code, build container images, resolve resources, prepare CloudFormation template
 3. **Plan & protect**: Fingerprint the final target, template, workload builds, and protected-resource risks
 4. **Upload**: Upload packaged artifacts to S3, push container images to ECR
-5. **Deploy**: Create or update the CloudFormation stack (or hot-swap eligible workloads directly)
+5. **Deploy**: Create or update the CloudFormation stack, or update changed code directly
 6. **Post-deploy**: Run afterDeploy hooks, sync hosting buckets, invalidate CDN caches, send notifications
 
 
@@ -12833,7 +12838,7 @@ Stacktape uploads packaged artifacts to an S3 deployment bucket and pushes conta
 
 ### Deploy
 
-For new stacks, Stacktape creates the CloudFormation stack. For existing stacks, Stacktape submits the updated template and CloudFormation determines which resources need to be created, updated, or deleted. CloudFormation handles dependency ordering and parallelizes independent resource operations. When the `--hotSwap` flag is used and the template diff is eligible, Stacktape bypasses CloudFormation and updates eligible Lambda functions and container workloads directly via the AWS APIs.
+For new stacks, Stacktape creates the CloudFormation stack. For existing stacks, Stacktape submits the updated template and CloudFormation determines which resources need to be created, updated, or deleted. CloudFormation handles dependency ordering and parallelizes independent resource operations. When only code changed, Stacktape updates the changed Lambda functions and container workloads directly through the AWS APIs instead (see [Fast deployments](#fast-deployments)).
 
 ### Post-deploy
 
@@ -12862,7 +12867,7 @@ Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory
 | `--stage` (`-s`) | **(required)** Stage name — `dev`, `staging`, `production`, etc. Max 12 characters. |
 | `--region` (`-r`) | **(required)** AWS region — `eu-west-1`, `us-east-1`, etc. |
 | `--configPath` | Path to config file. Defaults to `stacktape.ts` or `stacktape.yml`. |
-| `--hotSwap` | Fast deploy for code-only changes. Falls back to full deploy if infrastructure changed. |
+| `--fullDeploy` | Deploy every change through CloudFormation, even when only code changed. |
 | `--autoConfirmOperation` | Skip the confirmation prompt. Required for CI/CD pipelines. |
 | `--disableAutoRollback` | Keep failed CloudFormation state for debugging instead of rolling back. |
 | `--noCache` | Force fresh builds, ignoring cached artifacts. |
@@ -12875,48 +12880,43 @@ For the full flag reference with all available options and short aliases, see th
 
 ## Deployment modes
 
-Stacktape supports two deployment modes: full deployment through CloudFormation and hot-swap for rapid code iteration. Most teams use full deployment for production and staging where infrastructure consistency matters, and hot-swap during development for faster code iterations.
+Every `stacktape deploy` picks one of two modes on its own: a full deployment through CloudFormation, or a fast deployment that updates only the changed code directly. Both create a release that [`rollback`](/cli/rollback) can return to.
 
 
 ## Feature Comparison
 
-| Feature | Full deploy | Hot-swap |
+| Feature | Full deploy | Fast deploy |
 | --- | --- | --- |
 | Can update all resource types | yes | no |
 | Adds or removes resources | yes | no |
 | Changes IAM, networking, config | yes | no |
 | Automatic rollback on failure | yes | no |
-| Typical duration | Minutes (varies with stack complexity) | Seconds |
-| Execution environment | Invoking CLI or Console EC2 runner | Invoking CLI |
+| Typical duration | Minutes (varies with stack complexity) | Seconds for functions, one rolling deployment for services |
+| Execution environment | Invoking CLI or Console EC2 runner | Invoking CLI or Console EC2 runner |
 
 
 ### Full deployment
 
-Full deployment is the default mode. Stacktape generates a CloudFormation template and lets CloudFormation create, update, or delete resources as needed. CloudFormation handles dependency ordering, parallelizes independent resource operations, and can roll back the entire stack if any resource fails.
+Stacktape generates a CloudFormation template and lets CloudFormation create, update, or delete resources as needed. CloudFormation handles dependency ordering, parallelizes independent resource operations, and can roll back the entire stack if any resource fails.
 
 ```bash
-stacktape deploy --stage production --region eu-west-1
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
 
-Use full deployment for production, staging, and any environment where infrastructure consistency matters. Full deploys are the only mode that can add or remove resources, change IAM permissions, update API routes, or modify resource configuration like memory and timeouts.
+Full deploys are the only mode that can add or remove resources, change IAM permissions, update API routes, or modify resource configuration like memory and timeouts.
 
-### Hot-swap deployment
+### Fast deployments
 
-Hot-swap deployment bypasses CloudFormation and updates eligible [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/web-service) directly through the AWS APIs. This makes code iterations significantly faster during development — typically completing in seconds instead of minutes.
+When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds; a container service runs a normal rolling deployment. Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
 
-```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
-```
+A deployment uses CloudFormation when:
 
-When you pass `--hotSwap`, Stacktape analyzes the CloudFormation template diff to determine whether a hot-swap is possible. If Stacktape detects infrastructure changes — new resources, deleted resources, permission changes, configuration changes — it falls back to a full CloudFormation deployment automatically and warns you.
+- the stack is new, or the template changes anything other than function code or container images (configuration, environment variables, permissions, resources),
+- a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
+- the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
+- you pass `--fullDeploy`.
 
-Hot-swap is only available for **updates to existing stacks**. The first deployment of a new stage always runs a full deploy regardless of the flag. Eligibility is determined by the overall CloudFormation template diff — if any non-hot-swappable changes are detected (new resources, permission changes, configuration changes beyond container definitions), the entire deployment falls back to a full CloudFormation deploy.
-
-For Lambda functions, hot-swap updates the deployed function code. Eligible Lambda types include user-defined functions, deployment script functions, custom resource definition functions, and SSR server functions (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack, Remix). [Edge Lambda functions](/resources/compute/edge-function) are not eligible for hot-swap. For container workloads, hot-swap updates the container definitions — including images, environment variables, health checks, secrets, and port mappings — but only when no other task-definition properties (memory, CPU, volumes) have changed. Changes to infrastructure, IAM permissions, API routes, and resource-level configuration always require a full deployment.
-
-
-> **Warning:** Hot-swap updates resources outside of CloudFormation, which creates drift between the CloudFormation template and actual infrastructure. Use hot-swap only for development stages. Always use full deployment for production.
-
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
 ## Automatic rollback
 
@@ -12942,7 +12942,7 @@ If a stack is left in `UPDATE_FAILED` state after a failed update, Stacktape inc
 
 Every local, full CloudFormation deploy computes a versioned change plan after the final template is ready and before deployment artifacts are uploaded. The plan binds the resolved AWS account, region, project, stage, stack identity, previous and candidate semantic template digests, workload build digests, Stacktape resource-change counts, and protected stateful resources at risk. Stacktape prints a short plan ID; a successful JSONL/agent result also includes the complete `stacktape.change-plan.v1` object at `data.result.changePlan`. The plan contains target identifiers, but omits templates, resolved property values, credentials, and local paths.
 
-Ordinary creates and updates continue without an extra confirmation. Stacktape asks you to confirm only when the final local diff shows that a protected stateful resource—such as a database, DynamoDB table, S3 bucket, user pool, OpenSearch domain, or EFS file system—will be destroyed or replaced. If `--hotSwap` must fall back to a full deployment, Stacktape finishes any required repackaging, finalizes the template again, and builds the plan from that final template before asking. This prevents you from approving an earlier preview and deploying a later fallback result.
+Ordinary creates and updates continue without an extra confirmation. Stacktape asks you to confirm only when the final local diff shows that a protected stateful resource—such as a database, DynamoDB table, S3 bucket, user pool, OpenSearch domain, or EFS file system—will be destroyed or replaced.
 
 The default deploy path still submits the template directly to CloudFormation; creating the local plan adds no AWS change-set request and no second packaging pass. Use [`stacktape diff`](/cli/diff) when you want AWS's property-level replacement assessment before deploying. Its plan records `aws-change-set` as its evidence source; the faster deploy plan records `local-template-diff`.
 
@@ -12959,7 +12959,7 @@ stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 > **Info:** The plan ID is a same-invocation audit fingerprint of semantic templates, workload build inputs, target identity, and the displayed Stacktape resource changes. It is not a checksum of uploaded bytes, a signature, or a reusable cross-job approval token. Portable approvals, signed plans, and immutable cross-account artifact promotion are separate workflows.
 
 
-Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. EC2 runner deployments still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
+Fast deployments do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. EC2 runner deployments still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
 
 ## Previewing changes
 
@@ -13054,7 +13054,7 @@ stacktape secret:set --name mySecret --stage production --region eu-west-1
 
 ### How long does a Stacktape deployment take?
 
-Deployment duration depends on the number and type of resources in your stack, the size of your build artifacts, and how many container images need to be built and pushed. Simple stacks deploy faster than stacks with databases, container workloads, and networking. Hot-swap deployments for code-only changes complete in seconds. The packaging and upload phases scale with your codebase size and number of container images.
+Deployment duration depends on the number and type of resources in your stack, the size of your build artifacts, and how many container images need to be built and pushed. Simple stacks deploy faster than stacks with databases, container workloads, and networking. Fast deployments of code-only function changes complete in seconds. The packaging and upload phases scale with your codebase size and number of container images.
 
 ### What happens if a CloudFormation deployment fails midway?
 
@@ -13064,13 +13064,13 @@ When auto-rollback is enabled (the default), CloudFormation reverts the entire s
 
 Yes. The same `stacktape.ts` config produces independent stacks per stage. Deploy with `--stage dev` and `--stage production` from the same config, and they create separate AWS resources with no shared state. Use [directives](/configuration/directives) like `$Stage()` inside your config to vary behavior per stage — for example, smaller instances in dev and larger ones in production.
 
-### Should I use hot-swap or full deployment?
+### Do I have to choose between a fast and a full deployment?
 
-Use hot-swap (`--hotSwap`) when iterating on Lambda or container code during development. It bypasses CloudFormation and pushes changes directly, completing in seconds instead of minutes. Use full deployment for any infrastructure changes (new resources, permission updates, config changes) and always for production. Hot-swap creates drift between your CloudFormation state and actual resources, which is acceptable in dev but risky in production.
+No. `stacktape deploy` updates code directly when only code changed and uses CloudFormation for everything else. Pass `--fullDeploy` to always use CloudFormation.
 
-### Does hot-swap cause CloudFormation drift, and should I worry about it?
+### Do fast deployments cause CloudFormation drift?
 
-Yes. Because hot-swap updates Lambda code and container definitions directly through the AWS APIs instead of CloudFormation, the deployed resources no longer match what the template expects — this is drift. It's harmless in development, but the next full deploy reconciles the difference and may produce unexpected changes. That's why hot-swap is for dev stages only; always use full deployment for production.
+Briefly. After a fast deployment, the functions and services it updated run code the CloudFormation template does not reference yet. The next full deployment brings the template up to date. [`rollback`](/cli/rollback) restores a release's exact code either way.
 
 ---
 
@@ -15203,7 +15203,7 @@ Stacktape processes your configuration in four phases:
 4. **Post-deploy**: For stacks that include hosting buckets or CDNs, Stacktape syncs static files and invalidates CDN caches. Then it prepares deployed stack information and resource links.
 
 
-On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack. When `--hotSwap` is enabled and eligible, Stacktape updates Lambda function code or container workload services directly instead of running a full CloudFormation stack update.
+On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack. When only code changed, Stacktape updates the changed Lambda functions or container services directly instead of running a CloudFormation stack update.
 
 ### Deploy output
 
@@ -15217,7 +15217,7 @@ The Console URL includes the project name. The project name is set via `--projec
 
 ## What gets created in AWS
 
-A standard Stacktape deploy creates or updates a CloudFormation stack in the connected AWS account. When `--hotSwap` is enabled and eligible, Stacktape can update Lambda function code or container workload services directly without a CloudFormation stack update. The CloudFormation stack is the unit Stacktape manages for the stage. Inside the stack, CloudFormation provisions whatever your configuration declares:
+A standard Stacktape deploy creates or updates a CloudFormation stack in the connected AWS account. When only code changed, Stacktape updates Lambda function code or container services directly without a CloudFormation stack update. The CloudFormation stack is the unit Stacktape manages for the stage. Inside the stack, CloudFormation provisions whatever your configuration declares:
 
 | What | Example |
 |---|---|
@@ -15252,15 +15252,9 @@ stacktape deploy --stage dev --region eu-west-1
 
 Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack.
 
-### Hot-swap for faster code iteration
+### Code-only changes deploy in seconds
 
-When you pass `--hotSwap`, Stacktape attempts a direct code update for eligible Lambda functions and container workloads — bypassing CloudFormation entirely. If Stacktape determines hot-swap is not possible (because the infrastructure template changed), it falls back to a full CloudFormation deploy automatically.
-
-```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
-```
-
-Hot-swap is useful during development when you're iterating on application code without changing infrastructure. It completes significantly faster than a full deploy since no CloudFormation stack update is needed.
+When a deployment changes only the code of functions or container services, Stacktape updates them directly instead of through CloudFormation. You don't need a flag for this. Changes to infrastructure or configuration always go through CloudFormation, and `--fullDeploy` forces it. See [Fast deployments](/cli/deploy#fast-deployments).
 
 ## Deploying multiple stages
 
@@ -15280,7 +15274,7 @@ You need to connect an AWS account before deploying. Open the connected AWS acco
 
 ### Deploy takes longer than expected
 
-First deploys take longer because every resource must be created from scratch. Databases and container services take longer to provision than Lambda functions. Subsequent deploys that only change code complete faster, especially with `--hotSwap`.
+First deploys take longer because every resource must be created from scratch. Databases and container services take longer to provision than Lambda functions. Subsequent deploys that only change code take seconds, because Stacktape updates the code directly.
 
 ### CloudFormation rollback
 
@@ -15294,7 +15288,7 @@ You cannot deploy to a stage that currently has an active [dev mode](/getting-st
 
 ### How long does a first deploy take?
 
-First deploys depend on the resources being provisioned. Lambda-only stacks are the fastest. Stacks with databases, container services, or custom domains take longer because AWS provisions those resources sequentially. Subsequent deploys that only change application code are faster since CloudFormation only updates the diff — and `--hotSwap` deploys bypass CloudFormation entirely for eligible code changes.
+First deploys depend on the resources being provisioned. Lambda-only stacks are the fastest. Stacks with databases, container services, or custom domains take longer because AWS provisions those resources sequentially. Subsequent deploys that only change application code are faster since CloudFormation only updates the diff — and code-only changes skip CloudFormation entirely.
 
 ### Does Stacktape cost money to use with AWS?
 
@@ -48724,7 +48718,7 @@ Common parameters accepted by `plan` and `run`:
 | `secretName` | string | Secret name for secret commands |
 | `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
-| `hotSwap` | boolean | Request hotswap deployment when supported |
+| `fullDeploy` | boolean | Deploy every change through CloudFormation instead of updating changed code directly |
 | `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through the client's confirmation form; this flag alone cannot authorize them. |
 | `timeoutMs` | number | Command timeout in milliseconds for `run` |
 

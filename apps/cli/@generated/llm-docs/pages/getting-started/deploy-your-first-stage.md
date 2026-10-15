@@ -78,7 +78,7 @@ Stacktape processes your configuration in four phases:
 4. **Post-deploy**: For stacks that include hosting buckets or CDNs, Stacktape syncs static files and invalidates CDN caches. Then it prepares deployed stack information and resource links.
 
 
-On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack. When `--hotSwap` is enabled and eligible, Stacktape updates Lambda function code or container workload services directly instead of running a full CloudFormation stack update.
+On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack. When only code changed, Stacktape updates the changed Lambda functions or container services directly instead of running a CloudFormation stack update.
 
 ### Deploy output
 
@@ -92,7 +92,7 @@ The Console URL includes the project name. The project name is set via `--projec
 
 ## What gets created in AWS
 
-A standard Stacktape deploy creates or updates a CloudFormation stack in the connected AWS account. When `--hotSwap` is enabled and eligible, Stacktape can update Lambda function code or container workload services directly without a CloudFormation stack update. The CloudFormation stack is the unit Stacktape manages for the stage. Inside the stack, CloudFormation provisions whatever your configuration declares:
+A standard Stacktape deploy creates or updates a CloudFormation stack in the connected AWS account. When only code changed, Stacktape updates Lambda function code or container services directly without a CloudFormation stack update. The CloudFormation stack is the unit Stacktape manages for the stage. Inside the stack, CloudFormation provisions whatever your configuration declares:
 
 | What | Example |
 |---|---|
@@ -127,15 +127,9 @@ stacktape deploy --stage dev --region eu-west-1
 
 Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack.
 
-### Hot-swap for faster code iteration
+### Code-only changes deploy in seconds
 
-When you pass `--hotSwap`, Stacktape attempts a direct code update for eligible Lambda functions and container workloads — bypassing CloudFormation entirely. If Stacktape determines hot-swap is not possible (because the infrastructure template changed), it falls back to a full CloudFormation deploy automatically.
-
-```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
-```
-
-Hot-swap is useful during development when you're iterating on application code without changing infrastructure. It completes significantly faster than a full deploy since no CloudFormation stack update is needed.
+When a deployment changes only the code of functions or container services, Stacktape updates them directly instead of through CloudFormation. You don't need a flag for this. Changes to infrastructure or configuration always go through CloudFormation, and `--fullDeploy` forces it. See [Fast deployments](/cli/deploy#fast-deployments).
 
 ## Deploying multiple stages
 
@@ -155,7 +149,7 @@ You need to connect an AWS account before deploying. Open the connected AWS acco
 
 ### Deploy takes longer than expected
 
-First deploys take longer because every resource must be created from scratch. Databases and container services take longer to provision than Lambda functions. Subsequent deploys that only change code complete faster, especially with `--hotSwap`.
+First deploys take longer because every resource must be created from scratch. Databases and container services take longer to provision than Lambda functions. Subsequent deploys that only change code take seconds, because Stacktape updates the code directly.
 
 ### CloudFormation rollback
 
@@ -169,7 +163,7 @@ You cannot deploy to a stage that currently has an active [dev mode](/getting-st
 
 ### How long does a first deploy take?
 
-First deploys depend on the resources being provisioned. Lambda-only stacks are the fastest. Stacks with databases, container services, or custom domains take longer because AWS provisions those resources sequentially. Subsequent deploys that only change application code are faster since CloudFormation only updates the diff — and `--hotSwap` deploys bypass CloudFormation entirely for eligible code changes.
+First deploys depend on the resources being provisioned. Lambda-only stacks are the fastest. Stacks with databases, container services, or custom domains take longer because AWS provisions those resources sequentially. Subsequent deploys that only change application code are faster since CloudFormation only updates the diff — and code-only changes skip CloudFormation entirely.
 
 ### Does Stacktape cost money to use with AWS?
 

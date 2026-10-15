@@ -1,6 +1,6 @@
 # rollback
 
-The `stacktape rollback` command reverts a deployed stack to a previous deployment version. It downloads the CloudFormation template from a previous version and deploys it. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
+The `stacktape rollback` command reverts a deployed stack to a previous release. It downloads the CloudFormation template from that release and deploys it. Every deployment that changed something is a release, including fast deployments that updated code without CloudFormation. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
 
 ## When to use
 
@@ -48,7 +48,7 @@ Specifies the exact deployment version to roll back to, for example `v000003`. V
 
 ### `--rollbackSteps`
 
-Number of versions to step back from the current version. Defaults to `1` (the immediately previous deployment). For example, if the current version is `v000008`, `--rollbackSteps 3` targets `v000005`. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
+Number of stored releases to step back from the current one. Defaults to `1` (the previous release). For example, if the current release is `v000008` and all older releases are still stored, `--rollbackSteps 3` targets `v000005`. Releases removed by `previousVersionsToKeep` are skipped. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
 
 ### `--listVersions`
 
@@ -64,11 +64,11 @@ Stacktape stores CloudFormation templates and deployment artifacts for each depl
 
 
 ## Flow
-1. **Version resolution**: The target version is determined from --targetVersion, or calculated by subtracting --rollbackSteps from the current version.
+1. **Version resolution**: The target version is --targetVersion, or the release --rollbackSteps steps back among the stored releases.
 2. **Artifact verification**: Stacktape verifies that artifacts for the target version are available in the deployment bucket before proceeding.
 3. **Safety check**: The command reads rollback safety metadata from the deployed stack, when present, and prints warnings for directives, TypeScript transforms, custom directives, or after:deploy hooks.
-4. **Template preparation**: The old CloudFormation template is downloaded, its version output is updated to a new version number, and re-uploaded.
-5. **Deployment**: CloudFormation applies the uploaded rollback template. Artifacts such as Lambda zips and container images are reused, so workloads are not rebuilt. Stacktape still prepares and uploads a rollback CloudFormation template for the new deployment version.
+4. **Template preparation**: The old CloudFormation template is downloaded and stored as a new release. The function code and container images it uses are copied under the new release, so CloudFormation updates every function and container service to the restored code, including those a fast deployment changed.
+5. **Deployment**: CloudFormation applies the rollback template. Lambda zips and container images are reused, not rebuilt. Every container service runs a rolling deployment, even one whose code did not change.
 6. **Bucket content restoration**: If the stack includes static hosting with bucket-synced content, Stacktape attempts to restore the bucket contents from a version manifest.
 
 

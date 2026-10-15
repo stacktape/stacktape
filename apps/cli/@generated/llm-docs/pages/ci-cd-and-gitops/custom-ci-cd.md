@@ -64,15 +64,13 @@ npx stacktape delete --stage pr-42 --region us-east-1 --autoConfirmOperation
 > **Info:** If your CI pipeline deploys more than one Stacktape project, make the project selection explicit — set the project name in each configuration file or pass it as a CLI argument.
 
 
-### --hotSwap
+### --fullDeploy
 
-The `--hotSwap` flag attempts a faster deployment by updating eligible [Lambda functions](/resources/compute/lambda-function) and container workloads — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) — directly when Stacktape determines the stack changes are hot-swappable. If hot-swap is not possible, Stacktape warns, may repackage skipped packaging jobs for existing stacks, prepares the template again, and runs a full CloudFormation deploy.
+When only code changed, `stacktape deploy` updates the changed [Lambda functions](/resources/compute/lambda-function) and container workloads directly, without CloudFormation (see [Fast deployments](/cli/deploy#fast-deployments)). The `--fullDeploy` flag deploys every change through CloudFormation instead.
 
 ```bash
-npx stacktape deploy --stage staging --region us-east-1 --hotSwap --autoConfirmOperation
+npx stacktape deploy --stage staging --region us-east-1 --fullDeploy --autoConfirmOperation
 ```
-
-Hot-swap is recommended for development stacks where speed matters more than full CloudFormation tracking. Avoid it for production deployments.
 
 ### --disableAutoRollback
 
