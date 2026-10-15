@@ -119,7 +119,8 @@
     "test:release-rules": "bun test scripts/release/candidate-assets.spec.ts scripts/release/checksums.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-release.spec.ts scripts/install-scripts/checksums.spec.ts src/utils/bin-executable.spec.ts",
     "test:release-downloads": "bun test scripts/install-scripts/installers.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/release/dispatch.spec.ts",
     "test:installers:windows": "bun test scripts/install-scripts/windows.spec.ts",
-    "test:release-native": "bun scripts/verify-release-artifact.ts --require-candidate --qualify-tools"
+    "test:release-native": "bun scripts/verify-release-artifact.ts --require-candidate --qualify-tools",
+    "perf:zip-levels": "bun scripts/perf/zip-levels.ts"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

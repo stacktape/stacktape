@@ -1,18 +1,16 @@
-import type { BunPlugin } from 'bun';
-import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { dirExists, getBaseName, getFolder, getPathRelativeTo, isFileAccessible } from '../../fs/files';
+import { getFolder, getPathRelativeTo, isFileAccessible } from '../../fs/files';
 import { findProjectRoot } from '../../es/project-root';
 import { chmod, copy, readFile, readJson, remove, stat } from 'fs-extra';
 import kleur from 'kleur';
-import { IGNORED_EXTENSIONS, IGNORED_FILES, IGNORED_FOLDERS, NODE_BUILTIN_MODULES } from '../../es/config';
 import type {
   CreatePackagingError,
   ResolvedPackageDependency,
   SupportedEsPackageManager
 } from '../../runtime-contracts';
-import type { PackageJsonDepsInfo } from '../../es/bundler-helpers';
-import { getInfoFromPackageJson } from '../../es/bundler-helpers';
+import { isBareImportSpecifier } from '../../es/bun-plugins';
+import { getModuleName, isNodeBuiltinImport } from '../../es/import-classification';
+import { findInstalledPackage, readPackageManifest } from '../../es/installed-packages';
 import { getMatchingFilesByGlob } from '../../fs/files';
 
 const PACKAGE_LOCKS = {
@@ -54,39 +52,7 @@ export const getLockFileData = async (
     }
   }
   return { packageManager: await getDeclaredPackageManager(dirPath), lockfilePath: null };
-
-  // @todo validate existence of lock file
-  // let isLockFileRequired = false;
-  // try {
-  //   const lockFileData = await readJson(join(dirPath, 'package.json'));
-  //   if (Object.keys(lockFileData.dependencies).length) {
-  //     isLockFileRequired = true;
-  //   }
-  // } catch {
-  //   return { packageManager: null, lockfilePath: null };
-  // }
-  // if (isLockFileRequired) {
-  //   raiseError({
-  //     type: 'PACKAGING',
-  //     message:
-  //       'Failed to load dependency lockfile. You need to install your dependencies first. Supported package managers are 'npm', 'yarn' and 'pnpm'.'
-  //   });
-  // }
 };
-
-// export const getVersionOfAllTransitiveDeps = async ({
-//   depName,
-//   dir
-// }: {
-//   depName: string;
-//   dir: string;
-// }): Promise<{ [depName: string]: string }> => {
-//   // @todo this should parse lockfile, not package.json
-//   // we should use this package probably to parse: snyk-nodejs-lockfile-parser
-//   const packageJsonContents = await readJson(join(dir, 'package.json'));
-//   return { [depName]: packageJsonContents.dependencies[depName] || 'latest' };
-// };
-
 const findPrismaSchemaFiles = async ({ workingDir }: { workingDir: string }): Promise<string[]> => {
   const relativeSchemaPaths = await getMatchingFilesByGlob({
     // Prune before traversal: pnpm dependency links can form cycles even though their matches are discarded below.
@@ -409,121 +375,68 @@ export const resolvePrisma = async ({
   );
 };
 
-const getModuleNameFromPath = (importPath: string): string => {
-  const moduleName = importPath.endsWith('/') ? importPath.slice(0, importPath.length - 1) : importPath;
-  const [firstPart, secondPart] = moduleName.split('/');
-  if (!firstPart) return moduleName;
-  return firstPart.startsWith('@') && secondPart ? `${firstPart}/${secondPart}` : firstPart;
+const JAVASCRIPT_EXTENSIONS = new Set(['.js', '.cjs', '.mjs']);
+
+/**
+ * The file a relative import names, or `undefined` when there is none. A file can guard an import of something that
+ * may be missing with try/catch; Node.js reports a missing file when it runs, so scanning does not.
+ */
+const resolveRelativeImport = (specifier: string, importer: string): string | undefined => {
+  try {
+    return Bun.resolveSync(specifier, dirname(importer));
+  } catch {
+    return undefined;
+  }
 };
 
-export const getAllJsDependenciesFromMultipleFiles = async ({
-  distFolderPath,
-  absoluteFilePaths,
-  workingDir
+/**
+ * The installed packages that explicitly included JavaScript files load, directly or through the files they import
+ * relatively. Those files are copied as they are, so they load these packages from the artifact's `node_modules` at
+ * run time.
+ */
+export const getDependenciesOfIncludedFiles = async ({
+  absoluteFilePaths
 }: {
-  distFolderPath: string;
   absoluteFilePaths: string[];
-  workingDir: string;
-}) => {
-  const allJsFiles = absoluteFilePaths.filter((f) => extname(f) === '.js');
-  if (!allJsFiles.length) {
-    return [];
+}): Promise<ResolvedPackageDependency[]> => {
+  const transpiler = new Bun.Transpiler({ loader: 'js' });
+  const dependencies = new Map<string, ResolvedPackageDependency>();
+  const pending = absoluteFilePaths.filter((path) => JAVASCRIPT_EXTENSIONS.has(extname(path)));
+  const scanned = new Set<string>();
+  while (pending.length > 0) {
+    const filePath = pending.pop()!;
+    if (scanned.has(filePath)) continue;
+    scanned.add(filePath);
+    // oxlint-disable-next-line no-await-in-loop -- included files are few and small.
+    for (const { path: specifier } of transpiler.scanImports(await readFile(filePath, 'utf8'))) {
+      if (specifier.startsWith('./') || specifier.startsWith('../')) {
+        const importedPath = resolveRelativeImport(specifier, filePath);
+        if (importedPath && JAVASCRIPT_EXTENSIONS.has(extname(importedPath))) pending.push(importedPath);
+        continue;
+      }
+      if (!isBareImportSpecifier(specifier) || isNodeBuiltinImport(specifier)) continue;
+      const name = getModuleName(specifier);
+      if (dependencies.has(name)) continue;
+      // oxlint-disable-next-line no-await-in-loop -- see above.
+      const path = await findInstalledPackage({ name, fromDirectory: dirname(filePath) });
+      if (!path) continue;
+      // oxlint-disable-next-line no-await-in-loop -- see above.
+      const { version = '' } = await readPackageManifest(path);
+      dependencies.set(name, { name, version, path, note: 'FROM_EXPLICITLY_INCLUDED_FILES' });
+    }
   }
-  const rootPackageJson = await readJson(join(workingDir, 'package.json'));
-  const allInstalledDeps = Object.keys(rootPackageJson.dependencies || {});
-  const deps: ResolvedPackageDependency[] = [];
-
-  await Promise.all(
-    allJsFiles.map(async (filePath) => {
-      const analyzeFolderDepsPlugin: BunPlugin = {
-        name: 'analyze-folder-deps',
-        setup(build) {
-          build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string } | undefined> => {
-            // Skip relative imports
-            if (args.path.startsWith('.') || args.path.startsWith('/')) {
-              return undefined;
-            }
-
-            const moduleName = getModuleNameFromPath(args.path);
-            if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path === filePath) {
-              return undefined;
-            }
-            const modulePath = join(workingDir, 'node_modules', moduleName);
-            if (
-              !deps.find((d) => d.name === moduleName) &&
-              isFileAccessible(join(modulePath, 'package.json')) &&
-              allInstalledDeps.includes(moduleName)
-            ) {
-              const dependency = await getInfoFromPackageJson({
-                directoryPath: modulePath,
-                parentModule: null,
-                dependencyType: 'root',
-                checkDeps: false
-              });
-              if (dependency) {
-                deps.push(dependency);
-              }
-            }
-            return undefined;
-          });
-        }
-      };
-
-      await Bun.build({
-        entrypoints: [filePath],
-        outdir: join(distFolderPath, '_temp-chunks', randomUUID()),
-        target: 'node',
-        plugins: [analyzeFolderDepsPlugin]
-      });
-
-      return Array.from(deps);
-    })
-  );
-
-  await remove(join(distFolderPath, '_temp-chunks'));
-  return deps;
+  return [...dependencies.values()];
 };
 
 export const getLambdaRuntimeFromNodeTarget = (version: string) => Number(version.split('.')[0]);
 
-const filterJunkFiles = (filePath: string) => {
-  const baseName = getBaseName(filePath);
-  if (dirExists(filePath)) {
-    if (IGNORED_FOLDERS.includes(baseName)) {
-      return false;
-    }
-  } else if (IGNORED_FILES.includes(baseName) || IGNORED_EXTENSIONS.find((ext) => filePath.endsWith(ext))) {
-    return false;
-  }
-  return true;
-};
-
-export const copyToDeploymentPackage = async ({ from, to }: { from: string; to: string }) => {
+const copyToDeploymentPackage = async ({ from, to }: { from: string; to: string }) => {
   // The copy keeps the source's executable intent: any execute bit, as the Lambda archive reads it
   // (`hasHostExecutableBit`). On Windows, where files carry no execute bit, the archive recognizes an ELF engine by its
   // header instead (see `listArchiveEntries`).
   const { mode } = await stat(from);
-
-  const newMode = mode & 0o111 ? 0o755 : 0o644;
-  return copy(from, to, {
-    filter: filterJunkFiles
-  })
-    .then(() => {
-      return chmod(to, newMode);
-    })
-    .catch((err) => {
-      if (err.code !== 'EEXIST') {
-        throw err;
-      }
-    });
-};
-
-export const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<string>) => {
-  for (const dep of depsInfo.dependencies) {
-    depsList.add(dep.name);
-    getExternalDeps(dep, depsList);
-  }
-  return depsList;
+  await copy(from, to);
+  await chmod(to, mode & 0o111 ? 0o755 : 0o644);
 };
 
 export const resolveDifferentSourceMapLocation = async ({

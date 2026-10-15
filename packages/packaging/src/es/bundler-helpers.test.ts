@@ -5,7 +5,8 @@ import { pathToFileURL } from 'node:url';
 import { buildEsCode } from '../bundlers/es';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModuleResolver, getInfoFromPackageJson } from './bundler-helpers';
+import { createModuleResolver } from './bundler-helpers';
+import { addRuntimeDependencies, type InstalledPackage } from './installed-packages';
 
 const tempDirs: string[] = [];
 
@@ -150,17 +151,15 @@ describe('installed package description', () => {
       peerDependenciesMeta: { client: { optional: true } }
     });
 
-    const info = await getInfoFromPackageJson({
-      directoryPath: join(nodeModules, 'client'),
-      parentModule: null,
-      dependencyType: 'root'
-    });
+    const packages = new Map<string, InstalledPackage>();
+    await addRuntimeDependencies({ packages, start: [await realpath(join(nodeModules, 'client'))] });
 
-    const builders = info?.dependencies[0];
-    expect(builders?.name).toBe('builders');
-    expect(builders?.optionalPeerDependencies.map(({ name, dependencies }) => ({ name, dependencies }))).toEqual([
-      { name: 'client', dependencies: [] }
-    ]);
+    expect([...packages.values()].map(({ name, dependencies }) => ({ name, dependencies: dependencies.size }))).toEqual(
+      [
+        { name: 'client', dependencies: 1 },
+        { name: 'builders', dependencies: 1 }
+      ]
+    );
   }, 5_000);
 });
 

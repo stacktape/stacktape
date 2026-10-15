@@ -147,7 +147,7 @@ const bundle = ({
     sourceMapBannerType: 'disabled',
     tsConfigPath: join(cwd, 'tsconfig.json'),
     ...(emitTsDecoratorMetadata === undefined ? {} : { emitTsDecoratorMetadata }),
-    installNonStaticallyBuiltDepsInDocker: false,
+    packageExternalDependencies: false,
     nativeDependencyInstallationRootPath: join(cwd, '.stacktape', 'native'),
     installDependencies: async () => {},
     runDocker: async () => {

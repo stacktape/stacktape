@@ -321,9 +321,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
       createPackagingError: ({ message, hint, cause }) =>
         createCliPackagingError({ type: 'PACKAGING', message, hint, cause })
     });
-    const nativeDependencies = [...splitResult.lambdaOutputs.values()].flatMap(
-      (output) => output.dependenciesToInstallInDocker
-    );
+    const nativeDependencies = [...splitResult.lambdaOutputs.values()].flatMap((output) => output.externalDependencies);
     if (nativeDependencies.length > 0) {
       await refuse(`build native dependency layers (${nativeDependencies.map(({ name }) => name).join(', ')})`)();
     }

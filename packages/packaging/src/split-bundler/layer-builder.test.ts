@@ -63,7 +63,7 @@ const buildWorkspace = async ({ sharedChunkBody = 'import "./chunk-dep.js";\nexp
       join(lambdaChunks, 'chunk-local.js')
     ],
     sourceFiles: [],
-    dependenciesToInstallInDocker: [],
+    externalDependencies: [],
     resolvedModules: []
   };
 

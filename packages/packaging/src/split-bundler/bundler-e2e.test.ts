@@ -58,12 +58,8 @@ describe('split bundler end-to-end regressions', () => {
       createPackagingError
     });
 
-    expect(result.lambdaOutputs.get('a')?.dependenciesToInstallInDocker.map(({ version }) => version)).toEqual([
-      '1.0.0'
-    ]);
-    expect(result.lambdaOutputs.get('b')?.dependenciesToInstallInDocker.map(({ version }) => version)).toEqual([
-      '2.0.0'
-    ]);
+    expect(result.lambdaOutputs.get('a')?.externalDependencies.map(({ version }) => version)).toEqual(['1.0.0']);
+    expect(result.lambdaOutputs.get('b')?.externalDependencies.map(({ version }) => version)).toEqual(['2.0.0']);
   });
 
   test('cleans reused shared and Lambda output paths before a rebuild', async () => {
@@ -294,10 +290,8 @@ describe('split bundler end-to-end regressions', () => {
       createPackagingError
     });
 
-    expect(result.lambdaOutputs.get('images')?.dependenciesToInstallInDocker.map(({ name }) => name)).toEqual([
-      'native-pkg'
-    ]);
-    expect(result.lambdaOutputs.get('orders')?.dependenciesToInstallInDocker).toEqual([]);
+    expect(result.lambdaOutputs.get('images')?.externalDependencies.map(({ name }) => name)).toEqual(['native-pkg']);
+    expect(result.lambdaOutputs.get('orders')?.externalDependencies).toEqual([]);
     // `orders` runs from a copy with no node_modules at all: its pure dependency has to be in its own bytes.
     const runtime = await mkdtemp(join(tmpdir(), 'stacktape-split-pure-'));
     temporaryDirectories.push(runtime);

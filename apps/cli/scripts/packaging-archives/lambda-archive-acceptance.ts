@@ -17,8 +17,8 @@
  *    CLI's decision. After objects an older CLI left, the functions are rebuilt and new shared and native layers
  *    uploaded; unchanged, everything is reused; mode-only changes to the native layer's tool, to a Prisma engine and to
  *    the host's umask are rebuilt exactly where the archive changes and reused where it does not.
- *    Each backend also archives a compressible fixture: a `useNativeZip` directory is written at level 1 by a native
- *    tool and at level 6 by archiver (none on PATH, or after a native failure), and an explicit level wins either way.
+ *    Each backend also archives a compressible fixture: a `useNativeZip` directory is written at level 3 by a native
+ *    tool and by archiver (none on PATH, or after a native failure), and an explicit level wins either way.
  * 4. The runtime verifier itself gives up on an invocation that never answers and on a container that cannot start,
  *    and leaves no container behind.
  *
@@ -185,7 +185,7 @@ const EXPECTED_HANDLER_RESPONSE = {
 
 type WorkerArchive = { path: string; backend: string; nativeFailure?: { tool: string; message: string } };
 type LevelArchives = Record<
-  'byDefault' | 'override9' | 'direct1' | 'direct6' | 'direct9',
+  'byDefault' | 'override9' | 'direct1' | 'direct3' | 'direct9',
   WorkerArchive & { bytes: number }
 >;
 
@@ -232,21 +232,21 @@ const checkBackend = async ({
   });
 
   await check(
-    `${label}: a native tool compresses at level 1, archiver at level 6, and an explicit level wins`,
+    `${label}: a directory is compressed at level 3 by either backend, and an explicit level wins`,
     async () => {
-      const { byDefault, override9, direct1, direct6, direct9 } = levels;
-      for (const direct of [direct1, direct6, direct9]) assert.equal(direct.backend, 'archiver');
+      const { byDefault, override9, direct1, direct3, direct9 } = levels;
+      for (const direct of [direct1, direct3, direct9]) assert.equal(direct.backend, 'archiver');
       assert.equal(byDefault.backend, expectBackend);
       assert.equal(override9.backend, expectBackend);
-      const sizes = `default ${byDefault.bytes} B, override 9 ${override9.bytes} B; archiver 1/6/9 ${direct1.bytes}/${direct6.bytes}/${direct9.bytes} B`;
+      const sizes = `default ${byDefault.bytes} B, override 9 ${override9.bytes} B; archiver 1/3/9 ${direct1.bytes}/${direct3.bytes}/${direct9.bytes} B`;
       if (expectBackend === 'archiver') {
-        assert.equal(byDefault.bytes, direct6.bytes, `the archiver default is level 6 (${sizes})`);
-        assert.ok(direct6.bytes < direct1.bytes, `the fixture tells level 6 from level 1 (${sizes})`);
+        assert.equal(byDefault.bytes, direct3.bytes, `the archiver default is level 3 (${sizes})`);
+        assert.ok(direct3.bytes < direct1.bytes, `the fixture tells level 3 from level 1 (${sizes})`);
         assert.equal(override9.bytes, direct9.bytes, `an explicit level 9 is kept (${sizes})`);
         return sizes;
       }
       if (expectBackend === 'zip') {
-        assert.deepEqual(deflateOptions(byDefault.path), ['F'], `the zip default is level 1 (${sizes})`);
+        assert.deepEqual(deflateOptions(byDefault.path), ['N'], `the zip default is level 3 (${sizes})`);
         assert.deepEqual(deflateOptions(override9.path), ['X'], `an explicit level 9 is kept (${sizes})`);
       }
       return `${sizes}; deflate options ${deflateOptions(byDefault.path).join('')} and ${deflateOptions(override9.path).join('')}`;
@@ -470,7 +470,7 @@ const jsBundleScenario = async (outDirectory: string) => {
     ...common,
     distFolderPath: previousDist,
     existingDigests: [],
-    installNonStaticallyBuiltDepsInDocker: true,
+    packageExternalDependencies: true,
     isLambda: true,
     externals: []
   });

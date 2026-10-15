@@ -60,7 +60,7 @@ export const buildJsBundleImage = async ({
     ...(otherProps.disableSourceMaps && { sourceMaps: 'disabled' }),
     bundleTarget: runtime === 'bun' ? 'bun' : 'node',
     externals: [],
-    installNonStaticallyBuiltDepsInDocker: false,
+    packageExternalDependencies: false,
     dockerBuildOutputArchitecture,
     name,
     progressLogger,
@@ -198,7 +198,7 @@ const buildDevBaseImage = async ({
   buildDockerImage: BuildDockerImage;
   checkDockerImageExists: CheckDockerImageExists;
 }): Promise<{ imageName: string; devBaseImageBuilt: boolean }> => {
-  const dependencies = languageSpecificBundleOutput.es?.dependenciesToInstallInDocker || [];
+  const dependencies = languageSpecificBundleOutput.es?.externalDependencies || [];
   const packageManager = languageSpecificBundleOutput.es?.packageManager ?? 'npm';
 
   // Create hash for dev base image caching based on deps + config. `layout` names the generated
@@ -341,7 +341,7 @@ const createEsDockerFile = async ({
   runtime: JsBundleImageRuntime;
   buildContextPath: string;
 }) => {
-  const dependencies = languageSpecificBundleOutput.es?.dependenciesToInstallInDocker ?? [];
+  const dependencies = languageSpecificBundleOutput.es?.externalDependencies ?? [];
   const packageManager = languageSpecificBundleOutput.es?.packageManager ?? 'npm';
   return buildEsDockerfile({
     dependencies,
@@ -362,18 +362,12 @@ const normalizeLanguageSpecificBundleOutput = ({
   es
 }: {
   es: {
-    dependenciesToInstallInDocker?: NonNullable<LanguageSpecificBundleOutput['es']>['dependenciesToInstallInDocker'];
+    externalDependencies?: NonNullable<LanguageSpecificBundleOutput['es']>['externalDependencies'];
     packageManager?: NonNullable<LanguageSpecificBundleOutput['es']>['packageManager'] | null;
-    dynamicallyImportedModules?: NonNullable<LanguageSpecificBundleOutput['es']>['dynamicallyImportedModules'];
   };
 }): LanguageSpecificBundleOutput => ({
   es: {
-    ...(es.dependenciesToInstallInDocker !== undefined
-      ? { dependenciesToInstallInDocker: es.dependenciesToInstallInDocker }
-      : {}),
-    ...(es.dynamicallyImportedModules !== undefined
-      ? { dynamicallyImportedModules: es.dynamicallyImportedModules }
-      : {}),
+    ...(es.externalDependencies !== undefined ? { externalDependencies: es.externalDependencies } : {}),
     ...(es.packageManager !== null && es.packageManager !== undefined ? { packageManager: es.packageManager } : {})
   }
 });

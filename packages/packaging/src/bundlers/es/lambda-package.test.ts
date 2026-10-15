@@ -6,11 +6,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { PackagingProgressLogger } from '../../runtime-contracts';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createEsBundle, removeExplicitlyExcludedFiles } from './index';
+import { removeExplicitlyExcludedFiles } from '../../artifact/file-selection';
+import { createEsBundle } from './index';
 
 const temporaryDirectories: string[] = [];
 
@@ -55,7 +57,7 @@ const bundle = (cwd: string, options: Partial<Parameters<typeof createEsBundle>[
     sourceMapBannerType: 'pre-compiled',
     isLambda: true,
     lambdaZip: true,
-    installNonStaticallyBuiltDepsInDocker: false,
+    packageExternalDependencies: false,
     nativeDependencyInstallationRootPath: join(cwd, '.stacktape', 'native'),
     installDependencies: async () => {},
     runDocker: async () => {
@@ -99,7 +101,7 @@ describe('ECMAScript deployment-package file selection', () => {
       sourceMapBannerType: 'disabled',
       includeFiles: ['assets/**'],
       excludeFiles: ['**/*.secret'],
-      installNonStaticallyBuiltDepsInDocker: false,
+      packageExternalDependencies: false,
       nativeDependencyInstallationRootPath: join(cwd, '.stacktape', 'native'),
       installDependencies: async () => {},
       runDocker: async () => {
@@ -182,6 +184,43 @@ describe('the handler the Lambda runtime loads', () => {
   });
 });
 
+describe('packages that included files load', () => {
+  test('are copied with the function, also through another included file, except excluded ones', async () => {
+    const cwd = await createProject({
+      'handler.ts': "export const handler = async () => 'handler';",
+      'jobs/worker.js': "const { pad } = require('./helper.cjs'); console.log(pad('x'));",
+      'jobs/helper.cjs': [
+        "const leftPad = require('left-pad');",
+        // An optional local module guarded the way Node.js programs do; scanning must not stop at it.
+        "try { require('./not-generated-yet.cjs'); } catch {}",
+        // Excluded from the deployment package, so it must not be copied.
+        "try { require('excluded-dep'); } catch {}",
+        "exports.pad = (text) => leftPad(text, 3, '.');"
+      ].join('\n'),
+      'node_modules/excluded-dep/package.json': JSON.stringify({ name: 'excluded-dep', version: '1.0.0' }),
+      'node_modules/excluded-dep/index.js': 'module.exports = 1;',
+      'node_modules/left-pad/package.json': JSON.stringify({ name: 'left-pad', version: '1.3.0', main: 'index.js' }),
+      'node_modules/left-pad/index.js':
+        'module.exports = (text, length, fill) => fill.repeat(length - text.length) + text;'
+    });
+
+    await bundle(cwd, {
+      includeFiles: ['jobs/**'],
+      excludeDependencies: ['excluded-dep'],
+      packageExternalDependencies: true
+    });
+    expect(existsSync(join(cwd, '.stacktape', 'dist', 'node_modules', 'excluded-dep'))).toBe(false);
+
+    const execution = spawnSync(process.env.npm_node_execpath || 'node', ['jobs/worker.js'], {
+      cwd: join(cwd, '.stacktape', 'dist'),
+      encoding: 'utf8',
+      env: { ...process.env, NODE_PATH: '' }
+    });
+    expect(execution.stderr).toBe('');
+    expect(execution.stdout.trim()).toBe('..x');
+  });
+});
+
 describe('what identifies a cached Lambda artifact', () => {
   test('a new version of a dependency installed outside the bundle is a new artifact', async () => {
     // A native dependency leaves the bundle and is installed on the target platform, so its bytes are not in the
@@ -206,9 +245,7 @@ describe('what identifies a cached Lambda artifact', () => {
     const [first, same, bumped] = await Promise.all([checkout('1.0.0'), checkout('1.0.0'), checkout('2.0.0')]);
 
     expect(first.outcome).toBe('bundled');
-    expect(first.languageSpecificBundleOutput.es.dependenciesToInstallInDocker?.map(({ name }) => name)).toEqual([
-      'native-dep'
-    ]);
+    expect(first.languageSpecificBundleOutput.es.externalDependencies?.map(({ name }) => name)).toEqual(['native-dep']);
     expect(same.digest).toBe(first.digest);
     expect(bumped.digest).not.toBe(first.digest);
   });

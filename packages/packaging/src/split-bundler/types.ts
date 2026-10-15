@@ -2,6 +2,8 @@
  * Type definitions for the split bundler module.
  */
 
+import type { ResolvedPackageDependency } from '../runtime-contracts';
+
 /** Bun.build metafile input entry */
 export type MetafileInput = {
   bytes: number;
@@ -55,20 +57,10 @@ export type LambdaSplitOutput = {
   files: string[];
   /** Source files that were bundled for this lambda */
   sourceFiles: { path: string }[];
-  /** Dependencies that need Docker installation */
-  dependenciesToInstallInDocker: SplitBundleDependency[];
+  /** Packages the bundle leaves out, which the function's dependency layer provides. */
+  externalDependencies: ResolvedPackageDependency[];
   /** All resolved npm modules */
   resolvedModules: string[];
-};
-
-/** Module info for dependencies that need special handling */
-export type SplitBundleDependency = {
-  name: string;
-  version: string;
-  note?: string | undefined;
-  hasBinary?: boolean | undefined;
-  peerDependencies?: SplitBundleDependency[] | undefined;
-  optionalPeerDependencies?: SplitBundleDependency[] | undefined;
 };
 
 /**

@@ -228,27 +228,20 @@ export type StpBuildpackInput = {
   lambdaZip?: boolean | undefined;
 };
 
-/**
- * A package resolved while analysing an ECMAScript dependency graph.
- *
- * This is deliberately distinct from the split bundler's dependency contract:
- * callers of the regular bundler also use the resolved path and dependency
- * relationship when deciding what Docker must install.
- */
+/** A package the bundle leaves out and the artifact gets installed instead. */
 export type ResolvedPackageDependency = {
   name: string;
-  path: string;
   version: string;
-  parentModulePath?: string | undefined;
-  dependencyType: 'root' | 'standard' | 'optional-peer' | 'peer';
+  /** The real directory of the installed package. */
+  path: string;
+  /** Why it is not bundled. */
   note?: string | undefined;
 };
 
 export type LanguageSpecificBundleOutput = {
   es?: {
-    dependenciesToInstallInDocker?: ResolvedPackageDependency[] | undefined;
+    externalDependencies?: ResolvedPackageDependency[] | undefined;
     packageManager?: SupportedEsPackageManager | undefined;
-    dynamicallyImportedModules?: string[] | undefined;
   };
   py?: {
     packageManager: 'uv';
