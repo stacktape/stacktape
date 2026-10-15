@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { applyStacktapePlanPolicy, getBuildEnvironmentHash, getRailpackVariables, type RailpackPlan } from './railpack';
+import dockerIgnore from '@balena/dockerignore';
+import {
+  applyStacktapePlanPolicy,
+  excludeNonSourceDirectories,
+  getBuildEnvironmentHash,
+  getRailpackVariables,
+  type RailpackPlan
+} from './railpack';
 
 const createPackagingError = ({ message, type }: { message: string; type: string }) =>
   Object.assign(new Error(message), { type });
@@ -160,5 +167,44 @@ describe('plan policy', () => {
     );
     const untouched = preparedPlan();
     expect(applyStacktapePlanPolicy({ plan: untouched, startCommand: undefined })).toBe(untouched);
+  });
+});
+
+/** The paths of a context that the plan's exclusions keep, as Docker selects them. */
+const included = (plan: RailpackPlan, paths: string[]) =>
+  dockerIgnore()
+    .add(plan.exclude ?? [])
+    .filter(paths);
+
+describe('image context', () => {
+  test('leaves version control, dependencies, caches and Stacktape output out of the image', () => {
+    const paths = [
+      'app.py',
+      'requirements.txt',
+      'templates/index.html',
+      '.git/HEAD',
+      '.stacktape/2026-10-16T00-00-00-000_x/build/out.zip',
+      'node_modules/express/index.js',
+      'web/node_modules/react/index.js',
+      '.venv/bin/python',
+      'pkg/__pycache__/mod.cpython-311.pyc',
+      '.hg/store',
+      'generated/data.bin',
+      'generated/config.json',
+      'server.log'
+    ];
+    expect(included(excludeNonSourceDirectories(preparedPlan()), paths)).toEqual([
+      'app.py',
+      'requirements.txt',
+      'templates/index.html',
+      'generated/config.json'
+    ]);
+  });
+
+  test("lets the project's .dockerignore bring a directory back", () => {
+    const plan = excludeNonSourceDirectories(preparedPlan({ exclude: ['!node_modules/vendored'] }));
+    expect(included(plan, ['node_modules/express/index.js', 'node_modules/vendored/index.js', '.git/HEAD'])).toEqual([
+      'node_modules/vendored/index.js'
+    ]);
   });
 });

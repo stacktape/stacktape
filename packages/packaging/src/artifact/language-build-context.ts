@@ -21,26 +21,29 @@ const runWithConcurrency = async <Item>(
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => runNext()));
 };
 
+/**
+ * Directories that never hold an application's source, at any depth: version control data, installed dependencies,
+ * tool caches and Stacktape's own output. A build installs dependencies itself, and copying any of these into an
+ * artifact makes it bigger and changes its digest when the source has not changed.
+ */
+export const NON_SOURCE_DIRECTORY_NAMES = [
+  '.git',
+  '.hg',
+  '.svn',
+  '.stacktape',
+  'node_modules',
+  '.venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache'
+];
+
 /** Files that can participate in or be emitted by a managed language build. */
 export const STACKTAPE_LANGUAGE_SOURCE_GLOBS = [
   './**/*',
   '!./.dockerignore',
-  '!./**/.git',
-  '!./**/.git/**',
-  '!./**/.stacktape',
-  '!./**/.stacktape/**',
-  '!./**/node_modules',
-  '!./**/node_modules/**',
-  '!./**/.venv',
-  '!./**/.venv/**',
-  '!./**/__pycache__',
-  '!./**/__pycache__/**',
-  '!./**/.pytest_cache',
-  '!./**/.pytest_cache/**',
-  '!./**/.mypy_cache',
-  '!./**/.mypy_cache/**',
-  '!./**/.ruff_cache',
-  '!./**/.ruff_cache/**'
+  ...NON_SOURCE_DIRECTORY_NAMES.flatMap((name) => [`!./**/${name}`, `!./**/${name}/**`])
 ];
 
 /**

@@ -17,6 +17,7 @@ import { packagingMessages } from '../runtime-contracts';
 import { getDockerContextChecksum } from '../artifact/docker-context';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 import { mergeHashes } from '../artifact/hashing';
+import { NON_SOURCE_DIRECTORY_NAMES } from '../artifact/language-build-context';
 
 /** The parts of a Railpack build plan Stacktape reads or edits. Everything else is passed through untouched. */
 export type RailpackPlan = {
@@ -212,6 +213,18 @@ export const applyStacktapePlanPolicy = ({
   return result;
 };
 
+/**
+ * Keeps version control data, installed dependencies, caches and Stacktape's own output out of the image. Railpack
+ * copies the whole source directory and excludes only what `.dockerignore` lists, so without this an image carried
+ * `.git` and `.stacktape`, grew with every build and changed its digest when the source had not. The patterns come
+ * first: a `!` pattern in the project's `.dockerignore`, which Railpack puts in the plan after them, still brings a
+ * directory back.
+ */
+export const excludeNonSourceDirectories = (plan: RailpackPlan): RailpackPlan => ({
+  ...plan,
+  exclude: [...NON_SOURCE_DIRECTORY_NAMES.map((name) => `**/${name}`), ...(plan.exclude ?? [])]
+});
+
 /** The planner's own diagnostics, with build variable values removed in case a provider echoed one. */
 const describeRailpackFailure = (info: RailpackInfo | undefined, secretValues: string[]) =>
   (info?.logs ?? [])
@@ -291,12 +304,14 @@ export const buildUsingRailpack = async ({
       hint: 'Railpack detects the language from the project files in the source directory. Set startCommand, buildCommand or installCommand when detection is incomplete, or use dockerfile packaging for full control.'
     });
   }
-  const plan = applyStacktapePlanPolicy({
-    plan: prepared.plan as RailpackPlan,
-    startCommand,
-    buildCommand,
-    installCommand
-  });
+  const plan = excludeNonSourceDirectories(
+    applyStacktapePlanPolicy({
+      plan: prepared.plan as RailpackPlan,
+      startCommand,
+      buildCommand,
+      installCommand
+    })
+  );
   const buildEnvironmentHash = getBuildEnvironmentHash(buildVariables);
   const { checksum: contextChecksum, includedFilePaths } = await getDockerContextChecksum({
     absoluteBuildContextPath: absoluteSourceDirectoryPath,
