@@ -286,7 +286,7 @@ export const families: Family[] = [
       assert.equal(stack?.EnableTerminationProtection, context.version === 2, 'termination protection');
       context.checks.push(`termination protection is ${context.version === 2 ? 'on' : 'off'} as configured`);
       if (context.step === 'unchanged') {
-        // Three deployments with one previous version to keep: v000001 is obsolete, v000002 and v000003 remain.
+        // The unchanged redeploy created no release, so the current release and the one before it remain.
         const templates = (
           (
             await context.clients.s3.send(
@@ -296,7 +296,7 @@ export const families: Family[] = [
         )
           .map(({ Key }) => Key)
           .toSorted();
-        assert.deepEqual(templates, ['cf-template/v000002.yml', 'cf-template/v000003.yml'], 'retained templates');
+        assert.deepEqual(templates, ['cf-template/v000001.yml', 'cf-template/v000002.yml'], 'retained templates');
         context.checks.push('previousVersionsToKeep: 1 keeps the current and one previous template');
       }
     },

@@ -5,14 +5,14 @@ describe('MCP package script parsing', () => {
   test('parses stacktape package scripts and normalizes aliases', () => {
     for (const [script, expected] of [
       [
-        'stacktape deploy --region eu-west-1 --stage production --aa prod-account --hs --projectName docs',
+        'stacktape deploy --region eu-west-1 --stage production --aa prod-account --fd --projectName docs',
         {
           command: 'deploy',
           args: {
             region: 'eu-west-1',
             stage: 'production',
             awsAccount: 'prod-account',
-            hotSwap: true,
+            fullDeploy: true,
             projectName: 'docs'
           }
         }

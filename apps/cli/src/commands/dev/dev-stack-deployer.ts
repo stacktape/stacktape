@@ -80,7 +80,7 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
 
   // Upload artifacts
   operationReporter.setPhase('UPLOAD');
-  await deploymentArtifactManager.uploadAllArtifacts({ useHotswap: false });
+  await deploymentArtifactManager.uploadAllArtifacts({ includeTemplates: true });
 
   // Deploy the stack
   operationReporter.setPhase('DEPLOY');

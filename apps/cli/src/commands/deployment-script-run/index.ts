@@ -6,7 +6,6 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { CliError } from '@utils/errors';
 import { stpErrors } from '@errors';
-import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
@@ -23,11 +22,6 @@ export const commandDeploymentScriptRun = async () => {
 
   const deploymentScript = configManager.deploymentScripts.find(({ name }) => name === resourceName);
   const { lambdaArn } = await buildAndUpdateFunctionCode(deploymentScript._nestedResources.scriptFunction.name);
-
-  await awsSdkManager.lambda.tagFunction({
-    lambdaArn,
-    tags: [{ key: tagNames.hotSwapDeploy(), value: 'true' }]
-  });
 
   const [scriptParametersResolvedLocally] = await Promise.all([
     configManager.resolveDirectives<StpDeploymentScript['parameters']>({

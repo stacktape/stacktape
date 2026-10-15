@@ -1,6 +1,6 @@
 # deployment-script:run
 
-The `deployment-script:run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, hot-swaps it onto the existing Lambda, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
+The `deployment-script:run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, updates the existing Lambda with it, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
 
 
 > **Warning:** This command updates the script's **source code** and resolves `parameters` from your local configuration. Changes to environment variables, memory, timeout, VPC settings, or other Lambda configuration require a full [`deploy`](/cli/deploy).
@@ -64,7 +64,7 @@ stacktape deployment-script:run --stage production --region us-west-2 --resource
 
 ## When to use this vs deploy
 
-Use `deployment-script:run` when you are iterating on the script's handler code and want fast feedback. The command rebuilds and hot-swaps only the script's function code, then invokes the Lambda — skipping a full stack update. The script's `parameters` are resolved from your current local configuration and sent as the invocation payload, so parameter changes take effect immediately without redeploying. Switch to a full [`deploy`](/cli/deploy) when you change Lambda configuration such as environment variables, memory, timeout, packaging settings, or VPC settings.
+Use `deployment-script:run` when you are iterating on the script's handler code and want fast feedback. The command rebuilds and updates only the script's function code, then invokes the Lambda — skipping a full stack update. The script's `parameters` are resolved from your current local configuration and sent as the invocation payload, so parameter changes take effect immediately without redeploying. Switch to a full [`deploy`](/cli/deploy) when you change Lambda configuration such as environment variables, memory, timeout, packaging settings, or VPC settings.
 
 ## Related commands
 

@@ -43,8 +43,6 @@ import {
 
 const STEPS: DeployStep[] = ['create', 'update', 'unchanged', 'delete'];
 const LIFECYCLE_STEPS: DeployStep[] = ['create', 'update', 'unchanged', 'diff', 'rollback', 'delete'];
-const withoutDeploymentVersion = (template: string) =>
-  template.replace(/(StpDeploymentVersion:\s*\n\s*Value: )v\d+/, '$1<version>');
 const out = join(cliRoot, '.stacktape', 'ministack', new Date().toISOString().replaceAll(/[:.]/g, '-'));
 
 type FamilyReport = {
@@ -246,7 +244,8 @@ describe('offline deploy loop against MiniStack', () => {
               proposed.resources.queue.properties.fifoEnabled = true;
               await writeProjectFiles(project, { 'stacktape.yml': proposed });
             }
-            // The final rollback counts back from v000004 (the partial rollback below) to v000001.
+            // The unchanged redeploy still records a release because the stack syncs bucket content. The final rollback
+            // counts back from v000004 (the partial rollback below) to v000001.
             const result = await runSourceCli({
               project,
               step,
@@ -314,30 +313,20 @@ describe('offline deploy loop against MiniStack', () => {
               );
             }
             if (step === 'unchanged') {
-              assert.deepEqual(
-                result.changeSummary,
-                { creates: 0, updates: 0, deletes: 0, replacements: 0, dangerousChanges: 0 },
-                'unchanged input planned resource changes'
-              );
+              // Nothing changed, so the deploy takes the fast path, updates nothing and plans no CloudFormation change.
+              assert.equal(result.changeSummary, undefined, 'unchanged input planned a CloudFormation deployment');
               assert.ok(
                 result.packagedWorkloads?.every((workload) => workload.skipped),
                 'unchanged input repackaged a workload'
               );
-              // The CLI's own report is not the proof: the stack must hold exactly the same resources (no additions,
-              // removals or replacements) and exactly the same template as before the redeploy.
+              // The CLI's own report is not the proof: the stack must hold exactly the same resources and template.
               assert.deepEqual(
                 resourceSnapshot(resources),
                 resourceSnapshot(previous ?? []),
                 'the unchanged redeploy changed the stack resources'
               );
-              // The CLI advances its deployment-version output on every deploy by design; everything else in the
-              // template must be byte-identical.
-              assert.equal(
-                withoutDeploymentVersion(template),
-                withoutDeploymentVersion(previousTemplate ?? ''),
-                'the unchanged redeploy changed the stack template'
-              );
-              checks.push('zero planned changes, packaging skipped, identical resources and template');
+              assert.equal(template, previousTemplate ?? '', 'the unchanged redeploy changed the stack template');
+              checks.push('no planned changes, packaging skipped, identical resources and template');
             }
             const context: EffectContext = {
               step,

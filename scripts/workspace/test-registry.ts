@@ -393,6 +393,7 @@ export const lanes: readonly Lane[] = [
       'src/aws/cloudformation.spec.ts',
       'src/aws/ecs-contracts.spec.ts',
       'src/domain/shared-resource-stack-manager/index.spec.ts',
+      'src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -407,6 +408,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
+      'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -1127,6 +1129,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
+      'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
       'apps/cli/tests/ministack/domain-add.spec.ts'
@@ -3898,7 +3901,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
-      'apps/cli/tests/ministack/deploy-loop.spec.ts'
+      'apps/cli/tests/ministack/deploy-loop.spec.ts',
+      'apps/cli/tests/ministack/fast-deploy.spec.ts',
+      'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts'
     ],
     lanes: [
       'deployment-rules',

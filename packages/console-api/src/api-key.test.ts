@@ -25,7 +25,7 @@ test('commandArgs accepts a CLI flag object whatever the parser made of the valu
       // Validating a command's particular flag types belongs to the producer.
       stage: 2024,
       region: 'eu-west-1',
-      hotSwap: true,
+      fullDeploy: true,
       resourcesToSkip: ['bucket', 'lambda'],
       stacktapeOperationInvocationContext: { initiator: 'user', interface: 'cli' }
     })
@@ -34,7 +34,7 @@ test('commandArgs accepts a CLI flag object whatever the parser made of the valu
   assert.deepEqual(parsed.commandArgs, {
     stage: 2024,
     region: 'eu-west-1',
-    hotSwap: true,
+    fullDeploy: true,
     resourcesToSkip: ['bucket', 'lambda'],
     stacktapeOperationInvocationContext: { initiator: 'user', interface: 'cli' }
   });

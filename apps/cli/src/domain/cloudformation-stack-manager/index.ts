@@ -11,7 +11,12 @@ import type {
   LoggableEventType,
   ProgressReporter as ProgressLogger
 } from '@application-services/operation-manager';
-import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import type {
+  Capability,
+  RollbackConfiguration,
+  StackEvent,
+  StackResourceSummary
+} from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { operationReporter } from '@application-services/operation-manager';
@@ -53,7 +58,8 @@ import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { getNextVersionString } from '@utils/versioning';
+import { getNextVersionString, getNumericVersion } from '@utils/versioning';
+import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
@@ -152,6 +158,8 @@ class StackManager {
    * a different stack between consent and UpdateStack.
    */
   #stackMutationTarget?: string;
+  #latestRecordedRelease: string | null = null;
+  #nextVersionAfterRefetch: string | null = null;
 
   // for polling ECS Service statuses during deploy
   #ecsDeploymentStatusPoller: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller } = {};
@@ -179,6 +187,8 @@ class StackManager {
     });
     this.#stackName = stackName;
     this.#stackMutationTarget = undefined;
+    this.#latestRecordedRelease = null;
+    this.#nextVersionAfterRefetch = null;
 
     let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
     const instanceId = parentEventType ? 'Stack data' : undefined;
@@ -211,16 +221,31 @@ class StackManager {
     this.#stackMutationTarget = stackId;
   };
 
+  /**
+   * Records the newest release found in the deployment bucket. Fast deployments create releases without updating
+   * CloudFormation, so the stack's deployment version output can be older than the release that is running.
+   */
+  setLatestRecordedRelease = (version: string | null) => {
+    this.#latestRecordedRelease = version;
+  };
+
+  /** The release this operation creates. It stays the same after the stack details are fetched again. */
   get nextVersion() {
-    return getNextVersionString(this.lastVersion);
+    return this.#nextVersionAfterRefetch ?? getNextVersionString(this.lastVersion);
   }
 
   get lastDeploymentStackOutput(): { [name: string]: string } {
     return this.existingStackDetails?.stackOutput || {};
   }
 
+  /** The release that runs now: the newer of CloudFormation's deployment version and the latest recorded release. */
   get lastVersion() {
-    return this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+    const deployedVersion = this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+    if (!this.#latestRecordedRelease) return deployedVersion;
+    if (!deployedVersion) return this.#latestRecordedRelease;
+    return getNumericVersion(this.#latestRecordedRelease) > getNumericVersion(deployedVersion)
+      ? this.#latestRecordedRelease
+      : deployedVersion;
   }
 
   get stackActionType(): StackActionType {
@@ -253,6 +278,8 @@ class StackManager {
   }
 
   refetchStackDetails = async (stackName: string) => {
+    // The refetched details carry the version this operation deployed; keep reporting it as this operation's release.
+    this.#nextVersionAfterRefetch ??= this.nextVersion;
     await operationReporter.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
     const [existingStackDetails, existingStackResources] = await Promise.all([
       awsSdkManager.cloudFormation.getDetails(stackName),
@@ -493,6 +520,35 @@ class StackManager {
     });
     await operationReporter.finishEvent({ eventType: 'CALCULATE_CHANGES', data: { changesToBeMade: res.changes } });
     return res;
+  };
+
+  /** Stack settings live outside the template, so a template diff misses them. Returns the first one that changed. */
+  findChangedStackSetting = (): string | undefined => {
+    const current = this.existingStackDetails;
+    if (!current) return undefined;
+    const desired = this.getStackParams();
+    const tags = (list: { Key?: string; Value?: string }[] = []) =>
+      list.map(({ Key, Value }) => `${Key}=${Value}`).toSorted();
+    if (!isEqual(tags(desired.Tags), tags(current.Tags))) return 'the stack tags changed';
+    if (!!desired.EnableTerminationProtection !== !!current.EnableTerminationProtection) {
+      return 'termination protection changed';
+    }
+    // UpdateStack keeps the notification targets and the role when the request omits them.
+    if (
+      desired.NotificationARNs &&
+      !isEqual(desired.NotificationARNs.toSorted(), (current.NotificationARNs ?? []).toSorted())
+    ) {
+      return 'the stack notification targets changed';
+    }
+    if (desired.RoleARN && desired.RoleARN !== current.RoleARN) return 'the CloudFormation role changed';
+    const rollbackSettings = ({ MonitoringTimeInMinutes = 0, RollbackTriggers = [] }: RollbackConfiguration = {}) => ({
+      MonitoringTimeInMinutes,
+      triggers: RollbackTriggers.map(({ Arn }) => Arn).toSorted()
+    });
+    if (!isEqual(rollbackSettings(desired.RollbackConfiguration), rollbackSettings(current.RollbackConfiguration))) {
+      return 'the rollback triggers changed';
+    }
+    return undefined;
   };
 
   getTags = (

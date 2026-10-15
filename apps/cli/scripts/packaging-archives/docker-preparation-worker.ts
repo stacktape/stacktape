@@ -280,7 +280,7 @@ const main = async () => {
         writeFile(stpPath, JSON.stringify({ resources: request.resources }))
       ]);
       // As the deploy command does around the stack update, which is outside this acceptance.
-      await deploymentArtifactManager.uploadAllArtifacts({ useHotswap: false });
+      await deploymentArtifactManager.uploadAllArtifacts({ includeTemplates: true });
       await deploymentArtifactManager.deleteAllObsoleteArtifacts();
     }
   } catch (packagingError) {

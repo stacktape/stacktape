@@ -26,7 +26,7 @@ import {
   env,
   filter,
   headersPreset,
-  hotSwap,
+  fullDeploy,
   headless,
   noBrowser,
   codingAgent,
@@ -122,7 +122,7 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       disableAutoRollback: disableAutoRollback.optional(),
       autoConfirmOperation: autoConfirmOperation.optional(),
       showSensitiveValues: showSensitiveValues.optional(),
-      hotSwap: hotSwap.optional(),
+      fullDeploy: fullDeploy.optional(),
       runner: deployRunner.optional(),
       disableLayerOptimization: disableLayerOptimization.optional()
     },

@@ -1955,21 +1955,21 @@
       ]
     },
     {
+      "name": "fullDeploy",
+      "description": "#### Full Deploy\n---\nIf `true`, deploys every change through CloudFormation. By default, when only the code of `functions` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.",
+      "required": false,
+      "alias": "fd",
+      "allowedTypes": [
+        "boolean"
+      ]
+    },
+    {
       "name": "help",
       "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
       "required": false,
       "alias": "h",
       "allowedTypes": [
         "string"
-      ]
-    },
-    {
-      "name": "hotSwap",
-      "description": "#### Hotswap\n---\nIf `true`, attempts a faster deployment for code-only changes by updating `functions` and `multi-container-workloads` directly, without using CloudFormation. This is recommended only for development stacks. Hotswap will only be used if all stack changes are hot-swappable.",
-      "required": false,
-      "alias": "hs",
-      "allowedTypes": [
-        "boolean"
       ]
     },
     {

@@ -2,7 +2,7 @@
 title: 'deploy'
 order: 136
 seoTitle: 'stacktape deploy — Deploy Stacks to AWS | Stacktape CLI'
-seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new stacks or updates existing ones. Supports hot-swap for fast dev deploys, auto-rollback and non-interactive deploys via --autoConfirmOperation.'
+seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new stacks or updates existing ones. Code-only changes deploy in seconds, with auto-rollback and non-interactive deploys via --autoConfirmOperation.'
 ---
 
 # deploy
@@ -26,24 +26,34 @@ stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stac
 1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
 3. **Upload** — Uploads deployment artifacts for the stack.
-4. **Deploy** — Creates or updates a CloudFormation stack. Resources are provisioned, updated, or removed.
+4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
 5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
 After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
 
+## Fast deployments
+
+When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds; a container service runs a normal rolling deployment. Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
+
+A deployment uses CloudFormation when:
+
+- the stack is new, or the template changes anything other than function code or container images built by Stacktape (configuration, environment variables, permissions, resources, external images),
+- stack settings changed, such as tags or termination protection,
+- a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
+- the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
+- you pass `--fullDeploy`.
+
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--fullDeploy`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
+
 ## Common flags
 
-### `--hotSwap`
+### `--fullDeploy`
 
-Hot-swap attempts a faster code-only deploy by updating eligible Lambda functions and container workloads (web services, private services, and worker services) directly, without CloudFormation.
+Deploys every change through CloudFormation, even when only code changed.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
-
-Hot-swap is attempted for code-only changes and is used only if Stacktape determines all stack changes are hot-swappable. If not, Stacktape runs a full CloudFormation deploy.
-
-<Warning>Use `--hotSwap` only on development stages. It bypasses CloudFormation's state tracking, so your stack's recorded state may drift from reality. For production, always use a full deploy.</Warning>
 
 ### `--autoConfirmOperation`
 
@@ -105,10 +115,10 @@ stacktape deploy --stage production --region us-east-1
 stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
 ```
 
-### Fast deploy for development
+### Deploy everything through CloudFormation
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
 
 ### Non-interactive deploy in CI/CD

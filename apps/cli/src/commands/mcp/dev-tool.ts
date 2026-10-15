@@ -30,7 +30,7 @@ type DevToolDependencies = {
 
 const ARG_ALIASES: Record<string, string> = {
   aa: 'awsAccount',
-  hs: 'hotSwap',
+  fd: 'fullDeploy',
   project_name: 'projectName',
   config_path: 'configPath',
   resource_name: 'resourceName',
@@ -249,7 +249,7 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
   if (typeof startArgs.currentWorkingDirectory === 'string' && !isAbsolute(startArgs.currentWorkingDirectory)) {
     startArgs.currentWorkingDirectory = resolve(scan.cwd, startArgs.currentWorkingDirectory);
   }
-  delete (startArgs as Record<string, unknown>).hotSwap;
+  delete (startArgs as Record<string, unknown>).fullDeploy;
 
   const missingArgs = ['stage', 'region', 'configPath'].filter(
     (argName) => !startArgs[argName as keyof typeof startArgs]
@@ -283,9 +283,9 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
               ...matchedDeployScript,
               matchKind: 'deploy-context',
               usedParsedArgs: Object.fromEntries(
-                Object.entries(deployContext).filter(([argName]) => argName !== 'hotSwap')
+                Object.entries(deployContext).filter(([argName]) => argName !== 'fullDeploy')
               ),
-              droppedParsedArgs: deployContext.hotSwap === undefined ? [] : ['hotSwap']
+              droppedParsedArgs: deployContext.fullDeploy === undefined ? [] : ['fullDeploy']
             }
           : undefined
       )

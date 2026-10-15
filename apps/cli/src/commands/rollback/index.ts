@@ -20,6 +20,7 @@ type RollbackExecutionOperation = {
     | 'availablePreviousVersions'
     | 'prepareRollbackTemplate'
     | 'restoreBucketSyncFromManifest'
+    | 'tagRestoredFunctions'
     | 'verifyArtifactsForVersion'
   >;
   progress: Pick<RollbackOperation['progress'], 'setPhase'>;
@@ -57,7 +58,11 @@ const listAvailableVersions = async ({
   return null;
 };
 
-const resolveTargetVersion = ({ args, stack }: Pick<RollbackExecutionOperation, 'args' | 'stack'>): string => {
+const resolveTargetVersion = ({
+  args,
+  deploymentArtifacts,
+  stack
+}: Pick<RollbackExecutionOperation, 'args' | 'deploymentArtifacts' | 'stack'>): string => {
   const { targetVersion: versionArg, rollbackSteps } = args;
 
   if (versionArg) {
@@ -73,18 +78,21 @@ const resolveTargetVersion = ({ args, stack }: Pick<RollbackExecutionOperation, 
     });
   }
 
+  // Releases removed by retention are skipped, so one step always reaches the newest older release still stored.
   const steps = rollbackSteps ? Number(rollbackSteps) : 1;
-  const currentNumeric = getNumericVersion(currentVersion);
-  const targetNumeric = currentNumeric - steps;
+  const olderVersions = deploymentArtifacts.availablePreviousVersions
+    .filter((version) => getNumericVersion(version) < getNumericVersion(currentVersion))
+    .toSorted((a, b) => getNumericVersion(b) - getNumericVersion(a));
+  const targetVersion = olderVersions[steps - 1];
 
-  if (targetNumeric < 1) {
+  if (!targetVersion) {
     throw stpErrors.e999({
-      message: `Cannot rollback ${steps} step(s) from ${currentVersion}. Target version would be below v000001.`,
-      hint: 'Use --targetVersion to specify the target version explicitly, or use a smaller --rollbackSteps value.'
+      message: `Cannot roll back ${steps} step(s) from ${currentVersion}: only ${olderVersions.length} older release(s) are stored.`,
+      hint: 'Use --listVersions to see the stored releases and --targetVersion to pick one.'
     });
   }
 
-  return `v${String(targetNumeric).padStart(6, '0')}`;
+  return targetVersion;
 };
 
 const verifyArtifactsExist = async ({
@@ -178,11 +186,11 @@ export const executeRollbackOperation = async ({
   }
 
   const currentVersion = stack.lastVersion;
-  const targetVersion = resolveTargetVersion({ args, stack });
+  const targetVersion = resolveTargetVersion({ args, deploymentArtifacts, stack });
 
   if (targetVersion === currentVersion) {
-    tui.info(`Target version ${targetVersion} is already the current version. Nothing to do.`);
-    return null;
+    // Restoring the current release repairs workloads a failed fast deployment left on other code.
+    tui.info(`Restoring the current release ${targetVersion}.`);
   }
 
   tui.info(`Rolling back from ${currentVersion || 'unknown'} to ${targetVersion}`);
@@ -207,6 +215,7 @@ export const executeRollbackOperation = async ({
 
   try {
     await stack.deployStackForRollback(templateUrl);
+    await deploymentArtifacts.tagRestoredFunctions();
     spinner.success({ text: `Stack rolled back to ${targetVersion} (deployed as ${newVersion})` });
   } catch (err) {
     spinner.error(`Rollback deployment failed`);

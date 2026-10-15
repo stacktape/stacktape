@@ -282,8 +282,7 @@ const getJobDefinitionTemplateOverrideFns = ({
     async (template) => {
       // @note we can't set this upfront, because it's known only after packaging is finished
       const imageUrl = deploymentArtifactManager.getImageUploadInfoForJob({
-        jobName: getJobName({ workloadName: resource.name, workloadType: resource.type }),
-        hotSwapDeploy
+        jobName: getJobName({ workloadName: resource.name, workloadType: resource.type })
       })?.imageTagWithUrl;
 
       if (imageUrl) {

@@ -19,26 +19,34 @@ stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stac
 1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
 3. **Upload** — Uploads deployment artifacts for the stack.
-4. **Deploy** — Creates or updates a CloudFormation stack. Resources are provisioned, updated, or removed.
+4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
 5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
 After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
 
+## Fast deployments
+
+When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds; a container service runs a normal rolling deployment. Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
+
+A deployment uses CloudFormation when:
+
+- the stack is new, or the template changes anything other than function code or container images built by Stacktape (configuration, environment variables, permissions, resources, external images),
+- stack settings changed, such as tags or termination protection,
+- a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
+- the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
+- you pass `--fullDeploy`.
+
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--fullDeploy`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
+
 ## Common flags
 
-### `--hotSwap`
+### `--fullDeploy`
 
-Hot-swap attempts a faster code-only deploy by updating eligible Lambda functions and container workloads (web services, private services, and worker services) directly, without CloudFormation.
+Deploys every change through CloudFormation, even when only code changed.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
-
-Hot-swap is attempted for code-only changes and is used only if Stacktape determines all stack changes are hot-swappable. If not, Stacktape runs a full CloudFormation deploy.
-
-
-> **Warning:** Use `--hotSwap` only on development stages. It bypasses CloudFormation's state tracking, so your stack's recorded state may drift from reality. For production, always use a full deploy.
-
 
 ### `--autoConfirmOperation`
 
@@ -100,8 +108,8 @@ Includes sensitive values in deploy output. Handle with care.
 | `--disableDockerRemoteCache (-drc)` | no | `boolean` | Disable Docker Remote Cache — Disables Docker layer caching using ECR as remote cache storage. By default, remote caching is enabled to speed up Docker builds by reusing layers. Set to `true` to disable remote caching. | - |
 | `--disableLayerOptimization (-dlo)` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
 | `--dockerArgs (-da)` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
+| `--fullDeploy (-fd)` | no | `boolean` | Full Deploy — If `true`, deploys every change through CloudFormation. By default, when only the code of `functions` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation. | - |
 | `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--hotSwap (-hs)` | no | `boolean` | Hotswap — If `true`, attempts a faster deployment for code-only changes by updating `functions` and `multi-container-workloads` directly, without using CloudFormation. This is recommended only for development stacks. Hotswap will only be used if all stack changes are hot-swappable. | - |
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--noCache (-nc)` | no | `boolean` | No Cache — If `true`, disables the use of cached artifacts and forces a fresh build of compute resources. | - |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
@@ -127,10 +135,10 @@ stacktape deploy --stage production --region us-east-1
 stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
 ```
 
-### Fast deploy for development
+### Deploy everything through CloudFormation
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
+stacktape deploy --stage production --region eu-west-1 --fullDeploy
 ```
 
 ### Non-interactive deploy in CI/CD

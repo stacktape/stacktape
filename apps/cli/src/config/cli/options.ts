@@ -120,9 +120,9 @@ export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Val
 ---
 If \`true\`, includes sensitive values in the output of commands such as \`info:stack\`, \`deploy\`, and \`param:get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
 
-export const hotSwap = z.boolean().describe(`#### Hotswap
+export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---
-If \`true\`, attempts a faster deployment for code-only changes by updating \`functions\` and \`multi-container-workloads\` directly, without using CloudFormation. This is recommended only for development stacks. Hotswap will only be used if all stack changes are hot-swappable.`);
+If \`true\`, deploys every change through CloudFormation. By default, when only the code of \`functions\` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.`);
 
 export const disableLayerOptimization = z.boolean().describe(`#### Disable Layer Optimization
 ---
@@ -524,7 +524,7 @@ export const argAliases = {
   scriptName: 'scn',
   newVersion: 'nv',
   projectDirectory: 'pd',
-  hotSwap: 'hs',
+  fullDeploy: 'fd',
   apiKey: 'ak',
   awsAccount: 'aa',
   initializeProjectTo: 'ipt',
@@ -613,7 +613,7 @@ export const allCliArgsSchema = z.object({
   newVersion: newVersion.optional(),
   projectDirectory: projectDirectory.optional(),
   initializeProjectTo: initializeProjectTo.optional(),
-  hotSwap: hotSwap.optional(),
+  fullDeploy: fullDeploy.optional(),
   runner: deployRunner.optional(),
   disableLayerOptimization: disableLayerOptimization.optional(),
   apiKey: apiKey.optional(),

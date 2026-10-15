@@ -28,7 +28,6 @@ import { applyResourceOverride } from '@domain-services/template-manager/resourc
 import { EcsServiceDeploymentStatusPoller } from 'src/aws/ecs-deployment-monitoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { tagNames } from '@stacktape/naming/tag-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
 import { lowerCaseFirstCharacterOfEveryWord, lowerCaseFirstCharacterOfObjectKeys, serialize } from '@utils/misc';
@@ -139,8 +138,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
           workloadName: workload.name,
           workloadType: workload.configParentResourceType,
           containerName: containerDef.Name as string
-        }),
-        hotSwapDeploy: true
+        })
       }).imageTagWithUrl;
     }
     // we also substitute log group name with actual name; containers without awslogs (disabled
@@ -206,7 +204,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     ...calculatedTaskDefinition.Properties,
     ExecutionRoleArn: currentTaskDefinition.executionRoleArn,
     TaskRoleArn: currentTaskDefinition.taskRoleArn,
-    Tags: stackManager.getTags([{ name: tagNames.hotSwapDeploy(), value: 'true' }])
+    Tags: stackManager.getTags()
   };
 
   const { needsUpdate: ecsTaskDefinitionNeedsUpdate } = compareEcsTaskDefinitions({
