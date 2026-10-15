@@ -50,6 +50,8 @@ Specifies the exact deployment version to roll back to, for example `v000003`. V
 
 Number of stored releases to step back from the current one. Defaults to `1` (the previous release). For example, if the current release is `v000008` and all older releases are still stored, `--rollbackSteps 3` targets `v000005`. Releases removed by `previousVersionsToKeep` are skipped. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
 
+Targeting the current release re-applies it. Use this when a fast deployment failed partway and left some functions or services on other code.
+
 ### `--listVersions`
 
 When previous versions exist, the command prints the current version and the available rollback versions, then exits without rolling back. If no previous versions exist, it reports that none were found. Use this to inspect what's available before committing to a rollback.

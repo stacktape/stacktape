@@ -11,7 +11,12 @@ import type {
   LoggableEventType,
   ProgressReporter as ProgressLogger
 } from '@application-services/operation-manager';
-import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import type {
+  Capability,
+  RollbackConfiguration,
+  StackEvent,
+  StackResourceSummary
+} from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { operationReporter } from '@application-services/operation-manager';
@@ -54,6 +59,7 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { getNextVersionString, getNumericVersion } from '@utils/versioning';
+import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
@@ -514,6 +520,31 @@ class StackManager {
     });
     await operationReporter.finishEvent({ eventType: 'CALCULATE_CHANGES', data: { changesToBeMade: res.changes } });
     return res;
+  };
+
+  /** Stack settings live outside the template, so a template diff misses them. Returns the first one that changed. */
+  findChangedStackSetting = (): string | undefined => {
+    const current = this.existingStackDetails;
+    if (!current) return undefined;
+    const desired = this.getStackParams();
+    const tags = (list: { Key?: string; Value?: string }[] = []) =>
+      list.map(({ Key, Value }) => `${Key}=${Value}`).toSorted();
+    if (!isEqual(tags(desired.Tags), tags(current.Tags))) return 'the stack tags changed';
+    if (!!desired.EnableTerminationProtection !== !!current.EnableTerminationProtection) {
+      return 'termination protection changed';
+    }
+    if (!isEqual((desired.NotificationARNs ?? []).toSorted(), (current.NotificationARNs ?? []).toSorted())) {
+      return 'the stack notification targets changed';
+    }
+    if ((desired.RoleARN ?? null) !== (current.RoleARN ?? null)) return 'the CloudFormation role changed';
+    const rollbackSettings = ({ MonitoringTimeInMinutes = 0, RollbackTriggers = [] }: RollbackConfiguration = {}) => ({
+      MonitoringTimeInMinutes,
+      triggers: RollbackTriggers.map(({ Arn }) => Arn).toSorted()
+    });
+    if (!isEqual(rollbackSettings(desired.RollbackConfiguration), rollbackSettings(current.RollbackConfiguration))) {
+      return 'the rollback triggers changed';
+    }
+    return undefined;
   };
 
   getTags = (

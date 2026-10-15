@@ -6,8 +6,16 @@ import {
   isImageOnlyTaskDefinitionChange
 } from './hotswap-utils';
 
-const change = (before: Record<string, unknown>, after: Record<string, unknown>) =>
-  ({ oldValue: { Properties: before }, newValue: { Properties: after } }) as unknown as ResourceDifference;
+const change = (
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  attributes: { before?: Record<string, unknown>; after?: Record<string, unknown> } = {}
+) =>
+  ({
+    oldValue: { ...attributes.before, Properties: before },
+    newValue: { ...attributes.after, Properties: after }
+  }) as unknown as ResourceDifference;
+const isBuiltImage = (image: string) => image.startsWith('repo:');
 
 describe('task definitions', () => {
   const container = (image: string, extra: Record<string, unknown> = {}) => ({
@@ -23,16 +31,21 @@ describe('task definitions', () => {
     ['a new image', [container('repo:v2')], true],
     ['a new image and environment variable', [container('repo:v2', { Environment: [] })], false],
     ['a new stop timeout', [container('repo:v1', { StopTimeout: 30 })], false],
-    ['an added container', [container('repo:v1'), { ...container('repo:v1'), Name: 'sidecar' }], false]
+    ['an added container', [container('repo:v1'), { ...container('repo:v1'), Name: 'sidecar' }], false],
+    ['a new external image', [container('nginx:1.28')], false]
   ])('%s', (_, containers, fast) => {
-    expect(isImageOnlyTaskDefinitionChange(change(definition([container('repo:v1')]), definition(containers)))).toBe(
-      fast
-    );
+    expect(
+      isImageOnlyTaskDefinitionChange(change(definition([container('repo:v1')]), definition(containers)), isBuiltImage)
+    ).toBe(fast);
   });
 
-  test('a new memory size', () => {
+  test('a new memory size or dependency', () => {
     const before = definition([container('repo:v1')]);
-    expect(isImageOnlyTaskDefinitionChange(change(before, { ...before, Memory: '1024' }))).toBe(false);
+    const after = definition([container('repo:v2')]);
+    expect(isImageOnlyTaskDefinitionChange(change(before, { ...after, Memory: '1024' }), isBuiltImage)).toBe(false);
+    expect(
+      isImageOnlyTaskDefinitionChange(change(before, after, { after: { DependsOn: ['Database'] } }), isBuiltImage)
+    ).toBe(false);
   });
 });
 
@@ -58,6 +71,14 @@ describe('functions', () => {
     ['a new environment variable', fn('api/v1-a.zip', 'a', { Environment: { Variables: { A: '1' } } }), false]
   ])('%s', (_, after, fast) => {
     expect(isCodeOnlyFunctionChange(change(fn('api/v1-a.zip', 'a'), after))).toBe(fast);
+  });
+
+  test('new code and a new deletion policy', () => {
+    expect(
+      isCodeOnlyFunctionChange(
+        change(fn('api/v1-a.zip', 'a'), fn('api/v2-b.zip', 'b'), { after: { DeletionPolicy: 'Retain' } })
+      )
+    ).toBe(false);
   });
 });
 

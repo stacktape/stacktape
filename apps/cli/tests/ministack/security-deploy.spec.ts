@@ -37,7 +37,10 @@ fs.copyFileSync('scanner-input.json', args[args.indexOf('--output') + 1]);
       let previousKey: string | undefined;
       for (const step of ['create', 'update', 'unchanged'] as const) {
         await writeProjectFiles(project, {
-          'stacktape.yml': { resources: { bucket: { type: 'bucket' } } },
+          // The update changes the bucket, so it deploys a new release; the unchanged step repeats it.
+          'stacktape.yml': {
+            resources: { bucket: { type: 'bucket', properties: { versioning: step !== 'create' } } }
+          },
           'scanner-input.json': {
             bomFormat: 'CycloneDX',
             specVersion: '1.6',
@@ -52,14 +55,7 @@ fs.copyFileSync('scanner-input.json', args[args.indexOf('--output') + 1]);
             ]
           }
         });
-        // Only the dependency inventory changes, which on its own creates no release; force one for the update.
-        const result = await runSourceCli({
-          project,
-          step,
-          ministack,
-          scannerPath,
-          ...(step === 'update' ? { extraArgs: ['--fullDeploy'] } : {})
-        });
+        const result = await runSourceCli({ project, step, ministack, scannerPath });
         expect(result.timedOut).toBe(false);
         expect(result.exitCode, result.tail).toBe(0);
         deployed = true;

@@ -251,20 +251,36 @@ class DeployedStackOverviewManager {
    * Why this deployment cannot update the changed code directly, or `undefined` when it can. Call it after the new
    * template is fully resolved, otherwise the diff is incomplete.
    */
-  findReasonForFullDeployment = ({ cfTemplateDiff }: { cfTemplateDiff: TemplateDiff }): string | undefined => {
+  findReasonForFullDeployment = ({
+    cfTemplateDiff,
+    builtImageRepositoryUrl
+  }: {
+    cfTemplateDiff: TemplateDiff;
+    /** Images from this repository were built by Stacktape. */
+    builtImageRepositoryUrl: string;
+  }): string | undefined => {
+    for (const [section, difference] of Object.entries({
+      'the template description': cfTemplateDiff.description,
+      'the template transform': cfTemplateDiff.transform,
+      'the template format version': cfTemplateDiff.awsTemplateFormatVersion
+    })) {
+      if (difference?.isDifferent) return `${section} changed`;
+    }
     for (const sectionDiff of [
       cfTemplateDiff.conditions,
       cfTemplateDiff.mappings,
       cfTemplateDiff.outputs,
-      cfTemplateDiff.parameters
+      cfTemplateDiff.parameters,
+      cfTemplateDiff.metadata,
+      cfTemplateDiff.unknown
     ]) {
-      const changedName = Object.keys(sectionDiff.changes).find(
+      const changedName = Object.keys(sectionDiff?.changes ?? {}).find(
         (logicalId) => logicalId !== outputNames.deploymentVersion()
       );
       if (changedName) return `${changedName} changed`;
     }
     for (const [cfLogicalName, change] of Object.entries(cfTemplateDiff.resources.changes)) {
-      const reason = this.#getReasonForFullDeployment({ cfLogicalName, change });
+      const reason = this.#getReasonForFullDeployment({ cfLogicalName, change, builtImageRepositoryUrl });
       if (reason) {
         tuiManager.debug(`Full deployment needed for ${cfLogicalName}: ${JSON.stringify(change, null, 2)}`);
         return reason;
@@ -273,12 +289,29 @@ class DeployedStackOverviewManager {
     return undefined;
   };
 
+  /** Whether the new template differs from the deployed one in anything but the deployment version output. */
+  hasTemplateChanges = (cfTemplateDiff: TemplateDiff) =>
+    Object.keys(cfTemplateDiff.resources.changes).length > 0 ||
+    [
+      cfTemplateDiff.conditions,
+      cfTemplateDiff.mappings,
+      cfTemplateDiff.outputs,
+      cfTemplateDiff.parameters,
+      cfTemplateDiff.metadata,
+      cfTemplateDiff.unknown
+    ].some((section) => Object.keys(section?.changes ?? {}).some((name) => name !== outputNames.deploymentVersion())) ||
+    [cfTemplateDiff.description, cfTemplateDiff.transform, cfTemplateDiff.awsTemplateFormatVersion].some(
+      (difference) => difference?.isDifferent
+    );
+
   #getReasonForFullDeployment = ({
     cfLogicalName,
-    change
+    change,
+    builtImageRepositoryUrl
   }: {
     cfLogicalName: string;
     change: ResourceDifference;
+    builtImageRepositoryUrl: string;
   }): string | undefined => {
     if (change.isAddition) return `${cfLogicalName} is new`;
     if (change.isRemoval) return `${cfLogicalName} is removed`;
@@ -288,7 +321,8 @@ class DeployedStackOverviewManager {
       workloads.some(({ resource }) => cfLogicalName in resource.cloudformationChildResources);
     switch (change.resourceType as KnownCloudFormationResourceType) {
       case 'AWS::ECS::TaskDefinition':
-        return isPartOf(this.deployedWorkloadsWithEcsTaskDefinition) && isImageOnlyTaskDefinitionChange(change)
+        return isPartOf(this.deployedWorkloadsWithEcsTaskDefinition) &&
+          isImageOnlyTaskDefinitionChange(change, (image) => image.startsWith(`${builtImageRepositoryUrl}:`))
           ? undefined
           : changed;
       case 'AWS::Lambda::Function':

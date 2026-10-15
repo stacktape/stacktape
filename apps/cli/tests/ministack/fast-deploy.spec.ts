@@ -100,6 +100,20 @@ test('code-only deploys update functions directly, record a release and roll bac
     expect(forward.exitCode, forward.tail).toBe(0);
     expect(await deployedVersion()).toBe('v000004');
     expect(await invoke(functionName)).toBe('second');
+
+    // A fast deployment returns to the first build, which CloudFormation's template references by an older key. A
+    // later full deployment of that build must still replace the code the function runs.
+    await writeProjectFiles(project, { 'handler.ts': handler('third') });
+    const third = await runSourceCli({ project, step: 'update', ministack });
+    expect(third.exitCode, third.tail).toBe(0);
+    expect(third.changeSummary).toBeUndefined();
+    expect(await invoke(functionName)).toBe('third');
+    await writeProjectFiles(project, { 'handler.ts': handler('second') });
+    const full = await runSourceCli({ project, step: 'update', ministack, extraArgs: ['--fullDeploy'] });
+    expect(full.exitCode, full.tail).toBe(0);
+    expect(full.changeSummary).toBeDefined();
+    expect(await deployedVersion()).toBe('v000006');
+    expect(await invoke(functionName)).toBe('second');
   } finally {
     try {
       if (deployed) {

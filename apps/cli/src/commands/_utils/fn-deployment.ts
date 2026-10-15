@@ -155,11 +155,11 @@ export const updateFunctionCode = async ({
     const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
     await awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
   }
-  // Written last: the next deployment skips a function whose digest tag already matches its code.
-  await awsSdkManager.lambda.tagFunction({
-    lambdaArn: FunctionArn,
-    tags: [{ key: tagNames.codeDigest(), value: digest }]
-  });
+  // Written last: the next deployment skips a function whose digest tag already matches its code. Without the tag the
+  // next deployment updates the function again, so a failure here does not fail this one.
+  await awsSdkManager.lambda
+    .tagFunction({ lambdaArn: FunctionArn, tags: [{ key: tagNames.codeDigest(), value: digest }] })
+    .catch((error) => tuiManager.warn(`Could not tag ${workloadName} with its code digest: ${error}`));
 
   if (!devMode) {
     await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });

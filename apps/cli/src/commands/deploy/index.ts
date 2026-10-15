@@ -261,13 +261,25 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // When only code changed, the changed functions and container services are updated directly instead of through
   // CloudFormation, which takes seconds instead of minutes.
   let fastDeployPlan: FastDeployPlan | undefined;
-  if (!args.fullDeploy && stack.stackActionType !== 'create') {
-    const reasonInTemplate = deployedStackOverview.findReasonForFullDeployment({ cfTemplateDiff });
-    const planning = reasonInTemplate ? { reason: reasonInTemplate } : await planFastDeploy({ config });
-    if ('plan' in planning) {
-      fastDeployPlan = planning.plan;
+  if (stack.stackActionType !== 'create') {
+    const reason =
+      stack.findChangedStackSetting() ??
+      deployedStackOverview.findReasonForFullDeployment({
+        cfTemplateDiff,
+        builtImageRepositoryUrl: deploymentArtifacts.repositoryUrl
+      });
+    if (args.fullDeploy) {
+      // Even a forced full deployment changes nothing when nothing changed.
+      if (!reason && !deployedStackOverview.hasTemplateChanges(cfTemplateDiff)) {
+        fastDeployPlan = { functions: [], services: [] };
+      }
     } else {
-      tui.info(`Deploying through CloudFormation: ${planning.reason}.`);
+      const planning = reason ? { reason } : await planFastDeploy({ config });
+      if ('plan' in planning) {
+        fastDeployPlan = planning.plan;
+      } else {
+        tui.info(`Deploying through CloudFormation: ${planning.reason}.`);
+      }
     }
   }
   // A fast deployment that changes nothing creates no release.

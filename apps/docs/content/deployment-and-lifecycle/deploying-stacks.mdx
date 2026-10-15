@@ -110,12 +110,13 @@ When only the code of functions or container services changed, `stacktape deploy
 
 A deployment uses CloudFormation when:
 
-- the stack is new, or the template changes anything other than function code or container images (configuration, environment variables, permissions, resources),
+- the stack is new, or the template changes anything other than function code or container images built by Stacktape (configuration, environment variables, permissions, resources, external images),
+- stack settings changed, such as tags or termination protection,
 - a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
 - the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
 - you pass `--fullDeploy`.
 
-A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--fullDeploy`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
 ## Automatic rollback
 

@@ -76,5 +76,7 @@ export const stampLambdaVersionPublishers = (template: CloudFormationTemplate) =
     const lambda = template.Resources[functionLogicalName];
     if (lambda?.Type !== 'AWS::Lambda::Function' || !lambda.Properties) continue;
     properties.versionedConfiguration = getVersionedConfiguration(lambda.Properties as Record<string, unknown>);
+    // The same code stored under a new key (after a fast deployment changed the function) must be published too.
+    properties.codeLocation = (lambda.Properties as Record<string, unknown>).Code;
   }
 };

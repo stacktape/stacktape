@@ -188,8 +188,8 @@ export const executeRollbackOperation = async ({
   const targetVersion = resolveTargetVersion({ args, deploymentArtifacts, stack });
 
   if (targetVersion === currentVersion) {
-    tui.info(`Target version ${targetVersion} is already the current version. Nothing to do.`);
-    return null;
+    // Restoring the current release repairs workloads a failed fast deployment left on other code.
+    tui.info(`Restoring the current release ${targetVersion}.`);
   }
 
   tui.info(`Rolling back from ${currentVersion || 'unknown'} to ${targetVersion}`);

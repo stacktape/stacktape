@@ -31,6 +31,11 @@ export const planFastDeploy = async ({
   const functions = config.allLambdasEligibleForHotswap
     .map((lambdaProps) => getLambdaFunctionHotswapInformation({ lambdaProps }))
     .filter(({ needsUpdate }) => needsUpdate);
+  // CloudFormation publishes versions for an alias, which can shift traffic gradually or keep provisioned capacity.
+  const aliasedFunction = functions.find(({ aliasName }) => aliasName);
+  if (aliasedFunction) {
+    return { reason: `${aliasedFunction.workloadName} is invoked through an alias` };
+  }
   return { plan: { functions, services } };
 };
 
