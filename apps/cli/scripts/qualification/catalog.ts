@@ -18,7 +18,14 @@ export const SMOKE_CASE_IDS = [
 
 export type AwsQualificationScenario = {
   id: string;
-  runner: 'packaging' | 'init' | 'alias-publication' | 'nat-instance' | 'nat-switch' | 'dev-mode';
+  runner:
+    | 'packaging'
+    | 'init'
+    | 'alias-publication'
+    | 'nat-instance'
+    | 'nat-switch'
+    | 'dev-mode'
+    | 'container-fast-deploy';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -62,6 +69,15 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['vpc', 'nat-gateway', 'nat-instance', 'nat-kind-switch', 'probe-failover', 'cleanup'],
     reason:
       'Switching an existing stack between NAT gateways, two instances and one instance must keep the VPC and subnets, and a broken instance must be rerouted around and replaced.'
+  },
+  {
+    id: 'container-fast-deploy-serving',
+    runner: 'container-fast-deploy',
+    policy: 'periodic',
+    costClass: 'low',
+    coverage: ['container', 'web-service', 'load-balancer', 'http-api-gateway', 'fast-deploy', 'timing', 'cleanup'],
+    reason:
+      'A code-only container deploy must finish once the new release serves through the load balancer and API Gateway, without failed requests, and report how long each phase took.'
   },
   {
     id: 'dev-mode-local-loop',

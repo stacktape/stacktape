@@ -738,6 +738,17 @@ export const lanes: readonly Lane[] = [
       'A VPC function reaches the internet through NAT instances, a killed instance fails over to the other zone and back, a rolling replacement and an unchanged redeploy behave, and deletion leaves nothing; the nat-kind-switch scenario of the same runner covers gateway → ha-ec2 → ec2 with a broken instance.'
   },
   {
+    id: 'container-fast-deploy-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=container-fast-deploy-serving'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'A code-only container deploy behind an ALB and an HTTP API finishes once the new release serves, with no failed request during the rollout, reports a per-phase timeline, and deletion leaves nothing.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -3887,7 +3898,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/stack-info-map-diff.ts',
       'apps/cli/tests/ministack/**',
       'packages/ministack/**',
-      'apps/cli/scripts/network-guard-preload.ts'
+      'apps/cli/scripts/network-guard-preload.ts',
+      'apps/cli/src/commands/_utils/cw-deployment.ts',
+      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
+      'apps/cli/_test-stacks/container-fast-deploy/**'
     ],
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
@@ -3903,7 +3917,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
-      'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts'
+      'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
+      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
     ],
     lanes: [
       'deployment-rules',
@@ -3914,7 +3929,8 @@ export const slices: readonly Slice[] = [
       'ministack-fixture',
       'console-database-cli-console',
       'live-aws',
-      'cli-test-real-aws-alias-canary'
+      'cli-test-real-aws-alias-canary',
+      'container-fast-deploy-live'
     ],
     contributors: ['S03', 'S46']
   },

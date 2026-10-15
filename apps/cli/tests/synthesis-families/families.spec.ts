@@ -644,7 +644,7 @@ describe('container rolling deployment family', () => {
     awsSdkManager.ecs.startRollingUpdate = async (input) => {
       sent = input;
     };
-    awsSdkManager.ecs.waitForRollingUpdate = async () => {};
+    awsSdkManager.ecs.waitForRollingUpdate = async () => ({ oldTasksMayStillRun: true });
     try {
       await updateEcsService({
         workload: configManager.allContainerWorkloads.find(({ name }) => name === 'albWeb')!,

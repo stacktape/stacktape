@@ -1,32 +1,67 @@
 import { describe, expect, test } from 'bun:test';
 import type { CodeDeployClient } from '@aws-sdk/client-codedeploy';
-import type { ECSClient } from '@aws-sdk/client-ecs';
+import type { ECSClient, Task } from '@aws-sdk/client-ecs';
 import {
   DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
   DescribeTasksCommand,
   DesiredStatus,
   ListServiceDeploymentsCommand,
   ListTasksCommand
 } from '@aws-sdk/client-ecs';
-import { AwsEcs } from '../../src/aws/ecs';
+import type { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
+import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
+import type { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
+import { GetInstancesHealthStatusCommand } from '@aws-sdk/client-servicediscovery';
+import { AwsEcs, type NewTasksServingPlan, planNewTasksServingChecks } from '../../src/aws/ecs';
 
 type EcsSend = ECSClient['send'];
 type CodeDeploySend = CodeDeployClient['send'];
+type ElbSend = ElasticLoadBalancingV2Client['send'];
+type ServiceDiscoverySend = ServiceDiscoveryClient['send'];
+
+const refuse = (async () => {
+  throw new Error('This test does not expect this client to be called.');
+}) as never;
 
 const ecsWith = ({
   ecsSend,
-  codeDeploySend = (async () => ({})) as CodeDeploySend
+  codeDeploySend = (async () => ({})) as CodeDeploySend,
+  elbSend = refuse as ElbSend,
+  serviceDiscoverySend = refuse as ServiceDiscoverySend
 }: {
   ecsSend: EcsSend;
   codeDeploySend?: CodeDeploySend;
+  elbSend?: ElbSend;
+  serviceDiscoverySend?: ServiceDiscoverySend;
 }) =>
   new AwsEcs({
     createClient: () => ({ send: ecsSend }) as ECSClient,
     createCodeDeployClient: () => ({ send: codeDeploySend }) as CodeDeployClient,
+    createElbClient: () => ({ send: elbSend }) as ElasticLoadBalancingV2Client,
+    createServiceDiscoveryClient: () => ({ send: serviceDiscoverySend }) as ServiceDiscoveryClient,
     getErrorHandler: (message) => (error) => {
       throw new Error(message, { cause: error });
     }
   });
+
+const TARGET_GROUP = 'arn:aws:elasticloadbalancing:eu-west-1:123456789999:targetgroup/api/1';
+const REGISTRY = 'arn:aws:servicediscovery:eu-west-1:123456789999:service/srv-api';
+const TASK_DEFINITION = 'arn:aws:ecs:eu-west-1:123456789999:task-definition/api:2';
+const newTask = (id: string, overrides: Partial<Task> = {}): Task => ({
+  taskArn: `arn:aws:ecs:eu-west-1:123456789999:task/application/${id}`,
+  lastStatus: 'RUNNING',
+  desiredStatus: 'RUNNING',
+  healthStatus: 'UNKNOWN',
+  attachments: [
+    {
+      type: 'ElasticNetworkInterface',
+      details: [{ name: 'privateIPv4Address', value: `10.0.0.${id.charCodeAt(0)}` }]
+    }
+  ],
+  ...overrides
+});
+const ipOfTask = (task: Task) => task.attachments![0]!.details![0]!.value!;
 
 describe('AWS ECS operations', () => {
   test('paginates task ARNs and describes them in ECS-sized batches', async () => {
@@ -198,4 +233,244 @@ describe('AWS ECS operations', () => {
       expect(((error as Error).cause as Error).message).toContain('Please set `enableRemoteSessions: true`');
     }
   });
+});
+
+describe('which signals show that the new tasks of a rolling deployment serve', () => {
+  const behindTargetGroup = {
+    desiredCount: 2,
+    loadBalancers: [{ targetGroupArn: TARGET_GROUP, containerName: 'api', containerPort: 3000 }]
+  };
+  const throughCloudMap = {
+    desiredCount: 2,
+    serviceRegistries: [{ registryArn: REGISTRY, containerName: 'api', containerPort: 3000 }]
+  };
+  const withoutHealthCheck = [{ name: 'api', essential: true }];
+  const withHealthCheck = [{ name: 'api', essential: true, healthCheck: { command: ['CMD', 'true'] } }];
+  const sidecarHealthCheckOnly = [
+    { name: 'api', essential: true },
+    { name: 'collector', essential: false, healthCheck: { command: ['CMD', 'true'] } }
+  ];
+  const deployment = {};
+  const a = newTask('a');
+  const b = newTask('b');
+
+  test.each<{
+    name: string;
+    plan: Parameters<typeof planNewTasksServingChecks>[0];
+    expected: NewTasksServingPlan;
+  }>([
+    {
+      name: 'behind a target group, every running task must be a healthy target',
+      plan: { deployment, service: behindTargetGroup, containerDefinitions: withoutHealthCheck, tasks: [a, b] },
+      expected: {
+        verdict: 'check',
+        targets: [
+          { targetGroupArn: TARGET_GROUP, id: ipOfTask(a), port: 3000 },
+          { targetGroupArn: TARGET_GROUP, id: ipOfTask(b), port: 3000 }
+        ],
+        instances: []
+      }
+    },
+    {
+      name: 'a task still pending keeps the deployment waiting',
+      plan: {
+        deployment,
+        service: behindTargetGroup,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, newTask('b', { lastStatus: 'PENDING' })]
+      },
+      expected: { verdict: 'waiting', reason: '1 of 2 new tasks running' }
+    },
+    {
+      name: 'a stopping task does not count as running',
+      plan: {
+        deployment,
+        service: behindTargetGroup,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, newTask('b', { desiredStatus: 'STOPPED' })]
+      },
+      expected: { verdict: 'waiting', reason: '1 of 2 new tasks running' }
+    },
+    {
+      name: 'a container health check must pass even behind a target group',
+      plan: {
+        deployment,
+        service: behindTargetGroup,
+        containerDefinitions: withHealthCheck,
+        tasks: [newTask('a', { healthStatus: 'HEALTHY' }), b]
+      },
+      expected: { verdict: 'waiting', reason: 'a new task has not passed its container health check' }
+    },
+    {
+      name: 'Cloud Map registers a task before it listens, so without a health check ECS decides',
+      plan: { deployment, service: throughCloudMap, containerDefinitions: withoutHealthCheck, tasks: [a, b] },
+      expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
+    },
+    {
+      name: 'a health check on a non-essential sidecar says nothing about the application',
+      plan: { deployment, service: throughCloudMap, containerDefinitions: sidecarHealthCheckOnly, tasks: [a, b] },
+      expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
+    },
+    {
+      name: 'through Cloud Map, healthy tasks must also be healthy Cloud Map instances',
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withHealthCheck,
+        tasks: [newTask('a', { healthStatus: 'HEALTHY' }), newTask('b', { healthStatus: 'HEALTHY' })]
+      },
+      expected: {
+        verdict: 'check',
+        targets: [],
+        instances: [
+          { serviceId: 'srv-api', instanceId: 'a' },
+          { serviceId: 'srv-api', instanceId: 'b' }
+        ]
+      }
+    },
+    {
+      name: 'Service Connect relies on the container health check alone',
+      plan: {
+        deployment: { ...deployment, serviceConnectConfiguration: { enabled: true } },
+        service: { desiredCount: 2 },
+        containerDefinitions: withHealthCheck,
+        tasks: [newTask('a', { healthStatus: 'HEALTHY' }), newTask('b', { healthStatus: 'HEALTHY' })]
+      },
+      expected: { verdict: 'check', targets: [], instances: [] }
+    },
+    {
+      name: 'a service without traffic and without a health check is left to ECS',
+      plan: { deployment, service: { desiredCount: 2 }, containerDefinitions: withoutHealthCheck, tasks: [a, b] },
+      expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
+    },
+    {
+      name: 'instance targets (EC2 bridge networking) are left to ECS',
+      plan: {
+        deployment,
+        service: behindTargetGroup,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [newTask('a', { attachments: [] }), newTask('b', { attachments: [] })]
+      },
+      expected: { verdict: 'undecidable', reason: 'the load balancer targets are instances, not task IPs' }
+    },
+    {
+      name: 'a service scaled to zero is left to ECS',
+      plan: { deployment, service: { ...behindTargetGroup, desiredCount: 0 }, containerDefinitions: [], tasks: [] },
+      expected: { verdict: 'undecidable', reason: 'the service runs no task' }
+    }
+  ])('$name', ({ plan, expected }) => {
+    expect(planNewTasksServingChecks(plan)).toEqual(expected);
+  });
+});
+
+describe('a rolling update that finishes once the new tasks serve', () => {
+  const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
+  const describedService = {
+    services: [
+      {
+        status: 'ACTIVE',
+        desiredCount: 1,
+        deploymentConfiguration: { earlySuccessCriteria: { enable: true } },
+        loadBalancers: [{ targetGroupArn: TARGET_GROUP, containerName: 'api', containerPort: 3000 }],
+        serviceRegistries: [{ registryArn: REGISTRY, containerName: 'api', containerPort: 3000 }],
+        deployments: [
+          {
+            id: 'ecs-svc/2',
+            status: 'PRIMARY',
+            taskDefinition: TASK_DEFINITION,
+            desiredCount: 1,
+            runningCount: 1,
+            rolloutState: 'IN_PROGRESS'
+          },
+          { id: 'ecs-svc/1', status: 'ACTIVE', desiredCount: 0, runningCount: 1, rolloutState: 'COMPLETED' }
+        ]
+      }
+    ]
+  };
+  const task = newTask('a', { healthStatus: 'HEALTHY', startedBy: 'ecs-svc/2' });
+  const ecsSend = (async (command: unknown) => {
+    if (command instanceof DescribeServicesCommand) return describedService;
+    if (command instanceof ListTasksCommand) {
+      expect(command.input).toEqual({ cluster: 'application', startedBy: 'ecs-svc/2', maxResults: 100 });
+      return { taskArns: [task.taskArn] };
+    }
+    if (command instanceof DescribeTasksCommand) return { tasks: [task] };
+    // ECS early success counts the task healthy before Cloud Map does; the waiter must not take its word for it.
+    if (command instanceof ListServiceDeploymentsCommand) {
+      return {
+        serviceDeployments: [
+          { targetServiceRevisionArn: 'arn:service-revision/application/api/2', status: 'SUCCESSFUL' }
+        ]
+      };
+    }
+    if (command instanceof DescribeTaskDefinitionCommand) {
+      return {
+        taskDefinition: {
+          containerDefinitions: [{ name: 'api', essential: true, healthCheck: { command: ['CMD', 'true'] } }]
+        }
+      };
+    }
+    throw new Error(`Unexpected ECS call ${(command as object).constructor.name}`);
+  }) as EcsSend;
+
+  test('finishes when the target and the Cloud Map instance are healthy while the old task still runs', async () => {
+    // ECS keeps the rollout IN_PROGRESS (and, with early success, the service deployment too) for tens of seconds after
+    // the load balancer already routes requests to the new task.
+    const targetStates = ['initial', 'healthy', 'healthy'];
+    const instanceStates = ['UNHEALTHY', 'HEALTHY'];
+    let targetReads = 0;
+    let instanceReads = 0;
+    const ecs = ecsWith({
+      ecsSend,
+      elbSend: (async (command: DescribeTargetHealthCommand) => {
+        expect(command).toBeInstanceOf(DescribeTargetHealthCommand);
+        expect(command.input).toEqual({ TargetGroupArn: TARGET_GROUP, Targets: [{ Id: ipOfTask(task), Port: 3000 }] });
+        const State = targetStates[targetReads++];
+        return { TargetHealthDescriptions: [{ Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State } }] };
+      }) as ElbSend,
+      serviceDiscoverySend: (async (command: GetInstancesHealthStatusCommand) => {
+        expect(command.input).toEqual({ ServiceId: 'srv-api', Instances: ['a'] });
+        const status = targetReads > 1 ? instanceStates[instanceReads++] : 'UNHEALTHY';
+        return { Status: { a: status } };
+      }) as ServiceDiscoverySend
+    });
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
+    expect(targetReads).toBe(3);
+    expect(instanceReads).toBe(2);
+  }, 30_000);
+
+  test('waits for the rollout when it may not read target health', async () => {
+    let polls = 0;
+    let targetReads = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          const [primary, ...rest] = describedService.services[0]!.deployments;
+          return {
+            services: [
+              {
+                ...describedService.services[0],
+                deploymentConfiguration: {},
+                deployments: [{ ...primary, rolloutState: polls < 3 ? 'IN_PROGRESS' : 'COMPLETED' }, ...rest]
+              }
+            ]
+          };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      elbSend: (async () => {
+        targetReads += 1;
+        throw Object.assign(new Error('User is not authorized to perform: elasticloadbalancing:DescribeTargetHealth'), {
+          name: 'AccessDenied'
+        });
+      }) as ElbSend,
+      serviceDiscoverySend: (async () => ({ Status: { a: 'HEALTHY' } })) as ServiceDiscoverySend
+    });
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: false });
+    expect(polls).toBe(3);
+    expect(targetReads).toBe(1);
+  }, 30_000);
 });

@@ -10,6 +10,7 @@ import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
+import { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { OpenSearchClient } from '@aws-sdk/client-opensearch';
@@ -18,6 +19,7 @@ import { Route53Client } from '@aws-sdk/client-route-53';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
 import { SESClient } from '@aws-sdk/client-ses';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { SSMClient } from '@aws-sdk/client-ssm';
@@ -157,6 +159,8 @@ export class AwsSdkManager {
     this.#ecs = new AwsEcs({
       createClient: () => this.#ecsClient(),
       createCodeDeployClient: () => this.#codeDeployClient(),
+      createElbClient: () => this.#applyPlugins(new ElasticLoadBalancingV2Client(this.#getClientArgs())),
+      createServiceDiscoveryClient: () => this.#applyPlugins(new ServiceDiscoveryClient(this.#getClientArgs())),
       getErrorHandler: this.#getErrorHandler
     });
     this.#systemsManager = new AwsSystemsManager({

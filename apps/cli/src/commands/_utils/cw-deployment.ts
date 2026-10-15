@@ -260,6 +260,7 @@ export const updateEcsService = async ({
     });
     const clusterName = ecsServiceArn.split('/')[1];
     const { stackName } = globalStateManager.targetStack;
+    let oldTasksMayStillRun = false;
     const statusPoller = new EcsServiceDeploymentStatusPoller({
       ecsServiceArn,
       pollerPrintName: workload.nameChain[0],
@@ -367,14 +368,16 @@ export const updateEcsService = async ({
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
         await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
-        await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn });
+        ({ oldTasksMayStillRun } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn }));
       }
     } finally {
       statusPoller.stopPolling();
     }
     await updateWorkloadLogger.finishEvent({
       eventType: 'UPDATE_ECS_SERVICE',
-      finalMessage: 'Service updated (new version running)'
+      finalMessage: oldTasksMayStillRun
+        ? 'New version serving traffic (old containers drain and stop in the background)'
+        : 'Service updated (new version running)'
     });
   }
 };
