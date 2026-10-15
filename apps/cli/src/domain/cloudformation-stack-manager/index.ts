@@ -754,19 +754,25 @@ class StackManager {
     // Events are polled every second during updates, where a code change finishes in seconds.
     const eventPollingIntervalMs = (cfStackAction === 'update' ? 1 : MONITORING_FREQUENCY_SECONDS) * 1000;
     // The stack status is a fallback for missed completion events. DescribeStacks can take several seconds, so it runs
-    // beside event polling instead of holding up the next batch of events.
+    // beside event polling instead of holding up the next batch of events. It is requested only after this operation's
+    // start event was seen: an earlier request could still return the previous operation's final status.
     let latestStackStatus: StackStatus | undefined;
     let stackStatusRequestInFlight = false;
+    let failedStackStatusRequests = 0;
+    let stackStatusError: unknown;
     const refreshStackStatus = () => {
-      if (stackStatusRequestInFlight) return;
+      if (stackStatusRequestInFlight || !lastStackActionTimestamp) return;
       stackStatusRequestInFlight = true;
       awsSdkManager.cloudFormation
         .getDetails(stackId)
         .then((stackDetails) => {
           latestStackStatus = stackDetails?.StackStatus as StackStatus;
+          failedStackStatusRequests = 0;
         })
-        // A failed status check is retried on a later poll; event polling reports persistent AWS errors.
-        .catch(() => {})
+        .catch((err) => {
+          // A single failure is retried on a later poll; repeated failures stop the monitoring.
+          if (++failedStackStatusRequests >= 3) stackStatusError = err;
+        })
         .finally(() => {
           stackStatusRequestInFlight = false;
         });
@@ -1096,6 +1102,7 @@ class StackManager {
         // as we are about to fetch and evaluate event batch
         eventBatchEvaluationInProgress = true;
         try {
+          if (stackStatusError) throw stackStatusError;
           const stackStatus = latestStackStatus;
           latestStackStatus = undefined;
           // we are only fetching for new events "fetchSince"
