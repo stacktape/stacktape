@@ -1,5 +1,5 @@
 import { cfnResource } from '@stacktape/cloudformation/resource';
-import { getAtt, sub } from '@stacktape/cloudformation/intrinsics';
+import { sub } from '@stacktape/cloudformation/intrinsics';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -22,8 +22,9 @@ export const resolveDevAgentRole = () => {
     }
   };
 
+  const roleName = `${stackName}-dev-agent`;
   const role = cfnResource('AWS::IAM::Role', {
-    RoleName: `${stackName}-dev-agent`,
+    RoleName: roleName,
     Description: `Dev agent role for stack ${stackName}`,
     MaxSessionDuration: 43200,
     AssumeRolePolicyDocument: {
@@ -491,14 +492,15 @@ export const resolveDevAgentRole = () => {
   calculatedStackOverviewManager.addCfChildResource({
     nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
     cfLogicalName: DEV_AGENT_ROLE_LOGICAL_NAME,
-    resource: role,
-    initial: true
+    resource: role
   });
 
   // Export role ARN and external ID for the dev agent
   calculatedStackOverviewManager.addUserCustomStackOutput({
     cloudformationOutputName: 'DevAgentRoleArn',
-    value: getAtt(DEV_AGENT_ROLE_LOGICAL_NAME, 'Arn'),
+    // Built from the role name rather than `Fn::GetAtt`: an output that depends on the role adds several seconds to
+    // every stack update.
+    value: sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:role/${roleName}`),
     description: 'ARN of the dev agent IAM role'
   });
 

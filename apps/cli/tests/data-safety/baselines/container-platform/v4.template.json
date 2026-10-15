@@ -3576,13 +3576,13 @@
   "Outputs": {
     "DevAgentRoleArn": {
       "Value": {
-        "Fn::GetAtt": ["StpDevAgentRole", "Arn"]
+        "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/j2-v3-baseline-j2base-dev-agent"
       },
       "Description": "ARN of the dev agent IAM role"
     },
     "DebugAgentRoleArn": {
       "Value": {
-        "Fn::GetAtt": ["StpDebugAgentRole", "Arn"]
+        "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/j2-v3-baseline-j2base-debug-agent"
       },
       "Description": "ARN of the debug agent IAM role (read-only)"
     },
@@ -4040,10 +4040,10 @@
               ]
             },
             "sub43": {
-              "Fn::GetAtt": ["StpDevAgentRole", "Arn"]
+              "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/j2-v3-baseline-j2base-dev-agent"
             },
             "sub44": {
-              "Fn::GetAtt": ["StpDebugAgentRole", "Arn"]
+              "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/j2-v3-baseline-j2base-debug-agent"
             }
           }
         ]
