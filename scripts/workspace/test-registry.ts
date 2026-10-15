@@ -698,6 +698,42 @@ export const lanes: readonly Lane[] = [
       'A deployed Lambda queries initial and edited local PostgreSQL data through the real dev tunnel; logs, environment restore and deletion are verified.'
   },
   {
+    id: 'nat-instances',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'tests/characterization/nat-instance-template.spec.ts',
+      'helper-lambdas/stacktapeServiceLambda/nat-failover/index.test.ts',
+      'helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/tests/characterization/nat-instance-template.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/nat-failover/index.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'stackConfig.nat synthesizes gateways or per-zone NAT instances with stable route logical ids, the failover planner reroutes, reports and releases lifecycle hooks by the zone rules, and the route reconcile only touches drifted tables.'
+  },
+  {
+    id: 'nat-instances-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=nat-instance-failover'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/nat-instance-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'A VPC function reaches the internet through NAT instances, a killed instance fails over to the other zone and back, a rolling replacement and an unchanged redeploy behave, and deletion leaves nothing; the nat-kind-switch scenario of the same runner covers gateway → ha-ec2 → ec2 with a broken instance.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -5775,6 +5811,30 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/scripts/production-bundle.test.ts'
     ],
     lanes: ['console-ui', 'console-browser-offline', 'console-ui-production-bundle']
+  },
+  {
+    id: 'S76',
+    promise:
+      'stackConfig.nat gives private workloads outbound internet through gateways or Stacktape-managed instances that fail over, recover, and report a real failure once.',
+    status: 'active',
+    journeys: ['J2'],
+    paths: [
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/nat-instances.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/vpc.ts',
+      'apps/cli/src/domain/config-manager/utils/nat.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/nat-failover/**',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.ts',
+      'apps/cli/scripts/real-aws/nat-instance-canary.ts',
+      'apps/cli/_test-stacks/nat-instance/**',
+      'packages/config/src/nat.ts'
+    ],
+    tests: [
+      'apps/cli/tests/characterization/nat-instance-template.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/nat-failover/index.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts',
+      'apps/cli/scripts/real-aws/nat-instance-canary.ts'
+    ],
+    lanes: ['nat-instances', 'nat-instances-live']
   }
 ];
 
