@@ -18921,8 +18921,8 @@
       {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
-        "shortDescription": "<p> Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP.</p>",
-        "longDescription": "<p>Useful for IP whitelisting with third-party APIs. NAT Gateway costs ~$32/month per AZ + data processing fees.</p>",
+        "shortDescription": "<p> Run the workload in the private subnets, without a public IP, with outbound traffic through the stack&#39;s NAT.</p>",
+        "longDescription": "<p>What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack&#39;s\nNAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).</p>\n<p>Requires <code>stackConfig.nat</code> (<code>ec2</code>, <code>ha-ec2</code> or <code>gateway</code>); the cost depends on that choice, and <code>gateway</code> adds a\nper-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -18933,11 +18933,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: worker\n          packaging:\n            type: js-bundle\n            properties:\n              entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.5\n        memory: 1024\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
+            "code": "stackConfig:\n  nat: ha-ec2\nresources:\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: worker\n          packaging:\n            type: js-bundle\n            properties:\n              entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.5\n        memory: 1024\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const app = new MultiContainerWorkload({\n    containers: [\n      { name: 'worker', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }) }\n    ],\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n  return { resources: { app } };\n});"
+            "code": "import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const app = new MultiContainerWorkload({\n    containers: [\n      { name: 'worker', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }) }\n    ],\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n  return { stackConfig: { nat: 'ha-ec2' }, resources: { app } };\n});"
           }
         ]
       }
@@ -18946,7 +18946,7 @@
       "requiredCount": 2,
       "optionalCount": 7
     },
-    "typeDeclaration": "import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadProps = {\n  /** Containers in this workload. They share compute resources and scale together. */\n  containers: Array<ContainerWorkloadContainer>;\n  /** CPU, memory, and compute engine (Fargate or EC2). */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Enable `stacktape container:session` for interactive shell access to running containers. */\n  enableRemoteSessions?: boolean;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Auto-scaling: how many instances and when to add/remove them. */\n  scaling?: ContainerWorkloadScaling;\n  /** Distributed tracing for this workload. */\n  tracing?: ContainerWorkloadTracing;\n  /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */\n  usePrivateSubnetsWithNAT?: boolean;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadProps = {\n  /** Containers in this workload. They share compute resources and scale together. */\n  containers: Array<ContainerWorkloadContainer>;\n  /** CPU, memory, and compute engine (Fargate or EC2). */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Enable `stacktape container:session` for interactive shell access to running containers. */\n  enableRemoteSessions?: boolean;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Auto-scaling: how many instances and when to add/remove them. */\n  scaling?: ContainerWorkloadScaling;\n  /** Distributed tracing for this workload. */\n  tracing?: ContainerWorkloadTracing;\n  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */\n  usePrivateSubnetsWithNAT?: boolean;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "ContainerWorkloadResourcesConfig": {
     "definitionName": "ContainerWorkloadResourcesConfig",
@@ -41561,10 +41561,37 @@
     "definitionName": "NatSettings",
     "properties": [
       {
+        "name": "type",
+        "required": true,
+        "shortDescription": "<p> Which kind of NAT the stack runs.</p>",
+        "longDescription": "<ul>\n<li><strong>ec2</strong>: one small EC2 instance (<code>t4g.nano</code> by default) managed by Stacktape. About $7/month, no per-GB\ncharge. If the instance dies, AWS replaces it, which takes about three minutes without outbound internet.</li>\n<li><strong>ha-ec2</strong>: one such instance per availability zone (two by default) with automatic failover. About $7/month\nper zone. When an instance fails, Stacktape routes its zone through another zone&#39;s instance within about a\nminute and routes back once the replacement is healthy; outbound calls from that zone fail during that minute\nand open connections are reset.</li>\n<li><strong>gateway</strong>: AWS-managed NAT Gateways, one per availability zone. About $32/month per zone plus $0.045 per GB\nprocessed. No instances, scales to 100 Gbps; the choice for high sustained throughput and strict uptime.</li>\n</ul>\n<p>The shorthand <code>nat: ha-ec2</code> is the same as <code>nat: { type: ha-ec2 }</code>.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "ec2",
+            "gateway",
+            "ha-ec2"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  # [!code focus-start]\n  nat:\n    type: ha-ec2\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: { type: 'ha-ec2' } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "availabilityZones",
         "required": false,
-        "shortDescription": "<p> How many availability zones get a NAT Gateway (~$32/month each).</p>",
-        "longDescription": "<ul>\n<li><strong>1</strong>: Cheapest, but no redundancy if that AZ goes down.</li>\n<li><strong>2</strong>: Balanced cost and availability.</li>\n<li><strong>3</strong>: Highest availability.</li>\n</ul>\n<p>Each NAT Gateway gets a static Elastic IP that persists across deployments —\nuseful for IP whitelisting with external services.</p>",
+        "shortDescription": "<p> How many availability zones get their own NAT (<code>ha-ec2</code> and <code>gateway</code> only).</p>",
+        "longDescription": "<ul>\n<li><strong>2</strong>: Balanced cost and availability.</li>\n<li><strong>3</strong>: Highest availability.</li>\n</ul>\n<p>Each NAT gets a static Elastic IP that persists across deployments —\nuseful for IP whitelisting with external services.</p>",
         "defaultValue": "2",
         "typeInfo": {
           "kind": "primitive",
@@ -41572,7 +41599,6 @@
             "number"
           ],
           "enumValues": [
-            1,
             2,
             3
           ]
@@ -41580,20 +41606,43 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "stackConfig:\n  # [!code focus-start]\n  vpc:\n    nat:\n      availabilityZones: 1\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
+            "code": "stackConfig:\n  # [!code focus-start]\n  nat:\n    type: gateway\n    availabilityZones: 3\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
           },
           {
             "lang": "typescript",
-            "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { vpc: { nat: { availabilityZones: 1 } } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
+            "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: { type: 'gateway', availabilityZones: 3 } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
+          }
+        ]
+      },
+      {
+        "name": "instanceSize",
+        "required": false,
+        "shortDescription": "<p> EC2 instance size of the NAT instances (<code>ec2</code> and <code>ha-ec2</code> only).</p>",
+        "longDescription": "<p>Must be an arm64 (Graviton) size, for example <code>t4g.nano</code>, <code>t4g.micro</code>, <code>t4g.small</code> or <code>c7gn.medium</code>.\n<code>t4g.nano</code> bursts to 5 Gbps and is enough for most applications; pick a larger size for sustained\nhigh throughput.</p>",
+        "defaultValue": "t4g.nano",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  # [!code focus-start]\n  nat:\n    type: ha-ec2\n    instanceSize: t4g.small\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: { type: 'ha-ec2', instanceSize: 't4g.small' } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
           }
         ]
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 1
+      "requiredCount": 1,
+      "optionalCount": 2
     },
-    "typeDeclaration": "// [!code focus-start]\ntype NatSettings = {\n  /** How many availability zones get a NAT Gateway (~$32/month each). */\n  availabilityZones?: 1 | 2 | 3;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype NatSettings = {\n  /** Which kind of NAT the stack runs. */\n  type: \"ec2\" | \"gateway\" | \"ha-ec2\";\n  /** How many availability zones get their own NAT (`ha-ec2` and `gateway` only). */\n  availabilityZones?: 2 | 3;\n  /** EC2 instance size of the NAT instances (`ec2` and `ha-ec2` only). */\n  instanceSize?: string;\n};\n// [!code focus-end]"
   },
   "NetworkLoadBalancer": {
     "definitionName": "NetworkLoadBalancer",
@@ -45770,8 +45819,8 @@
       {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
-        "shortDescription": "<p> Deploy in private subnets with a static outbound IP via NAT Gateway.</p>",
-        "longDescription": "<p>The container won&#39;t have a public IP. All outbound traffic routes through a NAT Gateway,\ngiving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).</p>\n<p>Configure the number of NAT Gateways in <code>stackConfig.vpc.nat</code>.</p>\n<p><strong>Adds cost:</strong> NAT Gateway ~$32/month + data processing fees.</p>",
+        "shortDescription": "<p> Run the workload in the private subnets, without a public IP, with outbound traffic through the stack&#39;s NAT.</p>",
+        "longDescription": "<p>What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack&#39;s\nNAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).</p>\n<p>Requires <code>stackConfig.nat</code> (<code>ec2</code>, <code>ha-ec2</code> or <code>gateway</code>); the cost depends on that choice, and <code>gateway</code> adds a\nper-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -45782,11 +45831,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
+            "code": "stackConfig:\n  nat: ha-ec2\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n\n  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };\n});"
           }
         ]
       },
@@ -45818,7 +45867,7 @@
       "requiredCount": 2,
       "optionalCount": 16
     },
-    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: PrivateServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype PrivateServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: PrivateServiceTracing;\n  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype PrivateServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "PropertylessCloudFormationResource<string>": {
     "definitionName": "PropertylessCloudFormationResource<string>",
@@ -54481,6 +54530,115 @@
         ]
       },
       {
+        "name": "nat",
+        "required": false,
+        "shortDescription": "<p> NAT: outbound internet for workloads in the private subnets.</p>",
+        "longDescription": "<p>Who uses it:</p>\n<ul>\n<li>container workloads with <code>usePrivateSubnetsWithNAT: true</code> (they cannot run without it, so setting that flag\nrequires <code>nat</code>);</li>\n<li>Lambda functions with <code>joinDefaultVpc: true</code>, which have no internet access at all until <code>nat</code> is set;</li>\n<li>AgentCore runtimes that connect to VPC-only resources.</li>\n</ul>\n<p>Pick <code>ec2</code> (one small instance, ~$7/month, no failover), <code>ha-ec2</code> (one instance per availability zone with\nautomatic failover, ~$7/month per zone) or <code>gateway</code> (AWS-managed NAT Gateways, ~$32/month per zone plus\n$0.045 per GB). Switching between kinds keeps the VPC and subnets, but the public IPs change.</p>\n<p>With <code>vpc.reuseVpc</code>, the reused VPC&#39;s own NAT is used and this setting creates nothing; set it to any kind to\nplace this stack&#39;s VPC functions in the reused VPC&#39;s private subnets.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "NatSettings",
+              "typeName": "NatSettings",
+              "properties": [
+                {
+                  "name": "type",
+                  "required": true,
+                  "shortDescription": "<p> Which kind of NAT the stack runs.</p>",
+                  "longDescription": "<ul>\n<li><strong>ec2</strong>: one small EC2 instance (<code>t4g.nano</code> by default) managed by Stacktape. About $7/month, no per-GB\ncharge. If the instance dies, AWS replaces it, which takes about three minutes without outbound internet.</li>\n<li><strong>ha-ec2</strong>: one such instance per availability zone (two by default) with automatic failover. About $7/month\nper zone. When an instance fails, Stacktape routes its zone through another zone&#39;s instance within about a\nminute and routes back once the replacement is healthy; outbound calls from that zone fail during that minute\nand open connections are reset.</li>\n<li><strong>gateway</strong>: AWS-managed NAT Gateways, one per availability zone. About $32/month per zone plus $0.045 per GB\nprocessed. No instances, scales to 100 Gbps; the choice for high sustained throughput and strict uptime.</li>\n</ul>\n<p>The shorthand <code>nat: ha-ec2</code> is the same as <code>nat: { type: ha-ec2 }</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "ec2",
+                      "gateway",
+                      "ha-ec2"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  # [!code focus-start]\n  nat:\n    type: ha-ec2\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: { type: 'ha-ec2' } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "instanceSize",
+                  "required": false,
+                  "shortDescription": "<p> EC2 instance size of the NAT instances (<code>ec2</code> and <code>ha-ec2</code> only).</p>",
+                  "longDescription": "<p>Must be an arm64 (Graviton) size, for example <code>t4g.nano</code>, <code>t4g.micro</code>, <code>t4g.small</code> or <code>c7gn.medium</code>.\n<code>t4g.nano</code> bursts to 5 Gbps and is enough for most applications; pick a larger size for sustained\nhigh throughput.</p>",
+                  "defaultValue": "t4g.nano",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  # [!code focus-start]\n  nat:\n    type: ha-ec2\n    instanceSize: t4g.small\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: { type: 'ha-ec2', instanceSize: 't4g.small' } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "availabilityZones",
+                  "required": false,
+                  "shortDescription": "<p> How many availability zones get their own NAT (<code>ha-ec2</code> and <code>gateway</code> only).</p>",
+                  "longDescription": "<ul>\n<li><strong>2</strong>: Balanced cost and availability.</li>\n<li><strong>3</strong>: Highest availability.</li>\n</ul>\n<p>Each NAT gets a static Elastic IP that persists across deployments —\nuseful for IP whitelisting with external services.</p>",
+                  "defaultValue": "2",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ],
+                    "enumValues": [
+                      2,
+                      3
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  # [!code focus-start]\n  nat:\n    type: gateway\n    availabilityZones: 3\n  # [!code focus-end]\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    usePrivateSubnetsWithNAT: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: { type: 'gateway', availabilityZones: 3 } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  # [!code focus-start]\n  nat: ha-ec2\n  # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/api.ts\n      joinDefaultVpc: true"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),\n    joinDefaultVpc: true\n  });\n\n  return {\n    // [!code focus-start]\n    stackConfig: { nat: 'ha-ec2' },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "outputs",
         "required": false,
         "shortDescription": "<p> Custom values to display and save after each deployment.</p>",
@@ -54598,7 +54756,7 @@
       {
         "name": "vpc",
         "required": false,
-        "shortDescription": "<p> VPC configuration: reuse an existing VPC or configure NAT Gateways.</p>",
+        "shortDescription": "<p> VPC configuration: reuse an existing VPC.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "reference",
@@ -54608,9 +54766,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 7
+      "optionalCount": 8
     },
-    "typeDeclaration": "import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';\n\n// [!code focus-start]\ntype StackConfig = {\n  /** Stop saving stack info to a local file after each deployment. */\n  disableStackInfoSaving?: boolean;\n  /** Custom values to display and save after each deployment. */\n  outputs?: Array<StackOutput>;\n  /** Directory for the stack info JSON file. */\n  stackInfoDirectory?: string;\n  /** Explicitly classifies this stack's stage as production or not.\n\nThe classification drives everything that treats production differently: error-tracking\nincidents (every production error group enters the incident queue), the stricter\ndelete-production permission, deploy gates, and AI remediation autonomy limits.\n\nWhen omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`\n(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as\nproduction, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)\ndo not. Set it explicitly when your naming does not follow those conventions.\n\nThis is a per-stage classification: with a TypeScript config, branch on the `stage` argument\nto return different values for different stages. */\n  stageType?: \"non-production\" | \"production\";\n  /** Tags applied to every AWS resource in this stack. */\n  tags?: Array<CloudformationTag>;\n  /** Stack-wide distributed tracing default. */\n  tracing?: TracingOptions;\n  /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */\n  vpc?: VpcSettings;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { CloudformationTag, NatSettings, StackOutput, TracingOptions, VpcSettings } from 'stacktape';\n\n// [!code focus-start]\ntype StackConfig = {\n  /** Stop saving stack info to a local file after each deployment. */\n  disableStackInfoSaving?: boolean;\n  /** NAT: outbound internet for workloads in the private subnets. */\n  nat?: StackConfigNat;\n  /** Custom values to display and save after each deployment. */\n  outputs?: Array<StackOutput>;\n  /** Directory for the stack info JSON file. */\n  stackInfoDirectory?: string;\n  /** Explicitly classifies this stack's stage as production or not.\n\nThe classification drives everything that treats production differently: error-tracking\nincidents (every production error group enters the incident queue), the stricter\ndelete-production permission, deploy gates, and AI remediation autonomy limits.\n\nWhen omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`\n(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as\nproduction, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)\ndo not. Set it explicitly when your naming does not follow those conventions.\n\nThis is a per-stage classification: with a TypeScript config, branch on the `stage` argument\nto return different values for different stages. */\n  stageType?: \"non-production\" | \"production\";\n  /** Tags applied to every AWS resource in this stack. */\n  tags?: Array<CloudformationTag>;\n  /** Stack-wide distributed tracing default. */\n  tracing?: TracingOptions;\n  /** VPC configuration: reuse an existing VPC. */\n  vpc?: VpcSettings;\n};\n\n/** Union choices used by the properties above. */\ntype StackConfigNat =\n  | NatSettings\n  | \"option-2\";\n// [!code focus-end]"
   },
   "StackOutput": {
     "definitionName": "StackOutput",
@@ -59533,16 +59691,6 @@
     "definitionName": "VpcSettings",
     "properties": [
       {
-        "name": "nat",
-        "required": false,
-        "shortDescription": "<p> NAT Gateway configuration for private subnets.</p>",
-        "longDescription": "<p>Only applies when you have workloads using <code>usePrivateSubnetsWithNAT: true</code>.\nControls how many availability zones get a NAT Gateway (affects cost and redundancy).</p>",
-        "typeInfo": {
-          "kind": "reference",
-          "typeName": "NatSettings"
-        }
-      },
-      {
         "name": "reuseVpc",
         "required": false,
         "shortDescription": "<p> Share a VPC with another Stacktape stack or use an existing VPC.</p>",
@@ -59555,9 +59703,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 2
+      "optionalCount": 1
     },
-    "typeDeclaration": "import type { NatSettings, VpcReuseConfig } from 'stacktape';\n\n// [!code focus-start]\ntype VpcSettings = {\n  /** NAT Gateway configuration for private subnets. */\n  nat?: NatSettings;\n  /** Share a VPC with another Stacktape stack or use an existing VPC. */\n  reuseVpc?: VpcReuseConfig;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { VpcReuseConfig } from 'stacktape';\n\n// [!code focus-start]\ntype VpcSettings = {\n  /** Share a VPC with another Stacktape stack or use an existing VPC. */\n  reuseVpc?: VpcReuseConfig;\n};\n// [!code focus-end]"
   },
   "Wait": {
     "definitionName": "Wait",
@@ -63614,8 +63762,8 @@
       {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
-        "shortDescription": "<p> Deploy in private subnets with a static outbound IP via NAT Gateway.</p>",
-        "longDescription": "<p>The container won&#39;t have a public IP. All outbound traffic routes through a NAT Gateway,\ngiving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).</p>\n<p>Configure the number of NAT Gateways in <code>stackConfig.vpc.nat</code>.</p>\n<p><strong>Adds cost:</strong> NAT Gateway ~$32/month + data processing fees.</p>",
+        "shortDescription": "<p> Run the workload in the private subnets, without a public IP, with outbound traffic through the stack&#39;s NAT.</p>",
+        "longDescription": "<p>What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack&#39;s\nNAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).</p>\n<p>Requires <code>stackConfig.nat</code> (<code>ec2</code>, <code>ha-ec2</code> or <code>gateway</code>); the cost depends on that choice, and <code>gateway</code> adds a\nper-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -63626,11 +63774,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
+            "code": "stackConfig:\n  nat: ha-ec2\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n\n  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };\n});"
           }
         ]
       },
@@ -63662,7 +63810,7 @@
       "requiredCount": 2,
       "optionalCount": 22
     },
-    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, BuildpackCwImagePackaging, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, HttpApiCorsConfig, HttpApiGatewayAlarm, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it. */\n  port?: number;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WebServiceTracing;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n\ntype WebServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, BuildpackCwImagePackaging, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, HttpApiCorsConfig, HttpApiGatewayAlarm, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it. */\n  port?: number;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WebServiceTracing;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n\ntype WebServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "WebSocketApiAccessLogsConfig": {
     "definitionName": "WebSocketApiAccessLogsConfig",
@@ -65537,8 +65685,8 @@
       {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
-        "shortDescription": "<p> Deploy in private subnets with a static outbound IP via NAT Gateway.</p>",
-        "longDescription": "<p>The container won&#39;t have a public IP. All outbound traffic routes through a NAT Gateway,\ngiving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).</p>\n<p>Configure the number of NAT Gateways in <code>stackConfig.vpc.nat</code>.</p>\n<p><strong>Adds cost:</strong> NAT Gateway ~$32/month + data processing fees.</p>",
+        "shortDescription": "<p> Run the workload in the private subnets, without a public IP, with outbound traffic through the stack&#39;s NAT.</p>",
+        "longDescription": "<p>What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack&#39;s\nNAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).</p>\n<p>Requires <code>stackConfig.nat</code> (<code>ec2</code>, <code>ha-ec2</code> or <code>gateway</code>); the cost depends on that choice, and <code>gateway</code> adds a\nper-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -65549,11 +65697,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
+            "code": "stackConfig:\n  nat: ha-ec2\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      usePrivateSubnetsWithNAT: true\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    usePrivateSubnetsWithNAT: true\n    // [!code focus-end]\n  });\n\n  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };\n});"
           }
         ]
       },
@@ -65585,6 +65733,6 @@
       "requiredCount": 2,
       "optionalCount": 13
     },
-    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WorkerServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WorkerServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WorkerServiceTracing;\n  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WorkerServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   }
 }

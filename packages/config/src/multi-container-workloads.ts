@@ -294,16 +294,22 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    */
   enableRemoteSessions?: boolean;
   /**
-   * #### Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP.
+   * #### Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
    *
    * ---
    *
-   * Useful for IP whitelisting with third-party APIs. NAT Gateway costs ~$32/month per AZ + data processing fees.
+   * What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+   * NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
+   *
+   * Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+   * per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
    *
    *
    * **Example (YAML):**
    *
    * ```yaml
+   * stackConfig:
+   *   nat: ha-ec2
    * resources:
    *   app:
    *     type: multi-container-workload
@@ -337,7 +343,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *     usePrivateSubnetsWithNAT: true
    *     // stp-end-focus
    *   });
-   *   return { resources: { app } };
+   *   return { stackConfig: { nat: 'ha-ec2' }, resources: { app } };
    * });
    * ```
    *

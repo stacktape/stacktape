@@ -514,7 +514,7 @@ The `deployment` property enables gradual traffic shifting when `loadBalancing.t
 
 ## Private subnets
 
-A Stacktape web service runs in the default networking mode unless you set `usePrivateSubnetsWithNAT: true`. Private subnets with NAT remove the container's public IP and route outbound traffic through NAT Gateways, which is useful when external APIs require fixed allowlisted IP addresses.
+A Stacktape web service runs in the default networking mode unless you set `usePrivateSubnetsWithNAT: true`. Private subnets with NAT remove the container's public IP and route outbound traffic through the stack's NAT, which is useful when external APIs require fixed allowlisted IP addresses. The flag requires `stackConfig.nat`, which picks the NAT: `ec2` or `ha-ec2` (small Stacktape-managed instances, about $7 a month per zone) or `gateway` (managed NAT Gateways, about $32 a month per zone plus a per-GB fee); see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 <CodeBlock
   intellisense
@@ -535,18 +535,14 @@ export default defineConfig(() => {
 
   return {
     resources: { api },
-    stackConfig: {
-      vpc: {
-        nat: { availabilityZones: 2 }
-      }
-    }
+    stackConfig: { nat: 'ha-ec2' }
   };
 });`
     }
   ]}
 />
 
-`stackConfig.vpc.nat.availabilityZones` controls whether one, two, or three availability zones get NAT Gateways; the default is `2`. NAT Gateways add approximately ~$32/month each plus data processing fees, so keep the default networking mode unless static outbound IPs or private subnet placement are real requirements.
+With `ha-ec2` and `gateway`, `stackConfig.nat.availabilityZones` controls whether two or three availability zones get their own NAT; the default is `2`. NAT Gateways add approximately ~$32/month each plus data processing fees, so keep the default networking mode unless static outbound IPs or private subnet placement are real requirements.
 
 ## Logging
 

@@ -182,6 +182,28 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const issueDetectionPolicy = config.issueDetectionPolicy;
   tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
+  // A function in the VPC has no outbound internet until the stack has NAT; the failure otherwise only shows at
+  // runtime, as a timeout on the first external call.
+  const nat = config.natSettings;
+  if (nat.configured && config.allResourcesRequiringPrivateSubnets.length && !config.reuseVpcConfig) {
+    const description =
+      nat.type === 'gateway'
+        ? `${nat.availabilityZones} NAT Gateway${nat.availabilityZones === 1 ? '' : 's'} (~$32/month each plus $0.045/GB)`
+        : nat.type === 'ec2'
+          ? `1 NAT instance (${nat.instanceSize}, ~$7/month, no failover)`
+          : `${nat.availabilityZones} NAT instances (${nat.instanceSize}, ~$7/month each, automatic failover)`;
+    tui.info(`NAT: ${description}.`);
+  } else if (!nat.configured && config.vpcLambdas.length) {
+    const names = config.vpcLambdas.map(({ name }) => name);
+    tui.warn(
+      `${names.length === 1 ? 'Function' : 'Functions'} ${names.join(', ')} ${
+        names.length === 1 ? 'joins' : 'join'
+      } the VPC and ${names.length === 1 ? 'has' : 'have'} no outbound internet access (S3 and DynamoDB stay reachable). Calls to external APIs will fail. To give ${
+        names.length === 1 ? 'it' : 'them'
+      } internet access, set stackConfig.nat to ec2, ha-ec2 or gateway.`
+    );
+  }
+
   const uptimeChecks = config.uptimeChecks;
   if (uptimeChecks.length) {
     const probeRegions = [...new Set(uptimeChecks.flatMap(({ regions }) => regions))].join(', ');

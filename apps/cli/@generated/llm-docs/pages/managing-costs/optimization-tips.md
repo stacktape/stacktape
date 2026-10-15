@@ -229,7 +229,7 @@ For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-git
 
 ## Avoid unnecessary NAT Gateways
 
-A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting or private subnet egress for a workload that needs it. Most workloads don't need one.
+A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 For details on VPC networking and private subnet configuration, see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [multi-container workload](/resources/compute/multi-container-workload) resource pages.
 

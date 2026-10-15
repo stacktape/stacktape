@@ -241,6 +241,52 @@ describe('estimator', () => {
     expect(result.flatMonthlyCost).toBeCloseTo((0.005 + 0.0104) * HOURS_PER_MONTH, 10);
   });
 
+  test('prices the stack-level NAT: gateways from the static catalog, instances from EC2, nothing without a consumer', async () => {
+    const worker = {
+      type: 'worker-service',
+      properties: {
+        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+        resources: { cpu: 0.25, memory: 512 },
+        usePrivateSubnetsWithNAT: true
+      }
+    };
+    const vpcFunction = {
+      type: 'function',
+      properties: {
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
+        joinDefaultVpc: true
+      }
+    };
+
+    // Two gateways and two public IPs, both static USD products of the refresh.
+    const gateways = await estimate({ stackConfig: { nat: 'gateway' }, resources: { worker } }, 'us-east-1');
+    expect(gateways.resourcesBreakdown['vpc nat'].priceInfo.totalMonthlyFlat).toBeCloseTo(
+      (0.045 + 0.005) * 2 * HOURS_PER_MONTH,
+      10
+    );
+    expect(gateways.resourcesBreakdown['vpc nat'].customComment).toContain('2 NAT Gateways');
+
+    // One instance for `ec2`, priced like any EC2 instance once its size is in the catalog.
+    await putPrice('EC2-instance-t4g.nano-Linux', {
+      'us-east-1': { currency: 'USD', pricePerUnit: '0.0042', unit: 'Hrs' }
+    });
+    const single = await estimate({ stackConfig: { nat: 'ec2' }, resources: { api: vpcFunction } }, 'us-east-1');
+    expect(single.resourcesBreakdown['vpc nat'].priceInfo.totalMonthlyFlat).toBeCloseTo(
+      (0.0042 + 0.005) * HOURS_PER_MONTH,
+      10
+    );
+    expect(single.resourcesBreakdown['vpc nat'].customComment).toContain('1 NAT instance');
+
+    // A VPC function alone is not a consumer until `nat` is set, and a reused VPC brings its own NAT.
+    const unset = await estimate({ resources: { api: vpcFunction } }, 'us-east-1');
+    expect(unset.resourcesBreakdown['vpc nat']).toBeUndefined();
+    const reused = await estimate(
+      { stackConfig: { nat: 'ha-ec2', vpc: { reuseVpc: { vpcId: 'vpc-1' } } }, resources: { worker } },
+      'us-east-1'
+    );
+    expect(reused.resourcesBreakdown['vpc nat']).toBeUndefined();
+  });
+
   test('does not add a price in another currency to a USD total', async () => {
     await putPrice('EC2-instance-t3.nano-Linux', {
       'us-east-1': { currency: 'CNY', pricePerUnit: '0.04', unit: 'Hrs' }

@@ -568,22 +568,31 @@ export const buildDiagramTopology = ({
     });
   }
 
-  // Phase 3: Add NAT gateway if private subnets exist. Stacktape creates one NAT per
-  // AZ — 2 by default, configurable 1-3 via stackConfig.vpc.nat.availabilityZones.
+  // Phase 3: Add the NAT if private subnets exist. `stackConfig.nat` picks managed gateways (`gateway`, one per
+  // availability zone, 2 by default) or Stacktape-managed instances (`ec2`: one; `ha-ec2`: one per zone).
   const hasPrivateNodes = userNodes.some((node) => node.subnet === 'private');
   if (hasPrivateNodes) {
-    const configuredNatCount = (parsedConfig as any)?.stackConfig?.vpc?.nat?.availabilityZones;
+    const rawNat = (parsedConfig as any)?.stackConfig?.nat;
+    const nat = typeof rawNat === 'string' ? { type: rawNat } : rawNat;
+    const natType: string = nat?.type ?? 'gateway';
+    const zones = [2, 3].includes(nat?.availabilityZones) ? nat.availabilityZones : 2;
+    const isInstance = natType === 'ec2' || natType === 'ha-ec2';
     addNode({
       nodeMap,
       node: {
         id: 'nat-gateway',
-        label: 'NAT Gateway',
+        label: isInstance ? 'NAT instance' : 'NAT Gateway',
         resourceType: 'nat-gateway',
         layer: 'ingress',
         subnet: 'public',
         implicit: true,
-        replicaCount: [1, 2, 3].includes(configuredNatCount) ? configuredNatCount : 2,
-        accessNote: 'One NAT gateway per availability zone (2 by default), each with a static public IP.'
+        replicaCount: natType === 'ec2' ? 1 : zones,
+        accessNote:
+          natType === 'ec2'
+            ? 'One small NAT instance with a static public IP; no failover.'
+            : isInstance
+              ? 'One NAT instance per availability zone, each with a static public IP; a failed zone is routed through another zone.'
+              : 'One NAT gateway per availability zone (2 by default), each with a static public IP.'
       }
     });
   }

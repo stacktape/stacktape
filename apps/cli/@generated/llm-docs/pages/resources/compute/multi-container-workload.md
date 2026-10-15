@@ -673,7 +673,7 @@ By default, workload containers run in public subnets with direct internet acces
 Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outbound traffic routes through a NAT Gateway, giving you a static outbound IP that external services can whitelist. This is useful when third-party payment gateways, data providers, or partner APIs require you to send traffic from a fixed IP address.
 
 
-> **Warning:** NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.
+> **Warning:** `usePrivateSubnetsWithNAT` requires `stackConfig.nat`: `ec2` or `ha-ec2` (Stacktape-managed NAT instances, about $7/month per zone) or `gateway` (NAT Gateways, about $32/month per zone plus data processing fees). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 
 ## Logging

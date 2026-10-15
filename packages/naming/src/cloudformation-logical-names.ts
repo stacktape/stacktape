@@ -899,6 +899,84 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::EC2::Route', index: subnetIndex }
     });
   },
+  natInstanceElasticIp(azIndex: number) {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::EIP', index: azIndex }
+    });
+  },
+  natInstanceNetworkInterface(azIndex: number) {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::NetworkInterface', index: azIndex }
+    });
+  },
+  natInstanceLaunchTemplate(azIndex: number) {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::LaunchTemplate', index: azIndex }
+    });
+  },
+  natInstanceAutoscalingGroup(azIndex: number) {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::AutoScaling::AutoScalingGroup', index: azIndex }
+    });
+  },
+  natInstanceTerminationLifecycleHook(azIndex: number) {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::AutoScaling::LifecycleHook', index: azIndex }
+    });
+  },
+  natInstanceHeartbeatParameter(azIndex: number) {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstanceHeartbeat' },
+      suffix: { cloudformationResourceType: 'AWS::SSM::Parameter', index: azIndex }
+    });
+  },
+  natInstanceSecurityGroup() {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
+    });
+  },
+  natInstanceRole() {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
+  natInstanceProfile() {
+    return buildCfLogicalName({
+      specifier: { type: 'NatInstance' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::InstanceProfile' }
+    });
+  },
+  natFailoverProbeRule() {
+    return buildCfLogicalName({
+      specifier: { type: 'StpNatFailoverProbe' },
+      suffix: { cloudformationResourceType: 'AWS::Events::Rule' }
+    });
+  },
+  natFailoverProbeRulePermission() {
+    return buildCfLogicalName({
+      specifier: { type: 'StpNatFailoverProbeRule' },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    });
+  },
+  natFailoverAutoscalingEventsRule() {
+    return buildCfLogicalName({
+      specifier: { type: 'StpNatFailoverAutoscalingEvents' },
+      suffix: { cloudformationResourceType: 'AWS::Events::Rule' }
+    });
+  },
+  natFailoverAutoscalingEventsRulePermission() {
+    return buildCfLogicalName({
+      specifier: { type: 'StpNatFailoverAutoscalingEventsRule' },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    });
+  },
   eventBus(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,
@@ -1447,6 +1525,12 @@ export const cfLogicalNames = {
   customResourceSensitiveData() {
     return buildCfLogicalName({
       specifier: { type: 'SensitiveData' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
+  customResourceNatRoutes() {
+    return buildCfLogicalName({
+      specifier: { type: 'NatRoutes' },
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },

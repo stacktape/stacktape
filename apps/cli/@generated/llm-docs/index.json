@@ -8145,14 +8145,22 @@
       "tags": [
         "config-reference",
         "NatSettings",
-        "availabilityZones"
+        "type",
+        "availabilityZones",
+        "instanceSize"
       ],
       "chunks": [
         "config-reference:NatSettings#natsettings-api-reference",
         "config-reference:NatSettings#typescript-definition",
-        "config-reference:NatSettings#property-availabilityzones",
+        "config-reference:NatSettings#property-type",
         "config-reference:NatSettings#example-1-yaml",
-        "config-reference:NatSettings#example-2-typescript"
+        "config-reference:NatSettings#example-2-typescript",
+        "config-reference:NatSettings#property-availabilityzones",
+        "config-reference:NatSettings#example-1-yaml-2",
+        "config-reference:NatSettings#example-2-typescript-2",
+        "config-reference:NatSettings#property-instancesize",
+        "config-reference:NatSettings#example-1-yaml-3",
+        "config-reference:NatSettings#example-2-typescript-3"
       ]
     },
     {
@@ -8277,6 +8285,7 @@
         "config-reference",
         "StackConfig",
         "disableStackInfoSaving",
+        "nat",
         "outputs",
         "stackInfoDirectory",
         "stageType",
@@ -8290,21 +8299,24 @@
         "config-reference:StackConfig#property-disablestackinfosaving",
         "config-reference:StackConfig#example-1-yaml",
         "config-reference:StackConfig#example-2-typescript",
-        "config-reference:StackConfig#property-outputs",
+        "config-reference:StackConfig#property-nat",
         "config-reference:StackConfig#example-1-yaml-2",
         "config-reference:StackConfig#example-2-typescript-2",
-        "config-reference:StackConfig#property-stackinfodirectory",
+        "config-reference:StackConfig#property-outputs",
         "config-reference:StackConfig#example-1-yaml-3",
         "config-reference:StackConfig#example-2-typescript-3",
-        "config-reference:StackConfig#property-stagetype",
+        "config-reference:StackConfig#property-stackinfodirectory",
         "config-reference:StackConfig#example-1-yaml-4",
         "config-reference:StackConfig#example-2-typescript-4",
-        "config-reference:StackConfig#property-tags",
+        "config-reference:StackConfig#property-stagetype",
         "config-reference:StackConfig#example-1-yaml-5",
         "config-reference:StackConfig#example-2-typescript-5",
-        "config-reference:StackConfig#property-tracing",
+        "config-reference:StackConfig#property-tags",
         "config-reference:StackConfig#example-1-yaml-6",
         "config-reference:StackConfig#example-2-typescript-6",
+        "config-reference:StackConfig#property-tracing",
+        "config-reference:StackConfig#example-1-yaml-7",
+        "config-reference:StackConfig#example-2-typescript-7",
         "config-reference:StackConfig#property-vpc"
       ]
     },
@@ -8414,13 +8426,11 @@
       "tags": [
         "config-reference",
         "VpcSettings",
-        "nat",
         "reuseVpc"
       ],
       "chunks": [
         "config-reference:VpcSettings#vpcsettings-api-reference",
         "config-reference:VpcSettings#typescript-definition",
-        "config-reference:VpcSettings#property-nat",
         "config-reference:VpcSettings#property-reusevpc"
       ]
     },
@@ -17140,6 +17150,7 @@
         "page:/configuration/connecting-resources#scripts-with-connectto",
         "page:/configuration/connecting-resources#resources-that-use-connectto",
         "page:/configuration/connecting-resources#vpc-and-networking",
+        "page:/configuration/connecting-resources#nat-internet-access-from-private-subnets",
         "page:/configuration/connecting-resources#faq",
         "page:/configuration/connecting-resources#how-does-connectto-differ-from-manually-setting-environment-variables",
         "page:/configuration/connecting-resources#what-is-the-difference-between-iam-permissions-and-security-groups",

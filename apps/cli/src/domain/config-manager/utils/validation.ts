@@ -24,6 +24,7 @@ import { isDirAccessible, isFileAccessible } from '@utils/fs-utils';
 import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@utils/misc';
 import { GUARDRAIL_TITLES } from '@stacktape/console-api/guardrails';
 import { CliError } from '@utils/errors';
+import { isGravitonInstanceSize } from './nat';
 import { parseUserCodeFilepath } from '@utils/file-loaders';
 import type { ConfigManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
@@ -738,6 +739,32 @@ const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManage
   }
 };
 
+const validateNatConfig = ({ configManager }: { configManager: ConfigManager }) => {
+  const nat = configManager.config?.stackConfig?.nat;
+  const required = configManager.resourcesRequiringNat;
+  if (!nat) {
+    // A reused VPC brings its owner's NAT; this stack creates none and cannot ask for one. Only commands that build
+    // the template are blocked: logs, info, delete and the rest keep working on a stack that still has to add it.
+    const buildsTemplate = ['deploy', 'package', 'synth', 'diff', 'validate'].includes(
+      configManager.deploymentContext.command
+    );
+    if (required.length && !configManager.reuseVpcConfig && buildsTemplate) {
+      throw configErrors.natRequired({ resourceNames: required.map(({ name }) => name) });
+    }
+    return;
+  }
+  if (typeof nat === 'string') return;
+  if (nat.instanceSize && nat.type === 'gateway') {
+    throw configErrors.natInstanceSizeRequiresInstanceType(null);
+  }
+  if (nat.instanceSize && !isGravitonInstanceSize(nat.instanceSize)) {
+    throw configErrors.natInstanceSizeNotArm({ instanceSize: nat.instanceSize });
+  }
+  if (nat.availabilityZones && nat.type === 'ec2') {
+    throw configErrors.natAvailabilityZonesWithSingleInstance(null);
+  }
+};
+
 // these are only static validations that can be ran after the initial resolving of the config
 // however there are some validations that can only be performed after domain services are initialized
 // for example validating domain usability etc - those validation are mostly executed as a part of resource resolvers
@@ -751,6 +778,7 @@ export const runInitialValidations = ({
   validateResourceNameUniqueness({ configManager });
   validateResourceNames({ configManager });
   validateReuseVpcConfig({ configManager });
+  validateNatConfig({ configManager });
   // validateProviders();
   validateBastionReferences({ configManager });
   validateKafkaConsumerGroupUniqueness({ configManager });
