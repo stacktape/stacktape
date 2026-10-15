@@ -61,6 +61,7 @@ import {
   getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
   installDockerPlatforms,
+  isDockerImagePresent,
   isDockerRunning,
   pullDockerImage
 } from '@utils/docker';
@@ -232,7 +233,12 @@ export class PackagingManager {
         'docker:base-image',
         async () =>
           markTiming('docker:base-image-outcome', {
-            outcome: await keepBaseImagePulled({ reference, platform, pull: pullDockerImage })
+            outcome: await keepBaseImagePulled({
+              reference,
+              platform,
+              pull: pullDockerImage,
+              isPresent: isDockerImagePresent
+            })
           }),
         { platform: platform ?? 'native' }
       )

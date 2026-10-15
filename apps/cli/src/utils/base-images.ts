@@ -56,22 +56,26 @@ const recordPull = async (key: string, now: number) => {
 };
 
 /**
- * Pulls `reference` for `platform` unless it was pulled in the last day. `pull` runs `docker pull`; it is a parameter
- * so the policy can be tested without Docker.
+ * Pulls `reference` for `platform` unless it was pulled in the last day and is still in the local store. `pull` and
+ * `isPresent` run Docker; they are parameters so the policy can be tested without it.
  */
 export const keepBaseImagePulled = async ({
   reference,
   platform,
   pull,
+  isPresent,
   now = Date.now()
 }: {
   reference: string;
   platform: string | undefined;
   pull: (args: { reference: string; platform: string | undefined }) => Promise<unknown>;
+  /** Whether the local store holds the image for the platform. The record alone cannot tell: the image may have been
+   * removed, or replaced by a pull for another architecture. */
+  isPresent: (args: { reference: string; platform: string | undefined }) => Promise<boolean>;
   now?: number;
 }): Promise<'recent' | 'pulled' | 'failed'> => {
   const key = recordKey({ reference, platform });
-  if (wasPulledRecently(await readPulls(), key, now)) return 'recent';
+  if (wasPulledRecently(await readPulls(), key, now) && (await isPresent({ reference, platform }))) return 'recent';
   try {
     await pull({ reference, platform });
   } catch {

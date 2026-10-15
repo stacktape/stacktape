@@ -622,6 +622,36 @@ export const dockerLogin = async ({
   );
 };
 
+/**
+ * Whether the local image store holds the image for `platform` (any platform when unset). With the classic store a
+ * tag holds one platform, so a pull for another architecture replaces it. The containerd store answers `/` for a
+ * platform it lacks; a Docker without `inspect --platform` is asked for the image's own platform instead.
+ */
+export const isDockerImagePresent = async ({
+  reference,
+  platform
+}: {
+  reference: string;
+  platform: string | undefined;
+}): Promise<boolean> => {
+  const inspect = async (args: string[]) => {
+    const { stdout } = await execDocker(
+      ['image', 'inspect', ...args, '--format', '{{.Os}}/{{.Architecture}}', reference],
+      {
+        skipHandleError: true
+      }
+    );
+    return stdout.trim();
+  };
+  try {
+    if (!platform) return Boolean(await inspect([]));
+    const answer = await inspect(['--platform', platform]).catch(() => inspect([]));
+    return answer === platform;
+  } catch {
+    return false;
+  }
+};
+
 /** Pulls an image into the local image store, for one platform when `platform` is set. */
 export const pullDockerImage = async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
   await execDocker(['pull', '--quiet', ...(platform ? ['--platform', platform] : []), reference], {
