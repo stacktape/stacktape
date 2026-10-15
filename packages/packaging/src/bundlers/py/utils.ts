@@ -120,7 +120,8 @@ const REQUIREMENTS_SOURCE_INPUTS = [
 /**
  * Whether the dependency file is a root `requirements.txt` whose install reads nothing from the source: every line is
  * blank, a comment or a pinned requirement (no nested, constraint, editable, local, URL or option lines), and no uv
- * configuration or other project file sits beside it.
+ * configuration or other project file sits beside it. A requirement may continue over lines ending in `\`, as
+ * `pip-compile --generate-hashes` and `uv pip compile --generate-hashes` write its hashes.
  */
 export const canInstallRequirementsWithoutSource = async (dependencyFilePath: string | null) => {
   if (!dependencyFilePath || basename(dependencyFilePath) !== 'requirements.txt') return false;
@@ -128,7 +129,10 @@ export const canInstallRequirementsWithoutSource = async (dependencyFilePath: st
   if ((await Promise.all(REQUIREMENTS_SOURCE_INPUTS.map((file) => exists(join(root, file))))).some(Boolean)) {
     return false;
   }
-  const lines = (await readFile(dependencyFilePath, 'utf8')).split(/\r?\n/).map((line) => line.trim());
+  const lines = (await readFile(dependencyFilePath, 'utf8'))
+    .replaceAll(/\\\r?\n/g, ' ')
+    .split(/\r?\n/)
+    .map((line) => line.trim());
   return lines.every((line) => line === '' || line.startsWith('#') || PINNED_REQUIREMENT.test(line));
 };
 

@@ -2603,6 +2603,7 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'packages/packaging/src/image/railpack.test.ts',
+      'packages/packaging/src/image/railpack-python.test.ts',
       'packages/packaging/src/process/command.test.ts',
       'packages/packaging/src/split-bundler/bundler-chunk-graph.test.ts',
       'packages/packaging/src/split-bundler/bundler-e2e.test.ts',
@@ -4237,17 +4238,20 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
       'packages/packaging/src/bundlers/py/**',
-      'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
+      'packages/packaging/src/buildpacks/py-lambda-buildpack.ts',
+      'packages/packaging/src/image/railpack-python.ts'
     ],
     tests: [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
-      'packages/packaging/src/bundlers/py/utils.test.ts'
+      'packages/packaging/src/bundlers/py/utils.test.ts',
+      'packages/packaging/src/image/railpack-python.test.ts'
     ],
     lanes: [
       'packaging-test',
       'language-lambdas',
+      'packaging-images',
       'packaging-images-2',
       'project-qualification',
       'project-qualification-2'
