@@ -171,13 +171,19 @@ class StackManager {
     stackName,
     commandModifiesStack,
     commandRequiresDeployedStack,
-    parentEventType
+    parentEventType,
+    whileLoadingResourceDetails
   }: {
     stackName: string;
     commandModifiesStack: boolean;
     commandRequiresDeployedStack: boolean;
     /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
     parentEventType?: LoggableEventType;
+    /**
+     * Work that needs the stack's details and resource list but not the resources' details, such as function tags.
+     * It runs while those load.
+     */
+    whileLoadingResourceDetails?: () => Promise<unknown>;
   }) => {
     await operationReporter.startEvent({
       eventType: 'FETCH_STACK_DATA',
@@ -190,28 +196,39 @@ class StackManager {
     this.#latestRecordedRelease = null;
     this.#nextVersionAfterRefetch = null;
 
-    let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
+    // The resources are listed together with the details. A stack that first had to finish another operation is
+    // listed again once it has.
+    const [fetchedDetails, listedResources] = await Promise.allSettled([
+      awsSdkManager.cloudFormation.getDetails(stackName),
+      awsSdkManager.cloudFormation.getResources(stackName)
+    ]);
+    if (fetchedDetails.status === 'rejected') {
+      throw fetchedDetails.reason;
+    }
     const instanceId = parentEventType ? 'Stack data' : undefined;
-    ({ stackDetails } = await this.waitForStackToBeReadyForOperation({
-      stackDetails,
+    const { stackDetails } = await this.waitForStackToBeReadyForOperation({
+      stackDetails: fetchedDetails.value,
       commandModifiesStack,
       commandRequiresDeployedStack,
       progressLogger: operationReporter,
       eventContext: { parentEventType, instanceId }
-    }));
-
-    const stackResources = await awsSdkManager.cloudFormation
-      .getResources(stackName)
-      .then(this.#filterNonExistentResources)
-      .then(this.#getDetailOfSelectedResources);
+    });
+    const stackResources =
+      stackDetails === fetchedDetails.value && listedResources.status === 'fulfilled'
+        ? listedResources.value
+        : await awsSdkManager.cloudFormation.getResources(stackName);
 
     this.existingStackDetails = stackDetails;
-    // this.stackDriftInformation = stackDriftInformation;
-    this.existingStackResources = stackResources;
+    this.existingStackResources = this.#filterNonExistentResources(stackResources);
+    const [detailedResources] = await Promise.all([
+      this.#getDetailOfSelectedResources(this.existingStackResources),
+      whileLoadingResourceDetails?.()
+    ]);
+    this.existingStackResources = detailedResources;
 
     await operationReporter.finishEvent({
       eventType: 'FETCH_STACK_DATA',
-      data: { stackDetails, stackResources },
+      data: { stackDetails, stackResources: detailedResources },
       parentEventType,
       instanceId: parentEventType ? 'Stack data' : undefined
     });

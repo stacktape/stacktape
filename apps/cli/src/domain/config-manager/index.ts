@@ -1,4 +1,5 @@
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { GlobalConfigResponse } from '@stacktape-api/api-key-protected';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
 import type { EnrichedBjContainerProps, EnrichedCwContainerProps } from '@domain-services/packaging-manager/types';
@@ -319,7 +320,11 @@ export class ConfigManager {
     });
 
   loadGlobalConfig = async () => {
-    const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
+    this.applyGlobalConfig(await stacktapeTrpcApiManager.apiClient.globalConfig());
+  };
+
+  /** Applies the organization's alarms, deployment notifications and guardrails. Needs the stack context from `init`. */
+  applyGlobalConfig = (globalConfig: GlobalConfigResponse) => {
     // The Console wire format still calls channels `notificationTargets` and attaches full console
     // channels. Config-language alarms use `notificationChannels`; console-attached channels become
     // `console-channel` references resolved by the Console at delivery time, so channel credentials

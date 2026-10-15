@@ -584,8 +584,7 @@ class DeploymentArtifactManager {
       throw err;
     }
     try {
-      await this.uploadCloudFormationTemplate();
-      await this.uploadStacktapeTemplate();
+      await Promise.all([this.uploadCloudFormationTemplate(), this.uploadStacktapeTemplate()]);
     } catch (err) {
       await this.deleteObjectsFromDeploymentBucket([markerKey]).catch(() => {});
       throw err;
@@ -642,12 +641,11 @@ class DeploymentArtifactManager {
         description: 'Uploading deployment artifacts'
       });
 
-      await Promise.all([
-        // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
-        // this waiting should prevent it (and lose no time otherwise)
-        // Note: S3 bucket creation can take up to 30-60 seconds due to eventual consistency
-        awsSdkManager.s3.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 })
-      ]);
+      // A bucket created moments ago can still answer "NoSuchBucket" for up to a minute. An existing stack's bucket was
+      // listed during initialization, and an upload that does not find it waits for it anyway.
+      if (stackManager.stackActionType !== 'update') {
+        await awsSdkManager.s3.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 });
+      }
 
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);
       await operationReporter.finishEvent({

@@ -1,5 +1,6 @@
 import type { LambdaClient } from '@aws-sdk/client-lambda';
 import {
+  GetFunctionCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
@@ -7,10 +8,10 @@ import {
   PublishVersionCommand,
   TagResourceCommand,
   UpdateAliasCommand,
-  UpdateFunctionCodeCommand,
-  waitUntilFunctionUpdated
+  UpdateFunctionCodeCommand
 } from '@aws-sdk/client-lambda';
 import { fromUtf8, toUtf8 } from '@smithy/util-utf8';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
 
@@ -121,14 +122,38 @@ export class AwsLambda {
       .catch(errorHandler);
   };
 
-  waitUntilUpdated = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
+  /**
+   * Waits until the function's last update has finished. A code update usually finishes within a second or two, and
+   * the SDK waiter checks only every five seconds, so this checks after 250 ms and then backs off to once a second. It
+   * reads the state with GetFunction, whose request quota is several times that of GetFunctionConfiguration.
+   */
+  waitUntilUpdated = async ({
+    lambdaResourceName,
+    maxWaitTimeMs = 120_000
+  }: {
+    lambdaResourceName: string;
+    maxWaitTimeMs?: number;
+  }) => {
     const errorHandler = this.#getErrorHandler(
       `Failure when waiting for update of lambda function ${lambdaResourceName}.`
     );
-    await waitUntilFunctionUpdated(
-      { client: this.#createClient(), maxWaitTime: 120 },
-      { FunctionName: lambdaResourceName }
-    ).catch(errorHandler);
+    const deadline = Date.now() + maxWaitTimeMs;
+    for (let delayMs = 250; ; delayMs = Math.min(delayMs * 1.5, 1000)) {
+      await sleep(delayMs);
+      const { Configuration } = await this.#createClient()
+        .send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+        .catch(errorHandler);
+      const { LastUpdateStatus, LastUpdateStatusReason } = Configuration ?? {};
+      if (LastUpdateStatus === 'Successful') {
+        return;
+      }
+      if (LastUpdateStatus === 'Failed') {
+        errorHandler(new Error(LastUpdateStatusReason || 'The update failed.'));
+      }
+      if (Date.now() >= deadline) {
+        errorHandler(new Error(`The update did not finish within ${maxWaitTimeMs / 1000} seconds.`));
+      }
+    }
   };
 
   publishVersion = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
