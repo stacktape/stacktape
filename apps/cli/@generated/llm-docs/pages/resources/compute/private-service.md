@@ -479,7 +479,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
-| `stopTimeout` | no | `number` | `2` |
+| `stopTimeout` | no | `number` | `30` |
 | `tracing` | no | `TracingOptions \| option-2` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
 | `volumeMounts` | no | `Array<ContainerEfsMount>` | - |

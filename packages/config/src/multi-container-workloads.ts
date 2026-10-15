@@ -1779,6 +1779,10 @@ export interface ContainerWorkloadContainerBase {
    *
    * ---
    *
+   * A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+   * up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+   * background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
+   *
    * **Example (YAML):**
    *
    * ```yaml
@@ -1793,7 +1797,7 @@ export interface ContainerWorkloadContainerBase {
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
-   *           stopTimeout: 30
+   *           stopTimeout: 60
    *           # stp-end-focus
    *       resources:
    *         cpu: 0.5
@@ -1812,7 +1816,7 @@ export interface ContainerWorkloadContainerBase {
    *         name: 'api',
    *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
-   *         stopTimeout: 30
+   *         stopTimeout: 60
    *         // stp-end-focus
    *       }
    *     ],
@@ -1822,7 +1826,7 @@ export interface ContainerWorkloadContainerBase {
    * });
    * ```
    *
-   * @default 2
+   * @default 30
    */
   stopTimeout?: number;
   /**

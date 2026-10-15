@@ -17497,8 +17497,8 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait after SIGTERM before SIGKILL (2-120).</p>",
-        "longDescription": "",
-        "defaultValue": "2",
+        "longDescription": "<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -17508,11 +17508,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: api\n          packaging:\n            type: js-bundle\n            properties:\n              entryfilePath: src/server.ts\n          # [!code focus-start]\n          stopTimeout: 30\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+            "code": "resources:\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: api\n          packaging:\n            type: js-bundle\n            properties:\n              entryfilePath: src/server.ts\n          # [!code focus-start]\n          stopTimeout: 60\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const app = new MultiContainerWorkload({\n    containers: [\n      {\n        name: 'api',\n        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n        // [!code focus-start]\n        stopTimeout: 30\n        // [!code focus-end]\n      }\n    ],\n    resources: { cpu: 0.5, memory: 1024 }\n  });\n  return { resources: { app } };\n});"
+            "code": "import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const app = new MultiContainerWorkload({\n    containers: [\n      {\n        name: 'api',\n        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n        // [!code focus-start]\n        stopTimeout: 60\n        // [!code focus-end]\n      }\n    ],\n    resources: { cpu: 0.5, memory: 1024 }\n  });\n  return { resources: { app } };\n});"
           }
         ]
       },
@@ -45720,8 +45720,8 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait for graceful shutdown before force-killing the container.</p>",
-        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>",
-        "defaultValue": "2",
+        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -45731,11 +45731,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      stopTimeout: 30\n      # [!code focus-end]"
+            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      stopTimeout: 60\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    stopTimeout: 30\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    stopTimeout: 60\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
           }
         ]
       },
@@ -52198,8 +52198,8 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait after SIGTERM before SIGKILL (2-120).</p>",
-        "longDescription": "",
-        "defaultValue": "2",
+        "longDescription": "<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -52209,11 +52209,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: api\n          packaging:\n            type: js-bundle\n            properties:\n              entryfilePath: src/server.ts\n          # [!code focus-start]\n          stopTimeout: 30\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+            "code": "resources:\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: api\n          packaging:\n            type: js-bundle\n            properties:\n              entryfilePath: src/server.ts\n          # [!code focus-start]\n          stopTimeout: 60\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const app = new MultiContainerWorkload({\n    containers: [\n      {\n        name: 'api',\n        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n        // [!code focus-start]\n        stopTimeout: 30\n        // [!code focus-end]\n      }\n    ],\n    resources: { cpu: 0.5, memory: 1024 }\n  });\n  return { resources: { app } };\n});"
+            "code": "import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const app = new MultiContainerWorkload({\n    containers: [\n      {\n        name: 'api',\n        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n        // [!code focus-start]\n        stopTimeout: 60\n        // [!code focus-end]\n      }\n    ],\n    resources: { cpu: 0.5, memory: 1024 }\n  });\n  return { resources: { app } };\n});"
           }
         ]
       },
@@ -63641,8 +63641,8 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait for graceful shutdown before force-killing the container.</p>",
-        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>",
-        "defaultValue": "2",
+        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -63652,11 +63652,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      stopTimeout: 30\n      # [!code focus-end]"
+            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      stopTimeout: 60\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    stopTimeout: 30\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    stopTimeout: 60\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
           }
         ]
       },
@@ -65586,8 +65586,8 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait for graceful shutdown before force-killing the container.</p>",
-        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>",
-        "defaultValue": "2",
+        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -65597,11 +65597,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      stopTimeout: 30\n      # [!code focus-end]"
+            "code": "resources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      # [!code focus-start]\n      stopTimeout: 60\n      # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    stopTimeout: 30\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    // [!code focus-start]\n    stopTimeout: 60\n    // [!code focus-end]\n  });\n\n  return { resources: { api } };\n});"
           }
         ]
       },

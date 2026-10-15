@@ -337,6 +337,14 @@ For Application Load Balancer mode, configure load balancer health checks under 
 
 Use an internal health check when the process can be alive while the application is broken, such as a server with a failed database pool or stuck event loop. If a container fails the internal health check, ECS treats the container as unhealthy and replaces it. Keep the health check command cheap and local to the container; checks that depend on slow external services can cause unnecessary replacement during transient dependency issues. See the [API reference](#api-reference) for the full `internalHealthCheck` configuration shape.
 
+## How deploys replace containers
+
+A deploy starts the new containers next to the old ones. Once every new container passes its health check, the old containers stop receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS sends `SIGTERM` and, if the process is still running after `stopTimeout` (default 30 seconds), `SIGKILL`.
+
+A full `stacktape deploy` finishes after the old containers have stopped, because CloudFormation waits for that. A [hot-swap deploy](/deployment-and-lifecycle/deploying-stacks) (`--hotSwap`) finishes as soon as the new containers are healthy and lets the old ones shut down in the background, which saves about a minute. Handle `SIGTERM` in your app so an old container exits once its requests are done: an app that ignores the signal keeps a full deploy waiting for the whole `stopTimeout`.
+
+With the default `http-api-gateway` load balancing, ECS counts a new container as healthy as soon as it is running, because API Gateway has no health check of its own. Without an `internalHealthCheck`, a hot-swap deploy therefore also waits until the old containers have stopped. A deploy with [gradual deployments](#gradual-deployments) follows the CodeDeploy traffic-shifting strategy instead, and its containers keep a 5-second drain and a 2-second default `stopTimeout`.
+
 ## Side containers
 
 A Stacktape web service can run helper containers alongside the main container through `sideContainers`. Each side container has a `containerType` of either `run-on-init` or `always-running`. Use `run-on-init` for setup work such as database migrations — the helper must exit with code 0 before the main container starts. Use `always-running` for agents or companion processes that run for the entire task lifecycle; they can reach the main container via `localhost`, and if they crash, the whole task fails.
@@ -563,7 +571,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
-| `stopTimeout` | no | `number` | `2` |
+| `stopTimeout` | no | `number` | `30` |
 | `tracing` | no | `TracingOptions \| option-2` | - |
 | `useFirewall` | no | `string` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |

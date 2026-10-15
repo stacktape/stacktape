@@ -82,5 +82,5 @@ account verification, ownership, cost and cleanup, including recovery after inte
 migration, publishing and credential rotation require explicit authorization. Never record secret values.
 
 Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
-assembled support-template `cfn-lint`. Install `cfn-lint==1.53.3` before running `pnpm test:ci` with Console present; CI
+assembled support-template `cfn-lint`. Install `cfn-lint==1.57.2` before running `pnpm test:ci` with Console present; CI
 installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.

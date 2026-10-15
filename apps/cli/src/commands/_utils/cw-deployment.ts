@@ -24,13 +24,14 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { compareEcsTaskDefinitions } from '@domain-services/deployed-stack-overview-manager/hotswap-utils';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { applyResourceOverride } from '@domain-services/template-manager/resource-overrides';
 import { EcsServiceDeploymentStatusPoller } from 'src/aws/ecs-deployment-monitoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
-import { lowerCaseFirstCharacterOfEveryWord, serialize } from '@utils/misc';
+import { lowerCaseFirstCharacterOfEveryWord, lowerCaseFirstCharacterOfObjectKeys, serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloudformation';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -323,8 +324,9 @@ export const updateEcsService = async ({
         });
         await awsSdkManager.ecs.waitForCodeDeployUpdate({ deploymentId });
       } else {
-        const serviceRegistriesFromTemplate = (getEcsService({ workload, blueGreen: false }) as any).Properties
-          ?.ServiceRegistries;
+        const { ServiceRegistries: serviceRegistriesFromTemplate, DeploymentConfiguration } = (
+          getEcsService({ workload, blueGreen: false }) as KnownCloudFormationResource<'AWS::ECS::Service'>
+        ).Properties;
 
         const updateServiceInput: UpdateServiceCommandInput = {
           service: ecsServiceArn,
@@ -336,28 +338,33 @@ export const updateEcsService = async ({
                 stackManager.existingStackResources
               )
             : undefined,
-          forceNewDeployment: true,
-          deploymentConfiguration: {
-            // if set to 0, it can be a bit faster but there is downtime during deployment
-            minimumHealthyPercent: 100,
-            deploymentCircuitBreaker: {
-              enable: true,
-              rollback: true
-            }
-          }
+          forceNewDeployment: true
         };
 
+        // The template's deployment configuration with the same overrides CloudFormation applies, so a hotswap rolls
+        // out exactly like a CloudFormation deploy, including early success. Overrides are written in CloudFormation
+        // casing, so they are applied before the conversion to the SDK's casing.
+        const templateProperties: Record<string, any> = { DeploymentConfiguration: serialize(DeploymentConfiguration) };
         // we have to take overrides from the upmost parent
         const { overrides } = configManager.findResourceInConfig({ nameChain: workload.nameChain[0] })
           .resource as StpResource & { overrides?: ResourceOverrides };
         if (overrides) {
           Object.entries(overrides).forEach(([cfLogicalName, resourceOverrides]) => {
             if (cfLogicalName === cfLogicalNames.ecsService(workload.name, blueGreen)) {
-              Object.entries(resourceOverrides).forEach(([pathToProp, value]) =>
-                set(updateServiceInput, lowerCaseFirstCharacterOfEveryWord(pathToProp), value)
-              );
+              Object.entries(resourceOverrides).forEach(([pathToProp, value]) => {
+                if (pathToProp.split('.')[0] === 'DeploymentConfiguration') {
+                  applyResourceOverride(templateProperties, pathToProp, value);
+                } else {
+                  set(updateServiceInput, lowerCaseFirstCharacterOfEveryWord(pathToProp), value);
+                }
+              });
             }
           });
+        }
+        if (templateProperties.DeploymentConfiguration) {
+          updateServiceInput.deploymentConfiguration = lowerCaseFirstCharacterOfObjectKeys(
+            serialize(templateProperties.DeploymentConfiguration)
+          );
         }
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);

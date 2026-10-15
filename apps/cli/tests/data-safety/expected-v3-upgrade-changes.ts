@@ -10,5 +10,11 @@ export const expectedV3UpgradeChanges: Record<string, Record<string, ResourceImp
   'serverless-api': {
     StpStpCustomTaggingScheduleRule: ResourceImpact.WILL_DESTROY,
     StpStpCustomTaggingScheduleRulePermission: ResourceImpact.WILL_DESTROY
+  },
+  // The default container `stopTimeout` changed from 2 to 30 seconds. A task definition is immutable, so the upgrade
+  // registers a new revision and the service rolls to it, exactly as for a code change.
+  'container-platform': {
+    WebTaskDefinition: ResourceImpact.WILL_REPLACE,
+    WorkerTaskDefinition: ResourceImpact.WILL_REPLACE
   }
 };

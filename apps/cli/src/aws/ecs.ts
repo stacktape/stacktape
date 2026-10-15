@@ -17,6 +17,7 @@ import {
   DescribeTaskDefinitionCommand,
   DescribeTasksCommand,
   ExecuteCommandCommand,
+  ListServiceDeploymentsCommand,
   ListTasksCommand,
   PutAccountSettingDefaultCommand,
   RegisterTaskDefinitionCommand,
@@ -135,6 +136,28 @@ export class AwsEcs {
     await wait(2000);
     const ecsClusterName = ecsServiceArn.split('/')[1];
     const waiterInput: DescribeServicesCommandInput = { services: [ecsServiceArn], cluster: ecsClusterName };
+    // With early success (deferred cleanup), the service deployment succeeds once the new tasks are healthy, while
+    // `rolloutState` stays IN_PROGRESS until the old tasks have drained and stopped. A service deployment's
+    // target revision carries the ID of the deployment it rolls out. Services without early success, and callers
+    // that may not read service deployments, keep waiting for `rolloutState`.
+    let canReadServiceDeployments = true;
+    const reachedEarlySuccess = async (ecsClient: ECSClient, deploymentId: string) => {
+      if (!canReadServiceDeployments) return false;
+      const revisionId = deploymentId.split('/').at(-1);
+      try {
+        const { serviceDeployments } = await ecsClient.send(
+          new ListServiceDeploymentsCommand({ service: ecsServiceArn, cluster: ecsClusterName })
+        );
+        return (
+          serviceDeployments?.find(({ targetServiceRevisionArn }) =>
+            targetServiceRevisionArn?.endsWith(`/${revisionId}`)
+          )?.status === 'SUCCESSFUL'
+        );
+      } catch {
+        canReadServiceDeployments = false;
+        return false;
+      }
+    };
     const waiterResult = await createWaiter(
       { client: this.#createClient(), maxWaitTime: 3600, minDelay: 3, maxDelay: 3 },
       waiterInput,
@@ -177,7 +200,8 @@ export class AwsEcs {
         const converged = targetedDeployment.rolloutState
           ? targetedDeployment.rolloutState === DeploymentRolloutState.COMPLETED
           : targetedDeployment.runningCount === targetedDeployment.desiredCount;
-        if (converged) {
+        const usesEarlySuccess = !!serviceState.services[0].deploymentConfiguration?.earlySuccessCriteria?.enable;
+        if (converged || (usesEarlySuccess && (await reachedEarlySuccess(ecsClient, targetDeploymentId)))) {
           return {
             state: WaiterState.SUCCESS,
             reason: `ECS service ${ecsServiceArn} updated successfully.`
