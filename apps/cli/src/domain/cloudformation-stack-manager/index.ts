@@ -751,6 +751,26 @@ class StackManager {
     let cleanupAfterSuccessfulUpdateInProgress = false;
 
     let fetchNumber = 0;
+    // Events are polled every second during updates, where a code change finishes in seconds.
+    const eventPollingIntervalMs = (cfStackAction === 'update' ? 1 : MONITORING_FREQUENCY_SECONDS) * 1000;
+    // The stack status is a fallback for missed completion events. DescribeStacks can take several seconds, so it runs
+    // beside event polling instead of holding up the next batch of events.
+    let latestStackStatus: StackStatus | undefined;
+    let stackStatusRequestInFlight = false;
+    const refreshStackStatus = () => {
+      if (stackStatusRequestInFlight) return;
+      stackStatusRequestInFlight = true;
+      awsSdkManager.cloudFormation
+        .getDetails(stackId)
+        .then((stackDetails) => {
+          latestStackStatus = stackDetails?.StackStatus as StackStatus;
+        })
+        // A failed status check is retried on a later poll; event polling reports persistent AWS errors.
+        .catch(() => {})
+        .finally(() => {
+          stackStatusRequestInFlight = false;
+        });
+    };
     let cancelRequested = false;
     let cancelBannerShown = false;
 
@@ -1076,48 +1096,33 @@ class StackManager {
         // as we are about to fetch and evaluate event batch
         eventBatchEvaluationInProgress = true;
         try {
+          const stackStatus = latestStackStatus;
+          latestStackStatus = undefined;
           // we are only fetching for new events "fetchSince"
-          const [stackEvents, stackDetailsFromBatch] = await Promise.all([
-            awsSdkManager.cloudFormation.getEvents(stackId, fetchSince),
-            // Every fourth poll also asks for stack details; the other three contribute no details to this batch.
-            // `null` rather than `false` says that in a way the result type can carry — both are falsy, so the
-            // fallback below behaves exactly as before.
-            fetchNumber % 4 === 0 ? awsSdkManager.cloudFormation.getDetails(stackId) : null
-          ]).catch((err) => {
+          const stackEvents = await awsSdkManager.cloudFormation.getEvents(stackId, fetchSince).catch((err) => {
             // if there was an error when fetching stack events we cancel entire interval
             cleanupMonitoring();
             reject(err);
             throw err;
           });
+          // A quiet stack may have finished without us seeing the completion event, so check its status more often.
+          if (!stackEvents.length || fetchNumber % 4 === 0) refreshStackStatus();
           ++fetchNumber;
           // we are reversing to go from oldest to newest
           stackEvents.reverse();
-          // if there are no new events, check stack details as fallback to detect if operation completed
+          // if there are no new events, check stack status as fallback to detect if operation completed
           // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
           if (!stackEvents.length) {
             if (lastStackActionTimestamp) handleProgress();
-            const stackDetails = stackDetailsFromBatch || (await awsSdkManager.cloudFormation.getDetails(stackId));
-            if (
-              this.#stackStatusSignalsStackOperationSuccess({
-                stackStatus: stackDetails?.StackStatus as StackStatus,
-                cfStackAction
-              })
-            ) {
+            if (this.#stackStatusSignalsStackOperationSuccess({ stackStatus, cfStackAction })) {
               return afterStackOperationSuccess();
             }
-            if (
-              this.#stackStatusSignalsStackOperationFailure({
-                stackStatus: stackDetails?.StackStatus as StackStatus,
-                cfStackAction
-              })
-            ) {
+            if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
               return afterStackOperationFailure();
             }
             eventBatchEvaluationInProgress = false;
             return;
           }
-          // use stackDetails from batch for later fallback check
-          const stackDetails = stackDetailsFromBatch;
           if (!lastStackActionTimestamp) {
             // we are searching for event which denotes beginning of action that should take place (i.e CREATE_IN_PROGRESS UPDATE_IN_PROGRESS...)
             const lastStackEvent = stackEvents.find((stackEvent) => {
@@ -1232,22 +1237,12 @@ class StackManager {
             handledEvents.push(event.EventId);
           }
           handleProgress();
-          // additional checking for stack status from stack details
+          // additional checking for stack status
           // if we somehow missed a cloudformation event signaling stack operation end, then operation might be hanging
-          if (
-            this.#stackStatusSignalsStackOperationSuccess({
-              stackStatus: stackDetails?.StackStatus as StackStatus,
-              cfStackAction
-            })
-          ) {
+          if (this.#stackStatusSignalsStackOperationSuccess({ stackStatus, cfStackAction })) {
             return afterStackOperationSuccess();
           }
-          if (
-            this.#stackStatusSignalsStackOperationFailure({
-              stackStatus: stackDetails?.StackStatus as StackStatus,
-              cfStackAction
-            })
-          ) {
+          if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
             return afterStackOperationFailure();
           }
           const earlyFailureMessage = getEarlyStartupFailureMessage();
@@ -1276,7 +1271,7 @@ class StackManager {
           );
         }
         eventBatchEvaluationInProgress = false;
-      }, MONITORING_FREQUENCY_SECONDS * 1000);
+      }, eventPollingIntervalMs);
     });
     cleanupMonitoring();
     return { warningMessages };
