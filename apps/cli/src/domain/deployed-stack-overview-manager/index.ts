@@ -328,6 +328,9 @@ class DeployedStackOverviewManager {
       case 'AWS::Lambda::Function':
         return isPartOf(this.deployedFunctions) && isCodeOnlyFunctionChange(change) ? undefined : changed;
       case 'AWS::CloudFormation::CustomResource': {
+        const publishedFunction = (change.newValue?.Properties as Record<string, any> | undefined)?.publishLambdaVersion
+          ?.functionName?.Ref;
+        if (publishedFunction) return `${publishedFunction} is invoked through an alias`;
         const scriptTrigger = getTriggerOfUnchangedDeploymentScript(change);
         if (!scriptTrigger) return changed;
         return scriptTrigger === 'after:deploy'

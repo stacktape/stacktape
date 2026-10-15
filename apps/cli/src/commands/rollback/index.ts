@@ -20,6 +20,7 @@ type RollbackExecutionOperation = {
     | 'availablePreviousVersions'
     | 'prepareRollbackTemplate'
     | 'restoreBucketSyncFromManifest'
+    | 'tagRestoredFunctions'
     | 'verifyArtifactsForVersion'
   >;
   progress: Pick<RollbackOperation['progress'], 'setPhase'>;
@@ -214,6 +215,7 @@ export const executeRollbackOperation = async ({
 
   try {
     await stack.deployStackForRollback(templateUrl);
+    await deploymentArtifacts.tagRestoredFunctions();
     spinner.success({ text: `Stack rolled back to ${targetVersion} (deployed as ${newVersion})` });
   } catch (err) {
     spinner.error(`Rollback deployment failed`);

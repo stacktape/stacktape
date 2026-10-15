@@ -1074,9 +1074,14 @@ class DeploymentArtifactManager {
   prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
     const template = await this.getTemplate({ version: sourceVersion });
     const copies: Promise<unknown>[] = [];
-    for (const resource of Object.values(template.Resources)) {
+    this.#restoredFunctionDigests = [];
+    for (const [logicalId, resource] of Object.entries(template.Resources)) {
       const properties = (resource.Properties ?? {}) as Record<string, any>;
       if (resource.Type === 'AWS::Lambda::Function' && properties.Code) {
+        const digest = (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
+          ({ Key }) => Key === tagNames.codeDigest()
+        )?.Value;
+        if (digest) this.#restoredFunctionDigests.push({ logicalId, digest });
         const { Code: code } = properties;
         if (code.S3Bucket === this.deploymentBucketName && typeof code.S3Key === 'string') {
           code.S3Key = this.#copyFunctionCodeToRelease({ s3Key: code.S3Key, newVersion, copies });
@@ -1107,6 +1112,28 @@ class DeploymentArtifactManager {
       contentType: 'application/x-yaml'
     });
     return this.getCloudformationTemplateUrlForVersion(newVersion);
+  };
+
+  #restoredFunctionDigests: { logicalId: string; digest: string }[] = [];
+
+  /**
+   * Sets each restored function's code-digest tag after a rollback. CloudFormation leaves a tag alone when the restored
+   * template has the same value it last applied, even if a fast deployment changed it since.
+   */
+  tagRestoredFunctions = async () => {
+    await Promise.all(
+      this.#restoredFunctionDigests.map(async ({ logicalId, digest }) => {
+        const functionName = stackManager.existingStackResources.find(
+          ({ LogicalResourceId }) => LogicalResourceId === logicalId
+        )?.PhysicalResourceId;
+        if (!functionName) return;
+        const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: functionName });
+        await awsSdkManager.lambda.tagFunction({
+          lambdaArn: FunctionArn,
+          tags: [{ key: tagNames.codeDigest(), value: digest }]
+        });
+      })
+    );
   };
 
   #copyFunctionCodeToRelease = ({

@@ -90,15 +90,29 @@ test('code-only deploys update functions directly, record a release and roll bac
     expect(await deployedVersion()).toBe('v000003');
     expect(await invoke(functionName)).toBe('first');
 
+    // Deploying the source again after that rollback must notice that the function no longer runs it, even though
+    // CloudFormation left the fast release's code-digest tag in place.
+    const redeployed = await runSourceCli({ project, step: 'update', ministack });
+    expect(redeployed.exitCode, redeployed.tail).toBe(0);
+    expect(await invoke(functionName)).toBe('second');
+
     // Rolling forward to the fast release restores its code as well.
     const forward = await runSourceCli({
       project,
       step: 'rollback',
       ministack,
-      rollbackTarget: ['--targetVersion', 'v000002']
+      rollbackTarget: ['--targetVersion', 'v000001']
     });
     expect(forward.exitCode, forward.tail).toBe(0);
-    expect(await deployedVersion()).toBe('v000004');
+    expect(await invoke(functionName)).toBe('first');
+    const toFastRelease = await runSourceCli({
+      project,
+      step: 'rollback',
+      ministack,
+      rollbackTarget: ['--targetVersion', 'v000002']
+    });
+    expect(toFastRelease.exitCode, toFastRelease.tail).toBe(0);
+    expect(await deployedVersion()).toBe('v000006');
     expect(await invoke(functionName)).toBe('second');
 
     // A fast deployment returns to the first build, which CloudFormation's template references by an older key. A
@@ -112,7 +126,7 @@ test('code-only deploys update functions directly, record a release and roll bac
     const full = await runSourceCli({ project, step: 'update', ministack, extraArgs: ['--fullDeploy'] });
     expect(full.exitCode, full.tail).toBe(0);
     expect(full.changeSummary).toBeDefined();
-    expect(await deployedVersion()).toBe('v000006');
+    expect(await deployedVersion()).toBe('v000008');
     expect(await invoke(functionName)).toBe('second');
   } finally {
     try {
