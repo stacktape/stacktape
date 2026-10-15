@@ -2071,7 +2071,7 @@ describe('load balancer and CDN synthesis contract', () => {
     expect(byPort.get(80).Protocol).toBe('HTTP');
     expect(byPort.get(80).DefaultActions[0]).toMatchObject({
       Type: 'redirect',
-      RedirectConfig: { Protocol: 'HTTPS', StatusCode: 'HTTP_301' }
+      RedirectConfig: { Protocol: 'HTTPS', Port: '443', StatusCode: 'HTTP_301' }
     });
     expect(byPort.get(443).Protocol).toBe('HTTPS');
   });
