@@ -1,4 +1,4 @@
-import type { GetCallerIdentityResponse } from '@aws-sdk/client-sts';
+import type { AssumeRoleCommandOutput, GetCallerIdentityResponse } from '@aws-sdk/client-sts';
 import type { createAwsLoggingPlugin } from './client-instrumentation';
 import { cacheAwsIdentity, readCachedAwsIdentity } from './identity-cache';
 import { startTiming } from '@utils/timings';
@@ -7,7 +7,7 @@ import type { HttpRequest } from '@smithy/protocol-http';
 import { Sha256 } from '@aws-crypto/sha256-browser';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { AssumeRoleCommand } from '@aws-sdk/client-sts';
-import type { Credentials } from '@aws-sdk/types';
+import type { Credentials, Pluggable } from '@aws-sdk/types';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { createRequest } from '@aws-sdk/util-create-request';
 import { createFetchHandler } from 'src/aws/fetch-handler';
@@ -105,6 +105,29 @@ export const getSignedGetCallerIdentityRequest = async ({
   });
   const signedRequest = (await signer.sign(rawRequest as HttpRequest)) as unknown as SignedRequest;
   return signedRequest;
+};
+
+/**
+ * Records the identity an STS role-assumption answer already carries, so the identity lookup that follows needs no
+ * `GetCallerIdentity` call. A profile that assumes a role gets a new session, and with it a new access key, on every
+ * run, so the identity cache never had its key and every run asked STS twice. The session's ARN and assumed-role ID
+ * are exactly what `GetCallerIdentity` returns for it.
+ */
+export const assumedRoleIdentityPlugin: Pluggable<object, object> = {
+  applyToStack: (stack) => {
+    stack.add(
+      (next) => async (args) => {
+        const result = await next(args);
+        const { Credentials: issued, AssumedRoleUser: user } = result.output as Partial<AssumeRoleCommandOutput>;
+        const account = user?.Arn?.split(':')[4];
+        if (issued?.AccessKeyId && user?.Arn && user.AssumedRoleId && account) {
+          await cacheAwsIdentity(issued.AccessKeyId, { account, arn: user.Arn, userId: user.AssumedRoleId });
+        }
+        return result;
+      },
+      { step: 'initialize', name: 'stacktapeRecordAssumedRoleIdentity' }
+    );
+  }
 };
 
 export const getAwsCredentialsIdentity = async ({

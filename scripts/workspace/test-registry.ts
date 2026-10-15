@@ -2150,6 +2150,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-source-cli-aws-readonly.spec.ts',
       'apps/cli/src/app/global-state-manager/api-key-storage.spec.ts',
+      'apps/cli/src/aws/identity.test.ts',
       'apps/cli/src/app/global-state-manager/credential-refresh.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-source.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
@@ -4098,6 +4099,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/src/app/global-state-manager/api-key-storage.spec.ts',
+      'apps/cli/src/aws/identity.test.ts',
       'apps/cli/src/app/global-state-manager/credential-refresh.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-source.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
