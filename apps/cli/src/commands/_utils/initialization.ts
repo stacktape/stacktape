@@ -42,6 +42,7 @@ import type { ConfigResolverContext } from '@domain-services/config-manager/conf
 import type { ConfigManagerInitContext } from '@domain-services/config-manager/context';
 import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
 import type { StacktapeCliArgs } from '../../config/cli/types';
+import type { GlobalConfigResponse } from '@stacktape-api/api-key-protected';
 import { getConfigPath } from '@utils/file-loaders';
 import { startTiming, timeAsync } from '@utils/timings';
 import { finalizeTemplate, prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
@@ -226,9 +227,15 @@ export const initializeStackOperationLifecycle = async ({
   });
   operationReporter.setPhase('INITIALIZE');
 
+  let globalConfig: GlobalConfigResponse | undefined;
   if (requiresControlPlane) {
     await loadUserCredentials();
-    await recordStackOperationStart();
+    const [, subscription, fetchedGlobalConfig] = await settleAllBeforeThrowing([
+      recordStackOperationStart(),
+      requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined,
+      loadGlobalConfig ? stacktapeTrpcApiManager.apiClient.globalConfig() : undefined
+    ]);
+    globalConfig = fetchedGlobalConfig;
 
     const userProvidedProjectName = globalStateManager.args.projectName;
     if (userProvidedProjectName) {
@@ -239,11 +246,8 @@ export const initializeStackOperationLifecycle = async ({
       });
     }
 
-    if (requiresSubscription) {
-      const { message, canDeploy } = await stacktapeTrpcApiManager.apiClient.canDeploy();
-      if (!canDeploy) {
-        throw stpErrors.e502({ message });
-      }
+    if (subscription && !subscription.canDeploy) {
+      throw stpErrors.e502({ message: subscription.message });
     }
     await loadTargetStackContext({ skipRawConfig: skipRawConfigForTarget });
     assertCommandPermissions({
@@ -260,9 +264,8 @@ export const initializeStackOperationLifecycle = async ({
   const stackContext = getStackContext();
   await beforeConfigInit?.(stackContext);
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
-
-  if (loadGlobalConfig && requiresControlPlane) {
-    await configManager.loadGlobalConfig();
+  if (globalConfig) {
+    configManager.applyGlobalConfig(globalConfig);
   }
 
   // Start the parent event for loading AWS metadata
@@ -279,7 +282,18 @@ export const initializeStackOperationLifecycle = async ({
       stackName: globalStateManager.targetStack.stackName,
       commandModifiesStack,
       commandRequiresDeployedStack,
-      parentEventType: 'LOAD_METADATA_FROM_AWS'
+      parentEventType: 'LOAD_METADATA_FROM_AWS',
+      whileLoadingResourceDetails: () =>
+        Promise.all([
+          templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+          deploymentArtifactManager.init({
+            packagingSource: packagingManager,
+            accountId: globalStateManager.targetAwsAccount.awsAccountId,
+            globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+            stackActionType: stackManager.stackActionType,
+            parentEventType: 'LOAD_METADATA_FROM_AWS'
+          })
+        ])
     }),
     ec2Manager.init({
       instanceTypes: configManager.allUsedEc2InstanceTypes,
@@ -313,7 +327,6 @@ export const initializeStackOperationLifecycle = async ({
     notificationManager.init({ consoleApiAccess: requiresControlPlane })
   ]);
   await Promise.all([
-    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources,
@@ -321,13 +334,6 @@ export const initializeStackOperationLifecycle = async ({
     }),
     calculatedStackOverviewManager.init({ context: stackContext }),
     cloudfrontManager.init(),
-    deploymentArtifactManager.init({
-      packagingSource: packagingManager,
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-      stackActionType: stackManager.stackActionType,
-      parentEventType: 'LOAD_METADATA_FROM_AWS'
-    }),
     packagingManager.init(),
     cloudformationRegistryManager.init()
   ]);

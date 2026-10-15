@@ -7,6 +7,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
+import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
@@ -146,9 +147,12 @@ export const updateFunctionCode = async ({
 
   // The digest tag tells the next deployment which build the function runs. It says "updating" until the update is
   // confirmed, so an update whose final tag write fails is never mistaken for the previous build.
-  const { FunctionArn: functionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName });
   await awsSdkManager.lambda.tagFunction({
-    lambdaArn: functionArn,
+    lambdaArn: arns.lambdaFromFullName({
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      region: globalStateManager.region,
+      lambdaAwsName: lambdaResourceName
+    }),
     tags: [{ key: tagNames.codeDigest(), value: 'updating' }]
   });
   const { FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({

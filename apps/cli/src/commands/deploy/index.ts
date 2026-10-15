@@ -360,7 +360,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     stageType: config.stackConfig.stageType ?? 'unset'
   });
 
-  await notification.sendDeploymentNotification({
+  // Sent while the deployment runs. Later events, the outcome included, are sent after it.
+  notification.queueDeploymentNotification({
     message: {
       text: 'Deployment started',
       type: 'progress',
@@ -448,7 +449,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
   lifecycle.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
-  await notification.sendDeploymentNotification({
+  // Sent while the remaining reporting runs; the command waits for it before it returns.
+  notification.queueDeploymentNotification({
     message: {
       text: 'Deployment succeeded',
       type: 'success',
@@ -525,6 +527,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       tui.warn(`Could not report the security findings to the Stacktape Console: ${err}`);
     }
   }
+
+  await notification.waitForQueuedEvents();
 
   return {
     stackInfo: detailedStackInfoSensitive,

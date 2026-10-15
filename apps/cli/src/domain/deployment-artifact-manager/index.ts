@@ -583,12 +583,13 @@ class DeploymentArtifactManager {
       }
       throw err;
     }
-    try {
-      await this.uploadCloudFormationTemplate();
-      await this.uploadStacktapeTemplate();
-    } catch (err) {
+    // Both uploads settle before the marker can be removed, so a failed attempt never writes after another deployment
+    // claimed the release.
+    const uploads = await Promise.allSettled([this.uploadCloudFormationTemplate(), this.uploadStacktapeTemplate()]);
+    const failedUpload = uploads.find((upload): upload is PromiseRejectedResult => upload.status === 'rejected');
+    if (failedUpload) {
       await this.deleteObjectsFromDeploymentBucket([markerKey]).catch(() => {});
-      throw err;
+      throw failedUpload.reason;
     }
     this.successfullyCreatedObjects.push({ s3Key: markerKey, name: FAST_RELEASE_MARKER_NAME });
   };
@@ -642,12 +643,11 @@ class DeploymentArtifactManager {
         description: 'Uploading deployment artifacts'
       });
 
-      await Promise.all([
-        // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
-        // this waiting should prevent it (and lose no time otherwise)
-        // Note: S3 bucket creation can take up to 30-60 seconds due to eventual consistency
-        awsSdkManager.s3.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 })
-      ]);
+      // A bucket created moments ago can still answer "NoSuchBucket" for up to a minute. An existing stack's bucket was
+      // listed during initialization, and an upload that does not find it waits for it anyway.
+      if (stackManager.stackActionType !== 'update') {
+        await awsSdkManager.s3.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 });
+      }
 
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);
       await operationReporter.finishEvent({

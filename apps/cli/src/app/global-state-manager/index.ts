@@ -490,9 +490,10 @@ export class GlobalStateManager {
 
     this.credentials = validatedCredentials;
 
-    // if credentials have expiration set refresh timeout
+    // Expiring credentials are refreshed shortly before they expire. Scheduling reads AWS's clock over HTTP, which the
+    // command does not wait for: the credentials are valid for far longer than that takes.
     if (this.credentials.expiration) {
-      await this.scheduleCredentialRefresh(this.credentials.expiration);
+      void this.scheduleCredentialRefresh(this.credentials.expiration);
     }
     // The finished line must stand alone in the record — name the subject, not
     // just the source ("Loaded from Stacktape API" reads as a mystery later).

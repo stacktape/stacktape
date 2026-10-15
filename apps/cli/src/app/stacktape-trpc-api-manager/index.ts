@@ -2,6 +2,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { ApiKeyProtectedClient, type ApiKeyRequestExecutor } from '@stacktape-api/api-key-protected';
 import { TRPCClientError } from '@trpc/client';
 import { CliError } from '@utils/errors';
+import { timeAsync } from '@utils/timings';
 import { IS_DEV } from '../../config/random';
 
 const LOGIN_HINT = 'Run `stacktape login` to authenticate with a new API key.';
@@ -69,7 +70,7 @@ export class StacktapeTrpcApiManager {
       const start = Date.now();
       tuiManager.debug(`TRPC ${procedure}: start.`);
       try {
-        return await request();
+        return await timeAsync('console:request', request, { procedure });
       } catch (error) {
         if (IS_DEV) {
           tuiManager.warn(`Stacktape API request failed:\n${error}`);
