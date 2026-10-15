@@ -296,6 +296,18 @@ const runCliInTerminal = async ({
   }
 };
 
+const stackStatusInMiniStack = async () => {
+  const client = new CloudFormationClient(ministack.clientConfig());
+  try {
+    return (await client.send(new DescribeStacksCommand({ StackName: stackName }))).Stacks?.[0]?.StackStatus;
+  } catch (error) {
+    if (/does not exist/.test(String(error))) return 'DELETE_COMPLETE';
+    throw error;
+  } finally {
+    client.destroy();
+  }
+};
+
 const startFakes = async (stack?: FakeStackState, objects: Record<string, string> = {}) => {
   const controlPlane = await startControlPlaneFake({ projectName, awsAccountId: ministack.defaultAccount.accountId });
   resources.push(controlPlane);
@@ -462,7 +474,8 @@ describe('delete', () => {
     expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
     expect(aws.mutations[0].parameters.StackName).toBe(stackName);
     expect(aws.unexpectedRequests).toEqual([]);
-    expect(aws.stack?.status).toBe('DELETE_COMPLETE');
+    // The proxy only sees the statuses the CLI happened to request, so ask the emulator itself.
+    expect(await stackStatusInMiniStack()).toBe('DELETE_COMPLETE');
     const recorded = controlPlane.calls.filter(({ procedure }) => procedure === 'recordStackOperation');
     expect(recorded.length).toBeGreaterThanOrEqual(2);
     expect(controlPlane.unexpectedProcedures).toEqual([]);
