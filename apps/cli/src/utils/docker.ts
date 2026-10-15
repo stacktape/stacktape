@@ -622,6 +622,13 @@ export const dockerLogin = async ({
   );
 };
 
+/** Pulls an image into the local image store, for one platform when `platform` is set. */
+export const pullDockerImage = async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
+  await execDocker(['pull', '--quiet', ...(platform ? ['--platform', platform] : []), reference], {
+    skipHandleError: true
+  });
+};
+
 export const tagDockerImage = async (sourceImage: string, newTag: string) => {
   const { stderr } = await execDocker(['tag', sourceImage, newTag]);
   if (stderr) {

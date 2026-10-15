@@ -4,6 +4,22 @@ import { remove } from 'fs-extra';
 import { createPrivateBuildFile } from '../fs/temporary-file';
 
 /**
+ * The images a Dockerfile starts its stages from, without references to its own earlier stages and `scratch`. Only for
+ * Dockerfiles Stacktape writes: it reads plain `FROM image [AS name]` lines and does not expand build arguments.
+ */
+export const getDockerfileBaseImages = (dockerfileContents: string): string[] => {
+  const stages = new Set<string>(['scratch']);
+  const images = new Set<string>();
+  for (const [, image, stage] of dockerfileContents.matchAll(
+    /^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?/gim
+  )) {
+    if (image && !stages.has(image.toLowerCase())) images.add(image);
+    if (stage) stages.add(stage.toLowerCase());
+  }
+  return [...images];
+};
+
+/**
  * Builds an image from a generated Dockerfile without placing that Dockerfile in the image context.
  *
  * Every Stacktape image Dockerfile uses broad COPY instructions. Keeping the generated file outside
@@ -41,7 +57,8 @@ export const buildGeneratedDockerImage = async ({
       value: await buildDockerImage({
         ...buildOptions,
         buildContextPath,
-        dockerfilePath: relative(buildContextPath, filePath)
+        dockerfilePath: relative(buildContextPath, filePath),
+        baseImages: getDockerfileBaseImages(dockerfileContents)
       })
     };
   } catch (error) {
