@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import dockerIgnore from '@balena/dockerignore';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   applyStacktapePlanPolicy,
   excludeNonSourceDirectories,
   getBuildEnvironmentHash,
   getRailpackVariables,
+  takesVersionFromVersionControl,
   type RailpackPlan
 } from './railpack';
 
@@ -206,5 +210,39 @@ describe('image context', () => {
     expect(included(plan, ['node_modules/express/index.js', 'node_modules/vendored/index.js', '.git/HEAD'])).toEqual([
       'node_modules/vendored/index.js'
     ]);
+  });
+});
+
+/** A temporary project directory holding the given files. */
+const projectWith = async (files: Record<string, string>) => {
+  const directory = await mkdtemp(join(tmpdir(), 'stp-railpack-vcs-'));
+  await Promise.all(Object.entries(files).map(([name, contents]) => writeFile(join(directory, name), contents)));
+  return directory;
+};
+
+describe('Python projects that take their version from version control', () => {
+  test.each([
+    ['hatch-vcs', { 'pyproject.toml': '[build-system]\nrequires = ["hatchling", "hatch-vcs"]\n' }, true],
+    ['hatch version source', { 'pyproject.toml': '[tool.hatch.version]\nsource = "vcs"\n' }, true],
+    ['setuptools-scm in pyproject', { 'pyproject.toml': '[tool.setuptools_scm]\n' }, true],
+    ['setuptools-scm in setup.cfg', { 'setup.cfg': '[options]\nsetup_requires = setuptools_scm\n' }, true],
+    [
+      'setuptools-scm in setup.py',
+      { 'setup.py': 'setup(use_scm_version=True, setup_requires=["setuptools-scm"])\n' },
+      true
+    ],
+    ['a static version', { 'pyproject.toml': '[project]\nname = "shop"\nversion = "1.0.0"\n' }, false],
+    ['no manifest', { 'requirements.txt': 'fastapi\n' }, false]
+  ])('%s', async (_label, files, keeps) => {
+    const directory = await projectWith(files);
+    try {
+      expect(await takesVersionFromVersionControl(directory)).toBe(keeps);
+      const plan = excludeNonSourceDirectories(preparedPlan(), { keepVersionControl: keeps });
+      expect(included(plan, ['.git/HEAD', '.stacktape/out.zip', 'app.py'])).toEqual(
+        keeps ? ['.git/HEAD', 'app.py'] : ['app.py']
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

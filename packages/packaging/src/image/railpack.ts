@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathExists } from 'fs-extra';
@@ -213,17 +214,43 @@ export const applyStacktapePlanPolicy = ({
   return result;
 };
 
+const VERSION_CONTROL_DIRECTORIES = new Set(['.git', '.hg']);
+/** Python build plugins that read the package version from version control: setuptools-scm, hatch-vcs and the like. */
+const VERSION_FROM_VCS =
+  /setuptools[_-]scm|hatch[_-]vcs|\[tool\.hatch\.version\][^[]*source\s*=\s*["']vcs["']|versioningit|poetry[_-]dynamic[_-]versioning/;
+
 /**
  * Keeps version control data, installed dependencies, caches and Stacktape's own output out of the image. Railpack
  * copies the whole source directory and excludes only what `.dockerignore` lists, so without this an image carried
  * `.git` and `.stacktape`, grew with every build and changed its digest when the source had not. The patterns come
  * first: a `!` pattern in the project's `.dockerignore`, which Railpack puts in the plan after them, still brings a
- * directory back.
+ * directory back. A Python project that takes its version from version control keeps `.git` and `.hg`.
  */
-export const excludeNonSourceDirectories = (plan: RailpackPlan): RailpackPlan => ({
+export const excludeNonSourceDirectories = (
+  plan: RailpackPlan,
+  { keepVersionControl = false }: { keepVersionControl?: boolean } = {}
+): RailpackPlan => ({
   ...plan,
-  exclude: [...NON_SOURCE_DIRECTORY_NAMES.map((name) => `**/${name}`), ...(plan.exclude ?? [])]
+  exclude: [
+    ...NON_SOURCE_DIRECTORY_NAMES.filter((name) => !(keepVersionControl && VERSION_CONTROL_DIRECTORIES.has(name))).map(
+      (name) => `**/${name}`
+    ),
+    ...(plan.exclude ?? [])
+  ]
 });
+
+/**
+ * Whether a Python project takes its version from version control, so its build needs `.git`. setuptools-scm and
+ * hatch-vcs fail the install without it.
+ */
+export const takesVersionFromVersionControl = async (sourceDirectoryPath: string): Promise<boolean> => {
+  const manifests = await Promise.all(
+    ['pyproject.toml', 'setup.cfg', 'setup.py'].map((name) =>
+      readFile(join(sourceDirectoryPath, name), 'utf8').catch(() => '')
+    )
+  );
+  return manifests.some((contents) => VERSION_FROM_VCS.test(contents));
+};
 
 /** The planner's own diagnostics, with build variable values removed in case a provider echoed one. */
 const describeRailpackFailure = (info: RailpackInfo | undefined, secretValues: string[]) =>
@@ -310,7 +337,8 @@ export const buildUsingRailpack = async ({
       startCommand,
       buildCommand,
       installCommand
-    })
+    }),
+    { keepVersionControl: await takesVersionFromVersionControl(absoluteSourceDirectoryPath) }
   );
   const buildEnvironmentHash = getBuildEnvironmentHash(buildVariables);
   const { checksum: contextChecksum, includedFilePaths } = await getDockerContextChecksum({
