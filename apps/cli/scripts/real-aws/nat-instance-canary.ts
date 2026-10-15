@@ -1163,6 +1163,13 @@ export const runNatKindSwitchCanary = async ({ cleanupOnly = false }: { cleanupO
     });
     const single = await readTopology(clients, stackName, 'ec2');
     const singleInstances = await recordOwned(single);
+    // The probe may have moved a table to the removed zone right after CloudFormation changed it; the next probe with
+    // the one-zone input brings it back within a minute.
+    const settledAfterSingle = await waitFor(
+      'every private route table to use the single instance',
+      async () => (await readRouteTargets(clients, single)).every((target) => target === single.networkInterfaceIds[0]),
+      3 * 60 * 1000
+    );
     const resourcesAfterSingle = await readStackResources(clients, stackName);
     const remainingGroups = resourcesAfterSingle.filter(
       ({ ResourceType }) => ResourceType === 'AWS::AutoScaling::AutoScalingGroup'
@@ -1174,6 +1181,7 @@ export const runNatKindSwitchCanary = async ({ cleanupOnly = false }: { cleanupO
       instances: singleInstances,
       autoscalingGroups: remainingGroups.length,
       routeTargets: singleTargets,
+      secondsUntilRoutesSettled: settledAfterSingle,
       vpcUnchanged: single.vpcId === gateway.vpcId,
       calls: await assertServing(clients, single, 'with a single NAT instance')
     };

@@ -132,13 +132,13 @@ describe('NAT configuration', () => {
     expect(launchTemplate.Properties.LaunchTemplateData.ImageId).toContain('arm64');
   });
 
-  test('ec2 is a single zone without failover machinery', async () => {
+  test('ec2 is a single zone without a lifecycle hook, but with the probe that keeps its routes home', async () => {
     const template = await synthesize({ nat: { type: 'ec2', instanceSize: 't4g.micro' } });
     expect(resourcesOfType(template, 'AWS::AutoScaling::AutoScalingGroup')).toEqual([
       cfLogicalNames.natInstanceAutoscalingGroup(0)
     ]);
     expect(resourcesOfType(template, 'AWS::AutoScaling::LifecycleHook')).toEqual([]);
-    expect(template.Resources[cfLogicalNames.natFailoverProbeRule()]).toBeUndefined();
+    expect(template.Resources[cfLogicalNames.natFailoverProbeRule()]).toBeDefined();
     for (const subnetIndex of [0, 1, 2]) {
       expect(natRouteTarget(template, subnetIndex)).toMatchObject({
         NetworkInterfaceId: { Ref: cfLogicalNames.natInstanceNetworkInterface(0) }

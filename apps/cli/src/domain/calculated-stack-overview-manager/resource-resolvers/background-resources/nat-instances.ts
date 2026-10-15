@@ -513,7 +513,7 @@ const getAutoscalingEventsRule = (input: NatFailoverRuleInput) =>
     ]
   });
 
-/** Adds the per-zone NAT instances, the shared role and security group, and (with several zones) the failover rules. */
+/** Adds the per-zone NAT instances, the shared role and security group, the route reconcile and the failover rules. */
 export const resolveNatInstances = ({
   availabilityZones,
   privateSubnetCount
@@ -551,7 +551,10 @@ export const resolveNatInstances = ({
     getRouteReconcileCustomResource({ availabilityZones, privateSubnetCount })
   );
 
-  if (availabilityZones > 1) {
+  // The rules exist for a single zone too. With one zone the handler only keeps the routes on that zone's interface,
+  // but a stack going from ha-ec2 to ec2 needs the handler to learn the new topology in the update phase: a rule that
+  // is deleted instead lives until the cleanup phase and keeps serving its two-zone input after the routes changed.
+  {
     const input = getFailoverRuleInput({ availabilityZones, privateSubnetCount });
     const lambdaArn = getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
     add(cfLogicalNames.natFailoverProbeRule(), getProbeRule(input));
