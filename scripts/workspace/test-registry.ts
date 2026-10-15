@@ -3285,7 +3285,7 @@ export const lanes: readonly Lane[] = [
     requires: ['console'],
     release: 'every-candidate',
     proves:
-      'Offline Console infrastructure contracts and assembled support template pass cfn-lint (install cfn-lint 1.53.3 first).'
+      'Offline Console infrastructure contracts and assembled support template pass cfn-lint (install cfn-lint 1.57.2 first).'
   },
   {
     id: 'cli-issue-incident-rules',

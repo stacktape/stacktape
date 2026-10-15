@@ -3,7 +3,7 @@
  *
  *   pnpm --filter @stacktape/cli run test:synthesis-families:cfn-lint
  *
- * cfn-lint must be on PATH (CI installs `cfn-lint==1.53.3` with pip; locally `uv tool install cfn-lint==1.53.3`).
+ * cfn-lint must be on PATH (CI installs `cfn-lint==1.57.2` with pip; locally `uv tool install cfn-lint==1.57.2`).
  * Only errors fail the run, matching the CI validation of the dense application template.
  */
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 const cliRoot = resolve(import.meta.dir, '..', '..');
 const cfnLint = Bun.which('cfn-lint');
 if (!cfnLint) {
-  console.error('cfn-lint is not installed. Install cfn-lint 1.53.3 (for example `uv tool install cfn-lint==1.53.3`).');
+  console.error('cfn-lint is not installed. Install cfn-lint 1.57.2 (for example `uv tool install cfn-lint==1.57.2`).');
   process.exit(1);
 }
 
