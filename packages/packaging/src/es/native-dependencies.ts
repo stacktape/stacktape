@@ -8,6 +8,7 @@
  */
 import type { DockerBuildOutputArchitecture, ResolvedPackageDependency } from '../runtime-contracts';
 import { createHash } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { copy, emptyDir, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
 import objectHash from 'object-hash';
@@ -70,8 +71,13 @@ export const planLambdaDependencies = async ({
   excludedNames?: string[] | undefined;
 }): Promise<LambdaDependencyPlan> => {
   const excluded = new Set([...IGNORED_MODULES, ...excludedNames]);
+  // The real directory, which is what every lookup below returns; on Windows a temporary path may be a short alias.
   const topLevelPackages = new Map(
-    dependencies.filter(({ name }) => !excluded.has(name)).map(({ name, path }) => [name, path])
+    await Promise.all(
+      dependencies
+        .filter(({ name }) => !excluded.has(name))
+        .map(async ({ name, path }) => [name, await realpath(path)] as const)
+    )
   );
   const accept = acceptFor({ architecture, excludedNames: excluded });
   const packages = new Map<string, InstalledPackage>();
@@ -91,14 +97,35 @@ export const planLambdaDependencies = async ({
 };
 
 /**
- * The `package.json` the Lambda build image installs from: the packages to install again at their versions, with every
- * other package they load pinned to the version installed here, so their install scripts build against the same
+ * The packages to install again, as installations that each hold one version of a name: two versions of one addon
+ * cannot share a `node_modules`. Installations of the same version, such as pnpm's copies with different peers, share
+ * one build.
+ */
+const groupInstallations = (plan: LambdaDependencyPlan): InstalledPackage[][] => {
+  const versionsByName = new Map<string, Map<string, InstalledPackage[]>>();
+  for (const installedPackage of plan.packagesToInstallForLambda) {
+    const versions = versionsByName.get(installedPackage.name) ?? new Map<string, InstalledPackage[]>();
+    versions.set(installedPackage.version, [...(versions.get(installedPackage.version) ?? []), installedPackage]);
+    versionsByName.set(installedPackage.name, versions);
+  }
+  const groups: InstalledPackage[][] = [];
+  for (const versions of versionsByName.values()) {
+    [...versions.keys()].toSorted().forEach((version, index) => {
+      groups[index] = [...(groups[index] ?? []), ...versions.get(version)!];
+    });
+  }
+  return groups;
+};
+
+/**
+ * The `package.json` the Lambda build image installs one group from: its packages at their versions, with every other
+ * package they load pinned to the version installed here, so their install scripts build against the same
  * dependencies the artifact gets. A name installed here in two versions is left to npm.
  */
-const getInstallationManifest = (plan: LambdaDependencyPlan) => {
-  const reinstalledNames = new Set(plan.packagesToInstallForLambda.map(({ name }) => name));
+const getInstallationManifest = (plan: LambdaDependencyPlan, group: InstalledPackage[]) => {
+  const groupNames = new Set(group.map(({ name }) => name));
   const versionsByName = new Map<string, Set<string>>();
-  const pending = plan.packagesToInstallForLambda.map(({ root }) => root);
+  const pending = group.map(({ root }) => root);
   const visited = new Set<string>();
   while (pending.length > 0) {
     const root = pending.pop()!;
@@ -107,7 +134,7 @@ const getInstallationManifest = (plan: LambdaDependencyPlan) => {
     for (const [name, dependencyRoot] of plan.packages.get(root)?.dependencies ?? []) {
       const dependency = plan.packages.get(dependencyRoot);
       // An npm alias cannot be pinned by its name.
-      if (!dependency || dependency.name !== name || reinstalledNames.has(name)) continue;
+      if (!dependency || dependency.name !== name || groupNames.has(name)) continue;
       versionsByName.set(name, (versionsByName.get(name) ?? new Set()).add(dependency.version));
       pending.push(dependencyRoot);
     }
@@ -118,9 +145,7 @@ const getInstallationManifest = (plan: LambdaDependencyPlan) => {
     .toSorted(([left], [right]) => (left < right ? -1 : 1));
   return {
     private: true,
-    dependencies: Object.fromEntries(
-      plan.packagesToInstallForLambda.map(({ name, version }) => [name, version] as const).toSorted()
-    ),
+    dependencies: Object.fromEntries(group.map(({ name, version }) => [name, version] as const).toSorted()),
     overrides: Object.fromEntries(overrides)
   };
 };
@@ -137,7 +162,7 @@ export const getLambdaDependencyIdentity = async (plan: LambdaDependencyPlan) =>
   return [
     ...directories,
     ...plan.layout.links.map(({ path, target }) => `${path} -> ${target}`),
-    ...(plan.packagesToInstallForLambda.length > 0 ? [JSON.stringify(getInstallationManifest(plan))] : [])
+    ...groupInstallations(plan).map((group) => JSON.stringify(getInstallationManifest(plan, group)))
   ];
 };
 
@@ -264,16 +289,18 @@ export const writeLambdaDependencies = async ({
   runDocker: RunDocker;
 }) => {
   const sources = new Map<string, PackageSource>();
-  if (plan.packagesToInstallForLambda.length > 0) {
+  for (const group of groupInstallations(plan)) {
+    // oxlint-disable-next-line no-await-in-loop -- one Docker build at a time; a group rarely has a second one.
     const installedNodeModulesPath = await installInLambdaBuildImage({
-      manifest: getInstallationManifest(plan),
+      manifest: getInstallationManifest(plan, group),
       installationRootPath,
       lambdaRuntimeVersion,
       architecture: plan.architecture,
       runDocker
     });
+    // oxlint-disable-next-line no-await-in-loop -- see above.
     await Promise.all(
-      plan.packagesToInstallForLambda.map(async ({ root, name }) => {
+      group.map(async ({ root, name }) => {
         const copyFrom = join(installedNodeModulesPath, ...name.split('/'));
         if (!(await pathExists(join(copyFrom, 'package.json')))) {
           throw new Error(`The Lambda build image did not install ${name}, which this function needs.`);

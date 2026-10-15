@@ -128,24 +128,26 @@ export const addRuntimeDependencies = async ({
   }
 };
 
-/** The files a package is copied with: everything except its own `node_modules`, links followed, in a stable order. */
+/**
+ * The files a package is copied with, in a stable order: everything except its own `node_modules`, with linked
+ * directories followed, so a directory reached through two names is listed under both, as copying writes it. A link
+ * back to a directory being listed is skipped; copying it would never end.
+ */
 const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
   const files: string[] = [];
-  const visited = new Set<string>();
-  const visit = async (directory: string) => {
-    // A directory link back into the package would otherwise be walked forever.
+  const visit = async (directory: string, enclosing: Set<string>) => {
     const realDirectory = await realpath(directory);
-    if (visited.has(realDirectory)) return;
-    visited.add(realDirectory);
+    if (enclosing.has(realDirectory)) return;
+    const withThis = new Set(enclosing).add(realDirectory);
     const entries: Dirent[] = await readdir(directory, { withFileTypes: true });
     for (const entry of entries.toSorted((left, right) => (left.name < right.name ? -1 : 1))) {
       const path = join(directory, entry.name);
       const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
       if (!isDirectory) files.push(path);
-      else if (entry.name !== 'node_modules') await visit(path);
+      else if (entry.name !== 'node_modules') await visit(path, withThis);
     }
   };
-  await visit(packageRoot);
+  await visit(packageRoot, new Set());
   return files;
 };
 
@@ -153,14 +155,19 @@ const fingerprints = new Map<string, { signature: string; fingerprint: string }>
 
 /**
  * A hash of what copying the package puts into an artifact: each file's path, bytes and, where the host records it,
- * whether it is executable. A package edited or rebuilt in place keeps its version but changes this. File sizes and
- * modification times decide whether a hash computed earlier in this process still holds, so a watched rebuild sees
+ * whether it is executable. A package edited or rebuilt in place keeps its version but changes this. File names, sizes
+ * and modification times decide whether a hash computed earlier in this process still holds, so a watched rebuild sees
  * edits.
  */
 export const getPackageFingerprint = async (packageRoot: string): Promise<string> => {
   const files = await listPackageFiles(packageRoot);
   const stats = await Promise.all(files.map((path) => stat(path)));
-  const signature = stats.map(({ size, mtimeMs, mode }) => `${size}:${mtimeMs}:${mode}`).join(',');
+  const signature = files
+    .map(
+      (path, index) =>
+        `${relative(packageRoot, path)}:${stats[index]!.size}:${stats[index]!.mtimeMs}:${stats[index]!.mode}`
+    )
+    .join('\n');
   const cached = fingerprints.get(packageRoot);
   if (cached?.signature === signature) return cached.fingerprint;
 
@@ -247,14 +254,18 @@ const listNodeModulesEntries = async (nodeModulesDirectory: string): Promise<str
   return entries;
 };
 
+/** Where the installed layout is repeated inside an artifact's `node_modules`. */
+const INSTALLED_LAYOUT_PATH = 'node_modules/.installed';
+
 /**
- * The layout that gives every package in `packages` the resolution it has here, plus a top-level entry for each package
- * the artifact's own code requires. A package's directory keeps its path relative to the project. Each link in a
- * `node_modules` directory a package searches is kept when it leads to a copied package, and so is each `.bin`
- * command that runs a copied file.
+ * The layout that gives every package in `packages` the resolution it has here, and the artifact's own code the
+ * packages it resolved when it was bundled.
  *
- * A top-level name the installed layout already uses for another package keeps that package; the artifact's code then
- * loads it, as it would from the project's root.
+ * The installed layout is repeated under `node_modules/.installed`: each package's directory at its path relative to
+ * the project, each link in a `node_modules` directory a package searches when it leads to a copied package, and each
+ * `.bin` command that runs a copied file. The artifact's top-level `node_modules` holds a link for each package its
+ * code requires, to the installation it resolved, even where the project's root has another version of that name (as
+ * a workspace package with its own dependencies does), and the project root's commands.
  */
 export const planPackageLayout = async ({
   packages,
@@ -267,7 +278,8 @@ export const planPackageLayout = async ({
   const roots = [...packages.keys()];
   if (roots.length === 0) return { directories: [], links: [] };
   const mirrorRoot = findMirrorRoot(roots);
-  const layoutPath = (path: string) => toLayoutPath(relative(mirrorRoot, path));
+  const projectNodeModules = join(mirrorRoot, 'node_modules');
+  const layoutPath = (path: string) => `${INSTALLED_LAYOUT_PATH}/${toLayoutPath(relative(mirrorRoot, path))}`;
   /**
    * Whether copying puts this file into the artifact: it is in a package and not in that package's `node_modules`,
    * and among the package's files when only some of them are copied.
@@ -297,15 +309,12 @@ export const planPackageLayout = async ({
       const commandPath = join(nodeModulesDirectory, '.bin', command);
       if (!(await lstat(commandPath)).isSymbolicLink()) continue;
       const target = await realpathOfLink(commandPath);
-      if (target && isCopiedFile(target)) links.set(layoutPath(commandPath), layoutPath(target));
+      if (!target || !isCopiedFile(target)) continue;
+      links.set(layoutPath(commandPath), layoutPath(target));
+      if (nodeModulesDirectory === projectNodeModules) links.set(`node_modules/.bin/${command}`, layoutPath(target));
     }
   }
-
-  const occupied = new Set([...directories.map(({ path }) => path), ...links.keys()]);
-  for (const [name, root] of topLevelPackages) {
-    const entryPath = `node_modules/${name}`;
-    if (!occupied.has(entryPath)) links.set(entryPath, layoutPath(root));
-  }
+  for (const [name, root] of topLevelPackages) links.set(`node_modules/${name}`, layoutPath(root));
 
   return {
     directories: directories.toSorted((left, right) => (left.path < right.path ? -1 : 1)),

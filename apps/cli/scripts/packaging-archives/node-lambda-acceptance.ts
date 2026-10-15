@@ -478,7 +478,7 @@ const invokeFirst = async ({
     legacy.response.dependency === 'cjs' &&
       (legacy.response.linked as Response | undefined)?.through === 'cjs' &&
       (legacy.response.linked as Response | undefined)?.realPath ===
-        '/var/task/node_modules/.pnpm/fixture-linked-dep@1.0.0/node_modules/fixture-linked-dep/index.js' &&
+        '/var/task/node_modules/.installed/node_modules/.pnpm/fixture-linked-dep@1.0.0/node_modules/fixture-linked-dep/index.js' &&
       legacy.response.sum === 42 &&
       legacy.response.dirname === '/var/task' &&
       legacy.response.format === 'cjs',

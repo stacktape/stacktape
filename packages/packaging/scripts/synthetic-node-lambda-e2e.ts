@@ -48,7 +48,7 @@ const countingDocker = () => {
 
 /** The pnpm store directories a function's `node_modules` carries, such as `@hapi+boom@10.0.1`. */
 const listStoreDirectories = async (nodeModulesPath: string) =>
-  (await readdir(join(nodeModulesPath, '.pnpm'))).toSorted();
+  (await readdir(join(nodeModulesPath, '.installed', 'node_modules', '.pnpm'))).toSorted();
 
 /** The Lambda Node runtimes the CLI's split-bundling policy admits. Add one there only after adding it here. */
 const SUPPORTED_LAMBDA_NODE_VERSIONS = [18, 20, 22, 24];
@@ -451,7 +451,7 @@ try {
     throw new Error(`The copied-dependency function did not emit an artifact: ${JSON.stringify(copiedOutput)}`);
   }
   await assertZipWithinLambdaLimit(copiedOutput.artifactPath);
-  // The function repeats the project's pnpm layout: each package once in `.pnpm`, linked where pnpm linked it.
+  // The function repeats the project's pnpm layout under `node_modules/.installed`: each package once in `.pnpm`.
   const copiedPackages = await listStoreDirectories(join(copiedDist, 'node_modules'));
   for (const expected of [
     '@hapi+boom@',

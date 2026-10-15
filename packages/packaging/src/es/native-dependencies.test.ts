@@ -8,7 +8,7 @@
 import type { RunDocker } from './native-dependencies';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { chmod, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { ensureDir, outputFile, pathExists } from 'fs-extra';
@@ -348,6 +348,77 @@ describe('the node_modules a function gets', () => {
   });
 });
 
+describe('a workspace function and native packages built again', () => {
+  test('a workspace package gets the version from its own node_modules, while a root package keeps the root one', async () => {
+    const root = await createProject();
+    // npm workspaces: shared@1 at the root, shared@2 only for the function's package.
+    await writePackage(join(root, 'node_modules/shared'), { name: 'shared', version: '1.0.0' });
+    const other = await writePackage(join(root, 'node_modules/other'), {
+      name: 'other',
+      version: '1.0.0',
+      dependencies: { shared: '1.0.0' }
+    });
+    const shared2 = await writePackage(join(root, 'apps/api/node_modules/shared'), {
+      name: 'shared',
+      version: '2.0.0'
+    });
+
+    const { artifact } = await write({
+      dependencies: [external(shared2, 'shared', '2.0.0'), external(other, 'other')]
+    });
+
+    expect(
+      runIn(
+        artifact,
+        "console.log(JSON.stringify([require('shared').version, require('other').dep('shared').version]))"
+      )
+    ).toEqual(['2.0.0', '1.0.0']);
+  });
+
+  test('two versions of one addon that both need building are built and copied separately', async () => {
+    const { storePackage } = await createStore();
+    const nativeVersion = (version: string) =>
+      storePackage({ id: `native@${version}`, name: 'native', version, manifest: { gypfile: true } });
+    const native1 = await nativeVersion('1.0.0');
+    const native2 = await nativeVersion('2.0.0');
+    const old = await storePackage({ id: 'old@1', name: 'old', version: '1.0.0', dependencies: { native: native1 } });
+    const next = await storePackage({
+      id: 'next@1',
+      name: 'next',
+      version: '1.0.0',
+      dependencies: { native: native2 }
+    });
+    const docker = createFakeDocker(async (nodeModulesPath, { dependencies }) => {
+      await writePackage(
+        join(nodeModulesPath, 'native'),
+        { name: 'native', version: dependencies.native! },
+        {
+          'index.js': `exports.version = ${JSON.stringify(dependencies.native)}; exports.builtInImage = true;`
+        }
+      );
+    });
+
+    const { artifact } = await write({
+      dependencies: [external(old, 'old'), external(next, 'next')],
+      runDocker: docker.runDocker
+    });
+
+    expect(docker.installedManifests.map(({ dependencies }) => dependencies)).toEqual([
+      { native: '1.0.0' },
+      { native: '2.0.0' }
+    ]);
+    expect(
+      runIn(
+        artifact,
+        "const native = (name) => require(name).dep('native'); console.log(JSON.stringify([native('old'), native('next')]))"
+      )
+    ).toEqual([
+      { version: '1.0.0', builtInImage: true },
+      { version: '2.0.0', builtInImage: true }
+    ]);
+  });
+});
+
 describe('what identifies the copied packages', () => {
   const identityOf = async (kept: string) =>
     getLambdaDependencyIdentity(
@@ -369,6 +440,24 @@ describe('what identifies the copied packages', () => {
     expect(await identityOf(elsewhere)).toEqual(before);
     await writeFile(join(kept, 'data.txt'), 'b');
     expect(await identityOf(kept)).not.toEqual(before);
+  });
+
+  test('a renamed file or a directory reached under a second name is a new artifact, also within one process', async () => {
+    const { storePackage } = await createStore();
+    const kept = await storePackage({
+      id: 'kept@1',
+      name: 'kept',
+      version: '1.0.0',
+      files: { 'config/runtime.json': '{}' }
+    });
+
+    const original = await identityOf(kept);
+    await rename(join(kept, 'config/runtime.json'), join(kept, 'config/runtime-v2.json'));
+    const renamed = await identityOf(kept);
+    await link(join(kept, 'config'), join(kept, 'z-alias'));
+    const aliased = await identityOf(kept);
+
+    expect(new Set([original.join(), renamed.join(), aliased.join()]).size).toBe(3);
   });
 
   test('which installation a package uses is part of the identity, and linked directories are hashed', async () => {
@@ -489,6 +578,27 @@ describe('a native package installed again in the Lambda build image', () => {
 });
 
 describe('which installed packages are native', () => {
+  test('an addon linked against musl, as Alpine installs it, is built again; a glibc one is not', async () => {
+    const root = await createProject();
+    const addon = async (name: string, library: string) => {
+      const directory = await writePackage(join(root, 'node_modules', name), {
+        name,
+        version: '5.1.1',
+        binary: { module_path: './lib/binding/napi-v3' }
+      });
+      await outputFile(
+        join(directory, 'lib/binding/napi-v3/addon.node'),
+        Buffer.concat([ELF_X64, Buffer.from(`\0${library}\0`)])
+      );
+      return directory;
+    };
+    const musl = await addon('bcrypt-musl', 'libc.musl-x86_64.so.1');
+    const glibc = await addon('bcrypt-glibc', 'libc.so.6');
+
+    expect(await isInstalledForLambda(musl, 'x64')).toBe(false);
+    expect(await onHost('darwin', () => isInstalledForLambda(glibc, 'x64'))).toBe(true);
+  });
+
   test('a pure JavaScript package with a postinstall message is bundled', async () => {
     const root = await createProject();
     const installed = await writePackage(join(root, 'node_modules/thanks'), {

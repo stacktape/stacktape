@@ -9,7 +9,7 @@
  */
 import type { Dirent } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { open, readdir } from 'node:fs/promises';
+import { open, readdir, readFile } from 'node:fs/promises';
 import { extname, join, relative, sep } from 'node:path';
 import { findInstalledPackage, readPackageManifest, type PackageManifest } from './installed-packages';
 
@@ -39,8 +39,11 @@ const hostIsGlibc = () =>
 const hostMatchesLambda = (architecture: LambdaArchitecture) =>
   process.platform === 'linux' && process.arch === architecture && hostIsGlibc();
 
-/** What a compiled file was built for, from its header: Linux on one architecture, or another operating system. */
-type CompiledFormat = 'linux-x64' | 'linux-arm64' | 'linux-other' | 'other-os';
+/**
+ * What a compiled file was built for: Linux with glibc on one architecture, Linux with musl (Alpine), another Linux, or
+ * another operating system.
+ */
+type CompiledFormat = 'linux-x64' | 'linux-arm64' | 'linux-musl' | 'linux-other' | 'other-os';
 
 type CompiledFile = { path: string; format: CompiledFormat };
 
@@ -65,17 +68,29 @@ const TEXT_EXTENSIONS = new Set(
 const MACH_O_HEADERS = new Set(['feedface', 'feedfacf', 'cefaedfe', 'cffaedfe', 'cafebabe']);
 const ELF_MACHINES: Record<number, CompiledFormat> = { 0x3e: 'linux-x64', 0xb7: 'linux-arm64' };
 
+/**
+ * Whether a Linux program or library is linked against musl: its loader (`ld-musl-*`) or C library (`libc.musl-*`,
+ * or plain `libc.so`, where glibc's is `libc.so.6`) appears among its dynamic names.
+ */
+const isLinkedAgainstMusl = (contents: Buffer) =>
+  contents.includes('ld-musl-') ||
+  contents.includes('libc.musl-') ||
+  (contents.includes('\0libc.so\0') && !contents.includes('\0libc.so.6\0'));
+
 const readCompiledFormat = async (path: string): Promise<CompiledFormat | undefined> => {
   const file = await open(path, 'r');
+  let header: Buffer;
   try {
     const { buffer, bytesRead } = await file.read(Buffer.alloc(20), 0, 20, 0);
-    const magic = buffer.subarray(0, Math.min(bytesRead, 4)).toString('hex');
-    if (magic === '7f454c46') return ELF_MACHINES[buffer.readUInt16LE(18)] ?? 'linux-other';
-    if (MACH_O_HEADERS.has(magic) || magic.startsWith('4d5a')) return 'other-os';
-    return undefined;
+    header = buffer.subarray(0, bytesRead);
   } finally {
     await file.close();
   }
+  const magic = header.subarray(0, 4).toString('hex');
+  if (MACH_O_HEADERS.has(magic) || magic.startsWith('4d5a')) return 'other-os';
+  if (magic !== '7f454c46') return undefined;
+  if (isLinkedAgainstMusl(await readFile(path))) return 'linux-musl';
+  return header.length >= 20 ? (ELF_MACHINES[header.readUInt16LE(18)] ?? 'linux-other') : 'linux-other';
 };
 
 const nativeFilesByPackage = new Map<string, Promise<NativeFiles>>();
@@ -161,8 +176,9 @@ export const getNativeReason = async (packageRoot: string): Promise<string | und
  *
  * An addon under `build/` was compiled on this machine, against its Node.js and its C library, so it is rebuilt in the
  * Lambda build image even when the platforms match. Prebuilds are used when they include Lambda's platform; an install
- * script next to them (node-gyp-build) only compiles into `build/` when they do not. Compiled files that are all Linux
- * builds for Lambda's architecture are used on any machine. Anything else an install script left behind, and any other
+ * script next to them (node-gyp-build) only compiles into `build/` when they do not. A file linked against musl is
+ * always installed again. Compiled files that are all glibc Linux builds for Lambda's architecture are used on any
+ * machine. Anything else an install script left behind, and any other
  * compiled file, was chosen for this machine, so it is used only when this machine is Lambda's platform.
  */
 export const isInstalledForLambda = async (packageRoot: string, architecture: LambdaArchitecture) => {
@@ -176,6 +192,8 @@ export const isInstalledForLambda = async (packageRoot: string, architecture: La
   if (addons.some((addon) => addon.split(sep)[0] === 'build')) return false;
   if ((manifest.gypfile || hasBindingGyp) && addons.length === 0) return false;
   if (prebuildPlatforms.length > 0) return prebuildPlatforms.includes(`linux-${architecture}`);
+  // Lambda's C library is glibc, so an addon built on Alpine never loads there, whatever the machine.
+  if (compiled.some(({ format }) => format === 'linux-musl')) return false;
   if (compiled.length > 0 && compiled.every(({ format }) => format === `linux-${architecture}`)) return true;
   const hasInstallScript = INSTALL_SCRIPTS.some((script) => manifest.scripts?.[script]);
   if (hasInstallScript || compiled.length > 0 || manifest.binary?.module_path) return hostMatchesLambda(architecture);
