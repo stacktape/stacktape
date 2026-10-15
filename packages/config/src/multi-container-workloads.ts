@@ -1781,7 +1781,7 @@ export interface ContainerWorkloadContainerBase {
    *
    * A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
    * up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
-   * background.
+   * background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
    *
    * **Example (YAML):**
    *

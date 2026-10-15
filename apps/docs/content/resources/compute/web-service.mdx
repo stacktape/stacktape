@@ -395,7 +395,7 @@ A deploy starts the new containers next to the old ones. Once every new containe
 
 A full `stacktape deploy` finishes after the old containers have stopped, because CloudFormation waits for that. A [hot-swap deploy](/deployment-and-lifecycle/deploying-stacks) (`--hotSwap`) finishes as soon as the new containers are healthy and lets the old ones shut down in the background, which saves about a minute. Handle `SIGTERM` in your app so an old container exits once its requests are done: an app that ignores the signal keeps a full deploy waiting for the whole `stopTimeout`.
 
-With the default `http-api-gateway` load balancing, ECS counts a new container as healthy as soon as it is running, because API Gateway has no health check of its own. Without an `internalHealthCheck`, a hot-swap deploy therefore also waits until the old containers have stopped. A deploy with [gradual deployments](#gradual-deployments) follows the CodeDeploy traffic-shifting strategy instead.
+With the default `http-api-gateway` load balancing, ECS counts a new container as healthy as soon as it is running, because API Gateway has no health check of its own. Without an `internalHealthCheck`, a hot-swap deploy therefore also waits until the old containers have stopped. A deploy with [gradual deployments](#gradual-deployments) follows the CodeDeploy traffic-shifting strategy instead, and its containers keep a 5-second drain and a 2-second default `stopTimeout`.
 
 ## Side containers
 

@@ -17497,7 +17497,7 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait after SIGTERM before SIGKILL (2-120).</p>",
-        "longDescription": "<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground.</p>",
+        "longDescription": "<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
         "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
@@ -45720,7 +45720,7 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait for graceful shutdown before force-killing the container.</p>",
-        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground.</p>",
+        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
         "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
@@ -52198,7 +52198,7 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait after SIGTERM before SIGKILL (2-120).</p>",
-        "longDescription": "<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground.</p>",
+        "longDescription": "<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
         "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
@@ -63641,7 +63641,7 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait for graceful shutdown before force-killing the container.</p>",
-        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground.</p>",
+        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
         "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
@@ -65586,7 +65586,7 @@
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait for graceful shutdown before force-killing the container.</p>",
-        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground.</p>",
+        "longDescription": "<p>The container receives <code>SIGTERM</code> first, then <code>SIGKILL</code> after this timeout. Must be 2-120.</p>\n<p>A full deploy waits until the old containers have stopped, so an app that ignores <code>SIGTERM</code> makes every deploy\nup to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the\nbackground. Services with a gradual <code>deployment</code> (blue/green) default to 2 seconds.</p>",
         "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
