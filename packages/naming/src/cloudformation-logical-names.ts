@@ -1243,6 +1243,13 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
     });
   },
+  lambdaPublicUrlInvokePermission(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'PublicUrlInvoke' },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    });
+  },
   lambdaIotEventPermission(workloadName: string, eventIndex: number) {
     return pascalCase(`${workloadName}-Event${eventIndex}-lambda-iotEventPermission`);
   },

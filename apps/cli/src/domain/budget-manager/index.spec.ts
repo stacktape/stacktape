@@ -32,8 +32,6 @@ afterEach(() => {
 });
 
 const discovery = () => ({
-  resourceTags: spyOn(awsSdkManager.costManagement, 'listResourceTagKeys').mockResolvedValue(['project']),
-  costTags: spyOn(awsSdkManager.costManagement, 'listCostExplorerTags').mockResolvedValue({ tags: ['stack'] }),
   budgets: spyOn(awsSdkManager.costManagement, 'listBudgets').mockResolvedValue([
     { BudgetName: 'existing', TimeUnit: 'MONTHLY', BudgetType: 'COST' }
   ])
@@ -58,15 +56,10 @@ test.each(['http://127.0.0.1:4566', 'http://localhost:4566/', 'https://[::1]:456
     process.env.AWS_ENDPOINT_URL = endpoint;
     process.env.STP_SKIP_COST_DISCOVERY = '1';
     discovery();
-    budgetManager.tagsUsedInRegion = ['stale'];
-    budgetManager.tagsUsableInCostExploring = { tags: ['stale'] };
     budgetManager.budgets = [{ BudgetName: 'stale', TimeUnit: 'MONTHLY', BudgetType: 'COST' }];
     await budgetManager.init();
     await budgetManager.loadBudgets();
-    expect(budgetManager.tagsUsedInRegion).toEqual([]);
-    expect(budgetManager.tagsUsableInCostExploring).toEqual({ error: 'DATA_UNAVAILABLE', tags: [] });
     expect(budgetManager.budgets).toEqual([]);
-    expect(budgetManager.isBudgetingEnabled()).toBe(false);
   }
 );
 
@@ -93,8 +86,6 @@ test.each([undefined, '0', 'true'])('keeps normal AWS discovery without the exac
   else process.env.STP_SKIP_COST_DISCOVERY = value;
   discovery();
   await budgetManager.init();
-  expect(budgetManager.tagsUsedInRegion).toEqual(['project']);
-  expect(budgetManager.tagsUsableInCostExploring).toEqual({ tags: ['stack'] });
   expect(budgetManager.budgets).toEqual([{ BudgetName: 'existing', TimeUnit: 'MONTHLY', BudgetType: 'COST' }]);
 });
 

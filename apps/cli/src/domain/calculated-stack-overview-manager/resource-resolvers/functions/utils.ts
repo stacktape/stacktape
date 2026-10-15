@@ -332,15 +332,28 @@ const getDefaultCorsConfiguration = () => {
   };
 };
 
-export const getLambdaPublicUrlPermission = ({
+/**
+ * Since October 2025, AWS requires two grants for a public function URL: `lambda:InvokeFunctionUrl` and
+ * `lambda:InvokeFunction` limited to calls made through the URL. Without the second one, new URLs return HTTP 403.
+ */
+export const getLambdaPublicUrlPermissions = ({
   lambdaProps: { aliasLogicalName, cfLogicalName }
 }: {
   lambdaProps: StpLambdaFunction | StpHelperLambdaFunction;
 }) => {
-  return cfnResource('AWS::Lambda::Permission', {
-    Principal: '*',
-    Action: 'lambda:InvokeFunctionUrl',
-    FunctionName: aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn'),
-    FunctionUrlAuthType: 'NONE'
-  });
+  const FunctionName = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
+  return {
+    invokeUrl: cfnResource('AWS::Lambda::Permission', {
+      Principal: '*',
+      Action: 'lambda:InvokeFunctionUrl',
+      FunctionName,
+      FunctionUrlAuthType: 'NONE'
+    }),
+    invokeThroughUrl: cfnResource('AWS::Lambda::Permission', {
+      Principal: '*',
+      Action: 'lambda:InvokeFunction',
+      FunctionName,
+      InvokedViaFunctionUrl: true
+    })
+  };
 };

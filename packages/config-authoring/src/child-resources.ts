@@ -106,6 +106,11 @@ export const CHILD_RESOURCES: Record<
       resourceType: 'AWS::Lambda::Permission',
       conditional: true
     },
+    {
+      logicalName: cfLogicalNames.lambdaPublicUrlInvokePermission,
+      resourceType: 'AWS::Lambda::Permission',
+      conditional: true
+    },
     { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
     {
       logicalName: cfLogicalNames.lambdaInvokeConfig,

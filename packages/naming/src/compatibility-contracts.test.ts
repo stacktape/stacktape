@@ -25,6 +25,8 @@ describe('migrated naming compatibility contracts', () => {
     expect({
       bucket: cfLogicalNames.bucket('uploads'),
       lambda: cfLogicalNames.lambda('api'),
+      publicUrlPermission: cfLogicalNames.lambdaPublicUrlPermission('api'),
+      publicUrlInvokePermission: cfLogicalNames.lambdaPublicUrlInvokePermission('api'),
       ecsService: cfLogicalNames.ecsService('web', false),
       blueGreenService: cfLogicalNames.ecsService('web', true),
       route: cfLogicalNames.httpApiRoute({ method: 'GET', path: '/users/{id}', stpResourceName: 'api' }),
@@ -42,6 +44,8 @@ describe('migrated naming compatibility contracts', () => {
     }).toEqual({
       bucket: 'UploadsBucket',
       lambda: 'ApiFunction',
+      publicUrlPermission: 'ApiPublicUrlPermission',
+      publicUrlInvokePermission: 'ApiPublicUrlInvokePermission',
       ecsService: 'WebService',
       blueGreenService: 'WebBlueGreenService',
       route: 'StpApiGetUsersIdRoute',

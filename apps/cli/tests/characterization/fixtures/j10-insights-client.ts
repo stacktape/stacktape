@@ -89,13 +89,8 @@ const main = async () => {
       defaultRegion: 'eu-west-1'
     };
     await budgetManager.loadBudgets();
-    budgetManager.tagsUsableInCostExploring = await awsSdkManager.costManagement.listCostExplorerTags();
     console.log(
-      JSON.stringify({
-        enabled: budgetManager.isBudgetingEnabled(),
-        available: budgetManager.isBudgetingAvailableForDeploymentRegion(),
-        spend: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: 'shop-production' })
-      })
+      JSON.stringify({ spend: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: 'shop-production' }) })
     );
     // The normal CLI command lifecycle exits after completion; SDK fetch deadline timers otherwise keep this fixture alive.
     process.exit(0);

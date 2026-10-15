@@ -10,7 +10,6 @@ import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
-import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
@@ -18,7 +17,6 @@ import { LambdaClient } from '@aws-sdk/client-lambda';
 import { OpenSearchClient } from '@aws-sdk/client-opensearch';
 import { RDSClient } from '@aws-sdk/client-rds';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
-import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { S3Client } from '@aws-sdk/client-s3';
 import {
   DeleteParameterCommand,
@@ -378,12 +376,7 @@ describe.serial('AWS SDK client construction', () => {
     expect(pluginApplications).toBe(1);
   });
 
-  test.serial('constructs all cost-management clients from the manager context', async () => {
-    const capturedResourceTagging = captureSend<ResourceGroupsTaggingAPIClient>(
-      ResourceGroupsTaggingAPIClient.prototype,
-      { TagKeys: [] }
-    );
-    const capturedCostExplorer = captureSend<CostExplorerClient>(CostExplorerClient.prototype, { Tags: [] });
+  test.serial('constructs the budgets client from the manager context', async () => {
     const capturedBudgets = captureSend<BudgetsClient>(BudgetsClient.prototype, { Budgets: [] });
     let pluginApplications = 0;
     const plugin: Pluggable<any, any> = {
@@ -393,14 +386,10 @@ describe.serial('AWS SDK client construction', () => {
     };
     const costManagement = managerWith([plugin]).costManagement;
 
-    await costManagement.listResourceTagKeys();
-    await costManagement.listCostExplorerTags();
     await costManagement.listBudgets({ accountId: '123456789012' });
 
-    expect(await capturedResourceTagging().config.region()).toBe('eu-west-1');
-    expect(await capturedCostExplorer().config.region()).toBe('eu-west-1');
     expect(await capturedBudgets().config.region()).toBe('eu-west-1');
-    expect(pluginApplications).toBe(3);
+    expect(pluginApplications).toBe(1);
   });
 
   test.serial('constructs CloudFront clients from the manager context', async () => {
