@@ -11,7 +11,11 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 import { describe, expect, test } from 'bun:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { ECSClient, UpdateServiceCommand, type UpdateServiceCommandInput } from '@aws-sdk/client-ecs';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { configManager } from '@domain-services/config-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { updateEcsService } from '../../src/commands/_utils/cw-deployment';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
   AgentCoreBrowser,
@@ -610,7 +614,73 @@ describe('container rolling deployment family', () => {
     expect(stopTimeouts(template, 'worker')).toEqual([10]);
   });
 
-  test('a blue/green service keeps the CodeDeploy rollout and the short drain', async () => {
+  test('a hotswap sends the overridden deployment configuration that CloudFormation receives', async () => {
+    const serviceLogicalId = cfLogicalNames.ecsService('albWeb', false);
+    const template = await synthesizeFamily(
+      'container-rolling-deployment-hotswap-overrides',
+      config({
+        overrides: {
+          [serviceLogicalId]: {
+            DeploymentConfiguration: {
+              EarlySuccessCriteria: { Enable: false },
+              MaximumPercent: 150,
+              MinimumHealthyPercent: 50
+            }
+          }
+        }
+      })
+    );
+    const templateConfiguration = (template.Resources[serviceLogicalId] as Resource).Properties
+      ?.DeploymentConfiguration;
+    expect(templateConfiguration).toEqual({
+      DeploymentCircuitBreaker: { Enable: true, Rollback: true },
+      EarlySuccessCriteria: { ...earlySuccess, Enable: false },
+      MaximumPercent: 150,
+      MinimumHealthyPercent: 50
+    });
+
+    const { startRollingUpdate, waitForRollingUpdate } = awsSdkManager.ecs;
+    let sent: UpdateServiceCommandInput | undefined;
+    awsSdkManager.ecs.startRollingUpdate = async (input) => {
+      sent = input;
+    };
+    awsSdkManager.ecs.waitForRollingUpdate = async () => {};
+    try {
+      await updateEcsService({
+        workload: configManager.allContainerWorkloads.find(({ name }) => name === 'albWeb')!,
+        ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/albWeb',
+        blueGreen: false,
+        ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },
+        ecsService: { needsUpdate: true, currentState: {} }
+      } as unknown as Parameters<typeof updateEcsService>[0]);
+    } finally {
+      awsSdkManager.ecs.startRollingUpdate = startRollingUpdate;
+      awsSdkManager.ecs.waitForRollingUpdate = waitForRollingUpdate;
+    }
+
+    // What the SDK puts on the wire, so a key in the wrong casing cannot pass unnoticed.
+    let wireBody: { deploymentConfiguration?: unknown } = {};
+    const client = new ECSClient({
+      region: 'eu-west-1',
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+      requestHandler: {
+        handle: async (request: { body: string | Uint8Array }) => {
+          const body = typeof request.body === 'string' ? request.body : new TextDecoder().decode(request.body);
+          wireBody = JSON.parse(body);
+          return { response: { statusCode: 200, headers: {}, body: new TextEncoder().encode('{}') } };
+        }
+      } as never
+    });
+    await client.send(new UpdateServiceCommand(sent!));
+    expect(wireBody.deploymentConfiguration).toEqual({
+      deploymentCircuitBreaker: { enable: true, rollback: true },
+      earlySuccessCriteria: { enable: false, healthyPercent: 100, sourceServiceRevisionCleanup: 'DEFERRED' },
+      maximumPercent: 150,
+      minimumHealthyPercent: 50
+    });
+  });
+
+  test('a blue/green service keeps the CodeDeploy rollout, the short drain and the short stop timeout', async () => {
     // Not written for cfn-lint: it does not know the Stacktape blue/green resource type.
     const template = await synthesizeFixture({
       compiledConfig: defineConfig(() => ({
@@ -630,6 +700,7 @@ describe('container rolling deployment family', () => {
       MinimumHealthyPercent: 100
     });
     expect(new Set(deregistrationDelays(template, 'gradualWeb', true))).toEqual(new Set(['5']));
+    expect(stopTimeouts(template, 'gradualWeb')).toEqual([2]);
   });
 
   test('overrides replace the deployment and drain defaults', async () => {

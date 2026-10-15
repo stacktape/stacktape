@@ -435,7 +435,9 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       DockerLabels: Object.keys(secretVersionLabels).length ? secretVersionLabels : undefined,
       EntryPoint: entryPoint,
       Command: command,
-      StopTimeout: container.stopTimeout || DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS,
+      StopTimeout:
+        container.stopTimeout ||
+        (workload.deployment ? BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS : DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS),
       LogConfiguration: isLoggingEnabled
         ? {
             LogDriver: 'awslogs',
@@ -874,6 +876,8 @@ const getFormattedListenerRulesLogicalNames = ({ workload }: { workload: StpCont
 // Time an app gets between SIGTERM and SIGKILL to finish in-flight work. An app that exits on SIGTERM does not
 // wait for it; one that ignores the signal holds up a CloudFormation deploy for the full window.
 const DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS = 30;
+// Blue/green (CodeDeploy) services keep their previous default; their rollout was not measured with a longer one.
+const BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS = 2;
 
 /**
  * Whether a rolling deployment succeeds as soon as every new task is healthy (ECS early success). ECS then drains and
