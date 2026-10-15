@@ -666,9 +666,10 @@ export const getStacktapeServiceLambdaNatFailoverStatements = ({
       Action: ['ssm:GetParameter', 'ssm:GetParameters']
     },
     {
-      // The marker tag that remembers an open failover incident lives on the zone's own interface.
+      // The marker tag that remembers an open failover incident lives on the zone's own interface. Writing it is
+      // covered by the custom tagger's `ec2:CreateTags`; removing it needs this one.
       Resource: [`arn:${partition}:ec2:${region}:${accountId}:network-interface/*`],
-      Action: ['ec2:CreateTags', 'ec2:DeleteTags'],
+      Action: ['ec2:DeleteTags'],
       Condition: { StringEquals: { [`aws:ResourceTag/${tagNames.stackName()}`]: stackName } }
     }
   ];

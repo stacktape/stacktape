@@ -516,9 +516,7 @@ export interface StacktapeConfig {
    *       description: Public URL of the web service
    *   stackInfoDirectory: .stacktape-stack-info/
    *   disableStackInfoSaving: false
-   *   vpc:
-   *     nat:
-   *       availabilityZones: 2
+   *   nat: ha-ec2
    * # stp-end-focus
    * resources:
    *   api:
@@ -559,7 +557,7 @@ export interface StacktapeConfig {
    *       ],
    *       stackInfoDirectory: '.stacktape-stack-info/',
    *       disableStackInfoSaving: false,
-   *       vpc: { nat: { availabilityZones: 2 } }
+   *       nat: 'ha-ec2'
    *     },
    *     // stp-end-focus
    *     resources: { api }

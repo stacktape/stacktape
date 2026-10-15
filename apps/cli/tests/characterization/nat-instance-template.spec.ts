@@ -6,7 +6,7 @@ import { defineConfig, JsBundleLambdaPackaging, LambdaFunction } from '@stacktap
 import { synthesizeFixture } from './synthesis-fixture';
 
 /**
- * `stackConfig.vpc.nat` decides two things: whether VPC functions get the private subnets (and so outbound internet),
+ * `stackConfig.nat` decides two things: whether VPC functions get the private subnets (and so outbound internet),
  * and whether the NAT is a managed gateway or Stacktape-managed instances. The gateway template is the compatibility
  * promise: its logical IDs are what existing stacks have, and a switch to instances must only touch the NAT
  * resources and the routes.

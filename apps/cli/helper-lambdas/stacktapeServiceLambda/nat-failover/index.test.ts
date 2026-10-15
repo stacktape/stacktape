@@ -165,6 +165,19 @@ describe('route reconciliation', () => {
     expect(marks).toEqual([['eni-1', true]]);
   });
 
+  test('clears a failure note that never became an incident once the zone is healthy at home', async () => {
+    const { deps, reports, marks } = createDeps({
+      zones: [
+        healthyZone(0),
+        { ...healthyZone(1, 'i-new'), instanceFailure: 'the outbound check failed 3 times in a row' }
+      ],
+      routes: homeRoutes
+    });
+    await runNatFailover(topology, deps);
+    expect(reports).toEqual([]);
+    expect(marks).toEqual([['eni-1', false]]);
+  });
+
   test('opens one incident when a serving instance stops forwarding, and closes it once home again', async () => {
     const stale = {
       ...healthyZone(1),

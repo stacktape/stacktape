@@ -743,9 +743,12 @@ const validateNatConfig = ({ configManager }: { configManager: ConfigManager }) 
   const nat = configManager.config?.stackConfig?.nat;
   const required = configManager.resourcesRequiringNat;
   if (!nat) {
-    // A reused VPC brings its owner's NAT; this stack creates none and cannot ask for one. Deleting a stack must
-    // never be blocked by a setting the stack still needs to add.
-    if (required.length && !configManager.reuseVpcConfig && configManager.deploymentContext.command !== 'delete') {
+    // A reused VPC brings its owner's NAT; this stack creates none and cannot ask for one. Only commands that build
+    // the template are blocked: logs, info, delete and the rest keep working on a stack that still has to add it.
+    const buildsTemplate = ['deploy', 'package', 'synth', 'diff', 'validate'].includes(
+      configManager.deploymentContext.command
+    );
+    if (required.length && !configManager.reuseVpcConfig && buildsTemplate) {
       throw configErrors.natRequired({ resourceNames: required.map(({ name }) => name) });
     }
     return;

@@ -6,7 +6,6 @@
   "type": "module",
   "exports": {
     ".": "./src/config.ts",
-    "./config-schema.json": "./generated/config-schema.json",
     "./agentcore": "./src/agentcore.ts",
     "./alarm-metrics": "./src/alarm-metrics.ts",
     "./alarms": "./src/alarms.ts",
@@ -20,6 +19,7 @@
     "./buckets": "./src/buckets.ts",
     "./budget": "./src/budget.ts",
     "./cdn": "./src/cdn.ts",
+    "./config-schema.json": "./generated/config-schema.json",
     "./container-workload-resources": "./src/container-workload-resources.ts",
     "./convex": "./src/convex.ts",
     "./custom-resources": "./src/custom-resources.ts",
@@ -40,6 +40,7 @@
     "./log-forwarding": "./src/log-forwarding.ts",
     "./mongo-db-atlas-clusters": "./src/mongo-db-atlas-clusters.ts",
     "./multi-container-workloads": "./src/multi-container-workloads.ts",
+    "./nat": "./src/nat.ts",
     "./network-load-balancer": "./src/network-load-balancer.ts",
     "./nextjs-web": "./src/nextjs-web.ts",
     "./notification-channels": "./src/notification-channels.ts",

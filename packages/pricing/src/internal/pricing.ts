@@ -5,6 +5,7 @@ import { camelCase } from 'change-case';
 import { createReadStream, remove } from 'fs-extra';
 import Downloader from 'nodejs-file-downloader';
 import type { StacktapeConfig } from '@stacktape/config';
+import { DEFAULT_NAT_INSTANCE_SIZE } from '@stacktape/config/nat';
 import type { RdsEngine } from '@stacktape/config/relational-databases';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 import {
@@ -1904,7 +1905,6 @@ export const loadProductPricesIntoDynamoTable = async ({
 
 /** The breakdown key of the stack-level NAT entry; it is not a resource name, which cannot contain a space. */
 export const NAT_BREAKDOWN_KEY = 'vpc nat';
-const DEFAULT_NAT_INSTANCE_SIZE = 't4g.nano';
 
 /**
  * NAT is a stack-level cost that exists when a container workload uses the private subnets or when `vpc.nat` is set

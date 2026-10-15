@@ -137,7 +137,9 @@ const getHeartbeatParameter = (azIndex: number) => {
   return cfnResource('AWS::SSM::Parameter', {
     Name: getNatInstanceHeartbeatParameterName({ stackName, region, azIndex }),
     Type: 'String',
-    // The instance overwrites it; CloudFormation only owns the parameter's existence.
+    // The instance overwrites it; CloudFormation only owns the parameter's existence. Keep these properties stable:
+    // any change makes CloudFormation rewrite the value, and the next probe would take the zone for unverified
+    // until the heartbeat (20 s) lands again.
     Value: '{}',
     Description: `Heartbeat of the Stacktape NAT instance in availability zone ${azIndex}`
   });
@@ -158,7 +160,6 @@ ENI_ID='\${eniId}'
 EIP_ALLOCATION_ID='\${eipAllocationId}'
 STACK_NAME='\${stackName}'
 ASG_LOGICAL_ID='\${asgLogicalId}'
-ASG_NAME='\${asgName}'
 HEARTBEAT_PARAMETER='${getNatInstanceHeartbeatParameterName({ stackName, region, azIndex })}'
 REGION='\${AWS::Region}'
 export AWS_DEFAULT_REGION="$REGION"
@@ -340,11 +341,7 @@ echo "stacktape-nat: ready (zone ${azIndex} of ${availabilityZones})"
       eniId: ref(cfLogicalNames.natInstanceNetworkInterface(azIndex)),
       eipAllocationId: getAtt(cfLogicalNames.natInstanceElasticIp(azIndex), 'AllocationId'),
       stackName: ref('AWS::StackName'),
-      asgLogicalId: cfLogicalNames.natInstanceAutoscalingGroup(azIndex),
-      asgName: awsResourceNames.natInstanceAutoscalingGroup({
-        stackName: calculatedStackOverviewManager.context.stackName,
-        azIndex
-      })
+      asgLogicalId: cfLogicalNames.natInstanceAutoscalingGroup(azIndex)
     })
   );
 };

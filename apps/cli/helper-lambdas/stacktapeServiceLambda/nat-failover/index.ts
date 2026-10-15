@@ -52,6 +52,8 @@ export type ZoneHealth = {
   terminatingInstanceIds: string[];
   /** Whether an incident for this zone is open (the zone's interface carries the marker tag). */
   failoverReported: boolean;
+  /** The failure reason the zone's instance left on the interface, until the zone is healthy again. */
+  instanceFailure?: string;
   reason: string;
 };
 
@@ -120,7 +122,8 @@ const evaluateInstanceHealth = ({
   const base = {
     azIndex: zone.azIndex,
     terminatingInstanceIds: zone.terminatingInstanceIds,
-    failoverReported: zone.failoverReported ?? false
+    failoverReported: zone.failoverReported ?? false,
+    ...(zone.instanceFailure && { instanceFailure: zone.instanceFailure })
   };
   if (!zone.instance) return { ...base, healthy: false, failed: false, reason: 'no instance in service' };
   const { instanceId, lifecycleState, healthStatus } = zone.instance;
@@ -226,8 +229,12 @@ export const runNatFailover = async (topology: NatFailoverTopology, deps: NatFai
         reason: zone.reason
       });
       await deps.markReported(home.networkInterfaceId as string, true);
-    } else if (zone.failoverReported && zone.healthy && !servedElsewhere) {
-      await deps.report({ type: 'ALARM_RESOLVED', azIndex: zone.azIndex, reason: zone.reason });
+    } else if (zone.healthy && !servedElsewhere && (zone.failoverReported || zone.instanceFailure)) {
+      // Home and healthy: close the incident if one was opened, and always clear the instance's failure note so a
+      // failure that found no fallback zone cannot turn a later planned replacement into an incident.
+      if (zone.failoverReported) {
+        await deps.report({ type: 'ALARM_RESOLVED', azIndex: zone.azIndex, reason: zone.reason });
+      }
       await deps.markReported(home.networkInterfaceId as string, false);
     }
   }
@@ -276,8 +283,14 @@ const createAwsDependencies = (): NatFailoverDependencies => {
         .flatMap((group) => group.Instances ?? [])
         .filter(({ LifecycleState }) => LifecycleState === 'InService')
         .map(({ InstanceId }) => InstanceId!);
+      // An instance can be terminated between the two calls; an unknown status must not stop the whole run.
       const statuses = inServiceIds.length
-        ? await ec2.send(new DescribeInstanceStatusCommand({ InstanceIds: inServiceIds, IncludeAllInstances: true }))
+        ? await ec2
+            .send(new DescribeInstanceStatusCommand({ InstanceIds: inServiceIds, IncludeAllInstances: true }))
+            .catch((error: unknown) => {
+              console.warn(`[nat-failover] instance status unavailable: ${String(error)}`);
+              return { InstanceStatuses: [] };
+            })
         : { InstanceStatuses: [] };
       return topology.zones.map((zone) => {
         const group = groups.AutoScalingGroups?.find(

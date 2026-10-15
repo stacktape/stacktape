@@ -2260,7 +2260,7 @@ export class ConfigManager {
 
   /** Functions that join the VPC; without `stackConfig.nat` they have no outbound internet access. */
   get vpcLambdas() {
-    return [...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions].filter(
+    return [...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions, ...this.allSsrWebLambdaFunctions].filter(
       ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
     );
   }

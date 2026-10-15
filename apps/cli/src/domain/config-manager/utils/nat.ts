@@ -1,4 +1,4 @@
-export const DEFAULT_NAT_INSTANCE_SIZE = 't4g.nano';
+export { DEFAULT_NAT_INSTANCE_SIZE } from '@stacktape/config/nat';
 
 /**
  * NAT instances run the arm64 Amazon Linux 2023 image, so the size must be a Graviton one. Graviton families carry a
