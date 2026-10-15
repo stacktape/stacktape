@@ -23,6 +23,7 @@ import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
   deleteAgentLockFile,
+  getLockFilePath,
   getRunningAgent,
   spawnAgentDaemon,
   writeAgentLockFile
@@ -47,6 +48,7 @@ import { findAvailablePort } from './port-utils';
 import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
+import { setDevSessionOwner } from './cleanup-utils';
 import { registerNamedProxyCleanupHook } from './named-proxy/manager';
 
 type DevCompatibleResource = {
@@ -440,6 +442,24 @@ export const commandDev = async () => {
       agentReadyHeartbeatStopper = () => clearInterval(heartbeat);
     }
   }
+
+  // Every session, terminal or agent, records itself before it starts anything, and labels its containers with that
+  // record, so `dev:stop --cleanupContainers` can tell a live session's containers from abandoned ones.
+  writeAgentLockFile({
+    pid: process.pid,
+    port: getAgentPort() ?? 0,
+    phase: 'starting',
+    projectName: stackContext.projectName,
+    stage: stackContext.stage,
+    region: stackContext.region,
+    startedAt: new Date().toISOString(),
+    workloads: [],
+    databases: []
+  });
+  setDevSessionOwner({ lockFile: getLockFilePath(stackContext.projectName, stackContext.stage), pid: process.pid });
+  applicationManager.registerCleanUpHook(async () => {
+    deleteAgentLockFile(stackContext.projectName, stackContext.stage);
+  });
 
   const devHeader = {
     action: 'RUNNING DEV MODE',

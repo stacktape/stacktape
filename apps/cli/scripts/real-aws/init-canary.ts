@@ -7,6 +7,7 @@ import {
   type Stack
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { BatchDeleteImageCommand, ECRClient, ListImagesCommand } from '@aws-sdk/client-ecr';
 import {
   DeleteSecretCommand,
   DescribeSecretCommand,
@@ -27,10 +28,15 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import type { AwsCredentialIdentityProvider } from '@aws-sdk/types';
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { access, chmod, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, cp, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { withPersistedApiKey } from '../../src/app/global-state-manager/api-key-storage';
+import {
+  STACKTAPE_DEVELOPMENT_TRPC_API_ENDPOINT,
+  STACKTAPE_PRODUCTION_TRPC_API_ENDPOINT
+} from '../../src/config/params';
 import type { WizardState, WizardVerification } from '../../src/init/server/wizard-server';
 import { generatedSecretNames, isGeneratedSecretNameForProject } from '../../src/init/deploy/generated-secrets';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
@@ -112,6 +118,7 @@ export type InitCanaryState = {
 
 type AwsClients = {
   cloudFormation: CloudFormationClient;
+  ecr: ECRClient;
   logs: CloudWatchLogsClient;
   s3: S3Client;
   secrets: SecretsManagerClient;
@@ -200,6 +207,56 @@ export const buildWizardEnvironment = (env: Environment, platform: NodeJS.Platfo
   return result;
 };
 
+/**
+ * The wizard as a signed-in developer runs it: the API key persisted in HOME for the CLI's endpoint, exactly where
+ * `stacktape login` and the wizard's own sign-in put it, and no STACKTAPE_API_KEY in the environment. The target
+ * check, the deploy and the URL lookup are children of the wizard, so each has to find the credentials there.
+ *
+ * HOME is a fresh directory, so the developer's own Stacktape state is never read or written. AWS keeps reading the
+ * developer's profile files, and Docker its CLI plugins.
+ */
+export const buildSignedInWizardEnvironment = async ({
+  env,
+  options,
+  home
+}: {
+  env: Environment;
+  options: CanaryOptions;
+  home: string;
+}): Promise<Environment> => {
+  const apiKey = env.STACKTAPE_API_KEY;
+  assert(typeof apiKey === 'string' && apiKey.length > 0, 'STACKTAPE_API_KEY is required to sign the wizard in.');
+  const endpoint =
+    env.STP_CUSTOM_TRPC_API_ENDPOINT ||
+    (options.cli.mode === 'source' ? STACKTAPE_DEVELOPMENT_TRPC_API_ENDPOINT : STACKTAPE_PRODUCTION_TRPC_API_ENDPOINT);
+  const empty = { cliArgsDefaults: {}, otherDefaults: {} } as Parameters<
+    typeof withPersistedApiKey
+  >[0]['persistedState'];
+  await mkdir(join(home, '.stacktape'), { recursive: true });
+  await writeFile(
+    join(home, '.stacktape', 'persisted-state.json'),
+    JSON.stringify(withPersistedApiKey({ persistedState: empty, apiKey, endpoint })),
+    { mode: 0o600 }
+  );
+  const developerHome = env.HOME ?? homedir();
+  const dockerConfig = join(home, '.docker');
+  await mkdir(dockerConfig, { recursive: true });
+  await symlink(join(developerHome, '.docker', 'cli-plugins'), join(dockerConfig, 'cli-plugins')).catch(
+    () => undefined
+  );
+
+  const result = buildWizardEnvironment(env);
+  delete result.STACKTAPE_API_KEY;
+  return {
+    ...result,
+    HOME: home,
+    USERPROFILE: home,
+    DOCKER_CONFIG: dockerConfig,
+    AWS_CONFIG_FILE: env.AWS_CONFIG_FILE ?? join(developerHome, '.aws', 'config'),
+    AWS_SHARED_CREDENTIALS_FILE: env.AWS_SHARED_CREDENTIALS_FILE ?? join(developerHome, '.aws', 'credentials')
+  };
+};
+
 const credentialProvider = (options: CanaryOptions): AwsCredentialIdentityProvider =>
   options.credentials.mode === 'profile' ? fromIni({ profile: options.credentials.profile }) : fromEnv();
 
@@ -208,6 +265,7 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
   const config = { credentials, maxAttempts: 6, region: options.region };
   return {
     cloudFormation: new CloudFormationClient(config),
+    ecr: new ECRClient(config),
     logs: new CloudWatchLogsClient(config),
     s3: new S3Client(config),
     secrets: new SecretsManagerClient(config),
@@ -217,6 +275,7 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
 
 const closeClients = (clients: AwsClients) => {
   clients.cloudFormation.destroy();
+  clients.ecr.destroy();
   clients.logs.destroy();
   clients.s3.destroy();
   clients.secrets.destroy();
@@ -230,9 +289,11 @@ const isMissingSecretError = (error: unknown) =>
   error instanceof Error &&
   (error.name === 'ResourceNotFoundException' || /can't find the specified secret/i.test(error.message));
 
+/** The live stack, if any. Looked up by id, a deleted stack is still returned for 90 days as DELETE_COMPLETE. */
 const describeStack = async (client: CloudFormationClient, stackNameOrId: string): Promise<Stack | undefined> => {
   try {
-    return (await client.send(new DescribeStacksCommand({ StackName: stackNameOrId }))).Stacks?.[0];
+    const stack = (await client.send(new DescribeStacksCommand({ StackName: stackNameOrId }))).Stacks?.[0];
+    return stack?.StackStatus === 'DELETE_COMPLETE' ? undefined : stack;
   } catch (error) {
     if (isMissingStackError(error)) return undefined;
     throw error;
@@ -436,7 +497,7 @@ const readStream = (stream: NodeJS.ReadableStream | null): Promise<string> =>
     stream.once('error', reject);
   });
 
-const runPlainCli = async (options: CanaryOptions, args: string[], env: Environment) => {
+const runCli = async (options: CanaryOptions, args: string[], env: Environment) => {
   const child = spawnCli(options, args, env);
   const stdoutPromise = readStream(child.stdout);
   const stderrPromise = readStream(child.stderr);
@@ -445,19 +506,33 @@ const runPlainCli = async (options: CanaryOptions, args: string[], env: Environm
     stdoutPromise,
     stderrPromise
   ]);
+  return { exitCode, stdout, stderr };
+};
+
+const runPlainCli = async (options: CanaryOptions, args: string[], env: Environment) => {
+  const { exitCode, stdout, stderr } = await runCli(options, args, env);
   assert(exitCode === 0, `Stacktape ${args[0]} exited with ${exitCode}: ${outputTail(stderr)}`);
   return { stdout, stderr };
 };
 
 const runJsonlCli = async (options: CanaryOptions, args: string[], env: Environment) => {
-  const { stdout, stderr } = await runPlainCli(options, args, env);
+  const { exitCode, stdout, stderr } = await runCli(options, args, env);
   let parsed: ReturnType<typeof parseCliJsonl>;
   try {
     parsed = parseCliJsonl(stdout, args[0]!);
   } catch (error) {
-    throw new Error(`Could not verify Stacktape ${args[0]} output.\nStderr:\n${outputTail(stderr)}`, { cause: error });
+    throw new Error(
+      `Could not verify Stacktape ${args[0]} output (exit ${exitCode}).\nStderr:\n${outputTail(stderr)}`,
+      {
+        cause: error
+      }
+    );
   }
-  assert(parsed.result.ok, `Stacktape ${args[0]} failed: ${parsed.result.code}: ${parsed.result.message}`);
+  // The result record says why a command failed; the exit code alone does not.
+  assert(
+    exitCode === 0 && parsed.result.ok,
+    `Stacktape ${args[0]} failed (exit ${exitCode}): ${parsed.result.code}: ${parsed.result.message}`
+  );
   return parsed;
 };
 
@@ -479,15 +554,23 @@ const stackArgs = (options: InitCanaryOptions, configPath?: string) => [
   ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : [])
 ];
 
+/** For commands that act on the deployed stack. With two connected accounts they cannot pick one themselves. */
+const deployedStackArgs = (options: InitCanaryOptions, configPath?: string) => [
+  ...stackArgs(options, configPath),
+  '--awsAccount',
+  options.awsAccount
+];
+
 const startWizard = async ({
   options,
   workspace,
-  env,
+  wizardEnv,
   signal
 }: {
   options: InitCanaryOptions;
   workspace: string;
-  env: Environment;
+  /** Already prepared by `buildSignedInWizardEnvironment`. */
+  wizardEnv: Environment;
   signal: AbortSignal;
 }): Promise<RunningWizard> => {
   const child = spawnCli(
@@ -506,7 +589,7 @@ const startWizard = async ({
       '--awsAccount',
       options.awsAccount
     ],
-    buildWizardEnvironment(env)
+    wizardEnv
   );
 
   let combined = '';
@@ -736,10 +819,10 @@ const verifyHealth = async ({
   if (fixture.health.kind === 'none') return;
   const resourceName = healthResourceName({ fixture, state });
   assert(resourceName, `Could not find ${fixture.health.resourceType} resource for the health check.`);
-  const configPath = requiredString(state.configFile?.path, 'Written config path');
+  // A deployed parameter is read from the stack itself; param:get takes no working directory.
   const result = await runJsonlCli(
     options,
-    ['param:get', ...stackArgs(options, configPath), '--resourceName', resourceName, '--paramName', 'url', '--agent'],
+    ['param:get', ...deployedStackArgs(options), '--resourceName', resourceName, '--paramName', 'url', '--agent'],
     env
   );
   const value = commandResult(result.result);
@@ -846,23 +929,71 @@ const emptyBucket = async (client: S3Client, bucket: string) => {
 };
 
 const emptyStackBuckets = async (clients: AwsClients, state: InitCanaryState, stackId: string) => {
-  const buckets = new Set<string>();
+  const buckets = new Map<string, string>();
   let nextToken: string | undefined;
   do {
     const page = await clients.cloudFormation.send(
       new ListStackResourcesCommand({ StackName: stackId, NextToken: nextToken })
     );
     for (const resource of page.StackResourceSummaries ?? []) {
-      if (resource.ResourceType === 'AWS::S3::Bucket' && resource.PhysicalResourceId !== undefined) {
-        buckets.add(resource.PhysicalResourceId);
+      // A retried cleanup still lists a bucket an earlier DeleteStack already removed.
+      if (
+        resource.ResourceType === 'AWS::S3::Bucket' &&
+        resource.PhysicalResourceId !== undefined &&
+        resource.ResourceStatus !== 'DELETE_COMPLETE'
+      ) {
+        buckets.set(resource.PhysicalResourceId, resource.LogicalResourceId ?? '');
       }
     }
     nextToken = page.NextToken;
   } while (nextToken !== undefined);
 
-  for (const bucket of buckets) {
-    assert(bucket.startsWith(`${state.stackName}-`), `Refusing to empty unexpected bucket ${bucket}.`);
+  for (const [bucket, logicalId] of buckets) {
+    // Stacktape names its deployment bucket `stp-deployment-bucket-<hash>`, never after the stack. It is still only
+    // reached through the stack whose identity cleanup has already verified.
+    assert(
+      bucket.startsWith(`${state.stackName}-`) ||
+        (logicalId === 'StpDeploymentBucket' && /^stp-deployment-bucket-[a-z0-9]+$/.test(bucket)),
+      `Refusing to empty unexpected bucket ${bucket}.`
+    );
     await emptyBucket(clients.s3, bucket);
+  }
+};
+
+/**
+ * Empty the stack's own image repository. CloudFormation cannot delete a repository that still holds images, so a
+ * direct DeleteStack after a failed `stacktape delete` would otherwise stop at DELETE_FAILED.
+ */
+const emptyStackRepositories = async (clients: AwsClients, stackId: string) => {
+  const repositories: string[] = [];
+  let nextToken: string | undefined;
+  do {
+    const page = await clients.cloudFormation.send(
+      new ListStackResourcesCommand({ StackName: stackId, NextToken: nextToken })
+    );
+    for (const resource of page.StackResourceSummaries ?? []) {
+      if (
+        resource.ResourceType === 'AWS::ECR::Repository' &&
+        resource.LogicalResourceId === 'StpContainerRepository' &&
+        resource.PhysicalResourceId !== undefined &&
+        resource.ResourceStatus !== 'DELETE_COMPLETE'
+      ) {
+        repositories.push(resource.PhysicalResourceId);
+      }
+    }
+    nextToken = page.NextToken;
+  } while (nextToken !== undefined);
+
+  for (const repositoryName of repositories) {
+    // A multi-platform image is an index plus child manifests (the image and its attestation). The children become
+    // deletable only once the index is gone, so pass over the repository until it is empty.
+    for (let pass = 0; ; pass += 1) {
+      const imageIds =
+        (await clients.ecr.send(new ListImagesCommand({ repositoryName, maxResults: 100 }))).imageIds ?? [];
+      if (imageIds.length === 0) break;
+      assert(pass < 10, `Could not empty the image repository ${repositoryName}.`);
+      await clients.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
+    }
   }
 };
 
@@ -958,7 +1089,7 @@ const cleanup = async (
     let cliDeleteError: unknown;
     try {
       assert(configPath !== undefined, 'No generated config is available for Stacktape cleanup.');
-      await runJsonlCli(options, ['delete', ...stackArgs(options, configPath), '--agent'], env);
+      await runJsonlCli(options, ['delete', ...deployedStackArgs(options, configPath), '--agent'], env);
       await waitForStackAbsence(clients.cloudFormation, stackId, state.stackName, abortSignal);
     } catch (error) {
       cliDeleteError = error;
@@ -972,6 +1103,7 @@ const cleanup = async (
         try {
           assertStackBelongsToState(remaining, state);
           await emptyStackBuckets(clients, state, stackId);
+          await emptyStackRepositories(clients, stackId);
           await clients.cloudFormation.send(new DeleteStackCommand({ StackName: stackId }));
           await waitForStackAbsence(clients.cloudFormation, stackId, state.stackName, abortSignal);
         } catch (fallbackError) {
@@ -980,7 +1112,13 @@ const cleanup = async (
             `Both Stacktape and direct CloudFormation cleanup failed for ${state.stackName}.`
           );
         }
-        console.warn(`Stacktape cleanup failed for ${state.stackName}; direct CloudFormation deletion succeeded.`);
+        console.warn(
+          `Stacktape cleanup failed for ${state.stackName}; direct CloudFormation deletion succeeded. ${
+            cliDeleteError instanceof Error
+              ? cliDeleteError.message.slice(0, 600)
+              : String(cliDeleteError).slice(0, 600)
+          }`
+        );
       }
     }
   }
@@ -1068,7 +1206,8 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
     const workspace = join(temporaryRoot, options.projectName);
     await cp(fixture.sourceDirectory, workspace, { recursive: true, errorOnExist: true });
 
-    wizard = await startWizard({ options, workspace, env, signal: operationAbort.signal });
+    const wizardEnv = await buildSignedInWizardEnvironment({ env, options, home: join(temporaryRoot, 'home') });
+    wizard = await startWizard({ options, workspace, wizardEnv, signal: operationAbort.signal });
     const ready = await wizard.client.getState();
     assert(ready.phase === 'ready', `Wizard started in ${ready.phase}, expected ready.`);
     assert(
@@ -1138,6 +1277,25 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
     assert(
       checkedTarget.deployTarget.region === options.region && checkedTarget.deployTarget.stackName === stackName,
       `Authoritative deploy target was ${checkedTarget.deployTarget.stackName} in ${checkedTarget.deployTarget.region}, expected ${stackName} in ${options.region}.`
+    );
+    // Consent is bound to the reviewed bytes. Editing the file after the check must turn the next "create" into a
+    // fresh read-only check rather than a deployment; only a second confirmation of the new file deploys.
+    const reviewedConfigPath = requiredString(checkedTarget.configFile?.path, 'Reviewed config path');
+    await writeFile(
+      reviewedConfigPath,
+      `${await readFile(reviewedConfigPath, 'utf8')}# Edited after the target check by the init canary.\n`
+    );
+    await persist({ configText: await readFile(reviewedConfigPath, 'utf8') });
+    const refused = await withTimeout(
+      wizard.client.post('/api/deploy', { stage, region: options.region, expected: { kind: 'create' } }),
+      60_000,
+      'the wizard to re-check an edited configuration'
+    );
+    assert(refused.deployment === undefined, 'The wizard deployed a configuration edited after it was reviewed.');
+    assert(
+      refused.deployTarget?.status === 'absent' &&
+        refused.deployTarget.configSha256 !== checkedTarget.deployTarget.configSha256,
+      'The wizard did not re-check the edited configuration before asking for consent again.'
     );
     const deploymentStarted = await withTimeout(
       wizard.client.post('/api/deploy', { stage, region: options.region, expected: { kind: 'create' } }),

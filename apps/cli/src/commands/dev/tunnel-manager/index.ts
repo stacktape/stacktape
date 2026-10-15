@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import { connect as connectSocket } from 'node:net';
 import type { Socket } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
@@ -59,8 +60,10 @@ type ParsedTunnelServer = {
 
 const activeTunnels: TunnelInfo[] = [];
 const reconnectingTunnels = new Set<string>();
+const activeConnections = new Set<Socket>();
+let tunnelSession = new AbortController();
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number, signal?: AbortSignal) => delay(ms, undefined, { signal });
 
 const parseTunnelServer = (server: string): ParsedTunnelServer => {
   const normalizedServer = server.trim();
@@ -108,7 +111,11 @@ const serializeClientMessage = (message: ClientMessage): string => {
 };
 
 const parseServerMessage = (message: string): ServerMessage => {
-  const parsed = JSON.parse(message) as Record<string, unknown>;
+  const parsed: unknown = JSON.parse(message);
+  if (parsed === 'Heartbeat') return { type: 'Heartbeat' };
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error(`Unknown tunnel server message: ${message}`);
+  }
 
   if ('Hello' in parsed && typeof parsed.Hello === 'number') {
     return { type: 'Hello', port: parsed.Hello };
@@ -247,6 +254,8 @@ class DelimitedSocket {
   }
 
   intoSocket(): { socket: Socket; bufferedData: Buffer } {
+    // Removing a data listener does not pause a flowing socket. Hold raw bytes until pipe() attaches.
+    this.socket.pause();
     this.socket.off('data', this.onData);
     this.socket.off('close', this.onClose);
     this.socket.off('error', this.onError);
@@ -363,6 +372,8 @@ const connectToLocalResource = async (localPort: number): Promise<Socket> => {
 };
 
 const closeSocketPair = (socketA: Socket, socketB: Socket): void => {
+  activeConnections.delete(socketA);
+  activeConnections.delete(socketB);
   if (!socketA.destroyed) {
     socketA.destroy();
   }
@@ -375,45 +386,64 @@ const closeSocketPair = (socketA: Socket, socketB: Socket): void => {
 const proxyRemoteConnection = async ({
   connectionId,
   localPort,
-  server
+  server,
+  signal
 }: {
   connectionId: string;
   localPort: number;
   server: ParsedTunnelServer;
+  signal: AbortSignal;
 }): Promise<void> => {
-  const acceptConnection = await DelimitedSocket.connect({
-    host: server.controlHost,
-    port: server.controlPort
-  });
-
-  await acceptConnection.send({ type: 'Accept', connectionId });
-
-  const localConnection = await connectToLocalResource(localPort);
-  const { socket: remoteConnection, bufferedData } = acceptConnection.intoSocket();
-
-  if (bufferedData.length > 0) {
-    localConnection.write(bufferedData);
+  const acceptConnection = await DelimitedSocket.connect({ host: server.controlHost, port: server.controlPort });
+  let localConnection: Socket | undefined;
+  const abort = () => {
+    acceptConnection.destroy();
+    localConnection?.destroy();
+  };
+  signal.addEventListener('abort', abort, { once: true });
+  try {
+    signal.throwIfAborted();
+    // Accept switches this stream to raw database bytes. Detach and pause before sending it:
+    // the relay can immediately send binary data containing the JSON frame delimiter.
+    const { socket: remoteConnection, bufferedData } = acceptConnection.intoSocket();
+    const close = () => {
+      if (localConnection) closeSocketPair(localConnection, remoteConnection);
+      else remoteConnection.destroy();
+    };
+    // Keep error handling continuous while the local connection is still opening.
+    remoteConnection.once('error', close);
+    remoteConnection.once('close', close);
+    await acceptConnection.send({ type: 'Accept', connectionId });
+    localConnection = await connectToLocalResource(localPort);
+    signal.throwIfAborted();
+    if (remoteConnection.destroyed) throw new Error('Relay connection closed while opening the local resource.');
+    activeConnections.add(localConnection);
+    activeConnections.add(remoteConnection);
+    localConnection.once('error', close);
+    localConnection.once('close', close);
+    if (bufferedData.length > 0) localConnection.write(bufferedData);
+    localConnection.pipe(remoteConnection);
+    remoteConnection.pipe(localConnection);
+  } catch (error) {
+    abort();
+    throw error;
+  } finally {
+    signal.removeEventListener('abort', abort);
   }
-
-  localConnection.pipe(remoteConnection);
-  remoteConnection.pipe(localConnection);
-
-  localConnection.once('error', () => closeSocketPair(localConnection, remoteConnection));
-  remoteConnection.once('error', () => closeSocketPair(localConnection, remoteConnection));
-  localConnection.once('close', () => closeSocketPair(localConnection, remoteConnection));
-  remoteConnection.once('close', () => closeSocketPair(localConnection, remoteConnection));
 };
 
 const listenForTunnelConnections = ({
   process,
   localPort,
   resourceName,
-  server
+  server,
+  signal
 }: {
   process: TunnelClientProcess;
   localPort: number;
   resourceName: string;
   server: ParsedTunnelServer;
+  signal: AbortSignal;
 }) => {
   const listen = async () => {
     try {
@@ -429,10 +459,12 @@ const listenForTunnelConnections = ({
         }
 
         if (message.type === 'Connection') {
-          void proxyRemoteConnection({ connectionId: message.connectionId, localPort, server }).catch((error) => {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            tuiManager.warn(`Tunnel connection failed for ${resourceName}: ${errorMessage}`);
-          });
+          void proxyRemoteConnection({ connectionId: message.connectionId, localPort, server, signal }).catch(
+            (error) => {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              tuiManager.warn(`Tunnel connection failed for ${resourceName}: ${errorMessage}`);
+            }
+          );
           continue;
         }
 
@@ -461,14 +493,21 @@ const listenForTunnelConnections = ({
   void listen();
 };
 
-const startTunnelAttempt = async (resourceName: string, localPort: number): Promise<TunnelInfo> => {
+const startTunnelAttempt = async (
+  resourceName: string,
+  localPort: number,
+  signal: AbortSignal
+): Promise<TunnelInfo> => {
   const server = parseTunnelServer(TUNNEL_SERVER);
   const controlSocket = await DelimitedSocket.connect({
     host: server.controlHost,
     port: server.controlPort
   });
 
+  const abort = () => controlSocket.destroy();
+  signal.addEventListener('abort', abort, { once: true });
   try {
+    signal.throwIfAborted();
     await controlSocket.send({ type: 'Hello', port: 0 });
 
     const response = await controlSocket.recv({ timeoutMs: TUNNEL_STARTUP_TIMEOUT_MS });
@@ -501,16 +540,19 @@ const startTunnelAttempt = async (resourceName: string, localPort: number): Prom
       process
     };
 
-    listenForTunnelConnections({ process, localPort, resourceName, server });
+    signal.throwIfAborted();
+    listenForTunnelConnections({ process, localPort, resourceName, server, signal });
 
     return tunnelInfo;
   } catch (error) {
     controlSocket.destroy();
     throw error;
+  } finally {
+    signal.removeEventListener('abort', abort);
   }
 };
 
-const attemptReconnect = async (resourceName: string, localPort: number): Promise<void> => {
+const attemptReconnect = async (resourceName: string, localPort: number, signal: AbortSignal): Promise<void> => {
   if (reconnectingTunnels.has(resourceName)) {
     return;
   }
@@ -519,16 +561,20 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
 
   try {
     for (let attempt = 1; attempt <= TUNNEL_RECONNECT_ATTEMPTS; attempt++) {
-      if (applicationManager.isInterrupted) {
+      if (applicationManager.isInterrupted || signal.aborted) {
         return;
       }
 
       tuiManager.info(`Reconnecting tunnel for ${resourceName} (attempt ${attempt}/${TUNNEL_RECONNECT_ATTEMPTS})...`);
 
       try {
-        const tunnel = await startTunnelAttempt(resourceName, localPort);
+        const tunnel = await startTunnelAttempt(resourceName, localPort, signal);
+        if (signal.aborted) {
+          tunnel.process.kill();
+          return;
+        }
         activeTunnels.push(tunnel);
-        setupTunnelExitHandler(tunnel);
+        setupTunnelExitHandler(tunnel, signal);
 
         tuiManager.success(`Tunnel for ${resourceName} reconnected at ${tunnel.publicHost}:${tunnel.publicPort}`);
 
@@ -539,7 +585,7 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
           tuiManager.warn(
             `Tunnel reconnection attempt ${attempt} failed for ${resourceName}, retrying in ${delay / 1000}s...`
           );
-          await sleep(delay);
+          await sleep(delay, signal);
         }
       }
     }
@@ -554,19 +600,19 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
   }
 };
 
-const setupTunnelExitHandler = (tunnel: TunnelInfo): void => {
+const setupTunnelExitHandler = (tunnel: TunnelInfo, sessionSignal: AbortSignal): void => {
   tunnel.process.on('exit', (code, signal) => {
     const index = activeTunnels.findIndex((activeTunnel) => activeTunnel.resourceName === tunnel.resourceName);
     if (index !== -1) {
       activeTunnels.splice(index, 1);
     }
 
-    if (code !== 0 && code !== null && !applicationManager.isInterrupted) {
+    if (code !== 0 && code !== null && !applicationManager.isInterrupted && !sessionSignal.aborted) {
       tuiManager.warn(
         `Tunnel for ${tunnel.resourceName} died unexpectedly (code: ${code}, signal: ${signal}). Attempting reconnect...`
       );
 
-      void attemptReconnect(tunnel.resourceName, tunnel.localPort).catch(() => {
+      void attemptReconnect(tunnel.resourceName, tunnel.localPort, sessionSignal).catch(() => {
         // Errors are already reported inside attemptReconnect.
       });
     }
@@ -574,22 +620,29 @@ const setupTunnelExitHandler = (tunnel: TunnelInfo): void => {
 };
 
 export const startTunnel = async (resourceName: string, localPort: number): Promise<TunnelInfo> => {
+  if (tunnelSession.signal.aborted) tunnelSession = new AbortController();
+  const signal = tunnelSession.signal;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= TUNNEL_RETRY_ATTEMPTS; attempt++) {
     try {
-      const tunnel = await startTunnelAttempt(resourceName, localPort);
+      const tunnel = await startTunnelAttempt(resourceName, localPort, signal);
+      if (signal.aborted) {
+        tunnel.process.kill();
+        signal.throwIfAborted();
+      }
       activeTunnels.push(tunnel);
-      setupTunnelExitHandler(tunnel);
+      setupTunnelExitHandler(tunnel, signal);
       return tunnel;
     } catch (error) {
+      signal.throwIfAborted();
       lastError = error instanceof Error ? error : new Error(String(error));
 
       if (attempt < TUNNEL_RETRY_ATTEMPTS) {
         tuiManager.warn(
           `Tunnel attempt ${attempt} failed for ${resourceName}, retrying in ${TUNNEL_RETRY_DELAY_MS / 1000}s...`
         );
-        await sleep(TUNNEL_RETRY_DELAY_MS);
+        await sleep(TUNNEL_RETRY_DELAY_MS, signal);
       }
     }
   }
@@ -598,6 +651,9 @@ export const startTunnel = async (resourceName: string, localPort: number): Prom
 };
 
 const stopAllTunnels = async (): Promise<void> => {
+  tunnelSession.abort();
+  for (const socket of activeConnections) socket.destroy();
+  activeConnections.clear();
   const tunnelsToStop = [...activeTunnels];
   for (const tunnel of tunnelsToStop) {
     tunnel.process.kill();
@@ -610,9 +666,6 @@ export const getActiveTunnels = (): TunnelInfo[] => {
 };
 
 export const registerTunnelCleanupHook = createCleanupHook('tunnels', async () => {
-  if (activeTunnels.length > 0) {
-    tuiManager.info('Stopping tunnels...');
-    await stopAllTunnels();
-    tuiManager.success('Tunnels stopped');
-  }
+  // Cleanup must cancel a pending reconnect even when its old tunnel has already exited.
+  await stopAllTunnels();
 });

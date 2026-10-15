@@ -2,7 +2,8 @@
 
 import { posix } from 'node:path';
 import type { ServiceFactInput } from '../../facts/service';
-import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import type { Citation } from '../../facts/citation';
+import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
@@ -111,6 +112,74 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
   return undefined;
 };
 
+type ListenPort = { port: number; citation: Citation };
+
+/** A port found at `offset` in `raw`, cited on the line it appears on (a `listen({ ... })` can span lines). */
+const portAt = (path: string, raw: string, value: string | undefined, offset: number): ListenPort | undefined => {
+  const port = value === undefined ? Number.NaN : Number.parseInt(value, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) return undefined;
+  const lines = raw.split(/\r?\n/);
+  return { port, citation: citeLine(path, lines, raw.slice(0, offset).split(/\r?\n/).length - 1, 'port') };
+};
+
+/** The last capture of a match: the port, located inside the match so the citation names its line. */
+const matchedPort = (path: string, raw: string, match: RegExpExecArray | null): ListenPort | undefined =>
+  match === null ? undefined : portAt(path, raw, match[1], match.index + match[0].lastIndexOf(match[1]!));
+
+/**
+ * The port a JavaScript server listens on when the source says so literally: `listen(4000)`,
+ * `listen({ port: 4000 })`, `Bun.serve({ port: 4000 })`, `listen(process.env.PORT || 4000)`, or a constant that
+ * holds one of those. A fallback is reported too: the service then listens there whether or not `PORT` is set.
+ */
+const javascriptListenPort = (path: string, raw: string): ListenPort | undefined => {
+  const direct =
+    /\.listen\(\s*(\d{2,5})\b/.exec(raw) ??
+    /\.listen\(\s*[^,)]*?(?:\|\||\?\?)\s*(\d{2,5})\b/.exec(raw) ??
+    /(?:\.listen|\bBun\.serve|\bDeno\.serve)\(\s*\{[^}]*?\bport\s*:\s*(\d{2,5})\b/.exec(raw);
+  if (direct !== null) return matchedPort(path, raw, direct);
+  const named = /\.listen\(\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(raw)?.[1];
+  if (named === undefined) return undefined;
+  return matchedPort(
+    path,
+    raw,
+    new RegExp(`\\b(?:const|let|var)\\s+${named}\\s*=\\s*(?:[^;\\n]*?(?:\\|\\||\\?\\?)\\s*)?(\\d{2,5})\\b`).exec(raw)
+  );
+};
+
+/** `http.ListenAndServe(":8080", ...)`, gin's `r.Run(":8080")`, echo's `e.Start(":8080")`, fiber's `app.Listen(":3000")`. */
+const goListenPort = (path: string, raw: string): ListenPort | undefined =>
+  matchedPort(path, raw, /(?:ListenAndServe(?:TLS)?|\.Run|\.Start|\.Listen)\(\s*"[\w.-]*:(\d{2,5})"/.exec(raw));
+
+const SPRING_BOOT_DEFAULT_PORT = 8080;
+
+/**
+ * Spring Boot listens on `server.port`, or 8080. It reads `SERVER_PORT`, never `PORT`, so the port has to be routed
+ * explicitly. `${PORT}` without a default means the app follows `PORT`, and nothing is reported.
+ */
+const springBootPort = async (
+  root: string,
+  context: ProbeContext,
+  entrypoint: ListenPort['citation'] | undefined
+): Promise<ListenPort | undefined> => {
+  for (const name of ['application.properties', 'application.yml', 'application.yaml']) {
+    const path = posix.join(root === '.' ? '' : root, 'src/main/resources', name);
+    if (!context.files.includes(path)) continue;
+    // oxlint-disable-next-line no-await-in-loop -- at most three small files per Spring module.
+    const raw = await readText(context, path);
+    if (raw === undefined) continue;
+    const declared = name.endsWith('.properties')
+      ? /^\s*server\.port\s*[=:]\s*(\S+)/m.exec(raw)
+      : /^server:[ \t]*\r?\n(?:[ \t]+.*\r?\n)*?[ \t]+port:[ \t]*(\S+)/m.exec(raw);
+    if (declared === null) continue;
+    const literal = /^["']?(?:\$\{[A-Za-z_.]+:)?(\d{2,5})\}?["']?$/.exec(declared[1]!);
+    if (literal === null) return undefined;
+    return portAt(path, raw, literal[1], declared.index + declared[0].lastIndexOf(literal[1]!));
+  }
+  return entrypoint === undefined
+    ? undefined
+    : { port: SPRING_BOOT_DEFAULT_PORT, citation: { ...entrypoint, field: 'port' } };
+};
+
 export const serverEntrypointProbe: Probe = {
   name: 'server-entrypoint',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -136,6 +205,16 @@ export const serverEntrypointProbe: Probe = {
         exposesHttp = await javaServiceExposesHttp(root, context);
       }
       const citation = citeFirstMatch(path, raw, detection.pattern, 'containerEntrypoint');
+      const listenPort = !exposesHttp
+        ? undefined
+        : detection.language === 'go'
+          ? goListenPort(path, raw)
+          : detection.framework === 'spring-boot'
+            ? // oxlint-disable-next-line no-await-in-loop -- one Spring module per service root.
+              await springBootPort(root, context, citation)
+            : detection.language === 'javascript' || detection.language === 'typescript'
+              ? javascriptListenPort(path, raw)
+              : undefined;
       byRoot.set(key, {
         name:
           detection.processType ??
@@ -149,8 +228,9 @@ export const serverEntrypointProbe: Probe = {
         exposesHttp,
         executionModel: 'long-running',
         containerEntrypoint: detection.entrypoint,
+        ...(listenPort === undefined ? {} : { port: listenPort.port }),
         environmentVariables: [],
-        evidence: citation === undefined ? [] : [citation],
+        evidence: [citation, listenPort?.citation].filter((entry): entry is Citation => entry !== undefined),
         source: 'probe'
       });
     }

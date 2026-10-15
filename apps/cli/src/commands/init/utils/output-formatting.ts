@@ -1,5 +1,6 @@
 import color from 'picocolors';
 import stripAnsi from 'strip-ansi';
+import type { ResourcePricingInfo, StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
 
 export const formatPrice = (price: number): string => {
   if (price < 0.01) return color.green('<$0.01');
@@ -7,16 +8,20 @@ export const formatPrice = (price: number): string => {
   return color.yellow(`$${price.toFixed(2)}`);
 };
 
-export const getResourceCostLabel = (costInfo?: {
-  priceInfo: { totalMonthlyFlat?: number; costBreakdown: any[] };
-}): string => {
+export const getResourceCostLabel = (costInfo?: ResourcePricingInfo): string => {
   if (!costInfo) return color.dim('-');
+  if (costInfo.priceInfo.incomplete !== false) return color.dim('Price unavailable');
   const monthly = costInfo.priceInfo.totalMonthlyFlat;
   if (monthly && monthly > 0) return `~${formatPrice(monthly)}/mo`;
-  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
+  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item) => item.priceModel === 'pay-per-use');
   if (hasPayPerUse) return color.dim('pay-per-use');
   return color.dim('-');
 };
+
+export const getStackCostLabel = (costs: NonNullable<StackPriceEstimationResponse['costs']>): string =>
+  costs.incomplete !== false
+    ? 'Estimate incomplete: some resource prices are unavailable'
+    : `~${formatPrice(costs.flatMonthlyCost)}/mo + pay-per-use costs`;
 
 export const formatResourceType = (type: string, resource?: any): string => {
   if (type === 'relational-database') {

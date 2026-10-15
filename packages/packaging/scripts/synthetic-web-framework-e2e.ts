@@ -122,6 +122,7 @@ try {
       'import { Image } from "astro:assets";',
       'import pixel from "../pixel.png";',
       'Astro.cookies.set("astro-secure", "ok", { path: "/", httpOnly: true, secure: true });',
+      'Astro.cookies.set("astro-theme", "dark", { path: "/", secure: true });',
       'const requestCookie = Astro.cookies.get("request-cookie")?.value ?? "missing";',
       '---',
       '<p id="marker">ASTRO_FINAL_OK|{Astro.url.href}|request-cookie={requestCookie}</p>',
@@ -178,6 +179,7 @@ try {
       '  const loaded = await import(/* @vite-ignore */ packageName);',
       '  const pad = loaded.default ?? loaded;',
       '  cookies.set("svelte", "ok", { path: "/", httpOnly: true, secure: true, sameSite: "lax" });',
+      '  cookies.set("svelte-theme", "dark", { path: "/", secure: true });',
       '  return { padded: pad("x", 3, "0"), url: url.href, requestCookie: cookies.get("request-cookie") };',
       '};',
       ''
@@ -243,6 +245,7 @@ try {
   if (
     astroPage.statusCode !== 200 ||
     !astroPage.body.includes('ASTRO_FINAL_OK|https://public.example.com/?q=hello%20astro|request-cookie=present') ||
+    astroPage.cookies?.length !== 2 ||
     !astroPage.cookies?.some((cookie) => cookie.startsWith('astro-secure=ok;'))
   ) {
     throw new Error(`Unexpected Astro page response: ${JSON.stringify(astroPage)}`);
@@ -265,7 +268,7 @@ try {
     astroImage.isBase64Encoded !== true ||
     Buffer.from(astroImage.body, 'base64').byteLength === 0
   ) {
-    throw new Error(`Astro image optimization failed in Lambda Node 24: ${JSON.stringify(astroImage)}`);
+    throw new Error(`Astro image optimization failed in Lambda Node 22: ${JSON.stringify(astroImage)}`);
   }
 
   console.log('Building, zipping, and invoking nested pnpm SvelteKit with a runtime-selected dependency...');
@@ -310,6 +313,7 @@ try {
   if (
     svelteResponse.statusCode !== 200 ||
     !svelteResponse.body.includes('DYNAMIC_LEFT_PAD:00x|https://public.example.com/?q=hello%20svelte|present') ||
+    svelteResponse.cookies?.length !== 2 ||
     !svelteResponse.cookies?.some((cookie) => cookie.startsWith('svelte=ok;'))
   ) {
     throw new Error(`Unexpected SvelteKit Lambda response: ${JSON.stringify(svelteResponse)}`);
@@ -327,7 +331,7 @@ try {
       zippedMiB: svelteOutput.zippedSize
     }
   ]);
-  console.log('Synthetic framework E2E passed with real builds, real ZIPs, and official Lambda Node 24 execution.');
+  console.log('Synthetic framework E2E passed with real builds, real ZIPs, and official Lambda Node 22 execution.');
 } finally {
   await rm(root, { recursive: true, force: true });
 }

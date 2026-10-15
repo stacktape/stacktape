@@ -195,17 +195,4 @@ describe('the configuration model is owned by @stacktape/config', () => {
 
     expect(readGlobalDeclarationNames(sourceFile)).toEqual(['PublishedGlobal']);
   });
-
-  test('connectTo no longer publishes or resolves unsafe AWS-service macros', () => {
-    expect(existsSync(join(CONFIG_PACKAGE_SRC_PATH, 'aws-service-macros.ts'))).toBe(false);
-    const authoredConfigSource = listConfigSourceFiles()
-      .map((file) => readFileSync(file, 'utf-8'))
-      .join('\n');
-    const resolver = readFileSync(join('src', 'domain', 'config-manager', 'utils', 'resource-references.ts'), 'utf-8');
-
-    expect(authoredConfigSource).not.toContain('CONNECT_TO_AWS_SERVICE_MACROS');
-    expect(authoredConfigSource).not.toMatch(/["']aws:ses["']/);
-    expect(resolver).not.toContain('aws-service-macros');
-    expect(resolver).not.toMatch(/["']aws:ses["']/);
-  });
 });

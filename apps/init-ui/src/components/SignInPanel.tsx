@@ -124,7 +124,7 @@ export function SignInPanel({
           come back here.
         </p>
         <Button className="w-full" isLoading={isRechecking} onClick={onRecheck} variant="secondary">
-          I’ve signed in — check again
+          Check again
         </Button>
       </div>
     );
@@ -385,7 +385,7 @@ export function SignInPanel({
               >
                 <span className="wizard-decision-option-label">
                   {organizationLabel(organization.name)}
-                  {busy === `organization-${organization.id}` ? ' — signing in…' : ''}
+                  {busy === `organization-${organization.id}` ? ' (signing in…)' : ''}
                 </span>
               </button>
             </li>

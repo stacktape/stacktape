@@ -11,7 +11,7 @@ import {
   AWS_READ_ONLY_OPERATIONS,
   getReadOnlyAwsOperations,
   isReadOnlyAwsCommand
-} from '../../domain/debug-services/aws-read-only-operations';
+} from '@stacktape/aws-read-only/operations';
 import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 
 export type CliCommandSafety = 'readOnly' | 'diagnostic' | 'local' | 'mutating' | 'destructive' | 'interactive';

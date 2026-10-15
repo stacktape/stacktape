@@ -1,0 +1,56 @@
+# Stacktape v3 configuration. The v4 equivalent is in ../v4/stacktape.yml.
+resources:
+  mainGateway:
+    type: http-api-gateway
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/api.ts
+          languageSpecificConfig:
+            nodeVersion: 22
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainGateway
+            method: '*'
+            path: /{proxy+}
+        - type: sqs
+          properties:
+            sqsQueueName: jobs
+      connectTo:
+        - mainDb
+        - files
+        - jobs
+        - clicks
+        - notifications
+        - events
+  mainDb:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: tenantId
+          type: string
+        sortKey:
+          name: recordId
+          type: string
+  files:
+    type: bucket
+    properties:
+      versioning: true
+  jobs:
+    type: sqs-queue
+  events:
+    type: event-bus
+  notifications:
+    type: sns-topic
+  clicks:
+    type: kinesis-stream
+  users:
+    type: user-auth-pool
+    properties:
+      allowEmailAsUserName: true
+      userVerificationType: email-code

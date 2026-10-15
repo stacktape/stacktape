@@ -6,7 +6,7 @@ import { parse } from 'yaml';
 import { composeConfig } from '@stacktape/config-inference/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import * as authoring from '@stacktape/config-authoring';
-import { findExistingConfig, renderTypeScript, renderYaml, writeComposedConfig } from './write-config';
+import { renderTypeScript, renderYaml, writeComposedConfig } from './write-config';
 
 let root: string;
 
@@ -78,15 +78,6 @@ const twoServiceComposition = () =>
   });
 
 describe('renderYaml', () => {
-  it('parses back as the configuration that went in', async () => {
-    const parsed = parse(renderYaml(composition())) as Record<string, any>;
-
-    expect(parsed.projectName).toBe('orders');
-    expect(parsed.resources.api.type).toBe('web-service');
-    expect(parsed.resources.mainDatabase.type).toBe('relational-database');
-    expect(parsed.resources.api.properties.connectTo).toEqual(['mainDatabase']);
-  });
-
   it('writes every value out, rather than referring back to one it wrote earlier', () => {
     const yaml = renderYaml(twoServiceComposition());
 
@@ -97,16 +88,6 @@ describe('renderYaml', () => {
     expect(yaml).not.toContain('*a');
     const parsed = parse(yaml) as Record<string, any>;
     expect(parsed.resources.web.properties.resources).toEqual(parsed.resources.worker.properties.resources);
-  });
-
-  it('keeps nested objects, arrays and numbers intact', () => {
-    const parsed = parse(renderYaml(composition())) as Record<string, any>;
-
-    expect(parsed.resources.api.properties.resources).toEqual({ cpu: 0.5, memory: 1024 });
-    expect(parsed.resources.api.properties.packaging.properties.sourceDirectoryPath).toBe('.');
-    expect(parsed.resources.api.properties.environment).toEqual([
-      { name: 'STRIPE_KEY', value: "$Secret('stripe_key')" }
-    ]);
   });
 
   it('quotes values YAML would otherwise misread', () => {
@@ -164,51 +145,39 @@ describe('the two formats', () => {
   });
 });
 
-describe('writeComposedConfig', () => {
-  it('writes a configuration when there is none', async () => {
+describe('the stacktape dev dependency of a TypeScript config', () => {
+  const write = async (files: Record<string, string>, format: 'yaml' | 'typescript' = 'typescript') => {
     root = await mkdtemp(join(tmpdir(), 'stp-write-config-'));
+    for (const [path, contents] of Object.entries(files)) await writeFile(join(root, path), contents, 'utf8');
+    return writeComposedConfig({ repositoryRoot: root, composition: composition(), format, stacktapeVersion: '4.2.0' });
+  };
+  const manifest = async () => JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 
-    const result = await writeComposedConfig({ repositoryRoot: root, composition: composition() });
-
-    expect(result).toMatchObject({ filename: 'stacktape.yml' });
-    const contents = await readFile(join(root, 'stacktape.yml'), 'utf8');
-    expect(parse(contents).resources.api.type).toBe('web-service');
-  });
-
-  it('never touches a configuration that is already there', async () => {
-    root = await mkdtemp(join(tmpdir(), 'stp-write-config-'));
-    await writeFile(join(root, 'stacktape.yml'), '# hand written\n', 'utf8');
-
-    const result = await writeComposedConfig({ repositoryRoot: root, composition: composition() });
-
-    // Someone may have edited that after the last run, or deployed it. It stays as it is, and the
-    // new configuration lands beside it under a name that says where it came from.
-    expect(result).toMatchObject({
-      filename: 'stacktape.generated.yml',
-      existingPath: join(root, 'stacktape.yml')
-    });
-    expect(await readFile(join(root, 'stacktape.yml'), 'utf8')).toContain('hand written');
-    expect(parse(await readFile(join(root, 'stacktape.generated.yml'), 'utf8')).resources.api.type).toBe('web-service');
-  });
-
-  it('writes TypeScript when asked, under the matching name', async () => {
-    root = await mkdtemp(join(tmpdir(), 'stp-write-config-'));
-    await writeFile(join(root, 'stacktape.yaml'), '# hand written\n', 'utf8');
-
-    const result = await writeComposedConfig({
-      repositoryRoot: root,
-      composition: composition(),
-      format: 'typescript'
+  it('moves an older pin to the version that wrote the file, and names the lockfile’s package manager', async () => {
+    const written = await write({
+      'package.json':
+        '{\n    "name": "orders",\n    "devDependencies": { "stacktape": "^3.4.0", "vitest": "3.0.0" }\n}\n',
+      'pnpm-lock.yaml': ''
     });
 
-    expect(result.filename).toBe('stacktape.generated.ts');
-    expect(await readFile(result.path, 'utf8')).toContain("from 'stacktape'");
+    expect(written.devDependency).toEqual({
+      specifier: 'stacktape@4.2.0',
+      previousVersion: '^3.4.0',
+      installCommand: 'pnpm install'
+    });
+    expect((await manifest()).devDependencies).toEqual({ stacktape: '4.2.0', vitest: '3.0.0' });
+    // The project's own indentation is kept.
+    expect(await readFile(join(root, 'package.json'), 'utf8')).toContain('\n    "name": "orders"');
   });
 
-  it('finds an existing configuration under any of its names', async () => {
-    root = await mkdtemp(join(tmpdir(), 'stp-write-config-'));
-    await writeFile(join(root, 'stacktape.ts'), 'export default {};\n', 'utf8');
+  it('leaves a matching pin alone', async () => {
+    expect((await write({ 'package.json': '{"dependencies":{"stacktape":"4.2.0"}}' })).devDependency).toBeUndefined();
+  });
 
-    expect(findExistingConfig(root)).toBe(join(root, 'stacktape.ts'));
+  it('adds nothing to a project without a package.json, or for a YAML config', async () => {
+    expect((await write({ 'go.mod': 'module x\n' })).devDependency).toBeUndefined();
+    await rm(root, { recursive: true, force: true });
+    expect((await write({ 'package.json': '{"name":"orders"}' }, 'yaml')).devDependency).toBeUndefined();
+    expect(await manifest()).toEqual({ name: 'orders' });
   });
 });

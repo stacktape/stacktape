@@ -1,0 +1,56 @@
+{
+  "identity": {
+    "accountId": "977946299200",
+    "region": "eu-west-1",
+    "projectName": "j2-v3-baseline",
+    "stage": "j2base"
+  },
+  "stackHash": "932f0975",
+  "cases": {
+    "aurora-streaming": {
+      "v3": {
+        "producer": "stacktape 3.7.1",
+        "producedAt": "2026-10-07T17:10:37.809Z",
+        "command": "stacktape compile-template --stage j2base --region eu-west-1 --projectName j2-v3-baseline --awsAccount stacktape-dev --agent --outFile <template>",
+        "removedOrganizationAlarms": [
+          "DatabaseConnectionCountForAuroraDatabaseConnCountAlarm",
+          "DatabaseConnectionCountForAuroraDatabaseConnCountNotificationRule"
+        ]
+      },
+      "v4": {
+        "producer": "current synthesis (synthesizeFixture)",
+        "producedAt": "2026-10-07T17:10:44.673Z",
+        "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
+      }
+    },
+    "container-platform": {
+      "v3": {
+        "producer": "stacktape 3.7.1",
+        "producedAt": "2026-10-07T17:10:41.874Z",
+        "command": "stacktape compile-template --stage j2base --region eu-west-1 --projectName j2-v3-baseline --awsAccount stacktape-dev --agent --outFile <template>",
+        "removedOrganizationAlarms": [
+          "DatabaseConnectionCountForPostgresDatabaseConnCountAlarm",
+          "DatabaseConnectionCountForPostgresDatabaseConnCountNotificationRule"
+        ]
+      },
+      "v4": {
+        "producer": "current synthesis (synthesizeFixture)",
+        "producedAt": "2026-10-07T17:10:44.674Z",
+        "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
+      }
+    },
+    "serverless-api": {
+      "v3": {
+        "producer": "stacktape 3.7.1",
+        "producedAt": "2026-10-07T17:10:43.379Z",
+        "command": "stacktape compile-template --stage j2base --region eu-west-1 --projectName j2-v3-baseline --awsAccount stacktape-dev --agent --outFile <template>",
+        "removedOrganizationAlarms": []
+      },
+      "v4": {
+        "producer": "current synthesis (synthesizeFixture)",
+        "producedAt": "2026-10-07T17:10:44.674Z",
+        "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
+      }
+    }
+  }
+}

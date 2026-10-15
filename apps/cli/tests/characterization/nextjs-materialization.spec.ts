@@ -305,11 +305,12 @@ describe('Next.js web materialization', () => {
     const children = childrenOf({ appDirectory: './', environment: [{ name: 'STAGE', value: 'test' }] });
 
     // The authored environment stays first, then the six handles the server needs for its cache. Every reference is a
-    // CloudFormation intrinsic, so the child resolves to the physical name the stack actually deployed.
+    // CloudFormation intrinsic, so the child resolves to the physical name the stack actually deployed. The names are
+    // the ones OpenNext 3 reads: with any other prefix name, the server misses the prerendered cache under `_cache`.
     expect(asCloudformationValue(requireChild(children.serverFunction, 'a server function').environment)).toEqual([
       { name: 'STAGE', value: 'test' },
       { name: 'CACHE_BUCKET_NAME', value: { Ref: cfLogicalNames.bucket('siteBucket') } },
-      { name: 'CACHE_BUCKET_PREFIX', value: '_cache' },
+      { name: 'CACHE_BUCKET_KEY_PREFIX', value: '_cache' },
       { name: 'CACHE_BUCKET_REGION', value: materializationStackContext.region },
       { name: 'REVALIDATION_QUEUE_URL', value: { Ref: cfLogicalNames.sqsQueue('siteRevalidationQueue') } },
       { name: 'REVALIDATION_QUEUE_REGION', value: materializationStackContext.region },

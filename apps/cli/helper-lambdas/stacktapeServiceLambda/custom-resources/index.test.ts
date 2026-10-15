@@ -9,25 +9,12 @@ import type {
   CloudFormationCustomResourceUpdateEvent,
   Context
 } from 'aws-lambda';
-import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
-import { SSMClient } from '@aws-sdk/client-ssm';
-import { describe, expect, spyOn, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import handler from './index';
 
-/**
- * The dispatcher picks exactly one resolver out of a wire envelope where every resolver key is optional, then hands
- * that resolver its properties. These are the rules it enforces before invoking anything, exercised through the real
- * handler and observed the way CloudFormation observes it: by the response body sent to the response URL.
- *
- * `globalThis.fetch` and the AWS client prototypes are process-global, so these stubs are genuinely visible to
- * anything else running in the same process. What bounds them is scope, not isolation: each case installs them
- * immediately before one handler call and removes them in a `finally`, `test.serial` keeps these nine cases from
- * overlapping each other, and the helper-Lambda lane runs test files one after another. Stubbing `fetch` captures the
- * CloudFormation response but does not intercept the AWS SDK, which uses a Node HTTP transport of its own — the
- * `send` stubs below are what make an unexpected AWS request fail. Every case here uses `Update` or `Delete`, and the
- * only resolvers involved reach AWS on `Create` (`openSearch`) or with a non-empty payload (`sensitiveData`).
+/** Resolver wire-envelope validation through the real handler and an HTTP CloudFormation callback.
+ * These empty Update/Delete resolvers need no AWS request. The normal preload refuses nonlocal requests.
  */
-
 const RESPONSE_URL = 'https://cloudformation-custom-resource-response.example.test/response';
 const SERVICE_TOKEN = 'arn:aws:lambda:eu-west-1:123456789012:function:stp-service-lambda';
 
@@ -82,75 +69,27 @@ const updateEvent = (
   OldResourceProperties: resourceProperties(previousPayload)
 });
 
-const failOnAwsRequest = (clientName: string) => () => {
-  throw new Error(`Unexpected AWS request through ${clientName} while dispatching a custom resource.`);
-};
-
-/**
- * Runs one handler invocation with everything it could reach stubbed for the duration of that call alone, and returns
- * the response body the handler sent to CloudFormation.
- */
 const respondTo = async (event: CloudFormationCustomResourceEvent) => {
-  const requests: { url: string; body: CloudFormationCustomResourceResponse }[] = [];
-  // `fetch` may be an inherited global rather than an own property, so the exact descriptor is captured and put back.
-  const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
-  // `fetch` carries a `preconnect` static alongside the call signature; the real one is kept so the stub is a
-  // complete stand-in rather than a narrowed one.
-  const captureCloudformationResponse: typeof globalThis.fetch = Object.assign(
-    async (input: Parameters<typeof globalThis.fetch>[0], init: Parameters<typeof globalThis.fetch>[1]) => {
-      const body = init?.body;
-      if (typeof body !== 'string') {
-        throw new Error('Expected the CloudFormation response body to be a JSON string.');
-      }
-      requests.push({ url: input instanceof Request ? input.url : String(input), body: JSON.parse(body) });
+  let response: CloudFormationCustomResourceResponse | undefined;
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: async (request) => {
+      response = (await request.json()) as CloudFormationCustomResourceResponse;
       return new Response(null, { status: 200 });
-    },
-    { preconnect: globalThis.fetch.preconnect }
-  );
-
-  // `mockRestore` also clears the recorded calls, so each count is read before the spy is taken down. Every step
-  // registers how to undo itself the moment it succeeds, and the stack unwinds in reverse — a failure part-way
-  // through setup, or in the handler, still leaves no prototype spy or `fetch` override behind.
-  const undoStack: (() => void)[] = [];
-  const awsCallCounts: Record<string, number> = {};
-
+    }
+  });
   try {
-    const cloudWatchSend = spyOn(CloudWatchLogsClient.prototype, 'send').mockImplementation(
-      failOnAwsRequest('CloudWatchLogsClient')
+    await handler(
+      { ...event, ResponseURL: `http://127.0.0.1:${server.port}/response` },
+      lambdaContext,
+      () => undefined
     );
-    undoStack.push(() => {
-      awsCallCounts.CloudWatchLogsClient = cloudWatchSend.mock.calls.length;
-      cloudWatchSend.mockRestore();
-    });
-
-    const ssmSend = spyOn(SSMClient.prototype, 'send').mockImplementation(failOnAwsRequest('SSMClient'));
-    undoStack.push(() => {
-      awsCallCounts.SSMClient = ssmSend.mock.calls.length;
-      ssmSend.mockRestore();
-    });
-
-    Object.defineProperty(globalThis, 'fetch', {
-      value: captureCloudformationResponse,
-      configurable: true,
-      writable: true
-    });
-    undoStack.push(() => {
-      if (originalFetchDescriptor) {
-        Object.defineProperty(globalThis, 'fetch', originalFetchDescriptor);
-      } else {
-        Reflect.deleteProperty(globalThis, 'fetch');
-      }
-    });
-
-    await handler(event, lambdaContext, () => undefined);
+    expect(response).toBeDefined();
+    return response!;
   } finally {
-    undoStack.reverse().forEach((undo) => undo());
+    await server.stop(true);
   }
-
-  expect(awsCallCounts).toEqual({ CloudWatchLogsClient: 0, SSMClient: 0 });
-  expect(requests).toHaveLength(1);
-  expect(requests[0].url).toBe(RESPONSE_URL);
-  return requests[0].body;
 };
 
 describe('custom-resource dispatcher', () => {

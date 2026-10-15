@@ -180,7 +180,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
-  tui.info(`Issues: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
+  tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
   // A function in the VPC has no outbound internet until the stack has NAT; the failure otherwise only shows at
   // runtime, as a timeout on the first external call.
@@ -425,7 +425,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   if (config.allBucketsToSync.length) {
     await injectEnvironmentToHostedHtmlFiles();
     await deploymentArtifacts.syncBuckets();
-    await deploymentArtifacts.saveBucketSyncManifest(stack.nextVersion);
+    // Stack details were refreshed after deploy; nextVersion now belongs to the next operation.
+    await deploymentArtifacts.saveBucketSyncManifest(stack.lastVersion);
     await writeEnvironmentDotenvFile();
   }
 
@@ -513,7 +514,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     const securityInventory = await uploadSecurityInventory({
       inventory: securityInventoryPromise ? await securityInventoryPromise : null,
       deploymentArtifacts,
-      version: stack.nextVersion,
+      version: stack.lastVersion,
       tui
     });
     try {

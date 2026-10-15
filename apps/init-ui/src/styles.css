@@ -77,8 +77,6 @@
     margin: 0;
     font-size: 0.76rem;
     font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
     color: var(--stp-color-brand);
   }
 
@@ -230,6 +228,46 @@
 
   .wizard-section-header {
     margin-bottom: 20px;
+  }
+
+  /* A finished band: its name, what came of it, and a way back in, on one row. The bands behind you
+   * stack tightly so the one you are on starts near the top of the screen. */
+  .wizard-section.is-collapsed {
+    padding-bottom: 20px;
+  }
+
+  .wizard-section.is-collapsed.is-expanded {
+    padding-bottom: 56px;
+  }
+
+  .wizard-section-summary {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  /* The way back in follows the sentence it belongs to, as the Analyze line's own disclosure does. */
+  .wizard-section-summary-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 16px;
+  }
+
+  .wizard-section-summary .wizard-step-label {
+    line-height: 1.55;
+  }
+
+  .wizard-section-reopened {
+    margin-top: 24px;
+  }
+
+  /* Said once, above a review that cannot be changed right now, instead of disabling it silently. */
+  .wizard-locked-note {
+    margin: 0;
+    color: var(--stp-text-subtle);
+    font-size: 0.9rem;
   }
 
   .wizard-section-title {
@@ -455,6 +493,14 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Choice cards carry a trailing fact ("Lower cost"). Beside the text it takes the width the
+   * description needs, and a three-wide row squeezed the description to one word per line, so here
+   * the fact sits under the description instead. */
+  /* Four models fit one row of the column; the shared 200 px basis wrapped the fourth alone. */
+  .wizard-model-cards {
+    --stp-selection-card-basis: 170px;
+  }
+
   /* ── Decisions ─────────────────────────────────────────────────────────────────────────────── */
 
   .wizard-decision {
@@ -496,26 +542,6 @@
     max-width: var(--wizard-measure);
     font-size: 0.9rem;
     color: var(--stp-text-muted);
-  }
-
-  .wizard-decision-toggle {
-    flex: none;
-    padding: 4px 10px;
-    border: 0;
-    border-radius: var(--stp-radius-medium);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--stp-text-muted);
-    font: inherit;
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition:
-      background var(--stp-motion-duration-base) var(--stp-motion-easing),
-      color var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .wizard-decision-toggle:hover {
-    background: rgba(255, 255, 255, 0.09);
-    color: var(--stp-text-primary);
   }
 
   .wizard-decision-options {
@@ -567,6 +593,61 @@
       opacity: 1;
       transform: none;
     }
+  }
+
+  /* ── Before you deploy ───────────────────────────────────────────────────────────────────────── */
+
+  .wizard-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .wizard-checklist-item + .wizard-checklist-item {
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-checklist-title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  .wizard-checklist-detail {
+    margin: 2px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-muted);
+    font-size: 0.9rem;
+  }
+
+  .wizard-variable-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 8px 0 0;
+    font-size: 0.85rem;
+  }
+
+  /* Names in one column and where the code reads them in the next, so both line up. */
+  .wizard-setting-list {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 4px 16px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.85rem;
+  }
+
+  .wizard-setting-list li {
+    display: contents;
+  }
+
+  .wizard-setting-where {
+    color: var(--stp-text-subtle);
+    overflow-wrap: anywhere;
   }
 
   /* ── Shared surfaces ───────────────────────────────────────────────────────────────────────── */
@@ -676,9 +757,7 @@
   .wizard-facts dt {
     margin: 0 0 2px;
     color: var(--stp-text-subtle);
-    font-size: 0.76rem;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
+    font-size: 0.85rem;
   }
 
   .wizard-facts dd {
@@ -706,7 +785,7 @@
 
   .wizard-command {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
     padding: 12px 12px 12px 16px;
@@ -715,12 +794,36 @@
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   }
 
+  /* Wrapped rather than scrolled: a long deploy command clipped at the Copy button hid its region,
+   * which is the part someone checks before running it. */
   .wizard-command code {
-    overflow-x: auto;
+    min-width: 0;
+    padding-top: 7px;
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 0.86rem;
+    line-height: 1.6;
     color: var(--stp-text-primary);
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  .wizard-command .stp-ui-button {
+    flex-shrink: 0;
+  }
+
+  /* What a failed deploy or try-out printed: monospace, in a well, line breaks kept. */
+  .wizard-output {
+    margin: 0;
+    padding: 12px 16px;
+    overflow-x: auto;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
   }
 
   /* ── Deploy progress ───────────────────────────────────────────────────────────────────────── */
@@ -768,6 +871,11 @@
 
   .wizard-phase.is-done .wizard-phase-marker {
     background: var(--stp-color-brand);
+    box-shadow: none;
+  }
+
+  .wizard-phase.is-failed .wizard-phase-marker {
+    background: var(--stp-status-error);
     box-shadow: none;
   }
 

@@ -8,6 +8,7 @@ export const EXPECTED_RELEASE_ARCHIVES = [
   'linux.tar.gz',
   'macos-arm.tar.gz',
   'macos.tar.gz',
+  'windows-arm.zip',
   'windows.zip'
 ] as const;
 
@@ -20,6 +21,7 @@ export const MAX_RELEASE_ARCHIVE_BYTES: Record<(typeof EXPECTED_RELEASE_ARCHIVES
   'linux.tar.gz': 90 * MEBIBYTE,
   'macos-arm.tar.gz': 80 * MEBIBYTE,
   'macos.tar.gz': 80 * MEBIBYTE,
+  'windows-arm.zip': 90 * MEBIBYTE,
   'windows.zip': 90 * MEBIBYTE
 };
 

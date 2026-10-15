@@ -1,6 +1,6 @@
 # Using Console UI
 
-The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track issues, and receive alerts. The stack you deployed in the previous step is already visible here.
+The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track runtime errors, and receive alerts. The stack you deployed in the previous step is already visible here.
 
 
 > **Info:** Already familiar with the Console? Skip ahead to [CI/CD](/getting-started/ci-cd) to set up automated deployments.
@@ -26,25 +26,21 @@ Use [`stacktape metrics`](/cli/metrics) for CLI-based metric queries. See [Obser
 
 ## Alarms
 
-Alarm rules define CloudWatch metric thresholds in the Console. Stacktape creates or updates the actual CloudWatch alarms and EventBridge notification routing on the next deployment of each matching project and stage. Supported triggers include Lambda error rate, Lambda duration, database connection count, database CPU utilization, database free memory, database free storage, database read latency, database write latency, HTTP API Gateway error rate, HTTP API Gateway latency, Application Load Balancer error rate, and Application Load Balancer unhealthy targets. Each rule is scoped to specific projects and stages, with configurable evaluation periods.
+Alarms are defined in your Stacktape configuration, in the `alarms` list of a resource such as a Lambda function, database, HTTP API Gateway, Application Load Balancer or SQS queue. Stacktape creates the CloudWatch alarms when the stack is deployed. The **Alarms** page in the Alerting group shows the current state of the CloudWatch alarms in your connected AWS accounts, and [`stacktape alarms`](/cli/alarms) shows the state from the CLI.
+
+An alarm sends to the `notificationChannels` listed on it, such as Slack, email or a webhook. A firing alarm also opens an [incident](/observability/incidents), which a [notification rule](/observability/notifications) can send to a Console [alert channel](/observability/alert-channels). Alarm rules created in the Console earlier are legacy; they are listed under **Legacy alarm rules** on the Alarms page, and `stacktape alarms:export` moves them into your configuration. See [Observability: Alarms](/observability/alarms) for the full setup guide.
+
+## Error tracking
+
+The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
+
+Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.issues`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
 
-> Screenshot: Stacktape Console Alarm Rules page showing a list of alarm rules with name, trigger type, and scoped projects/stages Caption: Alarm rules — define thresholds once, and every matching stack gets a CloudWatch alarm on the next deploy.
+> Screenshot: Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status Caption: The Error tracking page groups repeated runtime errors so you don't search logs by hand.
 
 
-Alarms require [alert channels](/observability/alert-channels) (such as Slack, email, or webhooks) to deliver notifications. Set up a channel first, then reference it in your alarm rule. See [Observability — Alarms](/observability/alarms) for the full setup guide.
-
-## Issues (automatic error tracking)
-
-Issues is a built-in error inbox. Stacktape detects runtime errors in your Lambda functions and `js-bundle` containers by scanning log patterns — unhandled exceptions, panics, tracebacks, exit errors, and handler-not-found failures across TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP. Repeated errors are grouped into a single issue with the error message, stack trace, resource name, occurrence count, and last-seen timestamp.
-
-Issues must be explicitly enabled. Configure issue detection for all projects or selected projects from the Issues page in the Console — you can optionally limit detection to specific stage names. Matching stages need to be deployed with Stacktape CLI 3.8.0 or newer for the CloudWatch Logs subscription filters to be added. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage, and search text.
-
-
-> Screenshot: Stacktape Console Issues page showing summary cards (Open/Resolved/Ignored counts), filters, and an issues table with error messages, types, resources, and occurrence counts Caption: The Issues inbox groups repeated runtime errors so you don't search logs by hand.
-
-
-Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. For many teams, Issues is a useful first error inbox for recurring runtime failures. Keep a dedicated tracing or APM tool when you need request traces, custom context, release tracking, or client-side error capture. See [Observability — Issues](/observability/issues) for configuration details and the CLI commands [`stacktape issues:list`](/cli/issues-list) and [`stacktape issues:resolve`](/cli/issues-resolve).
+Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/issues) for configuration details and the CLI commands [`stacktape issues:list`](/cli/issues-list) and [`stacktape issues:resolve`](/cli/issues-resolve).
 
 ## Cost dashboards
 
@@ -60,15 +56,15 @@ You can also manage secrets from the CLI with [`stacktape secret:set`](/cli/secr
 
 ## Quick reference
 
-A deploy gives the Console enough stack metadata to show deployments, costs (when reports arrive), and stack-scoped operational views. Some features require additional setup: configure alarm rules, enable Issues, create alert channels, and manage secrets separately.
+A deploy gives the Console enough stack metadata to show deployments, costs (when reports arrive), and stack-scoped operational views. Some features require additional setup: define alarms in your configuration, create alert channels, and manage secrets separately.
 
 | Feature | Where in Console | CLI equivalent | Setup required |
 |---------|-----------------|----------------|----------------|
 | Deployments | Overview | [`stacktape info:operations`](/cli/info-operations) | None — shown when deployed stages exist |
 | Logs | — | [`stacktape logs`](/cli/logs) | None |
 | Metrics | — | [`stacktape metrics`](/cli/metrics) | None |
-| Alarms | Monitoring → Alarms → Rules | View state: [`stacktape alarms`](/cli/alarms) | Create alarm rules + alert channel |
-| Issues | Monitoring → Issues | [`stacktape issues:list`](/cli/issues-list) | Enable per-project + deploy with CLI 3.8.0+ |
+| Alarms | Alerting → Alarms | View state: [`stacktape alarms`](/cli/alarms) | `alarms` on resources in the config + alert channel |
+| Error tracking | Observability → Error tracking | [`stacktape issues:list`](/cli/issues-list) | None, on by default |
 | Costs | Organization → Costs | — | None — reports arrive daily |
 | Secrets | Configuration → Secrets | [`stacktape secret:set`](/cli/secret-set) | Connected AWS account + AWS region selection |
 

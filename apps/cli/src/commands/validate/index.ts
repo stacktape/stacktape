@@ -5,6 +5,9 @@ import fsExtra from 'fs-extra';
 import { initializeValidateOperation } from '../_utils/initialization';
 import { assessAndPrintSecurityPosture } from '../_utils/security-posture-output';
 
+/** CloudFormation's limit for a `TemplateBody` sent with the request. */
+const CLOUDFORMATION_INLINE_TEMPLATE_LIMIT_BYTES = 51_200;
+
 export const commandValidate = async () => {
   const {
     args: { outFile, thorough, withPackage },
@@ -32,8 +35,18 @@ export const commandValidate = async () => {
 
   const synthesizedTemplate = template.getTemplate();
   const serializedTemplate = stringifyToYaml(synthesizedTemplate);
-  if (thorough) {
-    await stack.validateTemplate({ templateBody: JSON.stringify(synthesizedTemplate) });
+  // CloudFormation validates an inline template only up to 51,200 bytes; anything larger must come from S3, and
+  // validate creates nothing to upload it to. An ordinary web-service stack is already larger, so it is reported
+  // as not checked rather than failing a valid configuration. CloudFormation still validates it on deploy.
+  const compactTemplate = JSON.stringify(synthesizedTemplate);
+  const cloudformationChecked =
+    Boolean(thorough) && Buffer.byteLength(compactTemplate) <= CLOUDFORMATION_INLINE_TEMPLATE_LIMIT_BYTES;
+  if (cloudformationChecked) {
+    await stack.validateTemplate({ templateBody: compactTemplate });
+  } else if (thorough) {
+    tui.warn(
+      `CloudFormation did not check this template: it is ${Math.ceil(Buffer.byteLength(compactTemplate) / 1024)} KB, and CloudFormation validates templates over 50 KB only from S3. It is validated when you deploy.`
+    );
   }
   if (outFile) {
     await fsExtra.writeFile(outFile, serializedTemplate);
@@ -44,7 +57,7 @@ export const commandValidate = async () => {
     'resources',
     'template',
     shouldPackage && 'packaging',
-    thorough && 'cloudformation'
+    cloudformationChecked && 'cloudformation'
   ].filter(Boolean);
   tui.setPendingCompletion({
     success: true,
@@ -59,7 +72,7 @@ export const commandValidate = async () => {
       resources: true,
       template: true,
       packaging: shouldPackage,
-      cloudformation: Boolean(thorough)
+      cloudformation: cloudformationChecked
     },
     ...(securityAssessment
       ? { securityFindings: securityAssessment.findings, securityExposure: securityAssessment.exposure }

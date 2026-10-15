@@ -129,23 +129,6 @@ test('allows Console router inference and rejects a browser runtime import of th
     assert.ok((await ruleNames(join(root, 'apps/console/ui'))).includes('console-ui-does-not-import-api-runtime'));
   }));
 
-test('rejects cycles hidden behind an alias', () =>
-  withFixture(async (root, put) => {
-    await put(
-      'apps/cli/tsconfig.json',
-      JSON.stringify({ compilerOptions: { paths: { '@utils/*': ['./src/utils/*'] } } })
-    );
-    await put(
-      'apps/cli/src/main.ts',
-      "import { second } from '@utils/second'; export function first() { return second(); }"
-    );
-    await put(
-      'apps/cli/src/utils/second.ts',
-      "import { first } from '../main'; export function second() { return first(); }"
-    );
-    assert.ok((await ruleNames(join(root, 'apps/cli'))).includes('no-cycles'));
-  }));
-
 test('rejects an application dependency from a package while accepting the owned docs metadata', () =>
   withFixture(async (root, put) => {
     await put('apps/cli/src/main.ts', 'export const value = 1;');

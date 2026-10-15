@@ -31,35 +31,26 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:static
+      - run: pnpm test:ci
+      - name: Set up CloudFormation validation
+        if: runner.os == 'Linux'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check:public
-      - name: Install Chromium for shared UI tests
-        if: runner.os == 'Linux'
-        run: pnpm --filter @stacktape/ui-react exec playwright install --with-deps chromium
-      - name: Test shared UI in Chromium
-        if: runner.os == 'Linux'
-        run: pnpm --filter @stacktape/ui-react test:e2e
-      - name: Retain synthetic browser failure artifacts
-        if: failure() && runner.os == 'Linux'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: shared-ui-browser-failures
-          path: .stacktape/test-runs/ui-react/
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 7
       - name: Validate synthesized CloudFormation
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check cfn-lint==1.53.3
           template_path="$RUNNER_TEMP/stacktape-dense-application.json"
           STACKTAPE_SYNTHESIS_TEMPLATE_OUTPUT="$template_path" \
             pnpm --filter @stacktape/cli exec bun test tests/characterization/synthesis-contract.spec.ts
-          cfn-lint --template "$template_path" --regions eu-west-1 --non-zero-exit-code error
+          cfn-lint --template "$template_path" --regions eu-west-1 --non-zero-exit-code error \
+            --registry-schemas packages/cloudformation/cfn-lint-registry-schemas
           support_template_path="$RUNNER_TEMP/stacktape-dev-support.json"
           STACKTAPE_TEST_SUPPORT_TEMPLATE="$support_template_path" \
             pnpm --filter @stacktape/cli exec bun test tests/characterization/dev-support-template.spec.ts
-          cfn-lint --template "$support_template_path" --regions eu-west-1 --non-zero-exit-code error
+          cfn-lint --template "$support_template_path" --regions eu-west-1 --non-zero-exit-code error \
+            --registry-schemas packages/cloudformation/cfn-lint-registry-schemas

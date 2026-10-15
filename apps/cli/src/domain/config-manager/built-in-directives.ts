@@ -306,20 +306,34 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       },
       localResolveFunction: () => async (secretReference: string) => {
         const secretName = secretReference.split('.')[0];
-        const secretVersionId =
-          stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];
         try {
-          const { SecretString: secretValue } = await awsSdkManager.secrets.get({
-            secretId: secretName,
-            versionId: secretVersionId
-          });
+          const { SecretString: secretValue } = await awsSdkManager.secrets.get({ secretId: secretName });
           if (!secretValue) {
             throw new Error(`Secret "${secretName}" is not valid string secret.`);
           }
           const jsonKey = secretReference.split('.')[1];
-          const finalValue = jsonKey ? JSON.parse(secretValue)[jsonKey] : secretValue;
-          if (finalValue === undefined) {
-            throw new Error(`Secret "${secretName}" does not contain property "${jsonKey}"`);
+          let finalValue = secretValue;
+          if (jsonKey) {
+            let parsedSecret: unknown;
+            try {
+              parsedSecret = JSON.parse(secretValue);
+            } catch (error) {
+              // The parser quotes the token it stopped at, which is part of the secret value; only the cause keeps it.
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_INVALID',
+                message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+                cause: error
+              });
+            }
+            finalValue = (parsedSecret as Record<string, string>)?.[jsonKey];
+            if (finalValue === undefined) {
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+                message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretReference}')\`.`
+              });
+            }
           }
           return finalValue;
         } catch (error) {
@@ -327,7 +341,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
           throw new CliError({
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_SECRET_UNRESOLVED',
-            message: `Cannot resolve secret \`${secretName}\`.\n${String(error)}`,
+            message: `Cannot resolve secret \`${secretName}\`.`,
             cause: error
           });
         }

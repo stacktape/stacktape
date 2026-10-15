@@ -5,7 +5,6 @@ import { readFile, readJSON } from 'fs-extra';
 import json5 from 'json5';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 import type { TextEdit } from './source-map-edits';
-import { applyTextEdits } from './source-map-edits';
 import { DEPENDENCIES_WITH_BINARIES } from './config';
 
 export type PackageJsonDepsInfo = {
@@ -364,10 +363,8 @@ export const getDefaultExportEdit = (content: string): TextEdit | null => {
   return null;
 };
 
-export const ensureDefaultExport = (content: string): string => {
-  const edit = getDefaultExportEdit(content);
-  return edit ? applyTextEdits(content, [edit]) : content;
-};
+/** A CommonJS bundle gets `__dirname` and `__filename` from Node.js; the build redirects both identifiers here. */
+export const CJS_PATH_BANNER = 'var __stp_dirname = __dirname, __stp_filename = __filename;';
 
 export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";
 import { fileURLToPath as __stp_fileURLToPath } from "node:url";

@@ -23,7 +23,7 @@
  * source is recorded before the first build and compared after the last; if it changed or could not be read, the report
  * says so and the command fails.
  */
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import type { SourceCheck } from './perf/measurement-context';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
@@ -92,6 +92,7 @@ const SOURCE_CHECK_SENTENCES: Record<SourceCheck, string> = {
 /** What the compile target decides at build time; `bun build --compile --target` defines the same values. */
 const RUNTIME_TARGETS: { [platform in SupportedPlatform]: { platform: NodeJS.Platform; arch: string } } = {
   win: { platform: 'win32', arch: 'x64' },
+  'win-arm': { platform: 'win32', arch: 'arm64' },
   linux: { platform: 'linux', arch: 'x64' },
   alpine: { platform: 'linux', arch: 'x64' },
   'linux-arm': { platform: 'linux', arch: 'arm64' },
@@ -335,7 +336,7 @@ const main = async () => {
     attributedBytesDifference: number;
   } | null = null;
   if (verifyCompile) {
-    const executablePath = join(outDirectory, 'compiled', platform === 'win' ? 'stacktape.exe' : 'stacktape');
+    const executablePath = join(outDirectory, 'compiled', isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape');
     const compileBuild = await Bun.build({
       ...options,
       compile: {

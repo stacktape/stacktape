@@ -23,6 +23,7 @@ import type {
 } from './scene.js';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { BiExpand, BiMinus, BiPlus } from 'react-icons/bi';
 import { EDGE_SEMANTIC_LABELS } from './resource-explanations.js';
 
 // Chrome colours come from `@stacktape/design-tokens`; the host loads the token CSS together with
@@ -299,10 +300,9 @@ const NodeNameTag = ({ cx, cy, text }: { cx: number; cy: number; text: string })
       strokeWidth={3}
       strokeLinejoin="round"
       paintOrder="stroke fill"
-      fontSize={10.5}
+      fontSize={12}
       fontFamily={FONT}
       fontWeight={600}
-      letterSpacing={0.3}
     >
       {displayText}
     </text>
@@ -488,7 +488,6 @@ function ZoneTag({ label }: { label: IsoLabel }) {
       fontSize={label.fontSize || 11}
       fontFamily={FONT}
       fontWeight={700}
-      letterSpacing={1.1}
       className="stp-diagram__zone-tag"
     >
       {label.text}
@@ -660,7 +659,7 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
   if (!conn.label) return null;
 
   const point = t2s(conn.route.labelTile.x, conn.route.labelTile.y);
-  const fontSize = 9;
+  const fontSize = 10;
   const chipWidth = conn.label.length * fontSize * 0.66 + 12;
   const chipHeight = fontSize + 8;
 
@@ -837,7 +836,7 @@ export function IsoRenderer({
     const connectorLabelBounds = scene.connectors.flatMap((connector) => {
       if (!connector.label) return [];
       const origin = t2s(connector.route.labelTile.x, connector.route.labelTile.y);
-      const fontSize = 9;
+      const fontSize = 10;
       const estimatedWidth = connector.label.length * fontSize * 0.7;
 
       return [
@@ -1239,7 +1238,7 @@ export function IsoRenderer({
           className="stp-diagram__control"
           onClick={() => zoomBy(1.25)}
         >
-          +
+          <BiPlus aria-hidden="true" size={18} />
         </button>
         <button
           type="button"
@@ -1248,7 +1247,7 @@ export function IsoRenderer({
           className="stp-diagram__control"
           onClick={() => zoomBy(1 / 1.25)}
         >
-          −
+          <BiMinus aria-hidden="true" size={18} />
         </button>
         <button
           type="button"
@@ -1257,7 +1256,7 @@ export function IsoRenderer({
           className="stp-diagram__control"
           onClick={resetView}
         >
-          ⌂
+          <BiExpand aria-hidden="true" size={16} />
         </button>
       </div>
     </section>

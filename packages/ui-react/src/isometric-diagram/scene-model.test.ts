@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parse } from 'yaml';
+import { buildIsometricScene } from './scene-builder.js';
 import { buildDiagramTopology } from './topology.js';
 import { getDiagramFixtures, getSceneForFixture, parseFixtureConfig } from './fixture-scenes.js';
 
@@ -31,6 +32,56 @@ describe('diagram scene model', () => {
 
       for (const semantic of fixture.expectation.connectorSemantics || []) {
         expect(scene!.connectors.some((connector) => connector.semantic === semantic)).toBe(true);
+      }
+    });
+
+    test(`preserves topology, routes and subnet membership through the scene pipeline for ${fixture.id}`, () => {
+      const config = parseFixtureConfig({ fixture });
+      const before = structuredClone(config);
+      const topology = buildDiagramTopology({ parsedConfig: config });
+      const scene = buildIsometricScene({ parsedConfig: config });
+      expect(topology).not.toBeNull();
+      expect(scene).not.toBeNull();
+      if (!topology || !scene) throw new Error('Representative fixture must produce a topology and scene');
+      expect(config).toEqual(before);
+      expect(buildIsometricScene({ parsedConfig: config })).toEqual(scene);
+      expect(scene.nodes.map(({ id }) => id).toSorted()).toEqual(topology.nodes.map(({ id }) => id).toSorted());
+      expect(
+        scene.connectors
+          .map(({ id, from, to, semantic, label }) => ({ id, from, to, semantic, label }))
+          .toSorted((a, b) => a.id.localeCompare(b.id))
+      ).toEqual(
+        topology.edges
+          .map(({ id, from, to, semantic, label }) => ({ id, from, to, semantic, label }))
+          .toSorted((a, b) => a.id.localeCompare(b.id))
+      );
+      const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
+      for (const edge of scene.connectors) {
+        expect(edge.route.points[0]).toEqual(nodes.get(edge.from)!.tile);
+        expect(edge.route.points.at(-1)).toEqual(nodes.get(edge.to)!.tile);
+        for (const point of [...edge.route.points, edge.route.labelTile]) {
+          expect(Number.isFinite(point.x) && Number.isFinite(point.y)).toBe(true);
+        }
+      }
+      for (const subnet of ['public', 'private'] as const) {
+        const members = topology.nodes
+          .filter((node) => node.subnet === subnet)
+          .map(({ id }) => id)
+          .toSorted();
+        const rectangle = scene.rectangles.find(({ id }) => id === `subnet-${subnet}`);
+        if (!members.length) {
+          expect(rectangle).toBeUndefined();
+          continue;
+        }
+        expect(rectangle).toBeDefined();
+        expect(rectangle!.memberNodeIds?.toSorted()).toEqual(members);
+        for (const id of members) {
+          const tile = nodes.get(id)!.tile;
+          expect(tile.x).toBeGreaterThanOrEqual(rectangle!.from.x);
+          expect(tile.x).toBeLessThanOrEqual(rectangle!.to.x);
+          expect(tile.y).toBeGreaterThanOrEqual(rectangle!.from.y);
+          expect(tile.y).toBeLessThanOrEqual(rectangle!.to.y);
+        }
       }
     });
 

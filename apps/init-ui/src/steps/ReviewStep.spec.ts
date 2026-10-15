@@ -15,7 +15,7 @@ const state = ({
   timeline: [],
   answers: {},
   facts: { services, dependencies, existingDeployments: [], decisions: [] },
-  composition: { resources: {}, provenance: {}, gaps: [], deployable: true }
+  composition: { resources: {}, provenance: {}, gaps: [], unsetSettings: [], deployable: true }
 });
 
 const service = (

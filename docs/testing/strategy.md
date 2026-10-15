@@ -30,11 +30,16 @@ APIs or fixtures; the tested action uses the real product path.
 | Environment                  | Use for                                                                                                            | Run with                                        |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | Deterministic, in process    | Pure rules, type consumers, schema generation, serialization, synthesis.                                           | Existing Bun or Node runners.                   |
-| Local processes and services | CLI processes, built artifacts in Docker runtimes, browsers, PostgreSQL, selected AWS SDK calls against MiniStack. | Owned containers and processes, no credentials. |
+| Local processes and services | CLI processes, built artifacts in Docker runtimes, browsers, PostgreSQL, AWS SDK effects against MiniStack.        | Owned containers and processes, no credentials. |
 | Externally owned behavior    | IAM, deployment and rollback semantics, networking, event delivery, provider installations, runner infrastructure. | Small guarded live scenarios.                   |
 
-An emulator or fake proves our code's handling, not the external service's behavior. MiniStack can verify our S3 upload
-workflow; it cannot establish CloudFormation replacement, IAM or networking.
+An emulator or fake proves our code's handling, not the external service's behavior. MiniStack is the one emulator. The
+offline deploy loop (`pnpm --filter @stacktape/cli run test:ministack:deploy`) runs the source CLI through create,
+update, unchanged redeploy and delete for Lambda, S3, SQS, DynamoDB, SNS and Stacktape's S3-notification custom
+resource, and observes the effects through the real SDK; Console suites store secrets and parameters in it. It cannot
+establish CloudFormation replacement and rollback semantics, IAM enforcement, networking, hosted domains, managed
+runtimes, container workloads or billing: those stay live-only. EventBridge delivery, API Gateway custom-domain mappings
+and container workloads are known emulator gaps, listed in the deploy loop's family table with their upstream issues.
 [AWS testing guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/serverless-application-testing/best-practices.html),
 [MiniStack limitations](https://ministack.org/docs/limitations).
 

@@ -1,0 +1,7 @@
+Synthetic AWS-shaped offer for refresh coverage; not a live price quote
+fixture
+fixture
+fixture
+fixture
+Service Code,Product Family,Instance Type,Database Engine,Deployment Option,Storage,Location Type,Region Code,Unit,Price Per Unit,Currency
+AmazonRDS,Database Instance,db.t4g.micro,PostgreSQL,Single-AZ,EBS Only,AWS Region,us-east-1,Hrs,0.03,USD

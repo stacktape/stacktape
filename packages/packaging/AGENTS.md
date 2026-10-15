@@ -43,7 +43,9 @@ Changes to source selection, digest exclusions, runtime defaults, emitted paths 
 caches or produce artifacts that deploy but cannot load. Preserve these contracts deliberately:
 
 - an artifact's identity is its bytes and its configured inputs, never a path from the build host: an absolute path in a
-  digest defeats the cache the customer's own bucket provides across machines and runs;
+  digest defeats the cache the customer's own bucket provides across machines and runs. Bun's chunk names, debug IDs,
+  module path comments and map `sources` all depend on the absolute build path; `es/artifact-identity` neutralizes them
+  after every build, and the CLI's `test:node-lambda` builds the same project from two directories to prove it;
 - what a split build must do besides bundling — Prisma engines, the tracing wrapper, file selection — is what the
   per-Lambda buildpack does after its own bundle; anything missing here is a function that deploys and then fails, so a
   split build either does it or the CLI's policy keeps that function off this path;

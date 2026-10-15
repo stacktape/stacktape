@@ -1,0 +1,7 @@
+Synthetic AWS-shaped offer for refresh coverage; not a live price quote
+fixture
+fixture
+fixture
+fixture
+Service Code,Product Family,Instance Type,Term Type,Location Type,Region Code,Unit,Price Per Unit,Currency
+AmazonES,Amazon OpenSearch Service Instance,t3.small.search,OnDemand,AWS Region,us-east-1,Hrs,0.04,USD

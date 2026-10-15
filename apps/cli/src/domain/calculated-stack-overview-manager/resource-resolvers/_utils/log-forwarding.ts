@@ -206,7 +206,7 @@ const getFirehoseGenericHttpEndpointDeliveryStream = ({
         }
       },
       RequestConfiguration: {
-        CommonAttributes: Object.entries(logForwardingConfig.properties.parameters).map(
+        CommonAttributes: Object.entries(logForwardingConfig.properties.parameters ?? {}).map(
           ([AttributeName, AttributeValue]) => ({ AttributeName, AttributeValue })
         ),
         ContentEncoding: logForwardingConfig.properties.gzipEncodingEnabled ? 'GZIP' : 'NONE'

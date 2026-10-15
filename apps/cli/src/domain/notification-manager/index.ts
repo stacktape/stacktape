@@ -1,3 +1,4 @@
+import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -155,7 +156,7 @@ class NotificationManager {
       type: eventType,
       title: text,
       severity: 'ERROR',
-      details: { error: errorStack.slice(0, 1000) }
+      details: { error: scrubSensitiveText(errorStack).slice(0, 1000) }
     });
   };
 

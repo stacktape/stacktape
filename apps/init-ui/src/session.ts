@@ -98,6 +98,8 @@ export type WizardState = {
   repositoryPath?: string;
   /** A configuration already in the repository. It is never modified; the new one lands beside it. */
   existingConfig?: string;
+  /** The `--awsAccount` the CLI was started with. Every copyable stack command names it. */
+  awsAccount?: string;
   /** How the project can be read. Chosen on the first screen. */
   agents?: WizardAgentOption[];
   choice?: { agentId: string; modelId: string };
@@ -214,6 +216,13 @@ export type WizardState = {
     resources: Record<string, { type: string; properties: Record<string, unknown> }>;
     provenance: Record<string, { reason: string; evidence: Array<{ file: string; line: number; quote: string }> }>;
     gaps: Array<{ subject: string; message: string }>;
+    /** Settings the code reads with no fallback that nothing in the file sets, by service. */
+    unsetSettings: Array<{
+      serviceName: string;
+      resourceName: string;
+      variableName: string;
+      evidence: Array<{ file: string; line: number; quote: string }>;
+    }>;
     deployable: boolean;
     /**
      * What this would cost per month, once the estimate comes back.
@@ -221,7 +230,17 @@ export type WizardState = {
      * Absent until then, and absent for good if the machine is offline. The review screen renders
      * without it rather than waiting for it.
      */
-    price?: { monthly: string; byResource: Record<string, string>; region: string };
+    price?: {
+      monthly: string;
+      byResource: Record<string, string>;
+      region: string;
+      /** What each other answer to a choice changes the monthly price by, by choice and answer. */
+      options?: Record<string, Record<string, string>>;
+    };
+    /** The price service did not answer for this configuration; nothing else depends on it. */
+    priceUnavailable?: boolean;
+    /** Infrastructure choices whose every answer composes the same file, so the page does not ask them. */
+    inertChoices?: string[];
     /**
      * The configuration file exactly as saving it will write it.
      *
@@ -266,6 +285,8 @@ export type Session = {
   pipeline: (stage: string, region: string) => Promise<WizardState>;
   /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
   recheck: () => Promise<WizardState>;
+  /** Price the configuration for the region picked on the Deploy step. The new price is published when it arrives. */
+  setPriceRegion: (region: string) => Promise<WizardState>;
   /** Take one step of signing in to Stacktape. What it led to is in the returned state's `signIn`. */
   signIn: (request: SignInRequest) => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
@@ -295,7 +316,7 @@ export const connect = async (): Promise<Session> => {
 
   if (!response.ok) {
     throw new SessionError(
-      'This wizard session is no longer available in this browser. Run `stacktape init` again to start a new one.'
+      'Either this link was already opened in another browser, or stacktape init has stopped. Run stacktape init in your project again to start a new session.'
     );
   }
 
@@ -418,6 +439,18 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError('Could not re-check the sign-ins.');
       }
       publish((await checked.json()) as WizardState);
+      return current;
+    },
+    setPriceRegion: async (region) => {
+      const priced = await fetch('/api/price-region', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: JSON.stringify({ region })
+      });
+      if (!priced.ok) {
+        throw new SessionError('The price for that region could not be requested.');
+      }
+      publish((await priced.json()) as WizardState);
       return current;
     },
     signIn: async ({ route, ...body }) => {

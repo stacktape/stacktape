@@ -13,16 +13,17 @@
  * 4. `disableSourceMaps` ships no map;
  * 5. asset: `src/orders.ts`, which imports a file asset and throws after using it, is packaged alone the same way. Its
  *    reference to the asset is rewritten to `/var/task` on the minified line before the throw. Invoked in the Lambda
- *    image, its top frame must be the exact `src/orders.ts:<line>:<col>` of the `new Error(`, under the project path
- *    that the map's relative `sources` resolve to from `/var/task`;
+ *    image, its top frame must be the exact `/var/task/src/orders.ts:<line>:<col>` of the `new Error(`: the map's
+ *    `sources` are relative to the project root and Node resolves them from `/var/task`, where the map is;
  * 6. split: three functions go through `buildSplitBundle` and `createLayerArtifacts` inside the project, where the CLI
  *    builds them. No function or layer `.map` carries `sourcesContent`, and every packaged map's `sources` name the
- *    project's files from where the map is. Each function's ZIP and the layer ZIPs are extracted and invoked in the
- *    Lambda Node.js 24 image with the layers at /opt and `--enable-source-maps`. The top frame must be the exact
- *    `/src/<file>:<line>:<col>` of the `new Error(` in: the handler, after an asset import and rewritten chunk imports;
- *    a layered module; a layered chunk whose import of another layered chunk is rewritten; and a function-local,
- *    dynamically imported chunk whose import of a layered chunk is rewritten. A second build of the same fixture must
- *    produce the same function trees and layer hashes.
+ *    project's files relative to the project root (never absolute, never `../`). Each function's ZIP and the layer
+ *    ZIPs are extracted and invoked in the Lambda Node.js 24 image with the layers at /opt and `--enable-source-maps`.
+ *    The top frame must be the exact `<map folder>/src/<file>:<line>:<col>` of the `new Error(` in: the handler, after
+ *    an asset import and rewritten chunk imports (`/var/task`); a layered module and a layered chunk whose import of
+ *    another layered chunk is rewritten (`/opt/nodejs/chunks`); and a function-local, dynamically imported chunk whose
+ *    import of a layered chunk is rewritten (`/var/task/chunks`). A second build of the same fixture must produce the
+ *    same function trees and layer hashes.
  * The report records artifact and map bytes, and split function and layer identities, for comparing runs.
  *
  *   bun run scripts/synthetic-lambda-source-map-e2e.ts [--out <new or empty directory>] [--project <new directory>]
@@ -31,7 +32,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, posix, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
 import type { JsBundleOptions } from '../src/runtime-contracts';
 import {
@@ -180,20 +181,35 @@ const throwSite = (file: string, marker: string) => {
   const index = lines.findIndex((line) => line.includes(marker));
   return `/${file}:${index + 1}:${lines[index]!.indexOf('Error(') + 1}`;
 };
+/*
+ * A packaged map's `sources` are relative to the project root (`es/artifact-identity`), and Node resolves them from
+ * the map's own folder: the function's map under `/var/task`, a layered chunk's under `/opt/nodejs/chunks`, and a
+ * function-local chunk's under `/var/task/chunks`. The original file is named in every case; the build host never.
+ */
 const SPLIT_THROWS = [
-  { label: 'the handler', name: 'orders', mode: 'handler', expected: throwSite('src/orders.ts', 'orders failed') },
-  { label: 'a layered module', name: 'refunds', mode: 'limits', expected: throwSite('src/split/limits.ts', 'throw') },
+  {
+    label: 'the handler',
+    name: 'orders',
+    mode: 'handler',
+    expected: `/var/task${throwSite('src/orders.ts', 'orders failed')}`
+  },
+  {
+    label: 'a layered module',
+    name: 'refunds',
+    mode: 'limits',
+    expected: `/opt/nodejs/chunks${throwSite('src/split/limits.ts', 'throw')}`
+  },
   {
     label: 'a layered chunk whose import is rewritten',
     name: 'refunds',
     mode: 'rules',
-    expected: throwSite('src/split/rules.ts', 'throw')
+    expected: `/opt/nodejs/chunks${throwSite('src/split/rules.ts', 'throw')}`
   },
   {
     label: 'a function-local chunk whose import is rewritten',
     name: 'orders',
     mode: 'report',
-    expected: throwSite('src/split/report.ts', 'throw')
+    expected: `/var/task/chunks${throwSite('src/split/report.ts', 'throw')}`
   }
 ];
 
@@ -403,12 +419,8 @@ try {
   const assetDirectory = await extract(asset.artifactPath, 'asset');
   const assetFiles = (await readdir(assetDirectory, { recursive: true })).toSorted();
   const assetThrown = await invoke(assetDirectory, { mode: 'handler' });
-  // The map names the project relative to the build folder; Node resolves that from /var/task, where the map is.
-  const assetProjectAtRuntime = posix.resolve(
-    '/var/task',
-    relative(join(out, 'build', 'functions', 'asset'), project).replaceAll('\\', '/')
-  );
-  const assetExpected = `${assetProjectAtRuntime}${throwSite('src/orders.ts', 'orders failed')}`;
+  // The map names the file relative to the project root; Node resolves that from /var/task, where the map is.
+  const assetExpected = `/var/task${throwSite('src/orders.ts', 'orders failed')}`;
   const assetLocation = topFrameLocation(assetThrown.stack);
   report.asset = {
     digest: asset.digest,
@@ -462,11 +474,11 @@ try {
   );
   const unresolved = packagedMaps.flatMap(({ path, sources }) =>
     sources
-      .filter((source) => !existsSync(resolve(dirname(path), source)))
+      .filter((source) => source.startsWith('/') || source.startsWith('../') || !existsSync(resolve(project, source)))
       .map((source) => `${relative(project, path)}: ${source}`)
   );
   check(
-    "split: every packaged map's sources name the project's files from where the map is",
+    "split: every packaged map's sources name the project's files relative to the project root",
     unresolved.length === 0,
     unresolved.length === 0 ? `${packagedMaps.length} maps` : unresolved.slice(0, 6).join('; ')
   );

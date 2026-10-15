@@ -1,0 +1,10 @@
+/* The element reset a host application such as Console declares. It sits in `base`, which the
+ * shared stylesheet orders below `stacktape-ui`, so it must not erase any control's surface. */
+@layer base {
+  button,
+  input,
+  textarea {
+    background-color: transparent;
+    border: none;
+  }
+}

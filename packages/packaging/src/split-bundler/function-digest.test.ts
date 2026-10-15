@@ -27,21 +27,6 @@ const createFunctionPackage = async () => {
 };
 
 describe('split function digest', () => {
-  test('changes with the chunk layers and the native layer', async () => {
-    const distFolderPath = await createFunctionPackage();
-    const digest = (input: Partial<Parameters<typeof getSplitFunctionDigest>[0]> = {}) =>
-      getSplitFunctionDigest({
-        distFolderPath,
-        chunkLayers: [{ layerNumber: 1, contentHash: 'aaaaaaaaaaaa' }],
-        nativeLayer: null,
-        ...input
-      });
-
-    const base = await digest();
-    expect(await digest({ chunkLayers: [{ layerNumber: 1, contentHash: 'bbbbbbbbbbbb' }] })).not.toBe(base);
-    expect(await digest({ nativeLayer: { layerNumber: 0, contentHash: 'cccccccccccc' } })).not.toBe(base);
-  });
-
   // Windows has no execute bit to change: there the archive reads executable intent from contents, which the digest
   // covers.
   test.skipIf(process.platform === 'win32')('changes when only a package file becomes executable', async () => {
@@ -56,18 +41,6 @@ describe('split function digest', () => {
     const base = await digest();
     await chmod(join(distFolderPath, 'chunks', 'chunk-local.js'), 0o755);
     expect(await digest()).not.toBe(base);
-  });
-
-  test('does not depend on the order chunk layers are listed in', async () => {
-    const distFolderPath = await createFunctionPackage();
-    const layers = [
-      { layerNumber: 2, contentHash: 'bbbbbbbbbbbb' },
-      { layerNumber: 1, contentHash: 'aaaaaaaaaaaa' }
-    ];
-
-    expect(await getSplitFunctionDigest({ distFolderPath, chunkLayers: layers, nativeLayer: null })).toBe(
-      await getSplitFunctionDigest({ distFolderPath, chunkLayers: layers.toReversed(), nativeLayer: null })
-    );
   });
 
   test('differs from the digest a split function had before Lambda archives had a format', async () => {

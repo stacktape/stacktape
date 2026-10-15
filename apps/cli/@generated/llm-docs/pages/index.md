@@ -117,6 +117,58 @@ pnpm add stacktape
 ```
 
 
+    Or install the standalone binary, which needs no Node.js. The tab for your system is selected for you.
+
+
+Example (macOS (Apple silicon)):
+
+```bash
+curl -L https://installs.stacktape.com/macos-arm.sh | sh
+```
+
+
+Example (macOS (Intel)):
+
+```bash
+curl -L https://installs.stacktape.com/macos.sh | sh
+```
+
+
+Example (Linux (x64)):
+
+```bash
+curl -L https://installs.stacktape.com/linux.sh | sh
+```
+
+
+Example (Linux (ARM64)):
+
+```bash
+curl -L https://installs.stacktape.com/linux-arm.sh | sh
+```
+
+
+Example (Alpine Linux):
+
+```bash
+curl -L https://installs.stacktape.com/alpine.sh | sh
+```
+
+
+Example (Windows (x64)):
+
+```bash
+iwr https://installs.stacktape.com/windows.ps1 -useb | iex
+```
+
+
+Example (Windows (ARM64)):
+
+```bash
+iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex
+```
+
+
 ### Initialize a project
 
 

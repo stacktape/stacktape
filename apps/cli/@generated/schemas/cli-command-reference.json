@@ -11,13 +11,16 @@
     },
     {
       "name": "aiProvider",
-      "description": "#### AI Provider\n---\nThe AI provider whose subscription to connect for hosted incident runs. Currently `claude` (a Claude subscription, through `claude setup-token`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.",
+      "description": "#### AI Provider\n---\nThe AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: `claude` (a Claude subscription for Claude Code, through `claude setup-token`), `codex` (a ChatGPT plan for Codex, from `codex login`), `grok` (a Grok sign-in, from `grok login`) or `opencode` (what OpenCode is signed in to, from `opencode auth login`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.",
       "required": false,
       "allowedTypes": [
         "string"
       ],
       "allowedValues": [
-        "claude"
+        "claude",
+        "codex",
+        "grok",
+        "opencode"
       ]
     },
     {
@@ -61,13 +64,16 @@
     },
     {
       "name": "aiProvider",
-      "description": "#### AI Provider\n---\nThe AI provider whose subscription to connect for hosted incident runs. Currently `claude` (a Claude subscription, through `claude setup-token`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.",
+      "description": "#### AI Provider\n---\nThe AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: `claude` (a Claude subscription for Claude Code, through `claude setup-token`), `codex` (a ChatGPT plan for Codex, from `codex login`), `grok` (a Grok sign-in, from `grok login`) or `opencode` (what OpenCode is signed in to, from `opencode auth login`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.",
       "required": false,
       "allowedTypes": [
         "string"
       ],
       "allowedValues": [
-        "claude"
+        "claude",
+        "codex",
+        "grok",
+        "opencode"
       ]
     },
     {
@@ -152,7 +158,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -411,7 +417,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -558,7 +564,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -724,7 +730,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -881,7 +887,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1082,7 +1088,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1194,7 +1200,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1378,7 +1384,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1553,7 +1559,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1721,7 +1727,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1887,7 +1893,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2128,7 +2134,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2293,7 +2299,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2489,7 +2495,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2618,7 +2624,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2766,7 +2772,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3253,7 +3259,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3360,7 +3366,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3497,7 +3503,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3870,7 +3876,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3959,7 +3965,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4089,7 +4095,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4374,7 +4380,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4824,7 +4830,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5109,7 +5115,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5307,7 +5313,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5506,7 +5512,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5721,7 +5727,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5886,7 +5892,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6056,7 +6062,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6236,7 +6242,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6357,7 +6363,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6478,7 +6484,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
       "required": false,
       "alias": "aa",
       "allowedTypes": [

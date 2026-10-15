@@ -57,6 +57,9 @@ describe('full-screen DevDashboard', () => {
     expect(frame).toContain('worker');
     expect(frame).toContain('building');
     expect(frame).toContain('rebuild all');
+    devTuiState.setWorkloadStatus('worker', 'error', { error: 'Cannot build the worker' });
+    await flushAndRender();
+    expect(testSetup.captureCharFrame()).toContain('Cannot build the worker');
   });
 
   test('rebuilding phase shows rebuild step per workload', async () => {

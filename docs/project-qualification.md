@@ -9,12 +9,12 @@ tail, generated configuration, synthesized template when available, and a comman
 
 ## What each lane proves
 
-| Lane      | Scope                                   | What passes                                                                                                                                          | What it does not prove                                  |
-| --------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `import`  | Every selected project                  | The real terminal init flow produces resources, valid YAML, no unsupported claims about live hosting, and the case's exact semantic expectations.    | The generated workloads can be built or started.        |
-| `package` | Every eligible selected project         | The source CLI installs dependencies, packages every inferred workload, resolves the template, and writes a non-empty CloudFormation template.       | The application responds correctly after deployment.    |
-| `runtime` | Run-wide synthetic artifacts            | Stable representative Lambda, image, Astro, and SvelteKit artifacts execute in their real Docker runtimes.                                           | Every imported application's business behavior.         |
-| `aws`     | One or more explicitly named archetypes | Stacktape creates resources in a disposable account, checks live behavior, exercises updates where applicable, and cleans up the recorded resources. | Every public project or every AWS resource combination. |
+| Lane      | Scope                                     | What passes                                                                                                                                                                                                                                                                                                                     | What it does not prove                                  |
+| --------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `import`  | Every selected project                    | The real terminal init flow produces resources, valid YAML, no unsupported claims about live hosting, and the case's exact semantic expectations.                                                                                                                                                                               | The generated workloads can be built or started.        |
+| `package` | Every eligible selected project           | The source CLI installs dependencies, packages every inferred workload, resolves the template, and writes a non-empty CloudFormation template.                                                                                                                                                                                  | The application responds correctly after deployment.    |
+| `runtime` | Run-wide synthetic artifacts and starters | Stable representative Lambda, image, Astro, and SvelteKit artifacts execute in their real Docker runtimes (`pnpm test:packaging-e2e`), then the CLI-process acceptances: functions packaged by the `package` command, the SSR starters and the helper Lambdas, each invoked in the Lambda runtime (`test:runtime-acceptances`). | Every imported application's business behavior.         |
+| `aws`     | One or more explicitly named archetypes   | Stacktape creates resources in a disposable account, checks live behavior, exercises updates where applicable, and cleans up the recorded resources.                                                                                                                                                                            | Every public project or every AWS resource combination. |
 
 The package lane redirects the Stacktape CLI's AWS and Stacktape clients to a loopback guard. The guard supplies a fake
 AWS identity, an absent stack, empty metadata, and exact placeholder secrets. It refuses and records CLI requests
@@ -56,6 +56,9 @@ pnpm qualify:projects -- --preset=release --lanes=import,package --allow-host-pr
 # Execute packaged synthetic artifacts in their target Docker runtimes.
 pnpm qualify:projects -- --lanes=runtime
 
+# Package every starter project offline with the source CLI, as a customer's first deploy does (no import lane).
+pnpm --filter @stacktape/cli run qualify:starters -- --shard=1/2
+
 # Split a large corpus across ten workers.
 pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code --shard=3/10
 
@@ -63,6 +66,12 @@ pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-projec
 # Stacktape working-tree fingerprint match a previous passing result.
 pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code --resume-from=.stacktape/qualification/<previous-run>/qualification-report.json
 ```
+
+The package lane and the starter lane build the source CLI's dev artifacts (helper Lambdas) once per run when a fresh
+checkout has none. The starter lane materializes each starter as `stacktape init` writes it, replaces the placeholder
+values, and runs `validate --withPackage` through the same offline guard; it writes the same report layout, accepts
+`--starter`, `--shard`, `--max-cases`, `--output-dir`, `--keep-workdirs` and `--fail-fast`, and skips folders without
+`.project/_metadata.yml`.
 
 Use `--max-cases=<count>` to bound an exploratory run. Use `--fail-fast` when one failure should stop later projects.
 `--output-dir` and `--cache-root` are resolved from the directory in which the user invoked pnpm, including on Windows.

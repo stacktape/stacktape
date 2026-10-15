@@ -73,7 +73,7 @@ For most teams, start with **Slack** or **Teams** for real-time visibility, and 
 
 ## Creating a channel in the Console
 
-Alert channels are listed on the **Channels** page in the Stacktape Console. The page has an **Alert channel** button that opens the channel creation modal. Create channels here, then use them in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
+Alert channels are listed on the **Channels** page in the Stacktape Console. The **New alert channel** button opens the channel creation dialog. Create channels here, then use them in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
 
 Alert channel management is available in the Stacktape Console. The Console uses channels in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
 
@@ -107,7 +107,7 @@ Yes, but you create a separate alert channel for each Slack channel you want to 
 
 ### How do I tell whether an alert was actually delivered?
 
-Check [alert history](/observability/alert-history) in the Console — a unified log across notifications, alarms, and budgets. The notification and alarm history views include delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
+Check [Alert history](/observability/alert-history) in the Console. It lists every alert sent to a channel with its delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
 
 ### Why can't I delete a channel?
 

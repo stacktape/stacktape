@@ -33,6 +33,7 @@
     "lint": "oxlint src scripts --deny-warnings --report-unused-disable-directives",
     "typecheck": "tsc --noEmit",
     "test": "bun test src && pnpm build && node scripts/smoke.ts",
+    "test:host": "pnpm build && node scripts/test-extension-host.ts",
     "package": "pnpm build && vsce package --no-dependencies",
     "publish:vscode": "pnpm build && vsce publish --no-dependencies",
     "login:vscode": "vsce login stacktape"

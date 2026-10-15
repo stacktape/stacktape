@@ -17,7 +17,7 @@ Use API keys when you need non-interactive authentication. For local development
 
 ## Creating an API key
 
-Open the **API Keys** page in the Stacktape Console. Click **Create new API Key** to open the creation form.
+Open **API keys** from the profile menu in the Stacktape Console. Click **New API key** to open the creation form.
 
 The creation form has two fields — only the API key name is required:
 
@@ -48,7 +48,7 @@ The Console displays active keys separately from expired and revoked keys, which
 - **Expiration** — remaining days until expiry, or the expired date
 - **Revoked** — timestamp of revocation (only shown for revoked keys)
 
-The API Keys page does not show a reactivation action for expired or revoked keys. Create a new key instead when you need to restore access for an integration point.
+The API keys page does not show a reactivation action for expired or revoked keys. Create a new key instead when you need to restore access for an integration point.
 
 ## Revoking an API key
 
@@ -68,7 +68,7 @@ API keys are intended for CLI and CI/CD authentication. After creating a key, co
 
 ## Permissions
 
-Managing API keys requires the `api-keys:manage-own` permission. Users without this permission are redirected to `/overview` when they navigate to the API Keys page. See [Team and access control](/stacktape-console/team-and-access-control) for details on managing user permissions.
+Managing API keys requires the `api-keys:manage-own` permission. Users without this permission are redirected to `/overview` when they navigate to the API keys page. See [Team and access control](/stacktape-console/team-and-access-control) for details on managing user permissions.
 
 ## Best practices
 
@@ -87,7 +87,7 @@ Manual API keys expire by default and cannot exceed 365 days. As a general crede
 
 ### Can I reactivate an expired or revoked key?
 
-The API Keys page does not show a reactivation action for expired or revoked keys. Create a new key instead, update your integrations with the new value, and remove any references to the old key.
+The API keys page does not show a reactivation action for expired or revoked keys. Create a new key instead, update your integrations with the new value, and remove any references to the old key.
 
 ### How do I rotate an API key without downtime?
 

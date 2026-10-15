@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import { initSessionEnvVars } from '../mcp/session-server';
 import type { AgentEvent, SessionRunInput } from './transport';
-import { runAgentSession, runAgentSessionWithRetry } from './session-runner';
+import { runAgentSessionWithRetry } from './session-runner';
 import type { SpawnResult } from './transports/claude-cli';
 
 let root: string;
@@ -55,135 +55,19 @@ const validSubmission = {
   ]
 };
 
-describe('runAgentSession', () => {
-  it('takes its result from the submitted facts, not from the transcript', async () => {
-    const { hooks } = collectEvents();
-
-    const outcome = await runAgentSession(input(), hooks, {
-      provider: 'claude-code',
-      executable: 'claude',
-      // The spawner stands in for the CLI: it writes a submission exactly where the MCP child would.
-      spawner: async ({ args }) => {
-        const configPath = args[args.indexOf('--mcp-config') + 1]!;
-        const config = JSON.parse(await readFile(configPath, 'utf8'));
-        const submissionFile = config.mcpServers.stacktape_init.env[initSessionEnvVars.submissionFile];
-        await writeFile(submissionFile, JSON.stringify(validSubmission), 'utf8');
-        return claudeResult();
-      }
-    });
-
-    expect(outcome.stopReason).toBe('complete');
-    expect(outcome.submission?.services[0]?.name).toBe('api');
-  });
-
-  it('reports a session that finished without submitting anything', async () => {
-    const { hooks } = collectEvents();
-
-    const outcome = await runAgentSession(input(), hooks, {
-      provider: 'claude-code',
-      executable: 'claude',
-      spawner: async () => claudeResult()
-    });
-
-    // A green transcript with no submission is not a success — there is nothing to compose.
-    expect(outcome.stopReason).toBe('no-submission');
-    expect(outcome.submission).toBeUndefined();
-  });
-
-  it('hands the session state to the child as files rather than arguments', async () => {
-    const { hooks } = collectEvents();
-    let env: Record<string, string> = {};
-
-    await runAgentSession(input(), hooks, {
-      provider: 'claude-code',
-      executable: 'claude',
-      spawner: async ({ args }) => {
-        const config = JSON.parse(await readFile(args[args.indexOf('--mcp-config') + 1]!, 'utf8'));
-        env = config.mcpServers.stacktape_init.env;
-        return claudeResult();
-      }
-    });
-
-    expect(env[initSessionEnvVars.root]).toBe(root);
-    expect(env[initSessionEnvVars.filesFile]).toBeTruthy();
-  });
-
-  it('runs Codex in a scratch directory, since its patch tool cannot be removed', async () => {
-    const { hooks } = collectEvents();
-    let cwd = '';
-
-    await runAgentSession(input(), hooks, {
-      provider: 'codex',
-      executable: 'codex',
-      spawner: async (spawn) => {
-        cwd = spawn.cwd;
-        return { stdout: JSON.stringify({ type: 'turn.completed' }), stderr: '', exitCode: 0, timedOut: false };
-      }
-    });
-
-    expect(cwd).not.toBe(root);
-    expect(cwd).toContain('scratch');
-  });
-
-  it('cleans up its temporary directory even when the provider fails', async () => {
-    const { hooks } = collectEvents();
-    let sessionDirectory = '';
-
-    const outcome = await runAgentSessionWithRetry(input(), hooks, {
-      provider: 'claude-code',
-      executable: 'claude',
-      retryDelaysMs: [],
-      spawner: async ({ args }) => {
-        sessionDirectory = args[args.indexOf('--mcp-config') + 1]!;
-        return claudeResult({ exitCode: 1, stdout: '', stderr: 'crashed' });
-      }
-    });
-
-    expect(outcome.stopReason).toBe('error');
-    // The scratch directory can hold whatever the agent tried to write, and the session files
-    // describe the user's project. Neither should outlive the run.
-    expect(
-      await readFile(sessionDirectory, 'utf8')
-        .then(() => true)
-        .catch(() => false)
-    ).toBe(false);
-  });
-
-  it('surfaces the transcript as normalised events', async () => {
-    const { events, hooks } = collectEvents();
-
-    await runAgentSession(input(), hooks, {
-      provider: 'claude-code',
-      executable: 'claude',
-      spawner: async () =>
-        claudeResult({
-          stdout: [
-            JSON.stringify({
-              type: 'assistant',
-              message: {
-                content: [{ type: 'tool_use', name: 'mcp__stacktape_init__read_file', input: { path: 'package.json' } }]
-              }
-            }),
-            JSON.stringify({ type: 'result', subtype: 'success', usage: { input_tokens: 5, output_tokens: 1 } })
-          ].join('\n')
-        })
-    });
-
-    expect(events).toContainEqual({ type: 'tool-call', name: 'read_file', summary: 'package.json' });
-  });
-});
-
 describe('runAgentSessionWithRetry', () => {
-  it('retries a throttled provider and succeeds on a later attempt', async () => {
+  it('retries a throttled provider after a longer backoff and succeeds on a later attempt', async () => {
     const { hooks } = collectEvents();
     let attempts = 0;
+    const startedAt: number[] = [];
 
     const outcome = await runAgentSessionWithRetry(input(), hooks, {
       provider: 'claude-code',
       executable: 'claude',
-      retryDelaysMs: [1, 1],
+      retryDelaysMs: [100, 100],
       spawner: async ({ args }) => {
         attempts += 1;
+        startedAt.push(Date.now());
         if (attempts === 1) {
           return claudeResult({ exitCode: 1, stdout: '', stderr: '429 too many requests' });
         }
@@ -199,6 +83,27 @@ describe('runAgentSessionWithRetry', () => {
 
     expect(attempts).toBe(2);
     expect(outcome.stopReason).toBe('complete');
+    // Throttling waits three times the base delay; retrying sooner tends to be throttled again.
+    expect(startedAt[1]! - startedAt[0]!).toBeGreaterThanOrEqual(290);
+  });
+
+  it('stops after the configured retries when the provider stays throttled', async () => {
+    const { hooks } = collectEvents();
+    let attempts = 0;
+
+    const outcome = await runAgentSessionWithRetry(input(), hooks, {
+      provider: 'claude-code',
+      executable: 'claude',
+      retryDelaysMs: [1, 1],
+      spawner: async () => {
+        attempts += 1;
+        return claudeResult({ exitCode: 1, stdout: '', stderr: '429 too many requests' });
+      }
+    });
+
+    // Each attempt spends the user's subscription, so the retry list is a hard ceiling.
+    expect(attempts).toBe(3);
+    expect(outcome).toMatchObject({ stopReason: 'error', errorMessage: 'Claude Code was rate limited.' });
   });
 
   it('gives up on a failure that is not worth retrying', async () => {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '@stacktape/ui-react/button';
 import { DECISION_COPY } from '../decisions';
 import type { WizardDecision } from '../session';
 import { Evidence } from './Evidence';
@@ -16,11 +17,14 @@ import { Evidence } from './Evidence';
 export function DecisionRow({
   decision,
   onChange,
-  isBusy
+  isBusy,
+  isLocked = false
 }: {
   decision: WizardDecision;
   onChange: (value: string) => void;
   isBusy: boolean;
+  /** Read-only while a deploy uses the saved file. */
+  isLocked?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const copy = DECISION_COPY[decision.kind];
@@ -40,19 +44,14 @@ export function DecisionRow({
           <p className="wizard-decision-summary">{copy.summary(decision.parameters, decision.chosen)}</p>
           <p className="wizard-decision-detail">{copy.detail(decision.parameters, decision.chosen)}</p>
         </div>
-        {others.length > 0 && (
-          <button
-            aria-expanded={isOpen}
-            className="wizard-decision-toggle"
-            onClick={() => setIsOpen(!isOpen)}
-            type="button"
-          >
+        {others.length > 0 && !isLocked && (
+          <Button aria-expanded={isOpen} className="flex-none" onClick={() => setIsOpen(!isOpen)} variant="secondary">
             {isOpen ? 'Close' : 'Change'}
-          </button>
+          </Button>
         )}
       </div>
 
-      {isOpen && (
+      {isOpen && !isLocked && (
         <div className="wizard-decision-options">
           {others.map((value) => {
             const consequence = copy.consequence?.(value, decision.parameters);

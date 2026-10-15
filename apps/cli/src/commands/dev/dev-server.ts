@@ -33,6 +33,8 @@ type DevServerConfig = {
 export type DevServerState = {
   status: 'starting' | 'ready' | 'compiling' | 'error';
   url?: string;
+  /** Backend listener behind the named proxy. */
+  port?: number;
   lastCompileTime?: string;
   error?: string;
 };
@@ -197,7 +199,7 @@ export const startDevServer = async ({
   env.PORT = String(targetPort);
   env.HOST = '127.0.0.1';
 
-  let currentState: DevServerState = { status: 'starting' };
+  let currentState: DevServerState = { status: 'starting', port: targetPort };
   callbacks?.onStateChange?.(currentState);
 
   const portReady = await ensureTargetPortAvailable();
@@ -257,6 +259,7 @@ export const startDevServer = async ({
           newState.status = parsed.status;
         }
         if (parsed.url) newState.url = parsed.url;
+        if (parsed.port) newState.port = parsed.port;
         if (parsed.port && parsed.port !== routedTargetPort) {
           routedTargetPort = parsed.port;
           ensureNamedProxyRoute({ resourceName: name, targetPort: routedTargetPort })

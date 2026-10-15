@@ -1,173 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  getEmbeddedDirectives,
-  getEmbeddedDirectiveNames,
-  getDirectiveName,
-  getDirectiveParams,
-  getDirectivePathToProp,
-  getDirectiveWithoutPath,
-  getIsDirective,
-  getIsValidDirectiveName,
-  rewriteEmbeddedDirectivesToCfFormat,
-  startsLikeDirective,
-  startsLikeDirectiveNotUsableInSub,
-  startsLikeGetParamDirective
-} from './directives';
+import { getDirectiveParams } from './directives';
 
-describe('startsLikeDirective', () => {
-  test('should return true for valid directive syntax', () => {
-    expect(startsLikeDirective('$ResourceParam(')).toBe(true);
-    expect(startsLikeDirective('$CfFormat(')).toBe(true);
-    expect(startsLikeDirective('$OtherDirective(')).toBe(true);
-  });
-
-  test('should return false for non-directive strings', () => {
-    expect(startsLikeDirective('ResourceParam')).toBe(false);
-    expect(startsLikeDirective('$ResourceParam')).toBe(false);
-    expect(startsLikeDirective('test')).toBe(false);
-  });
-});
-
-describe('startsLikeDirectiveNotUsableInSub', () => {
-  test('should return true for CfFormat directive', () => {
-    expect(startsLikeDirectiveNotUsableInSub('$CfFormat(')).toBe(true);
-    expect(startsLikeDirectiveNotUsableInSub('$CfFormat()')).toBe(true);
-  });
-
-  test('should return false for other directives', () => {
-    expect(startsLikeDirectiveNotUsableInSub('$ResourceParam(')).toBe(false);
-    expect(startsLikeDirectiveNotUsableInSub('$OtherDirective(')).toBe(false);
-  });
-});
-
-describe('startsLikeGetParamDirective', () => {
-  test('should return true for ResourceParam directive', () => {
-    expect(startsLikeGetParamDirective('$ResourceParam(')).toBe(true);
-    expect(startsLikeGetParamDirective('$ResourceParam()')).toBe(true);
-  });
-
-  test('should return false for other directives', () => {
-    expect(startsLikeGetParamDirective('$CfFormat(')).toBe(false);
-    expect(startsLikeGetParamDirective('$OtherDirective(')).toBe(false);
-  });
-});
-
-describe('getIsDirective', () => {
-  test('should return true for valid directives', () => {
-    expect(getIsDirective('$ResourceParam()')).toBe(true);
-    expect(getIsDirective('$CfFormat()')).toBe(true);
-    expect(getIsDirective("$ResourceParam('param')")).toBe(true);
-  });
-
-  test('should return true for directives with property paths', () => {
-    expect(getIsDirective('$ResourceParam().property')).toBe(true);
-    expect(getIsDirective('$ResourceParam().property.nested')).toBe(true);
-  });
-
-  test('should return false for non-string values', () => {
-    expect(getIsDirective(123)).toBe(false);
-    expect(getIsDirective(null)).toBe(false);
-    expect(getIsDirective(undefined)).toBe(false);
-    expect(getIsDirective({})).toBe(false);
-  });
-
-  test('should return false for invalid directive syntax', () => {
-    expect(getIsDirective('$ResourceParam')).toBe(false);
-    expect(getIsDirective('$ResourceParam(')).toBe(false);
-    expect(getIsDirective('ResourceParam()')).toBe(false);
-    expect(getIsDirective('$ResourceParam()invalid')).toBe(false);
-  });
-});
-
-describe('getDirectivePathToProp', () => {
-  test('should extract property path from directive', () => {
-    expect(getDirectivePathToProp('$ResourceParam().property')).toEqual(['property']);
-    expect(getDirectivePathToProp('$ResourceParam().property.nested')).toEqual(['property', 'nested']);
-    expect(getDirectivePathToProp('$ResourceParam().a.b.c')).toEqual(['a', 'b', 'c']);
-  });
-
-  test('should return empty array for directives without path', () => {
-    expect(getDirectivePathToProp('$ResourceParam()')).toEqual([]);
-    expect(getDirectivePathToProp("$ResourceParam('param')")).toEqual([]);
-  });
-});
-
-describe('getDirectiveWithoutPath', () => {
-  test('should remove property path from directive', () => {
-    expect(getDirectiveWithoutPath('$ResourceParam().property')).toBe('$ResourceParam()');
-    expect(getDirectiveWithoutPath('$ResourceParam().property.nested')).toBe('$ResourceParam()');
-  });
-
-  test('should return directive as-is if no path', () => {
-    expect(getDirectiveWithoutPath('$ResourceParam()')).toBe('$ResourceParam()');
-    expect(getDirectiveWithoutPath("$ResourceParam('param')")).toBe("$ResourceParam('param')");
-  });
-});
-
-describe('getDirectiveName', () => {
-  test('should extract directive name', () => {
-    expect(getDirectiveName('$ResourceParam(')).toBe('ResourceParam');
-    expect(getDirectiveName('$CfFormat(')).toBe('CfFormat');
-    expect(getDirectiveName('$OtherDirective()')).toBe('OtherDirective');
-  });
-});
-
-describe('getEmbeddedDirectiveNames', () => {
-  test('should return empty array for standalone directives', () => {
-    expect(getEmbeddedDirectiveNames('$Stage()')).toEqual([]);
-    expect(getEmbeddedDirectiveNames("$ResourceParam('myBucket', 'arn')")).toEqual([]);
-  });
-
-  test('should detect embedded directives in interpolated strings', () => {
-    expect(getEmbeddedDirectiveNames('cloudinary-origin-images-$Stage()-$Region()')).toEqual(['Stage', 'Region']);
-  });
-
-  test('should return unique directive names only once', () => {
-    expect(getEmbeddedDirectiveNames('prefix-$Stage()-mid-$Stage()-$Region()')).toEqual(['Stage', 'Region']);
-  });
-});
-
-describe('getEmbeddedDirectives', () => {
-  test('should extract embedded directive definitions', () => {
-    expect(getEmbeddedDirectives('prefix-$Stage()-$Region()')).toEqual([
-      { definition: '$Stage()', name: 'Stage' },
-      { definition: '$Region()', name: 'Region' }
-    ]);
-  });
-
-  test('should return empty for standalone directive', () => {
-    expect(getEmbeddedDirectives('$Stage()')).toEqual([]);
-  });
-});
-
-describe('rewriteEmbeddedDirectivesToCfFormat', () => {
-  test('should rewrite interpolated directive string to CfFormat directive', () => {
-    expect(rewriteEmbeddedDirectivesToCfFormat('cloudinary-origin-images-$Stage()-$Region()')).toBe(
-      "$CfFormat('cloudinary-origin-images-{}-{}', $Stage(), $Region())"
-    );
-  });
-
-  test('should not rewrite standalone directive string', () => {
-    expect(rewriteEmbeddedDirectivesToCfFormat('$Stage()')).toBeNull();
-  });
-});
-
-describe('getIsValidDirectiveName', () => {
-  test('should return true for valid directive names', () => {
-    expect(getIsValidDirectiveName('ResourceParam')).toBe(true);
-    expect(getIsValidDirectiveName('CfFormat')).toBe(true);
-    expect(getIsValidDirectiveName('_privateDirective')).toBe(true);
-    expect(getIsValidDirectiveName('$dollarDirective')).toBe(true);
-    expect(getIsValidDirectiveName('Directive123')).toBe(true);
-  });
-
-  test('should return false for invalid directive names', () => {
-    expect(getIsValidDirectiveName('123Invalid')).toBe(false);
-    expect(getIsValidDirectiveName('invalid-name')).toBe(false);
-    expect(getIsValidDirectiveName('invalid.name')).toBe(false);
-  });
-});
-
+/**
+ * Directive argument parsing is a rule with many meaningful inputs: nesting, quoting, property paths and literal
+ * escapes. The config-loading scenarios prove the resolver end to end; this table pins the parser's grammar.
+ */
 describe('getDirectiveParams', () => {
   describe('basic parameter parsing', () => {
     test('should parse empty parameters', () => {
@@ -412,5 +249,18 @@ describe('getDirectiveParams', () => {
         { isDirective: true, definition: '$C()', name: 'C', value: null }
       ]);
     });
+  });
+});
+
+describe('JSON-quoted directive arguments', () => {
+  test.each([
+    ['$Format("it\'s \\"ready\\"")', 'it\'s "ready"'],
+    ['$Format("first\\nsecond")', 'first\nsecond'],
+    ['$Format("C:\\\\workspace\\\\app")', 'C:\\workspace\\app'],
+    ['$Format("\\u00e9")', 'é'],
+    ['$Format("C:\\\\workspace\\\\")', 'C:\\workspace\\'],
+    ['$Format("C:\\legacy")', 'C:\\legacy']
+  ])('decodes %s as its literal value', (definition, value) => {
+    expect(getDirectiveParams('Format', definition)).toEqual([{ value }]);
   });
 });

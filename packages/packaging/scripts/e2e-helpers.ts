@@ -13,6 +13,13 @@ export const write = async (path: string, contents: string | Uint8Array) => {
   await Bun.write(path, contents);
 };
 
+const removeLambdaContainer = async (name: string) => {
+  // --rm may already have removed a failed runtime. Only a successful listing proves absence.
+  await run('docker', ['rm', '--force', name], undefined, undefined, 5_000).catch(() => undefined);
+  const remaining = await run('docker', ['ps', '-aq', '--filter', `name=^/${name}$`], undefined, undefined, 5_000);
+  if (remaining.stdout.trim()) throw new Error(`Lambda container ${name} survived cleanup.`);
+};
+
 /**
  * Invokes `index.handler` of an extracted function in a local Lambda Node.js image (never pulled; `runtimeImage` and
  * `handler` select another local Lambda image and handler), with the function at
@@ -27,7 +34,9 @@ export const invokeInLambdaImage = async <Response = unknown>({
   environment = {},
   nodeVersion = 24,
   runtimeImage = `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
-  handler = 'index.handler'
+  handler = 'index.handler',
+  user,
+  timeoutMs = 60_000
 }: {
   functionDirectory: string;
   layerDirectory?: string | undefined;
@@ -38,56 +47,84 @@ export const invokeInLambdaImage = async <Response = unknown>({
   /** Another local Lambda base image, for example `public.ecr.aws/lambda/provided:al2023` with handler `bootstrap`. */
   runtimeImage?: string;
   handler?: string;
+  user?: string;
+  timeoutMs?: number;
 }): Promise<Response> => {
-  const name = `stp-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  try {
-    await run('docker', [
-      'run',
-      '--pull',
-      'never',
-      '--platform',
-      'linux/amd64',
-      '--detach',
-      '--rm',
-      '--name',
-      name,
-      '--label',
-      containerLabel,
-      '--publish',
-      '127.0.0.1::8080',
-      '--mount',
-      `type=bind,source=${functionDirectory},target=/var/task,readonly`,
-      ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
-      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-      runtimeImage,
-      handler
-    ]);
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      try {
-        // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-        const port = (await run('docker', ['port', name, '8080/tcp'])).stdout.trim().match(/:(\d+)$/)?.[1];
-        if (port) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  // Docker Desktop on WSL sometimes publishes a port that nothing listens on: every host connection is refused while
+  // the runtime waits inside. The emulator listens within a second of starting, and before that Docker's proxies reset
+  // connections rather than refuse them. A refused request never reached the function, so a new container is safe.
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const name = `stp-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let portLost = false;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- one runtime container per attempt.
+      await run('docker', [
+        'run',
+        '--pull',
+        'never',
+        '--platform',
+        'linux/amd64',
+        '--detach',
+        '--name',
+        name,
+        '--label',
+        containerLabel,
+        ...(user ? ['--user', user] : []),
+        '--publish',
+        '127.0.0.1::8080',
+        '--mount',
+        `type=bind,source=${functionDirectory},target=/var/task,readonly`,
+        ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
+        ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+        runtimeImage,
+        handler
+      ]);
+      let refusedSince: number | undefined;
+      while (Date.now() < deadline) {
+        let refused = false;
+        try {
           // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-          const response = await fetch(`http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`, {
-            method: 'POST',
-            body: JSON.stringify(event)
-          });
-          // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-          const body = await response.text();
-          if (response.ok) return JSON.parse(body) as Response;
-          lastError = new Error(`HTTP ${response.status}: ${body}`);
+          const port = (await run('docker', ['port', name, '8080/tcp'], undefined, undefined, 5_000)).stdout
+            .trim()
+            .match(/:(\d+)$/)?.[1];
+          if (port) {
+            // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
+            const response = await fetch(`http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`, {
+              method: 'POST',
+              body: JSON.stringify(event),
+              signal: AbortSignal.timeout(Math.max(1, deadline - Date.now()))
+            });
+            // oxlint-disable-next-line no-await-in-loop -- Reads the response within the invocation deadline.
+            const body = await response.text();
+            if (response.ok) return JSON.parse(body) as Response;
+            // The runtime answered: an invocation error is terminal, not a readiness retry.
+            lastError = new Error(`HTTP ${response.status}: ${body}`);
+            break;
+          }
+        } catch (error) {
+          lastError = error;
+          refused = (error as { code?: string }).code === 'ConnectionRefused';
         }
-      } catch (error) {
-        lastError = error;
+        refusedSince = refused ? (refusedSince ?? Date.now()) : undefined;
+        if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000 && attempt < 3) {
+          portLost = true;
+          break;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
+        await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
       }
-      // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-      await Bun.sleep(250);
+      if (portLost) continue;
+      // oxlint-disable-next-line no-await-in-loop -- the logs of the failed attempt.
+      const logs = await run('docker', ['logs', name], undefined, undefined, 5_000);
+      throw new Error(`The Lambda runtime did not answer: ${String(lastError)}\n${logs.stdout}${logs.stderr}`);
+    } finally {
+      // oxlint-disable-next-line no-await-in-loop -- each attempt's container is gone before the next starts.
+      await removeLambdaContainer(name);
     }
-    throw new Error(`The Lambda runtime did not answer: ${String(lastError)}`);
-  } finally {
-    await run('docker', ['rm', '--force', name]).catch(() => undefined);
   }
+  throw new Error(`The Lambda runtime's host port was refused in three containers: ${String(lastError)}`);
 };
 
 /**
@@ -160,7 +197,13 @@ export const createChecks = () => {
   return { results, check };
 };
 
-export const run = async (command: string, args: string[], cwd?: string, env?: Record<string, string | undefined>) => {
+export const run = async (
+  command: string,
+  args: string[],
+  cwd?: string,
+  env?: Record<string, string | undefined>,
+  timeoutMs = command === 'docker' ? 420_000 : 240_000
+) => {
   const child = Bun.spawn(
     process.platform === 'win32' && ['pnpm', 'npm', 'npx', 'yarn'].includes(command.toLowerCase())
       ? ['cmd.exe', '/d', '/s', '/c', command, ...args]
@@ -172,11 +215,26 @@ export const run = async (command: string, args: string[], cwd?: string, env?: R
       stderr: 'pipe'
     }
   );
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited
-  ]);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
+  let stdout: string;
+  let stderr: string;
+  let exitCode: number;
+  try {
+    [stdout, stderr, exitCode] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (timedOut) {
+    throw new Error(`${command} ${args.join(' ')} timed out after ${timeoutMs}ms.\n${stderr || stdout}`);
+  }
   if (exitCode !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed (${exitCode}).\n${stderr || stdout}`);
   }
@@ -284,7 +342,8 @@ export const invokeNodeHandlerInLambdaImage = async ({
     '--env',
     `STP_EVENT=${encodedEvent}`,
     ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-    'public.ecr.aws/lambda/nodejs:24',
+    // SSR server functions deploy with nodejs22.x.
+    'public.ecr.aws/lambda/nodejs:22',
     '--input-type=module',
     '--eval',
     script

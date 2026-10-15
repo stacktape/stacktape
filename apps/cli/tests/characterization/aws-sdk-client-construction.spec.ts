@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { FetchHttpHandler } from '@smithy/fetch-http-handler';
+import { HttpRequest } from '@smithy/protocol-http';
 import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling } from '@aws-sdk/client-auto-scaling';
@@ -298,14 +302,40 @@ describe.serial('AWS SDK client construction', () => {
     await managerWith().lambda.getFunction({ lambdaResourceName: 'example-function' });
 
     const requestHandler = captured().config.requestHandler;
-    if (typeof requestHandler !== 'object' || requestHandler === null || !('configProvider' in requestHandler)) {
-      throw new Error('Expected Lambda to use a request handler with observable timeout configuration.');
+    if (!(requestHandler instanceof FetchHttpHandler)) {
+      throw new Error('Expected Lambda to use the fetch request handler.');
     }
-    const handlerConfig = await requestHandler.configProvider;
-    if (typeof handlerConfig !== 'object' || handlerConfig === null || !('requestTimeout' in handlerConfig)) {
-      throw new Error('Expected the Lambda request handler to expose its request timeout.');
+    // Exercise the configured deadline without waiting fifteen minutes. Other fetch timers retain their behavior.
+    const originalTimeout = globalThis.setTimeout;
+    const deadlines: number[] = [];
+    const compressedTimeout = Object.assign(
+      (callback: Parameters<typeof setTimeout>[0], delay?: number, ...args: unknown[]) => {
+        if (delay !== undefined) deadlines.push(delay);
+        return originalTimeout(callback, delay === 900_000 ? 40 : delay, ...args);
+      },
+      { __promisify__: originalTimeout.__promisify__ }
+    );
+    const clock = spyOn(globalThis, 'setTimeout').mockImplementation(compressedTimeout);
+    const server = createServer(); // Accept the request but never send response headers.
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      await expect(
+        requestHandler.handle(
+          new HttpRequest({
+            protocol: 'http:',
+            hostname: '127.0.0.1',
+            port: (server.address() as AddressInfo).port
+          }),
+          { abortSignal: AbortSignal.timeout(250) }
+        )
+      ).rejects.toMatchObject({ name: 'TimeoutError' });
+      expect(deadlines).toContain(900_000);
+    } finally {
+      clock.mockRestore();
+      requestHandler.destroy();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
-    expect(handlerConfig.requestTimeout).toBe(900_000);
   });
 
   test.serial('constructs ECS and its CodeDeploy client from the same manager context', async () => {

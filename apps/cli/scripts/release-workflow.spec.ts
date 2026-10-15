@@ -1,26 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EXTERNAL_TOOL_MANIFEST } from 'src/utils/external-tools';
-import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './release/build-cli-sources';
-import {
-  EXPECTED_RELEASE_ARCHIVES,
-  MAX_RELEASE_ARCHIVE_BYTES,
-  verifyCandidateArchives
-} from './release/verify-candidate-assets';
 import { parse as parseYaml } from 'yaml';
 
 const readReleaseWorkflow = () =>
   readFile(join(process.cwd(), '..', '..', '.github', 'workflows', 'release.yml'), 'utf8');
 
 const readCiWorkflow = () => readFile(join(process.cwd(), '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
-
-const readCliManifest = async () => {
-  const manifest: unknown = JSON.parse(await readFile(join(process.cwd(), 'package.json'), 'utf8'));
-  if (!isRecord(manifest)) throw new Error('CLI package.json must be an object.');
-  return manifest;
-};
 
 const readWorkspaceBunVersion = async () => {
   const manifest: unknown = JSON.parse(await readFile(join(process.cwd(), '..', '..', 'package.json'), 'utf8'));
@@ -45,91 +31,24 @@ const readReleaseWorkflowModel = async () => {
   return parsed;
 };
 
-describe('release candidate workflow', () => {
-  test('bundles both Linux libc variants for cross-compiled candidates', () => {
-    expect(OPENTUI_PLATFORM_IDENTIFIERS.linux).toEqual(['linux-x64', 'linux-x64-musl']);
-    expect(OPENTUI_PLATFORM_IDENTIFIERS.alpine).toEqual(['linux-x64', 'linux-x64-musl']);
-    expect(OPENTUI_PLATFORM_IDENTIFIERS['linux-arm']).toEqual(['linux-arm64', 'linux-arm64-musl']);
-    expect(BUN_COMPILE_TARGETS.alpine).toBe('bun-linux-x64-baseline-musl');
-    expect(EXTERNAL_TOOL_MANIFEST.railpack.assets.alpine?.url).toEndWith('-x86_64-unknown-linux-musl.tar.gz');
-  });
-
-  test('installs every supported OpenTUI native package as a direct optional dependency', async () => {
-    const manifest = await readCliManifest();
-    expect(isRecord(manifest.dependencies)).toBe(true);
-    expect(isRecord(manifest.optionalDependencies)).toBe(true);
-    if (!isRecord(manifest.dependencies) || !isRecord(manifest.optionalDependencies)) return;
-
-    const coreVersion = manifest.dependencies['@opentui/core'];
-    const platformIds = new Set(Object.values(OPENTUI_PLATFORM_IDENTIFIERS).flat());
-    for (const platformId of platformIds) {
-      expect(manifest.optionalDependencies[`@opentui/core-${platformId}`]).toBe(coreVersion);
-    }
-  });
-
-  test('requires the complete archive set with no unexpected platform archive', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'stacktape-release-candidate-'));
-
-    try {
-      await Promise.all(EXPECTED_RELEASE_ARCHIVES.map((fileName) => writeFile(join(directory, fileName), fileName)));
-      expect(await verifyCandidateArchives(directory)).toEqual([...EXPECTED_RELEASE_ARCHIVES]);
-
-      await rm(join(directory, 'linux-arm.tar.gz'));
-      await expect(verifyCandidateArchives(directory)).rejects.toThrow('archive set mismatch');
-
-      await writeFile(join(directory, 'linux-arm.tar.gz'), 'linux-arm');
-      await writeFile(join(directory, 'unexpected.zip'), 'unexpected');
-      await expect(verifyCandidateArchives(directory)).rejects.toThrow('archive set mismatch');
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
-
-  test('rejects an unexpectedly large release archive', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'stacktape-release-size-'));
-
-    try {
-      await Promise.all(EXPECTED_RELEASE_ARCHIVES.map((fileName) => writeFile(join(directory, fileName), fileName)));
-      await truncate(join(directory, 'windows.zip'), MAX_RELEASE_ARCHIVE_BYTES['windows.zip'] + 1);
-      await expect(verifyCandidateArchives(directory)).rejects.toThrow('reviewed ceiling');
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
-
-  test('builds the exact platform archive set and assembles a verified npm package', async () => {
-    const workflow = await readReleaseWorkflow();
-
-    for (const archive of EXPECTED_RELEASE_ARCHIVES) {
-      expect(workflow).toContain(`archive: ${archive}`);
-    }
-    expect(workflow.match(/^\s+archive: /gm)).toHaveLength(EXPECTED_RELEASE_ARCHIVES.length);
-
-    const archiveVerificationIndex = workflow.indexOf('bun scripts/release/verify-candidate-assets.ts');
-    const checksumsIndex = workflow.indexOf('pnpm run release:checksums');
-    const npmBuildIndex = workflow.indexOf('pnpm run build:npm');
-    const npmVerifyIndex = workflow.indexOf('bun scripts/verify-npm-package.ts --require-checksums');
-    const npmPackIndex = workflow.indexOf('pnpm --dir ./__release-npm pack');
-    const candidateUploadIndex = workflow.indexOf('name: Upload complete release candidate');
-
-    expect(archiveVerificationIndex).toBeGreaterThan(-1);
-    expect(checksumsIndex).toBeGreaterThan(archiveVerificationIndex);
-    expect(npmBuildIndex).toBeGreaterThan(checksumsIndex);
-    expect(npmVerifyIndex).toBeGreaterThan(npmBuildIndex);
-    expect(npmPackIndex).toBeGreaterThan(npmVerifyIndex);
-    expect(candidateUploadIndex).toBeGreaterThan(npmPackIndex);
-    expect(workflow).toContain('pnpm run build:npm --version "$RELEASE_VERSION" --require-checksums');
-    expect(workflow).not.toContain('pnpm run build:npm -- --version');
-    expect(workflow).toContain('--require-checksums --expected-version "$RELEASE_VERSION"');
-    expect(workflow).toContain('apps/cli/__dist/SHA256SUMS');
-    expect(workflow).toContain('apps/cli/__dist/stacktape-*.tgz');
-    expect(workflow).toContain("if: matrix.platform == 'alpine'");
-    expect(workflow).toContain('apk add --no-cache libstdc++ libgcc gcompat');
-    expect(workflow).toContain('/tmp/stacktape-candidate/stacktape --version');
-    expect(workflow).toContain('bun build scripts/release/verify-external-tools.ts --target bun');
-    expect(workflow).toContain('BUN_BE_BUN=1 /tmp/stacktape-candidate/stacktape /check/verify-external-tools.js');
-    expect(workflow).toContain('FORCE_TTY=1 STP_DISABLE_TELEMETRY=1 STP_PRINT_UNHANDLED_ERROR=1');
-    expect(workflow).toContain('timeout 3 /tmp/stacktape-candidate/stacktape');
+// Repository publication policy: these inspect authority and configured gates, not executable runtime behavior.
+describe('release publication policy', () => {
+  test('publication waits for installation of the exact candidate on native hosts', async () => {
+    const model = await readReleaseWorkflowModel();
+    const jobs = isRecord(model.jobs) ? model.jobs : {};
+    const qualifier = isRecord(jobs['qualify-native']) ? jobs['qualify-native'] : {};
+    const strategy = isRecord(qualifier.strategy) ? qualifier.strategy : {};
+    const matrix = isRecord(strategy.matrix) ? strategy.matrix : {};
+    expect(matrix.include).toEqual([
+      { platform: 'linux', runner: 'ubuntu-24.04' },
+      { platform: 'linux-arm', runner: 'ubuntu-24.04-arm' },
+      { platform: 'macos', runner: 'macos-15-intel' },
+      { platform: 'macos-arm', runner: 'macos-15' },
+      { platform: 'win', runner: 'windows-2025' },
+      { platform: 'win-arm', runner: 'windows-11-arm' }
+    ]);
+    expect(qualifier.needs).toBe('assemble');
+    expect(isRecord(jobs.publish) && jobs.publish.needs).toEqual(['assemble', 'qualify-native']);
   });
 
   test('isolates release and installer authority in protected jobs', async () => {

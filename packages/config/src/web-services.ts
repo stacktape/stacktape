@@ -22,6 +22,62 @@ export interface WebService {
 
 export interface WebServiceProps extends SimpleServiceContainer {
   /**
+   * #### Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it.
+   *
+   * ---
+   *
+   * Set it when your app listens on a fixed port (for example `app.listen(8080)` or a Spring Boot default) instead
+   * of reading `PORT`. Not used with `network-load-balancer`, whose `ports[].containerPort` sets the container port.
+   *
+   * Changing it on a deployed service replaces the load balancer target group (or the API gateway integration),
+   * which briefly interrupts traffic during the update.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/main.ts
+   *       # stp-focus
+   *       port: 8080
+   *       # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new JsBundleImagePackaging({
+   *       entryfilePath: 'src/main.ts'
+   *     }),
+   *     // stp-focus
+   *     port: 8080,
+   *     // stp-end-focus
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   *
+   * @default 3000
+   */
+  port?: number;
+  /**
    * #### CORS settings. Overrides any CORS headers from your application.
    *
    * ---

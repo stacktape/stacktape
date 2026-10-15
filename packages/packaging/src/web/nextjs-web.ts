@@ -4,6 +4,7 @@ import type {
   CreatePackagingError,
   ExecuteProcess,
   LoadModuleExport,
+  RunDocker,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
 import type { NextjsWeb } from '@stacktape/config/nextjs-web';
@@ -18,6 +19,9 @@ import type { EnvironmentVar } from '@stacktape/config/shared';
 import type { OpenNextConfig as UpstreamOpenNextConfig } from 'open-next/types/open-next.js';
 import { createTemporaryBuildFile } from '../fs/temporary-file';
 import { runWebBuildExclusive } from './build-coordinator';
+import { resolveInstalledNodePackage } from './node-runtime-files';
+import { copyDockerInstalledModulesForLambda } from '../es/native-dependencies';
+import { resolveNodeVersion } from '../bundlers/node-version';
 
 type NextjsWebBundlingProps = {
   resource: PackagedNextjsWeb;
@@ -31,9 +35,11 @@ type NextjsWebBundlingProps = {
   createPackagingError: CreatePackagingError;
   executeProcess: ExecuteProcess;
   loadModuleExport: LoadModuleExport;
+  runDocker: RunDocker;
+  nativeDependencyInstallationRootPath: string;
 };
 
-type PackagedFunction = { name: string; handler: string };
+type PackagedFunction = { name: string; handler: string; runtime?: string | undefined };
 type PackagedNextjsWeb = NextjsWeb['properties'] & {
   name: string;
   _nestedResources: {
@@ -46,7 +52,12 @@ type PackagedNextjsWeb = NextjsWeb['properties'] & {
   };
 };
 
-type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'>;
+type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'> & {
+  // The pinned AWS builder supports install options absent from the older OpenNext type package.
+  imageOptimization?: UpstreamOpenNextConfig['imageOptimization'] & {
+    install?: { packages: string[]; additionalArgs?: string };
+  };
+};
 const OPEN_NEXT_BUILD_PACKAGE = '@opennextjs/aws@3.10.4';
 /** Any URL string: `prisma generate` reads it from the config file but does not use it. */
 const PRISMA_GENERATE_PLACEHOLDER_URL = 'postgresql://stacktape:generate@127.0.0.1:5432/generate';
@@ -76,7 +87,9 @@ export const createNextjsWebArtifacts = async ({
   archiveItem,
   createPackagingError,
   executeProcess,
-  loadModuleExport
+  loadModuleExport,
+  runDocker,
+  nativeDependencyInstallationRootPath
 }: NextjsWebBundlingProps) => {
   const copyEnv = hostBuildEnvironment(process.env);
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
@@ -90,6 +103,7 @@ export const createNextjsWebArtifacts = async ({
       const configFileName = await createTemporaryOpenNextConfigFile({
         resource,
         cwd,
+        sharpVersion: copyEnv.SHARP_VERSION,
         createPackagingError,
         loadModuleExport
       });
@@ -151,6 +165,38 @@ export const createNextjsWebArtifacts = async ({
   await createServerWrapper({ distFolderPath, resource });
   // create custom resource wrapper to use open-next built dynamo inserter resource
   await createDynamoInsertWrapper({ distFolderPath });
+
+  // OpenNext installs the JS package without host lifecycle scripts. Materialize the exact emitted version and
+  // its native binaries in the target runtime before hashing the ZIP.
+  const imageFunctionPath = join(distFolderPath, 'image-optimization-function');
+  const sharp = await resolveInstalledNodePackage({
+    applicationRoot: imageFunctionPath,
+    packageName: 'sharp',
+    traceBasePath: imageFunctionPath
+  });
+  if (!sharp) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `Could not resolve the sharp runtime package for nextjs-web "${resource.name}" image optimization.`
+    });
+  }
+  // Replace host binaries and command links instead of overlaying them with the Docker installation's symlinks.
+  await Promise.all([
+    remove(join(imageFunctionPath, 'node_modules', 'sharp')),
+    remove(join(imageFunctionPath, 'node_modules', '.bin'))
+  ]);
+  await copyDockerInstalledModulesForLambda({
+    dependencies: [{ ...sharp, dependencyType: 'root' }],
+    installationRootPath: nativeDependencyInstallationRootPath,
+    distFolderPath: imageFunctionPath,
+    lambdaRuntimeVersion: resolveNodeVersion({
+      runtime: resource._nestedResources.imageFunction.runtime,
+      target: 'lambda'
+    }),
+    packageManager: 'npm',
+    dockerBuildOutputArchitecture: 'linux/amd64',
+    runDocker
+  });
 
   const [
     imageFunction,
@@ -353,15 +399,23 @@ const respondToCf = async ({
 const createTemporaryOpenNextConfigFile = async ({
   resource,
   cwd,
+  sharpVersion,
   createPackagingError,
   loadModuleExport
 }: {
   resource: PackagedNextjsWeb;
   cwd: string;
+  sharpVersion: string | undefined;
   createPackagingError: CreatePackagingError;
   loadModuleExport: LoadModuleExport;
 }) => {
-  const openNextConfig = await getOpenNextConfig({ resource, cwd, createPackagingError, loadModuleExport });
+  const openNextConfig = await getOpenNextConfig({
+    resource,
+    cwd,
+    sharpVersion,
+    createPackagingError,
+    loadModuleExport
+  });
   const fileContent = `const config = ${JSON.stringify(openNextConfig, null, 4)};
 
 export default config;
@@ -378,11 +432,13 @@ export default config;
 const getOpenNextConfig = async ({
   resource,
   cwd,
+  sharpVersion,
   createPackagingError,
   loadModuleExport
 }: {
   resource: PackagedNextjsWeb;
   cwd: string;
+  sharpVersion: string | undefined;
   createPackagingError: CreatePackagingError;
   loadModuleExport: LoadModuleExport;
 }): Promise<OpenNextConfig> => {
@@ -415,9 +471,22 @@ const getOpenNextConfig = async ({
     .catch(() => undefined);
   const windowsDefaultBuildCommand = getWindowsNextBuildCommand(installedNextVersion);
   const buildCommand = resource.buildCommand || (process.platform === 'win32' ? windowsDefaultBuildCommand : undefined);
+  // OpenNext swallows native install failures and then emits no sharp package. Its host install only needs package
+  // metadata: Stacktape installs the native dependencies in the Lambda build image below. Keep user-selected
+  // packages/options and OpenNext 3.10.4's default sharp version (including its SHARP_VERSION override).
+  const imageInstall = userOpenNextConfig.imageOptimization?.install ?? {
+    packages: [`sharp@${sharpVersion ?? '0.32.6'}`]
+  };
 
   const finalConfig: OpenNextConfig = {
     ...userOpenNextConfig,
+    imageOptimization: {
+      ...userOpenNextConfig.imageOptimization,
+      install: {
+        ...imageInstall,
+        additionalArgs: `${imageInstall.additionalArgs ?? ''} --ignore-scripts`.trim()
+      }
+    },
     ...(buildCommand ? { buildCommand } : {})
   };
   if (resource.useEdgeLambda) {

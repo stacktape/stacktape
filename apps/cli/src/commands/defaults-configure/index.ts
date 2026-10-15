@@ -51,7 +51,8 @@ export const commandDefaultsConfigure = async () => {
   tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(localStatePaths.persistedStateFile())}.`);
 };
 
-const maskString = (input: string): string => {
+const maskString = (input: string | null | undefined): string | null | undefined => {
+  if (!input) return input;
   if (input.length <= 4) {
     return input;
   }

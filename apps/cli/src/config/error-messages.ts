@@ -543,7 +543,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       type: 'CONFIG_VALIDATION',
       message: [
         `Error in the config. When using third-party resources from ${bold(providerType)} you must provide credentials for the ${bold(providerType)} provider in one of these ways:`,
-        `  1. Create credentials for 3rd party integration in the stacktape console ${namedLink('console', 'here')}`,
+        `  1. Add the provider's credentials on the Third-party providers page of the Stacktape Console ${namedLink('console', 'here')}`,
         `  2. Specify credentials in the ${prettyConfigProperty('providerConfig')} section in your stacktape config file.`
       ].join('\n')
     };

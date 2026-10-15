@@ -1,6 +1,12 @@
 # Upgrading from v3
 
-Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page currently covers packaging.
+Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page covers packaging and what the first v4 deployment changes in an existing stack.
+
+## Deployed stacks
+
+Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis clusters, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
+
+The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. Alarms configured for the whole organization in the Console are applied by v4 the same way v3 applied them.
 
 ## Packaging
 

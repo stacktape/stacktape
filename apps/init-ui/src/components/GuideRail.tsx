@@ -11,14 +11,27 @@ import type { Step } from '../steps';
  * That is the whole difference from the stepper this replaced. A stepper implies a gate. Reading
  * down a page implies momentum, which is what this flow is actually trying to have.
  */
-export function GuideRail({ steps }: { steps: Step[] }) {
+const NONE_OPENED: readonly string[] = [];
+
+export function GuideRail({ steps, openedIds = NONE_OPENED }: { steps: Step[]; openedIds?: readonly string[] }) {
   // Keyed by id rather than by object: the steps array is rebuilt on every publish, and the observer
-  // only needs to be rewired when a *new* section appears.
+  // only needs to be rewired when a *new* section appears. A finished step is one line on the page,
+  // which is never what you are reading, so only the current step and finished ones opened again
+  // are watched; otherwise the line at the top of the page would win.
   const reachable = steps
-    .filter((step) => step.status !== 'todo')
+    .filter((step) => step.status === 'active' || (step.status === 'done' && openedIds.includes(step.id)))
     .map((step) => step.id)
     .join(',');
-  const [inView, setInView] = useState<string | undefined>(reachable.split(',')[0]);
+  const active = steps.find((step) => step.status === 'active')?.id;
+  const [inView, setInView] = useState<string | undefined>(active);
+
+  // A step that just became active is where the run is, and its section scrolls itself into view.
+  // The observer below cannot be relied on to say so: on a page too short to scroll, or when the new
+  // section starts below the top third, nothing ever "enters", and the rail kept marking a finished
+  // step as the current one.
+  useEffect(() => {
+    if (active !== undefined) setInView(active);
+  }, [active, reachable]);
 
   useEffect(() => {
     const sections = reachable
@@ -29,8 +42,15 @@ export function GuideRail({ steps }: { steps: Step[] }) {
 
     // The top third of the viewport: a section counts as "the one you are reading" when its heading
     // is near the top, not when it is centred — which is how reading actually feels.
+    // The first callback only reports where the sections are when observing starts; taking it would
+    // put the marker back on a finished step at the top of the page.
+    let primed = false;
     const observer = new IntersectionObserver(
       (entries) => {
+        if (!primed) {
+          primed = true;
+          return;
+        }
         const entered = entries.filter((entry) => entry.isIntersecting);
         if (entered.length === 0) return;
         const first = entered.toSorted((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0]!;

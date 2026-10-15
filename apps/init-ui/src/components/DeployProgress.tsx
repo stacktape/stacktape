@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Spinner } from '@stacktape/ui-react/spinner';
+import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import type { DeployModel } from '../deploy-model';
 import { CopyableCommand } from './CopyableCommand';
+import { FailureExplanationText } from './FailureExplanation';
 
 /**
  * A deploy, while it happens.
@@ -24,7 +26,8 @@ export function DeployProgress({
   outcome,
   urls,
   commandLine,
-  keptPartialProgress
+  keptPartialProgress,
+  actions
 }: {
   model: DeployModel;
   status: 'running' | 'repairing' | 'succeeded' | 'failed';
@@ -35,8 +38,11 @@ export function DeployProgress({
   repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
   /** The failed attempt left its progress standing — resources that exist are resources that bill. */
   keptPartialProgress?: boolean;
+  /** What to do next, right under the outcome rather than after the log. */
+  actions?: ReactNode;
 }) {
   const [showLog, setShowLog] = useState(false);
+  const [showOriginalError, setShowOriginalError] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -53,6 +59,10 @@ export function DeployProgress({
         ? rewritten[0]
         : `${rewritten.slice(0, -1).join(', ')} and ${rewritten.at(-1)}`;
   const anyRepairApplied = (repairs ?? []).some((entry) => entry.applied);
+  // The deploy's own message is raw AWS or container text more often than not; lead with what it means.
+  const explanations = outcome?.ok === false ? explainFailure(outcome.message) : [];
+  const failureText =
+    explanations.length > 0 ? <FailureExplanationText explanations={explanations} /> : outcome?.message;
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,30 +70,41 @@ export function DeployProgress({
         <Alert tone="success" title="Deployed">
           {urls.length > 0 ? 'Your infrastructure is live.' : (outcome?.message ?? 'Your infrastructure is live.')}
           {anyRepairApplied &&
-            ` One honest note: after the first attempt failed, we changed ${rewrittenLabel} and tried again — the file in your project is the version that is live now.`}
+            ` One honest note: after the first attempt failed, we changed ${rewrittenLabel} and tried again. The file in your project is the version that is live now.`}
         </Alert>
       )}
 
       {status === 'repairing' && (
         <Alert tone="info" title="That did not work. Looking at your code again.">
-          {outcome?.message ?? 'The deploy failed.'} A failed deploy tells us something we believed about your project
-          is wrong, so the agent is reading it again to find out what. If it finds something, we rewrite the
-          configuration, save the file, and try once more — you will see exactly what changed.
+          {failureText ?? 'The deploy failed.'} A failed deploy tells us something we believed about your project is
+          wrong, so the agent is reading it again to find out what. If it finds something, we rewrite the configuration,
+          save the file, and try once more. You will see exactly what changed.
         </Alert>
       )}
 
       {status === 'failed' && (
         <Alert tone="danger" title="The deploy did not finish">
-          {outcome?.message ?? 'Something went wrong.'}
+          {failureText ?? 'Something went wrong.'}
           {repairs !== undefined && repairs.length > 0
             ? anyRepairApplied
               ? ` We changed ${rewrittenLabel} and tried again, and it still did not work.`
               : ' We looked at your code again and found nothing to change, so we stopped rather than repeat the same deploy.'
             : ''}
           {keptPartialProgress === true
-            ? ' What was created before the failure is still in your account, and it bills until you remove it — the command below under “clean up” takes care of that.'
-            : ' Nothing is left half-created: Stacktape rolls a failed deploy back to the last state that worked.'}
+            ? ' This retry ran without automatic rollback, so the stack can be left the way the attempt changed it. The command below rolls it back to the version that worked.'
+            : ' When a deploy fails while AWS is changing the stack, AWS undoes that change: a new stack is removed, and an existing one goes back to the version that was running.'}
         </Alert>
+      )}
+
+      {actions}
+
+      {(status === 'failed' || status === 'repairing') && explanations.length > 0 && (
+        <section>
+          <button className="wizard-disclosure" onClick={() => setShowOriginalError(!showOriginalError)} type="button">
+            {showOriginalError ? 'Hide' : 'Show'} the original error
+          </button>
+          {showOriginalError && <pre className="wizard-log">{outcome?.message}</pre>}
+        </section>
       )}
 
       {urls.length > 0 && (
@@ -105,7 +126,7 @@ export function DeployProgress({
         {model.phases.map((phase) => (
           <li className={`wizard-phase is-${phase.status}`} key={phase.id}>
             <span className="wizard-phase-marker" aria-hidden>
-              {phase.status === 'done' ? '✓' : phase.status === 'running' && status === 'running' ? '' : ''}
+              {phase.status === 'done' ? '✓' : phase.status === 'failed' ? '✕' : ''}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-4">
@@ -117,7 +138,8 @@ export function DeployProgress({
                 )}
               </div>
 
-              {phase.status === 'running' && phase.message !== '' && (
+              {/* CloudFormation's message is the same count as the figure beside the label. */}
+              {phase.status === 'running' && phase.message !== '' && phase.cloudformation === undefined && (
                 <p className="wizard-phase-message">{phase.message}</p>
               )}
 
@@ -164,13 +186,17 @@ export function DeployProgress({
         </div>
       )}
 
-      {model.notices.length > 0 && (
+      {/* Once the deploy has failed, its error is in the outcome above and in the full log. */}
+      {model.notices.length > 0 && status !== 'failed' && (
         <section>
-          <h3 className="wizard-section-heading">Worth reading</h3>
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[0.9rem]">
+          <h3 className="wizard-section-heading">What the deploy reported</h3>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {model.notices.slice(-6).map((notice, index) => (
-              // oxlint-disable-next-line react/no-array-index-key -- an append-only feed of notices.
-              <li className={notice.level === 'error' ? 'text-[var(--stp-status-danger-text)]' : ''} key={index}>
+              <li
+                className={`wizard-output ${notice.level === 'error' ? 'text-[var(--stp-status-error)]' : ''}`}
+                // oxlint-disable-next-line react/no-array-index-key -- an append-only feed of notices.
+                key={index}
+              >
                 {notice.message}
               </li>
             ))}

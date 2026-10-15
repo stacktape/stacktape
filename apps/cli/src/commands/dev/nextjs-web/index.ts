@@ -20,7 +20,7 @@ const writeDevEnvFile = async ({
   workingDirectory: string;
   environment?: EnvironmentVar[];
   localWorkloadEnvVars?: Record<string, string>;
-}): Promise<void> => {
+}): Promise<Record<string, string>> => {
   const envVars: Record<string, string> = {};
 
   // Resolve environment directives
@@ -41,7 +41,7 @@ const writeDevEnvFile = async ({
   }
 
   if (Object.keys(envVars).length === 0) {
-    return;
+    return envVars;
   }
 
   // Write .env.local file
@@ -52,6 +52,7 @@ const writeDevEnvFile = async ({
   const envFilePath = join(workingDirectory, '.env.local');
   await writeFile(envFilePath, envContent);
   tuiManager.info(`[${name}] Wrote ${Object.keys(envVars).length} env vars to .env.local`);
+  return envVars;
 };
 
 const getWorkingDirectory = (appDirectory: string): string => {
@@ -73,7 +74,7 @@ export const startNextjsWebDevServer = async ({
   const workingDirectory = getWorkingDirectory(nextjsWeb.appDirectory);
 
   // Write .env.local with environment values and local workload addresses
-  await writeDevEnvFile({
+  const injectedEnvironment = await writeDevEnvFile({
     name,
     workingDirectory,
     environment: nextjsWeb.environment,
@@ -82,7 +83,8 @@ export const startNextjsWebDevServer = async ({
 
   const devConfig = {
     command: nextjsWeb.dev?.command || DEFAULT_NEXTJS_DEV_COMMAND,
-    workingDirectory: nextjsWeb.appDirectory
+    workingDirectory: nextjsWeb.appDirectory,
+    environment: injectedEnvironment
   };
 
   const useDevTui = devTuiManager.running;

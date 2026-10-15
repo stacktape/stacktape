@@ -9,16 +9,20 @@
     "build:watch": "vite build --watch",
     "dev": "vite",
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:e2e": "pnpm run typecheck:e2e && turbo run build --filter=@stacktape/init-ui && playwright test",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json"
   },
   "dependencies": {
     "@stacktape/config-inference": "workspace:*",
+    "@stacktape/console-api": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@stacktape/config": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@types/bun": "catalog:",

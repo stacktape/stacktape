@@ -1,3 +1,5 @@
+import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
+import stripAnsi from 'strip-ansi';
 import { stacktapeTrpcApiManager } from './index';
 import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
 import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
@@ -63,7 +65,12 @@ export const recordStackOperationEnd = async ({
     success,
     interrupted,
     ...(issuesEnabled === undefined ? {} : { issuesEnabled }),
-    description: error ? `${error}` : interrupted ? 'Operation was interrupted' : undefined,
+    // The Console shows this to people: the message only, without the error category or terminal colours.
+    description: error
+      ? scrubSensitiveText(stripAnsi(error.message || `${error}`))
+      : interrupted
+        ? 'Operation was interrupted'
+        : undefined,
     commandArgs: withStacktapeOperationInvocationContext(
       commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
     ),

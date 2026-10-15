@@ -518,7 +518,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       serviceCount: 3,
       httpServiceCount: 2,
       existingDeployments: ['render'],
-      requiredGapPatterns: ['RabbitMQ-compatible AMQP broker', 'Render deployment config'],
+      requiredGapPatterns: ['needs a RabbitMQ broker', 'Render deployment config'],
       forbidCurrentlyHostedDependencies: true
     }
   },

@@ -50,17 +50,19 @@
     "test:aws": "pnpm qualify:projects -- --lanes=aws",
     "test:console:api": "pnpm --filter @stacktape/console-api-app test",
     "test:console:browser": "pnpm --filter @stacktape/console-ui test:e2e",
-    "test:console:browser:smoke": "pnpm --filter @stacktape/console-ui test:e2e:smoke",
+    "test:console:browser:offline": "pnpm --filter @stacktape/console-ui test:e2e:offline",
     "test:console:browser:dev-api": "pnpm --filter @stacktape/console-ui test:e2e:dev-api",
     "test:console:db": "pnpm --filter @stacktape/console-api-app test:db",
     "test:doctor": "node scripts/workspace/test-doctor.ts",
-    "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e && pnpm --filter @stacktape/packaging run test:es-image-deps-e2e && pnpm --filter @stacktape/cli run test:lambda-archives && pnpm --filter @stacktape/cli run test:asset-replacer && pnpm --filter @stacktape/cli run test:docker-preparation && pnpm --filter @stacktape/cli run test:layer-upload && pnpm --filter @stacktape/cli run test:fresh-install && pnpm --filter @stacktape/cli run test:external-tools",
+    "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:archive-build:e2e && pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:language-lambdas && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e && pnpm --filter @stacktape/packaging run test:es-image-deps-e2e && pnpm --filter @stacktape/cli run test:lambda-archives && pnpm --filter @stacktape/cli run test:asset-replacer && pnpm --filter @stacktape/cli run test:docker-preparation && pnpm --filter @stacktape/cli run test:layer-upload && pnpm --filter @stacktape/cli run test:fresh-install && pnpm --filter @stacktape/cli run test:external-tools && pnpm --filter @stacktape/cli run test:runtime-acceptances",
     "test:plan": "node scripts/workspace/test-plan.ts",
-    "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/child-process.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/run-console-dev.test.ts scripts/workspace/test-doctor.test.ts scripts/workspace/test-plan.test.ts scripts/workspace/verify-console-pointer.test.ts scripts/workspace/console-dev-reservation.test.ts scripts/workspace/check-architecture.test.ts scripts/workspace/check-docs.test.ts",
+    "test:tools": "node scripts/workspace/check-test-registry.ts && node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/child-process.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/run-console-dev.test.ts scripts/workspace/test-doctor.test.ts scripts/workspace/test-plan.test.ts scripts/workspace/public-workspace.test.ts scripts/workspace/verify-console-pointer.test.ts scripts/workspace/console-dev-reservation.test.ts scripts/workspace/check-architecture.test.ts scripts/workspace/check-docs.test.ts scripts/workspace/test-registry.test.ts scripts/workspace/test-ci.test.ts scripts/workspace/workspace-build.test.ts",
     "typecheck": "turbo run typecheck",
     "typecheck:tools": "tsc -p tsconfig.json",
     "audit:deadcode": "knip",
-    "check:docs": "node scripts/workspace/check-docs.ts"
+    "check:docs": "node scripts/workspace/check-docs.ts",
+    "test:ci": "bun --no-env-file scripts/workspace/test-ci.ts",
+    "check:static": "pnpm check:instructions && pnpm check:docs && pnpm check:secrets && pnpm fmt:check && pnpm lint && pnpm check:workspace && pnpm check:patterns && pnpm generate:check && turbo run typecheck && pnpm typecheck:tools && pnpm check:architecture && pnpm check:deadcode && pnpm check:duplicates"
   },
   "devDependencies": {
     "@ast-grep/cli": "catalog:",

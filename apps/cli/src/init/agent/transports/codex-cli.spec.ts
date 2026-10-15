@@ -48,41 +48,26 @@ describe('combineCodexPrompt', () => {
 const lines = (...events: unknown[]): string[] => events.map((event) => JSON.stringify(event));
 
 describe('parseCodexStream', () => {
-  it('reports a completed turn', () => {
-    const parsed = parseCodexStream(lines({ type: 'turn.completed', usage: { input_tokens: 500, output_tokens: 60 } }));
-
-    expect(parsed.stopReason).toBe('complete');
-    expect(parsed.sawConclusion).toBe(true);
-    expect(parsed.usage).toMatchObject({ inputTokens: 500, outputTokens: 60 });
-  });
-
-  it('captures subscription plan usage, which is the real budget signal on a flat plan', () => {
+  it('renders Codex item.completed MCP calls and assistant messages without duplicating item.started', () => {
+    const item = {
+      id: 'item_0',
+      type: 'mcp_tool_call',
+      server: INIT_MCP_SERVER_NAME,
+      tool: 'read_file',
+      arguments: { path: 'src/server.js' },
+      status: 'completed'
+    };
     const parsed = parseCodexStream(
-      lines({
-        type: 'turn.completed',
-        rate_limits: { primary: { used_percent: 12.5 }, secondary: { used_percent: 41 } }
-      })
+      lines(
+        { type: 'item.started', item: { ...item, status: 'in_progress' } },
+        { type: 'item.completed', item },
+        { type: 'item.completed', item: { id: 'item_1', type: 'agent_message', text: 'Reading the server.' } },
+        { type: 'turn.completed' }
+      )
     );
-
-    expect(parsed.usage.planUsedPercent).toBe(41);
-  });
-
-  it('reports a failed turn with its message', () => {
-    const parsed = parseCodexStream(lines({ type: 'turn.failed', error: { message: 'model unavailable' } }));
-
-    expect(parsed.stopReason).toBe('error');
-    expect(parsed.errorMessage).toBe('model unavailable');
-  });
-
-  it('reports no conclusion when the stream just stops', () => {
-    expect(parseCodexStream(['', 'garbage'])).toMatchObject({ sawConclusion: false, stopReason: 'error' });
-  });
-
-  it('normalises tool names to ours', () => {
-    const parsed = parseCodexStream(
-      lines({ type: 'item.tool_call', name: `mcp__${INIT_MCP_SERVER_NAME}__read_file` }, { type: 'turn.completed' })
-    );
-
-    expect(parsed.events).toContainEqual({ type: 'tool-call', name: 'read_file', summary: 'read_file' });
+    expect(parsed.events).toEqual([
+      { type: 'tool-call', name: 'read_file', summary: 'src/server.js' },
+      { type: 'text', text: 'Reading the server.' }
+    ]);
   });
 });

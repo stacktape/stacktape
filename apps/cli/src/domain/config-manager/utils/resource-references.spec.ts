@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import type { ConfigManager } from '..';
 import type { StpDsqlDatabase } from '../resolved-types/dsql-databases';
 import type { StpResource, StpResourceScopableByConnectToAffectingRole } from '../resolved-types/resources';
-import type { StpBucket } from '../resolved-types/buckets';
 import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
 import { resolveConnectToList } from './resource-references';
 
@@ -60,31 +59,7 @@ describe('connectTo target classification', () => {
     ]);
   });
 
-  test('scopes a hosting resource to its nested S3 bucket', () => {
-    const bucket = {
-      name: 'website-bucket',
-      nameChain: ['website', 'bucket'],
-      type: 'bucket',
-      configParentResourceType: 'hosting-bucket'
-    } as StpBucket;
-    const hosting = {
-      ...baseResource,
-      name: 'website',
-      nameChain: ['website'],
-      type: 'hosting-bucket',
-      configParentResourceType: 'hosting-bucket',
-      _nestedResources: { bucket }
-    } as StpResource;
-
-    const result = resolveConnectToList({
-      stpResourceNameOfReferencer: 'consumer',
-      connectTo: ['website'],
-      activeConfig: configContaining(hosting)
-    });
-
-    expect(result.accessToResourcesRequiringRoleChanges).toEqual([bucket]);
-  });
-
+  // A hosting bucket's connectTo scoping to its nested S3 bucket is proved by the config-loading scenario's IAM.
   test('accepts EFS as an environment-only target without implying a mount', () => {
     const filesystem = {
       ...baseResource,

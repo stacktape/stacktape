@@ -43,6 +43,14 @@ export const commandContainerExec = async () => {
       2
     )
   );
+  if (result.exitCode !== 0) {
+    throw new CliError({
+      category: 'AWS',
+      code: 'CONTAINER_EXEC_FAILED',
+      message: `The container exec session failed (Session Manager plugin exit code ${result.exitCode}).`,
+      hints: 'Check the session output and retry the command.'
+    });
+  }
 };
 
 const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => {

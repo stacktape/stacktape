@@ -126,7 +126,7 @@ export const commandDiff = async () => {
   config.validateGuardrails({ hasConfig: true });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
-  tui.info(`Issues: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
+  tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();

@@ -32,6 +32,7 @@ import {
   getStpTemplateS3Key
 } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { dockerLogin, pushDockerImage, tagDockerImage } from '@utils/docker';
+import { getLocalS3Endpoint } from '@utils/local-aws-endpoint';
 import { processConcurrently } from '@utils/misc';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { parseYaml, stringifyToYaml } from '@utils/yaml';
@@ -168,8 +169,21 @@ class DeploymentArtifactManager {
   }
 
   get cloudformationTemplateUrl() {
-    return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, stackManager.nextVersion);
+    return this.getCloudformationTemplateUrlForVersion(stackManager.nextVersion);
   }
+
+  /**
+   * Where CloudFormation fetches a version's template: the bucket's AWS URL, or the path-style URL of a local
+   * emulator when one is configured. Deploy, diff and rollback must agree, or a rollback against an emulator would
+   * hand CloudFormation a real AWS address.
+   */
+  getCloudformationTemplateUrlForVersion = (version: string) => {
+    const localEndpoint = getLocalS3Endpoint();
+    if (localEndpoint) {
+      return `${localEndpoint}/${this.deploymentBucketName}/${getCfTemplateS3Key(version)}`;
+    }
+    return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, version);
+  };
 
   get maxArtifactVersionsToKeep() {
     const keepArtifactsCountFromConfig = configManager.deploymentConfig.previousVersionsToKeep;
@@ -621,7 +635,12 @@ class DeploymentArtifactManager {
     }
     objects.forEach((object) => {
       const s3Key = object.Key;
-      const { digest, name, version } = parseBucketObjectS3Key(s3Key);
+      const parsed = parseBucketObjectS3Key(s3Key);
+      if (!parsed) {
+        tuiManager.debug(`Ignoring ${s3Key} in deployment bucket ${deploymentBucketName}: not a Stacktape artifact.`);
+        return;
+      }
+      const { digest, name, version } = parsed;
       this.previousObjects.push({
         digest,
         s3Key: object.Key,
@@ -918,10 +937,6 @@ class DeploymentArtifactManager {
       .map(({ digest }) => digest);
   };
 
-  getCloudformationTemplateUrlForVersion = (version: string) => {
-    return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, version);
-  };
-
   prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
     const cfTemplateKey = getCfTemplateS3Key(sourceVersion);
     const templateYaml = await awsSdkManager.s3.getObjectText({
@@ -939,7 +954,7 @@ class DeploymentArtifactManager {
       body: stringifyToYaml(template),
       contentType: 'application/x-yaml'
     });
-    return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, newVersion);
+    return this.getCloudformationTemplateUrlForVersion(newVersion);
   };
 
   verifyArtifactsForVersion = async (targetVersion: string) => {

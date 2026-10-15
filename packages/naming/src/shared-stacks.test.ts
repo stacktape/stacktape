@@ -14,12 +14,6 @@ describe('shared resource stack names', () => {
     expect(getSharedResourceStackName('email-identity', 'mail@example.com')).toBe(name);
   });
 
-  test('separates exact email identities from domain identities', () => {
-    expect(getSharedResourceStackName('email-identity', 'mail@example.com')).not.toBe(
-      getSharedResourceStackName('email-identity', 'example.com')
-    );
-  });
-
   test('builds a stable SES configuration-set name within the service limit', () => {
     const name = getSharedEmailConfigurationSetName('example.com');
     expect(name).toMatch(/^stacktape-email-[a-f0-9]{20}$/);

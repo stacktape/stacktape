@@ -1,10 +1,11 @@
 import type { GuardrailDefinition } from '@stacktape/console-api/guardrails';
 import type { StackContext } from '@domain-services/stack-context';
-import { describe, expect, test } from 'bun:test';
-import type { ConfigManager } from '../index';
-import { validateGuardrails } from './validation';
+import type { StacktapeConfig } from '@stacktape/config';
+import { expect, test } from 'bun:test';
+import { ConfigManager } from '../index';
+import { assessSecurityPosture } from './security-posture';
 
-const stackContext: StackContext = {
+const context: StackContext = {
   accountId: '123456789012',
   command: 'deploy',
   globallyUniqueStackHash: 'guardrail-test',
@@ -13,167 +14,164 @@ const stackContext: StackContext = {
   region: 'eu-west-1',
   stackName: 'api-production',
   stage: 'production',
-  workingDir: 'C:\\project'
+  workingDir: process.cwd()
 };
 
-const baseConfigManager = {
-  allApplicationLoadBalancers: [],
-  allConfigResources: [],
-  allContainerWorkloads: [],
-  databases: [],
-  deploymentConfig: {},
-  dynamoDbTables: [],
-  dsqlDatabases: [],
-  edgeLambdaFunctions: [],
-  efsFilesystems: [],
-  functions: [],
-  hostingBuckets: [],
-  openSearchDomains: [],
-  sqsQueues: [],
-  webServices: []
+const protectedConfig = () =>
+  ({
+    deploymentConfig: { terminationProtection: true as boolean },
+    resources: {
+      orders: {
+        type: 'relational-database',
+        properties: {
+          credentials: { masterUserPassword: "$Secret('password')" },
+          engine: {
+            type: 'postgres',
+            properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.medium' } }
+          },
+          accessibility: { accessibilityMode: 'vpc' as 'vpc' | 'internet' },
+          deletionProtection: true as boolean,
+          automatedBackupRetentionDays: 7
+        }
+      },
+      sessions: {
+        type: 'dynamo-db-table',
+        properties: {
+          primaryKey: { partitionKey: { name: 'id', type: 'string' } },
+          enablePointInTimeRecovery: true as boolean
+        }
+      },
+      uploads: { type: 'efs-filesystem', properties: { backupEnabled: true as boolean } },
+      api: {
+        type: 'web-service',
+        properties: {
+          packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/api:1' } },
+          resources: { cpu: 0.5, memory: 1024 },
+          scaling: { minInstances: 2 },
+          loadBalancing: { type: 'application-load-balancer' },
+          useFirewall: 'firewall'
+        }
+      }
+    }
+  }) satisfies StacktapeConfig;
+
+const policy = [
+  { type: 'require-stack-termination-protection', properties: { enabled: true } },
+  { type: 'require-vpc-databases', properties: { enabled: true } },
+  { type: 'require-deletion-protection', properties: { enabled: true } },
+  { type: 'require-data-backups', properties: { enabled: true } },
+  { type: 'require-multiple-container-instances', properties: { enabled: true } },
+  { type: 'require-waf', properties: { enabled: true } },
+  { type: 'database-instance-restriction', properties: { allowedInstanceSizes: ['db.t4g.medium'] } }
+] satisfies GuardrailDefinition[];
+
+const managerFor = (config: StacktapeConfig, guardrails: GuardrailDefinition[] = policy) => {
+  const manager = new ConfigManager();
+  manager.setStackContext(context);
+  manager.config = config;
+  manager.globalConfigGuardrails = guardrails;
+  return manager;
 };
 
-const validate = (
-  guardrail: GuardrailDefinition,
-  configOverrides: Partial<typeof baseConfigManager> = {},
-  contextOverrides: Partial<StackContext> = {}
-) =>
-  validateGuardrails({
-    guardrails: [guardrail],
-    hasConfig: true,
-    configManager: { ...baseConfigManager, ...configOverrides } as unknown as ConfigManager,
-    stackContext: { ...stackContext, ...contextOverrides }
-  });
+test('an authored production stack satisfies its policy; removing each protection rejects the normalized config', () => {
+  const safe = managerFor(protectedConfig());
+  expect(() => safe.validateGuardrails({ hasConfig: true })).not.toThrow();
+  expect(
+    assessSecurityPosture({ configManager: safe, rawConfig: safe.config, stackContext: context }).findings
+  ).toEqual([]);
+  const cases: Array<{ change: (config: ReturnType<typeof protectedConfig>) => void; message: string }> = [
+    {
+      change: (config) => {
+        config.deploymentConfig.terminationProtection = false;
+      },
+      message: 'deploymentConfig.terminationProtection'
+    },
+    {
+      change: (config) => {
+        config.resources.orders.properties.accessibility.accessibilityMode = 'internet';
+      },
+      message: 'Blocked by the organization guardrail "Keep SQL and OpenSearch private". Database `orders`'
+    },
+    {
+      change: (config) => {
+        config.resources.orders.properties.deletionProtection = false;
+      },
+      message: 'deletionProtection'
+    },
+    {
+      change: (config) => {
+        config.resources.orders.properties.automatedBackupRetentionDays = 0;
+      },
+      message: 'automatedBackupRetentionDays'
+    },
+    {
+      change: (config) => {
+        config.resources.sessions.properties.enablePointInTimeRecovery = false;
+      },
+      message: 'enablePointInTimeRecovery'
+    },
+    {
+      change: (config) => {
+        config.resources.uploads.properties.backupEnabled = false;
+      },
+      message: 'backupEnabled'
+    },
+    {
+      change: (config) => {
+        config.resources.api.properties.scaling.minInstances = 1;
+      },
+      message: 'at least `2`'
+    },
+    {
+      change: (config) => {
+        config.resources.api.properties.useFirewall = '';
+      },
+      message: 'useFirewall'
+    },
+    {
+      change: (config) => {
+        config.resources.orders.properties.engine.properties.primaryInstance.instanceSize = 'db.r6g.large';
+      },
+      message: 'Allowed sizes'
+    }
+  ];
+  for (const { change, message } of cases) {
+    const config = protectedConfig();
+    change(config);
+    expect(() => managerFor(config).validateGuardrails({ hasConfig: true })).toThrow(message);
+  }
+  expect(() =>
+    managerFor(protectedConfig(), [
+      { type: 'database-instance-restriction', properties: { blockedInstanceSizes: ['db.t4g.medium'] } }
+    ]).validateGuardrails({ hasConfig: true })
+  ).toThrow('blocked instance size');
+  // Backups use the actual defaults, rather than requiring every authored config to spell them out.
+  const defaults = protectedConfig();
+  delete (defaults.resources.orders.properties as { automatedBackupRetentionDays?: number })
+    .automatedBackupRetentionDays;
+  expect(() => managerFor(defaults).validateGuardrails({ hasConfig: true })).not.toThrow();
+});
 
-describe('guardrail enforcement', () => {
-  test('blocks organization-restricted local scripts before they run', () => {
-    const guardrail = {
-      type: 'command-restriction',
-      properties: { blockedCommands: ['script:run'] }
-    } satisfies GuardrailDefinition;
-
-    expect(() => validate(guardrail, {}, { command: 'script:run' })).toThrow('Command `script:run` is blocked');
-  });
-
-  test('requires CloudFormation termination protection', () => {
-    const guardrail = {
-      type: 'require-stack-termination-protection',
-      properties: { enabled: true }
-    } satisfies GuardrailDefinition;
-
-    expect(() => validate(guardrail)).toThrow('deploymentConfig.terminationProtection');
-    expect(() => validate(guardrail, { deploymentConfig: { terminationProtection: true } })).not.toThrow();
-  });
-
-  test.each([
-    ['RDS', { databases: [{ name: 'orders', automatedBackupRetentionDays: 0 }] }, 'automatedBackupRetentionDays'],
-    ['DynamoDB', { dynamoDbTables: [{ name: 'sessions', enablePointInTimeRecovery: false }] }, 'sessions'],
-    ['EFS', { efsFilesystems: [{ name: 'uploads', backupEnabled: false }] }, 'backupEnabled']
-  ])('requires recoverable %s data stores', (_service, overrides, expectedMessage) => {
-    const guardrail = { type: 'require-data-backups', properties: { enabled: true } } satisfies GuardrailDefinition;
-    expect(() => validate(guardrail, overrides as Partial<typeof baseConfigManager>)).toThrow(expectedMessage);
-  });
-
-  test('accepts the default non-zero RDS backup retention but requires explicit DynamoDB and EFS backups', () => {
-    const guardrail = { type: 'require-data-backups', properties: { enabled: true } } satisfies GuardrailDefinition;
-    expect(() =>
-      validate(guardrail, {
-        databases: [{ name: 'orders' }],
-        dynamoDbTables: [{ name: 'events', enablePointInTimeRecovery: true }],
-        efsFilesystems: [{ name: 'uploads', backupEnabled: true }]
-      } as Partial<typeof baseConfigManager>)
-    ).not.toThrow();
-  });
-
-  test('fails DSQL closed when a requested data-protection control is not available', () => {
-    const deletionGuardrail = {
-      type: 'require-deletion-protection',
-      properties: { enabled: true }
-    } satisfies GuardrailDefinition;
-    expect(() => validate(deletionGuardrail, { dsqlDatabases: [{ name: 'ledger' }] })).toThrow('ledger');
-    expect(() =>
-      validate(deletionGuardrail, { dsqlDatabases: [{ name: 'ledger', deletionProtection: true }] })
-    ).not.toThrow();
-
-    const backupGuardrail = {
-      type: 'require-data-backups',
-      properties: { enabled: true }
-    } satisfies GuardrailDefinition;
-    expect(() => validate(backupGuardrail, { dsqlDatabases: [{ name: 'ledger' }] })).toThrow(
-      'cannot verify an external AWS Backup plan'
-    );
-
-    const vpcGuardrail = {
-      type: 'require-vpc-databases',
-      properties: { enabled: true }
-    } satisfies GuardrailDefinition;
-    expect(() => validate(vpcGuardrail, { dsqlDatabases: [{ name: 'ledger' }] })).toThrow(
-      'cannot configure the PrivateLink endpoint'
-    );
-  });
-
-  test('requires two running instances for container services', () => {
-    const guardrail = {
-      type: 'require-multiple-container-instances',
-      properties: { enabled: true }
-    } satisfies GuardrailDefinition;
-    expect(() =>
-      validate(guardrail, {
-        allContainerWorkloads: [{ name: 'api', configParentResourceType: 'web-service', scaling: { minInstances: 1 } }]
-      } as Partial<typeof baseConfigManager>)
-    ).toThrow('at least `2`');
-    expect(() =>
-      validate(guardrail, {
-        allContainerWorkloads: [{ name: 'api', configParentResourceType: 'web-service', scaling: { minInstances: 2 } }]
-      } as Partial<typeof baseConfigManager>)
-    ).not.toThrow();
-    expect(() =>
-      validate(guardrail, {
-        allContainerWorkloads: [
-          { name: 'convex-backend', configParentResourceType: 'convex', scaling: { minInstances: 1 } }
-        ]
-      } as Partial<typeof baseConfigManager>)
-    ).not.toThrow();
-  });
-
-  test('checks generated web-service load balancers when WAF is required', () => {
-    const guardrail = { type: 'require-waf', properties: { enabled: true } } satisfies GuardrailDefinition;
-    expect(() =>
-      validate(guardrail, {
-        allApplicationLoadBalancers: [{ name: 'api-load-balancer', useFirewall: false }]
-      } as Partial<typeof baseConfigManager>)
-    ).toThrow('api-load-balancer');
-    expect(() =>
-      validate(guardrail, {
-        allApplicationLoadBalancers: [
-          { name: 'convex-load-balancer', configParentResourceType: 'convex', useFirewall: false }
-        ]
-      } as Partial<typeof baseConfigManager>)
-    ).not.toThrow();
-  });
-
-  test('uses an allowlist for database sizes while preserving old blocklists', () => {
-    const database = {
-      name: 'orders',
-      engine: { type: 'postgres', properties: { primaryInstance: { instanceSize: 'db.r6g.large' } } }
-    };
-    expect(() =>
-      validate(
-        {
-          type: 'database-instance-restriction',
-          properties: { allowedInstanceSizes: ['db.t4g.medium'] }
-        },
-        { databases: [database] } as Partial<typeof baseConfigManager>
-      )
-    ).toThrow('Allowed sizes');
-    expect(() =>
-      validate(
-        {
-          type: 'database-instance-restriction',
-          properties: { blockedInstanceSizes: ['db.r6g.large'] }
-        },
-        { databases: [database] } as Partial<typeof baseConfigManager>
-      )
-    ).toThrow('blocked instance size');
-  });
+test('fixed Convex topology remains usable and DSQL refuses unavailable protection controls', () => {
+  const convex = managerFor({ resources: { backend: { type: 'convex', properties: { appDirectory: './convex' } } } }, [
+    { type: 'require-waf', properties: { enabled: true } },
+    { type: 'require-multiple-container-instances', properties: { enabled: true } }
+  ]);
+  expect(() => convex.validateGuardrails({ hasConfig: true })).not.toThrow();
+  for (const type of ['require-data-backups', 'require-vpc-databases', 'require-deletion-protection'] as const) {
+    const dsql = managerFor({ resources: { ledger: { type: 'dsql-database', properties: {} } } }, [
+      { type, properties: { enabled: true } }
+    ]);
+    expect(() => dsql.validateGuardrails({ hasConfig: true })).toThrow('ledger');
+  }
+  const dsqlProtected = managerFor(
+    { resources: { ledger: { type: 'dsql-database', properties: { deletionProtection: true } } } },
+    [{ type: 'require-deletion-protection', properties: { enabled: true } }]
+  );
+  expect(() => dsqlProtected.validateGuardrails({ hasConfig: true })).not.toThrow();
+  const command = managerFor({ resources: {} }, [
+    { type: 'command-restriction', properties: { blockedCommands: ['script:run'] } }
+  ]);
+  command.setStackContext({ ...context, command: 'script:run' });
+  expect(() => command.validateGuardrails({ hasConfig: false })).toThrow('Command `script:run` is blocked');
 });

@@ -1,6 +1,6 @@
 import type { DockerBuildOutputArchitecture, RunDocker } from '../runtime-contracts';
 import { ensureDir, remove } from 'fs-extra';
-import { createTemporaryBuildFile } from '../fs/temporary-file';
+import { createPrivateBuildFile } from '../fs/temporary-file';
 import { transformToUnixPath } from '../fs/files';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -36,17 +36,17 @@ export const runDockerArtifactBuild = async ({
   // The local Docker exporter does not remove files that disappeared from a later build.
   await remove(absoluteDistFolderPath);
   await ensureDir(absoluteDistFolderPath);
-  const { filePath: dockerfilePath } = await createTemporaryBuildFile({
+  const { directoryPath: dockerfileDirectoryPath, filePath: dockerfilePath } = await createPrivateBuildFile({
     contents: dockerfileContents,
-    directoryPath: tmpdir(),
+    parentDirectoryPath: tmpdir(),
     prefix: 'stp-artifact-',
-    suffix: '.Dockerfile'
+    fileName: 'Dockerfile'
   });
   let buildContextPath: string;
   try {
     buildContextPath = await createLanguageBuildContext(absoluteSourcePath);
   } catch (error) {
-    await remove(dockerfilePath).catch(() => {});
+    await remove(dockerfileDirectoryPath).catch(() => {});
     throw error;
   }
 
@@ -74,7 +74,7 @@ export const runDockerArtifactBuild = async ({
   }
 
   try {
-    await Promise.all([remove(dockerfilePath), remove(buildContextPath)]);
+    await Promise.all([remove(dockerfileDirectoryPath), remove(buildContextPath)]);
   } catch (cleanupError) {
     if (buildResult.succeeded) {
       throw cleanupError;

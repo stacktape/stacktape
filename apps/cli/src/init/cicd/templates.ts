@@ -45,6 +45,15 @@ export type PipelineTemplate = {
   authSummary: string;
 };
 
+/**
+ * Every CLI deploy authenticates to Stacktape, and CI has no `stacktape login` session to fall back on.
+ * A pipeline without this key fails on its first run, before it touches AWS.
+ */
+const STACKTAPE_API_KEY_SECRET = {
+  name: 'STACKTAPE_API_KEY',
+  description: 'A Stacktape API key for CI. Create one in the Stacktape Console under API keys.'
+};
+
 const AWS_KEY_SECRETS = [
   {
     name: 'AWS_ACCESS_KEY_ID',
@@ -64,13 +73,14 @@ const github = ({ configPath, stage, region, projectName, cliVersion }: Pipeline
       name: 'AWS_DEPLOY_ROLE_ARN',
       description:
         'ARN of an IAM role your repository may assume. Create it with GitHub as an OIDC provider and trust this repository.'
-    }
+    },
+    STACKTAPE_API_KEY_SECRET
   ],
   contents: `# Written by \`stacktape init\`. Edit it freely — it is yours now.
 #
 # Authentication is OIDC: GitHub hands AWS a short-lived token and AWS hands back temporary
-# credentials, so there is no access key in this repository to leak or rotate. It needs one secret,
-# AWS_DEPLOY_ROLE_ARN, pointing at a role that trusts this repository.
+# credentials, so there is no access key in this repository to leak or rotate. It needs two secrets:
+# AWS_DEPLOY_ROLE_ARN, pointing at a role that trusts this repository, and STACKTAPE_API_KEY.
 #
 # To deploy more stages, copy the job and change --stage; a stage is one isolated environment.
 
@@ -106,7 +116,9 @@ jobs:
       # does without anyone editing it.
       - run: npm install -g stacktape@${cliVersion}
 
-      - run: |
+      - env:
+          STACKTAPE_API_KEY: \${{ secrets.STACKTAPE_API_KEY }}
+        run: |
           stacktape deploy \\
             --configPath ${configPath} \\
             --projectName ${projectName} \\
@@ -119,12 +131,12 @@ jobs:
 const gitlab = ({ configPath, stage, region, projectName, cliVersion }: PipelineInputs): PipelineTemplate => ({
   path: '.gitlab-ci.yml',
   authSummary: 'Uses an AWS access key stored as a masked, protected CI/CD variable.',
-  requiredSecrets: AWS_KEY_SECRETS,
+  requiredSecrets: [...AWS_KEY_SECRETS, STACKTAPE_API_KEY_SECRET],
   contents: `# Written by \`stacktape init\`. Edit it freely — it is yours now.
 #
-# Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY under Settings → CI/CD → Variables, both masked and
-# protected. GitLab can also do OIDC against AWS, which avoids storing a key at all; it needs an
-# identity provider set up in your account first, so this file uses the version that works today.
+# Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and STACKTAPE_API_KEY under Settings → CI/CD → Variables,
+# all masked and protected. GitLab can also do OIDC against AWS, which avoids storing an AWS key; it
+# needs an identity provider set up in your account first, so this file uses the version that works today.
 
 stages:
   - deploy
@@ -153,11 +165,11 @@ deploy:
 const bitbucket = ({ configPath, stage, region, projectName, cliVersion }: PipelineInputs): PipelineTemplate => ({
   path: 'bitbucket-pipelines.yml',
   authSummary: 'Uses an AWS access key stored as a secured repository variable.',
-  requiredSecrets: AWS_KEY_SECRETS,
+  requiredSecrets: [...AWS_KEY_SECRETS, STACKTAPE_API_KEY_SECRET],
   contents: `# Written by \`stacktape init\`. Edit it freely — it is yours now.
 #
-# Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY under Repository settings → Repository variables,
-# both marked secured.
+# Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and STACKTAPE_API_KEY under Repository settings →
+# Repository variables, all marked secured.
 
 image: node:24
 

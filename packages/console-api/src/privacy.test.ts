@@ -54,6 +54,7 @@ test('the package publishes only the reviewed external contracts', () => {
     'anonymous.ts',
     'api-key.ts',
     'aws-identity.ts',
+    'failure-explanations.ts',
     'guardrails.ts',
     'permissions.ts',
     'security.ts',
@@ -141,8 +142,15 @@ test('no server implementation is imported', () => {
 });
 
 test('no credential value or internal endpoint is embedded', () => {
+  // Failure explanations link developers to public pages: the documentation, the AWS console and the Console itself.
   assertOnlyTheSentinelMatches(
-    [/https?:\/\/(?!example\.)/i, /\bsecretHash\b/, /\bkeyPrefix\b/, /\bpepper\b/i, /\bsigningKey/i],
+    [
+      /https?:\/\/(?!example\.|docs\.stacktape\.com['/]|console\.stacktape\.com['/]|console\.aws\.amazon\.com\/)/i,
+      /\bsecretHash\b/,
+      /\bkeyPrefix\b/,
+      /\bpepper\b/i,
+      /\bsigningKey/i
+    ],
     'is a credential name or an internal endpoint'
   );
 });

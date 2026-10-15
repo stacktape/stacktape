@@ -7,6 +7,7 @@
  * checkout remains an exact copy of its pinned commit.
  */
 
+import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -80,9 +81,6 @@ const stressMode = args.has('--stress');
 const allMode = args.has('--all');
 const discoveryMode = args.has('--discover') || stressMode || allMode;
 
-// This corpus is a release check, not a product session. It must never emit analytics.
-process.env.STP_DISABLE_TELEMETRY = '1';
-
 const run = async (command: string[], cwd: string): Promise<string> => {
   const process = Bun.spawn(command, { cwd, stdout: 'pipe', stderr: 'pipe' });
   const [stdout, stderr, exitCode] = await Promise.all([
@@ -96,9 +94,10 @@ const run = async (command: string[], cwd: string): Promise<string> => {
   return stdout.trim();
 };
 
-const checkoutName = (repository: string): string => basename(repository, '.git');
+const checkoutName = (repository: string): string =>
+  `${basename(repository, '.git')}-${createHash('sha256').update(repository).digest('hex').slice(0, 12)}`;
 
-const ensureCheckout = async (corpusRoot: string, corpusCase: RealProjectCorpusCase): Promise<string> => {
+export const ensureCheckout = async (corpusRoot: string, corpusCase: RealProjectCorpusCase): Promise<string> => {
   const path = join(corpusRoot, checkoutName(corpusCase.repository));
   if (!existsSync(join(path, '.git'))) {
     await run(['git', 'clone', '--no-checkout', '--filter=blob:none', corpusCase.repository, path], corpusRoot);
@@ -373,6 +372,8 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
 };
 
 const main = async (): Promise<void> => {
+  // This corpus is a release check, not a product session. It must never emit analytics.
+  process.env.STP_DISABLE_TELEMETRY = '1';
   const temporaryCorpusRoot =
     suppliedCorpusRoot === undefined ? await mkdtemp(join(tmpdir(), 'stacktape-real-corpus-')) : undefined;
   const corpusRoot = resolve(suppliedCorpusRoot ?? temporaryCorpusRoot!);
@@ -423,7 +424,8 @@ const main = async (): Promise<void> => {
   if (results.some((entry) => !entry.passed)) process.exitCode = 1;
 };
 
-void main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
-  process.exitCode = 1;
-});
+if (import.meta.main)
+  void main().catch((error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+    process.exitCode = 1;
+  });

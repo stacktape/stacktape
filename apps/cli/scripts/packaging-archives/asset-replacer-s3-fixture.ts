@@ -1,25 +1,10 @@
-/**
- * The only network endpoint the service helper can reach during the asset replacer acceptance: a small S3 and
- * CloudFormation-response server. It runs with Node in a container that has no network, and the helper's container
- * shares that network namespace, so both see each other on 127.0.0.1 and nothing else, not even DNS.
- *
- * The acceptance writes `scenario.json` before each invocation. The server answers:
- *
- * - `GET /<bucket>/<key>`: the scenario's pristine object for that key, or the scenario's error status;
- * - `PUT /<bucket>/<key>`: a single-part upload. The body is decoded as the SDK framed it (`aws-chunked` or plain), its
- *   length and checksums are verified, and the decoded bytes are kept in `captures/`, unless the scenario refuses it;
- * - `PUT /cfn/<name>`: a CloudFormation custom-resource response, kept in `cfn/`.
- *
- * Anything else, including multipart uploads and virtual-host addressing, is refused and recorded as unexpected. Every
- * request is appended to `requests.jsonl` without credentials. The acceptance builds this file for Node and mounts it:
- *
- *   node asset-replacer-s3-fixture.mjs <fixture directory>
+/** Records helper traffic and CloudFormation callbacks; forwards S3 to shared MiniStack.
+ * The only synthetic S3 answers are deliberate 403 download/upload fault injection.
+ * It runs in the emulator's network namespace, whose external route the fixture removes.
  */
-import { createHash } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import { crc32 } from 'node:zlib';
 
 export const FIXTURE_PORT = 9000;
 /** The name the acceptance gives this server once built for Node. */
@@ -29,8 +14,6 @@ const MAX_BODY_BYTES = 64 * 1024 * 1024;
 export type FixtureScenario = {
   name: string;
   bucket: string;
-  /** Object key → file below the fixture directory, served unchanged on every GET. */
-  objects: Record<string, string>;
   getStatus?: 200 | 403 | undefined;
   putStatus?: 200 | 403 | undefined;
 };
@@ -52,8 +35,6 @@ export type FixtureRequestRecord = {
     | {
         framing: 'aws-chunked' | 'plain';
         decodedBytes: number;
-        declaredDecodedBytes: number | null;
-        checksums: { algorithm: string; source: 'header' | 'trailer'; verified: boolean }[];
         capture?: string | undefined;
       }
     | undefined;
@@ -79,71 +60,6 @@ const RECORDED_HEADERS = [
   'user-agent'
 ];
 
-const CRC32C_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let index = 0; index < 256; index++) {
-    let value = index;
-    for (let bit = 0; bit < 8; bit++) {
-      value = value & 1 ? (value >>> 1) ^ 0x82f63b78 : value >>> 1;
-    }
-    table[index] = value >>> 0;
-  }
-  return table;
-})();
-
-const crc32c = (bytes: Buffer) => {
-  let value = 0xffffffff;
-  for (const byte of bytes) {
-    value = CRC32C_TABLE[(value ^ byte) & 0xff]! ^ (value >>> 8);
-  }
-  return (value ^ 0xffffffff) >>> 0;
-};
-
-const uint32Base64 = (value: number) => {
-  const bytes = Buffer.alloc(4);
-  bytes.writeUInt32BE(value >>> 0);
-  return bytes.toString('base64');
-};
-
-/** Base64 checksum values as S3 reports them, by the algorithm names S3 headers use. */
-const CHECKSUMS: Record<string, (bytes: Buffer) => string> = {
-  crc32: (bytes) => uint32Base64(crc32(bytes)),
-  crc32c: (bytes) => uint32Base64(crc32c(bytes)),
-  sha1: (bytes) => createHash('sha1').update(bytes).digest('base64'),
-  sha256: (bytes) => createHash('sha256').update(bytes).digest('base64'),
-  md5: (bytes) => createHash('md5').update(bytes).digest('base64')
-};
-
-/** Decodes an `aws-chunked` body: `<hex size>[;extensions]\r\n<data>\r\n` chunks, a zero chunk, then trailer lines. */
-const decodeAwsChunked = (body: Buffer) => {
-  const chunks: Buffer[] = [];
-  const trailers: Record<string, string> = {};
-  let offset = 0;
-  const readLine = () => {
-    const end = body.indexOf('\r\n', offset);
-    if (end === -1) throw new Error('aws-chunked body ends inside a line');
-    const line = body.toString('latin1', offset, end);
-    offset = end + 2;
-    return line;
-  };
-  for (;;) {
-    const size = Number.parseInt(readLine().split(';')[0]!, 16);
-    if (!Number.isFinite(size) || size < 0) throw new Error('aws-chunked body has an invalid chunk size');
-    if (size === 0) break;
-    if (offset + size + 2 > body.length || body.toString('latin1', offset + size, offset + size + 2) !== '\r\n') {
-      throw new Error('aws-chunked chunk is not followed by CRLF');
-    }
-    chunks.push(body.subarray(offset, offset + size));
-    offset += size + 2;
-  }
-  for (let line = readLine(); line !== ''; line = readLine()) {
-    const separator = line.indexOf(':');
-    trailers[line.slice(0, separator).trim().toLowerCase()] = line.slice(separator + 1).trim();
-  }
-  if (offset !== body.length) throw new Error('aws-chunked body has bytes after its trailer');
-  return { decoded: Buffer.concat(chunks), trailers };
-};
-
 const s3Error = (response: ServerResponse, status: number, code: string, message: string) => {
   const body = `<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>${code}</Code><Message>${message}</Message><RequestId>asset-replacer-fixture</RequestId></Error>`;
   response.writeHead(status, { 'content-type': 'application/xml', 'content-length': Buffer.byteLength(body) });
@@ -167,11 +83,34 @@ const readBody = (request: IncomingMessage) =>
     request.on('error', reject);
   });
 
+/** Pass the original signed SDK request and response through; the emulator owns storage and S3 errors. */
+const forward = (incoming: IncomingMessage, outgoing: ServerResponse, body: Buffer) =>
+  new Promise<number>((resolve, reject) => {
+    const upstream = httpRequest(
+      {
+        hostname: '127.0.0.1',
+        port: 4566,
+        path: incoming.url,
+        method: incoming.method,
+        headers: incoming.headers,
+        timeout: 30_000
+      },
+      (response) => {
+        outgoing.writeHead(response.statusCode ?? 502, response.headers);
+        response.pipe(outgoing);
+        response.on('end', () => resolve(response.statusCode ?? 502));
+        response.on('error', reject);
+      }
+    );
+    upstream.on('timeout', () => upstream.destroy(new Error('MiniStack request timed out')));
+    upstream.on('error', reject);
+    upstream.end(body);
+  });
+
 const main = () => {
   const directory = process.argv[2];
   if (!directory) throw new Error(`Usage: node ${FIXTURE_SERVER_FILE} <fixture directory>`);
   for (const child of ['captures', 'cfn']) mkdirSync(join(directory, child), { recursive: true });
-  let captureCount = 0;
 
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
     const scenario = JSON.parse(readFileSync(join(directory, 'scenario.json'), 'utf8')) as FixtureScenario;
@@ -225,85 +164,31 @@ const main = () => {
       record.route = 'get-object';
       record.addressing = 'path-style';
       record.key = key;
-      const object = scenario.objects[key];
-      if (!object) {
-        s3Error(response, 404, 'NoSuchKey', 'The fixture has no such key.');
-        finish(404);
-        return;
-      }
       if (scenario.getStatus === 403) {
         s3Error(response, 403, 'AccessDenied', 'The fixture refuses this download.');
         finish(403);
         return;
       }
-      const bytes = readFileSync(join(directory, object));
-      const responseHeaders: Record<string, string | number> = {
-        'content-type': 'application/zip',
-        'content-length': bytes.length,
-        etag: `"${createHash('md5').update(bytes).digest('hex')}"`,
-        'last-modified': new Date(0).toUTCString(),
-        'accept-ranges': 'bytes'
-      };
-      // Returned when asked, as S3 does for an object stored with it, so the SDK's response validation runs.
-      if (request.headers['x-amz-checksum-mode'] === 'ENABLED') {
-        responseHeaders['x-amz-checksum-crc32'] = CHECKSUMS.crc32!(bytes);
-      }
-      response.writeHead(200, responseHeaders);
-      response.end(bytes);
-      finish(200);
+      const status = await forward(request, response, body);
+      finish(status);
       return;
     }
     if (isS3Object && request.method === 'PUT') {
       record.route = 'put-object';
       record.addressing = 'path-style';
       record.key = key;
-      try {
-        const chunked = String(request.headers['content-encoding'] ?? '')
-          .split(',')
-          .map((part) => part.trim())
-          .includes('aws-chunked');
-        const { decoded, trailers } = chunked ? decodeAwsChunked(body) : { decoded: body, trailers: {} };
-        const declared = request.headers['x-amz-decoded-content-length'];
-        const declaredDecodedBytes = declared === undefined ? null : Number(declared);
-        if (declaredDecodedBytes !== null && declaredDecodedBytes !== decoded.length) {
-          throw new Error(`decoded ${decoded.length} bytes, but the request declared ${declaredDecodedBytes}`);
-        }
-        const checksums: NonNullable<FixtureRequestRecord['upload']>['checksums'] = [];
-        for (const [algorithm, compute] of Object.entries(CHECKSUMS)) {
-          const headerName = algorithm === 'md5' ? 'content-md5' : `x-amz-checksum-${algorithm}`;
-          for (const [source, value] of [
-            ['header', request.headers[headerName]],
-            ['trailer', trailers[headerName]]
-          ] as const) {
-            if (typeof value !== 'string') continue;
-            const verified = value === compute(decoded);
-            checksums.push({ algorithm, source, verified });
-            if (!verified) throw new Error(`the ${algorithm} ${source} checksum does not match the decoded body`);
-          }
-        }
-        record.upload = {
-          framing: chunked ? 'aws-chunked' : 'plain',
-          decodedBytes: decoded.length,
-          declaredDecodedBytes,
-          checksums
-        };
-        if (scenario.putStatus === 403) {
-          s3Error(response, 403, 'AccessDenied', 'The fixture refuses this upload.');
-          finish(403);
-          return;
-        }
-        captureCount += 1;
-        const capture = join('captures', `${scenario.name}-${captureCount}.zip`);
-        writeFileSync(join(directory, capture), decoded);
-        record.upload.capture = capture;
-        response.writeHead(200, { etag: `"${createHash('md5').update(decoded).digest('hex')}"`, 'content-length': 0 });
-        response.end();
-        finish(200);
-      } catch (error) {
-        record.problem = error instanceof Error ? error.message : String(error);
-        s3Error(response, 400, 'InvalidRequest', 'The fixture could not decode this upload.');
-        finish(400);
+      if (scenario.putStatus === 403) {
+        s3Error(response, 403, 'AccessDenied', 'The fixture refuses this upload.');
+        finish(403);
+        return;
       }
+      // The host reads the persisted object through the real SDK after invocation, before extracting and running it.
+      record.upload = {
+        framing: String(request.headers['content-encoding'] ?? '').includes('aws-chunked') ? 'aws-chunked' : 'plain',
+        decodedBytes: 0,
+        capture: join('captures', `${scenario.name}.zip`)
+      };
+      finish(await forward(request, response, body));
       return;
     }
 

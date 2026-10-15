@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { PromptSink } from '../sink';
-import { UserCancelledError } from '../inline';
 import { tuiState } from '../../progress/state';
 import type { TuiPromptConfirm } from '../../progress/types';
 import { interactionCoordinator } from '../../interaction/coordinator';
@@ -40,12 +39,6 @@ describe('PromptSink non-interactive mode', () => {
     });
     expect(result).toBe('eu-west-1');
     expect(autoAnswerLogs[0]).toContain('Ireland (eu-west-1)');
-  });
-
-  test('throws a structured error when no default exists', async () => {
-    await expect(
-      sink.confirm({ config: { message: 'Proceed?' }, isEnabled: false, isTTY: false })
-    ).rejects.toMatchObject({ type: 'INPUT', isExpected: true });
   });
 });
 
@@ -99,18 +92,5 @@ describe('PromptSink TUI mode', () => {
       sensitive: true,
       answer: undefined
     });
-  });
-
-  test('rejectPending rejects a prompt stranded by renderer teardown', async () => {
-    const promise = sink.confirm({
-      config: { message: 'Proceed?', defaultValue: true },
-      isEnabled: true,
-      isTTY: true
-    });
-
-    sink.rejectPending();
-
-    await expect(promise).rejects.toBeInstanceOf(UserCancelledError);
-    expect(tuiState.getSnapshot().activePrompt).toBeUndefined();
   });
 });

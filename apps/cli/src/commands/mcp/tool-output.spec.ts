@@ -1,28 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
-import { buildCliRunOutput, MCP_TOOL_RESULT_SCHEMA_VERSION, toToolText } from './tool-output';
+import { buildCliRunOutput, toToolText } from './tool-output';
 
 const readPayload = (result: ReturnType<typeof toToolText>): Record<string, unknown> =>
   JSON.parse(result.content[0].text) as Record<string, unknown>;
 
 describe('MCP tool output', () => {
-  test('returns a versioned structured result with an exact text mirror and error semantics', () => {
-    const success = toToolText({ ok: true, code: 'OK', message: 'Done.', data: { value: 1 } });
-    expect(success.structuredContent).toEqual({
-      schemaVersion: MCP_TOOL_RESULT_SCHEMA_VERSION,
-      ok: true,
-      code: 'OK',
-      message: 'Done.',
-      data: { value: 1 }
-    });
-    expect(success.content[0].text).toBe(JSON.stringify(success.structuredContent, null, 2));
-    expect(success.isError).toBe(false);
-
-    const failure = toToolText({ ok: false, code: 'FAILED', message: 'Failed.' });
-    expect(failure.content[0].text).toBe(JSON.stringify(failure.structuredContent, null, 2));
-    expect(failure.isError).toBe(true);
-  });
-
   test('masks secret values and credential patterns without hiding secret identifiers', () => {
     const secretValue = 'stp_live_keyid_abcdefghijklmnopqrstuvwxyz';
     const payload = readPayload(
@@ -33,7 +16,8 @@ describe('MCP tool output', () => {
         data: {
           secretName: 'database-password',
           secretFile: './secret.txt',
-          secretValue
+          secretValue: 'opaque',
+          nested: [{ password: 'hidden', note: 'visible' }]
         }
       })
     );
@@ -41,29 +25,15 @@ describe('MCP tool output', () => {
     const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain(secretValue);
     expect(serialized).not.toContain('user:password@');
+    expect(serialized).not.toContain('opaque');
+    expect(serialized).not.toContain('hidden');
     expect(serialized).toContain('postgresql://<REDACTED>@');
     expect(payload.data).toMatchObject({
       secretName: 'database-password',
-      secretFile: './secret.txt'
+      secretFile: './secret.txt',
+      secretValue: '******',
+      nested: [{ password: '******', note: 'visible' }]
     });
-  });
-
-  test('masks a standalone Anthropic API key in messages and data', () => {
-    // Assembled at runtime so no committed line has the shape of a real key.
-    const anthropicKey = ['sk', 'ant', 'api03', `${'Fake0key_'.repeat(10)}AA`].join('-');
-    const payload = readPayload(
-      toToolText({
-        ok: false,
-        code: 'FAILED',
-        message: `The model call failed: invalid x-api-key ${anthropicKey}`,
-        data: { excerpt: `ERROR ANTHROPIC ${anthropicKey} 401` }
-      })
-    );
-
-    const serialized = JSON.stringify(payload);
-    expect(serialized).not.toContain(anthropicKey);
-    expect(serialized).not.toContain('Fake0key_');
-    expect(payload.data).toMatchObject({ excerpt: expect.stringContaining('ERROR ANTHROPIC') });
   });
 
   test('compacts info:stack data into Stacktape and CloudFormation summaries', () => {

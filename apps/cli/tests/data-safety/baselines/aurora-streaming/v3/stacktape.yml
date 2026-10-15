@@ -1,0 +1,42 @@
+# Stacktape v3 configuration. The v4 equivalent is in ../v4/stacktape.yml.
+resources:
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process.py
+          languageSpecificConfig:
+            pythonVersion: '3.12'
+      events:
+        - type: kinesis-stream
+          properties:
+            kinesisStreamName: events
+            batchSize: 100
+      connectTo:
+        - aurora
+        - events
+        - search
+  aurora:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin_user
+        masterUserPassword: not-a-real-password-1
+      engine:
+        type: aurora-postgresql-serverless-v2
+        properties:
+          version: '16.10'
+          minCapacity: 0.5
+          maxCapacity: 2
+  events:
+    type: kinesis-stream
+    properties:
+      shardCount: 1
+  search:
+    type: open-search-domain
+    properties:
+      clusterConfig:
+        instanceType: t3.small.search
+        instanceCount: 1

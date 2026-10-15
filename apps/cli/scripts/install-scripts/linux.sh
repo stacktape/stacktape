@@ -34,7 +34,16 @@ if ! command -v tar >/dev/null 2>&1; then
 fi
 
 version=${STACKTAPE_VERSION:-"<<DEFAULT_VERSION>>"}
-archive_name="linux.tar.gz"
+# Install the build this machine's processor runs, whichever Linux installer was copied.
+machine=$(uname -m)
+case "$machine" in
+    aarch64 | arm64) archive_name="linux-arm.tar.gz" ;;
+    x86_64 | amd64) archive_name="linux.tar.gz" ;;
+    *)
+        print_message error "Error: Stacktape has no Linux build for the $machine processor."
+        exit 1
+        ;;
+esac
 archive_source_url="https://github.com/stacktape/stacktape/releases/download/$version/$archive_name"
 checksums_source_url="https://github.com/stacktape/stacktape/releases/download/$version/SHA256SUMS"
 # SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
