@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { catalogIdentity } from './status-catalog';
+import { catalogIdentity, requireStatus } from './status-catalog';
 
 const HANDLER_NAME = 'catalogNote';
 
@@ -22,17 +22,21 @@ const readNotice = (): string => {
   }
 };
 
-export const handler = async () => ({
-  statusCode: 200,
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify(
-    {
-      handler: HANDLER_NAME,
-      revision: process.env.CANARY_REVISION ?? 'base',
-      catalog: catalogIdentity(),
-      notice: readNotice()
-    },
-    null,
-    2
-  )
-});
+export const handler = async (event?: { queryStringParameters?: Record<string, string | undefined> }) => {
+  // The canary's deliberate runtime error, thrown from the shared module bundled into this function.
+  if (event?.queryStringParameters?.fail) requireStatus(999);
+  return {
+    statusCode: 200,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(
+      {
+        handler: HANDLER_NAME,
+        revision: process.env.CANARY_REVISION ?? 'base',
+        catalog: catalogIdentity(),
+        notice: readNotice()
+      },
+      null,
+      2
+    )
+  };
+};

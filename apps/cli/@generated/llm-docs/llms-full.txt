@@ -20659,11 +20659,21 @@ The Console has one organization-wide switch as well. Click **Settings** on the 
 
 ## What leaves your AWS account
 
-For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most) and the request id. Logs themselves stay in your account.
+For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the time the function's execution environment started. Logs themselves stay in your account.
 
 Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
 
 During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact.
+
+## Stack traces of bundled JavaScript
+
+A JavaScript or TypeScript function packaged with [`js-bundle`](/packaging/function/js-bundle) runs minified code, so the frames the runtime logs point into the bundle (`/var/task/index.js:1:4821`). Its source maps are not in the deployment package: each deployment stores them in the stack's deployment bucket and tells the Console which maps describe the code each function runs from when.
+
+When an issue is first seen, the Console reads the maps of the code that threw. It picks them by the time the failing execution environment started, so an error from an environment started before a later deployment gets the maps of its own code. It reads them through your connected account's role, limited for that session to the stack's source maps and the function's configuration and tags. The issue's detail page then shows the stack trace in your source files, with the original file, line and function.
+
+The maps contain no source code. The Console stores the mapped file, line, column and function of each frame and keeps nothing else from the maps. Lambda logs in CloudWatch still show the bundled positions. To have Node.js map those as well, set [`keepSourceMapsInPackage`](/packaging/function/js-bundle#source-maps); the Console then shows the frames as Node.js logged them.
+
+Stack traces are mapped for errors from code deployed by the current CLI; errors from earlier deployments show the bundled positions.
 
 ## Error types
 
@@ -23968,7 +23978,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 Source: `apps/docs/content/packaging/function/js-bundle.mdx`
 Route: `/packaging/function/js-bundle`
 
-The `js-bundle` packaging type (`JsBundleLambdaPackaging`) packages a JavaScript or TypeScript [Lambda function](/resources/compute/lambda-function) from its entry file. Stacktape bundles the entry file and everything it imports into one minified file with source maps, installs the dependencies that cannot be bundled, and uploads the result.
+The `js-bundle` packaging type (`JsBundleLambdaPackaging`) packages a JavaScript or TypeScript [Lambda function](/resources/compute/lambda-function) from its entry file. Stacktape bundles the entry file and everything it imports into one minified file, installs the dependencies that cannot be bundled, and uploads the result. The bundle's source maps are stored in the stack's deployment bucket, outside the package.
 
 `js-bundle` supports JavaScript and TypeScript only. For Python, Java, Go, Ruby, .NET and Rust functions, use [`buildpack`](/packaging/function/buildpack).
 
@@ -24103,7 +24113,17 @@ All options are properties of `JsBundleLambdaPackaging` next to `entryfilePath`.
 
 ### How the bundle is built
 
-Stacktape bundles your code starting from the entry file into a single output file. The bundle is minified (whitespace and syntax only, so function names stay readable in stack traces), and on Node.js 18 and later, imports of `@aws-sdk/client-*` and `@aws-sdk/lib-*` are left out of the package because the Lambda runtime provides them. Source maps are generated automatically. If you set `outputSourceMapsTo`, source maps are saved locally instead of uploaded, and CloudWatch stack traces will not be mapped.
+Stacktape bundles your code starting from the entry file into a single output file. The bundle is minified (whitespace and syntax only, so function names stay readable in stack traces), and on Node.js 18 and later, imports of `@aws-sdk/client-*` and `@aws-sdk/lib-*` are left out of the package because the Lambda runtime provides them. Source maps are generated automatically and kept outside the package; see [Source maps](#source-maps).
+
+### Source maps
+
+Each deployment stores the function's source maps in the stack's deployment bucket instead of the deployment package, so the package carries code only. The maps contain no source code. When the [Stacktape Console](/observability/issues) first sees an error from the function, it uses the maps of the code that threw to show the stack trace with the original file, line and function. Stack traces in CloudWatch logs point into the bundled code.
+
+The deployment bucket keeps a function's maps as long as it keeps a deployment package that uses them, so the maps of every release you can [roll back](/cli/rollback) to stay available.
+
+- **`keepSourceMapsInPackage: true`** ships the maps in the package and turns on Node.js `--enable-source-maps`, so CloudWatch stack traces are mapped too. The package gets larger, and Node.js reads the maps on every cold start.
+- **`outputSourceMapsTo`** also saves complete maps, original source included, to a local directory, for uploading to Sentry, Datadog or another tool.
+- **`disableSourceMaps: true`** generates no maps; error locations then point into the bundled code everywhere.
 
 Key options:
 
@@ -24113,8 +24133,9 @@ Key options:
 - **`emitTsDecoratorMetadata`** — enable for frameworks that rely on TypeScript decorator metadata reflection (NestJS, TypeORM).
 - **`dependenciesToExcludeFromBundle`** — packages treated as external (not bundled into the single output file). They're installed separately in the deployment package. Set the array to `['*']` to exclude all dependencies from the bundle.
 - **`dependenciesToExcludeFromDeploymentPackage`** — removes non-bundled dependencies from the final package. Only applies to dependencies already excluded from the bundle. Set the array to `['*']` to exclude all non-bundled dependencies.
-- **`disableSourceMaps`** — skips source map generation, reducing package size but making production errors harder to debug.
-- **`outputSourceMapsTo`** — saves source maps to a local directory instead of uploading them to AWS. Useful for external error tracking tools like Sentry or Datadog. CloudWatch stack traces won't be mapped when this is set.
+- **`disableSourceMaps`** — skips source map generation. Error locations then point into the bundled code.
+- **`keepSourceMapsInPackage`** — keeps source maps in the deployment package and maps CloudWatch stack traces. Default: `false`. See [Source maps](#source-maps).
+- **`outputSourceMapsTo`** — also saves complete source maps to a local directory. Useful for external error tracking tools like Sentry or Datadog.
 - **`minify`** — minifies the bundle (whitespace and syntax). Local function and variable names are kept, so stack traces and error messages stay readable. Default: `true`.
 - **`minifyIdentifiers`** — also shortens local variable and function names. Slightly smaller bundle, but the names disappear from stack traces and error messages and change with every build, so Stacktape Console cannot group the same error across deployments. Default: `false`.
 - **`bundleAwsSdk`** — bundles `@aws-sdk/*` from your `node_modules` instead of using the copy the Lambda runtime provides. Enable it when you need a newer SDK than the runtime ships. Default: `false`.
@@ -24175,7 +24196,7 @@ A function is packaged individually, without a shared layer, when it uses an opt
 - `includeFiles` or `excludeFiles`
 - a `nodeVersion` other than 18, 20, 22 or 24
 
-Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
+Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `keepSourceMapsInPackage`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
 
 
 > **Info:** Changing shared code changes every package that depends on it, because each function's entry file references the shared chunk by a content hash. Changing one handler's own code changes only that one package.
@@ -24204,6 +24225,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `excludeFiles` | no | `Array<string>` | - |
 | `handlerFunction` | no | `string` | - |
 | `includeFiles` | no | `Array<string>` | - |
+| `keepSourceMapsInPackage` | no | `boolean` | `false` |
 | `minify` | no | `boolean` | `true` |
 | `minifyIdentifiers` | no | `boolean` | `false` |
 | `nodeVersion` | no | `number: 16 \| 17 \| 18 \| 19 \| 20 \| 21 \| 22 \| 23 \| 24` | - |
@@ -24240,7 +24262,7 @@ When several functions can be packaged together, Stacktape moves the code they s
 
 ### How do I debug a function packaged with `js-bundle`?
 
-Source maps are generated automatically and included in the deployment package so CloudWatch stack traces map back to your source. If you set `outputSourceMapsTo`, source maps are saved locally instead and CloudWatch stack traces will not be mapped. For rapid iteration without a full redeploy, use [dev mode](/local-development/dev-mode-overview) with Lambda functions.
+The Stacktape Console shows each runtime error with the original file, line and function, read from the source maps the deployment stored in your deployment bucket. CloudWatch logs show positions in the bundled code; set `keepSourceMapsInPackage: true` to have Node.js map them as well. For rapid iteration without a full redeploy, use [dev mode](/local-development/dev-mode-overview) with Lambda functions.
 
 ---
 
@@ -24276,7 +24298,7 @@ Function packaging bundles your code and dependencies into a Lambda deployment z
 
 | Type | Use when |
 |------|----------|
-| [**`js-bundle`**](/packaging/function/js-bundle) | JavaScript or TypeScript. Point to the entry file. Stacktape bundles it into one minified file with source maps, leaves the AWS SDK to the Lambda runtime, moves code shared between functions into a shared layer, and installs dependencies with native binaries separately. |
+| [**`js-bundle`**](/packaging/function/js-bundle) | JavaScript or TypeScript. Point to the entry file. Stacktape bundles it into one minified file, keeps its source maps in the deployment bucket, leaves the AWS SDK to the Lambda runtime, moves code shared between functions into a shared layer, and installs dependencies with native binaries separately. |
 | [**`buildpack`**](/packaging/function/buildpack) | Python, Java, Go, Ruby, .NET or Rust. Point to the entry file. Stacktape installs dependencies and compiles the code in Docker on the Lambda build image of the function's `runtime`. |
 | [**`custom-artifact`**](/packaging/function/custom-artifact) | You build the deployment package yourself. Provide a zip, directory or other file. Stacktape zips directories and non-zip files automatically. |
 
@@ -24299,7 +24321,7 @@ export default defineConfig(() => {
 ```
 
 
-`js-bundle` options such as `nodeVersion`, `outputModuleFormat` and `disableSourceMaps` are direct properties next to `entryfilePath`. See [JS Bundle for Lambda](/packaging/function/js-bundle). For other languages, the function's `runtime` selects the language version; see [Buildpack for Lambda](/packaging/function/buildpack).
+`js-bundle` options such as `nodeVersion`, `outputModuleFormat` and `keepSourceMapsInPackage` are direct properties next to `entryfilePath`. See [JS Bundle for Lambda](/packaging/function/js-bundle). For other languages, the function's `runtime` selects the language version; see [Buildpack for Lambda](/packaging/function/buildpack).
 
 ## Container packaging
 
@@ -70160,7 +70182,7 @@ type CustomResourceDefinitionPackaging =
 How the Lambda function code is packaged and deployed.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -73159,7 +73181,7 @@ type JsBundleBjImagePackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -73180,7 +73202,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
   requiresGlibcBinaries?: boolean;
@@ -73443,7 +73465,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -73845,9 +73870,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 
@@ -74072,7 +74100,7 @@ type JsBundleCwImagePackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -74093,7 +74121,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
   requiresGlibcBinaries?: boolean;
@@ -74356,7 +74384,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -74758,9 +74789,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 
@@ -74981,7 +75015,7 @@ type JsBundleLambdaPackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -74996,6 +75030,8 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   handlerFunction?: string;
   /** A glob pattern of files to explicitly include in the deployment package. */
   includeFiles?: Array<string>;
+  /** Keep source maps inside the deployment package. */
+  keepSourceMapsInPackage?: boolean;
   /** Minify the bundled code. Local names are kept, so stack traces stay readable. */
   minify?: boolean;
   /** Also shorten local variable and function names when minifying. */
@@ -75004,7 +75040,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** The path to the `tsconfig.json` file. */
   tsConfigPath?: string;
@@ -75208,7 +75244,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -75466,6 +75505,55 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `keepSourceMapsInPackage`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Keep source maps inside the deployment package.
+
+By default, Stacktape stores a function's source maps in the stack's deployment bucket, outside the package. The
+Stacktape Console uses them to show each error at the original file, line and function, while stack traces in
+CloudWatch logs point into the bundled code. Set this to `true` to ship the maps in the package and turn on
+Node.js `--enable-source-maps`, so logged stack traces are mapped too. The package gets larger, and Node.js reads
+the maps on every cold start.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+ apiFunction:
+   type: function
+   properties:
+     packaging:
+       type: js-bundle
+       properties:
+         entryfilePath: src/handlers/api.ts
+         keepSourceMapsInPackage: true
+     memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+ const apiFunction = new LambdaFunction({
+   packaging: {
+     type: 'js-bundle',
+     properties: {
+       entryfilePath: 'src/handlers/api.ts',
+       keepSourceMapsInPackage: true
+     }
+   },
+   memory: 512
+ });
+ return { resources: { apiFunction } };
+});
+```
+
 ## Property: `minify`
 
 - Required: no
@@ -75652,9 +75740,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 
@@ -76547,7 +76638,7 @@ type DeploymentScriptPackaging =
 How the script code is packaged. Use `js-bundle` for auto-bundling.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -78784,7 +78875,7 @@ type EdgeLambdaFunctionPackaging =
 How the function code is packaged and deployed.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -85132,7 +85223,7 @@ bundles, and uploads it automatically.
 **`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 

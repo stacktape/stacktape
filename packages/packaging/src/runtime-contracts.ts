@@ -1,4 +1,5 @@
 import type {
+  JsBundleLambdaPackagingProps,
   JsBundleSharedProps,
   SupportedDotnetVersion,
   SupportedJavaVersion,
@@ -22,7 +23,8 @@ export type JsBundleOptions = Pick<
   | 'minify'
   | 'minifyIdentifiers'
   | 'bundleAwsSdk'
->;
+> &
+  Pick<JsBundleLambdaPackagingProps, 'keepSourceMapsInPackage'>;
 
 const JS_BUNDLE_OPTION_KEYS = [
   'tsConfigPath',
@@ -35,7 +37,8 @@ const JS_BUNDLE_OPTION_KEYS = [
   'outputSourceMapsTo',
   'minify',
   'minifyIdentifiers',
-  'bundleAwsSdk'
+  'bundleAwsSdk',
+  'keepSourceMapsInPackage'
 ] as const satisfies readonly (keyof JsBundleOptions)[];
 
 /** The bundling options present in an input, for hashing them as one artifact identity input. */
@@ -300,4 +303,9 @@ export type PackagingOutput = {
   jobName: string;
   /** All npm modules resolved during bundling (for Lambda functions). */
   resolvedModules?: string[] | undefined;
+  /**
+   * A Lambda ZIP's source maps, kept outside the package (`takeSourceMapsOutOfPackage`). The deployment stores them
+   * in the stack's deployment bucket for the Console. Unset when the build has no map or keeps it in the package.
+   */
+  sourceMapsPath?: string | undefined;
 };

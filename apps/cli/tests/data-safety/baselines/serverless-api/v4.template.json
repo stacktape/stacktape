@@ -759,7 +759,7 @@
         "Timeout": 20,
         "Environment": {
           "Variables": {
-            "NODE_OPTIONS": "--enable-source-maps --experimental-require-module --experimental-detect-module",
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module",
             "STP_MAIN_DB_NAME": {
               "Ref": "MainDbGlobalTable"
             },

@@ -1,6 +1,6 @@
 import type { SupportedPackagingType } from '@domain-services/packaging-manager/types';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import type { JsBundleSharedProps } from '@stacktape/config/deployment-artifacts';
+import type { JsBundleLambdaPackagingProps } from '@stacktape/config/deployment-artifacts';
 export type Language =
   | 'javascript'
   | 'typescript'
@@ -35,17 +35,24 @@ export const getLanguageFromExtension = (entryfilePath?: string): Language => {
  * `--enable-source-maps` is only worth setting then: with the flag on, Node reads and parses every map it finds at
  * module load, on the cold-start path, and without a map it has nothing to read. The flag also tells whoever reads
  * a CloudWatch trace that its frames are mapped, which they are not when the build kept the maps out of the package.
+ * A Lambda ZIP keeps its maps in the deployment bucket unless `keepSourceMapsInPackage` is set; an image keeps them
+ * unless `outputSourceMapsTo` takes them out.
  */
 export const shipsSourceMapsInPackage = (
-  languageSpecificConfig?: Pick<
-    JsBundleSharedProps,
-    'disableSourceMaps' | 'outputSourceMapsTo' | 'emitTsDecoratorMetadata'
-  >
-): boolean =>
-  !languageSpecificConfig?.disableSourceMaps &&
-  !languageSpecificConfig?.outputSourceMapsTo &&
+  languageSpecificConfig:
+    | Pick<
+        JsBundleLambdaPackagingProps,
+        'disableSourceMaps' | 'outputSourceMapsTo' | 'emitTsDecoratorMetadata' | 'keepSourceMapsInPackage'
+      >
+    | undefined,
+  target: 'lambda' | 'container'
+): boolean => {
   // TypeScript expands decorators before the bundler sees the module, so that build emits no map (see `createEsBundle`).
-  !languageSpecificConfig?.emitTsDecoratorMetadata;
+  if (languageSpecificConfig?.disableSourceMaps || languageSpecificConfig?.emitTsDecoratorMetadata) return false;
+  return target === 'lambda'
+    ? Boolean(languageSpecificConfig?.keepSourceMapsInPackage)
+    : !languageSpecificConfig?.outputSourceMapsTo;
+};
 
 /**
  * Universal function to augment environment variables for any workload.

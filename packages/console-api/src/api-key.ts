@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { GuardrailDefinition } from './guardrails.js';
 import type { RecordSecurityReportParams, RecordSecurityReportResponse } from './security.js';
+import { sourceMapManifestSchema } from './source-maps.js';
 
 /**
  * The Console API's API-key surface: procedures a Stacktape API key authorizes, scoped to the organization
@@ -39,7 +40,12 @@ export const recordStackOperationInputSchema = z.object({
   accountConnectionId: z.string().optional().nullable(),
   ciProvider: z.string().optional().nullable(),
   /** Whether this deployment wired Issues (runtime errors read from logs) for its stack; the Console shows coverage from it. */
-  issuesEnabled: z.boolean().optional().nullable()
+  issuesEnabled: z.boolean().optional().nullable(),
+  /**
+   * Which source maps in the stack's deployment bucket describe each function this operation deploys. Sent before the
+   * code switches and again with each function's `activeSince` once it has.
+   */
+  sourceMaps: sourceMapManifestSchema.optional().nullable()
 });
 
 export const createDeploymentTokenFromCliInputSchema = z.object({

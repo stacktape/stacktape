@@ -12,6 +12,7 @@
     "./permissions": "./src/permissions.ts",
     "./security": "./src/security.ts",
     "./sensitive-text": "./src/sensitive-text.ts",
+    "./source-maps": "./src/source-maps.ts",
     "./stages": "./src/stages.ts"
   },
   "scripts": {

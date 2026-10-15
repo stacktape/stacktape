@@ -326,6 +326,17 @@ export const HTTP_STATUS_CATALOG: readonly StatusRecord[] = [
 export const findStatus = (code: number): StatusRecord | undefined =>
   HTTP_STATUS_CATALOG.find((entry) => entry.code === code);
 
+/**
+ * The catalog record of `code`, or an error thrown from inside this shared module. The real-AWS canary requests it
+ * with `?fail=1`, so the deployed error's top frame lies in the shared layer, or in the bundle of the function that
+ * is packaged on its own, and must map back to the line below.
+ */
+export const requireStatus = (code: number): StatusRecord => {
+  const status = findStatus(code);
+  if (!status) throw new Error(`status ${code} is not in the catalog`);
+  return status;
+};
+
 export const retryableCodes = (): number[] =>
   HTTP_STATUS_CATALOG.filter((entry) => entry.retryable).map((entry) => entry.code);
 

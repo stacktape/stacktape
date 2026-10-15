@@ -12,7 +12,7 @@ type JsBundleLambdaPackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -27,6 +27,8 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   handlerFunction?: string;
   /** A glob pattern of files to explicitly include in the deployment package. */
   includeFiles?: Array<string>;
+  /** Keep source maps inside the deployment package. */
+  keepSourceMapsInPackage?: boolean;
   /** Minify the bundled code. Local names are kept, so stack traces stay readable. */
   minify?: boolean;
   /** Also shorten local variable and function names when minifying. */
@@ -35,7 +37,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** The path to the `tsconfig.json` file. */
   tsConfigPath?: string;
@@ -239,7 +241,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -497,6 +502,55 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `keepSourceMapsInPackage`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Keep source maps inside the deployment package.
+
+By default, Stacktape stores a function's source maps in the stack's deployment bucket, outside the package. The
+Stacktape Console uses them to show each error at the original file, line and function, while stack traces in
+CloudWatch logs point into the bundled code. Set this to `true` to ship the maps in the package and turn on
+Node.js `--enable-source-maps`, so logged stack traces are mapped too. The package gets larger, and Node.js reads
+the maps on every cold start.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+ apiFunction:
+   type: function
+   properties:
+     packaging:
+       type: js-bundle
+       properties:
+         entryfilePath: src/handlers/api.ts
+         keepSourceMapsInPackage: true
+     memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+ const apiFunction = new LambdaFunction({
+   packaging: {
+     type: 'js-bundle',
+     properties: {
+       entryfilePath: 'src/handlers/api.ts',
+       keepSourceMapsInPackage: true
+     }
+   },
+   memory: 512
+ });
+ return { resources: { apiFunction } };
+});
+```
+
 ## Property: `minify`
 
 - Required: no
@@ -683,9 +737,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 

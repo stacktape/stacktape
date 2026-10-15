@@ -59,6 +59,7 @@ test('the package publishes only the reviewed external contracts', () => {
     'permissions.ts',
     'security.ts',
     'sensitive-text.ts',
+    'source-maps.ts',
     'stages.ts'
   ]);
 });

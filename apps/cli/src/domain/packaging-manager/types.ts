@@ -33,6 +33,8 @@ export type PackageWorkloadOutput = {
   artifactPath?: string;
   /** All npm modules resolved during bundling (for Lambda functions) */
   resolvedModules?: string[];
+  /** A Lambda ZIP's source maps, kept outside the package for the deployment bucket. */
+  sourceMapsPath?: string;
 };
 
 export type HelperLambdaPackaging = {

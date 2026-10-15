@@ -51,6 +51,7 @@ import {
 } from '../../init/deploy/stack-expectation';
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -343,6 +344,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   progress.setPhase('UPLOAD');
   await deploymentArtifacts.uploadAllArtifacts({ includeTemplates: !fastDeployPlan });
+  const sourceMapManifest = await recordSourceMapsBeforeSwitch(template.getTemplate());
 
   // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
   // CloudFormation works; it is uploaded and reported only after the deployment succeeds.
@@ -400,6 +402,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('POST_DEPLOY');
+  await recordSourceMapActivation(sourceMapManifest);
 
   // A fast deployment leaves the stack unchanged.
   if (!fastDeployPlan) {

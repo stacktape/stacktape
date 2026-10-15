@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { ensureLambdaImage, extractZip, invokeInLambdaRuntime } from '../../scripts/packaging-archives/lambda-runtime';
 import { GetFunctionConfigurationCommand, GetLayerVersionByArnCommand } from '@aws-sdk/client-lambda';
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import AdmZip from 'adm-zip';
 import type { Family } from './families';
 
 // Large enough to become a shared chunk with default split-layer thresholds.
@@ -77,6 +78,24 @@ export const splitLambdaFamily: Family = {
       })
     );
     const objects = storedObjects.map(({ key, modified }) => ({ key, modified }));
+    // Source maps stay out of every function and layer ZIP, in a bundle per artifact digest.
+    const sourceMapKeys =
+      (await clients.s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'source-maps/' }))).Contents?.map(
+        ({ Key }) => Key
+      ) ?? [];
+    for (const { key, bytes } of storedObjects) {
+      const maps = new AdmZip(bytes)
+        .getEntries()
+        .map(({ entryName }) => entryName)
+        .filter((entryName) => entryName.endsWith('.map'));
+      assert.deepEqual(maps, [], `${key} must not carry source maps`);
+      const [name, file] = key.split('/') as [string, string];
+      const digest = file
+        .replace(/\.zip$/, '')
+        .split('-')
+        .at(-1);
+      assert.ok(sourceMapKeys.includes(`source-maps/${name}/${digest}.json`), `the maps of ${key} must be stored`);
+    }
     const previous = snapshots.get(names[0]!);
     if (step === 'update') {
       assert.ok(previous, 'create must precede update');
@@ -148,7 +167,7 @@ export const splitLambdaFamily: Family = {
     await delay(Math.max(0, Math.max(...objects.map(({ modified }) => modified)) + 1_001 - Date.now()));
     snapshots.set(names[0]!, { codes, layers, objects });
     checks.push(
-      'both functions execute through the same shared layer; private edits and unchanged redeploy reuse untouched artifacts'
+      'both functions execute through the same shared layer; private edits and unchanged redeploy reuse untouched artifacts; no ZIP carries a map, each has a stored bundle'
     );
   }
 };

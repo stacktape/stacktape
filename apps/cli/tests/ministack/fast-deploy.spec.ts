@@ -3,8 +3,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
-import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { GetFunctionConfigurationCommand, InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import type { SourceMapManifest } from '@stacktape/console-api/source-maps';
+import { sourceMapBundleSchema } from '@stacktape/console-api/source-maps';
+import AdmZip from 'adm-zip';
 import { startMiniStack } from '@stacktape/ministack/fixture';
 // oxlint-disable-next-line import/no-unassigned-import
 import './offline-preload';
@@ -26,7 +29,9 @@ const config = {
 };
 const handler = (body: string) => `export default async () => ({ statusCode: 200, body: "${body}" });\n`;
 
-// A code-only change is deployed without CloudFormation, recorded as a release, and restored by rollback.
+// A code-only change is deployed without CloudFormation, recorded as a release, and restored by rollback. Each of
+// those deployments keeps the function's source maps out of its ZIP, in the deployment bucket, and tells the Console
+// which maps describe the code the function runs from when.
 test('code-only deploys update functions directly, record a release and roll back to the exact code', async () => {
   const out = await mkdtemp(join(tmpdir(), 'stp-fast-deploy-'));
   const ministack = await startMiniStack({ label: 'fast-deploy' });
@@ -58,6 +63,44 @@ test('code-only deploys update functions directly, record a release and roll bac
     const templateAfterCreate = await getStackTemplate(cloudFormation, project.stackName);
     expect(await invoke(functionName)).toBe('first');
 
+    /** The manifest the deployment recorded last, and what it names in the bucket. */
+    const recordedSourceMaps = async () => {
+      const manifests = project.controlPlane.calls
+        .filter(({ procedure }) => procedure === 'recordStackOperation')
+        .map(({ input }) => (input as { sourceMaps?: SourceMapManifest }).sourceMaps)
+        .filter((manifest): manifest is SourceMapManifest => Boolean(manifest));
+      const [entry] = manifests.at(-1)!.functions;
+      expect(manifests.at(-1)!.functions).toHaveLength(1);
+      expect(entry!.lambdaName).toBe(functionName);
+      const zipKey = (
+        (await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'api/' }))).Contents ?? []
+      ).find(({ Key }) => Key!.endsWith(`-${entry!.digest}.zip`))!.Key!;
+      const zip = new AdmZip(
+        Buffer.from(
+          await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key: zipKey }))).Body!.transformToByteArray()
+        )
+      );
+      const bundle = sourceMapBundleSchema.parse(
+        JSON.parse(
+          await (
+            await s3.send(new GetObjectCommand({ Bucket: bucket, Key: entry!.sourceMapKeys[0]! }))
+          ).Body!.transformToString()
+        )
+      );
+      return { entry: entry!, manifests, zipEntries: zip.getEntries().map(({ entryName }) => entryName), bundle };
+    };
+    const firstBuild = await recordedSourceMaps();
+    // Recorded before the code switched, and again with the time Lambda started running it.
+    expect(firstBuild.manifests.length).toBeGreaterThanOrEqual(2);
+    expect(firstBuild.manifests.at(-2)!.functions[0]!.activeSince).toBeUndefined();
+    expect(firstBuild.entry.sourceMapKeys).toEqual([`source-maps/api/${firstBuild.entry.digest}.json`]);
+    expect(firstBuild.entry.activeSince).toBeGreaterThan(0);
+    expect(firstBuild.zipEntries).toContain('index.js');
+    expect(firstBuild.zipEntries.filter((name) => name.endsWith('.map'))).toEqual([]);
+    expect(firstBuild.bundle.files['/var/task/index.js']!.sources).toContain('handler.ts');
+    const { Environment } = await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }));
+    expect(Environment?.Variables?.NODE_OPTIONS ?? '').not.toContain('--enable-source-maps');
+
     await writeProjectFiles(project, { 'handler.ts': handler('second') });
     const fast = await runSourceCli({ project, step: 'update', ministack });
     expect(fast.exitCode, fast.tail).toBe(0);
@@ -66,6 +109,10 @@ test('code-only deploys update functions directly, record a release and roll bac
     expect(await getStackTemplate(cloudFormation, project.stackName)).toBe(templateAfterCreate);
     expect(await deployedVersion()).toBe('v000001');
     expect(await invoke(functionName)).toBe('second');
+    const fastReleased = await recordedSourceMaps();
+    expect(fastReleased.entry.digest).not.toBe(firstBuild.entry.digest);
+    expect(fastReleased.entry.activeSince).toBeGreaterThanOrEqual(firstBuild.entry.activeSince!);
+    expect(fastReleased.zipEntries.filter((name) => name.endsWith('.map'))).toEqual([]);
     const releaseTemplates = async () =>
       ((await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'cf-template/' }))).Contents ?? [])
         .map(({ Key }) => Key)
@@ -89,6 +136,11 @@ test('code-only deploys update functions directly, record a release and roll bac
     expect(rolledBack.exitCode, rolledBack.tail).toBe(0);
     expect(await deployedVersion()).toBe('v000003');
     expect(await invoke(functionName)).toBe('first');
+    // The restored code is the first build: its maps are still stored, and the rollback says it runs again.
+    const restored = await recordedSourceMaps();
+    expect(restored.entry.digest).toBe(firstBuild.entry.digest);
+    expect(restored.entry.sourceMapKeys).toEqual(firstBuild.entry.sourceMapKeys);
+    expect(restored.entry.activeSince).toBeGreaterThanOrEqual(fastReleased.entry.activeSince!);
 
     // Deploying the source again after that rollback must notice that the function no longer runs it, even though
     // CloudFormation left the fast release's code-digest tag in place.

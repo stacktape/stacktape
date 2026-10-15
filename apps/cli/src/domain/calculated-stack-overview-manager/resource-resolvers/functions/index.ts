@@ -84,7 +84,7 @@ import {
   getLambdaUrl,
   getLambdaVersionPublisherCustomResource
 } from './utils';
-import type { JsBundleSharedProps } from '@stacktape/config/deployment-artifacts';
+import type { JsBundleLambdaPackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
@@ -259,7 +259,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
 
   const packagingType = packaging?.type as Parameters<typeof getAugmentedEnvironment>[0]['packagingType'];
   const entryfilePath = (packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-  const languageSpecificConfig = packaging?.properties as JsBundleSharedProps | undefined;
+  const languageSpecificConfig = packaging?.properties as JsBundleLambdaPackagingProps | undefined;
   const nodeVersion = resolveNodeVersion({
     nodeVersion: languageSpecificConfig?.nodeVersion,
     runtime,
@@ -273,7 +273,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     packagingType,
     entryfilePath,
     nodeVersion,
-    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'lambda')
   }).forEach(({ name: varName, value: varVal }) => {
     transformedEnvVars[varName] = varVal;
   });

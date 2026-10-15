@@ -1,12 +1,27 @@
 import {
   CloudFormationClient,
   DeleteStackCommand,
+  DescribeStackResourceCommand,
   DescribeStacksCommand,
   waitUntilStackDeleteComplete,
   type Stack
 } from '@aws-sdk/client-cloudformation';
-import { CloudWatchLogsClient, DeleteLogGroupCommand } from '@aws-sdk/client-cloudwatch-logs';
-import { GetFunctionConfigurationCommand, GetFunctionUrlConfigCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import {
+  CloudWatchLogsClient,
+  DeleteLogGroupCommand,
+  FilterLogEventsCommand,
+  GetLogEventsCommand
+} from '@aws-sdk/client-cloudwatch-logs';
+import {
+  GetFunctionCommand,
+  GetFunctionConfigurationCommand,
+  GetFunctionUrlConfigCommand,
+  GetLayerVersionByArnCommand,
+  LambdaClient
+} from '@aws-sdk/client-lambda';
+import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import AdmZip from 'adm-zip';
+import { SourceMap } from 'node:module';
 import { fromEnv, fromIni } from '@aws-sdk/credential-providers';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import type { AwsCredentialIdentityProvider } from '@aws-sdk/types';
@@ -21,6 +36,7 @@ import { assertPackagingStages, parseCliJsonl } from '../verify-source-cli-aws-r
 const OPT_IN = 'STP_AWS_CANARY_DEPLOY';
 const DISPOSABLE_CONFIRMATION = 'STP_AWS_CANARY_CONFIRM_DISPOSABLE';
 const EXPECTED_ACCOUNT_ID = 'STP_AWS_CANARY_EXPECTED_ACCOUNT_ID';
+const CONNECTED_ACCOUNT_NAME = 'STP_AWS_CANARY_AWS_ACCOUNT';
 const CREDENTIAL_MODE = 'STP_AWS_CANARY_CREDENTIAL_MODE';
 const AWS_PROFILE = 'STP_AWS_CANARY_PROFILE';
 const PROJECT_NAME = 'STP_AWS_CANARY_PROJECT_NAME';
@@ -47,6 +63,7 @@ export type CanaryOptions = {
   credentials: CredentialSelection;
   cli: CliSelection;
   expectedAccountId: string;
+  connectedAccountName?: string;
   owner: string;
   projectName: string;
   region: string;
@@ -80,6 +97,7 @@ type AwsClients = {
   cloudFormation: CloudFormationClient;
   lambda: LambdaClient;
   logs: CloudWatchLogsClient;
+  s3: S3Client;
   sts: STSClient;
 };
 
@@ -176,7 +194,17 @@ export const resolveCanaryOptions = ({
 
   const stateFile = env[STATE_FILE]?.trim();
   assert(!stateFile || isAbsolute(stateFile), `${STATE_FILE} must be an absolute path when set.`);
-  return { credentials, cli, expectedAccountId, owner, projectName, region, ...(stateFile ? { stateFile } : {}) };
+  const connectedAccountName = env[CONNECTED_ACCOUNT_NAME]?.trim();
+  return {
+    credentials,
+    cli,
+    expectedAccountId,
+    owner,
+    projectName,
+    region,
+    ...(connectedAccountName ? { connectedAccountName } : {}),
+    ...(stateFile ? { stateFile } : {})
+  };
 };
 
 export const buildCanaryEnvironment = ({
@@ -228,6 +256,7 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
     cloudFormation: new CloudFormationClient(clientConfig),
     lambda: new LambdaClient(clientConfig),
     logs: new CloudWatchLogsClient(clientConfig),
+    s3: new S3Client(clientConfig),
     sts: new STSClient(clientConfig)
   };
 };
@@ -339,6 +368,7 @@ const commonCliArgs = (options: CanaryOptions) => [
   '--region',
   options.region,
   ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : []),
+  ...(options.connectedAccountName ? ['--awsAccount', options.connectedAccountName] : []),
   '--agent'
 ];
 
@@ -535,6 +565,156 @@ const assertDataPlane = async (snapshot: AwsSnapshot, options: CanaryOptions, ex
   assert(Array.isArray(report.retryableCodes), 'catalogReport did not return retryableCodes.');
 };
 
+type StoredSourceMaps = Record<string, ConstructorParameters<typeof SourceMap>[0]>;
+
+/** The entry names of a ZIP that Lambda serves from a presigned code or layer location. */
+const zipEntryNames = async (location: string) => {
+  const response = await fetch(location, { signal: AbortSignal.timeout(60_000) });
+  assert(response.ok, `Downloading a deployed package returned HTTP ${response.status}.`);
+  return new AdmZip(Buffer.from(await response.arrayBuffer())).getEntries().map(({ entryName }) => entryName);
+};
+
+/**
+ * Source maps stay out of every deployed package: no function or layer ZIP holds a `.map`, Node is not told to look
+ * for one, and the deployment bucket holds one map bundle per function and layer, without source code. Returns each
+ * function's maps (its own and its layer's), by the runtime path of the code they describe.
+ */
+const assertSourceMapsOutsidePackages = async (clients: AwsClients, options: CanaryOptions, snapshot: AwsSnapshot) => {
+  const functionWorkloads = [...workloads, 'catalogNote'] as const;
+  for (const workload of functionWorkloads) {
+    const name = functionName(options, workload);
+    const { Code, Configuration } = await clients.lambda.send(new GetFunctionCommand({ FunctionName: name }));
+    const maps = (await zipEntryNames(requiredString(Code?.Location, `${name} code location`))).filter((entry) =>
+      entry.endsWith('.map')
+    );
+    assert(maps.length === 0, `${name} deployment package carries source maps: ${maps.join(', ')}.`);
+    assert(
+      !Configuration?.Environment?.Variables?.NODE_OPTIONS?.includes('--enable-source-maps'),
+      `${name} still tells Node to read source maps from its package.`
+    );
+  }
+  const layer = await clients.lambda.send(
+    new GetLayerVersionByArnCommand({ Arn: snapshot.functions.retryAdvisor.layerArn })
+  );
+  const layerMaps = (await zipEntryNames(requiredString(layer.Content?.Location, 'shared layer location'))).filter(
+    (entry) => entry.endsWith('.map')
+  );
+  assert(layerMaps.length === 0, `The shared layer carries source maps: ${layerMaps.join(', ')}.`);
+
+  const bucket = requiredString(
+    (
+      await clients.cloudFormation.send(
+        new DescribeStackResourceCommand({
+          StackName: `${options.projectName}-${stage}`,
+          LogicalResourceId: 'StpDeploymentBucket'
+        })
+      )
+    ).StackResourceDetail?.PhysicalResourceId,
+    'deployment bucket'
+  );
+  const keys =
+    (await clients.s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'source-maps/' }))).Contents?.map(
+      ({ Key }) => requiredString(Key, 'source-map object key')
+    ) ?? [];
+  const bundles = new Map<string, StoredSourceMaps>();
+  for (const key of keys) {
+    const object = await clients.s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const text = await object.Body!.transformToString();
+    assert(!text.includes('sourcesContent'), `${key} carries source code.`);
+    bundles.set(key, (JSON.parse(text) as { files: StoredSourceMaps }).files);
+  }
+  const layerFiles = Object.assign(
+    {},
+    ...[...bundles].filter(([key]) => key.startsWith('source-maps/shared-layer-')).map(([, files]) => files)
+  ) as StoredSourceMaps;
+  assert(
+    Object.keys(layerFiles).some((path) => path.startsWith('/opt/nodejs/chunks/')),
+    `The deployment bucket holds no map of the shared layer: ${keys.join(', ')}.`
+  );
+  return Object.fromEntries(
+    functionWorkloads.map((workload) => {
+      const own = [...bundles].filter(([key]) => key.startsWith(`source-maps/${workload}/`));
+      assert(own.length === 1, `Expected one map bundle of ${workload} in the deployment bucket, found ${own.length}.`);
+      return [workload, { ...layerFiles, ...own[0]![1] }];
+    })
+  ) as Record<(typeof functionWorkloads)[number], StoredSourceMaps>;
+};
+
+/**
+ * A runtime error thrown in the shared module, by the function that loads it from the layer and by the one that
+ * bundles it, maps through the stored maps to the throwing line of the source. The execution environment that logged
+ * it started after the function's code last changed, which is how the Console picks the maps of the code that threw.
+ */
+const assertDeployedErrorsMap = async (
+  clients: AwsClients,
+  options: CanaryOptions,
+  sourceMaps: Awaited<ReturnType<typeof assertSourceMapsOutsidePackages>>
+) => {
+  const catalogSource = await readFile(
+    join(cliDirectory, '_test-stacks', 'packaging-smoke', 'src', 'status-catalog.ts'),
+    'utf8'
+  );
+  const throwLine = catalogSource.split('\n').findIndex((line) => line.includes('is not in the catalog')) + 1;
+  for (const workload of ['retryAdvisor', 'catalogNote'] as const) {
+    const name = functionName(options, workload);
+    const [{ FunctionUrl }, { LastModified }] = await Promise.all([
+      clients.lambda.send(new GetFunctionUrlConfigCommand({ FunctionName: name })),
+      clients.lambda.send(new GetFunctionConfigurationCommand({ FunctionName: name }))
+    ]);
+    const url = new URL(requiredString(FunctionUrl, `${name} function URL`));
+    assertFunctionUrl(url.toString(), options.region);
+    url.searchParams.set('fail', '1');
+    const since = Date.now() - 5_000;
+    const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(15_000) });
+    assert(response.status === 502, `${name} answered HTTP ${response.status} to the deliberate error.`);
+    let logged: { message: string; logStreamName: string } | undefined;
+    for (let attempt = 1; attempt <= 30 && !logged; attempt += 1) {
+      const { events } = await clients.logs.send(
+        new FilterLogEventsCommand({
+          logGroupName: `/aws/lambda/${name}`,
+          startTime: since,
+          filterPattern: '"is not in the catalog"'
+        })
+      );
+      const event = events?.find(({ message }) => message?.includes('at requireStatus'));
+      if (event?.message && event.logStreamName)
+        logged = { message: event.message, logStreamName: event.logStreamName };
+      else await sleep(3_000);
+    }
+    assert(logged, `${name} logged no stack trace for the deliberate error.`);
+    const [, file, line, column] =
+      /at requireStatus \((?:file:\/\/)?([^\s()]+):(\d+):(\d+)\)/.exec(logged.message) ?? [];
+    assert(file && line && column, `${name} logged an unexpected frame: ${logged.message.slice(0, 600)}`);
+    assert(
+      workload === 'catalogNote' ? file === '/var/task/index.js' : file.startsWith('/opt/nodejs/chunks/'),
+      `${name} threw from ${file}, not where its build placed the shared module.`
+    );
+    const payload = sourceMaps[workload][file];
+    assert(payload, `No stored map describes ${file} of ${name}.`);
+    const entry = new SourceMap(payload).findEntry(Number(line) - 1, Number(column) - 1);
+    const mapped = 'originalSource' in entry ? `${entry.originalSource}:${entry.originalLine + 1}` : '';
+    assert(
+      mapped.endsWith(`src/status-catalog.ts:${throwLine}`),
+      `${name}'s frame ${file}:${line}:${column} maps to ${mapped || 'nothing'}, not status-catalog.ts:${throwLine}.`
+    );
+    const { events: [first] = [] } = await clients.logs.send(
+      new GetLogEventsCommand({
+        logGroupName: `/aws/lambda/${name}`,
+        logStreamName: logged.logStreamName,
+        startFromHead: true,
+        limit: 1
+      })
+    );
+    const lastModified = Date.parse(
+      requiredString(LastModified, `${name} LastModified`).replace(/([+-]\d\d)(\d\d)$/, '$1:$2')
+    );
+    assert(
+      first?.message?.startsWith('INIT_START') && (first.timestamp ?? 0) >= lastModified,
+      `${name}'s execution environment did not start (${first?.timestamp}) after its code changed (${lastModified}).`
+    );
+  }
+};
+
 const waitForRevision = async (
   clients: AwsClients,
   options: CanaryOptions,
@@ -695,6 +875,7 @@ const closeClients = (clients: AwsClients) => {
   clients.cloudFormation.destroy();
   clients.lambda.destroy();
   clients.logs.destroy();
+  clients.s3.destroy();
   clients.sts.destroy();
 };
 
@@ -758,6 +939,11 @@ export const runPackagingCanary = async ({
     });
     await assertDataPlane(initialSnapshot, options, initialRevision);
     await assertIndividuallyPackagedFunction(clients, options, initialRevision);
+    await assertDeployedErrorsMap(
+      clients,
+      options,
+      await assertSourceMapsOutsidePackages(clients, options, initialSnapshot)
+    );
 
     const noOpDeploy = await runCliProcess({ options, args: ['deploy', ...commonCliArgs(options)], env: initialEnv });
     assertCliReportedNoUpdate(noOpDeploy.events);

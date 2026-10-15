@@ -5,6 +5,7 @@ import { withStacktapeOperationInvocationContext } from '@application-services/o
 import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
 import type { SecurityInventoryPointer } from '@stacktape/console-api/security';
 import { SECURITY_RULE_CATALOG_VERSION } from '@stacktape/console-api/security';
+import type { SourceMapManifest } from '@stacktape/console-api/source-maps';
 import { gitInfoManager } from '../../utils/git-info-manager';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
@@ -82,6 +83,18 @@ export const recordStackOperationEnd = async ({
     stacktapeVersion: getStacktapeVersion()
   });
 };
+
+/**
+ * Records which source maps in the deployment bucket describe the functions this operation deploys. Each call replaces
+ * the previous manifest of the operation.
+ */
+export const recordSourceMapManifest = async (sourceMaps: SourceMapManifest) =>
+  stacktapeTrpcApiManager.apiClient.recordStackOperation({
+    invocationId: globalStateManager.invocationId,
+    command: globalStateManager.command,
+    inProgress: true,
+    sourceMaps
+  });
 
 /**
  * Reports the security posture evaluated for this deployment. The Console binds the report to the recorded

@@ -68,6 +68,8 @@ export const packageHelperLambdas = async ({
       tsConfigPath: localBuildTsConfigPath,
       nodeTarget: '22',
       minify: true,
+      // Stacktape's own functions are not covered by the Console's source-map lookup, so Node maps their stack traces.
+      keepSourceMapsInPackage: true,
       externals: ['aws-sdk'],
       bundleAwsSdk,
       distFolderPath: join(lambdasDistFolderPath, name),

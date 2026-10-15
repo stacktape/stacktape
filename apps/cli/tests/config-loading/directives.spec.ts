@@ -102,10 +102,12 @@ describe('a YAML config with directives, references and stage-specific values sy
     // Any `.env*` file is dotenv, not an unsupported file type.
     expect(environment.ENV_VARIANT).toBe('from-production-dotenv');
     expect(environment.BANNER).toBe('raw file content\n');
-    // Node 22 is the first runtime that needs the CJS/ESM interop flags; the build ships maps, so Node reads them.
+    // Node 22 is the first runtime that needs the CJS/ESM interop flags. The maps stay in the deployment bucket, so
+    // there is nothing for `--enable-source-maps` to read.
     expect(String(environment.NODE_OPTIONS).split(' ')).toEqual(
-      expect.arrayContaining(['--enable-source-maps', '--experimental-require-module', '--experimental-detect-module'])
+      expect.arrayContaining(['--experimental-require-module', '--experimental-detect-module'])
     );
+    expect(String(environment.NODE_OPTIONS)).not.toContain('--enable-source-maps');
     // Formatting and a TypeScript user directive receiving resolved arguments.
     expect(environment.GREETING).toBe('hello platform-team from production');
     expect(environment.SHOUTED).toBe('PLATFORM-TEAM-env');

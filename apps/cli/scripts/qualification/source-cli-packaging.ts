@@ -235,7 +235,8 @@ export const packageWithSourceCli = async ({
                 digest: workload.digest,
                 skipped: workload.skipped,
                 size: workload.size,
-                ...(typeof workload.artifactPath === 'string' ? { artifactPath: workload.artifactPath } : {})
+                ...(typeof workload.artifactPath === 'string' ? { artifactPath: workload.artifactPath } : {}),
+                ...(typeof workload.sourceMapsPath === 'string' ? { sourceMapsPath: workload.sourceMapsPath } : {})
               }
             : workload
         );
