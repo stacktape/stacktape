@@ -7,7 +7,6 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
-import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
@@ -15,7 +14,6 @@ import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { OpenSearchClient } from '@aws-sdk/client-opensearch';
 import { RDSClient } from '@aws-sdk/client-rds';
-import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
@@ -167,8 +165,6 @@ export class AwsSdkManager {
     });
     this.#costManagement = new AwsCostManagement({
       createBudgetsClient: () => this.#budgets(),
-      createCostExplorerClient: () => this.#costExplorer(),
-      createResourceTaggingClient: () => this.#resourceGroupsTaggingApi(),
       getErrorHandler: this.#getErrorHandler
     });
     this.#cloudFront = new AwsCloudFront({
@@ -514,14 +510,6 @@ export class AwsSdkManager {
 
   #openSearchClient() {
     return this.#applyPlugins(new OpenSearchClient(this.#getClientArgs()));
-  }
-
-  #resourceGroupsTaggingApi() {
-    return this.#applyPlugins(new ResourceGroupsTaggingAPIClient(this.#getClientArgs()));
-  }
-
-  #costExplorer() {
-    return this.#applyPlugins(new CostExplorerClient(this.#getClientArgs()));
   }
 
   #budgets() {

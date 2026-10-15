@@ -44,9 +44,6 @@ importers:
       '@aws-sdk/client-cognito-identity-provider':
         specifier: 3.1121.0
         version: 3.1121.0
-      '@aws-sdk/client-cost-explorer':
-        specifier: 3.1121.0
-        version: 3.1121.0
       '@aws-sdk/client-dynamodb':
         specifier: 3.1121.0
         version: 3.1121.0
@@ -78,9 +75,6 @@ importers:
         specifier: 3.1121.0
         version: 3.1121.0
       '@aws-sdk/client-rds':
-        specifier: 3.1121.0
-        version: 3.1121.0
-      '@aws-sdk/client-resource-groups-tagging-api':
         specifier: 3.1121.0
         version: 3.1121.0
       '@aws-sdk/client-route-53':
@@ -622,10 +616,6 @@ packages:
     resolution: {integrity: sha512-9yFnyfFNMC48n5Sjsjuo2OfRoWl8kU3hs99u02zft3ft7b2JMRvM1w9+vJl4UIaknyj6L3DnBN76NnXzEnVNJA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-cost-explorer@3.1121.0':
-    resolution: {integrity: sha512-NFxtm7dGB0e/WVPrI+VlTMq9ti/W3OeFh6xNl76citIPrVUK3BpzX+2WW32Ota/vR6IHzxI3cejYAKDTgJ+RQQ==}
-    engines: {node: '>=20.0.0'}
-
   '@aws-sdk/client-dynamodb@3.1121.0':
     resolution: {integrity: sha512-q8s4cKsn0TdQ+QByWEUeajZMFrmF2GzDovrlfWMA7Pv3GfG5sADjbWAZxJXA9JsLGb4QT5ovTpOdArNqjbojZw==}
     engines: {node: '>=20.0.0'}
@@ -668,10 +658,6 @@ packages:
 
   '@aws-sdk/client-rds@3.1121.0':
     resolution: {integrity: sha512-Dkfw2sSyyFetSok5ipEOke93tqlnmNY3ouZz4Vg7YLaEUbhp9dUgNOne1Ln5ajL0hXwVRSKh+GVw4OkLMpHTfw==}
-    engines: {node: '>=20.0.0'}
-
-  '@aws-sdk/client-resource-groups-tagging-api@3.1121.0':
-    resolution: {integrity: sha512-NblllGa40l1kMYNdU0QNoVElgmMOcWnB0OFxYT6y7g7ykG2xxRzlp6RLLm3IOMphjkr2AOecdXFtEhuymqmyEg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-route-53-domains@3.1121.0':
@@ -3536,17 +3522,6 @@ snapshots:
       '@smithy/types': 4.17.2
       tslib: 2.8.1
 
-  '@aws-sdk/client-cost-explorer@3.1121.0':
-    dependencies:
-      '@aws-sdk/core': 3.977.9
-      '@aws-sdk/credential-provider-node': 3.972.81
-      '@aws-sdk/types': 3.974.5
-      '@smithy/core': 3.33.3
-      '@smithy/fetch-http-handler': 5.7.2
-      '@smithy/node-http-handler': 4.11.3
-      '@smithy/types': 4.17.2
-      tslib: 2.8.1
-
   '@aws-sdk/client-dynamodb@3.1121.0':
     dependencies:
       '@aws-sdk/core': 3.977.9
@@ -3666,17 +3641,6 @@ snapshots:
       '@aws-sdk/core': 3.977.9
       '@aws-sdk/credential-provider-node': 3.972.81
       '@aws-sdk/middleware-sdk-rds': 3.972.58
-      '@aws-sdk/types': 3.974.5
-      '@smithy/core': 3.33.3
-      '@smithy/fetch-http-handler': 5.7.2
-      '@smithy/node-http-handler': 4.11.3
-      '@smithy/types': 4.17.2
-      tslib: 2.8.1
-
-  '@aws-sdk/client-resource-groups-tagging-api@3.1121.0':
-    dependencies:
-      '@aws-sdk/core': 3.977.9
-      '@aws-sdk/credential-provider-node': 3.972.81
       '@aws-sdk/types': 3.974.5
       '@smithy/core': 3.33.3
       '@smithy/fetch-http-handler': 5.7.2
