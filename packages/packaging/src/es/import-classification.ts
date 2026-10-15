@@ -78,11 +78,22 @@ export const isRuntimeProvidedLambdaModule = ({
   return RUNTIME_PROVIDED_AWS_SDK_FAMILIES.some((family) => moduleName.startsWith(family));
 };
 
-/** The installed package at `path`, or `null` when its manifest cannot be read. */
-const describeInstalledPackage = async (path: string, note: string): Promise<ResolvedPackageDependency | null> => {
+/**
+ * The installed package required as `name` from `path`, or `null` when its manifest cannot be read. The name is the
+ * one it is required by, which an npm alias makes different from its manifest's.
+ */
+const describeInstalledPackage = async ({
+  name,
+  path,
+  note
+}: {
+  name: string;
+  path: string;
+  note: string;
+}): Promise<ResolvedPackageDependency | null> => {
   try {
-    const { name, version } = await readPackageManifest(path);
-    return name && version ? { name, version, path, note } : null;
+    const { version } = await readPackageManifest(path);
+    return version ? { name, version, path, note } : null;
   } catch {
     return null;
   }
@@ -125,7 +136,7 @@ const analyzeDependency = async ({
   const externalDependencies: ResolvedPackageDependency[] = [];
   const note = await getExclusionNote({ dependency, dependenciesToExcludeFromBundle });
   if (note) {
-    const installedPackage = await describeInstalledPackage(dependency.path, note);
+    const installedPackage = await describeInstalledPackage({ name: dependency.name, path: dependency.path, note });
     if (installedPackage) externalDependencies.push(installedPackage);
   }
 
@@ -138,7 +149,11 @@ const analyzeDependency = async ({
       const peerPath = await findInstalledPackage({ name: peerName, fromDirectory: dependency.path });
       const nativeReason = peerPath && (await getNativeReason(peerPath));
       return nativeReason
-        ? describeInstalledPackage(peerPath, `native peer of ${dependency.name}: ${nativeReason}`)
+        ? describeInstalledPackage({
+            name: peerName,
+            path: peerPath,
+            note: `native peer of ${dependency.name}: ${nativeReason}`
+          })
         : null;
     })
   );
@@ -225,7 +240,11 @@ export const classifyResolvedModule = async ({
   }
 
   if (shouldIgnoreAllDeps && modulePath) {
-    const installedPackage = await describeInstalledPackage(modulePath, 'WILDCARD_EXTERNALIZED');
+    const installedPackage = await describeInstalledPackage({
+      name: moduleName,
+      path: modulePath,
+      note: 'WILDCARD_EXTERNALIZED'
+    });
     return {
       outcome: 'external',
       note: 'WILDCARD_EXTERNALIZED',

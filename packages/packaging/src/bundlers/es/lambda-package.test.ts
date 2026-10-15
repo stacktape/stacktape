@@ -183,6 +183,29 @@ describe('the handler the Lambda runtime loads', () => {
   });
 });
 
+describe('packages that included files load', () => {
+  test('are copied with the function, also when an included file reaches them through another', async () => {
+    const cwd = await createProject({
+      'handler.ts': "export const handler = async () => 'handler';",
+      'jobs/worker.js': "const { pad } = require('./helper.cjs'); console.log(pad('x'));",
+      'jobs/helper.cjs': "const leftPad = require('left-pad'); exports.pad = (text) => leftPad(text, 3, '.');",
+      'node_modules/left-pad/package.json': JSON.stringify({ name: 'left-pad', version: '1.3.0', main: 'index.js' }),
+      'node_modules/left-pad/index.js':
+        'module.exports = (text, length, fill) => fill.repeat(length - text.length) + text;'
+    });
+
+    await bundle(cwd, { includeFiles: ['jobs/**'], packageExternalDependencies: true });
+
+    const execution = spawnSync(process.env.npm_node_execpath || 'node', ['jobs/worker.js'], {
+      cwd: join(cwd, '.stacktape', 'dist'),
+      encoding: 'utf8',
+      env: { ...process.env, NODE_PATH: '' }
+    });
+    expect(execution.stderr).toBe('');
+    expect(execution.stdout.trim()).toBe('..x');
+  });
+});
+
 describe('what identifies a cached Lambda artifact', () => {
   test('a new version of a dependency installed outside the bundle is a new artifact', async () => {
     // A native dependency leaves the bundle and is installed on the target platform, so its bytes are not in the

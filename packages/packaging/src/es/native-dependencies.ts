@@ -14,11 +14,13 @@ import objectHash from 'object-hash';
 import { LAMBDA_ARCHIVE_FORMAT, listArchiveEntries } from '../artifact/archive-entries';
 import { getArchiveInventoryChecksum } from '../artifact/hashing';
 import { getFolderSizeBytes } from '../fs/files';
+import { IGNORED_MODULES } from './config';
 import {
   addRuntimeDependencies,
   copyPackageGraph,
   findInstalledPackage,
-  isInside,
+  getPackageFingerprint,
+  readPackageManifest,
   type InstalledPackage,
   type PackageManifest
 } from './installed-packages';
@@ -34,41 +36,67 @@ export type LambdaDependencyPlan = {
   architecture: LambdaArchitecture;
   /** The packages the bundle leaves out and everything they load, by real directory. */
   packages: Map<string, InstalledPackage>;
-  /** The packages the bundle itself loads. */
-  topLevelPackages: Set<string>;
+  /** The packages the bundle itself loads: the name it requires each by, and its real directory. */
+  topLevelPackages: Map<string, string>;
   /** Native packages whose installed files do not run on Lambda; the Lambda build image installs them again. */
   packagesToInstallForLambda: InstalledPackage[];
+  /** Names left out wherever they are required, as `excludeDependencies` asks. */
+  excludedNames: Set<string>;
 };
 
-/** Leaves out the binaries of other platforms, such as the macOS build of a napi-rs package. */
-const acceptFor = (architecture: LambdaArchitecture) => (manifest: PackageManifest) =>
-  runsOnLambda(manifest, architecture);
+/** Leaves out excluded packages and the binaries of other platforms, such as the macOS build of a napi-rs package. */
+const acceptFor =
+  ({ architecture, excludedNames }: Pick<LambdaDependencyPlan, 'architecture' | 'excludedNames'>) =>
+  (name: string, manifest: PackageManifest) =>
+    !excludedNames.has(name) && runsOnLambda(manifest, architecture);
 
 export const planLambdaDependencies = async ({
   dependencies,
-  architecture
+  architecture,
+  excludedNames = []
 }: {
   dependencies: ResolvedPackageDependency[];
   architecture: LambdaArchitecture;
+  /** Packages that must not be in the artifact even when a copied package depends on them; `IGNORED_MODULES` always. */
+  excludedNames?: string[] | undefined;
 }): Promise<LambdaDependencyPlan> => {
-  const topLevelPackages = new Set(dependencies.map(({ path }) => path));
+  const topLevelPackages = new Map(dependencies.map(({ name, path }) => [name, path]));
+  const excluded = new Set([...IGNORED_MODULES, ...excludedNames]);
+  const accept = acceptFor({ architecture, excludedNames: excluded });
   const packages = new Map<string, InstalledPackage>();
-  await addRuntimeDependencies({ packages, start: [...topLevelPackages], accept: acceptFor(architecture) });
+  await addRuntimeDependencies({ packages, start: [...topLevelPackages.values()], accept });
 
   const needsInstall = async ({ root }: InstalledPackage) =>
     Boolean(await getNativeReason(root)) && !(await isInstalledForLambda(root, architecture));
   const installedPackages = [...packages.values()];
   const decisions = await Promise.all(installedPackages.map(needsInstall));
   const packagesToInstallForLambda = installedPackages.filter((_, index) => decisions[index]);
-  return { architecture, packages, topLevelPackages, packagesToInstallForLambda };
+  return {
+    architecture,
+    packages,
+    topLevelPackages,
+    packagesToInstallForLambda,
+    excludedNames: excluded
+  };
 };
 
 /**
- * What the plan copies, for the artifact digest: every package's name and version. Locally patched packages change the
- * lockfile or `patches/`, which the digest reads as files.
+ * What the plan copies, for the artifact digest: every package's name, version and file fingerprint, and the names
+ * and fingerprints of what it depends on. Nothing in it depends on where the project is on this machine.
  */
-export const getLambdaDependencyIdentity = (plan: LambdaDependencyPlan) =>
-  [...plan.packages.values()].map(({ name, version }) => `${name}@${version}`).toSorted();
+export const getLambdaDependencyIdentity = async (plan: LambdaDependencyPlan) => {
+  const fingerprints = new Map(
+    await Promise.all([...plan.packages.keys()].map(async (root) => [root, await getPackageFingerprint(root)] as const))
+  );
+  const packages = [...plan.packages.values()].map(({ name, version, root, dependencies }) => {
+    const edges = [...dependencies].map(([dependencyName, dependencyRoot]) => {
+      return `${dependencyName}=${fingerprints.get(dependencyRoot)}`;
+    });
+    return `${name}@${version} ${fingerprints.get(root)} -> ${edges.toSorted().join(',')}`;
+  });
+  const topLevel = [...plan.topLevelPackages].map(([name, root]) => `${name}=${fingerprints.get(root)}`);
+  return [...topLevel.toSorted(), ...packages.toSorted()];
+};
 
 const inProgressInstallations = new Map<string, Promise<string>>();
 
@@ -167,35 +195,68 @@ export const writeLambdaDependencies = async ({
     runDocker
   });
   const installationPath = dirname(installedNodeModulesPath);
-  const replacements = new Map<string, string>();
-  for (const { root, name } of plan.packagesToInstallForLambda) {
+  const packages = new Map(
+    [...plan.packages].map(([root, installedPackage]) => [
+      root,
+      { ...installedPackage, dependencies: new Map(installedPackage.dependencies) }
+    ])
+  );
+  const topLevelPackages = new Map(plan.topLevelPackages);
+  for (const reinstalled of plan.packagesToInstallForLambda) {
     // oxlint-disable-next-line no-await-in-loop -- one lookup per reinstalled package.
-    const reinstalledRoot = await findInstalledPackage({
-      name,
-      fromDirectory: installationPath,
-      stopAt: installationPath
-    });
-    if (!reinstalledRoot) {
-      throw new Error(`The Lambda build image did not install ${name}, which this function needs.`);
-    }
-    replacements.set(root, reinstalledRoot);
+    await useReinstalledPackage({ packages, topLevelPackages, reinstalled, installationPath, plan });
+  }
+  await copyPackageGraph({ packages, topLevelPackages, nodeModulesPath });
+};
+
+/**
+ * Puts the Lambda build image's installation of a native package in place of the one installed here. It keeps the
+ * dependencies installed here, at their versions and with any patches; only the binaries the image installed for Lambda,
+ * such as a napi-rs platform package, come from the image with what they need.
+ */
+const useReinstalledPackage = async ({
+  packages,
+  topLevelPackages,
+  reinstalled,
+  installationPath,
+  plan
+}: {
+  packages: Map<string, InstalledPackage>;
+  topLevelPackages: Map<string, string>;
+  reinstalled: InstalledPackage;
+  installationPath: string;
+  plan: LambdaDependencyPlan;
+}) => {
+  const root = await findInstalledPackage({
+    name: reinstalled.name,
+    fromDirectory: installationPath,
+    stopAt: installationPath
+  });
+  if (!root) throw new Error(`The Lambda build image did not install ${reinstalled.name}, which this function needs.`);
+
+  const replacement: InstalledPackage = { ...reinstalled, root, dependencies: new Map(reinstalled.dependencies) };
+  const accept = acceptFor(plan);
+  for (const name of Object.keys((await readPackageManifest(root)).optionalDependencies ?? {})) {
+    if (replacement.dependencies.has(name)) continue;
+    // oxlint-disable-next-line no-await-in-loop -- a package has a handful of optional dependencies.
+    const binaryRoot = await findInstalledPackage({ name, fromDirectory: root, stopAt: installationPath });
+    // oxlint-disable-next-line no-await-in-loop -- see above.
+    if (!binaryRoot || !accept(name, await readPackageManifest(binaryRoot))) continue;
+    replacement.dependencies.set(name, binaryRoot);
+    // oxlint-disable-next-line no-await-in-loop -- see above.
+    await addRuntimeDependencies({ packages, start: [binaryRoot], accept, stopAt: () => installationPath });
   }
 
-  // The graph is read again, so the reinstalled packages bring the dependencies they were installed with.
-  const replace = (root: string) => replacements.get(root) ?? root;
-  const packages = new Map<string, InstalledPackage>();
-  await addRuntimeDependencies({
-    packages,
-    start: [...plan.topLevelPackages],
-    accept: acceptFor(plan.architecture),
-    replace,
-    stopAt: (root) => (isInside(installationPath, root) ? installationPath : undefined)
-  });
-  await copyPackageGraph({
-    packages,
-    topLevelPackages: new Set([...plan.topLevelPackages].map(replace)),
-    nodeModulesPath
-  });
+  packages.delete(reinstalled.root);
+  packages.set(root, replacement);
+  for (const installedPackage of packages.values()) {
+    for (const [name, dependencyRoot] of installedPackage.dependencies) {
+      if (dependencyRoot === reinstalled.root) installedPackage.dependencies.set(name, root);
+    }
+  }
+  for (const [name, topLevelRoot] of topLevelPackages) {
+    if (topLevelRoot === reinstalled.root) topLevelPackages.set(name, root);
+  }
 };
 
 /**

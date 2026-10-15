@@ -375,9 +375,12 @@ export const resolvePrisma = async ({
   );
 };
 
+const JAVASCRIPT_EXTENSIONS = new Set(['.js', '.cjs', '.mjs']);
+
 /**
- * The installed packages that explicitly included `.js` files import. Those files are copied as they are, so they load
- * these packages from the artifact's `node_modules` at run time.
+ * The installed packages that explicitly included JavaScript files load, directly or through the files they import
+ * relatively. Those files are copied as they are, so they load these packages from the artifact's `node_modules` at
+ * run time.
  */
 export const getDependenciesOfIncludedFiles = async ({
   absoluteFilePaths
@@ -386,9 +389,19 @@ export const getDependenciesOfIncludedFiles = async ({
 }): Promise<ResolvedPackageDependency[]> => {
   const transpiler = new Bun.Transpiler({ loader: 'js' });
   const dependencies = new Map<string, ResolvedPackageDependency>();
-  for (const filePath of absoluteFilePaths.filter((path) => extname(path) === '.js')) {
+  const pending = absoluteFilePaths.filter((path) => JAVASCRIPT_EXTENSIONS.has(extname(path)));
+  const scanned = new Set<string>();
+  while (pending.length > 0) {
+    const filePath = pending.pop()!;
+    if (scanned.has(filePath)) continue;
+    scanned.add(filePath);
     // oxlint-disable-next-line no-await-in-loop -- included files are few and small.
     for (const { path: specifier } of transpiler.scanImports(await readFile(filePath, 'utf8'))) {
+      if (specifier.startsWith('./') || specifier.startsWith('../')) {
+        const importedPath = Bun.resolveSync(specifier, dirname(filePath));
+        if (JAVASCRIPT_EXTENSIONS.has(extname(importedPath))) pending.push(importedPath);
+        continue;
+      }
       if (!isBareImportSpecifier(specifier) || isNodeBuiltinImport(specifier)) continue;
       const name = getModuleName(specifier);
       if (dependencies.has(name)) continue;

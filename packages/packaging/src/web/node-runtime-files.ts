@@ -101,6 +101,8 @@ export const copyTracedNodeRuntimeFiles = async ({
   const packages = new Map<string, InstalledPackage>();
   const packageRootByTracePath = new Map<string, string>();
   const rootDependencies = new Set<string>();
+  /** The application's own dependencies, under the names it requires them by. */
+  const directDependencies = new Map<string, string>();
 
   for (const tracedPath of tracedPaths) {
     const sourcePath = join(absoluteTraceBasePath, tracedPath);
@@ -120,7 +122,7 @@ export const copyTracedNodeRuntimeFiles = async ({
         name: name!,
         version: version ?? '',
         root: packageRoot,
-        dependencies: new Set(),
+        dependencies: new Map(),
         files: new Set()
       };
       packages.set(packageRoot, tracedPackage);
@@ -141,7 +143,6 @@ export const copyTracedNodeRuntimeFiles = async ({
         optionalDependencies: applicationManifest.optionalDependencies
       })
     ].filter((name) => !bundledApplicationPackageNames.has(name));
-    const directDependencyRoots: string[] = [];
     for (const name of directDependencyNames) {
       // Missing optional/peer dependencies are valid. A missing required direct dependency will already fail the
       // framework build, and keeping this traversal tolerant also supports platform-specific package graphs.
@@ -150,11 +151,15 @@ export const copyTracedNodeRuntimeFiles = async ({
         fromDirectory: applicationManifestRoot,
         stopAt: absoluteTraceBasePath
       });
-      if (packageRoot) directDependencyRoots.push(packageRoot);
+      if (packageRoot) directDependencies.set(name, packageRoot);
     }
-    for (const packageRoot of directDependencyRoots) rootDependencies.add(packageRoot);
+    for (const packageRoot of directDependencies.values()) rootDependencies.add(packageRoot);
     // A package the trace already found keeps its traced files and is not expanded again.
-    await addRuntimeDependencies({ packages, start: directDependencyRoots, stopAt: () => absoluteTraceBasePath });
+    await addRuntimeDependencies({
+      packages,
+      start: [...directDependencies.values()],
+      stopAt: () => absoluteTraceBasePath
+    });
   }
 
   for (const [tracedPath, reason] of trace.reasons) {
@@ -163,7 +168,7 @@ export const copyTracedNodeRuntimeFiles = async ({
     for (const parentPath of reason.parents) {
       const parentRoot = packageRootByTracePath.get(parentPath);
       if (parentRoot && parentRoot !== childRoot) {
-        packages.get(parentRoot)?.dependencies.add(childRoot);
+        packages.get(parentRoot)?.dependencies.set(packages.get(childRoot)!.name, childRoot);
       } else if (!parentRoot) {
         rootDependencies.add(childRoot);
       }
@@ -174,15 +179,20 @@ export const copyTracedNodeRuntimeFiles = async ({
   // Every otherwise-unparented package is safe to hoist and remains substantially smaller than copying node_modules.
   const childPackageRoots = new Set<string>();
   for (const { dependencies } of packages.values()) {
-    for (const dependency of dependencies) childPackageRoots.add(dependency);
+    for (const dependency of dependencies.values()) childPackageRoots.add(dependency);
   }
   for (const packageRoot of packages.keys()) {
     if (!childPackageRoots.has(packageRoot)) rootDependencies.add(packageRoot);
   }
 
+  const topLevelPackages = new Map(directDependencies);
+  for (const packageRoot of rootDependencies) {
+    const { name } = packages.get(packageRoot)!;
+    if (!topLevelPackages.has(name)) topLevelPackages.set(name, packageRoot);
+  }
   await copyPackageGraph({
     packages,
-    topLevelPackages: rootDependencies,
+    topLevelPackages,
     nodeModulesPath: join(serverFunctionPath, 'node_modules')
   });
 

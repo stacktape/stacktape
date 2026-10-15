@@ -1,15 +1,15 @@
 /**
  * A Node.js project whose three functions the CLI packages in one split build, for the production cache scenario of the
  * Lambda archive acceptance. Every function imports one large shared module, which becomes a shared chunk layer.
- * `native` also imports a package with a native build, which goes to a native dependency layer and ships an executable
- * tool; `prisma` uses a Prisma client whose query engine the build copies into the function.
+ * `native` also imports a package with a native build, which goes to a native dependency layer and ships a tool with
+ * an npm `.bin` link; `prisma` uses a Prisma client whose query engine the build copies into the function.
  *
  * Nothing here is installed from a registry. The native package's installed form is kept in `dockerInstall`, and a
  * stand-in `docker` executable returns it as the result of the dependency build Stacktape runs in Docker. That
  * stand-in answers only the commands the split path sends; any other command fails and is logged.
  */
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 const sha256 = (content: string | Buffer) => createHash('sha256').update(content).digest('hex');
@@ -79,7 +79,7 @@ export const handler = async () => ({
   uid: process.getuid?.(),
   catalog: catalogSize(),
   packageName: fixtureNative.name,
-  tool: run('/opt/nodejs/node_modules/fixture-native/bin/native-tool.sh')
+  tool: run('/opt/nodejs/node_modules/.bin/native-tool')
 });
 `,
   prisma: `${RUN_HELPER}import { PrismaClient } from '@prisma/client';
@@ -111,14 +111,16 @@ datasource db {
 }
 `;
 
-/** The native package as npm installs it: a build marker, an entry file and an executable tool. */
+/** The native package as npm installs it: a build marker, an entry file, an executable tool and its `.bin` link. */
 const writeNativePackage = async (nodeModules: string) => {
   await file(
     join(nodeModules, 'fixture-native', 'package.json'),
-    `${JSON.stringify({ name: 'fixture-native', version: '1.0.0', main: 'index.js', gypfile: true })}\n`
+    `${JSON.stringify({ name: 'fixture-native', version: '1.0.0', main: 'index.js', gypfile: true, bin: { 'native-tool': 'bin/native-tool.sh' } })}\n`
   );
   await file(join(nodeModules, 'fixture-native', 'index.js'), "module.exports = { name: 'fixture-native' };\n");
   await file(join(nodeModules, NATIVE_TOOL), '#!/bin/sh\necho native-tool\n', 0o755);
+  await mkdir(join(nodeModules, '.bin'), { recursive: true });
+  await symlink('../fixture-native/bin/native-tool.sh', join(nodeModules, '.bin', 'native-tool'));
 };
 
 /**

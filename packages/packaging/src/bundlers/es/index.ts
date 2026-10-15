@@ -837,12 +837,17 @@ export const createEsBundle = async ({
   const externalDependencies = dedupeDependenciesByName([
     ...bundleExternalDependencies,
     ...dependenciesOfIncludedFiles
-  ]).filter((dependency) => !dependenciesToExcludeFromDeploymentPackage?.includes(dependency.name));
+  ]).filter(
+    (dependency) =>
+      !dependenciesToExcludeFromDeploymentPackage?.includes('*') &&
+      !dependenciesToExcludeFromDeploymentPackage?.includes(dependency.name)
+  );
   const dependencyPlan =
     packageExternalDependencies && externalDependencies.length > 0
       ? await planLambdaDependencies({
           dependencies: externalDependencies,
-          architecture: getLambdaArchitecture(dockerBuildOutputArchitecture)
+          architecture: getLambdaArchitecture(dockerBuildOutputArchitecture),
+          excludedNames: [...excludeDependencies, ...(dependenciesToExcludeFromDeploymentPackage ?? [])]
         })
       : null;
 
@@ -865,7 +870,7 @@ export const createEsBundle = async ({
     const explicitlyIncludedFilesDigestHex = explicitlyIncludedFilesDigest.digest('hex');
     digest = await getBundleDigest({
       externalDependencies: dependencyPlan
-        ? getLambdaDependencyIdentity(dependencyPlan)
+        ? await getLambdaDependencyIdentity(dependencyPlan)
         : externalDependencies.map((dependency) => `${dependency.name}@${dependency.version}`),
       projectRoot,
       lockfilePath,

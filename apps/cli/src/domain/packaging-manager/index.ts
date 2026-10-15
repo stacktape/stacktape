@@ -594,7 +594,13 @@ export class PackagingManager {
       // Every function in a split build has the same architecture.
       const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
       const plans = await Promise.all(
-        dependencyGroups.map(({ dependencies }) => planLambdaDependencies({ dependencies, architecture }))
+        dependencyGroups.map(({ dependencies }) =>
+          planLambdaDependencies({
+            dependencies,
+            architecture,
+            excludedNames: sharedPackagingProperties.excludeDependencies
+          })
+        )
       );
       const packagesToInstall = plans.flatMap(({ packagesToInstallForLambda }, groupIndex) =>
         packagesToInstallForLambda.map(
