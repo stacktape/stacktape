@@ -65,7 +65,7 @@ export const ec2DeployFromCliInputSchema = z.object({
   gitCommit: z.string(),
   gitCommitMessage: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
-  hotSwap: z.boolean().optional()
+  fullDeploy: z.boolean().optional()
 });
 
 export const ec2DeployStatusFromCliInputSchema = z.object({

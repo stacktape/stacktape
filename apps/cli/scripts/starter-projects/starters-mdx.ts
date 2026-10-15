@@ -263,14 +263,11 @@ curl <<web_service_url>>/posts
 const generateMdxHotSwapDeploy = (
   _props: Pick<StarterProjectMetadata, 'isSpaWebsite' | 'tags' | 'isRestApi' | 'isStaticWebsite'>
 ) => {
-  return `- Stacktape deployments use [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html) under the hood. It
-  brings a lot of guarantees and convenience, but can be slow for certain use-cases.
-
-- To speed up the deployment, you can use the \`--hotSwap\` flag which avoids using Cloudformation.
-- Hotswap deployments work only for source code changes (for lambda function, containers and batch jobs) and for content uploads to buckets.
-- If the update deployment is not hot-swappable, Stacktape will automatically fall back to using a Cloudformation deployment.
+  return `- When only your source code changed, \`stacktape deploy\` updates the changed functions and containers directly, which takes seconds.
+- Changes to infrastructure are deployed through [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html), which takes longer.
+- To deploy everything through CloudFormation, add \`--fullDeploy\`:
 \`\`\`bash
-stacktape deploy --hotSwap --stage <<stage>> --region <<region>> --projectName <<project-name>>
+stacktape deploy --fullDeploy --stage <<stage>> --region <<region>> --projectName <<project-name>>
 \`\`\``;
 };
 

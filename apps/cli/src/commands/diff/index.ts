@@ -146,12 +146,14 @@ export const commandDiff = async () => {
     cfTemplateDiff
   });
 
-  await deploymentArtifacts.uploadCloudFormationTemplate();
-  const templateUrl = deploymentArtifacts.cloudformationTemplateUrl;
-
-  await stack.validateTemplate({ templateUrl });
-
-  const { changes } = await stack.getChangeSet({ templateUrl, includePropertyValues: true });
+  const { templateUrl, deleteTemplate } = await deploymentArtifacts.uploadPreviewTemplate();
+  let changes: Awaited<ReturnType<typeof stack.getChangeSet>>['changes'];
+  try {
+    await stack.validateTemplate({ templateUrl });
+    ({ changes } = await stack.getChangeSet({ templateUrl, includePropertyValues: true }));
+  } finally {
+    await deleteTemplate();
+  }
   const resourceChanges = buildPreviewResourceChanges({
     calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
     deployedStackInfoMap: deployedStackOverview.stackInfoMap,

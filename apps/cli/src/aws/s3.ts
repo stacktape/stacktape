@@ -199,20 +199,46 @@ export class AwsS3 {
     return streamToString(response.Body as Readable);
   };
 
+  /** With `onlyIfMissing`, the write fails with `PreconditionFailed` when the key already exists. */
   putObject = async ({
     bucketName,
     s3Key,
     body,
-    contentType
+    contentType,
+    onlyIfMissing
   }: {
     bucketName: string;
     s3Key: string;
     body: string;
     contentType?: string;
+    onlyIfMissing?: boolean;
   }) => {
     const errorHandler = this.#getErrorHandler(`Failed to put object to bucket ${bucketName}. S3 key: ${s3Key}.`);
     return this.#createClient()
-      .send(new PutObjectCommand({ Bucket: bucketName, Key: s3Key, Body: body, ContentType: contentType }))
+      .send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: s3Key,
+          Body: body,
+          ContentType: contentType,
+          ...(onlyIfMissing ? { IfNoneMatch: '*' } : {})
+        })
+      )
+      .catch(errorHandler);
+  };
+
+  copyObject = async ({
+    bucketName,
+    sourceKey,
+    targetKey
+  }: {
+    bucketName: string;
+    sourceKey: string;
+    targetKey: string;
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to copy ${sourceKey} to ${targetKey} in bucket ${bucketName}.`);
+    return this.#createClient()
+      .send(new CopyObjectCommand({ Bucket: bucketName, CopySource: `${bucketName}/${sourceKey}`, Key: targetKey }))
       .catch(errorHandler);
   };
 

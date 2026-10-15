@@ -8,10 +8,8 @@ import { Bucket, LambdaFunction, JsBundleLambdaPackaging, defineConfig } from '@
 import { synthesizeFixture, withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 
 /**
- * A deploy can finalize the same template twice. `prepareArtifactsForStackDeployment` finalizes once and shows the
- * user the resulting diff; if `--hotSwap` then turns out to be impossible, the jobs that were skipped on the
- * assumption of a hot-swap are repackaged and the template is finalized again so that what is deployed matches the
- * artifacts that now exist.
+ * Finalizing the same template a second time, for example after repackaging a workload, must deploy what the user
+ * reviewed after the first pass.
  *
  * Finalization mutates the template in place and is not idempotent: `DependsOn` is concatenated, template override
  * functions append to arrays such as an IAM role's `Policies`, and customer-authored resource and final transforms are

@@ -132,7 +132,8 @@ export const runSourceCli = async ({
   logName = step,
   scannerPath,
   confirm = true,
-  rollbackTarget = ['--targetVersion', 'v000001']
+  rollbackTarget = ['--targetVersion', 'v000001'],
+  extraArgs = []
 }: {
   project: FamilyProject;
   step: DeployStep;
@@ -143,6 +144,8 @@ export const runSourceCli = async ({
   confirm?: boolean;
   /** How the rollback step selects its version. */
   rollbackTarget?: string[];
+  /** Further CLI arguments, such as `--fullDeploy`. */
+  extraArgs?: string[];
 }): Promise<CliStepResult> => {
   const invocationId = `${project.projectName}-${step}-${randomUUID().slice(0, 8)}`;
   const account = ministack.defaultAccount;
@@ -179,6 +182,7 @@ export const runSourceCli = async ({
     project.directory,
     ...(step === 'diff' || step === 'rollback' || !confirm ? [] : ['--autoConfirmOperation']),
     ...(step === 'rollback' ? rollbackTarget : []),
+    ...extraArgs,
     '--outputFormat',
     'jsonl'
   ];

@@ -11,9 +11,6 @@ export const tagNames = {
   globallyUniqueStackHash() {
     return 'stp:globally-unique-stack-hash';
   },
-  hotSwapDeploy() {
-    return 'stp:hotswap-deploy';
-  },
   codeDigest() {
     return 'stp:code-digest';
   },

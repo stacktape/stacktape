@@ -52,7 +52,14 @@ fs.copyFileSync('scanner-input.json', args[args.indexOf('--output') + 1]);
             ]
           }
         });
-        const result = await runSourceCli({ project, step, ministack, scannerPath });
+        // Only the dependency inventory changes, which on its own creates no release; force one for the update.
+        const result = await runSourceCli({
+          project,
+          step,
+          ministack,
+          scannerPath,
+          ...(step === 'update' ? { extraArgs: ['--fullDeploy'] } : {})
+        });
         expect(result.timedOut).toBe(false);
         expect(result.exitCode, result.tail).toBe(0);
         deployed = true;

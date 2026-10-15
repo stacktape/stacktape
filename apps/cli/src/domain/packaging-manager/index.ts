@@ -2,8 +2,6 @@ import type { LoggableEventType, ProgressReporter as ProgressLogger } from '@app
 import type { HelperLambdaPackaging, PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { Subtype } from '@utils/type-helpers';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
-import type { StpEdgeLambdaFunction } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
-import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
 import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
@@ -20,7 +18,6 @@ import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
@@ -786,7 +783,7 @@ export class PackagingManager {
       });
 
       // Calculate digest for caching - hash the bundled output file + layer info
-      const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName: name, commandCanUseCache });
+      const shouldUseCache = this.#canUseCache(commandCanUseCache);
       const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
 
       const layerNumbers = this.#lambdaLayerMap.get(name);
@@ -1165,106 +1162,7 @@ export class PackagingManager {
     return this.#packagedJobs;
   };
 
-  repackageSkippedPackagingJobsCurrentlyUsingHotSwapDeploy = async ({
-    ignoreWorkloads
-  }: {
-    ignoreWorkloads: string[];
-  }) => {
-    const lambdasToRepackage = configManager.allUserCodeLambdas.filter(
-      ({ name }) =>
-        deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(name) &&
-        this.getPackagingOutputForJob(name)?.skipped &&
-        !ignoreWorkloads.includes(name)
-    );
-    const containerWorkloadsToRepackage = configManager.allContainersRequiringPackaging.filter(
-      ({ workloadName, jobName }) =>
-        deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(workloadName) &&
-        this.getPackagingOutputForJob(jobName)?.skipped &&
-        !ignoreWorkloads.includes(workloadName)
-    );
-    const nextjsLambdasToRepackage = configManager.nextjsWebs
-      .map(({ _nestedResources }) => {
-        return Object.values(_nestedResources)
-          .filter(Boolean)
-          .filter(
-            ({ name }) =>
-              deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(name) &&
-              this.getPackagingOutputForJob(name)?.skipped &&
-              !ignoreWorkloads.includes(name)
-          );
-      })
-      .flat() as (StpLambdaFunction | StpEdgeLambdaFunction)[];
-
-    const requiresRepackaging =
-      lambdasToRepackage.length || containerWorkloadsToRepackage.length || nextjsLambdasToRepackage.length;
-
-    if (!requiresRepackaging) {
-      return;
-    }
-
-    await operationReporter.startEvent({
-      eventType: 'REPACKAGE_ARTIFACTS',
-      description: 'Rebuilding cached workloads for the full deployment'
-    });
-
-    await Promise.all([
-      ...[...lambdasToRepackage, ...nextjsLambdasToRepackage].map(({ name, type, packaging, architecture }) => {
-        const originalJobIndex = this.#packagedJobs.findIndex(({ jobName }) => jobName === name);
-        this.#packagedJobs.splice(originalJobIndex, 1);
-        return this.packageWorkload({
-          commandCanUseCache: false,
-          jobName: name,
-          workloadName: name,
-          workloadType: type,
-          target: 'lambda',
-          packaging,
-          parentEventType: 'REPACKAGE_ARTIFACTS',
-          dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
-        });
-      }),
-      ...containerWorkloadsToRepackage.map(async ({ jobName, packaging, workloadName, resources }) => {
-        const originalJobIndex = this.#packagedJobs.findIndex(
-          ({ jobName: processedJobName }) => jobName === processedJobName
-        );
-        this.#packagedJobs.splice(originalJobIndex, 1);
-        return this.packageWorkload({
-          commandCanUseCache: false,
-          jobName,
-          packaging,
-          workloadName,
-          target: 'container',
-          dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
-          parentEventType: 'REPACKAGE_ARTIFACTS'
-        });
-      })
-    ]);
-
-    await operationReporter.finishEvent({
-      eventType: 'REPACKAGE_ARTIFACTS',
-      finalMessage: 'Cached workloads rebuilt',
-      data: { packagedJobs: this.#packagedJobs }
-    });
-
-    return this.#packagedJobs;
-  };
-
-  #shouldWorkloadUseCache = ({
-    workloadName,
-    commandCanUseCache
-  }: {
-    workloadName: string;
-    commandCanUseCache: boolean;
-  }) => {
-    return (
-      commandCanUseCache &&
-      !globalStateManager.args.noCache &&
-      !(
-        deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(workloadName) &&
-        globalStateManager.command === 'deploy' &&
-        !globalStateManager.args.hotSwap
-      )
-    );
-  };
+  #canUseCache = (commandCanUseCache: boolean) => commandCanUseCache && !globalStateManager.args.noCache;
 
   packageNextjsWeb = async ({
     nextjsWebResource,
@@ -1291,10 +1189,7 @@ export class PackagingManager {
         stpResourceName: nextjsWebResource.name
       }),
       existingDigests: {
-        imageFunction: this.#shouldWorkloadUseCache({
-          workloadName: nextjsWebResource._nestedResources.imageFunction.name,
-          commandCanUseCache
-        })
+        imageFunction: this.#canUseCache(commandCanUseCache)
           ? deploymentArtifactManager.getExistingDigestsForJob(
               getJobName({
                 workloadName: nextjsWebResource._nestedResources.imageFunction.name,
@@ -1302,10 +1197,7 @@ export class PackagingManager {
               })
             )
           : [],
-        revalidationFunction: this.#shouldWorkloadUseCache({
-          workloadName: nextjsWebResource._nestedResources.revalidationFunction.name,
-          commandCanUseCache
-        })
+        revalidationFunction: this.#canUseCache(commandCanUseCache)
           ? deploymentArtifactManager.getExistingDigestsForJob(
               getJobName({
                 workloadName: nextjsWebResource._nestedResources.revalidationFunction.name,
@@ -1313,10 +1205,7 @@ export class PackagingManager {
               })
             )
           : [],
-        revalidationInsertFunction: this.#shouldWorkloadUseCache({
-          workloadName: nextjsWebResource._nestedResources.revalidationInsertFunction.name,
-          commandCanUseCache
-        })
+        revalidationInsertFunction: this.#canUseCache(commandCanUseCache)
           ? deploymentArtifactManager.getExistingDigestsForJob(
               getJobName({
                 workloadName: nextjsWebResource._nestedResources.revalidationInsertFunction.name,
@@ -1325,11 +1214,7 @@ export class PackagingManager {
             )
           : [],
         serverFunction:
-          nextjsWebResource._nestedResources.serverFunction &&
-          this.#shouldWorkloadUseCache({
-            workloadName: nextjsWebResource._nestedResources.serverFunction.name,
-            commandCanUseCache
-          })
+          nextjsWebResource._nestedResources.serverFunction && this.#canUseCache(commandCanUseCache)
             ? deploymentArtifactManager.getExistingDigestsForJob(
                 getJobName({
                   workloadName: nextjsWebResource._nestedResources.serverFunction.name,
@@ -1338,11 +1223,7 @@ export class PackagingManager {
               )
             : [],
         serverEdgeFunction:
-          nextjsWebResource._nestedResources.serverEdgeFunction &&
-          this.#shouldWorkloadUseCache({
-            workloadName: nextjsWebResource._nestedResources.serverEdgeFunction.name,
-            commandCanUseCache
-          })
+          nextjsWebResource._nestedResources.serverEdgeFunction && this.#canUseCache(commandCanUseCache)
             ? deploymentArtifactManager.getExistingDigestsForJob(
                 getJobName({
                   workloadName: nextjsWebResource._nestedResources.serverEdgeFunction.name,
@@ -1351,11 +1232,7 @@ export class PackagingManager {
               )
             : [],
         warmerFunction:
-          nextjsWebResource._nestedResources.warmerFunction &&
-          this.#shouldWorkloadUseCache({
-            workloadName: nextjsWebResource._nestedResources.warmerFunction.name,
-            commandCanUseCache
-          })
+          nextjsWebResource._nestedResources.warmerFunction && this.#canUseCache(commandCanUseCache)
             ? deploymentArtifactManager.getExistingDigestsForJob(
                 getJobName({
                   workloadName: nextjsWebResource._nestedResources.warmerFunction.name,
@@ -1437,10 +1314,7 @@ export class PackagingManager {
             : undefined
       },
       environmentVars: environment,
-      existingDigests: this.#shouldWorkloadUseCache({
-        workloadName: resource._nestedResources.serverFunction.name,
-        commandCanUseCache
-      })
+      existingDigests: this.#canUseCache(commandCanUseCache)
         ? deploymentArtifactManager.getExistingDigestsForJob(
             getJobName({
               workloadName: resource._nestedResources.serverFunction.name,
@@ -1493,7 +1367,7 @@ export class PackagingManager {
     /** Workload type - used to determine packaging behavior (e.g., edge functions don't support ESM) */
     workloadType?: string;
   }): Promise<PackagingOutput | undefined> => {
-    const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName, commandCanUseCache });
+    const shouldUseCache = this.#canUseCache(commandCanUseCache);
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
     const packagingType = packaging.type;
     const progressLogger =

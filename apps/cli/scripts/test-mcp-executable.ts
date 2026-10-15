@@ -441,7 +441,7 @@ const verify = async () => {
     const planArgs = plan.data?.args as Record<string, unknown>;
     assert.equal(planArgs.region, 'eu-central-1');
     assert.equal(planArgs.awsAccount, 'prod-account');
-    assert.equal(planArgs.hotSwap, undefined, 'Deploy-only flags must not reach diff');
+    assert.equal(planArgs.fullDeploy, undefined, 'Deploy-only flags must not reach diff');
     const override = await call('stacktape_cli', {
       action: 'plan',
       command: 'deploy',
@@ -551,7 +551,7 @@ const verify = async () => {
     const devPlan = await call('stacktape_dev', { action: 'plan', args: { cwd: project, projectName: 'docs' } });
     assert.equal(devPlan.ok, true);
     assert.equal((devPlan.data?.args as Record<string, unknown>).stage, 'dev');
-    assert.equal((devPlan.data?.args as Record<string, unknown>).hotSwap, undefined);
+    assert.equal((devPlan.data?.args as Record<string, unknown>).fullDeploy, undefined);
     assert.equal((plan.data?.args as Record<string, unknown>).configPath, 'stacktape.ts');
     assert.equal((plan.data?.args as Record<string, unknown>).projectName, 'docs');
     assert.equal(

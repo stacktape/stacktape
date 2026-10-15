@@ -95,8 +95,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
 export const getLambdaFunctionHotswapInformation = ({ lambdaProps }: { lambdaProps: StpLambdaFunction }) => {
   const artifactInfo = deploymentArtifactManager.getLambdaS3UploadInfo({
     artifactName: lambdaProps.artifactName,
-    packaging: lambdaProps.packaging,
-    hotSwapDeploy: true
+    packaging: lambdaProps.packaging
   });
 
   const deployedLambdaDigest = stackManager.existingStackResources
@@ -151,22 +150,16 @@ export const updateFunctionCode = async ({
     artifactS3Key: s3Key
   });
 
-  await Promise.all([
-    awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName }).then(async () => {
-      // if lambda uses alias we must update it as well
-      if (aliasName) {
-        const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
-        return awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
-      }
-    }),
-    awsSdkManager.lambda.tagFunction({
-      lambdaArn: FunctionArn,
-      tags: [
-        { key: tagNames.hotSwapDeploy(), value: 'true' },
-        { key: tagNames.codeDigest(), value: digest }
-      ]
-    })
-  ]);
+  await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  if (aliasName) {
+    const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
+    await awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
+  }
+  // Written last: the next deployment skips a function whose digest tag already matches its code.
+  await awsSdkManager.lambda.tagFunction({
+    lambdaArn: FunctionArn,
+    tags: [{ key: tagNames.codeDigest(), value: digest }]
+  });
 
   if (!devMode) {
     await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });

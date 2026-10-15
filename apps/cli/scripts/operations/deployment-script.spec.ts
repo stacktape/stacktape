@@ -8,7 +8,7 @@ import { buildOperationsCli, createOperationsFixture, seedDeployedStack, targetA
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { ECRClient, CreateRepositoryCommand } from '@aws-sdk/client-ecr';
-import { LambdaClient, GetFunctionCommand, ListTagsCommand } from '@aws-sdk/client-lambda';
+import { LambdaClient, GetFunctionCommand } from '@aws-sdk/client-lambda';
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 
 let cli: Awaited<ReturnType<typeof buildOperationsCli>>;
@@ -104,9 +104,6 @@ test('deployment script uploads its nested function, invokes the built artifact 
       );
       const deployed = await lambda.send(new GetFunctionCommand({ FunctionName: functionName }));
       expect(deployed.Configuration!.Handler).toBe('index.handler');
-      expect(
-        (await lambda.send(new ListTagsCommand({ Resource: deployed.Configuration!.FunctionArn }))).Tags
-      ).toMatchObject({ 'stp:hotswap-deploy': 'true' });
       expect(fixture.aws.unexpected).toEqual([]);
       expect(fixture.api.unexpected).toEqual([]);
       expect(run.stderr).toBe('');

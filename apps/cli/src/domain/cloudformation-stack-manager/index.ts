@@ -53,7 +53,7 @@ import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { getNextVersionString } from '@utils/versioning';
+import { getNextVersionString, getNumericVersion } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
@@ -152,6 +152,8 @@ class StackManager {
    * a different stack between consent and UpdateStack.
    */
   #stackMutationTarget?: string;
+  #latestRecordedRelease: string | null = null;
+  #nextVersionAfterRefetch: string | null = null;
 
   // for polling ECS Service statuses during deploy
   #ecsDeploymentStatusPoller: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller } = {};
@@ -179,6 +181,8 @@ class StackManager {
     });
     this.#stackName = stackName;
     this.#stackMutationTarget = undefined;
+    this.#latestRecordedRelease = null;
+    this.#nextVersionAfterRefetch = null;
 
     let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
     const instanceId = parentEventType ? 'Stack data' : undefined;
@@ -211,16 +215,31 @@ class StackManager {
     this.#stackMutationTarget = stackId;
   };
 
+  /**
+   * Records the newest release found in the deployment bucket. Fast deployments create releases without updating
+   * CloudFormation, so the stack's deployment version output can be older than the release that is running.
+   */
+  setLatestRecordedRelease = (version: string | null) => {
+    this.#latestRecordedRelease = version;
+  };
+
+  /** The release this operation creates. It stays the same after the stack details are fetched again. */
   get nextVersion() {
-    return getNextVersionString(this.lastVersion);
+    return this.#nextVersionAfterRefetch ?? getNextVersionString(this.lastVersion);
   }
 
   get lastDeploymentStackOutput(): { [name: string]: string } {
     return this.existingStackDetails?.stackOutput || {};
   }
 
+  /** The release that runs now: the newer of CloudFormation's deployment version and the latest recorded release. */
   get lastVersion() {
-    return this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+    const deployedVersion = this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+    if (!this.#latestRecordedRelease) return deployedVersion;
+    if (!deployedVersion) return this.#latestRecordedRelease;
+    return getNumericVersion(this.#latestRecordedRelease) > getNumericVersion(deployedVersion)
+      ? this.#latestRecordedRelease
+      : deployedVersion;
   }
 
   get stackActionType(): StackActionType {
@@ -253,6 +272,8 @@ class StackManager {
   }
 
   refetchStackDetails = async (stackName: string) => {
+    // The refetched details carry the version this operation deployed; keep reporting it as this operation's release.
+    this.#nextVersionAfterRefetch ??= this.nextVersion;
     await operationReporter.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
     const [existingStackDetails, existingStackResources] = await Promise.all([
       awsSdkManager.cloudFormation.getDetails(stackName),

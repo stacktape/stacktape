@@ -268,7 +268,7 @@ const main = async () => {
     tui: tuiManager
   });
   const uploadStartMs = performance.now();
-  await deploymentArtifactManager.uploadAllArtifacts({ useHotswap: false });
+  await deploymentArtifactManager.uploadAllArtifacts({ includeTemplates: true });
   if (request.deleteObsoleteArtifacts) await deploymentArtifactManager.deleteAllObsoleteArtifacts();
   const uploadEndMs = performance.now();
 

@@ -40,7 +40,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { getHotSwapDeployVersionString } from '@utils/versioning';
+import { getNumericVersion } from '@utils/versioning';
+import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 import { selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
@@ -50,6 +51,8 @@ type ArtifactPackagingSource = Pick<
   PackagingManager,
   'getPackagingOutputForJob' | 'getPendingSharedLayer' | 'getLayerArtifacts' | 'publishSharedLayer'
 >;
+
+const LEGACY_HOTSWAP_VERSION = 'v000000';
 
 class DeploymentArtifactManager {
   #packagingSource: ArtifactPackagingSource | undefined;
@@ -83,13 +86,12 @@ class DeploymentArtifactManager {
   previouslyUploadedImageTagsUsedInDeployment: string[] = [];
   uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
 
-  getLambdasToUpload({ hotSwapDeploy }: { hotSwapDeploy: boolean }) {
+  getLambdasToUpload() {
     return [...configManager.allLambdasToUpload, ...configManager.uptimeProberUploadArtifacts]
       .map((lambda) => {
         const s3UploadInfo = this.getLambdaS3UploadInfo({
           artifactName: lambda.artifactName,
-          packaging: lambda.packaging,
-          hotSwapDeploy
+          packaging: lambda.packaging
         });
         /*
          * A reused artifact uploads nothing, but the template points at its stored object, so retention must keep it.
@@ -109,10 +111,10 @@ class DeploymentArtifactManager {
       .filter(Boolean);
   }
 
-  getImagesToUpload({ hotSwapDeploy }: { hotSwapDeploy: boolean }) {
+  getImagesToUpload() {
     return [...configManager.allContainersRequiringPackaging, ...configManager.agentCoreRuntimesRequiringPackaging]
       .map((container) => {
-        const imageUploadInfo = this.getImageUploadInfoForJob({ jobName: container.jobName, hotSwapDeploy });
+        const imageUploadInfo = this.getImageUploadInfoForJob({ jobName: container.jobName });
         // In dev mode, containers are not packaged so imageUploadInfo will be null
         if (!imageUploadInfo) {
           return null;
@@ -156,6 +158,7 @@ class DeploymentArtifactManager {
         this.loadPreviousBucketObjects(this.deploymentBucketName, stackActionType),
         this.loadPreviousImages(this.repositoryName, stackActionType)
       ]);
+      stackManager.setLatestRecordedRelease(this.latestRecordedRelease);
       await operationReporter.finishEvent({
         eventType: 'FETCH_PREVIOUS_ARTIFACTS',
         parentEventType,
@@ -201,26 +204,29 @@ class DeploymentArtifactManager {
       .map((obj) => obj.version);
   }
 
+  /** Every release, fast or full, stores its template. The newest one is the release that runs now. */
+  get latestRecordedRelease(): string | null {
+    return this.availablePreviousVersions.toSorted((a, b) => getNumericVersion(b) - getNumericVersion(a)).at(0) ?? null;
+  }
+
   getImageUrlForJob = ({ tag }: { tag: string }) => {
-    return getEcrImageUrl(this.repositoryUrl, tag); // hotSwapDeploy
+    return getEcrImageUrl(this.repositoryUrl, tag);
   };
 
   getLambdaS3UploadInfo = ({
     artifactName,
-    hotSwapDeploy,
     packaging
   }: {
     artifactName: string;
-    hotSwapDeploy?: boolean;
     packaging: HelperLambdaPackaging | LambdaPackaging;
   }) => {
     if (packaging.type === 'helper-lambda') {
       return this.#getHelperLambdaS3UploadInfo({ artifactName, packaging });
     }
-    return this.#getUserLambdaS3UploadInfo({ name: artifactName, hotSwapDeploy });
+    return this.#getUserLambdaS3UploadInfo({ name: artifactName });
   };
 
-  getImageUploadInfoForJob = ({ jobName, hotSwapDeploy }: { jobName: string; hotSwapDeploy?: boolean }) => {
+  getImageUploadInfoForJob = ({ jobName }: { jobName: string }) => {
     const packagingOutput = this.packagingSource.getPackagingOutputForJob(jobName);
     if (!packagingOutput) {
       return null;
@@ -237,7 +243,7 @@ class DeploymentArtifactManager {
           .filter(({ name }) => name === jobName)
           .sort(({ version: v1 }, { version: v2 }) => v2.localeCompare(v1))
           .find((img) => img.digest === digest && img.name === jobName)?.tag
-      : getEcrImageTag(jobName, hotSwapDeploy ? getHotSwapDeployVersionString() : stackManager.nextVersion, digest);
+      : getEcrImageTag(jobName, stackManager.nextVersion, digest);
 
     if (skipped && !tag) {
       throw new ExpectedError(
@@ -252,7 +258,7 @@ class DeploymentArtifactManager {
     return { tag, jobName, alreadyDeployed: skipped, imageTagWithUrl };
   };
 
-  #getUserLambdaS3UploadInfo = ({ name, hotSwapDeploy }: { name: string; hotSwapDeploy?: boolean }) => {
+  #getUserLambdaS3UploadInfo = ({ name }: { name: string }) => {
     const packagingOutput = this.packagingSource.getPackagingOutputForJob(name);
     if (!packagingOutput) {
       return { artifactName: name, artifactPath: null, digest: null, s3Key: null, alreadyUploaded: null };
@@ -263,7 +269,7 @@ class DeploymentArtifactManager {
           .filter(({ name: artifactName }) => name === artifactName)
           .sort(({ version: v1 }, { version: v2 }) => v2.localeCompare(v1))
           .find(({ digest: existingArtifactDigest }) => existingArtifactDigest === digest)?.s3Key
-      : buildLambdaS3Key(name, hotSwapDeploy ? getHotSwapDeployVersionString() : stackManager.nextVersion, digest);
+      : buildLambdaS3Key(name, stackManager.nextVersion, digest);
 
     return {
       artifactName: name,
@@ -457,6 +463,30 @@ class DeploymentArtifactManager {
     return uploadProps;
   };
 
+  /**
+   * Uploads this invocation's template for a preview such as `diff` and returns its URL and a function that deletes it.
+   * The key is outside the release history, so a preview never looks like a release.
+   */
+  uploadPreviewTemplate = async () => {
+    const s3Key = `previews/${globalStateManager.invocationId}/${CF_TEMPLATE_FILE_NAME_WITHOUT_EXT}.yml`;
+    await awsSdkManager.s3.putObject({
+      bucketName: this.deploymentBucketName,
+      s3Key,
+      body: await readFile(
+        fsPaths.absoluteCfTemplateFilePath({ invocationId: globalStateManager.invocationId }),
+        'utf8'
+      ),
+      contentType: 'text/yaml'
+    });
+    const localEndpoint = getLocalS3Endpoint();
+    return {
+      templateUrl: localEndpoint
+        ? `${localEndpoint}/${this.deploymentBucketName}/${s3Key}`
+        : `https://${this.deploymentBucketName}.${this.baseS3Endpoint}/${s3Key}`,
+      deleteTemplate: () => this.deleteObjectsFromDeploymentBucket([s3Key])
+    };
+  };
+
   uploadStacktapeTemplate = async () => {
     const uploadProps = {
       artifactName: STP_TEMPLATE_FILE_NAME_WITHOUT_EXT,
@@ -472,15 +502,51 @@ class DeploymentArtifactManager {
     return uploadProps;
   };
 
-  uploadAllArtifacts = async ({ useHotswap }: { useHotswap: boolean }) => {
+  /** A fast deployment uploads its templates only after it succeeded, in `recordFastRelease`. */
+  /**
+   * Stores the templates of a successful fast deployment, which makes it a release that `rollback` can restore. The
+   * template write fails if another deployment created the same release meanwhile.
+   */
+  recordFastRelease = async () => {
+    const version = stackManager.nextVersion;
+    const template = await readFile(
+      fsPaths.absoluteCfTemplateFilePath({ invocationId: globalStateManager.invocationId }),
+      'utf8'
+    );
+    try {
+      await awsSdkManager.s3.putObject({
+        bucketName: this.deploymentBucketName,
+        s3Key: getCfTemplateS3Key(version),
+        body: template,
+        contentType: 'text/yaml',
+        onlyIfMissing: true
+      });
+    } catch (err) {
+      if (`${err}`.includes('PreconditionFailed')) {
+        throw new ExpectedError(
+          'STACK',
+          `Another deployment of this stack created release ${version} at the same time.`,
+          'Deploy again to make sure every function and service runs the code you expect.'
+        );
+      }
+      throw err;
+    }
+    this.successfullyCreatedObjects.push({
+      s3Key: getCfTemplateS3Key(version),
+      name: CF_TEMPLATE_FILE_NAME_WITHOUT_EXT
+    });
+    await this.uploadStacktapeTemplate();
+  };
+
+  uploadAllArtifacts = async ({ includeTemplates }: { includeTemplates: boolean }) => {
     const jobs: (() => Promise<any>)[] = [];
 
-    if (!useHotswap) {
+    if (includeTemplates) {
       jobs.push(() => this.uploadCloudFormationTemplate());
       jobs.push(() => this.uploadStacktapeTemplate());
     }
 
-    this.getLambdasToUpload({ hotSwapDeploy: useHotswap }).forEach(({ artifactName, artifactPath, s3Key }) => {
+    this.getLambdasToUpload().forEach(({ artifactName, artifactPath, s3Key }) => {
       jobs.push(() => {
         return this.uploadLambda({
           artifactName,
@@ -489,7 +555,7 @@ class DeploymentArtifactManager {
         });
       });
     });
-    const imagesToUpload = this.getImagesToUpload({ hotSwapDeploy: useHotswap });
+    const imagesToUpload = this.getImagesToUpload();
     if (imagesToUpload.length > 0) {
       // Validation and synthesis build images locally but never push them. Fetching an ECR token during
       // initialization made those read-only commands contact AWS and modify the user's Docker credential store.
@@ -930,31 +996,91 @@ class DeploymentArtifactManager {
   };
 
   getExistingDigestsForJob = (jobName: string) => {
-    return [...this.previousImages, ...this.previousObjects]
-      .filter(({ name }) => {
-        return name === jobName; // && version !== getHotSwapDeployVersionString();
-      })
-      .map(({ digest }) => digest);
+    return (
+      [...this.previousImages, ...this.previousObjects]
+        // Older CLIs stored hot-swapped artifacts as v000000, which retention removes first. Rebuild instead of reusing them.
+        .filter(({ name, version }) => name === jobName && version !== LEGACY_HOTSWAP_VERSION)
+        .map(({ digest }) => digest)
+    );
   };
 
+  /**
+   * Stores the template of `sourceVersion` as release `newVersion` and returns its URL.
+   *
+   * The restored code is copied under the new release first, so every code reference in the template changes and
+   * CloudFormation updates each function and container service, including those a fast deployment changed without
+   * CloudFormation. For the same reason, Lambda version publishers run again and move their aliases.
+   */
   prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
-    const cfTemplateKey = getCfTemplateS3Key(sourceVersion);
-    const templateYaml = await awsSdkManager.s3.getObjectText({
-      bucketName: this.deploymentBucketName,
-      s3Key: cfTemplateKey
-    });
-    const template = parseYaml(templateYaml);
+    const template = await this.getTemplate({ version: sourceVersion });
+    const copies: Promise<unknown>[] = [];
+    for (const resource of Object.values(template.Resources)) {
+      const properties = (resource.Properties ?? {}) as Record<string, any>;
+      if (resource.Type === 'AWS::Lambda::Function' && properties.Code) {
+        const { Code: code } = properties;
+        if (code.S3Bucket === this.deploymentBucketName && typeof code.S3Key === 'string') {
+          code.S3Key = this.#copyFunctionCodeToRelease({ s3Key: code.S3Key, newVersion, copies });
+        }
+        if (typeof code.ImageUri === 'string') {
+          code.ImageUri = this.#tagImageForRelease({ imageUri: code.ImageUri, newVersion, copies });
+        }
+      }
+      if (resource.Type === 'AWS::ECS::TaskDefinition') {
+        for (const container of properties.ContainerDefinitions ?? []) {
+          if (typeof container.Image === 'string') {
+            container.Image = this.#tagImageForRelease({ imageUri: container.Image, newVersion, copies });
+          }
+        }
+      }
+      if (resource.Type === 'AWS::CloudFormation::CustomResource' && properties.publishLambdaVersion) {
+        properties.restoredRelease = newVersion;
+      }
+    }
+    await Promise.all(copies);
     if (template.Outputs?.[outputNames.deploymentVersion()]) {
       template.Outputs[outputNames.deploymentVersion()].Value = newVersion;
     }
-    const newKey = getCfTemplateS3Key(newVersion);
     await awsSdkManager.s3.putObject({
       bucketName: this.deploymentBucketName,
-      s3Key: newKey,
+      s3Key: getCfTemplateS3Key(newVersion),
       body: stringifyToYaml(template),
       contentType: 'application/x-yaml'
     });
     return this.getCloudformationTemplateUrlForVersion(newVersion);
+  };
+
+  #copyFunctionCodeToRelease = ({
+    s3Key,
+    newVersion,
+    copies
+  }: {
+    s3Key: string;
+    newVersion: string;
+    copies: Promise<unknown>[];
+  }) => {
+    const artifact = parseBucketObjectS3Key(s3Key);
+    // Stacktape's own functions and shared layers never change without CloudFormation.
+    if (!artifact?.digest || getDeploymentBucketObjectType(artifact.name) !== 'user-lambda') return s3Key;
+    const targetKey = buildLambdaS3Key(artifact.name, newVersion, artifact.digest);
+    copies.push(awsSdkManager.s3.copyObject({ bucketName: this.deploymentBucketName, sourceKey: s3Key, targetKey }));
+    return targetKey;
+  };
+
+  #tagImageForRelease = ({
+    imageUri,
+    newVersion,
+    copies
+  }: {
+    imageUri: string;
+    newVersion: string;
+    copies: Promise<unknown>[];
+  }) => {
+    if (!imageUri.startsWith(`${this.repositoryUrl}:`)) return imageUri;
+    const sourceTag = imageUri.slice(this.repositoryUrl.length + 1);
+    const { jobName, digest } = parseImageTag(sourceTag);
+    const targetTag = getEcrImageTag(jobName, newVersion, digest);
+    copies.push(awsSdkManager.ecr.tagImage({ repositoryName: this.repositoryName, sourceTag, targetTag }));
+    return getEcrImageUrl(this.repositoryUrl, targetTag);
   };
 
   verifyArtifactsForVersion = async (targetVersion: string) => {
