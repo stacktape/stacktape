@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { SplitBundlingCandidate } from './split-bundling-policy';
-import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
+import { selectSplitBundlingGroup } from './split-bundling-policy';
 
 type JsBundleLambdaPackaging = Extract<LambdaPackaging, { type: 'js-bundle' }>;
 type NamedCandidate = SplitBundlingCandidate & { name: string };
@@ -188,16 +188,5 @@ describe('choosing which Lambdas share one build', () => {
     };
     const { split } = selectSplitBundlingGroup([candidate('api', properties), candidate('worker', properties)]);
     expect(names(split)).toEqual(['api', 'worker']);
-  });
-});
-
-describe('split bundling native dependency support', () => {
-  test('requires Docker when native dependencies need materialization', () => {
-    expect(canBuildSplitNativeDependencies({ dependencyCount: 1, dockerIsRunning: false })).toBe(false);
-    expect(canBuildSplitNativeDependencies({ dependencyCount: 1, dockerIsRunning: true })).toBe(true);
-  });
-
-  test('does not require Docker when the split output has no native dependencies', () => {
-    expect(canBuildSplitNativeDependencies({ dependencyCount: 0, dockerIsRunning: false })).toBe(true);
   });
 });

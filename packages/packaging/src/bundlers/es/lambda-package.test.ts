@@ -10,7 +10,8 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createEsBundle, removeExplicitlyExcludedFiles } from './index';
+import { removeExplicitlyExcludedFiles } from '../../artifact/file-selection';
+import { createEsBundle } from './index';
 
 const temporaryDirectories: string[] = [];
 
@@ -55,7 +56,7 @@ const bundle = (cwd: string, options: Partial<Parameters<typeof createEsBundle>[
     sourceMapBannerType: 'pre-compiled',
     isLambda: true,
     lambdaZip: true,
-    installNonStaticallyBuiltDepsInDocker: false,
+    packageExternalDependencies: false,
     nativeDependencyInstallationRootPath: join(cwd, '.stacktape', 'native'),
     installDependencies: async () => {},
     runDocker: async () => {
@@ -99,7 +100,7 @@ describe('ECMAScript deployment-package file selection', () => {
       sourceMapBannerType: 'disabled',
       includeFiles: ['assets/**'],
       excludeFiles: ['**/*.secret'],
-      installNonStaticallyBuiltDepsInDocker: false,
+      packageExternalDependencies: false,
       nativeDependencyInstallationRootPath: join(cwd, '.stacktape', 'native'),
       installDependencies: async () => {},
       runDocker: async () => {
@@ -206,9 +207,7 @@ describe('what identifies a cached Lambda artifact', () => {
     const [first, same, bumped] = await Promise.all([checkout('1.0.0'), checkout('1.0.0'), checkout('2.0.0')]);
 
     expect(first.outcome).toBe('bundled');
-    expect(first.languageSpecificBundleOutput.es.dependenciesToInstallInDocker?.map(({ name }) => name)).toEqual([
-      'native-dep'
-    ]);
+    expect(first.languageSpecificBundleOutput.es.externalDependencies?.map(({ name }) => name)).toEqual(['native-dep']);
     expect(same.digest).toBe(first.digest);
     expect(bumped.digest).not.toBe(first.digest);
   });

@@ -470,7 +470,7 @@ const jsBundleScenario = async (outDirectory: string) => {
     ...common,
     distFolderPath: previousDist,
     existingDigests: [],
-    installNonStaticallyBuiltDepsInDocker: true,
+    packageExternalDependencies: true,
     isLambda: true,
     externals: []
   });

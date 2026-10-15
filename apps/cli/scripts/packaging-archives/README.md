@@ -75,13 +75,15 @@ supports, Windows included (Docker is required for MiniStack); `--import <dir>` 
 directory on Linux. A Windows packaging job is the export phase on a Windows runner with the directory uploaded as an
 artifact, and the import phase on a Linux runner that downloads it.
 
-## Native Node installation cache
+## Node Lambda dependencies
 
-`pnpm --filter @stacktape/packaging run test:node-lambda-e2e` builds and executes split/native artifacts with five
-package managers. It also reuses a completed native install with further builds disabled and installs
-architecture-specific bcrypt bytes for x64 and arm64 in one cache root, then loads each in its matching Node runtime.
-Docker must already support both `linux/amd64` and `linux/arm64` builds and execution (native or through configured
-emulation). The lane needs dependency-download network and never configures host emulation or contacts AWS.
+`pnpm --filter @stacktape/packaging run test:node-lambda-e2e` builds a pnpm project's split and single-function
+artifacts and runs them in the Lambda Node.js runtimes. bcrypt's prebuilds, a napi-rs platform package and a scoped
+package excluded from the bundle must be copied from `node_modules` without Docker, and without other platforms'
+binaries. better-sqlite3, whose addon was fetched for the host's Node.js into `build/`, must be installed again in the
+Lambda build image, once for x64 and once for arm64, and load on each. Docker must support both `linux/amd64` and
+`linux/arm64` (natively or through configured emulation). The lane needs dependency-download network and never contacts
+AWS.
 
 ## SSR starters in the Lambda runtime
 

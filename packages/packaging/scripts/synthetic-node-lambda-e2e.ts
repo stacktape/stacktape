@@ -1,17 +1,22 @@
 /* eslint-disable no-await-in-loop -- Docker builds and runtime probes are deliberately serialized to bound host load. */
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+/*
+ * Node Lambda artifacts with dependencies the bundle leaves out, built from a pnpm project and run in the official
+ * Lambda runtime. On this Linux x64 host, native packages that were installed for Linux (bcrypt's prebuilds, a napi-rs
+ * platform package) and a scoped package excluded from the bundle are copied from node_modules without Docker, while
+ * better-sqlite3, whose addon prebuild-install fetched for this machine's Node.js into build/, is installed again in
+ * the Lambda build image, for x64 and for arm64.
+ */
+import { mkdtemp, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathExists } from 'fs-extra';
 import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
-import { buildNativeBinaryLayer } from '../src/es/native-dependencies';
+import { buildNativeBinaryLayer, planLambdaDependencies, writeLambdaDependencies } from '../src/es/native-dependencies';
+import type { RunDocker } from '../src/runtime-contracts';
 import { assignChunksToLayers } from '../src/split-bundler/layer-assignment';
 import { buildSplitBundle } from '../src/split-bundler/bundler';
 import { createLayerArtifacts } from '../src/split-bundler/layer-builder';
-import type { SplitBundleDependency } from '../src/split-bundler/types';
 import {
   archiveItem,
-  assertFile,
   assertRunOutput,
   createPackagingError,
   progressLogger,
@@ -25,6 +30,33 @@ const sourceRoot = join(root, 'src');
 const buildRoot = join(root, 'build');
 const nativeInstallationRoot = join(buildRoot, 'native-installations');
 const containers = new Set<string>();
+
+/** Fails the run when packaging asks Docker for something it should have copied. */
+const refuseDocker: RunDocker = async (commands) => {
+  throw new Error(`Packaging ran Docker for packages already installed for Lambda: docker ${commands.join(' ')}`);
+};
+
+/** Real Docker, counting the native installations packaging asks for. */
+const countingDocker = () => {
+  const builds: string[][] = [];
+  const counted: RunDocker = (commands) => {
+    builds.push(commands);
+    return runDocker(commands);
+  };
+  return { builds, runDocker: counted };
+};
+
+/** Package directories under a `node_modules`, scoped ones as `@scope/name`. */
+const listPackages = async (nodeModulesPath: string) => {
+  const names: string[] = [];
+  for (const entry of (await readdir(nodeModulesPath)).toSorted()) {
+    if (entry.startsWith('.')) continue;
+    if (!entry.startsWith('@')) names.push(entry);
+    else
+      for (const scoped of (await readdir(join(nodeModulesPath, entry))).toSorted()) names.push(`${entry}/${scoped}`);
+  }
+  return names;
+};
 
 /** The Lambda Node runtimes the CLI's split-bundling policy admits. Add one there only after adding it here. */
 const SUPPORTED_LAMBDA_NODE_VERSIONS = [18, 20, 22, 24];
@@ -124,6 +156,12 @@ const invokeLambdaRuntime = async ({
 
 try {
   await run('docker', ['version', '--format', '{{.Server.Version}}']);
+  const dependencies = {
+    '@hapi/boom': '10.0.1',
+    '@node-rs/xxhash': '1.7.8',
+    bcrypt: '6.0.0',
+    'better-sqlite3': '12.11.1'
+  };
   await write(
     join(root, 'package.json'),
     `${JSON.stringify(
@@ -132,14 +170,17 @@ try {
         private: true,
         type: 'module',
         packageManager: 'pnpm@11.17.0',
-        dependencies: { bcrypt: '6.0.0' }
+        dependencies
       },
       null,
       2
     )}\n`
   );
-  await write(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "."\nonlyBuiltDependencies:\n  - bcrypt\n');
-  await run('pnpm', ['add', 'bcrypt@6.0.0', '--allow-build=bcrypt', '--prefer-offline'], root);
+  await write(
+    join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - "."\nallowBuilds:\n  bcrypt: true\n  better-sqlite3: true\n'
+  );
+  await run('pnpm', ['install', '--prefer-offline'], root);
 
   const sharedMarker = `split-layer-${'x'.repeat(4096)}`;
   await write(join(sourceRoot, 'shared.ts'), `export const sharedMarker = ${JSON.stringify(sharedMarker)};\n`);
@@ -190,17 +231,14 @@ try {
   if (!nativeOutput || !plainOutput) {
     throw new Error('Split bundling did not produce both synthetic functions.');
   }
-  if (
-    nativeOutput.dependenciesToInstallInDocker.length !== 1 ||
-    nativeOutput.dependenciesToInstallInDocker[0]?.name !== 'bcrypt'
-  ) {
+  if (nativeOutput.externalDependencies.length !== 1 || nativeOutput.externalDependencies[0]?.name !== 'bcrypt') {
     throw new Error(
-      `Native dependency attribution was incorrect: ${JSON.stringify(nativeOutput.dependenciesToInstallInDocker)}`
+      `Native dependency attribution was incorrect: ${JSON.stringify(nativeOutput.externalDependencies)}`
     );
   }
-  if (plainOutput.dependenciesToInstallInDocker.length !== 0) {
+  if (plainOutput.externalDependencies.length !== 0) {
     throw new Error(
-      `The plain Lambda incorrectly inherited native dependencies: ${JSON.stringify(plainOutput.dependenciesToInstallInDocker)}`
+      `The plain Lambda incorrectly inherited native dependencies: ${JSON.stringify(plainOutput.externalDependencies)}`
     );
   }
 
@@ -221,160 +259,17 @@ try {
   const sharedLayer = layerArtifacts[0];
   if (!sharedLayer) throw new Error('No shared chunk layer was emitted.');
 
-  console.log('Building and executing bcrypt native layers with npm, Yarn, pnpm, Bun, and Deno...');
-  const nativeLayers = new Map<string, Awaited<ReturnType<typeof buildNativeBinaryLayer>>>();
-  for (const packageManager of ['npm', 'yarn', 'pnpm', 'bun', 'deno'] as const) {
-    const layer = await buildNativeBinaryLayer({
-      dependencies: nativeOutput.dependenciesToInstallInDocker,
-      installationRootPath: nativeInstallationRoot,
-      layerBasePath: join(buildRoot, 'native-layers'),
-      lambdaRuntimeVersion: 24,
-      packageManager,
-      dockerBuildOutputArchitecture: 'linux/amd64',
-      usedByLambdas: ['native'],
-      layerName: `layer-${packageManager}`,
-      runDocker: (commands) => runDocker(commands)
-    });
-    if (!layer) throw new Error(`${packageManager} did not emit a native layer.`);
-    nativeLayers.set(packageManager, layer);
-    await assertRunOutput({
-      dockerArgs: [
-        '--platform',
-        'linux/amd64',
-        '--mount',
-        `type=bind,source=${layer.layerPath},target=/opt,readonly`,
-        'node:24-bookworm-slim',
-        'node',
-        '-e',
-        "const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('native-matrix:'+v))"
-      ],
-      expected: 'native-matrix:true'
-    });
-  }
-
-  console.log('Reusing a completed native installation while its exporter is unavailable...');
-  const reusedLayer = await buildNativeBinaryLayer({
-    dependencies: nativeOutput.dependenciesToInstallInDocker,
-    installationRootPath: nativeInstallationRoot,
-    layerBasePath: join(buildRoot, 'reused-native-layer'),
-    lambdaRuntimeVersion: 24,
-    packageManager: 'pnpm',
-    dockerBuildOutputArchitecture: 'linux/amd64',
-    usedByLambdas: ['native'],
-    // Deliberate fault injection: a completed install must work even when another Docker build cannot run.
-    runDocker: async () => {
-      throw new Error('Completed native installation tried to rebuild');
-    }
-  });
-  if (!reusedLayer || reusedLayer.contentHash !== nativeLayers.get('pnpm')?.contentHash) {
-    throw new Error('Completed native installation changed its artifact bytes');
-  }
-  await assertRunOutput({
-    dockerArgs: [
-      '--platform',
-      'linux/amd64',
-      '--mount',
-      `type=bind,source=${reusedLayer.layerPath},target=/opt,readonly`,
-      'node:24-bookworm-slim',
-      'node',
-      '-e',
-      "const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('reused-native:'+v))"
-    ],
-    expected: 'reused-native:true'
-  });
-
-  console.log('Isolating actual x64 and arm64 native installs in the same cache root...');
-  for (const [platform, architecture] of [
-    ['linux/amd64', 'x64'],
-    ['linux/arm64', 'arm64']
-  ] as const) {
-    const layer = await buildNativeBinaryLayer({
-      dependencies: nativeOutput.dependenciesToInstallInDocker,
-      installationRootPath: join(buildRoot, 'architecture-installations'),
-      layerBasePath: join(buildRoot, `architecture-${architecture}`),
-      lambdaRuntimeVersion: 24,
-      packageManager: 'npm',
-      dockerBuildOutputArchitecture: platform,
-      usedByLambdas: [architecture],
-      runDocker: async (commands) => {
-        const dockerfilePath = join(commands.at(-1)!, 'Dockerfile');
-        const dockerfile = await readFile(dockerfilePath, 'utf8');
-        // Model an architecture-sensitive postinstall using real Docker/Node. bcrypt ships every prebuild;
-        // keep only the platform this installer can load, as native packages commonly do at install time.
-        const postinstall =
-          "const fs=require('node:fs');const root='node_modules/bcrypt/prebuilds';for(const dir of fs.readdirSync(root)){if(!dir.startsWith('linux-'+process.arch))fs.rmSync(root+'/'+dir,{recursive:true});}fs.writeFileSync('node_modules/install-architecture',process.arch);";
-        await writeFile(
-          dockerfilePath,
-          dockerfile.replace(
-            'FROM scratch AS artifact',
-            `RUN node -e ${JSON.stringify(postinstall)}\n\nFROM scratch AS artifact`
-          )
-        );
-        return runDocker(commands);
-      }
-    });
-    if (!layer) throw new Error(`${platform} did not emit a native layer`);
-    const installedArchitecture = await readFile(
-      join(layer.layerPath, 'nodejs/node_modules/install-architecture'),
-      'utf8'
-    );
-    if (installedArchitecture !== architecture) {
-      throw new Error(`${platform} reused the wrong native installation: ${installedArchitecture}`);
-    }
-    await assertRunOutput({
-      dockerArgs: [
-        '--platform',
-        platform,
-        '--mount',
-        `type=bind,source=${layer.layerPath},target=/opt,readonly`,
-        'node:24-bookworm-slim',
-        'node',
-        '-e',
-        "const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('architecture-native:'+process.arch+':'+v))"
-      ],
-      expected: `architecture-native:${architecture}:true`
-    });
-  }
-
-  console.log('Building an isolated incompatible bcrypt 5 layer...');
-  const bcrypt5Dependencies: SplitBundleDependency[] = nativeOutput.dependenciesToInstallInDocker.map(
-    ({ name, note, hasBinary, peerDependencies, optionalPeerDependencies }) => ({
-      name,
-      version: '5.1.1',
-      note,
-      hasBinary,
-      peerDependencies,
-      optionalPeerDependencies
-    })
-  );
-  const bcrypt5Layer = await buildNativeBinaryLayer({
-    dependencies: bcrypt5Dependencies,
+  console.log('Building the dependency layer from the installed bcrypt, without Docker...');
+  const nativeLayer = await buildNativeBinaryLayer({
+    dependencies: nativeOutput.externalDependencies,
+    plan: await planLambdaDependencies({ dependencies: nativeOutput.externalDependencies, architecture: 'x64' }),
     installationRootPath: nativeInstallationRoot,
     layerBasePath: join(buildRoot, 'native-layers'),
     lambdaRuntimeVersion: 24,
-    packageManager: 'pnpm',
-    dockerBuildOutputArchitecture: 'linux/amd64',
-    usedByLambdas: ['bcrypt5'],
-    layerName: 'layer-pnpm-bcrypt5',
-    runDocker: (commands) => runDocker(commands)
-  });
-  if (!bcrypt5Layer) throw new Error('bcrypt 5 did not emit a native layer.');
-  await assertRunOutput({
-    dockerArgs: [
-      '--platform',
-      'linux/amd64',
-      '--mount',
-      `type=bind,source=${bcrypt5Layer.layerPath},target=/opt,readonly`,
-      'node:24-bookworm-slim',
-      'node',
-      '-e',
-      "const p=require('/opt/nodejs/node_modules/bcrypt/package.json'); const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('isolated:'+p.version+':'+v))"
-    ],
-    expected: 'isolated:5.1.1:true'
+    usedByLambdas: ['native'],
+    runDocker: refuseDocker
   });
 
-  const pnpmLayer = nativeLayers.get('pnpm');
-  if (!pnpmLayer) throw new Error('The pnpm native layer was not available.');
   const lambdaArchives = await Promise.all([
     archiveItem({
       absoluteSourcePath: join(buildRoot, 'functions', 'native'),
@@ -395,7 +290,7 @@ try {
       format: 'zip'
     }),
     archiveItem({
-      absoluteSourcePath: pnpmLayer.layerPath,
+      absoluteSourcePath: nativeLayer.layerPath,
       absoluteDestDirPath: buildRoot,
       fileNameBase: 'native-layer',
       format: 'zip'
@@ -416,7 +311,7 @@ try {
         target: '/opt/nodejs/package.json'
       },
       {
-        source: join(pnpmLayer.layerPath, 'nodejs', 'node_modules'),
+        source: join(nativeLayer.layerPath, 'nodejs', 'node_modules'),
         target: '/opt/nodejs/node_modules'
       }
     ],
@@ -513,67 +408,137 @@ try {
     }
   }
 
-  console.log('Packaging a native dependency into a single-function hot-swap ZIP without relying on layers...');
+  const buildFunction = (
+    name: string,
+    extraOptions: { dependenciesToExcludeFromBundle?: string[] },
+    docker: RunDocker
+  ) =>
+    buildJsBundleLambda({
+      cwd: root,
+      name: `synthetic-${name}`,
+      entryfilePath: join(sourceRoot, `${name}.ts`),
+      distFolderPath: join(buildRoot, 'functions', name),
+      existingDigests: [],
+      progressLogger,
+      invocationId: 'synthetic-node-lambda-e2e',
+      sizeLimit: 250,
+      nodeVersion: 24,
+      outputModuleFormat: 'esm',
+      disableSourceMaps: true,
+      // The opt-in, exercised on the real runtime; the split build above runs with the default.
+      minifyIdentifiers: true,
+      requiresGlibcBinaries: true,
+      dockerBuildOutputArchitecture: 'linux/amd64',
+      nodeTarget: '24',
+      minify: true,
+      archiveItem,
+      createPackagingError,
+      runDocker: docker,
+      installDependencies: async () => undefined,
+      nativeDependencyInstallationRootPath: nativeInstallationRoot,
+      ...extraOptions
+    });
+
+  console.log('Packaging installed native packages and an excluded scoped package without Docker...');
   await write(
-    join(sourceRoot, 'hotswap.ts'),
+    join(sourceRoot, 'copied.ts'),
     [
       'import bcrypt from "bcrypt";',
+      'import { xxh64 } from "@node-rs/xxhash";',
+      'import * as Boom from "@hapi/boom";',
       'export const handler = async () => ({',
-      '  function: "hotswap",',
-      '  native: await bcrypt.compare("secret", await bcrypt.hash("secret", 4)),',
-      '  nodeEnv: process.env.NODE_ENV',
+      '  bcrypt: await bcrypt.compare("secret", await bcrypt.hash("secret", 4)),',
+      '  xxhash: xxh64("stacktape").toString(16),',
+      '  boom: Boom.badRequest("invalid").output.statusCode',
       '});'
     ].join('\n')
   );
-  const hotSwapDist = join(buildRoot, 'functions', 'hotswap');
-  const hotSwapOutput = await buildJsBundleLambda({
-    cwd: root,
-    name: 'synthetic-hotswap',
-    entryfilePath: join(sourceRoot, 'hotswap.ts'),
-    distFolderPath: hotSwapDist,
-    existingDigests: [],
-    progressLogger,
-    invocationId: 'synthetic-node-lambda-e2e',
-    sizeLimit: 250,
-    nodeVersion: 24,
-    outputModuleFormat: 'esm',
-    disableSourceMaps: true,
-    // The opt-in, exercised on the real runtime; the split build above runs with the default.
-    minifyIdentifiers: true,
-    requiresGlibcBinaries: true,
-    dockerBuildOutputArchitecture: 'linux/amd64',
-    nodeTarget: '24',
-    minify: true,
-    archiveItem,
-    createPackagingError,
-    runDocker,
-    installDependencies: async () => undefined,
-    nativeDependencyInstallationRootPath: nativeInstallationRoot
-  });
-  if (hotSwapOutput.outcome !== 'bundled' || !hotSwapOutput.artifactPath) {
-    throw new Error(`Hot-swap packaging did not emit an artifact: ${JSON.stringify(hotSwapOutput)}`);
+  const copiedDist = join(buildRoot, 'functions', 'copied');
+  const copiedOutput = await buildFunction('copied', { dependenciesToExcludeFromBundle: ['@hapi/boom'] }, refuseDocker);
+  if (copiedOutput.outcome !== 'bundled' || !copiedOutput.artifactPath) {
+    throw new Error(`The copied-dependency function did not emit an artifact: ${JSON.stringify(copiedOutput)}`);
   }
-  await assertZipWithinLambdaLimit(hotSwapOutput.artifactPath);
-  await assertFile(join(hotSwapDist, 'node_modules', 'bcrypt', 'package.json'));
-  if (!(await pathExists(join(hotSwapDist, 'index.js')))) {
-    throw new Error('Hot-swap Lambda index.js is missing.');
+  await assertZipWithinLambdaLimit(copiedOutput.artifactPath);
+  const copiedPackages = await listPackages(join(copiedDist, 'node_modules'));
+  for (const expected of ['@hapi/boom', '@hapi/hoek', '@node-rs/xxhash', '@node-rs/xxhash-linux-x64-gnu', 'bcrypt']) {
+    if (!copiedPackages.includes(expected)) {
+      throw new Error(`${expected} is missing from the function's node_modules: ${copiedPackages.join(', ')}`);
+    }
   }
-  const hotSwapResponse = JSON.parse(
-    await invokeLambdaRuntime({
-      functionPath: hotSwapDist,
-      environment: { NODE_ENV: 'production' }
-    })
+  if (copiedPackages.some((name) => name.includes('musl') || name.includes('darwin'))) {
+    throw new Error(`The function carries binaries for other platforms: ${copiedPackages.join(', ')}`);
+  }
+  const copiedResponse = JSON.parse(
+    await invokeLambdaRuntime({ functionPath: copiedDist, environment: { NODE_ENV: 'production' } })
   ) as Record<string, unknown>;
-  if (
-    hotSwapResponse.function !== 'hotswap' ||
-    hotSwapResponse.native !== true ||
-    hotSwapResponse.nodeEnv !== 'production'
-  ) {
-    throw new Error(`Unexpected standalone hot-swap Lambda response: ${JSON.stringify(hotSwapResponse)}`);
+  if (copiedResponse.bcrypt !== true || typeof copiedResponse.xxhash !== 'string' || copiedResponse.boom !== 400) {
+    throw new Error(`Unexpected copied-dependency Lambda response: ${JSON.stringify(copiedResponse)}`);
   }
 
   console.log(
-    'Synthetic Node Lambda E2E passed: split/shared/native layers, five package managers, architecture isolation, completed-install reuse, version isolation, real ZIPs, Lambda Node 24 execution, and standalone hot-swap.'
+    'Installing better-sqlite3 again in the Lambda build image, because its addon was built for this host...'
+  );
+  await write(
+    join(sourceRoot, 'sqlite.ts'),
+    [
+      'import Database from "better-sqlite3";',
+      'export const handler = async () => {',
+      '  const database = new Database(":memory:");',
+      '  return { sqlite: database.prepare("select sqlite_version() as version").get().version };',
+      '};'
+    ].join('\n')
+  );
+  const sqliteDocker = countingDocker();
+  const sqliteOutput = await buildFunction('sqlite', {}, sqliteDocker.runDocker);
+  if (sqliteOutput.outcome !== 'bundled' || sqliteDocker.builds.length !== 1) {
+    throw new Error(`better-sqlite3 should take exactly one Docker installation, took ${sqliteDocker.builds.length}.`);
+  }
+  const sqliteResponse = JSON.parse(
+    await invokeLambdaRuntime({ functionPath: join(buildRoot, 'functions', 'sqlite') })
+  ) as Record<string, unknown>;
+  if (typeof sqliteResponse.sqlite !== 'string') {
+    throw new Error(`Unexpected better-sqlite3 Lambda response: ${JSON.stringify(sqliteResponse)}`);
+  }
+
+  console.log('Preparing the same packages for arm64: bcrypt from its prebuilds, better-sqlite3 in Docker...');
+  const sqlitePackage = {
+    name: 'better-sqlite3',
+    version: dependencies['better-sqlite3'],
+    path: await realpath(join(root, 'node_modules', 'better-sqlite3'))
+  };
+  const armPlan = await planLambdaDependencies({
+    dependencies: [sqlitePackage, ...nativeOutput.externalDependencies],
+    architecture: 'arm64'
+  });
+  if (armPlan.packagesToInstallForLambda.map(({ name }) => name).join() !== 'better-sqlite3') {
+    throw new Error(
+      `Only better-sqlite3 should need an arm64 installation: ${armPlan.packagesToInstallForLambda.map(({ name }) => name)}`
+    );
+  }
+  const armNodeModules = join(buildRoot, 'arm64', 'node_modules');
+  await writeLambdaDependencies({
+    plan: armPlan,
+    nodeModulesPath: armNodeModules,
+    installationRootPath: nativeInstallationRoot,
+    lambdaRuntimeVersion: 24,
+    runDocker
+  });
+  await assertRunOutput({
+    dockerArgs: [
+      '--platform',
+      'linux/arm64',
+      '--mount',
+      `type=bind,source=${armNodeModules},target=/opt/nodejs/node_modules,readonly`,
+      'node:24-bookworm-slim',
+      'node',
+      '-e',
+      "const b=require('/opt/nodejs/node_modules/bcrypt'); const D=require('/opt/nodejs/node_modules/better-sqlite3'); new D(':memory:'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('arm64:'+process.arch+':'+v))"
+    ],
+    expected: 'arm64:arm64:true'
+  });
+
+  console.log(
+    'Synthetic Node Lambda E2E passed: split/shared/dependency layers, copied native, napi-rs and scoped packages without Docker, better-sqlite3 installed in Docker for x64 and arm64, and Lambda Node 18-24 execution.'
   );
 } finally {
   await Promise.all([...containers].map((name) => run('docker', ['rm', '--force', name]).catch(() => undefined)));

@@ -13,14 +13,14 @@ import type {
   LambdaSplitOutput,
   SplitBundleResult
 } from './types';
-import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
+import type { ResolvedPackageDependency } from '../runtime-contracts';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
-import { IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
+import { IGNORED_MODULES } from '../es/config';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
 import {
@@ -33,7 +33,12 @@ import {
   resolveWithRequireCondition
 } from '../es/bundler-helpers';
 import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../es/bun-plugins';
-import { classifyBeforeResolution, classifyResolvedModule, getModuleName } from '../es/import-classification';
+import {
+  classifyBeforeResolution,
+  classifyResolvedModule,
+  getModuleName,
+  isNodeBuiltinImport
+} from '../es/import-classification';
 import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
 import { normalizeSplitBuildIdentity } from '../es/artifact-identity';
@@ -153,7 +158,7 @@ export const buildSplitBundle = async ({
 /** Dependency tracking state during bundling (source files now from metafile) */
 type DependencyTracker = {
   resolvedModulesByImporter: Map<string, Set<string>>;
-  dependenciesByImporter: Map<string, PackageJsonDepsInfo[]>;
+  dependenciesByImporter: Map<string, ResolvedPackageDependency[]>;
   externalModules: Array<{ name: string; note: string }>;
 };
 
@@ -170,7 +175,7 @@ const trackResolvedModule = (tracker: DependencyTracker, importer: string, modul
   tracker.resolvedModulesByImporter.set(importerKey, resolvedModules);
 };
 
-const trackDependencies = (tracker: DependencyTracker, importer: string, dependencies: PackageJsonDepsInfo[]) => {
+const trackDependencies = (tracker: DependencyTracker, importer: string, dependencies: ResolvedPackageDependency[]) => {
   if (dependencies.length === 0) return;
   const importerKey = canonicalizeEntrypointPath(importer);
   const trackedDependencies = tracker.dependenciesByImporter.get(importerKey) ?? [];
@@ -416,25 +421,10 @@ const createAnalyzePlugin = ({
           importer: args.importer,
           importKind: args.kind
         });
-        trackDependencies(tracker, args.importer, verdict.dependenciesToInstallInDocker);
+        trackDependencies(tracker, args.importer, verdict.externalDependencies);
 
         if (verdict.outcome === 'external') {
           markExternal(moduleName, verdict.note);
-          /*
-           * `verdict.alsoExternal` — the externalized package's own dependency tree — is
-           * deliberately not applied here, and this is the one place the two bundlers decide
-           * differently on purpose.
-           *
-           * The per-Lambda bundler externalizes those names too: its artifact has a single
-           * installed tree, so whichever module reaches one finds it there. A split build serves
-           * many Lambdas from one pass, and a native package is installed only into the layer of
-           * the Lambdas that import it. Externalizing its dependency tree globally would leave a
-           * Lambda that imports only the pure-JS dependency, and never the native package,
-           * resolving it at runtime from a layer it does not have.
-           *
-           * The cost is a second copy of those modules inside the bundle. Removing it needs
-           * per-importer externalization, which this build does not do yet.
-           */
           return { path: args.path, external: true };
         }
 
@@ -556,8 +546,8 @@ const createWindowsPathNormalizationPlugin = ({
     };
     build.onResolve({ filter: /^[^./]/ }, (args) => {
       if (isAbsolute(args.path) || args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
+      if (isNodeBuiltinImport(args.path)) return undefined;
       const moduleName = getModuleName(args.path);
-      if (NODE_BUILTIN_MODULES.includes(moduleName)) return undefined;
       return (
         normalize(args.path, args.importer, args.resolveDir, args.kind) ??
         resolveEntryManually(args.path, moduleName, args.importer, args.kind)
@@ -723,7 +713,7 @@ const collectOutputInputPaths = ({
 const getTrackedDependenciesForInputs = (
   tracker: DependencyTracker,
   inputPaths: Set<string>
-): PackageJsonDepsInfo[] => {
+): ResolvedPackageDependency[] => {
   const dependencies = Array.from(inputPaths).flatMap(
     (inputPath) => tracker.dependenciesByImporter.get(canonicalizeEntrypointPath(inputPath)) ?? []
   );
@@ -889,7 +879,7 @@ const processLambdaOutputsWithMetafile = async ({
         sourceFiles: Array.from(inputPaths)
           .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
           .map((path) => ({ path })),
-        dependenciesToInstallInDocker: getTrackedDependenciesForInputs(tracker, inputPaths),
+        externalDependencies: getTrackedDependenciesForInputs(tracker, inputPaths),
         resolvedModules: getTrackedModulesForInputs(tracker, inputPaths)
       });
     })

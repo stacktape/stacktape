@@ -24,9 +24,9 @@ import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildLayerS3Key, getEcrCacheImageTag } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getJobName } from '@stacktape/naming/workload-names';
-import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
+import { buildNativeBinaryLayer, planLambdaDependencies } from '@stacktape/packaging/es/native-dependencies';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
-import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
+import { getLambdaRuntimeFromNodeTarget } from '@stacktape/packaging/bundlers/es/utils';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
 import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
@@ -99,7 +99,7 @@ import { isJsEntryFileExtension } from '@config';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
 import type { PackagingTarget } from './types';
 
-import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
+import { selectSplitBundlingGroup } from './split-bundling-policy';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 import {
   getDotnetBuildVersionForRuntime,
@@ -348,8 +348,8 @@ export class PackagingManager {
    * they all use, instead of copied into every artifact.
    *
    * The ordinary Lambda buildpack remains the fallback for what the split path cannot serve. Docker
-   * is not asked here: pure JavaScript never needs it, and a native dependency found by the shared
-   * analysis makes the split build require Docker before any artifact is written.
+   * is not asked here: it is needed only for a native dependency whose installed files do not run on
+   * Lambda, and the split build then requires it before any artifact is written.
    */
   #partitionNodeLambdas<
     Candidate extends {
@@ -579,48 +579,36 @@ export class PackagingManager {
     });
     endSplitBuild({ ...splitResult.timings, sharedChunks: splitResult.sharedChunkCount });
 
-    // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer
-    // This is more efficient than copying to each lambda - upload once, use everywhere
-    const lambdasWithNativeDeps = Array.from(splitResult.lambdaOutputs.entries()).filter(
-      ([, output]) => output.dependenciesToInstallInDocker.length > 0
+    // Packages the bundle leaves out (native ones, and any the configuration excludes from it) go to a dependency
+    // layer: uploaded once, used by every function that needs it.
+    const lambdasWithExternalDependencies = Array.from(splitResult.lambdaOutputs.entries()).filter(
+      ([, output]) => output.externalDependencies.length > 0
     );
-
-    const dockerStillRunning = lambdasWithNativeDeps.length === 0 || (await isDockerRunning());
-    if (
-      !canBuildSplitNativeDependencies({
-        dependencyCount: lambdasWithNativeDeps.length,
-        dockerIsRunning: dockerStillRunning
-      })
-    ) {
-      const needs = lambdasWithNativeDeps.map(
-        ([lambdaName, output]) =>
-          `${lambdaName} (${output.dependenciesToInstallInDocker.map(({ name }) => name).join(', ')})`
-      );
-      throw createCliPackagingError({
-        type: 'PACKAGING',
-        message: `Docker is not running or not installed, and native dependencies need it: ${needs.join('; ')}.`,
-        hint: 'Start Docker, or install it from https://www.docker.com/products/docker-desktop/, and retry.'
-      });
-    }
-
-    if (lambdasWithNativeDeps.length > 0) {
-      const { packageManager } = await getLockFileData(globalStateManager.workingDir);
-      if (!packageManager) {
-        throw new Error(
-          'Failed to load dependency lockfile. You need to install your dependencies first. Supported package managers are npm and yarn.'
-        );
-      }
-
-      // Determine architecture from first lambda (all should be same in a split bundle)
-      const firstLambdaArch = nodeLambdas[0]?.architecture;
-      const dockerArch = firstLambdaArch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
-
+    if (lambdasWithExternalDependencies.length > 0) {
       const dependencyGroups = groupCompatibleNativeDependencies(
-        lambdasWithNativeDeps.map(([lambdaName, output]) => ({
+        lambdasWithExternalDependencies.map(([lambdaName, output]) => ({
           lambdaName,
-          dependencies: output.dependenciesToInstallInDocker
+          dependencies: output.externalDependencies
         }))
       );
+      // Every function in a split build has the same architecture.
+      const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
+      const plans = await Promise.all(
+        dependencyGroups.map(({ dependencies }) => planLambdaDependencies({ dependencies, architecture }))
+      );
+      const packagesToInstall = plans.flatMap(({ packagesToInstallForLambda }, groupIndex) =>
+        packagesToInstallForLambda.map(
+          ({ name }) => `${name} (used by ${dependencyGroups[groupIndex]!.lambdaNames.join(', ')})`
+        )
+      );
+      if (packagesToInstall.length > 0 && !(await isDockerRunning())) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `Docker is not running or not installed, and these native dependencies must be installed for Lambda in Docker: ${packagesToInstall.join('; ')}. Their installed files were built for another platform or compiled on this machine.`,
+          hint: 'Start Docker, or install it from https://www.docker.com/products/docker-desktop/, and retry. On Linux x64 or arm64 with glibc, a fresh install of the dependencies usually needs no Docker.'
+        });
+      }
+
       const endNativeLayers = startTiming('split:native-layers', { groups: dependencyGroups.length });
       const nativeLayers = await Promise.all(
         dependencyGroups.map(async ({ dependencies, lambdaNames }, groupIndex) => {
@@ -629,25 +617,17 @@ export class PackagingManager {
           const layerNumber = groupIndex === 0 ? 0 : 99 + groupIndex;
           const nativeLayer = await buildNativeBinaryLayer({
             dependencies,
+            plan: plans[groupIndex]!,
             installationRootPath: join(
               fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
               '_bin-install'
             ),
             layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
             lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
-            packageManager,
-            dockerBuildOutputArchitecture: dockerArch,
             usedByLambdas: lambdaNames,
             layerName: groupIndex === 0 ? 'layer-native' : `layer-native-${layerNumber}`,
             runDocker: this.#dockerRunners.runDocker
           });
-          if (!nativeLayer) {
-            throw createCliPackagingError({
-              type: 'PACKAGING',
-              message: 'Failed to create a native dependency layer for the split Lambda bundle.',
-              hint: 'Review the native dependency build output and retry the deployment.'
-            });
-          }
           return {
             ...nativeLayer,
             layerNumber,

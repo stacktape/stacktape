@@ -13,9 +13,11 @@
  * dynamically imported modules in the per-Lambda bundler) without reordering the shared ones.
  */
 import { isBuiltin } from 'node:module';
-import type { PackageJsonDepsInfo } from './bundler-helpers';
-import { determineIfAlias, getInfoFromPackageJson, isRequireImportKind } from './bundler-helpers';
-import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER } from './config';
+import type { ResolvedPackageDependency } from '../runtime-contracts';
+import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
+import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_OPTIONAL_PEER_DEPS } from './config';
+import { findInstalledPackage, readPackageManifest } from './installed-packages';
+import { getNativeReason } from './native-packages';
 
 /** The package a specifier belongs to: `lodash/merge` is `lodash`, `@scope/pkg/sub` is `@scope/pkg`. */
 export const getModuleName = (importPath: string): string => {
@@ -26,15 +28,6 @@ export const getModuleName = (importPath: string): string => {
 };
 
 export const isNodeBuiltinImport = (specifier: string): boolean => isBuiltin(specifier);
-
-/** Every name in a dependency's transitive `dependencies` tree. */
-const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<string>): Set<string> => {
-  for (const dep of depsInfo.dependencies) {
-    depsList.add(dep.name);
-    getExternalDeps(dep, depsList);
-  }
-  return depsList;
-};
 
 /**
  * Lambda Node runtimes that ship the AWS SDK v3. Bundling it into the artifact on one of these only
@@ -85,59 +78,72 @@ export const isRuntimeProvidedLambdaModule = ({
   return RUNTIME_PROVIDED_AWS_SDK_FAMILIES.some((family) => moduleName.startsWith(family));
 };
 
-/**
- * What a dependency needs beyond bundling: a native binary has to be installed on the target
- * platform instead, and so does anything the user or Stacktape excluded from the bundle. Peer
- * dependencies come along only when they carry a binary of their own — a pure-JS peer such as `zod`
- * bundles safely.
- *
- * Unreadable package metadata is not fatal: the import falls through to the bundler, which reports
- * a resolution failure with the context a packaging error here would lack.
- */
-export const analyzeDependency = async ({
+/** The installed package at `path`, or `null` when its manifest cannot be read. */
+const describeInstalledPackage = async (path: string, note: string): Promise<ResolvedPackageDependency | null> => {
+  try {
+    const { name, version } = await readPackageManifest(path);
+    return name && version ? { name, version, path, note } : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Why a package stays out of the bundle, or `undefined` when it is bundled. */
+const getExclusionNote = async ({
   dependency,
   dependenciesToExcludeFromBundle
 }: {
   dependency: { path: string; name: string };
   dependenciesToExcludeFromBundle: string[];
-}): Promise<{
-  dependenciesToInstallInDocker: PackageJsonDepsInfo[];
-  allExternalDeps: string[];
-}> => {
-  const packageInfo = await getInfoFromPackageJson({
-    directoryPath: dependency.path,
-    parentModule: null,
-    dependencyType: 'root'
-  });
-  if (!packageInfo) {
-    return { dependenciesToInstallInDocker: [], allExternalDeps: [] };
+}): Promise<string | undefined> => {
+  const nativeReason = await getNativeReason(dependency.path);
+  if (nativeReason) return `native: ${nativeReason}`;
+  if (dependenciesToExcludeFromBundle.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_USER';
+  if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE';
+  return undefined;
+};
+
+/**
+ * The packages a dependency needs installed beside the bundle: itself when it is native or excluded from the bundle,
+ * and its installed peer dependencies that are native. A bundled package can reach a peer through a `require()` the
+ * bundler cannot follow, so a native peer is installed even when nothing imports it directly. A pure-JavaScript peer
+ * such as `zod` bundles safely.
+ *
+ * Unreadable package metadata is not fatal: the import falls through to the bundler, which reports a resolution
+ * failure with the context a packaging error here would lack.
+ */
+const analyzeDependency = async ({
+  dependency,
+  dependenciesToExcludeFromBundle
+}: {
+  dependency: { path: string; name: string };
+  dependenciesToExcludeFromBundle: string[];
+}): Promise<ResolvedPackageDependency[]> => {
+  const manifest = await readPackageManifest(dependency.path).catch(() => null);
+  if (!manifest) return [];
+
+  const externalDependencies: ResolvedPackageDependency[] = [];
+  const note = await getExclusionNote({ dependency, dependenciesToExcludeFromBundle });
+  if (note) {
+    const installedPackage = await describeInstalledPackage(dependency.path, note);
+    if (installedPackage) externalDependencies.push(installedPackage);
   }
 
-  const allExternalDeps = Array.from(getExternalDeps(packageInfo, new Set<string>()));
-  const dependenciesToInstallInDocker: PackageJsonDepsInfo[] = [];
-
-  if (packageInfo.hasBinary) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'HAS_BINARY' });
-  } else if (dependenciesToExcludeFromBundle.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_USER' });
-  } else if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE' });
-  }
-
-  packageInfo.optionalPeerDependencies
-    ?.filter((dep) => !IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER.includes(dep.name))
-    .filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'OPTIONAL_PEER_DEPENDENCY' });
-    });
-
-  packageInfo.peerDependencies
-    ?.filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
-    });
-
-  return { dependenciesToInstallInDocker, allExternalDeps };
+  const peerNames = new Set([
+    ...Object.keys(manifest.peerDependencies ?? {}),
+    ...Object.keys(manifest.peerDependenciesMeta ?? {}).filter((name) => !IGNORED_OPTIONAL_PEER_DEPS.includes(name))
+  ]);
+  const nativePeers = await Promise.all(
+    [...peerNames].map(async (peerName) => {
+      const peerPath = await findInstalledPackage({ name: peerName, fromDirectory: dependency.path });
+      const nativeReason = peerPath && (await getNativeReason(peerPath));
+      return nativeReason
+        ? describeInstalledPackage(peerPath, `native peer of ${dependency.name}: ${nativeReason}`)
+        : null;
+    })
+  );
+  for (const peer of nativePeers) if (peer) externalDependencies.push(peer);
+  return externalDependencies;
 };
 
 /** What the shared rules decide about a bare import before anyone has located it on disk. */
@@ -177,20 +183,16 @@ export const classifyBeforeResolution = ({
 /**
  * What the shared rules decide once the module's directory is known.
  *
- * `dependenciesToInstallInDocker` is reported either way: a bundled module can still carry a peer
- * dependency with a native binary, which has to be installed even though the module itself is
- * bundled.
+ * `externalDependencies` is reported either way: a bundled module can still carry a native peer dependency, which has
+ * to be installed even though the module itself is bundled. A module left out of the bundle for any reason does not
+ * take its own dependencies out with it: the module resolves them from where it is installed, and a bundled importer of
+ * the same package keeps its own copy, which may be another version.
  */
-export type ResolvedModuleVerdict = { dependenciesToInstallInDocker: PackageJsonDepsInfo[] } & (
+export type ResolvedModuleVerdict = { externalDependencies: ResolvedPackageDependency[] } & (
   | {
       outcome: 'external';
       /** Why it left the bundle, recorded against the module for later reporting. */
       note: string;
-      /**
-       * Names that must be external too, because an externalized package resolves them from its own
-       * installed tree. Bundling them as well would ship a second copy.
-       */
-      alsoExternal: string[];
     }
   /** Nothing keeps it out of the bundle. */
   | { outcome: 'bundle' }
@@ -217,31 +219,17 @@ export const classifyResolvedModule = async ({
   importer?: string | undefined;
   importKind?: Bun.ImportKind | undefined;
 }): Promise<ResolvedModuleVerdict> => {
-  const readPackageInfo = async (note: string): Promise<PackageJsonDepsInfo[]> => {
-    if (!modulePath) return [];
-    const packageInfo = await getInfoFromPackageJson({
-      directoryPath: modulePath,
-      parentModule: null,
-      dependencyType: 'root'
-    }).catch(() => null);
-    return packageInfo ? [{ ...packageInfo, note }] : [];
-  };
+  // `excludeDependencies` and the ignored modules leave the deployment package altogether.
+  if (ignoredModules.includes(moduleName) || excludeDependencies.includes(moduleName)) {
+    return { outcome: 'external', note: 'EXCLUDED', externalDependencies: [] };
+  }
 
   if (shouldIgnoreAllDeps && modulePath) {
+    const installedPackage = await describeInstalledPackage(modulePath, 'WILDCARD_EXTERNALIZED');
     return {
       outcome: 'external',
       note: 'WILDCARD_EXTERNALIZED',
-      dependenciesToInstallInDocker: await readPackageInfo('WILDCARD_EXTERNALIZED'),
-      alsoExternal: []
-    };
-  }
-
-  if (ignoredModules.includes(moduleName) || excludeDependencies.includes(moduleName)) {
-    return {
-      outcome: 'external',
-      note: 'IGNORED',
-      dependenciesToInstallInDocker: await readPackageInfo('IGNORED'),
-      alsoExternal: []
+      externalDependencies: installedPackage ? [installedPackage] : []
     };
   }
 
@@ -252,27 +240,17 @@ export const classifyResolvedModule = async ({
     // project's own code gets no such leniency: a missing import there is a real error.
     const fromDependency = importer !== undefined && /[\\/]node_modules[\\/]/.test(importer);
     if (fromDependency && (isRequireImportKind(importKind) || importKind === 'dynamic-import')) {
-      return {
-        outcome: 'external',
-        note: 'OPTIONAL_NOT_INSTALLED',
-        dependenciesToInstallInDocker: [],
-        alsoExternal: []
-      };
+      return { outcome: 'external', note: 'OPTIONAL_NOT_INSTALLED', externalDependencies: [] };
     }
-    return { outcome: 'bundle', dependenciesToInstallInDocker: [] };
+    return { outcome: 'bundle', externalDependencies: [] };
   }
 
-  const { allExternalDeps, dependenciesToInstallInDocker } = await analyzeDependency({
+  const externalDependencies = await analyzeDependency({
     dependenciesToExcludeFromBundle,
     dependency: { name: moduleName, path: modulePath }
   });
-
-  return dependenciesToInstallInDocker.some((dep) => dep.name === moduleName)
-    ? {
-        outcome: 'external',
-        note: 'INSTALLED_IN_DOCKER',
-        dependenciesToInstallInDocker,
-        alsoExternal: allExternalDeps
-      }
-    : { outcome: 'bundle', dependenciesToInstallInDocker };
+  const self = externalDependencies.find((dependency) => dependency.path === modulePath);
+  return self
+    ? { outcome: 'external', note: self.note ?? 'EXTERNAL', externalDependencies }
+    : { outcome: 'bundle', externalDependencies };
 };

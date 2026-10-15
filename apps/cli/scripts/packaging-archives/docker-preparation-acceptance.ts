@@ -14,8 +14,9 @@
  *   Docker, its function ZIPs and its shared layer, zipped as a deployment zips it, hold the same entries as with Docker
  *   ready, and each function runs in the Lambda Node.js image with the layer at /opt (see `lambda-runtime.ts`). A single
  *   function, and a group with `--disableLayerOptimization`, is packaged per function.
- * - A split group whose shared analysis finds a native dependency asks only `docker info`, and without Docker fails
- *   before any artifact, naming the dependency and its function.
+ * - A split group whose shared analysis finds a native dependency that has to be installed again for Lambda (it was
+ *   never built) asks only `docker info`, and without Docker fails before any artifact, naming the dependency and its
+ *   function.
  * - A job that needs Docker prepares only the platform it builds for, once, however many jobs ask: a host-native build
  *   never installs emulation, and a missing platform leads to one refused binfmt request for that platform only, with
  *   the pinned helper. Other jobs are still packaged.

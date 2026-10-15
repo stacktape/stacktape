@@ -20,7 +20,7 @@ import type { OpenNextConfig as UpstreamOpenNextConfig } from 'open-next/types/o
 import { createTemporaryBuildFile } from '../fs/temporary-file';
 import { runWebBuildExclusive } from './build-coordinator';
 import { resolveInstalledNodePackage } from './node-runtime-files';
-import { copyDockerInstalledModulesForLambda } from '../es/native-dependencies';
+import { copyDockerInstalledModulesForLambda, planLambdaDependencies } from '../es/native-dependencies';
 import { resolveNodeVersion } from '../bundlers/node-version';
 
 type NextjsWebBundlingProps = {
@@ -166,8 +166,8 @@ export const createNextjsWebArtifacts = async ({
   // create custom resource wrapper to use open-next built dynamo inserter resource
   await createDynamoInsertWrapper({ distFolderPath });
 
-  // OpenNext installs the JS package without host lifecycle scripts. Materialize the exact emitted version and
-  // its native binaries in the target runtime before hashing the ZIP.
+  // OpenNext installs sharp without running its install scripts. When that left no binary Lambda can load, the exact
+  // emitted version is installed again in the Lambda build image before the ZIP is hashed.
   const imageFunctionPath = join(distFolderPath, 'image-optimization-function');
   const sharp = await resolveInstalledNodePackage({
     applicationRoot: imageFunctionPath,
@@ -180,23 +180,25 @@ export const createNextjsWebArtifacts = async ({
       message: `Could not resolve the sharp runtime package for nextjs-web "${resource.name}" image optimization.`
     });
   }
-  // Replace host binaries and command links instead of overlaying them with the Docker installation's symlinks.
-  await Promise.all([
-    remove(join(imageFunctionPath, 'node_modules', 'sharp')),
-    remove(join(imageFunctionPath, 'node_modules', '.bin'))
-  ]);
-  await copyDockerInstalledModulesForLambda({
-    dependencies: [{ ...sharp, dependencyType: 'root' }],
-    installationRootPath: nativeDependencyInstallationRootPath,
-    distFolderPath: imageFunctionPath,
-    lambdaRuntimeVersion: resolveNodeVersion({
-      runtime: resource._nestedResources.imageFunction.runtime,
-      target: 'lambda'
-    }),
-    packageManager: 'npm',
-    dockerBuildOutputArchitecture: 'linux/amd64',
-    runDocker
-  });
+  const sharpPlan = await planLambdaDependencies({ dependencies: [sharp], architecture: 'x64' });
+  if (sharpPlan.packagesToInstallForLambda.length > 0) {
+    // Replace host binaries and command links instead of overlaying them with the Docker installation's symlinks.
+    await Promise.all([
+      remove(join(imageFunctionPath, 'node_modules', 'sharp')),
+      remove(join(imageFunctionPath, 'node_modules', '.bin'))
+    ]);
+    await copyDockerInstalledModulesForLambda({
+      dependencies: [sharp],
+      installationRootPath: nativeDependencyInstallationRootPath,
+      distFolderPath: imageFunctionPath,
+      lambdaRuntimeVersion: resolveNodeVersion({
+        runtime: resource._nestedResources.imageFunction.runtime,
+        target: 'lambda'
+      }),
+      dockerBuildOutputArchitecture: 'linux/amd64',
+      runDocker
+    });
+  }
 
   const [
     imageFunction,

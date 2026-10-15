@@ -1,29 +1,17 @@
-/* eslint-disable no-await-in-loop -- Package lookup and graph materialization follow dependency order and stay intentionally bounded. */
+/* eslint-disable no-await-in-loop -- Package lookup follows dependency order and stays intentionally bounded. */
 import { nodeFileTrace } from '@vercel/nft';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
+import { dirname, join, resolve } from 'node:path';
+import { pathExists } from 'fs-extra';
 import { realpath, stat } from 'node:fs/promises';
-
-type TracedPackage = {
-  dependencies: Set<string>;
-  files: Set<string>;
-  includeEntirePackage: boolean;
-  name: string;
-  root: string;
-};
-
-type PackageManifest = {
-  dependencies?: Record<string, string> | undefined;
-  name?: string | undefined;
-  optionalDependencies?: Record<string, string> | undefined;
-  peerDependencies?: Record<string, string> | undefined;
-  version?: string | undefined;
-};
-
-const isInside = (parent: string, child: string) => {
-  const relativePath = relative(parent, child);
-  return relativePath === '' || (!relativePath.startsWith('..') && !relativePath.includes(`..${sep}`));
-};
+import {
+  addRuntimeDependencies,
+  copyPackageGraph,
+  findInstalledPackage,
+  getRuntimeDependencyNames,
+  isInside,
+  readPackageManifest,
+  type InstalledPackage
+} from '../es/installed-packages';
 
 const findPackageRoot = async ({
   filePath,
@@ -36,19 +24,10 @@ const findPackageRoot = async ({
 }) => {
   let candidate = dirname(filePath);
   while (isInside(traceBasePath, candidate)) {
-    const manifestPath = join(candidate, 'package.json');
-    if (await pathExists(manifestPath)) {
+    if (await pathExists(join(candidate, 'package.json'))) {
       if (!requirePackageName) return candidate;
-      const manifest: unknown = await readJson(manifestPath);
-      if (
-        typeof manifest === 'object' &&
-        manifest !== null &&
-        'name' in manifest &&
-        typeof manifest.name === 'string' &&
-        manifest.name.length > 0
-      ) {
-        return candidate;
-      }
+      const { name } = await readPackageManifest(candidate);
+      if (typeof name === 'string' && name.length > 0) return candidate;
     }
     const parent = dirname(candidate);
     if (parent === candidate) break;
@@ -57,57 +36,7 @@ const findPackageRoot = async ({
   return undefined;
 };
 
-const readPackageName = async (packageRoot: string): Promise<string> => {
-  const manifest: unknown = await readJson(join(packageRoot, 'package.json'));
-  if (
-    typeof manifest !== 'object' ||
-    manifest === null ||
-    !('name' in manifest) ||
-    typeof manifest.name !== 'string' ||
-    manifest.name.length === 0
-  ) {
-    throw new Error(`Traced Node.js package at ${packageRoot} does not have a valid name.`);
-  }
-  return manifest.name;
-};
-
-const readPackageManifest = async (packageRoot: string): Promise<PackageManifest> =>
-  readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
-
 const canonicalizeExistingPath = async (path: string) => realpath(resolve(path));
-
-const getRuntimeDependencyNames = (manifest: PackageManifest) =>
-  new Set([
-    ...Object.keys(manifest.dependencies ?? {}),
-    ...Object.keys(manifest.optionalDependencies ?? {}),
-    ...Object.keys(manifest.peerDependencies ?? {})
-  ]);
-
-const findInstalledPackageRoot = async ({
-  dependencyName,
-  fromPackageRoot,
-  traceBasePath
-}: {
-  dependencyName: string;
-  fromPackageRoot: string;
-  traceBasePath: string;
-}) => {
-  let candidateRoot = fromPackageRoot;
-  while (isInside(traceBasePath, candidateRoot)) {
-    const logicalPackagePath = join(candidateRoot, 'node_modules', ...dependencyName.split('/'));
-    if (await pathExists(join(logicalPackagePath, 'package.json'))) {
-      const realPackagePath = await realpath(logicalPackagePath);
-      return findPackageRoot({
-        filePath: join(realPackagePath, 'package.json'),
-        traceBasePath
-      });
-    }
-    const parent = dirname(candidateRoot);
-    if (parent === candidateRoot) break;
-    candidateRoot = parent;
-  }
-  return undefined;
-};
 
 /** Resolve an installed transitive package from the same package graph the framework build used. */
 export const resolveInstalledNodePackage = async ({
@@ -121,26 +50,18 @@ export const resolveInstalledNodePackage = async ({
   resolveFromPackage?: string | undefined;
   traceBasePath: string;
 }) => {
-  const absoluteTraceBasePath = await canonicalizeExistingPath(traceBasePath);
-  let fromPackageRoot = await canonicalizeExistingPath(applicationRoot);
+  const stopAt = await canonicalizeExistingPath(traceBasePath);
+  let fromDirectory = await canonicalizeExistingPath(applicationRoot);
   if (resolveFromPackage) {
-    const resolvedParent = await findInstalledPackageRoot({
-      dependencyName: resolveFromPackage,
-      fromPackageRoot,
-      traceBasePath: absoluteTraceBasePath
-    });
+    const resolvedParent = await findInstalledPackage({ name: resolveFromPackage, fromDirectory, stopAt });
     if (!resolvedParent) return undefined;
-    fromPackageRoot = resolvedParent;
+    fromDirectory = resolvedParent;
   }
-  const packageRoot = await findInstalledPackageRoot({
-    dependencyName: packageName,
-    fromPackageRoot,
-    traceBasePath: absoluteTraceBasePath
-  });
+  const packageRoot = await findInstalledPackage({ name: packageName, fromDirectory, stopAt });
   if (!packageRoot) return undefined;
-  const manifest = await readPackageManifest(packageRoot);
-  if (!manifest.version) return undefined;
-  return { name: packageName, path: packageRoot, version: manifest.version };
+  const { version } = await readPackageManifest(packageRoot);
+  if (!version) return undefined;
+  return { name: packageName, path: packageRoot, version };
 };
 
 /**
@@ -177,7 +98,7 @@ export const copyTracedNodeRuntimeFiles = async ({
     mixedModules: true
   });
   const tracedPaths = new Set([...trace.fileList, ...trace.esmFileList]);
-  const packages = new Map<string, TracedPackage>();
+  const packages = new Map<string, InstalledPackage>();
   const packageRootByTracePath = new Map<string, string>();
   const rootDependencies = new Set<string>();
 
@@ -194,85 +115,46 @@ export const copyTracedNodeRuntimeFiles = async ({
     packageRootByTracePath.set(tracedPath, packageRoot);
     let tracedPackage = packages.get(packageRoot);
     if (!tracedPackage) {
+      const { name, version } = await readPackageManifest(packageRoot);
       tracedPackage = {
+        name: name!,
+        version: version ?? '',
+        root: packageRoot,
         dependencies: new Set(),
-        files: new Set(),
-        includeEntirePackage: false,
-        name: await readPackageName(packageRoot),
-        root: packageRoot
+        files: new Set()
       };
       packages.set(packageRoot, tracedPackage);
     }
     if ((await stat(realSourcePath)).isDirectory()) continue;
-    if (isInside(packageRoot, realSourcePath)) tracedPackage.files.add(realSourcePath);
+    if (isInside(packageRoot, realSourcePath)) tracedPackage.files?.add(realSourcePath);
   }
 
   // NFT cannot discover packages whose names are selected at runtime. Application production dependencies are an
   // explicit deployment contract, so include their complete runtime package graphs while continuing to trace
   // framework/build output. This keeps pnpm's store out of the ZIP without breaking plugin-style dynamic imports.
-  const applicationManifestPath = join(applicationManifestRoot, 'package.json');
-  if (await pathExists(applicationManifestPath)) {
+  if (await pathExists(join(applicationManifestRoot, 'package.json'))) {
     const applicationManifest = await readPackageManifest(applicationManifestRoot);
     const bundledApplicationPackageNames = new Set(bundledApplicationPackages);
-    const pendingDependencies = [
+    const directDependencyNames = [
       ...getRuntimeDependencyNames({
         dependencies: applicationManifest.dependencies,
         optionalDependencies: applicationManifest.optionalDependencies
       })
-    ]
-      .filter((name) => !bundledApplicationPackageNames.has(name))
-      .map((name) => ({
-        fromPackageRoot: applicationManifestRoot,
-        name,
-        parentPackageRoot: undefined as string | undefined
-      }));
-    const visitedEdges = new Set<string>();
-
-    while (pendingDependencies.length > 0) {
-      const dependency = pendingDependencies.pop()!;
-      const edgeIdentity = `${dependency.fromPackageRoot}\0${dependency.name}`;
-      if (visitedEdges.has(edgeIdentity)) continue;
-      visitedEdges.add(edgeIdentity);
-
-      const packageRoot = await findInstalledPackageRoot({
-        dependencyName: dependency.name,
-        fromPackageRoot: dependency.fromPackageRoot,
-        traceBasePath: absoluteTraceBasePath
-      });
+    ].filter((name) => !bundledApplicationPackageNames.has(name));
+    const directDependencyRoots: string[] = [];
+    for (const name of directDependencyNames) {
       // Missing optional/peer dependencies are valid. A missing required direct dependency will already fail the
       // framework build, and keeping this traversal tolerant also supports platform-specific package graphs.
-      if (!packageRoot) continue;
-
-      let runtimePackage = packages.get(packageRoot);
-      const packageWasStaticallyTraced = runtimePackage !== undefined;
-      if (!runtimePackage) {
-        runtimePackage = {
-          dependencies: new Set(),
-          files: new Set(),
-          includeEntirePackage: true,
-          name: await readPackageName(packageRoot),
-          root: packageRoot
-        };
-        packages.set(packageRoot, runtimePackage);
-      }
-
-      if (dependency.parentPackageRoot) {
-        packages.get(dependency.parentPackageRoot)?.dependencies.add(packageRoot);
-      } else {
-        rootDependencies.add(packageRoot);
-      }
-
-      if (!packageWasStaticallyTraced) {
-        const manifest = await readPackageManifest(packageRoot);
-        for (const childName of getRuntimeDependencyNames(manifest)) {
-          pendingDependencies.push({
-            fromPackageRoot: packageRoot,
-            name: childName,
-            parentPackageRoot: packageRoot
-          });
-        }
-      }
+      const packageRoot = await findInstalledPackage({
+        name,
+        fromDirectory: applicationManifestRoot,
+        stopAt: absoluteTraceBasePath
+      });
+      if (packageRoot) directDependencyRoots.push(packageRoot);
     }
+    for (const packageRoot of directDependencyRoots) rootDependencies.add(packageRoot);
+    // A package the trace already found keeps its traced files and is not expanded again.
+    await addRuntimeDependencies({ packages, start: directDependencyRoots, stopAt: () => absoluteTraceBasePath });
   }
 
   for (const [tracedPath, reason] of trace.reasons) {
@@ -298,61 +180,18 @@ export const copyTracedNodeRuntimeFiles = async ({
     if (!childPackageRoots.has(packageRoot)) rootDependencies.add(packageRoot);
   }
 
-  const packagesByName = new Map<string, TracedPackage[]>();
-  for (const tracedPackage of packages.values()) {
-    const namedPackages = packagesByName.get(tracedPackage.name) ?? [];
-    namedPackages.push(tracedPackage);
-    packagesByName.set(tracedPackage.name, namedPackages);
-  }
-  const hoistedPackageRootByName = new Map<string, string>();
-  for (const [name, namedPackages] of packagesByName) {
-    const rootPackage = namedPackages.find(({ root }) => rootDependencies.has(root));
-    hoistedPackageRootByName.set(name, (rootPackage ?? namedPackages[0])!.root);
-  }
-
-  const materializedDestinations = new Set<string>();
-  const materializePackage = async (tracedPackage: TracedPackage, destinationPath: string): Promise<void> => {
-    const destinationIdentity = `${tracedPackage.root}\0${destinationPath}`;
-    if (materializedDestinations.has(destinationIdentity)) return;
-    materializedDestinations.add(destinationIdentity);
-
-    if (tracedPackage.includeEntirePackage) {
-      await copy(tracedPackage.root, destinationPath, {
-        dereference: true,
-        overwrite: true,
-        filter: (sourcePath) => {
-          const relativeSourcePath = relative(tracedPackage.root, sourcePath);
-          return !relativeSourcePath.split(sep).includes('node_modules');
-        }
-      });
-    } else {
-      await Promise.all(
-        [...tracedPackage.files].map(async (sourcePath) => {
-          const destinationFilePath = join(destinationPath, relative(tracedPackage.root, sourcePath));
-          await ensureDir(dirname(destinationFilePath));
-          await copy(sourcePath, destinationFilePath, {
-            dereference: true,
-            overwrite: true
-          });
-        })
-      );
-    }
-
-    for (const dependencyRoot of tracedPackage.dependencies) {
-      const dependency = packages.get(dependencyRoot);
-      if (!dependency || hoistedPackageRootByName.get(dependency.name) === dependency.root) continue;
-      await materializePackage(dependency, join(destinationPath, 'node_modules', dependency.name));
-    }
-  };
-
-  for (const [name, packageRoot] of hoistedPackageRootByName) {
-    const tracedPackage = packages.get(packageRoot);
-    if (tracedPackage) await materializePackage(tracedPackage, join(serverFunctionPath, 'node_modules', name));
-  }
+  await copyPackageGraph({
+    packages,
+    topLevelPackages: rootDependencies,
+    nodeModulesPath: join(serverFunctionPath, 'node_modules')
+  });
 
   return {
     packageCount: packages.size,
-    tracedFileCount: [...packages.values()].reduce((count, tracedPackage) => count + tracedPackage.files.size, 0),
+    tracedFileCount: [...packages.values()].reduce(
+      (count, tracedPackage) => count + (tracedPackage.files?.size ?? 0),
+      0
+    ),
     warnings: [...trace.warnings]
   };
 };

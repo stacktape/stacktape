@@ -1,11 +1,11 @@
 import type { EsBuildActions, JsBundleOptions, LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
-import { packagingMessages } from '../runtime-contracts';
 
 import { dirname, basename, join, resolve } from 'node:path';
-import { emptyDir, outputFile, rename } from 'fs-extra';
+import { emptyDir, outputFile } from 'fs-extra';
 import { createEsBundle } from '../bundlers/es';
-import { getFileSizeBytes, getFirstExistingPath, getFolderSizeBytes } from '../fs/files';
+import { getFirstExistingPath } from '../fs/files';
+import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 
 const toUnixPath = (value: string) => value.replace(/\\/g, '/');
 
@@ -44,10 +44,6 @@ const generateTracingWrapperEntry = async ({
   await outputFile(wrapperPath, `${lines.join('\n')}\n`);
   return wrapperPath;
 };
-
-const FILE_SIZE_UNIT = 'MB';
-const BYTES_PER_MB = 1024 * 1024;
-const formatSizeMb = (sizeBytes: number): number => Math.round((sizeBytes / BYTES_PER_MB) * 100) / 100;
 
 export const buildJsBundleLambda = async ({
   progressLogger,
@@ -100,7 +96,7 @@ export const buildJsBundleLambda = async ({
     ...otherProps,
     entryfilePath,
     distFolderPath,
-    installNonStaticallyBuiltDepsInDocker: true,
+    packageExternalDependencies: true,
     ...(otherProps.disableSourceMaps && { sourceMaps: 'disabled' }),
     lambdaZip: true,
     name,
@@ -122,43 +118,18 @@ export const buildJsBundleLambda = async ({
   } = bundlingOutput;
 
   if (outcome === 'skipped') {
-    // await remove(distFolderPath);
     return { ...bundlingOutput, size: null, jobName: name, resolvedModules };
   }
 
-  const unzippedSizeBytes = await getFolderSizeBytes(bundledDistFolderPath);
-  const unzippedSize = formatSizeMb(unzippedSizeBytes);
-
-  if (sizeLimit && unzippedSizeBytes > sizeLimit * BYTES_PER_MB) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `Function ${name} is ${unzippedSize}${FILE_SIZE_UNIT} unzipped. AWS Lambda allows ${sizeLimit}${FILE_SIZE_UNIT} for a function and all its layers together; layers attached outside Stacktape are not counted here.`
-    });
-  }
-
-  let zippedSize: number;
-  await progressLogger.startEvent({
-    eventType: 'ZIP_PACKAGE',
-    description: 'Getting folder size and zipping package'
-  });
-
-  await archiveItem({
-    absoluteSourcePath: bundledDistFolderPath,
-    format: 'zip',
-    useNativeZip: true
-  });
-  const originalZipPath = `${bundledDistFolderPath}.zip`;
-
-  const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
-  zippedSize = formatSizeMb(zippedSizeBytes);
-
-  const adjustedZipPath = `${bundledDistFolderPath}-${digest}.zip`;
-  await rename(originalZipPath, adjustedZipPath);
-
-  const layerInfo = usesSharedLayer ? ' · uses shared layer' : '';
-  await progressLogger.finishEvent({
-    eventType: 'ZIP_PACKAGE',
-    finalMessage: `${packagingMessages.lambdaBundle({ size: `${unzippedSize} MB`, zippedSize: `${zippedSize} MB` })}${layerInfo}`
+  const { unzippedSize, zippedSize, artifactPath } = await createLambdaZipArtifact({
+    name,
+    distFolderPath: bundledDistFolderPath,
+    digest,
+    sizeLimit,
+    progressLogger,
+    finalMessageSuffix: usesSharedLayer ? '· uses shared layer' : undefined,
+    archiveItem,
+    createPackagingError
   });
 
   return {
@@ -167,7 +138,7 @@ export const buildJsBundleLambda = async ({
     sourceFiles,
     zippedSize,
     size: unzippedSize,
-    artifactPath: adjustedZipPath,
+    artifactPath,
     details: { ...otherOutputProps },
     jobName: name,
     resolvedModules

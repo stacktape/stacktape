@@ -27,7 +27,17 @@ and they differ only in where the answer is recorded, flat arrays against per-im
 That decision lives once, in `es/import-classification`, and the plugins both call it. Add a rule there, never in a
 plugin: two copies of these rules drifted for months and shipped the AWS SDK in every split artifact. `es/bun-plugins`
 holds the plugins both builds install for the same reason. Where the two must genuinely differ, say so at the call site
-and say why; `alsoExternal` in the split plugin is the worked example.
+and say why.
+
+## Packages the bundle leaves out
+
+Everything is bundled except native packages and packages the configuration excludes. `es/native-packages` decides what
+is native from the installed files (addons, `binding.gyp`, prebuilds, install scripts, `os`/`cpu`/`libc`, platform
+optional dependencies), never from a list of names. `es/native-dependencies` copies each left-out package with
+everything it loads from the project's `node_modules` (`es/installed-packages`, which reads npm, pnpm, Yarn and Bun
+layouts alike). Only a native package whose installed files do not run on Lambda is installed again, at the same
+version, with npm in the Lambda build image. On a Linux build machine with glibc that is rare, so most builds never
+start Docker. Externalizing a package never externalizes its dependencies: a bundled importer keeps its own copy.
 
 `jscpd` guards this: both files are in `pnpm check:duplicates`. Do not put either back on the ignore list.
 

@@ -125,12 +125,3 @@ export const selectSplitBundlingGroup = <Candidate extends SplitBundlingCandidat
 
   return { split: chosenKey === undefined ? [] : (groups.get(chosenKey) ?? []), perFunction };
 };
-
-/** Native split-bundle dependencies can only be materialized while Docker is available. */
-export const canBuildSplitNativeDependencies = ({
-  dependencyCount,
-  dockerIsRunning
-}: {
-  dependencyCount: number;
-  dockerIsRunning: boolean;
-}): boolean => dependencyCount === 0 || dockerIsRunning;

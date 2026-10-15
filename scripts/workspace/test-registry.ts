@@ -852,7 +852,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Node artifacts execute with shared/native layers; native installations isolate architectures and reuse completed bytes.',
+      'Node artifacts execute with shared and dependency layers; installed native packages are copied without Docker, and only addons built for the host are installed again for x64 and arm64.',
     selections: ['packaging-lambdas']
   },
   {
