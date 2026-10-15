@@ -150,7 +150,7 @@ export default defineConfig(() => {
 `essential: false` on the migration container means ECS will not restart the task when it exits. `condition: 'SUCCESS'` means the API container only starts if the migration exits with code 0 — otherwise the task fails and ECS retries from scratch.
 
 
-> **Info:** Use `stopTimeout` (default `2` seconds, max `120`) on containers that need extra time to flush connections or finish in-flight work before ECS sends SIGKILL after SIGTERM.
+> **Info:** `stopTimeout` (default `30` seconds, max `120`) is how long a container gets to flush connections and finish in-flight work after SIGTERM before ECS sends SIGKILL.
 
 
 ## Traffic

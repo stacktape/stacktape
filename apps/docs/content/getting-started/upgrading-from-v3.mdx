@@ -15,6 +15,8 @@ Deploying a v4 configuration over a stack created by v3 is an ordinary stack upd
 
 The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag. Alarms configured for the whole organization in the Console are applied by v4 the same way v3 applied them.
 
+Container services shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
+
 ## Packaging
 
 v4 replaces the v3 packaging types with a smaller set:

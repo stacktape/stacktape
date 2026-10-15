@@ -20169,6 +20169,7 @@
         "page:/resources/compute/web-service#port",
         "page:/resources/compute/web-service#connecting-to-other-resources",
         "page:/resources/compute/web-service#health-checks",
+        "page:/resources/compute/web-service#how-deploys-replace-containers",
         "page:/resources/compute/web-service#side-containers",
         "page:/resources/compute/web-service#efs-storage",
         "page:/resources/compute/web-service#gradual-deployments",

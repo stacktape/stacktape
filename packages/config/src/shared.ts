@@ -4300,6 +4300,10 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *
    * The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
    *
+   * A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+   * up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+   * background.
+   *
    *
    * **Example (YAML):**
    *
@@ -4316,7 +4320,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *         cpu: 0.25
    *         memory: 512
    *       # stp-focus
-   *       stopTimeout: 30
+   *       stopTimeout: 60
    *       # stp-end-focus
    * ```
    *
@@ -4330,7 +4334,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
-   *     stopTimeout: 30
+   *     stopTimeout: 60
    *     // stp-end-focus
    *   });
    *
@@ -4338,7 +4342,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * });
    * ```
    *
-   * @default 2
+   * @default 30
    */
   stopTimeout?: number;
   /**
