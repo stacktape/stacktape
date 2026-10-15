@@ -96,6 +96,35 @@ with `stacktape:nat-failure` and the reason; the report's cleanup section lists 
 GitHub checkout. That deploy creates the stack, so it must offer CI/CD setup ("Set up automatic deployments on push to
 ..."). The canary presses Ctrl+C at the offer without answering it and continues as usual.
 
+## Container fast-deploy canary
+
+`test:real-aws-container-canary` (scenario `container-fast-deploy-serving`) deploys
+`_test-stacks/container-fast-deploy`: a small Node.js web service behind an application load balancer and the same
+service behind an HTTP API Gateway with a container health check. Each measurement changes only the release string in
+the server source and deploys again, which takes the fast path (RegisterTaskDefinition and UpdateService). While the
+deploy runs, the canary polls ECS, the target group, Cloud Map and both public URLs, and it writes one timeline per
+service to the report: image build and push, task definition registration, UpdateService, task creation, image pull and
+container start (from the task timestamps), target and Cloud Map health, the first response with the new release, when
+the CLI reported the service updated, and when the old tasks drained and stopped. A measurement fails when the CLI
+reported a service updated more than a second before it served the new release, or when any probe failed.
+
+It uses the alias canary's guardrails and environment contract with the `STP_AWS_CONTAINER_CANARY_` prefix, and cleanup
+verifies that the stack, deployment bucket, image repository and log groups are gone. `--keep` leaves the stack in place
+after the measurements and prints the cleanup command; `--reuse` measures again on that stack, for example with another
+CLI revision checked out. `STP_AWS_CONTAINER_CANARY_MEASUREMENTS` (default 2) and `STP_AWS_CONTAINER_CANARY_LABEL` name
+the measurements in the report. A run with two measurements takes about 20 minutes; the load balancer and two 0.25 vCPU
+Fargate tasks are the main cost.
+
+```sh
+export STP_AWS_CONTAINER_CANARY_DEPLOY=1
+export STP_AWS_CONTAINER_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_CONTAINER_CANARY_PROFILE='<profile>'
+export STP_AWS_CONTAINER_CANARY_OWNER="local-ctr-$(date -u +%s)"
+export STP_AWS_CONTAINER_CANARY_STATE_FILE="$(pwd)/.stacktape-container-canary-${STP_AWS_CONTAINER_CANARY_OWNER}.json"
+export STP_AWS_CONTAINER_CANARY_REPORT="$(pwd)/.stacktape-container-canary-${STP_AWS_CONTAINER_CANARY_OWNER}.report.json"
+pnpm test:aws --aws-scenario=container-fast-deploy-serving
+```
+
 ## Dev-mode canary
 
 This runs the `stacktape dev` loop on `_test-stacks/dev-mode` (a container API, local PostgreSQL and Redis containers,

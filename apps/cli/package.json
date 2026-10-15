@@ -90,6 +90,7 @@
     "test:release-security": "bun test scripts/cloudformation-diff-artifact.spec.ts scripts/release/candidate-assets.spec.ts scripts/release/checksums.spec.ts scripts/release/pnpm-pack.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-release.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/release/dispatch.spec.ts scripts/install-scripts/checksums.spec.ts",
     "test:real-aws-canary": "bun scripts/real-aws/packaging-canary.ts",
     "test:real-aws-alias-canary": "bun scripts/real-aws/alias-publication-canary.ts",
+    "test:real-aws-container-canary": "bun scripts/real-aws/container-fast-deploy-canary.ts",
     "test:real-aws-nat-canary": "bun scripts/real-aws/nat-instance-canary.ts",
     "test:real-aws-nat-switch-canary": "bun scripts/real-aws/nat-instance-canary.ts --scenario=switch",
     "test:real-aws-dev-canary": "bun scripts/real-aws/dev-mode-canary.ts",

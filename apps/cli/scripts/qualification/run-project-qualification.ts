@@ -676,7 +676,8 @@ const runGlobalLanes = async (options: ParsedOptions): Promise<QualificationStep
       'alias-publication': 'test:real-aws-alias-canary',
       'nat-instance': 'test:real-aws-nat-canary',
       'nat-switch': 'test:real-aws-nat-switch-canary',
-      'dev-mode': 'test:real-aws-dev-canary'
+      'dev-mode': 'test:real-aws-dev-canary',
+      'container-fast-deploy': 'test:real-aws-container-canary'
     }[scenario.runner];
     const inheritedFixture = process.env.STP_INIT_CANARY_FIXTURE;
     if (scenario.fixture !== undefined) process.env.STP_INIT_CANARY_FIXTURE = scenario.fixture;
