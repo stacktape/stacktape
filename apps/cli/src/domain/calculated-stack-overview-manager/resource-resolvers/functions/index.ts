@@ -80,7 +80,7 @@ import {
   getLambdaFunctionRole,
   getLambdaFunctionSecurityGroup,
   getLambdaLogGroup,
-  getLambdaPublicUrlPermission,
+  getLambdaPublicUrlPermissions,
   getLambdaUrl,
   getLambdaVersionPublisherCustomResource
 } from './utils';
@@ -387,9 +387,15 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       showDuringPrint: true
     });
     if (!url?.authMode || url.authMode === 'NONE') {
+      const { invokeUrl, invokeThroughUrl } = getLambdaPublicUrlPermissions({ lambdaProps });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.lambdaPublicUrlPermission(name),
-        resource: getLambdaPublicUrlPermission({ lambdaProps }),
+        resource: invokeUrl,
+        nameChain
+      });
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.lambdaPublicUrlInvokePermission(name),
+        resource: invokeThroughUrl,
         nameChain
       });
     }
