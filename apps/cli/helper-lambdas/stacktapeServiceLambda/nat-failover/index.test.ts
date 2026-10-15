@@ -141,6 +141,30 @@ describe('route reconciliation', () => {
     expect(marks).toEqual([]);
   });
 
+  test('reports a zone whose instance left its failure reason on the interface before being replaced', async () => {
+    const { deps, replaced, reports, marks } = createDeps({
+      zones: [
+        healthyZone(0),
+        { ...healthyZone(1), instance: undefined, instanceFailure: 'the outbound check failed 3 times in a row' }
+      ],
+      routes: homeRoutes
+    });
+    await runNatFailover(topology, deps);
+    expect(replaced).toEqual([
+      ['rtb-1', 'eni-0'],
+      ['rtb-2', 'eni-0']
+    ]);
+    expect(reports).toEqual([
+      {
+        type: 'ALARM_TRIGGERED',
+        azIndex: 1,
+        viaAzIndex: 0,
+        reason: 'its instance stopped forwarding (the outbound check failed 3 times in a row)'
+      }
+    ]);
+    expect(marks).toEqual([['eni-1', true]]);
+  });
+
   test('opens one incident when a serving instance stops forwarding, and closes it once home again', async () => {
     const stale = {
       ...healthyZone(1),

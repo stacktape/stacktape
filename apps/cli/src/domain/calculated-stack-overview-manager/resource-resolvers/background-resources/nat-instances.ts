@@ -95,9 +95,13 @@ const getInstanceRole = ({ availabilityZones }: { availabilityZones: number }) =
               Resource: ref('AWS::StackId')
             },
             {
+              // A boot failure is written on the instance, a forwarding failure on the zone's interface.
               Effect: 'Allow',
               Action: ['ec2:CreateTags'],
-              Resource: sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'),
+              Resource: [
+                sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'),
+                sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*')
+              ],
               Condition: { StringEquals: { [`aws:ResourceTag/${tagNames.stackName()}`]: stackName } }
             },
             {
@@ -289,6 +293,9 @@ else
   echo "\\$failures" > "\\$STATE_DIR/failures"
   echo "stacktape-nat: outbound check failed (\\$failures in a row)"
   if [ "\\$failures" -ge 3 ]; then
+    # The zone's interface carries the reason so the failover handler can tell a real failure from a planned
+    # replacement and report it; the handler removes the tag once the zone is healthy again.
+    aws ec2 create-tags --resources "$ENI_ID" --tags "Key=stp:nat-failure,Value=the outbound check failed 3 times in a row" || true
     aws autoscaling set-instance-health --instance-id "$INSTANCE_ID" --health-status Unhealthy || true
   fi
 fi

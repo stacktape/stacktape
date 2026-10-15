@@ -73,6 +73,8 @@ export type NatFailoverDependencies = {
       instanceStatusOk?: boolean;
       heartbeat?: Heartbeat;
       failoverReported?: boolean;
+      /** The reason the zone's instance reported before marking itself unhealthy, if any. */
+      instanceFailure?: string;
     }[]
   >;
   describeRoutes: (topology: NatFailoverTopology) => Promise<Map<string, string | undefined>>;
@@ -85,6 +87,8 @@ export type NatFailoverDependencies = {
 };
 
 export const FAILOVER_REPORTED_TAG = 'stp:nat-failover-reported';
+/** Written on the zone's interface by the instance's own heartbeat before it marks itself unhealthy. */
+export const INSTANCE_FAILURE_TAG = 'stp:nat-failure';
 
 export type FailoverReport = {
   type: 'ALARM_TRIGGERED' | 'ALARM_RESOLVED';
@@ -93,7 +97,20 @@ export type FailoverReport = {
   reason: string;
 };
 
-export const evaluateZoneHealth = ({
+export const evaluateZoneHealth = (input: {
+  zone: Awaited<ReturnType<NatFailoverDependencies['describeZones']>>[number];
+  nowSeconds: number;
+}): ZoneHealth => {
+  const health = evaluateInstanceHealth(input);
+  // An instance that found itself not forwarding leaves the reason on the zone's interface before the Auto Scaling
+  // group replaces it; without that, the replacement would look like a planned one.
+  if (!health.healthy && input.zone.instanceFailure) {
+    return { ...health, failed: true, reason: `its instance stopped forwarding (${input.zone.instanceFailure})` };
+  }
+  return health;
+};
+
+const evaluateInstanceHealth = ({
   zone,
   nowSeconds
 }: {
@@ -286,6 +303,7 @@ const createAwsDependencies = (): NatFailoverDependencies => {
           failoverReported: networkInterface?.TagSet?.some(
             ({ Key, Value }) => Key === FAILOVER_REPORTED_TAG && Value === 'true'
           ),
+          instanceFailure: networkInterface?.TagSet?.find(({ Key }) => Key === INSTANCE_FAILURE_TAG)?.Value,
           instance: serving && {
             instanceId: serving.InstanceId!,
             lifecycleState: serving.LifecycleState!,
@@ -342,11 +360,16 @@ const createAwsDependencies = (): NatFailoverDependencies => {
     },
     report: (event) => reportToConsole(event),
     markReported: async (networkInterfaceId, reported) => {
-      const tag = { Key: FAILOVER_REPORTED_TAG, Value: 'true' };
       await ec2.send(
         reported
-          ? new CreateTagsCommand({ Resources: [networkInterfaceId], Tags: [tag] })
-          : new DeleteTagsCommand({ Resources: [networkInterfaceId], Tags: [tag] })
+          ? new CreateTagsCommand({
+              Resources: [networkInterfaceId],
+              Tags: [{ Key: FAILOVER_REPORTED_TAG, Value: 'true' }]
+            })
+          : new DeleteTagsCommand({
+              Resources: [networkInterfaceId],
+              Tags: [{ Key: FAILOVER_REPORTED_TAG }, { Key: INSTANCE_FAILURE_TAG }]
+            })
       );
     }
   };
@@ -413,4 +436,13 @@ const reportToConsole = async (event: FailoverReport) => {
 export const isNatFailoverEvent = (event: unknown): event is NatFailoverRuleInput =>
   typeof event === 'object' && event !== null && 'natFailover' in event && typeof event.natFailover === 'object';
 
-export default async (event: NatFailoverRuleInput) => runNatFailover(event.natFailover, createAwsDependencies());
+export default async (event: NatFailoverRuleInput) => {
+  try {
+    return await runNatFailover(event.natFailover, createAwsDependencies());
+  } catch (error) {
+    // While a stack update removes zones or permissions, a probe can hit resources that no longer exist. The next
+    // probe is the retry; throwing here would only make EventBridge retry a stale event.
+    console.warn(`[nat-failover] skipped this run: ${String(error)}`);
+    return undefined;
+  }
+};
