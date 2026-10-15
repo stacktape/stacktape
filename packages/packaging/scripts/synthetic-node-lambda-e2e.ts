@@ -2,9 +2,9 @@
 /*
  * Node Lambda artifacts with dependencies the bundle leaves out, built from a pnpm project and run in the official
  * Lambda runtime. On this Linux x64 host, native packages that were installed for Linux (bcrypt's prebuilds, a napi-rs
- * platform package) and a scoped package excluded from the bundle are copied from node_modules without Docker, while
- * better-sqlite3, whose addon prebuild-install fetched for this machine's Node.js into build/, is installed again in
- * the Lambda build image, for x64 and for arm64.
+ * platform package), pdfkit, which reads its font metrics from its own directory, and a scoped package excluded from
+ * the bundle are copied from node_modules without Docker, while better-sqlite3, whose addon prebuild-install fetched
+ * for this machine's Node.js into build/, is installed again in the Lambda build image, for x64 and for arm64.
  */
 import { mkdtemp, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -152,7 +152,9 @@ try {
     '@hapi/boom': '10.0.1',
     '@node-rs/xxhash': '1.7.8',
     bcrypt: '6.0.0',
-    'better-sqlite3': '12.11.1'
+    'better-sqlite3': '12.11.1',
+    // Reads its font metrics from its own directory at run time, so it must stay out of the bundle.
+    pdfkit: '0.16.0'
   };
   await write(
     join(root, 'package.json'),
@@ -431,17 +433,30 @@ try {
       ...extraOptions
     });
 
-  console.log('Packaging installed native packages and an excluded scoped package without Docker...');
+  console.log(
+    'Packaging installed native packages, a package that reads its own files and an excluded scoped package without Docker...'
+  );
   await write(
     join(sourceRoot, 'copied.ts'),
     [
       'import bcrypt from "bcrypt";',
       'import { xxh64 } from "@node-rs/xxhash";',
       'import * as Boom from "@hapi/boom";',
+      'import PDFDocument from "pdfkit";',
+      'const renderPdf = () => new Promise((resolve, reject) => {',
+      '  const document = new PDFDocument();',
+      '  const chunks = [];',
+      '  document.on("data", (chunk) => chunks.push(chunk));',
+      '  document.on("end", () => resolve(Buffer.concat(chunks).subarray(0, 4).toString()));',
+      '  document.on("error", reject);',
+      '  document.font("Helvetica").text("Stacktape");',
+      '  document.end();',
+      '});',
       'export const handler = async () => ({',
       '  bcrypt: await bcrypt.compare("secret", await bcrypt.hash("secret", 4)),',
       '  xxhash: xxh64("stacktape").toString(16),',
-      '  boom: Boom.badRequest("invalid").output.statusCode',
+      '  boom: Boom.badRequest("invalid").output.statusCode,',
+      '  pdf: await renderPdf()',
       '});'
     ].join('\n')
   );
@@ -458,7 +473,8 @@ try {
     '@hapi+hoek@',
     '@node-rs+xxhash@',
     '@node-rs+xxhash-linux-x64-gnu@',
-    'bcrypt@'
+    'bcrypt@',
+    'pdfkit@'
   ]) {
     if (!copiedPackages.some((name) => name.startsWith(expected))) {
       throw new Error(`${expected} is missing from the function's node_modules: ${copiedPackages.join(', ')}`);
@@ -470,7 +486,12 @@ try {
   const copiedResponse = JSON.parse(
     await invokeLambdaRuntime({ functionPath: copiedDist, environment: { NODE_ENV: 'production' } })
   ) as Record<string, unknown>;
-  if (copiedResponse.bcrypt !== true || typeof copiedResponse.xxhash !== 'string' || copiedResponse.boom !== 400) {
+  if (
+    copiedResponse.bcrypt !== true ||
+    typeof copiedResponse.xxhash !== 'string' ||
+    copiedResponse.boom !== 400 ||
+    copiedResponse.pdf !== '%PDF'
+  ) {
     throw new Error(`Unexpected copied-dependency Lambda response: ${JSON.stringify(copiedResponse)}`);
   }
 
@@ -537,7 +558,7 @@ try {
   });
 
   console.log(
-    'Synthetic Node Lambda E2E passed: split/shared/dependency layers, copied native, napi-rs and scoped packages without Docker, better-sqlite3 installed in Docker for x64 and arm64, and Lambda Node 18-24 execution.'
+    'Synthetic Node Lambda E2E passed: split/shared/dependency layers, copied native, napi-rs, self-reading and scoped packages without Docker, better-sqlite3 installed in Docker for x64 and arm64, and Lambda Node 18-24 execution.'
   );
 } finally {
   await Promise.all([...containers].map((name) => run('docker', ['rm', '--force', name]).catch(() => undefined)));

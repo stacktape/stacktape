@@ -18,6 +18,7 @@ import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_OPTIONAL_PEER_DEPS } from './config';
 import { findInstalledPackage, readPackageManifest } from './installed-packages';
 import { getNativeReason } from './native-packages';
+import { readsOwnFilesAtRunTime } from './self-reading-packages';
 
 /** The package a specifier belongs to: `lodash/merge` is `lodash`, `@scope/pkg/sub` is `@scope/pkg`. */
 export const getModuleName = (importPath: string): string => {
@@ -111,6 +112,7 @@ const getExclusionNote = async ({
   if (nativeReason) return `native: ${nativeReason}`;
   if (dependenciesToExcludeFromBundle.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_USER';
   if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE';
+  if (await readsOwnFilesAtRunTime(dependency.path)) return 'reads its own files at run time';
   return undefined;
 };
 

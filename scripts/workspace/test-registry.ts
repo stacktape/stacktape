@@ -2596,6 +2596,7 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/es/native-dependencies.test.ts',
       'packages/packaging/src/es/project-root.test.ts',
       'packages/packaging/src/es/package-manager-install.test.ts',
+      'packages/packaging/src/es/self-reading-packages.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
@@ -4156,7 +4157,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/es/import-classification.test.ts',
       'packages/packaging/src/es/native-dependencies.test.ts',
       'packages/packaging/src/es/project-root.test.ts',
-      'packages/packaging/src/es/package-manager-install.test.ts'
+      'packages/packaging/src/es/package-manager-install.test.ts',
+      'packages/packaging/src/es/self-reading-packages.test.ts'
     ],
     lanes: [
       'node-lambda-offline',
