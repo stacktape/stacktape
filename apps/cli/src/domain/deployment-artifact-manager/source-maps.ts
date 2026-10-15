@@ -71,3 +71,19 @@ export const getSourceMapManifest = ({
   }
   return { functions };
 };
+
+/**
+ * The alias each function of `template` is invoked through, by function name. Such a function publishes a version
+ * for every code change, and its execution environments run that version's code, not `$LATEST`'s.
+ */
+export const getFunctionAliases = (template: CloudFormationTemplate): Record<string, string> => {
+  const aliases: Record<string, string> = {};
+  for (const resource of Object.values(template.Resources)) {
+    if (resource.Type !== 'AWS::Lambda::Alias') continue;
+    const { FunctionName, Name } = (resource.Properties ?? {}) as { FunctionName?: { Ref?: unknown }; Name?: unknown };
+    const target = typeof FunctionName?.Ref === 'string' ? template.Resources[FunctionName.Ref] : undefined;
+    const lambdaName = (target?.Properties as { FunctionName?: unknown } | undefined)?.FunctionName;
+    if (typeof lambdaName === 'string' && typeof Name === 'string') aliases[lambdaName] = Name;
+  }
+  return aliases;
+};

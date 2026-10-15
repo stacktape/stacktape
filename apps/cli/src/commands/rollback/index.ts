@@ -219,11 +219,13 @@ export const executeRollbackOperation = async ({
   try {
     await stack.deployStackForRollback(templateUrl);
     await deploymentArtifacts.tagRestoredFunctions();
-    await recordSourceMapActivation(sourceMapManifest);
     spinner.success({ text: `Stack rolled back to ${targetVersion} (deployed as ${newVersion})` });
   } catch (err) {
     spinner.error(`Rollback deployment failed`);
     throw err;
+  } finally {
+    // Records what the rollback switched, also when it failed partway. It never throws.
+    await recordSourceMapActivation(sourceMapManifest);
   }
 
   // Restore bucket-synced content if versioning manifests are available

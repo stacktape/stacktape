@@ -1,6 +1,7 @@
 import { pRateLimit } from 'p-ratelimit';
 import type { LambdaClient } from '@aws-sdk/client-lambda';
 import {
+  GetAliasCommand,
   GetFunctionCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
@@ -168,6 +169,13 @@ export class AwsLambda {
     );
     return this.#createClient()
       .send(new PublishVersionCommand({ FunctionName: lambdaResourceName }))
+      .catch(errorHandler);
+  };
+
+  getAlias = async ({ lambdaResourceName, aliasName }: { lambdaResourceName: string; aliasName: string }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to get alias ${aliasName} of function ${lambdaResourceName}.`);
+    return this.#createClient()
+      .send(new GetAliasCommand({ FunctionName: lambdaResourceName, Name: aliasName }))
       .catch(errorHandler);
   };
 

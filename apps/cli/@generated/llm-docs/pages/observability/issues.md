@@ -39,7 +39,7 @@ The Console has one organization-wide switch as well. Click **Settings** on the 
 
 ## What leaves your AWS account
 
-For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the time the function's execution environment started. Logs themselves stay in your account.
+For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. Logs themselves stay in your account.
 
 Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
 
@@ -49,7 +49,7 @@ During an error storm the detector reports each distinct error once per log batc
 
 A JavaScript or TypeScript function packaged with [`js-bundle`](/packaging/function/js-bundle) runs minified code, so the frames the runtime logs point into the bundle (`/var/task/index.js:1:4821`). Its source maps are not in the deployment package: each deployment stores them in the stack's deployment bucket and tells the Console which maps describe the code each function runs from when.
 
-When an issue is first seen, the Console reads the maps of the code that threw. It picks them by the time the failing execution environment started, so an error from an environment started before a later deployment gets the maps of its own code. It reads them through your connected account's role, limited for that session to the stack's source maps and the function's configuration and tags. The issue's detail page then shows the stack trace in your source files, with the original file, line and function.
+When an issue is first seen, the Console reads the maps of the code that threw. It picks them by the version the failing execution environment ran, or, for `$LATEST`, by the time the environment started, so an error from an environment started before a later deployment, or from a version an alias still routes traffic to, gets the maps of its own code. It reads them through your connected account's role, limited for that session to the stack's source maps and the function's configuration and tags. The issue's detail page then shows the stack trace in your source files, with the original file, line and function.
 
 The maps contain no source code. The Console stores the mapped file, line, column and function of each frame and keeps nothing else from the maps. Lambda logs in CloudWatch still show the bundled positions. To have Node.js map those as well, set [`keepSourceMapsInPackage`](/packaging/function/js-bundle#source-maps); the Console then shows the frames as Node.js logged them.
 

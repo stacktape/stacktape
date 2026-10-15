@@ -77,3 +77,32 @@ export const selectObsoleteArtifacts = <Artifact extends StoredArtifact>({
     return !keptVersions.includes(artifact.version);
   });
 };
+
+/**
+ * The obsolete artifacts a retained release still needs. A shared layer's key orders by content hash, not by age, so
+ * the window above can select a layer that a release kept for rollback still uses; deleting it would make that release
+ * impossible to restore and take its source maps with it. Such a layer stays while a retained template references it.
+ */
+export const keepLayersOfRetainedReleases = <Artifact extends { s3Key: string }>({
+  obsolete,
+  retainedTemplates,
+  deploymentBucketName
+}: {
+  obsolete: Artifact[];
+  retainedTemplates: { Resources?: Record<string, { Type?: string; Properties?: unknown }> }[];
+  deploymentBucketName: string;
+}): Artifact[] => {
+  const referenced = new Set(
+    retainedTemplates.flatMap(({ Resources = {} }) =>
+      Object.values(Resources).flatMap(({ Type, Properties }) => {
+        const content = (Properties as { Content?: { S3Bucket?: unknown; S3Key?: unknown } } | undefined)?.Content;
+        return Type === 'AWS::Lambda::LayerVersion' &&
+          content?.S3Bucket === deploymentBucketName &&
+          typeof content.S3Key === 'string'
+          ? [content.S3Key]
+          : [];
+      })
+    )
+  );
+  return obsolete.filter(({ s3Key }) => !referenced.has(s3Key));
+};

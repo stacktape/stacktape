@@ -44,7 +44,7 @@ import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
-import { selectObsoleteArtifacts, type StoredArtifact } from './retention';
+import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import { getSourceMapManifest, selectObsoleteSourceMapKeys, sourceMapKeyForArtifact } from './source-maps';
 import { SOURCE_MAP_KEY_PREFIX } from '@stacktape/console-api/source-maps';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
@@ -483,9 +483,31 @@ class DeploymentArtifactManager {
       }
     });
 
+  /** See `keepLayersOfRetainedReleases`. The retained templates are read only when a layer is about to go. */
+  #withoutLayersOfRetainedReleases = async <T extends { s3Key: string; name: string }>(obsolete: T[]) => {
+    const obsoleteLayers = obsolete.filter(({ name }) => name.startsWith('shared-layer-'));
+    if (!obsoleteLayers.length) return obsolete;
+    const deletedKeys = new Set(obsolete.map(({ s3Key }) => s3Key));
+    const retainedVersions = this.previousObjects
+      .filter(({ name, s3Key }) => name === CF_TEMPLATE_FILE_NAME_WITHOUT_EXT && !deletedKeys.has(s3Key))
+      .map(({ version }) => version);
+    try {
+      const retainedTemplates = await Promise.all(retainedVersions.map((version) => this.getTemplate({ version })));
+      return keepLayersOfRetainedReleases({
+        obsolete,
+        retainedTemplates,
+        deploymentBucketName: this.deploymentBucketName
+      });
+    } catch (error) {
+      // Without the releases' templates there is no telling which layers they need, so none is deleted this time.
+      tuiManager.debug(`Kept every shared layer: a retained release's template could not be read (${error}).`);
+      return obsolete.filter((artifact) => !obsoleteLayers.includes(artifact));
+    }
+  };
+
   deleteAllObsoleteArtifacts = async () => {
     const obsoleteImages = this.getObsoleteItems(this.previousImages);
-    const obsoleteObjects = this.getObsoleteItems(this.previousObjects);
+    const obsoleteObjects = await this.#withoutLayersOfRetainedReleases(this.getObsoleteItems(this.previousObjects));
     const deletedKeys = new Set(obsoleteObjects.map(({ s3Key }) => s3Key));
     const obsoleteSourceMapKeys = selectObsoleteSourceMapKeys({
       storedKeys: this.#storedSourceMapKeys,

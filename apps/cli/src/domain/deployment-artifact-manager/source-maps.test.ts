@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
-import { getSourceMapManifest, selectObsoleteSourceMapKeys, sourceMapKeyForArtifact } from './source-maps';
+import {
+  getFunctionAliases,
+  getSourceMapManifest,
+  selectObsoleteSourceMapKeys,
+  sourceMapKeyForArtifact
+} from './source-maps';
 
 const bucket = 'stp-deployment-bucket-abc123';
 const lambda = (name: string, s3Key: string, layers: unknown[] = [], bucketName = bucket) => ({
@@ -83,5 +88,26 @@ describe('which stored maps a deployment deletes', () => {
       'source-maps/shared-layer-1/h1.json',
       'source-maps/removed-function/d9.json'
     ]);
+  });
+});
+
+describe('which functions run published versions', () => {
+  test('a function behind an alias is found by the alias that references it', () => {
+    const template = {
+      Resources: {
+        ApiFunction: lambda('shop-dev-api', 'api/v000003-d1.zip'),
+        WorkerFunction: lambda('shop-dev-worker', 'worker/v000003-d2.zip'),
+        ApiStpAlias: {
+          Type: 'AWS::Lambda::Alias',
+          Properties: {
+            FunctionName: { Ref: 'ApiFunction' },
+            FunctionVersion: { 'Fn::GetAtt': ['ApiVersionPublisher', 'version'] },
+            Name: 'stp-alias'
+          }
+        }
+      }
+    } as unknown as CloudFormationTemplate;
+
+    expect(getFunctionAliases(template)).toEqual({ 'shop-dev-api': 'stp-alias' });
   });
 });

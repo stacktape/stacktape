@@ -3,7 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import { GetFunctionConfigurationCommand, InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import {
+  DeleteFunctionCommand,
+  GetFunctionConfigurationCommand,
+  InvokeCommand,
+  LambdaClient,
+  ListTagsCommand
+} from '@aws-sdk/client-lambda';
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { SourceMapManifest } from '@stacktape/console-api/source-maps';
 import { sourceMapBundleSchema } from '@stacktape/console-api/source-maps';
@@ -180,6 +186,76 @@ test('code-only deploys update functions directly, record a release and roll bac
     expect(full.changeSummary).toBeDefined();
     expect(await deployedVersion()).toBe('v000008');
     expect(await invoke(functionName)).toBe('second');
+  } finally {
+    try {
+      if (deployed) {
+        const deleted = await runSourceCli({ project, step: 'delete', ministack });
+        expect(deleted.exitCode, deleted.tail).toBe(0);
+      }
+    } finally {
+      await project.close();
+      await ministack.stop();
+      await rm(out, { recursive: true, force: true });
+    }
+  }
+});
+
+// A fast deployment that fails partway has still switched some functions; their errors need the new maps.
+test('a fast deployment that fails partway records the functions it switched', async () => {
+  const out = await mkdtemp(join(tmpdir(), 'stp-fast-deploy-partial-'));
+  const ministack = await startMiniStack({ label: 'fast-deploy-partial' });
+  const lambda = new LambdaClient(ministack.clientConfig());
+  const cloudFormation = new CloudFormationClient(ministack.clientConfig());
+  const project = await createFamilyProject({ familyName: 'fast-deploy-partial', out, ministack });
+  const twoFunctions = {
+    resources: Object.fromEntries(
+      ['api', 'worker'].map((name) => [
+        name,
+        {
+          type: 'function',
+          properties: { packaging: { type: 'js-bundle', properties: { entryfilePath: `${name}.ts` } } }
+        }
+      ])
+    )
+  };
+  let deployed = false;
+  try {
+    await writeProjectFiles(project, {
+      'stacktape.yml': twoFunctions,
+      'api.ts': handler('api-first'),
+      'worker.ts': handler('worker-first')
+    });
+    const created = await runSourceCli({ project, step: 'create', ministack });
+    expect(created.exitCode, created.tail).toBe(0);
+    deployed = true;
+    const resources = (await describeStackResources(cloudFormation, project.stackName))!;
+    const physical = (logicalId: string) =>
+      resources.find(({ LogicalResourceId }) => LogicalResourceId === logicalId)!.PhysicalResourceId!;
+
+    // Both functions change; the worker disappears behind the deployment's back, so its direct update fails.
+    await writeProjectFiles(project, { 'api.ts': handler('api-second'), 'worker.ts': handler('worker-second') });
+    await lambda.send(new DeleteFunctionCommand({ FunctionName: physical('WorkerFunction') }));
+    const failed = await runSourceCli({ project, step: 'update', ministack });
+    expect(failed.exitCode, failed.tail).not.toBe(0);
+
+    const [recordedBefore, recordedAfter] = project.controlPlane.calls
+      .filter(({ procedure }) => procedure === 'recordStackOperation')
+      .map(({ input }) => (input as { sourceMaps?: SourceMapManifest }).sourceMaps)
+      .filter((manifest): manifest is SourceMapManifest => Boolean(manifest))
+      .slice(-2);
+    const entry = (manifest: SourceMapManifest | undefined, lambdaName: string) =>
+      manifest?.functions.find((candidate) => candidate.lambdaName === lambdaName);
+    const { Tags } = await lambda.send(
+      new ListTagsCommand({
+        Resource: (await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: physical('ApiFunction') })))
+          .FunctionArn!
+      })
+    );
+    // The pre-switch record names the new code; the one after the failure dates the api switch and only that.
+    expect(entry(recordedBefore, physical('ApiFunction'))?.activeSince).toBeUndefined();
+    expect(entry(recordedAfter, physical('ApiFunction'))).toMatchObject({ digest: Tags!['stp:code-digest'] });
+    expect(entry(recordedAfter, physical('ApiFunction'))?.activeSince).toBeGreaterThan(0);
+    expect(entry(recordedAfter, physical('WorkerFunction'))?.activeSince).toBeUndefined();
   } finally {
     try {
       if (deployed) {

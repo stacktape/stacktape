@@ -32,7 +32,12 @@ export const sourceMapManifestSchema = z.object({
          * When Lambda started running this code (the function's `LastModified` once the deployment finished), in epoch
          * milliseconds. Absent while the deployment is still switching the code.
          */
-        activeSince: z.number().int().positive().optional()
+        activeSince: z.number().int().positive().optional(),
+        /**
+         * The published version that runs this code, for a function invoked through an alias. An execution environment
+         * of a published version runs that version's code whatever `$LATEST` runs, so its errors use these maps.
+         */
+        version: z.string().regex(/^\d+$/).optional()
       })
     )
     .max(2000)

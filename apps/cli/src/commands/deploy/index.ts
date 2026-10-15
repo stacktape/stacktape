@@ -395,14 +395,18 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
-  if (fastDeployPlan) {
-    await performFastDeploy({ plan: fastDeployPlan, recordRelease: createsRelease, deploymentArtifacts, progress });
-  } else {
-    await performFullDeploy({ deploymentArtifacts, stack, tui });
+  try {
+    if (fastDeployPlan) {
+      await performFastDeploy({ plan: fastDeployPlan, recordRelease: createsRelease, deploymentArtifacts, progress });
+    } else {
+      await performFullDeploy({ deploymentArtifacts, stack, tui });
+    }
+  } finally {
+    // Also after a failure: functions a partial deployment switched still need their maps. It never throws.
+    await recordSourceMapActivation(sourceMapManifest);
   }
 
   progress.setPhase('POST_DEPLOY');
-  await recordSourceMapActivation(sourceMapManifest);
 
   // A fast deployment leaves the stack unchanged.
   if (!fastDeployPlan) {
