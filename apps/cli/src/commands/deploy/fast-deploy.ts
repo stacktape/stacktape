@@ -45,9 +45,10 @@ export const planFastDeploy = async ({
  */
 export const performFastDeploy = async ({
   plan,
+  recordRelease,
   deploymentArtifacts,
   progress
-}: { plan: FastDeployPlan } & Pick<DeployOperation, 'deploymentArtifacts' | 'progress'>) => {
+}: { plan: FastDeployPlan; recordRelease: boolean } & Pick<DeployOperation, 'deploymentArtifacts' | 'progress'>) => {
   const workloadCount = plan.functions.length + plan.services.length;
   await progress.startEvent({ eventType: 'HOTSWAP_UPDATE', description: 'Updating code directly' });
   const updates = [
@@ -70,7 +71,7 @@ export const performFastDeploy = async ({
       ]
     );
   }
-  if (workloadCount) {
+  if (recordRelease) {
     await deploymentArtifacts.recordFastRelease();
     await deploymentArtifacts.deleteAllObsoleteArtifacts();
   }

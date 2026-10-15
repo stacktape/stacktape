@@ -282,8 +282,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       }
     }
   }
-  // A fast deployment that changes nothing creates no release.
-  const createsRelease = !fastDeployPlan || fastDeployPlan.functions.length + fastDeployPlan.services.length > 0;
+  // A fast deployment that changes nothing creates no release. Synced bucket content may have changed, and its restore
+  // manifest belongs to a release of its own.
+  const createsRelease =
+    !fastDeployPlan ||
+    fastDeployPlan.functions.length + fastDeployPlan.services.length > 0 ||
+    config.allBucketsToSync.length > 0;
   const releaseVersion = createsRelease ? stack.nextVersion : stack.lastVersion;
 
   let changePlan: DeploymentChangePlanV1 | undefined;
@@ -389,7 +393,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   progress.setPhase('DEPLOY');
   if (fastDeployPlan) {
-    await performFastDeploy({ plan: fastDeployPlan, deploymentArtifacts, progress });
+    await performFastDeploy({ plan: fastDeployPlan, recordRelease: createsRelease, deploymentArtifacts, progress });
   } else {
     await performFullDeploy({ deploymentArtifacts, stack, tui });
   }

@@ -193,7 +193,7 @@ describe('offline deploy loop against MiniStack', () => {
                 assert.match(partial.tail, /Could not restore bucket-synced content/);
                 assert.match(
                   await getStackTemplate(cloudFormation, project.stackName),
-                  /StpDeploymentVersion:\s*\n\s*Value: v000003/
+                  /StpDeploymentVersion:\s*\n\s*Value: v000004/
                 );
                 const functionName = lookups(previous).physical('HandlerFunction');
                 assert.equal(
@@ -244,13 +244,13 @@ describe('offline deploy loop against MiniStack', () => {
               proposed.resources.queue.properties.fifoEnabled = true;
               await writeProjectFiles(project, { 'stacktape.yml': proposed });
             }
-            // The unchanged redeploy creates no release. The final rollback counts back from v000003 (the partial rollback
-            // below) to v000001.
+            // The unchanged redeploy still records a release because the stack syncs bucket content. The final rollback
+            // counts back from v000004 (the partial rollback below) to v000001.
             const result = await runSourceCli({
               project,
               step,
               ministack,
-              ...(step === 'rollback' ? { rollbackTarget: ['--rollbackSteps', '2'] } : {})
+              ...(step === 'rollback' ? { rollbackTarget: ['--rollbackSteps', '3'] } : {})
             });
             const checks: string[] = [];
             familyReport.steps.push({ step, ms: result.ms, checks });
@@ -307,9 +307,9 @@ describe('offline deploy loop against MiniStack', () => {
               checks.push('diff leaves the deployed template and resources untouched');
             }
             if (step === 'rollback') {
-              assert.match(template, /StpDeploymentVersion:\s*\n\s*Value: v000004/, 'rollback records a new version');
+              assert.match(template, /StpDeploymentVersion:\s*\n\s*Value: v000005/, 'rollback records a new version');
               checks.push(
-                'content restore failure warns after a successful v000003 rollback; retry restores v000001 as v000004'
+                'content restore failure warns after a successful v000004 rollback; retry restores v000001 as v000005'
               );
             }
             if (step === 'unchanged') {
