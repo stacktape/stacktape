@@ -144,6 +144,13 @@ export const updateFunctionCode = async ({
     });
   }
 
+  // The digest tag tells the next deployment which build the function runs. It says "updating" until the update is
+  // confirmed, so an update whose final tag write fails is never mistaken for the previous build.
+  const { FunctionArn: functionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName });
+  await awsSdkManager.lambda.tagFunction({
+    lambdaArn: functionArn,
+    tags: [{ key: tagNames.codeDigest(), value: 'updating' }]
+  });
   const { FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
     lambdaResourceName,
     artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),

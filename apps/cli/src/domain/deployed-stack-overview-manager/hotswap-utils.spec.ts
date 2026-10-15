@@ -39,6 +39,19 @@ describe('task definitions', () => {
     ).toBe(fast);
   });
 
+  test('an external image replaced by a built one, or an image given as a CloudFormation function', () => {
+    expect(
+      isImageOnlyTaskDefinitionChange(
+        change(definition([container('nginx:1.27')]), definition([container('repo:v2')])),
+        isBuiltImage
+      )
+    ).toBe(false);
+    const intrinsic = { ...container('x'), Image: { 'Fn::Join': ['', ['repo:', 'v2']] } };
+    expect(
+      isImageOnlyTaskDefinitionChange(change(definition([container('repo:v1')]), definition([intrinsic])), isBuiltImage)
+    ).toBe(false);
+  });
+
   test('a new memory size or dependency', () => {
     const before = definition([container('repo:v1')]);
     const after = definition([container('repo:v2')]);

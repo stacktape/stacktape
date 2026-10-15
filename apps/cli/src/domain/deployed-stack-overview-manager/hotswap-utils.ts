@@ -25,21 +25,31 @@ const differsOnlyIn = (change: ResourceDifference, strip: (properties: Propertie
 
 /**
  * A task definition can be updated directly when only the images of its containers changed, and each changed image
- * was built by Stacktape. A rollback restores built images by their tags; an external image could not be restored.
+ * was built by Stacktape before and after. A rollback restores built images by their tags; it could not force the
+ * restoration of an external image.
  */
 export const isImageOnlyTaskDefinitionChange = (
   change: ResourceDifference,
   isBuiltImage: (image: string) => boolean
 ) => {
-  const imagesOf = (properties: Properties): string[] =>
-    (properties.ContainerDefinitions ?? []).map(({ Image }: { Image: string }) => Image);
-  const { before, after } = propertiesOf(change);
-  const changedImages = imagesOf(after).filter((image, index) => image !== imagesOf(before)[index]);
+  const imagesOf = (properties: Properties): unknown[] =>
+    (properties.ContainerDefinitions ?? []).map(({ Image }: { Image: unknown }) => Image);
+  const before = imagesOf(propertiesOf(change).before);
+  const changedImagesAreBuilt = imagesOf(propertiesOf(change).after).every(
+    (image, index) =>
+      isEqual(image, before[index]) ||
+      // An image given as a CloudFormation function cannot be classified here.
+      (typeof image === 'string' &&
+        typeof before[index] === 'string' &&
+        isBuiltImage(image) &&
+        isBuiltImage(before[index]))
+  );
   return (
+    changedImagesAreBuilt &&
     differsOnlyIn(change, (properties) => ({
       ...properties,
       ContainerDefinitions: (properties.ContainerDefinitions ?? []).map(({ Image: _image, ...container }) => container)
-    })) && changedImages.every(isBuiltImage)
+    }))
   );
 };
 

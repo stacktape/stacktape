@@ -533,10 +533,14 @@ class StackManager {
     if (!!desired.EnableTerminationProtection !== !!current.EnableTerminationProtection) {
       return 'termination protection changed';
     }
-    if (!isEqual((desired.NotificationARNs ?? []).toSorted(), (current.NotificationARNs ?? []).toSorted())) {
+    // UpdateStack keeps the notification targets and the role when the request omits them.
+    if (
+      desired.NotificationARNs &&
+      !isEqual(desired.NotificationARNs.toSorted(), (current.NotificationARNs ?? []).toSorted())
+    ) {
       return 'the stack notification targets changed';
     }
-    if ((desired.RoleARN ?? null) !== (current.RoleARN ?? null)) return 'the CloudFormation role changed';
+    if (desired.RoleARN && desired.RoleARN !== current.RoleARN) return 'the CloudFormation role changed';
     const rollbackSettings = ({ MonitoringTimeInMinutes = 0, RollbackTriggers = [] }: RollbackConfiguration = {}) => ({
       MonitoringTimeInMinutes,
       triggers: RollbackTriggers.map(({ Arn }) => Arn).toSorted()

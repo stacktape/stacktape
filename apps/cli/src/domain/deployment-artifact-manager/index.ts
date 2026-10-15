@@ -558,14 +558,13 @@ class DeploymentArtifactManager {
   };
 
   /**
-   * Stores the templates of a successful fast deployment and marks it as a release that `rollback` can restore. The
-   * marker write fails if another deployment created the same release meanwhile.
+   * Marks a successful fast deployment as a release and stores its templates, so `rollback` can restore it. Fails if
+   * another deployment created the same release meanwhile.
    */
   recordFastRelease = async () => {
     const version = stackManager.nextVersion;
-    await this.uploadCloudFormationTemplate();
-    await this.uploadStacktapeTemplate();
     const markerKey = `${FAST_RELEASE_MARKER_NAME}/${version}.json`;
+    // The marker is written first and only if missing, so a deployment that lost the race overwrites nothing.
     try {
       await awsSdkManager.s3.putObject({
         bucketName: this.deploymentBucketName,
@@ -582,6 +581,13 @@ class DeploymentArtifactManager {
           'Deploy again to make sure every function and service runs the code you expect.'
         );
       }
+      throw err;
+    }
+    try {
+      await this.uploadCloudFormationTemplate();
+      await this.uploadStacktapeTemplate();
+    } catch (err) {
+      await this.deleteObjectsFromDeploymentBucket([markerKey]).catch(() => {});
       throw err;
     }
     this.successfullyCreatedObjects.push({ s3Key: markerKey, name: FAST_RELEASE_MARKER_NAME });
