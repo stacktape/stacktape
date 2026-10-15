@@ -98,14 +98,16 @@ const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalancerList
   //   );
   // } else
   if (listenerConfig.defaultAction.type === 'redirect') {
+    const { port, protocol } = listenerConfig.defaultAction.properties;
     actions.push({
       Type: 'redirect',
       Order: order++,
       RedirectConfig: {
         Path: listenerConfig.defaultAction.properties.path,
         Host: listenerConfig.defaultAction.properties.host,
-        Port: listenerConfig.defaultAction.properties.port && String(listenerConfig.defaultAction.properties.port),
-        Protocol: listenerConfig.defaultAction.properties.protocol,
+        // Without a port, the load balancer keeps the request's port, so http://host/ became https://host:80/.
+        Port: port ? String(port) : protocol === 'HTTPS' ? '443' : undefined,
+        Protocol: protocol,
         Query: listenerConfig.defaultAction.properties.query,
         StatusCode: listenerConfig.defaultAction.properties.statusCode
       }
