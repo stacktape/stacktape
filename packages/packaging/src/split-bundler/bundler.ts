@@ -21,6 +21,7 @@ import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
 import { IGNORED_MODULES } from '../es/config';
+import { getProductionDependencies } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
 import {
@@ -124,6 +125,7 @@ export const buildSplitBundle = async ({
   const { lambdaOutputs, chunkUsageMap } = await processLambdaOutputsWithMetafile({
     entrypoints,
     cwd,
+    projectRoot: monorepoRoot || cwd,
     metafile,
     tracker,
     assetFiles,
@@ -763,6 +765,7 @@ const createAssetAttribution = async (assetFiles: string[], javascriptFiles: str
 const processLambdaOutputsWithMetafile = async ({
   entrypoints,
   cwd,
+  projectRoot,
   metafile,
   tracker,
   assetFiles,
@@ -772,6 +775,8 @@ const processLambdaOutputsWithMetafile = async ({
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   cwd: string;
+  /** The project the functions belong to, whose manifests say what it depends on in production. */
+  projectRoot: string;
   metafile: BuildMetafile;
   tracker: DependencyTracker;
   assetFiles: string[];
@@ -868,6 +873,13 @@ const processLambdaOutputsWithMetafile = async ({
         });
       }
 
+      const sourceFiles = Array.from(inputPaths)
+        .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
+        .map((path) => ({ path }));
+      const productionDependencies = await getProductionDependencies({
+        projectRoot,
+        sourcePaths: sourceFiles.map(({ path }) => canonicalizeEntrypointPath(path))
+      });
       lambdaOutputs.set(entrypoint.name, {
         name: entrypoint.name,
         entryFile: join(entrypoint.distFolderPath, 'index.js'),
@@ -876,10 +888,11 @@ const processLambdaOutputsWithMetafile = async ({
           ...Array.from(absoluteChunkPaths, (path) => join(entrypoint.distFolderPath, 'chunks', basename(path))),
           ...lambdaAssetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
         ],
-        sourceFiles: Array.from(inputPaths)
-          .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
-          .map((path) => ({ path })),
-        externalDependencies: getTrackedDependenciesForInputs(tracker, inputPaths),
+        sourceFiles,
+        externalDependencies: getTrackedDependenciesForInputs(tracker, inputPaths).filter(
+          (dependency) => !dependency.optionalPeer || productionDependencies.has(dependency.name)
+        ),
+        productionDependencies: [...productionDependencies].toSorted(),
         resolvedModules: getTrackedModulesForInputs(tracker, inputPaths)
       });
     })

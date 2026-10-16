@@ -11,7 +11,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
 import { lstat, open, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
@@ -67,81 +67,74 @@ export const getRuntimeDependencyNames = (manifest: PackageManifest) =>
     ...Object.keys(manifest.peerDependencies ?? {})
   ]);
 
-/** Whether a package is a build for one platform, as napi-rs and esbuild publish their binaries. */
-export const declaresPlatform = (manifest: PackageManifest) =>
-  Boolean(manifest.os?.length || manifest.cpu?.length || manifest.libc?.length);
-
-/** Whether `manifest` lets its package run without `name`: an optional dependency, or an optional peer. */
-const isOptionalDependency = (manifest: PackageManifest, name: string) => {
-  if (Object.hasOwn(manifest.optionalDependencies ?? {}, name)) return true;
-  if (Object.hasOwn(manifest.dependencies ?? {}, name)) return false;
+/** Whether `name` is only an optional peer of the package: listed as an optional peer and not as a dependency. */
+export const isOptionalPeer = (manifest: PackageManifest, name: string) => {
+  if (Object.hasOwn(manifest.dependencies ?? {}, name) || Object.hasOwn(manifest.optionalDependencies ?? {}, name)) {
+    return false;
+  }
   const meta = manifest.peerDependenciesMeta?.[name];
   return typeof meta === 'object' && meta !== null && (meta as { optional?: unknown }).optional === true;
 };
 
-const SCRIPT_EXTENSIONS = new Set(['.js', '.cjs', '.mjs']);
-
-/** The package's scripts, outside its own `node_modules`. */
-const listScripts = async (directory: string): Promise<string[]> => {
-  const entries: Dirent[] = await readdir(directory, { withFileTypes: true }).catch(() => []);
-  const scripts = await Promise.all(
-    entries.map(async (entry) => {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : listScripts(path);
-      return entry.isFile() && SCRIPT_EXTENSIONS.has(extname(entry.name)) ? [path] : [];
-    })
-  );
-  return scripts.flat();
-};
-
-const mentions = new Map<string, Promise<boolean>>();
-
 /**
- * Whether the package's code names `name` as a module: `'name'` or `'name/...'`, in any quotes, in one of its scripts.
- * Code that loads a package names it, also where a bundler cannot follow the `require`: Sequelize passes `'sqlite3'`
- * to a `require(moduleName)`.
+ * Whether a production install gives a package its installed dependency `name`. npm, pnpm, Yarn and Bun install
+ * dependencies, optional dependencies (for the platform) and required peers, but never an optional peer on its own:
+ * it is installed only when the project depends on it in production (`getProductionDependencies`) or another
+ * installed package requires it. Prisma lists TypeScript as an optional peer; a project that has TypeScript only in
+ * `devDependencies` has none in production.
  */
-const namesModule = (packageRoot: string, name: string): Promise<boolean> => {
-  const key = `${packageRoot}\0${name}`;
-  let result = mentions.get(key);
-  if (!result) {
-    result = (async () => {
-      const needles = ['"', "'", '`'].flatMap((quote) => [
-        Buffer.from(`${quote}${name}${quote}`),
-        Buffer.from(`${quote}${name}/`)
-      ]);
-      const scripts = await listScripts(packageRoot);
-      // Read a batch at a time: in parallel, but without opening thousands of files at once.
-      for (let start = 0; start < scripts.length; start += 64) {
-        const contents = await Promise.all(
-          scripts.slice(start, start + 64).map((path) => readFile(path).catch(() => Buffer.alloc(0)))
-        );
-        if (contents.some((script) => needles.some((needle) => script.includes(needle)))) return true;
-      }
-      return false;
-    })();
-    mentions.set(key, result);
-  }
-  return result;
-};
-
-/**
- * Whether the package at `packageRoot` can load its installed dependency `name`. A dependency or peer it requires can.
- * An optional one can when it is a build for one platform, which the package loads by a name it puts together for
- * the machine it runs on, or when the package's code names it. Nothing loads an optional one that no code names:
- * Prisma lists TypeScript as an optional peer, and none of `@prisma/client`'s code requires it.
- */
-export const mayLoadDependency = async ({
-  packageRoot,
+const isInstalledInProduction = ({
   manifest,
   name,
-  dependencyManifest
+  productionDependencies
 }: {
-  packageRoot: string;
   manifest: PackageManifest;
   name: string;
-  dependencyManifest: PackageManifest;
-}) => !isOptionalDependency(manifest, name) || declaresPlatform(dependencyManifest) || namesModule(packageRoot, name);
+  productionDependencies: ReadonlySet<string>;
+}) => !isOptionalPeer(manifest, name) || productionDependencies.has(name);
+
+/** The real path, or the resolved one when there is none; a path may reach the project through a link. */
+const toRealPath = (path: string) => realpath(path).catch(() => resolve(path));
+
+/**
+ * The packages the project depends on in production: the `dependencies` and `optionalDependencies` of its root
+ * `package.json` and of the project's own package (outside `node_modules`) that each of `sourcePaths` belongs to,
+ * such as the workspace packages a function's code comes from. npm, pnpm, Yarn and Bun all record development-only
+ * packages in `devDependencies` and leave them out of a production install. The manifests are read on every call,
+ * because they can change between two builds in one process.
+ */
+export const getProductionDependencies = async ({
+  projectRoot,
+  sourcePaths
+}: {
+  projectRoot: string;
+  sourcePaths: string[];
+}): Promise<Set<string>> => {
+  const root = await toRealPath(projectRoot);
+  const findPackageRoot = async (directory: string): Promise<string | undefined> => {
+    if (await pathExists(join(directory, 'package.json'))) return directory;
+    const parent = dirname(directory);
+    return parent === directory || !isInside(root, parent) ? undefined : findPackageRoot(parent);
+  };
+  const sourceDirectories = await Promise.all(
+    [...new Set(sourcePaths.map((path) => dirname(resolve(path))))].map(toRealPath)
+  );
+  const ownSourceDirectories = sourceDirectories.filter(
+    (directory) => isInside(root, directory) && !relative(root, directory).split(sep).includes('node_modules')
+  );
+  const packageRoots = new Set([root]);
+  for (const packageRoot of await Promise.all([...new Set(ownSourceDirectories)].map(findPackageRoot))) {
+    if (packageRoot) packageRoots.add(packageRoot);
+  }
+  const projectManifests: PackageManifest[] = await Promise.all(
+    [...packageRoots].map((packageRoot) => readJson(join(packageRoot, 'package.json')).catch(() => ({})))
+  );
+  return new Set(
+    projectManifests.flatMap(({ dependencies = {}, optionalDependencies = {} }) =>
+      Object.keys(dependencies).concat(Object.keys(optionalDependencies))
+    )
+  );
+};
 
 /**
  * The real directory Node.js would load `name` from when a module in `fromDirectory` requires it: the nearest
@@ -169,18 +162,21 @@ export const findInstalledPackage = async ({
 /**
  * Adds the packages `start` loads at run time to `packages`, following each package's dependencies from where it is
  * installed. A dependency that is not installed is skipped: optional dependencies and peers often are not, and a
- * missing required one already fails where it is imported. An installed optional one is followed only when the package
- * may load it (`mayLoadDependency`). `accept` can leave out installed dependencies by the name they are required
- * under or by their manifest, such as excluded packages and the binaries of other platforms.
+ * missing required one already fails where it is imported. An optional peer is followed only when a production install
+ * gives it to the package (`isInstalledInProduction`). `accept` can leave out installed dependencies by the name they
+ * are required under or by their manifest, such as excluded packages and the binaries of other platforms.
  */
 export const addRuntimeDependencies = async ({
   packages,
   start,
+  productionDependencies,
   accept = () => true,
   stopAt
 }: {
   packages: Map<string, InstalledPackage>;
   start: string[];
+  /** What the project depends on in production (`getProductionDependencies`). */
+  productionDependencies: ReadonlySet<string>;
   accept?: ((name: string, manifest: PackageManifest) => boolean) | undefined;
   stopAt?: ((root: string) => string | undefined) | undefined;
 }) => {
@@ -197,11 +193,9 @@ export const addRuntimeDependencies = async ({
     };
     packages.set(root, installedPackage);
     for (const name of getRuntimeDependencyNames(manifest)) {
+      if (!isInstalledInProduction({ manifest, name, productionDependencies })) continue;
       const dependencyRoot = await findInstalledPackage({ name, fromDirectory: root, stopAt: stopAt?.(root) });
-      if (!dependencyRoot) continue;
-      const dependencyManifest = await readPackageManifest(dependencyRoot);
-      if (!accept(name, dependencyManifest)) continue;
-      if (!(await mayLoadDependency({ packageRoot: root, manifest, name, dependencyManifest }))) continue;
+      if (!dependencyRoot || !accept(name, await readPackageManifest(dependencyRoot))) continue;
       installedPackage.dependencies.set(name, dependencyRoot);
       pending.push(dependencyRoot);
     }

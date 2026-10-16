@@ -262,13 +262,40 @@ const nativePackage = (name: string, fields: Record<string, unknown> = {}, code 
   [`node_modules/${name}/prebuilds/linux-arm64/addon.node`]: 'addon'
 });
 
+const projectManifest = (fields: Record<string, unknown>) =>
+  JSON.stringify({ name: 'lambda-package-fixture', private: true, ...fields });
+
+/** Copies the function's artifact out of the project, where only its own `node_modules` can be found, as on Lambda. */
+const copyArtifact = async (cwd: string) => {
+  const artifact = await mkdtemp(join(tmpdir(), 'stacktape-es-artifact-'));
+  temporaryDirectories.push(artifact);
+  await cp(join(cwd, '.stacktape', 'dist'), artifact, { recursive: true, verbatimSymlinks: true });
+  return { artifact, installed: join(artifact, 'node_modules', '.installed', 'node_modules') };
+};
+
+const runHandler = (artifact: string) => {
+  const url = JSON.stringify(pathToFileURL(join(artifact, 'index.js')).href);
+  return runNode(
+    `const { default: handler } = await import(${url}); console.log(JSON.stringify(await handler()));`,
+    artifact
+  );
+};
+
+/**
+ * The rule follows a production install (`npm install --omit=dev`): dependencies, optional dependencies and required
+ * peers, and an optional peer only when the project depends on it in production.
+ */
 describe('packages a Lambda gets beside its bundle', () => {
-  test('are the native packages its code loads, without optional packages that no code names', async () => {
+  test('are what a production install gives the code, without optional peers the project only develops with', async () => {
     const cwd = await createProject({
+      'package.json': projectManifest({
+        dependencies: { orm: '*', pdf: '*', 'sqlite-driver': '*' },
+        devDependencies: { typescript: '*' }
+      }),
       'handler.ts':
         "import { query } from 'orm'; import { render } from 'pdf'; export default async () => [query(), render()];",
       // Bundled. It loads its database driver through a require the bundler cannot follow, as Sequelize does, and
-      // lists TypeScript as an optional peer it never loads, as Prisma does.
+      // lists TypeScript as an optional peer, as Prisma does.
       'node_modules/orm/package.json': manifest('orm', {
         peerDependencies: { 'sqlite-driver': '*', typescript: '*' },
         peerDependenciesMeta: { 'sqlite-driver': { optional: true }, typescript: { optional: true } }
@@ -278,18 +305,16 @@ describe('packages a Lambda gets beside its bundle', () => {
       ...nativePackage('sqlite-driver'),
       // TypeScript 7 is native: it loads a compiler binary from a platform package.
       ...nativePackage('typescript'),
-      // Left out of the bundle. It requires one of its optional dependencies when installed; nothing names the other.
+      // Left out of the bundle. npm installs its optional dependencies, whether or not its code names them.
       ...nativePackage(
         'pdf',
-        { dependencies: { fonts: '*' }, optionalDependencies: { 'fast-zlib': '*', 'pdf-dev-tools': '*' } },
-        "let zlib; try { zlib = require('fast-zlib'); } catch {} exports.render = () => [require('fonts').name, zlib?.name];"
+        { dependencies: { fonts: '*' }, optionalDependencies: { 'fast-zlib': '*' } },
+        "let zlib; try { zlib = require('fast-' + 'zlib'); } catch {} exports.render = () => [require('fonts').name, zlib?.name];"
       ),
       'node_modules/fonts/package.json': manifest('fonts'),
       'node_modules/fonts/index.js': "exports.name = 'fonts';",
       'node_modules/fast-zlib/package.json': manifest('fast-zlib'),
       'node_modules/fast-zlib/index.js': "exports.name = 'fast-zlib';",
-      'node_modules/pdf-dev-tools/package.json': manifest('pdf-dev-tools'),
-      'node_modules/pdf-dev-tools/index.js': "exports.name = 'pdf-dev-tools';",
       // Yarn's own state, which pdfkit publishes by mistake.
       'node_modules/pdf/.yarn/releases/yarn-4.cjs': '// Yarn',
       'node_modules/pdf/.yarn/install-state.gz': 'state'
@@ -301,21 +326,70 @@ describe('packages a Lambda gets beside its bundle', () => {
       'pdf',
       'sqlite-driver'
     ]);
-    // Run outside the project, where only the artifact's own node_modules can be found, as on Lambda.
-    const artifact = await mkdtemp(join(tmpdir(), 'stacktape-es-artifact-'));
-    temporaryDirectories.push(artifact);
-    await cp(join(cwd, '.stacktape', 'dist'), artifact, { recursive: true, verbatimSymlinks: true });
-    const installed = join(artifact, 'node_modules', '.installed', 'node_modules');
-    expect(['typescript', 'pdf-dev-tools', 'pdf/.yarn'].filter((path) => existsSync(join(installed, path)))).toEqual(
-      []
-    );
-    const url = JSON.stringify(pathToFileURL(join(artifact, 'index.js')).href);
-    const execution = runNode(
-      `const { default: handler } = await import(${url}); console.log(JSON.stringify(await handler()));`,
-      artifact
-    );
+    const { artifact, installed } = await copyArtifact(cwd);
+    expect(['typescript', 'pdf/.yarn'].filter((path) => existsSync(join(installed, path)))).toEqual([]);
+    const execution = runHandler(artifact);
     expect(execution.status, execution.stderr).toBe(0);
     expect(JSON.parse(execution.stdout)).toEqual(['sqlite-driver', ['fonts', 'fast-zlib']]);
+  });
+
+  test('include an optional peer that a left-out package loads by a name no code spells out, once the project depends on it', async () => {
+    // @swc/core has this shape: with `externalHelpers`, code its native compiler emits imports `@swc/helpers`, an
+    // optional peer that the project installs when it relies on it.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { '@swc/core': '*' } }),
+      'handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
+      ...nativePackage(
+        '@swc/core',
+        { peerDependencies: { '@swc/helpers': '*' }, peerDependenciesMeta: { '@swc/helpers': { optional: true } } },
+        "exports.compile = () => require(['@swc', 'helpers', '_', '_class_call_check'].join('/')).name;"
+      ),
+      'node_modules/@swc/helpers/package.json': manifest('@swc/helpers'),
+      'node_modules/@swc/helpers/_/_class_call_check.js': "exports.name = '_class_call_check';"
+    });
+
+    // Without it in the project's dependencies, a production install would not have it either.
+    await bundle(cwd, { packageExternalDependencies: true });
+    expect(existsSync(join((await copyArtifact(cwd)).installed, '@swc', 'helpers'))).toBe(false);
+
+    // The project's manifest is read again for every build, also within one process.
+    await writeFile(
+      join(cwd, 'package.json'),
+      projectManifest({ dependencies: { '@swc/core': '*', '@swc/helpers': '*' } })
+    );
+    await bundle(cwd, { packageExternalDependencies: true });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
+  });
+
+  test('include the optional dependencies of a left-out package, which its commands load', async () => {
+    // bunyan has this shape: its `bin/bunyan` command, a script without an extension, requires its optional
+    // dependency `moment`.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { logger: '*' } }),
+      'handler.ts': "import { log } from 'logger'; export default async () => log();",
+      'node_modules/logger/package.json': manifest('logger', {
+        bin: { logger: 'bin/logger' },
+        optionalDependencies: { moment: '*' }
+      }),
+      'node_modules/logger/index.js': "exports.log = () => 'logged';",
+      'node_modules/logger/bin/logger': "#!/usr/bin/env node\nconsole.log(require('moment').name);",
+      'node_modules/moment/package.json': manifest('moment'),
+      'node_modules/moment/index.js': "exports.name = 'moment';"
+    });
+
+    await bundle(cwd, { packageExternalDependencies: true, dependenciesToExcludeFromBundle: ['logger'] });
+
+    const { artifact, installed } = await copyArtifact(cwd);
+    expect(runHandler(artifact).stdout.trim()).toBe('"logged"');
+    const command = spawnSync(process.env.npm_node_execpath || 'node', [join(installed, 'logger', 'bin', 'logger')], {
+      encoding: 'utf8',
+      timeout: 10_000
+    });
+    expect(command.status, command.stderr).toBe(0);
+    expect(command.stdout.trim()).toBe('moment');
   });
 });
 

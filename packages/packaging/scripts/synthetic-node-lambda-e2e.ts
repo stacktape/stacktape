@@ -258,7 +258,11 @@ try {
   console.log('Building the dependency layer from the installed bcrypt, without Docker...');
   const nativeLayer = await buildNativeBinaryLayer({
     dependencies: nativeOutput.externalDependencies,
-    plan: await planLambdaDependencies({ dependencies: nativeOutput.externalDependencies, architecture: 'x64' }),
+    plan: await planLambdaDependencies({
+      dependencies: nativeOutput.externalDependencies,
+      productionDependencies: new Set(nativeOutput.productionDependencies),
+      architecture: 'x64'
+    }),
     installationRootPath: nativeInstallationRoot,
     layerBasePath: join(buildRoot, 'native-layers'),
     lambdaRuntimeVersion: 24,
@@ -534,6 +538,7 @@ try {
   };
   const armPlan = await planLambdaDependencies({
     dependencies: [sqlitePackage, ...nativeOutput.externalDependencies],
+    productionDependencies: new Set(nativeOutput.productionDependencies),
     architecture: 'arm64'
   });
   if (armPlan.packagesToInstallForLambda.map(({ name }) => name).join() !== 'better-sqlite3') {

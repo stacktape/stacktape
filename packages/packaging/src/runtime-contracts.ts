@@ -260,6 +260,11 @@ export type ResolvedPackageDependency = {
   path: string;
   /** Why it is not bundled. */
   note?: string | undefined;
+  /**
+   * Set when the bundle needs it only as an optional peer of a bundled package. A production install has it only when
+   * the project depends on it in production, so the artifact gets it only then.
+   */
+  optionalPeer?: boolean | undefined;
 };
 
 export type LanguageSpecificBundleOutput = {

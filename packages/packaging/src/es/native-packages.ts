@@ -11,12 +11,7 @@ import type { Dirent } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { open, readdir, readFile } from 'node:fs/promises';
 import { extname, join, relative, sep } from 'node:path';
-import {
-  declaresPlatform,
-  findInstalledPackage,
-  readPackageManifest,
-  type PackageManifest
-} from './installed-packages';
+import { findInstalledPackage, readPackageManifest, type PackageManifest } from './installed-packages';
 
 export type LambdaArchitecture = 'x64' | 'arm64';
 
@@ -26,6 +21,9 @@ const INSTALL_SCRIPTS = ['preinstall', 'install', 'postinstall'];
 const allows = (values: string[] | undefined, value: string) =>
   !values?.length ||
   (values.some((allowed) => !allowed.startsWith('!')) ? values.includes(value) : !values.includes(`!${value}`));
+
+export const declaresPlatform = (manifest: PackageManifest) =>
+  Boolean(manifest.os?.length || manifest.cpu?.length || manifest.libc?.length);
 
 /** Whether a package that declares a platform can run on Lambda (Linux with glibc) with this architecture. */
 export const runsOnLambda = (manifest: PackageManifest, architecture: LambdaArchitecture) =>

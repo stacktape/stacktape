@@ -16,7 +16,7 @@ import { isBuiltin } from 'node:module';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE } from './config';
-import { findInstalledPackage, mayLoadDependency, readPackageManifest } from './installed-packages';
+import { findInstalledPackage, isOptionalPeer, readPackageManifest } from './installed-packages';
 import { getNativeReason } from './native-packages';
 import { readsOwnFilesAtRunTime } from './self-reading-packages';
 
@@ -118,9 +118,10 @@ const getExclusionNote = async ({
 
 /**
  * The packages a dependency needs installed beside the bundle: itself when it is native or excluded from the bundle,
- * and its installed peer dependencies that are native and that it may load (`mayLoadDependency`). A bundled package
- * can reach a peer through a `require()` the bundler cannot follow, so such a peer is installed even when nothing
- * imports it directly. A pure-JavaScript peer such as `zod` bundles safely.
+ * and its installed peer dependencies that are native. A bundled package can reach a peer through a `require()` the
+ * bundler cannot follow, so a native peer is installed even when nothing imports it directly. A pure-JavaScript peer
+ * such as `zod` bundles safely. An optional peer is marked `optionalPeer`: the bundler keeps it only when the project
+ * depends on it in production, as Sequelize projects do with their database driver.
  *
  * Unreadable package metadata is not fatal: the import falls through to the bundler, which reports a resolution
  * failure with the context a packaging error here would lack.
@@ -151,15 +152,13 @@ const analyzeDependency = async ({
       const peerPath = await findInstalledPackage({ name: peerName, fromDirectory: dependency.path });
       const nativeReason = peerPath && (await getNativeReason(peerPath));
       if (!nativeReason) return null;
-      const dependencyManifest = await readPackageManifest(peerPath);
-      if (!(await mayLoadDependency({ packageRoot: dependency.path, manifest, name: peerName, dependencyManifest }))) {
-        return null;
-      }
-      return describeInstalledPackage({
+      const peer = await describeInstalledPackage({
         name: peerName,
         path: peerPath,
         note: `native peer of ${dependency.name}: ${nativeReason}`
       });
+      if (peer && isOptionalPeer(manifest, peerName)) peer.optionalPeer = true;
+      return peer;
     })
   );
   for (const peer of nativePeers) if (peer) externalDependencies.push(peer);

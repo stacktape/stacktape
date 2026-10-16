@@ -46,10 +46,14 @@ architecture and C library), never from a list of names; an install script alone
 `es/self-reading-packages` finds packages such as pdfkit that read a file they ship through a path built from
 `__dirname` or `import.meta.url`: only packages that ship data files are checked, and only the files their main entry
 point loads. A short list names the few packages that give no such sign. Both kinds leave the bundle the same way.
-`es/native-dependencies` copies each left-out package with everything it loads from the project's `node_modules`. An
-optional dependency or optional peer counts as loaded only when it is a build for one platform or the package's code
-names it (`mayLoadDependency` in `es/installed-packages`). The same rule decides which native peers of a bundled package
-are installed: Prisma's optional TypeScript peer is never loaded and stays out. `es/installed-packages` reads npm, pnpm,
+`es/native-dependencies` copies each left-out package with what a production install (`npm install --omit=dev`) gives it
+from the project's `node_modules`: dependencies, optional dependencies built for Lambda's platform and required peers.
+An optional peer comes only when the project depends on it in production: it is in `dependencies` or
+`optionalDependencies` of the project's root or of a project package the function's code comes from
+(`getProductionDependencies` in `es/installed-packages`), or another copied package requires it. The same rule decides
+which native peers of a bundled package are installed (`optionalPeer`): Prisma's optional TypeScript peer stays out of a
+project that has TypeScript only in `devDependencies`. Never decide from a package's source whether it loads a package:
+native compilers such as `@swc/core` emit imports that no script spells out. `es/installed-packages` reads npm, pnpm,
 Yarn and Bun layouts alike and repeats the installed layout under the artifact's `node_modules/.installed`: each
 package's real directory once, at its path relative to the project, with the `node_modules` links that lead to it. Every
 package therefore resolves what it resolved on the build machine. The artifact's top-level `node_modules` links each

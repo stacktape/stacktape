@@ -6,6 +6,7 @@ import { realpath, stat } from 'node:fs/promises';
 import {
   addRuntimeDependencies,
   findInstalledPackage,
+  getProductionDependencies,
   getRuntimeDependencyNames,
   isInside,
   planPackageLayout,
@@ -159,6 +160,10 @@ export const copyTracedNodeRuntimeFiles = async ({
     await addRuntimeDependencies({
       packages,
       start: [...directDependencies.values()],
+      productionDependencies: await getProductionDependencies({
+        projectRoot: absoluteTraceBasePath,
+        sourcePaths: [join(applicationManifestRoot, 'package.json')]
+      }),
       stopAt: () => absoluteTraceBasePath
     });
   }

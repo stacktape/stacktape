@@ -18,7 +18,6 @@ import { getFolderSizeBytes } from '../fs/files';
 import { IGNORED_MODULES } from './config';
 import {
   addRuntimeDependencies,
-  declaresPlatform,
   findInstalledPackage,
   getPackageFingerprint,
   planPackageLayout,
@@ -30,7 +29,13 @@ import {
   type PackageManifest,
   type PackageSource
 } from './installed-packages';
-import { getNativeReason, isInstalledForLambda, runsOnLambda, type LambdaArchitecture } from './native-packages';
+import {
+  declaresPlatform,
+  getNativeReason,
+  isInstalledForLambda,
+  runsOnLambda,
+  type LambdaArchitecture
+} from './native-packages';
 
 export type RunDocker = (commands: string[]) => Promise<unknown>;
 
@@ -60,11 +65,14 @@ const acceptFor =
 
 export const planLambdaDependencies = async ({
   dependencies,
+  productionDependencies,
   architecture,
   excludedNames = [],
   withoutSourceMaps = false
 }: {
   dependencies: ResolvedPackageDependency[];
+  /** What the project depends on in production (`getProductionDependencies`), which decides the optional peers. */
+  productionDependencies: ReadonlySet<string>;
   architecture: LambdaArchitecture;
   /** Packages that must not be in the artifact, wherever they are required; `IGNORED_MODULES` always. */
   excludedNames?: string[] | undefined;
@@ -85,7 +93,7 @@ export const planLambdaDependencies = async ({
   );
   const accept = acceptFor({ architecture, excludedNames: excluded });
   const packages = new Map<string, InstalledPackage>();
-  await addRuntimeDependencies({ packages, start: [...topLevelPackages.values()], accept });
+  await addRuntimeDependencies({ packages, start: [...topLevelPackages.values()], productionDependencies, accept });
 
   const needsInstall = async ({ root }: InstalledPackage) =>
     Boolean(await getNativeReason(root)) && !(await isInstalledForLambda(root, architecture));

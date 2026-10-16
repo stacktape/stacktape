@@ -706,9 +706,12 @@ export class PackagingManager {
       // Every function in a split build has the same architecture.
       const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
       const plans = await Promise.all(
-        dependencyGroups.map(({ dependencies }) =>
+        dependencyGroups.map(({ dependencies, lambdaNames }) =>
           planLambdaDependencies({
             dependencies,
+            productionDependencies: new Set(
+              lambdaNames.flatMap((lambdaName) => splitResult.lambdaOutputs.get(lambdaName)!.productionDependencies)
+            ),
             architecture,
             excludedNames: sharedPackagingProperties.excludeDependencies,
             // The group shares this setting; without it the functions run without `--enable-source-maps`.
