@@ -180,7 +180,12 @@ export const createNextjsWebArtifacts = async ({
       message: `Could not resolve the sharp runtime package for nextjs-web "${resource.name}" image optimization.`
     });
   }
-  const sharpPlan = await planLambdaDependencies({ dependencies: [sharp], architecture: 'x64' });
+  // The plan only decides whether sharp is installed again; sharp has no optional peers for the project to provide.
+  const sharpPlan = await planLambdaDependencies({
+    dependencies: [sharp],
+    productionDependencies: new Set(),
+    architecture: 'x64'
+  });
   if (sharpPlan.packagesToInstallForLambda.length > 0) {
     // Replace host binaries and command links instead of overlaying them with the Docker installation's symlinks.
     await Promise.all([

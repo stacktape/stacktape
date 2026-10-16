@@ -1,3 +1,4 @@
+import type { ProductionDependencyCache } from './es/installed-packages';
 import type {
   JsBundleLambdaPackagingProps,
   JsBundleSharedProps,
@@ -222,6 +223,8 @@ export type EsBuildActions = LanguageBuildActions & {
   installDependencies: InstallDependencies;
   nativeDependencyInstallationRootPath: string;
   sourceMapInstallPath?: string | undefined;
+  /** Shared by every function of one build, so the project's production install is worked out once. */
+  productionDependencyCache?: ProductionDependencyCache | undefined;
 };
 
 export type StpBuildpackInput = {
@@ -260,12 +263,19 @@ export type ResolvedPackageDependency = {
   path: string;
   /** Why it is not bundled. */
   note?: string | undefined;
+  /**
+   * Set when the bundle needs it only as an optional peer of a bundled package. A production install has it only when
+   * the project depends on it in production, so the artifact gets it only then.
+   */
+  optionalPeer?: boolean | undefined;
 };
 
 export type LanguageSpecificBundleOutput = {
   es?: {
     externalDependencies?: ResolvedPackageDependency[] | undefined;
     packageManager?: SupportedEsPackageManager | undefined;
+    /** What a production install of the project gives this code (`getProductionDependencies`). */
+    productionDependencies?: string[] | undefined;
   };
   py?: {
     packageManager: 'uv';

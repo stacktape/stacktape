@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
+import { isProjectBoundary } from './project-root';
 import { lstat, open, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
 export type PackageManifest = {
@@ -38,7 +39,7 @@ export type InstalledPackage = {
   root: string;
   /** The packages it depends on: the name it requires each by, and that package's real directory. */
   dependencies: Map<string, string>;
-  /** The files to copy; the whole package (without its own `node_modules`) when not set. */
+  /** The files to copy; the whole package (except what `isLeftOut` names) when not set. */
   files?: Set<string> | undefined;
 };
 
@@ -47,15 +48,20 @@ export const isInside = (parent: string, child: string) => {
   return relativePath === '' || (!relativePath.startsWith('..') && !relativePath.includes(`..${sep}`));
 };
 
-const manifests = new Map<string, Promise<PackageManifest>>();
+const manifests = new Map<string, { signature: string; manifest: Promise<PackageManifest> }>();
 
-/** The package's `package.json`, read once per process. */
-export const readPackageManifest = (packageRoot: string): Promise<PackageManifest> => {
-  let manifest = manifests.get(packageRoot);
-  if (!manifest) {
-    manifest = readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
-    manifests.set(packageRoot, manifest);
-  }
+/**
+ * The package's `package.json`. A manifest read earlier in this process is reused while the file keeps its size and
+ * modification time, so a `dev` rebuild after an install in place sees the package's new dependencies.
+ */
+export const readPackageManifest = async (packageRoot: string): Promise<PackageManifest> => {
+  const path = join(packageRoot, 'package.json');
+  const { size, mtimeMs, ino } = await stat(path);
+  const signature = `${size}:${mtimeMs}:${ino}`;
+  const cached = manifests.get(packageRoot);
+  if (cached?.signature === signature) return cached.manifest;
+  const manifest = readJson(path) as Promise<PackageManifest>;
+  manifests.set(packageRoot, { signature, manifest });
   return manifest;
 };
 
@@ -66,6 +72,179 @@ export const getRuntimeDependencyNames = (manifest: PackageManifest) =>
     ...Object.keys(manifest.optionalDependencies ?? {}),
     ...Object.keys(manifest.peerDependencies ?? {})
   ]);
+
+/** Whether `name` is only an optional peer of the package: listed as an optional peer and not as a dependency. */
+export const isOptionalPeer = (manifest: PackageManifest, name: string) => {
+  if (Object.hasOwn(manifest.dependencies ?? {}, name) || Object.hasOwn(manifest.optionalDependencies ?? {}, name)) {
+    return false;
+  }
+  const meta = manifest.peerDependenciesMeta?.[name];
+  return typeof meta === 'object' && meta !== null && (meta as { optional?: unknown }).optional === true;
+};
+
+/**
+ * Whether a production install gives a package its installed dependency `name`. npm, pnpm, Yarn and Bun install
+ * dependencies, optional dependencies (for the platform) and required peers, but never an optional peer on its own:
+ * it is installed only when it is in the project's production install for another reason
+ * (`getProductionDependencies`). Prisma lists TypeScript as an optional peer; a project that has TypeScript only in
+ * `devDependencies` has none in production.
+ */
+const isInstalledInProduction = ({
+  manifest,
+  name,
+  productionDependencies
+}: {
+  manifest: PackageManifest;
+  name: string;
+  productionDependencies: ReadonlySet<string>;
+}) => !isOptionalPeer(manifest, name) || productionDependencies.has(name);
+
+/** The real path, or the resolved one when there is none; a path may reach the project through a link. */
+const toRealPath = (path: string) => realpath(path).catch(() => resolve(path));
+
+const remember = <Value>(cache: Map<string, Promise<Value>>, key: string, compute: () => Promise<Value>) => {
+  let value = cache.get(key);
+  if (!value) {
+    value = compute();
+    cache.set(key, value);
+  }
+  return value;
+};
+
+/**
+ * What `getProductionDependencies` has worked out during one build, shared by all of its functions. Create one per
+ * build and drop it afterwards: the project's manifests and installed packages can change before the next build, also
+ * within one process, as in a `dev` rebuild.
+ */
+export type ProductionDependencyCache = {
+  /** The manifests read, of the project's own packages and of installed ones. */
+  manifests: Map<string, Promise<PackageManifest>>;
+  /** The project's own package directories from a directory up to the top of the project. */
+  packageRoots: Map<string, Promise<PackageRootChain>>;
+  /** The names a production install gives each of the project's own packages. */
+  closures: Map<string, Promise<Set<string>>>;
+};
+
+export const createProductionDependencyCache = (): ProductionDependencyCache => ({
+  manifests: new Map(),
+  packageRoots: new Map(),
+  closures: new Map()
+});
+
+type PackageRootChain = {
+  /** The directories with a `package.json`, nearest first. */
+  packageRoots: string[];
+  /** Whether the walk stopped at a workspace root or the top of a Git clone or worktree. */
+  reachesBoundary: boolean;
+  /** The nearest directory on the way up with a lockfile, where an install outside Git and any workspace ran. */
+  lockfileRoot: string | undefined;
+};
+
+const LOCKFILES = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'];
+
+/** Anything outside `node_modules` is the project's own: its root, its workspace packages and nested manifests. */
+const isOwnDirectory = (directory: string) => !directory.split(sep).includes('node_modules');
+
+/**
+ * The names of the packages a production install of the project contains (`npm install --omit=dev`): the
+ * `dependencies` and `optionalDependencies` of the project's own manifests the code belongs to, and what those packages
+ * need in turn: dependencies, optional dependencies and required peers, wherever they are installed. npm installs the
+ * required peers of the root and of workspace packages too. An optional peer is not followed: it is in the install
+ * only when something else there depends on it. npm, pnpm, Yarn and Bun all record development-only packages in
+ * `devDependencies` and leave them out. A package counts whether a function bundles it or gets it copied: a bundled
+ * package that requires `@swc/helpers` still puts it in the install, where `@swc/core`, which lists it as an optional
+ * peer, loads it.
+ *
+ * The manifests read are `projectRoot`'s and every `package.json` from the directory of each of `sourcePaths` up to the
+ * top of the project: the first workspace root or top of a Git clone or worktree, where `findProjectRoot` stops too.
+ * So a nested manifest, such as `src/package.json` that only sets `"type"` or names a package of its own, never hides
+ * the workspace package or repository root around it, and no manifest outside the repository is read. Outside Git and
+ * any workspace, as in a downloaded tarball or a CI step that copies the sources without `.git`, the walk stops at the
+ * nearest directory with a lockfile instead, where the install ran. Without a lockfile either it takes only the nearest
+ * `package.json`, as `findProjectRoot` does.
+ * Reading more manifests than the install used can only add optional peers that are installed anyway.
+ *
+ * Pass one `cache` for all functions of a build. Without one, everything is read again.
+ */
+export const getProductionDependencies = async ({
+  projectRoot,
+  sourcePaths,
+  cache = createProductionDependencyCache()
+}: {
+  projectRoot: string;
+  sourcePaths: string[];
+  cache?: ProductionDependencyCache | undefined;
+}): Promise<Set<string>> => {
+  // A missing or unreadable manifest of the project's own counts as empty; an installed package's fails the build.
+  const readManifest = (packageRoot: string): Promise<PackageManifest> =>
+    remember(cache.manifests, packageRoot, () => {
+      const manifest = readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
+      return isOwnDirectory(packageRoot) ? manifest.catch(() => ({})) : manifest;
+    });
+  const findPackageRoots = (directory: string): Promise<PackageRootChain> =>
+    remember(cache.packageRoots, directory, async () => {
+      const [hasManifest, isBoundary, hasLockfile] = await Promise.all([
+        pathExists(join(directory, 'package.json')),
+        isProjectBoundary(directory),
+        Promise.all(LOCKFILES.map((name) => pathExists(join(directory, name)))).then((found) => found.some(Boolean))
+      ]);
+      const parent = dirname(directory);
+      const above: PackageRootChain =
+        isBoundary || parent === directory
+          ? { packageRoots: [], reachesBoundary: isBoundary, lockfileRoot: undefined }
+          : await findPackageRoots(parent);
+      return {
+        packageRoots: hasManifest ? [directory, ...above.packageRoots] : above.packageRoots,
+        reachesBoundary: above.reachesBoundary,
+        lockfileRoot: hasLockfile ? directory : above.lockfileRoot
+      };
+    });
+  const getOwnPackageRoots = ({ packageRoots, reachesBoundary, lockfileRoot }: PackageRootChain) => {
+    if (reachesBoundary) return packageRoots;
+    if (lockfileRoot) return packageRoots.filter((packageRoot) => isInside(lockfileRoot, packageRoot));
+    return packageRoots.slice(0, 1);
+  };
+  // A package's dependencies are looked up from where it is installed, one level of the install at a time.
+  const getClosure = (start: string) =>
+    remember(cache.closures, start, async () => {
+      const names = new Set<string>();
+      const visited = new Set([start]);
+      let level = [start];
+      while (level.length > 0) {
+        const found = await Promise.all(
+          level.map(async (packageRoot) => {
+            const manifest = await readManifest(packageRoot);
+            return Promise.all(
+              [...getRuntimeDependencyNames(manifest)]
+                .filter((name) => !isOptionalPeer(manifest, name))
+                .map((name) => {
+                  names.add(name);
+                  return findInstalledPackage({ name, fromDirectory: packageRoot });
+                })
+            );
+          })
+        );
+        level = [];
+        for (const dependencyRoot of found.flat()) {
+          if (!dependencyRoot || visited.has(dependencyRoot)) continue;
+          visited.add(dependencyRoot);
+          level.push(dependencyRoot);
+        }
+      }
+      return names;
+    });
+
+  const sourceDirectories = await Promise.all(
+    [...new Set(sourcePaths.map((path) => dirname(resolve(path))))].map(toRealPath)
+  );
+  const chains = await Promise.all([...new Set(sourceDirectories.filter(isOwnDirectory))].map(findPackageRoots));
+  const startingPoints = new Set([await toRealPath(projectRoot), ...chains.flatMap(getOwnPackageRoots)]);
+  const names = new Set<string>();
+  for (const closure of await Promise.all([...startingPoints].map(getClosure))) {
+    for (const name of closure) names.add(name);
+  }
+  return names;
+};
 
 /**
  * The real directory Node.js would load `name` from when a module in `fromDirectory` requires it: the nearest
@@ -93,17 +272,21 @@ export const findInstalledPackage = async ({
 /**
  * Adds the packages `start` loads at run time to `packages`, following each package's dependencies from where it is
  * installed. A dependency that is not installed is skipped: optional dependencies and peers often are not, and a
- * missing required one already fails where it is imported. `accept` can leave out installed dependencies by the name
- * they are required under or by their manifest, such as excluded packages and the binaries of other platforms.
+ * missing required one already fails where it is imported. An optional peer is followed only when a production install
+ * gives it to the package (`isInstalledInProduction`). `accept` can leave out installed dependencies by the name they
+ * are required under or by their manifest, such as excluded packages and the binaries of other platforms.
  */
 export const addRuntimeDependencies = async ({
   packages,
   start,
+  productionDependencies,
   accept = () => true,
   stopAt
 }: {
   packages: Map<string, InstalledPackage>;
   start: string[];
+  /** What the project depends on in production (`getProductionDependencies`). */
+  productionDependencies: ReadonlySet<string>;
   accept?: ((name: string, manifest: PackageManifest) => boolean) | undefined;
   stopAt?: ((root: string) => string | undefined) | undefined;
 }) => {
@@ -120,6 +303,7 @@ export const addRuntimeDependencies = async ({
     };
     packages.set(root, installedPackage);
     for (const name of getRuntimeDependencyNames(manifest)) {
+      if (!isInstalledInProduction({ manifest, name, productionDependencies })) continue;
       const dependencyRoot = await findInstalledPackage({ name, fromDirectory: root, stopAt: stopAt?.(root) });
       if (!dependencyRoot || !accept(name, await readPackageManifest(dependencyRoot))) continue;
       installedPackage.dependencies.set(name, dependencyRoot);
@@ -206,7 +390,17 @@ const isSelected = async (path: string, { withoutSourceMaps }: PackageFileSelect
   !(withoutSourceMaps && (await isInstalledSourceMap(path)));
 
 /**
- * The files a package is copied with, in a stable order: everything except its own `node_modules` and the files
+ * Whether a path in a package, relative to the package's directory, stays out of every copy: the package's own
+ * `node_modules`, whose packages the layout places separately, and `.yarn`, Yarn's release and install state, which
+ * some packages publish by mistake and nothing loads (pdfkit 0.20 ships 3.7 MB of it).
+ */
+const isLeftOut = (relativePath: string) => {
+  const segments = relativePath.split(sep);
+  return segments[0] === '.yarn' || segments.includes('node_modules');
+};
+
+/**
+ * The files a package is copied with, in a stable order: everything except what `isLeftOut` names and the files
  * `selection` leaves out, with linked directories followed, so a directory reached through two names is listed under
  * both, as copying writes it. A link back to a directory being listed is skipped; copying it would never end.
  */
@@ -222,7 +416,7 @@ const listPackageFiles = async (packageRoot: string, selection: PackageFileSelec
       const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
       if (!isDirectory) {
         if (await isSelected(path, selection)) files.push(path);
-      } else if (entry.name !== 'node_modules') await visit(path, withThis);
+      } else if (!isLeftOut(relative(packageRoot, path))) await visit(path, withThis);
     }
   };
   await visit(packageRoot, new Set());
@@ -363,15 +557,13 @@ export const planPackageLayout = async ({
   const projectNodeModules = join(mirrorRoot, 'node_modules');
   const layoutPath = (path: string) => `${INSTALLED_LAYOUT_PATH}/${toLayoutPath(relative(mirrorRoot, path))}`;
   /**
-   * Whether copying puts this file into the artifact: it is in a package and not in that package's `node_modules`,
-   * and among the package's files when only some of them are copied.
+   * Whether copying puts this file into the artifact: it is in a package and not left out of it (`isLeftOut`), and
+   * among the package's files when only some of them are copied.
    */
   const isCopiedFile = (realPath: string) =>
     [...packages.values()].some(
       ({ root, files }) =>
-        isInside(root, realPath) &&
-        !relative(root, realPath).split(sep).includes('node_modules') &&
-        (!files || files.has(realPath))
+        isInside(root, realPath) && !isLeftOut(relative(root, realPath)) && (!files || files.has(realPath))
     );
 
   const directories = roots.map((root) => ({ path: layoutPath(root), root }));
@@ -454,7 +646,7 @@ export const writePackageLayout = async ({
         dereference: true,
         overwrite: true,
         filter: async (sourcePath) =>
-          !relative(from, sourcePath).split(sep).includes('node_modules') && (await isSelected(sourcePath, selection))
+          !isLeftOut(relative(from, sourcePath)) && (await isSelected(sourcePath, selection))
       });
     }
     for (const [name, nestedRoot] of source?.nestedPackages ?? []) {

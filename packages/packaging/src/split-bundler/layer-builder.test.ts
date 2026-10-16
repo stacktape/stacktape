@@ -64,6 +64,7 @@ const buildWorkspace = async ({ sharedChunkBody = 'import "./chunk-dep.js";\nexp
     ],
     sourceFiles: [],
     externalDependencies: [],
+    productionDependencies: [],
     resolvedModules: []
   };
 

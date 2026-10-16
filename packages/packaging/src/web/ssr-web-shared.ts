@@ -14,6 +14,8 @@ import { parseCommand } from '../process/command';
 import { copyTracedNodeRuntimeFiles } from './node-runtime-files';
 import { resolveInstalledNodePackage } from './node-runtime-files';
 import { getLambdaArchitecture, planLambdaDependencies, writeLambdaDependencies } from '../es/native-dependencies';
+import { getProductionDependencies } from '../es/installed-packages';
+import { findProjectRoot } from '../es/project-root';
 import type { DockerBuildOutputArchitecture, RunDocker } from '../runtime-contracts';
 
 /**
@@ -634,6 +636,10 @@ export const createSsrWebArtifacts = async ({
     );
     const plan = await planLambdaDependencies({
       dependencies: resolvedPackages,
+      productionDependencies: await getProductionDependencies({
+        projectRoot: (await findProjectRoot(buildConfig.workingDir)) ?? buildConfig.workingDir,
+        sourcePaths: [join(buildConfig.workingDir, 'package.json')]
+      }),
       architecture: getLambdaArchitecture(dockerBuildOutputArchitecture)
     });
     if (plan.packagesToInstallForLambda.length > 0 && (!runDocker || !nativeDependencyInstallationRootPath)) {

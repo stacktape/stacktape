@@ -22,6 +22,7 @@
     "./bundlers/es/utils": "./src/bundlers/es/utils.ts",
     "./bundlers/node-version": "./src/bundlers/node-version.ts",
     "./es/config": "./src/es/config.ts",
+    "./es/installed-packages": "./src/es/installed-packages.ts",
     "./es/native-dependencies": "./src/es/native-dependencies.ts",
     "./es/packaged-source-map": "./src/es/packaged-source-map.ts",
     "./es/project-root": "./src/es/project-root.ts",

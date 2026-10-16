@@ -152,7 +152,12 @@ describe('installed package description', () => {
     });
 
     const packages = new Map<string, InstalledPackage>();
-    await addRuntimeDependencies({ packages, start: [await realpath(join(nodeModules, 'client'))] });
+    // The project depends on the client in production, so its optional peer edge is followed back to it.
+    await addRuntimeDependencies({
+      packages,
+      start: [await realpath(join(nodeModules, 'client'))],
+      productionDependencies: new Set(['client'])
+    });
 
     expect([...packages.values()].map(({ name, dependencies }) => ({ name, dependencies: dependencies.size }))).toEqual(
       [

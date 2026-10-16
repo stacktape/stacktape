@@ -14,9 +14,6 @@ export const FILES_TO_INCLUDE_IN_DIGEST = [
 
 export const DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE = ['next'];
 
-/** Optional peers that never need installing beside a bundle, even when a native package declares them. */
-export const IGNORED_OPTIONAL_PEER_DEPS = ['supports-color', 'debug'];
-
 export const IGNORED_MODULES = [
   '@prisma/cli',
   '@prisma/bar',

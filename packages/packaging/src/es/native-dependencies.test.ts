@@ -146,7 +146,13 @@ const write = async ({
   withoutSourceMaps?: boolean;
 }) => {
   const output = await createProject();
-  const plan = await planLambdaDependencies({ dependencies, architecture: 'x64', excludedNames, withoutSourceMaps });
+  const plan = await planLambdaDependencies({
+    dependencies,
+    productionDependencies: new Set(),
+    architecture: 'x64',
+    excludedNames,
+    withoutSourceMaps
+  });
   await writeLambdaDependencies({
     plan,
     nodeModulesPath: join(output, 'node_modules'),
@@ -464,7 +470,12 @@ describe('source maps of installed packages', () => {
     const kept = await storePackage({ id: 'kept@1', name: 'kept', version: '1.0.0', files });
     const identity = async (withoutSourceMaps: boolean) =>
       getLambdaDependencyIdentity(
-        await planLambdaDependencies({ dependencies: [external(kept, 'kept')], architecture: 'x64', withoutSourceMaps })
+        await planLambdaDependencies({
+          dependencies: [external(kept, 'kept')],
+          productionDependencies: new Set(),
+          architecture: 'x64',
+          withoutSourceMaps
+        })
       );
 
     const { artifact } = await write({ dependencies: [external(kept, 'kept')] });
@@ -481,7 +492,11 @@ describe('source maps of installed packages', () => {
 describe('what identifies the copied packages', () => {
   const identityOf = async (kept: string) =>
     getLambdaDependencyIdentity(
-      await planLambdaDependencies({ dependencies: [external(kept, 'kept')], architecture: 'x64' })
+      await planLambdaDependencies({
+        dependencies: [external(kept, 'kept')],
+        productionDependencies: new Set(),
+        architecture: 'x64'
+      })
     );
 
   test('an installed file edited in place is a new artifact, also within one process; the same files elsewhere are not', async () => {
@@ -555,6 +570,7 @@ describe('what identifies the copied packages', () => {
       return getLambdaDependencyIdentity(
         await planLambdaDependencies({
           dependencies: [external(old, 'old'), external(next, 'next')],
+          productionDependencies: new Set(),
           architecture: 'x64'
         })
       );
@@ -727,7 +743,7 @@ describe('the dependency layer of a split build', () => {
       }).runDocker;
     return buildNativeBinaryLayer({
       dependencies,
-      plan: await planLambdaDependencies({ dependencies, architecture: 'x64' }),
+      plan: await planLambdaDependencies({ dependencies, productionDependencies: new Set(), architecture: 'x64' }),
       installationRootPath: join(root, 'installations'),
       layerBasePath: join(root, 'layers'),
       lambdaRuntimeVersion: 24,

@@ -6,6 +6,7 @@ import { rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '../constants';
+import { getProductionDependencies } from '../../es/installed-packages';
 import { findProjectRoot } from '../../es/project-root';
 import { outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
@@ -56,15 +57,14 @@ import {
 import { getArchiveInventoryChecksum, getDirectoryChecksum } from '../../artifact/hashing';
 import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
 
-const dedupeDependenciesByName = <T extends { name: string }>(dependencies: T[]): T[] => {
-  const seen = new Set<string>();
-  return dependencies.filter(({ name }) => {
-    if (seen.has(name)) {
-      return false;
-    }
-    seen.add(name);
-    return true;
-  });
+/** One entry per name, in the order first seen. A package needed outright wins over the same one as an optional peer. */
+const dedupeDependenciesByName = <T extends ResolvedPackageDependency>(dependencies: T[]): T[] => {
+  const byName = new Map<string, T>();
+  for (const dependency of dependencies) {
+    const existing = byName.get(dependency.name);
+    if (!existing || (existing.optionalPeer && !dependency.optionalPeer)) byName.set(dependency.name, dependency);
+  }
+  return [...byName.values()];
 };
 
 export const buildEsCode = async ({
@@ -738,7 +738,8 @@ export const createEsBundle = async ({
   nativeDependencyInstallationRootPath,
   runDocker,
   sourceMapInstallPath,
-  lambdaZip
+  lambdaZip,
+  productionDependencyCache
 }: StpBuildpackInput &
   EsBuildActions &
   JsBundleOptions & {
@@ -848,11 +849,18 @@ export const createEsBundle = async ({
     getDependenciesOfIncludedFiles({ absoluteFilePaths: absoluteExplicitlyIncludedFiles })
   ]);
 
+  // What a production install of the project gives the packages and workspace packages this code comes from.
+  const productionDependencies = await getProductionDependencies({
+    projectRoot,
+    sourcePaths: absoluteWorkloadSourceFiles.map(({ path }) => path),
+    cache: productionDependencyCache
+  });
   const externalDependencies = dedupeDependenciesByName([
     ...bundleExternalDependencies,
     ...dependenciesOfIncludedFiles
   ]).filter(
     (dependency) =>
+      (!dependency.optionalPeer || productionDependencies.has(dependency.name)) &&
       !dependenciesToExcludeFromDeploymentPackage?.includes('*') &&
       !dependenciesToExcludeFromDeploymentPackage?.includes(dependency.name)
   );
@@ -860,6 +868,7 @@ export const createEsBundle = async ({
     packageExternalDependencies && externalDependencies.length > 0
       ? await planLambdaDependencies({
           dependencies: externalDependencies,
+          productionDependencies,
           architecture: getLambdaArchitecture(dockerBuildOutputArchitecture),
           excludedNames: [...excludeDependencies, ...(dependenciesToExcludeFromDeploymentPackage ?? [])],
           withoutSourceMaps: mapsLeavePackage
@@ -960,7 +969,7 @@ export const createEsBundle = async ({
     outcome: 'bundled' as const,
     sourceFiles: absoluteWorkloadSourceFiles,
     languageSpecificBundleOutput: {
-      es: { externalDependencies, packageManager }
+      es: { externalDependencies, packageManager, productionDependencies: [...productionDependencies].toSorted() }
     },
     resolvedModules: allModules,
     sourceMapsPath: sourceMapsOutsidePackage?.path

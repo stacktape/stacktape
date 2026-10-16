@@ -2,6 +2,7 @@
  * Type definitions for the split bundler module.
  */
 
+import type { ProductionDependencyCache } from '../es/installed-packages';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 
 /** Bun.build metafile input entry */
@@ -59,6 +60,8 @@ export type LambdaSplitOutput = {
   sourceFiles: { path: string }[];
   /** Packages the bundle leaves out, which the function's dependency layer provides. */
   externalDependencies: ResolvedPackageDependency[];
+  /** What a production install of the project contains for this function's code (`getProductionDependencies`). */
+  productionDependencies: string[];
   /** All resolved npm modules */
   resolvedModules: string[];
 };
@@ -190,4 +193,6 @@ export type BuildSplitBundleOptions = {
   installDependencies: () => Promise<void>;
   /** Preserves the application's typed PACKAGING error contract without importing application code. */
   createPackagingError: (details: PackagingErrorDetails) => Error;
+  /** The build's cache when other functions are packaged beside this split build; a new one otherwise. */
+  productionDependencyCache?: ProductionDependencyCache | undefined;
 };
