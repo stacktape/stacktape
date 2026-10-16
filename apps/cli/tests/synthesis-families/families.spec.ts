@@ -678,10 +678,16 @@ describe('container rolling deployment family', () => {
 
     const { startRollingUpdate, waitForRollingUpdate } = awsSdkManager.ecs;
     let sent: UpdateServiceCommandInput | undefined;
+    let awaited: string | undefined;
     awsSdkManager.ecs.startRollingUpdate = async (input) => {
       sent = input;
+      return { deploymentId: 'ecs-svc/2' };
     };
-    awsSdkManager.ecs.waitForRollingUpdate = async () => ({ oldTasksMayStillRun: true });
+    // The waiter follows the deployment the update started, without waiting for it to become primary.
+    awsSdkManager.ecs.waitForRollingUpdate = async ({ deploymentId }) => {
+      awaited = deploymentId;
+      return { finishedWhen: 'new-targets-healthy' };
+    };
     try {
       await updateEcsService({
         workload: configManager.allContainerWorkloads.find(({ name }) => name === 'albWeb')!,
@@ -694,6 +700,7 @@ describe('container rolling deployment family', () => {
       awsSdkManager.ecs.startRollingUpdate = startRollingUpdate;
       awsSdkManager.ecs.waitForRollingUpdate = waitForRollingUpdate;
     }
+    expect(awaited).toBe('ecs-svc/2');
 
     // What the SDK puts on the wire, so a key in the wrong casing cannot pass unnoticed.
     let wireBody: { deploymentConfiguration?: unknown } = {};
