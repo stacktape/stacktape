@@ -34,6 +34,8 @@ Create an API key in the Stacktape Console under [API keys](/stacktape-console/a
 - **Explicit login step** — run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
 - **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
 
+If the pipeline also sets AWS credentials, for example with `aws-actions/configure-aws-credentials`, Stacktape deploys to the connected account they belong to. Pass `--awsAccount <name>` to choose the account explicitly; the AWS credentials must then belong to it. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
 | Provider | Where to store the secret |
 |----------|--------------------------|
 | GitHub Actions | Repository Settings → Secrets and variables → Actions |

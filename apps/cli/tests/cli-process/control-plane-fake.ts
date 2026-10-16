@@ -37,13 +37,19 @@ export const startControlPlaneFake = async ({
   projectName,
   permissions = ['deployments:delete-non-production', 'deployments:delete-production', 'deployments:deploy'],
   awsAccountId = FAKE_AWS_ACCOUNT_ID,
-  securityScanningEnabled = false
+  securityScanningEnabled = false,
+  connectedAwsAccounts,
+  awsAccountCredentials
 }: {
   projectName: string;
   permissions?: string[];
   /** The connected account's ID; the CLI compares it with STS, so an emulator-backed run passes the emulator's. */
   awsAccountId?: string;
   securityScanningEnabled?: boolean;
+  /** Replaces the single default connection, for scenarios that choose between accounts. */
+  connectedAwsAccounts?: Array<{ name: string; awsAccountId: string; connectionMode: 'BASIC' | 'PRIVILEGED' }>;
+  /** Answers `awsAccountCredentials` for privileged connections with these keys per account name. */
+  awsAccountCredentials?: Record<string, { accessKeyId: string; secretAccessKey: string }>;
 }): Promise<ControlPlaneFake> => {
   const calls: ControlPlaneCall[] = [];
   const unexpectedProcedures: string[] = [];
@@ -58,18 +64,16 @@ export const startControlPlaneFake = async ({
         securityScanningEnabled,
         issuesEnabled: false
       },
-      connectedAwsAccounts: [
-        {
-          id: 'aws-connection-cli-process',
-          organizationId: 'org-cli-process',
-          name: 'cli-process-account',
-          awsAccountId,
-          state: 'ACTIVE',
-          primaryRegions: ['eu-west-1'],
-          defaultRegion: 'eu-west-1',
-          connectionMode: 'BASIC'
-        }
-      ],
+      connectedAwsAccounts: (
+        connectedAwsAccounts ?? [{ name: 'cli-process-account', awsAccountId, connectionMode: 'BASIC' as const }]
+      ).map((account) => ({
+        id: `aws-connection-${account.name}`,
+        organizationId: 'org-cli-process',
+        state: 'ACTIVE',
+        primaryRegions: ['eu-west-1'],
+        defaultRegion: 'eu-west-1',
+        ...account
+      })),
       projects: [
         {
           id: 'project-cli-process',
@@ -93,7 +97,26 @@ export const startControlPlaneFake = async ({
     }),
     canDeploy: () => ({ canDeploy: true }),
     reportEvent: () => ({ accepted: true }),
-    deleteUndeployedStageFromCli: () => ({ deleted: true })
+    deleteUndeployedStageFromCli: () => ({ deleted: true }),
+    ...(awsAccountCredentials
+      ? {
+          awsAccountCredentials: (input: unknown) => {
+            const { awsAccountName } = input as { awsAccountName: string };
+            const keys = awsAccountCredentials[awsAccountName];
+            if (!keys) {
+              unexpectedProcedures.push(`awsAccountCredentials:${awsAccountName}`);
+              return { credentials: undefined };
+            }
+            return {
+              credentials: {
+                ...keys,
+                sessionToken: 'control-plane-fake-session',
+                expiration: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+              }
+            };
+          }
+        }
+      : {})
   };
 
   const server = createServer(async (request, response) => {

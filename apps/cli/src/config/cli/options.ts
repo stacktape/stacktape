@@ -24,7 +24,9 @@ The path to your Stacktape configuration file, relative to the current working d
 
 const profile = z.string().describe(`#### AWS Profile
 ---
-The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults:configure\`.`);
+The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults:configure\`.
+
+For commands that use a connected AWS account, \`--profile\` (or \`AWS_PROFILE\`) selects the connected account the profile belongs to, unless \`--awsAccount\` is set. The command fails if that account is not connected.`);
 
 const help = z.string().describe(`#### Show Help
 ---
@@ -32,7 +34,9 @@ If provided, the command will not execute and will instead print help informatio
 
 export const awsAccount = z.string().describe(`#### AWS Account
 ---
-The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).`);
+The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+
+Without it, the account is chosen by \`--profile\`, \`AWS_PROFILE\` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. \`--awsAccount\` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.`);
 
 export const projectName = z.string().describe(`#### Project Name
 ---
