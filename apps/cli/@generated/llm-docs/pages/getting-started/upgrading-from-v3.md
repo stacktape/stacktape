@@ -195,7 +195,7 @@ The v4 image installs nothing beside the runtime by default. v3 images ran `tini
 
 - ECS and AWS Batch now start the init process (`initProcessEnabled`), so stop signals still reach your server.
 - `curl` is installed only when the container's `internalHealthCheck` command calls it. If a script in the image calls `curl`, or your code runs the `openssl` command, add it with `customDockerBuildCommands`, for example `apk add --no-cache curl`.
-- The OpenSSL libraries that Prisma loads are still in the image. When your code uses Prisma, the Alpine image also gets the `openssl` command, which Prisma 5 needs to choose its query engine.
+- The OpenSSL libraries that Prisma loads are still in the image. When your code, or a package installed beside the bundle, uses Prisma, the Alpine image also gets the `openssl` command, which Prisma 5 needs to choose its query engine.
 
 See [JS Bundle for Containers](/packaging/containers/js-bundle).
 

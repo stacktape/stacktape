@@ -2580,6 +2580,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-identity.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
+      'packages/packaging/src/buildpacks/js-bundle-image.test.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
@@ -4378,6 +4379,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/dockerfile-image-e2e.ts',
       'packages/packaging/scripts/synthetic-docker-smoke.ts',
       'packages/packaging/scripts/synthetic-es-image-deps-e2e.ts',
+      'packages/packaging/src/buildpacks/js-bundle-image.test.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/docker/dockerfiles.test.ts',
       'packages/packaging/src/image/railpack.test.ts'

@@ -10,7 +10,7 @@ import type {
   StpBuildpackInput
 } from '../runtime-contracts';
 import { pickJsBundleOptions } from '../runtime-contracts';
-import type { LanguageSpecificBundleOutput, PackagingOutput } from '../runtime-contracts';
+import type { LanguageSpecificBundleOutput, PackagingOutput, ResolvedPackageDependency } from '../runtime-contracts';
 
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
@@ -21,6 +21,7 @@ import { createEsBundle } from '../bundlers/es';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '../bundlers/constants';
 import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 import { getFolderSize } from '../fs/files';
+import { addRuntimeDependencies, type InstalledPackage, readPackageManifest } from '../es/installed-packages';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
 export const buildJsBundleImage = async ({
@@ -150,10 +151,10 @@ export const buildJsBundleImage = async ({
     runtime,
     runtimeTools: {
       ...runtimeTools,
-      openssl: usesPrisma([
-        ...(bundlingOutput.resolvedModules ?? []),
-        ...(languageSpecificBundleOutput.es?.externalDependencies ?? []).map((dependency) => dependency.name)
-      ])
+      openssl: await usesPrisma({
+        bundledModules: bundlingOutput.resolvedModules ?? [],
+        installedPackages: languageSpecificBundleOutput.es?.externalDependencies ?? []
+      })
     },
     buildContextPath
   });
@@ -187,9 +188,40 @@ export const buildJsBundleImage = async ({
   };
 };
 
-/** Whether the bundle loads Prisma, whose client may need the `openssl` command; see `EsImageRuntimeTools`. */
-const usesPrisma = (moduleNames: string[]) =>
-  moduleNames.some((name) => name === 'prisma' || name.startsWith('prisma/') || name.startsWith('@prisma/'));
+const isPrismaModule = (name: string) => name === 'prisma' || name.startsWith('prisma/') || name.startsWith('@prisma/');
+
+/**
+ * Whether the image loads Prisma, whose client may need the `openssl` command; see `EsImageRuntimeTools`. Prisma can
+ * come from the bundle's imports or from any package the image installs, directly or through that package's own
+ * dependencies, such as an internal database package that ships a generated client. The installed packages are followed
+ * as they are installed on this machine. When that tree cannot be read, or a required dependency is not installed
+ * here, it is not known what the image installs, and it gets `openssl`.
+ */
+const usesPrisma = async ({
+  bundledModules,
+  installedPackages
+}: {
+  bundledModules: string[];
+  installedPackages: ResolvedPackageDependency[];
+}) => {
+  if (bundledModules.some(isPrismaModule) || installedPackages.some(({ name }) => isPrismaModule(name))) return true;
+  const packages = new Map<string, InstalledPackage>();
+  try {
+    await addRuntimeDependencies({ packages, start: installedPackages.map(({ path }) => path) });
+    const verdicts = await Promise.all(
+      [...packages.values()].map(async (installedPackage) => {
+        const required = Object.keys((await readPackageManifest(installedPackage.root)).dependencies ?? {});
+        return (
+          [installedPackage.name, ...installedPackage.dependencies.keys(), ...required].some(isPrismaModule) ||
+          required.some((name) => !installedPackage.dependencies.has(name))
+        );
+      })
+    );
+    return verdicts.includes(true);
+  } catch {
+    return true;
+  }
+};
 
 // Deduplicates concurrent builds of the same dev base image tag.
 // When multiple workloads share the same hash, only one docker build runs.
