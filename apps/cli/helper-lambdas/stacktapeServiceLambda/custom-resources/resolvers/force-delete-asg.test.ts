@@ -15,13 +15,17 @@ describe('forceDeleteAsg', () => {
     sends.length = 0;
   });
 
-  const stubAutoScaling = (groups: AutoScalingGroup[]) =>
-    spyOn(AutoScalingClient.prototype, 'send').mockImplementation((async (command: {
+  // Later Describe calls return the last entry of `describes`, so a test can model an instance launching mid-delete.
+  const stubAutoScaling = (...describes: AutoScalingGroup[][]) => {
+    let describeCount = 0;
+    return spyOn(AutoScalingClient.prototype, 'send').mockImplementation((async (command: {
       constructor: { name: string };
       input: Record<string, unknown>;
     }) => {
       sends.push({ name: command.constructor.name, input: command.input });
-      if (command.constructor.name === 'DescribeAutoScalingGroupsCommand') return { AutoScalingGroups: groups };
+      if (command.constructor.name === 'DescribeAutoScalingGroupsCommand') {
+        return { AutoScalingGroups: describes[Math.min(describeCount++, describes.length - 1)] };
+      }
       if (command.constructor.name === 'SetInstanceProtectionCommand') {
         const ids = command.input.InstanceIds as string[];
         if (!ids.length) throw new Error('Must specify at least one instance');
@@ -29,9 +33,10 @@ describe('forceDeleteAsg', () => {
       }
       return {};
     }) as never);
+  };
 
-  const runDelete = async (groups: AutoScalingGroup[]) => {
-    const stub = stubAutoScaling(groups);
+  const runDelete = async (...describes: AutoScalingGroup[][]) => {
+    const stub = stubAutoScaling(...describes);
     try {
       return await forceDeleteAsg({ asgName: ASG_NAME }, undefined, 'Delete');
     } finally {
@@ -40,6 +45,23 @@ describe('forceDeleteAsg', () => {
   };
 
   const protectionCalls = () => sends.filter(({ name }) => name === 'SetInstanceProtectionCommand');
+  const updateCalls = () => sends.filter(({ name }) => name === 'UpdateAutoScalingGroupCommand');
+
+  test('turns off default protection before listing the instances to unprotect', async () => {
+    // i-2 launches after the first Describe, for example as a health-check replacement.
+    await runDelete(
+      [{ AutoScalingGroupName: ASG_NAME, Instances: [instance(1)] } as AutoScalingGroup],
+      [{ AutoScalingGroupName: ASG_NAME, Instances: [instance(1), instance(2, 'Pending')] } as AutoScalingGroup]
+    );
+    expect(sends.map(({ name }) => name)).toEqual([
+      'DescribeAutoScalingGroupsCommand',
+      'UpdateAutoScalingGroupCommand',
+      'DescribeAutoScalingGroupsCommand',
+      'SetInstanceProtectionCommand'
+    ]);
+    expect(updateCalls()[0].input).toEqual({ AutoScalingGroupName: ASG_NAME, NewInstancesProtectedFromScaleIn: false });
+    expect(protectionCalls()[0].input.InstanceIds).toEqual(['i-1', 'i-2']);
+  });
 
   test('succeeds on an empty group without calling SetInstanceProtection', async () => {
     const result = await runDelete([{ AutoScalingGroupName: ASG_NAME, Instances: [] } as AutoScalingGroup]);
@@ -50,6 +72,7 @@ describe('forceDeleteAsg', () => {
   test('succeeds when the group no longer exists', async () => {
     const result = await runDelete([]);
     expect(result.physicalResourceId).toBe(`${ASG_NAME}-fd`);
+    expect(updateCalls()).toEqual([]);
     expect(protectionCalls()).toEqual([]);
   });
 
@@ -57,6 +80,7 @@ describe('forceDeleteAsg', () => {
     await runDelete([
       { AutoScalingGroupName: ASG_NAME, Status: 'Delete in progress', Instances: [instance(1)] } as AutoScalingGroup
     ]);
+    expect(updateCalls()).toEqual([]);
     expect(protectionCalls()).toEqual([]);
   });
 
@@ -97,6 +121,15 @@ describe('forceDeleteAsg', () => {
     expect(protectionCalls().map(({ input }) => input)).toEqual([
       { AutoScalingGroupName: ASG_NAME, InstanceIds: ['i-1', 'i-3'], ProtectedFromScaleIn: false }
     ]);
+  });
+
+  test('succeeds when the group disappears after protection is turned off', async () => {
+    const result = await runDelete(
+      [{ AutoScalingGroupName: ASG_NAME, Instances: [instance(1)] } as AutoScalingGroup],
+      []
+    );
+    expect(result.physicalResourceId).toBe(`${ASG_NAME}-fd`);
+    expect(protectionCalls()).toEqual([]);
   });
 
   test('succeeds when every instance is already terminating', async () => {
