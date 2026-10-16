@@ -3,6 +3,7 @@ import type { ArchiveItem } from '@stacktape/packaging/runtime-contracts';
 import { randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { listArchiveEntries, matchesExecutablePattern } from '@stacktape/packaging/artifact/archive-entries';
 import { TarArchive, ZipArchive } from 'archiver';
@@ -29,7 +30,8 @@ const writeArchiveStream = ({
 }: {
   archive: ZipArchive | TarArchive;
   outputPath: string;
-  addEntries: () => void;
+  /** Adds the entries; `fail` fails the archive with an error archiver does not see, such as a source stream's. */
+  addEntries: (fail: (error: unknown) => void) => void;
 }) =>
   new Promise<void>((resolve, reject) => {
     // `wx`: the temporary name is unique to this call, so an existing file would mean something else owns it.
@@ -56,31 +58,61 @@ const writeArchiveStream = ({
       }, fail);
     });
     archive.pipe(output);
-    addEntries();
+    addEntries(fail);
     archive.finalize().catch(fail);
   });
 
-const writeZipWithArchiver = ({
+/**
+ * A file's contents, opened only when archiver reads them: an archive with 65,536 entries would otherwise hold that
+ * many files open. Archiver writes appended streams in the order they were appended; `archive.file` would stat files
+ * four at a time and write them in the order the stats finish.
+ */
+const openWhenRead = (path: string, fail: (error: unknown) => void) =>
+  Readable.from(
+    (async function* () {
+      yield* createReadStream(path);
+    })(),
+    { objectMode: false }
+  ).on('error', fail);
+
+/**
+ * Writes `entries` with archiver, in their given order. With `fixedTime`, every entry carries 1980-01-01 00:00, the
+ * time the parallel writer gives its entries: archiver writes UTC and clamps any earlier date to that one, so the bytes
+ * depend on the entries and contents alone. Otherwise files keep their modification times and directories and links
+ * get the current time.
+ */
+export const writeZipWithArchiver = ({
   entries,
   outputPath,
-  compressionLevel
+  compressionLevel,
+  fixedTime = false
 }: {
   entries: ArchiveEntry[];
   outputPath: string;
   compressionLevel: number;
+  fixedTime?: boolean;
 }) => {
   const archive = new ZipArchive({ store: compressionLevel === 0, zlib: { level: compressionLevel } });
+  const date = fixedTime ? { date: new Date(0) } : {};
   return writeArchiveStream({
     archive,
     outputPath,
-    addEntries: () => {
+    addEntries: (fail) => {
       for (const entry of entries) {
         if (entry.type === 'directory') {
-          archive.append(Buffer.alloc(0), { name: `${entry.path}/`, type: 'directory', mode: entry.mode });
+          archive.append(Buffer.alloc(0), { name: `${entry.path}/`, type: 'directory', mode: entry.mode, ...date });
         } else if (entry.type === 'symlink') {
-          archive.symlink(entry.path, entry.target, entry.mode);
+          // `append` rather than `symlink`, which takes no date. Archiver reads `linkname`; its types leave it out.
+          const link: Parameters<ZipArchive['append']>[1] & { linkname: string } = {
+            name: entry.path,
+            type: 'symlink',
+            linkname: entry.target,
+            mode: entry.mode,
+            ...date
+          };
+          archive.append(Buffer.alloc(0), link);
         } else {
-          archive.file(entry.sourcePath, { name: entry.path, mode: entry.mode });
+          archive.append(openWhenRead(entry.sourcePath, fail), { name: entry.path, mode: entry.mode, ...date });
         }
       }
     }
@@ -168,7 +200,8 @@ const writeZip = async ({
       await rm(outputPath, { force: true });
     }
   }
-  await writeZipWithArchiver({ entries, outputPath, compressionLevel: level });
+  // A parallel archive that fell back stays as reproducible as the parallel writer's.
+  await writeZipWithArchiver({ entries, outputPath, compressionLevel: level, fixedTime: parallelZip && isDirectory });
   return { backend: 'archiver' };
 };
 

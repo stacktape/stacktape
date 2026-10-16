@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import * as tar from 'tar';
 import yauzl from 'yauzl';
-import { archiveItem, createArchive } from './zip';
-import { writeZip as writeParallelZip, ZipLimitError } from './zip-writer';
+import { listArchiveEntries } from '@stacktape/packaging/artifact/archive-entries';
+import { archiveItem, createArchive, writeZipWithArchiver } from './zip';
+import { writeFully, writeZip as writeParallelZip, ZipLimitError } from './zip-writer';
 
 /** Links, execute bits, shell fixtures and unreadable files are POSIX fixtures; the portable tests run everywhere. */
 const isPosix = process.platform !== 'win32';
@@ -223,5 +224,77 @@ describe('parallel ZIP writer', () => {
       ZipLimitError
     );
     expect(await readdir(root)).toEqual([]);
+  });
+
+  /** Archives `source` twice, with other modification times and another time zone the second time. */
+  const archiveTwice = async (root: string, source: string, files: string[]) => {
+    const archive = (name: string) =>
+      createArchive({
+        absoluteSourcePath: source,
+        absoluteDestDirPath: join(root, name),
+        format: 'zip',
+        parallelZip: true
+      });
+    const first = await archive('first');
+    const timeZone = process.env.TZ;
+    try {
+      process.env.TZ = 'Pacific/Kiritimati';
+      await Promise.all(
+        files.map((path) => utimes(path, new Date('2031-07-09T13:37:00Z'), new Date('2031-07-09T13:37:00Z')))
+      );
+      const second = await archive('second');
+      return { first, second, bytes: await Promise.all([readFile(first.path), readFile(second.path)]) };
+    } finally {
+      if (timeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = timeZone;
+    }
+  };
+
+  test('writes the same bytes whatever the modification times and the time zone', async () => {
+    const root = await createRoot();
+    const source = await createSource(root);
+    const { first, bytes } = await archiveTwice(root, source, [
+      join(source, 'index.js'),
+      join(source, 'bin', 'tool.sh')
+    ]);
+
+    expect(first.backend).toBe('parallel');
+    expect(bytes[1]).toEqual(bytes[0]);
+  });
+
+  test('falls back to archiver with the same fixed time, so a ZIP64 archive is reproducible too', async () => {
+    const root = await createRoot();
+    const source = await createSource(root);
+    if (isPosix) await symlink('bin/tool.sh', join(source, 'tool-link'));
+    // The fallback a parallel archive takes when it needs ZIP64.
+    const archive = async (name: string) => {
+      const { entries } = await listArchiveEntries({ sourcePath: source, executablePatterns: [] });
+      const outputPath = join(root, name);
+      await writeZipWithArchiver({ entries, outputPath, compressionLevel: 6, fixedTime: true });
+      return readFile(outputPath);
+    };
+
+    const first = await archive('first.zip');
+    await utimes(join(source, 'index.js'), new Date('2031-07-09T13:37:00Z'), new Date('2031-07-09T13:37:00Z'));
+    expect(await archive('second.zip')).toEqual(first);
+  });
+
+  test('keeps writing until every byte is written and reports a write that stops', async () => {
+    const written: Buffer[] = [];
+    // A file that takes at most three bytes per write, as a pipe or a full disk can.
+    const shortWrites = {
+      write: async (buffer: Buffer, offset = 0, length = buffer.length) => {
+        const bytesWritten = Math.min(3, length);
+        written.push(Buffer.from(buffer.subarray(offset, offset + bytesWritten)));
+        return { bytesWritten, buffer };
+      }
+    };
+    const content = Buffer.from('a buffer longer than one write');
+
+    await writeFully(shortWrites as never, content);
+    expect(Buffer.concat(written)).toEqual(content);
+
+    const stalled = { write: async (buffer: Buffer) => ({ bytesWritten: 0, buffer }) };
+    await expect(writeFully(stalled as never, content)).rejects.toThrow('stopped after 0 of 30 bytes');
   });
 });

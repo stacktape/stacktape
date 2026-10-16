@@ -425,7 +425,12 @@ describe('source maps of installed packages', () => {
   const files = {
     'dist/main.cjs': 'module.exports = 1;\n//# sourceMappingURL=main.cjs.map',
     'dist/main.cjs.map': '{"version":3,"sources":[],"mappings":""}',
+    'dist/types.d.ts': 'export {};\n//# sourceMappingURL=types.d.ts.map\n',
     'dist/types.d.ts.map': '{"version":3,"sources":[],"mappings":""}',
+    'dist/style.css': '/*# sourceMappingURL=../maps/style.css.map */',
+    'maps/style.css.map': '{"version":3,"sources":[],"mappings":""}',
+    'theme/data.css': 'a { color: red; }',
+    'theme/data.css.map': 'a data file the package reads',
     'data/world.map': 'a data file the package reads'
   };
 
@@ -439,6 +444,9 @@ describe('source maps of installed packages', () => {
     expect(await pathExists(join(copied, 'dist', 'main.cjs'))).toBe(true);
     expect(await pathExists(join(copied, 'dist', 'main.cjs.map'))).toBe(false);
     expect(await pathExists(join(copied, 'dist', 'types.d.ts.map'))).toBe(false);
+    // Only a map its sibling names goes: this one is named from elsewhere, and `data.css` names none.
+    expect(await pathExists(join(copied, 'maps', 'style.css.map'))).toBe(true);
+    expect(await pathExists(join(copied, 'theme', 'data.css.map'))).toBe(true);
     expect(await pathExists(join(copied, 'data', 'world.map'))).toBe(true);
     expect(runIn(artifact, "console.log(JSON.stringify(require('kept/dist/main.cjs')))")).toBe(1);
   });

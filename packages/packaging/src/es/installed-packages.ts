@@ -11,9 +11,9 @@
  */
 import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { basename, dirname, join, relative, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
-import { lstat, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
+import { lstat, open, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
 export type PackageManifest = {
   name?: string | undefined;
@@ -128,13 +128,44 @@ export const addRuntimeDependencies = async ({
   }
 };
 
+/** Code that can name its source map: the map's own name without `.map` ends in one of these. */
+const MAPPED_CODE = /\.(?:[cm]?js|css|d\.[cm]?ts)$/;
+/** How much of the end of a code file is searched for its `sourceMappingURL` comment, which bundlers write last. */
+const MAP_COMMENT_SEARCH_BYTES = 4096;
+
 /**
- * A source map an installed package ships beside its code, by the name bundlers give one: `index.js.map`,
- * `main.cjs.map`, `types.d.ts.map`, `style.css.map`. Node.js reads such a map only under `--enable-source-maps`, to
- * rewrite a stack trace; the maps of installed packages are often larger than their code. Other `.map` files may be
- * data a package reads, and are kept.
+ * Whether `path` is a source map an installed package ships beside its code: a `.map` file whose sibling without the
+ * suffix, such as `index.js` for `index.js.map`, ends with a `sourceMappingURL` comment naming it. Node.js reads such a
+ * map only under `--enable-source-maps`, to rewrite a stack trace; the maps of installed packages are often larger than
+ * their code. Any other `.map` file may be data the package reads, and is kept.
  */
-const isInstalledSourceMap = (path: string) => /\.(?:[cm]?[jt]sx?|css)\.map$/.test(path);
+const isInstalledSourceMap = async (path: string) => {
+  if (!path.endsWith('.map')) return false;
+  const codePath = path.slice(0, -'.map'.length);
+  if (!MAPPED_CODE.test(codePath)) return false;
+  let tail: string;
+  try {
+    const file = await open(codePath, 'r');
+    try {
+      const { size } = await file.stat();
+      const length = Math.min(size, MAP_COMMENT_SEARCH_BYTES);
+      const buffer = Buffer.alloc(length);
+      await file.read(buffer, 0, length, size - length);
+      tail = buffer.toString('utf8');
+    } finally {
+      await file.close();
+    }
+  } catch {
+    return false;
+  }
+  const url = [...tail.matchAll(/[#@]\s*sourceMappingURL=([^\s'"*]+)/g)].at(-1)?.[1];
+  if (!url || /^[a-z][\w+.-]*:/i.test(url)) return false;
+  try {
+    return resolve(dirname(codePath), decodeURIComponent(url.split(/[?#]/)[0]!)) === resolve(path);
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Which of a package's files an artifact gets. `withoutSourceMaps` leaves out its source maps
@@ -142,8 +173,8 @@ const isInstalledSourceMap = (path: string) => /\.(?:[cm]?[jt]sx?|css)\.map$/.te
  */
 export type PackageFileSelection = { withoutSourceMaps?: boolean | undefined };
 
-const isSelected = (path: string, { withoutSourceMaps }: PackageFileSelection) =>
-  !(withoutSourceMaps && isInstalledSourceMap(path));
+const isSelected = async (path: string, { withoutSourceMaps }: PackageFileSelection) =>
+  !(withoutSourceMaps && (await isInstalledSourceMap(path)));
 
 /**
  * The files a package is copied with, in a stable order: everything except its own `node_modules` and the files
@@ -161,7 +192,7 @@ const listPackageFiles = async (packageRoot: string, selection: PackageFileSelec
       const path = join(directory, entry.name);
       const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
       if (!isDirectory) {
-        if (isSelected(path, selection)) files.push(path);
+        if (await isSelected(path, selection)) files.push(path);
       } else if (entry.name !== 'node_modules') await visit(path, withThis);
     }
   };
@@ -381,21 +412,20 @@ export const writePackageLayout = async ({
     const source = sources.get(root);
     if (files && !source) {
       await Promise.all(
-        [...files]
-          .filter((sourcePath) => isSelected(sourcePath, selection))
-          .map(async (sourcePath) => {
-            const destinationPath = join(destination, relative(root, sourcePath));
-            await ensureDir(dirname(destinationPath));
-            await copy(sourcePath, destinationPath, { dereference: true, overwrite: true });
-          })
+        [...files].map(async (sourcePath) => {
+          if (!(await isSelected(sourcePath, selection))) return;
+          const destinationPath = join(destination, relative(root, sourcePath));
+          await ensureDir(dirname(destinationPath));
+          await copy(sourcePath, destinationPath, { dereference: true, overwrite: true });
+        })
       );
     } else {
       const from = source?.copyFrom ?? root;
       await copy(from, destination, {
         dereference: true,
         overwrite: true,
-        filter: (sourcePath) =>
-          !relative(from, sourcePath).split(sep).includes('node_modules') && isSelected(sourcePath, selection)
+        filter: async (sourcePath) =>
+          !relative(from, sourcePath).split(sep).includes('node_modules') && (await isSelected(sourcePath, selection))
       });
     }
     for (const [name, nestedRoot] of source?.nestedPackages ?? []) {
