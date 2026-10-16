@@ -55,9 +55,12 @@ import { getPersistedApiKey, withPersistedApiKey } from './api-key-storage';
 import { consumeRunnerCredentials } from './runner-credentials';
 import {
   accountIdFromProfile,
+  createProfileCredentialsProvider,
   detectLocalAwsSelectors,
   ignoredProfileNotice,
   loadProfileCredentials,
+  localAwsAccountUnresolved,
+  localAwsCredentialsUnavailable,
   matchConnectedAwsAccount,
   readAwsProfile,
   resolveLocalAwsAccount,
@@ -430,9 +433,10 @@ export class GlobalStateManager {
 
   /**
    * Local AWS credentials for `package`, which builds artifacts on this machine and usually never calls AWS. Nothing is
-   * requested here: the provider chain runs when an AWS client first signs a request, and the account is looked up by
+   * requested here: the provider runs when an AWS client first signs a request, and the account is looked up by
    * `resolveLocalAwsAccount` only when something needs it. A profile that names its account (an assumed role, SSO or
-   * web identity) supplies it without a request.
+   * web identity) supplies it without a request, and then only that profile supplies the credentials: the default chain
+   * would fall through to container, instance or environment credentials of another account when the profile fails.
    */
   prepareLocalAwsCredentials = async (): Promise<AwsCredentialsProvider> => {
     const selectedProfile = selectAwsCredentialProfile({
@@ -441,23 +445,38 @@ export class GlobalStateManager {
       persistedProfile: this.persistedState?.cliArgsDefaults.profile,
       environment: process.env
     });
-    let providerChain: Promise<AwsCredentialsProvider> | undefined;
-    // Imported on use, like every AWS SDK module here, so commands that never use AWS do not evaluate the SDK.
-    const credentialsProvider: AwsCredentialsProvider = async () => {
-      providerChain ??= Promise.all([import('@aws-sdk/credential-provider-node'), import('src/aws/identity')]).then(
-        ([{ defaultProvider }, { assumedRoleIdentityPlugin }]) =>
-          defaultProvider({
-            ...(selectedProfile ? { profile: selectedProfile } : {}),
-            clientPlugins: [assumedRoleIdentityPlugin]
-          })
-      );
-      return (await providerChain)();
-    };
-    this.localCredentialsProvider = credentialsProvider;
-    this.#localCredentialProfile = selectedProfile;
     const accountId = selectedProfile
       ? accountIdFromProfile(await readAwsProfile(selectedProfile, process.env))
       : undefined;
+    // Imported on use, like every AWS SDK module here, so commands that never use AWS do not evaluate the SDK.
+    const loadProvider = async (): Promise<AwsCredentialsProvider> => {
+      const { assumedRoleIdentityPlugin } = await import('src/aws/identity');
+      if (selectedProfile && accountId) {
+        return createProfileCredentialsProvider({
+          profile: selectedProfile,
+          region: this.region,
+          clientPlugins: [assumedRoleIdentityPlugin]
+        });
+      }
+      const { defaultProvider } = await import('@aws-sdk/credential-provider-node');
+      return defaultProvider({
+        ...(selectedProfile ? { profile: selectedProfile } : {}),
+        clientPlugins: [assumedRoleIdentityPlugin]
+      });
+    };
+    let provider: Promise<AwsCredentialsProvider> | undefined;
+    const credentialsProvider: AwsCredentialsProvider = async () => {
+      provider ??= loadProvider();
+      try {
+        return await (
+          await provider
+        )();
+      } catch (cause) {
+        throw localAwsCredentialsUnavailable({ profile: selectedProfile, cause });
+      }
+    };
+    this.localCredentialsProvider = credentialsProvider;
+    this.#localCredentialProfile = selectedProfile;
     if (accountId) {
       this.localTargetAwsAccount = this.#localTargetAccount(accountId);
     }
@@ -491,8 +510,9 @@ export class GlobalStateManager {
   #lookUpLocalAwsAccount = async () => {
     await operationReporter.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
     const { getAwsCredentialsIdentity } = await import('src/aws/identity');
+    const profile = this.#localCredentialProfile;
     const credentials = await timeAsync('credentials:provider-chain', async () => this.localCredentialsProvider());
-    const identity = await getAwsCredentialsIdentity({
+    const { account, arn } = await getAwsCredentialsIdentity({
       credentials,
       region: this.region,
       getErrorHandler: createAwsErrorHandler({
@@ -500,17 +520,17 @@ export class GlobalStateManager {
         profile: () => this.awsProfileName
       }),
       loggingPlugin: createAwsLoggingPlugin({ printer: tuiManager, isDebug: () => this.logLevel === 'debug' })
-    });
-    if (!identity.Account || !identity.Arn) {
-      throw new Error('AWS STS returned an incomplete caller identity.');
-    }
-    this.credentials = {
-      ...credentials,
-      source: 'providerChain',
-      identity: { account: identity.Account, arn: identity.Arn }
-    };
-    this.localTargetAwsAccount = this.#localTargetAccount(identity.Account);
-    const profile = this.#localCredentialProfile;
+    }).then(
+      ({ Account, Arn }) => {
+        if (!Account || !Arn) throw new Error('AWS STS returned an incomplete caller identity.');
+        return { account: Account, arn: Arn };
+      },
+      (cause) => {
+        throw localAwsAccountUnresolved({ profile, cause });
+      }
+    );
+    this.credentials = { ...credentials, source: 'providerChain', identity: { account, arn } };
+    this.localTargetAwsAccount = this.#localTargetAccount(account);
     await operationReporter.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
       finalMessage: profile

@@ -21,6 +21,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { isLocalAwsCredentialsFailure } from '@application-services/global-state-manager/local-aws-account';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -151,6 +152,25 @@ const getCacheRef = (jobName: string) => {
 
 /** The platform Docker builds on natively: Docker Desktop and Linux engines run on the host's architecture. */
 const HOST_DOCKER_PLATFORM = process.arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
+
+/**
+ * The environment a web build runs with. Each variable resolves on its own, and one whose value is not available (such
+ * as a resource that is not deployed yet) is left out of the build without the others. Unusable local AWS credentials
+ * stop the build instead: building without the values they would have read produces a broken site.
+ */
+const resolveWebBuildEnvironment = async (environment: EnvironmentVar[] | undefined): Promise<EnvironmentVar[]> => {
+  const resolved = await Promise.all(
+    (environment ?? []).map(async (variable) => {
+      try {
+        return (await resolveEnvironmentDirectives(variable)) as EnvironmentVar;
+      } catch (error) {
+        if (isLocalAwsCredentialsFailure(error)) throw error;
+        return undefined;
+      }
+    })
+  );
+  return resolved.filter((variable) => variable !== undefined);
+};
 
 const doesTargetStackExist = () => {
   return Boolean(stackManager.existingStackDetails && stackManager.existingStackResources.length);
@@ -1242,10 +1262,7 @@ export class PackagingManager {
       instanceId: nextjsWebResource.name,
       label: nextjsWebResource.name
     });
-    let environment: EnvironmentVar[] = [];
-    try {
-      environment = (await resolveEnvironmentDirectives(nextjsWebResource.environment)) as EnvironmentVar[];
-    } catch {}
+    const environment = await resolveWebBuildEnvironment(nextjsWebResource.environment);
     const packagingOutputs = await createNextjsWebArtifacts({
       environmentVars: environment,
       resource: nextjsWebResource,
@@ -1333,10 +1350,7 @@ export class PackagingManager {
     commandCanUseCache: boolean;
   }) => {
     const frameworkConfig = SSR_WEB_FRAMEWORK_CONFIGS[resourceType];
-    let environment: EnvironmentVar[] = [];
-    try {
-      environment = (await resolveEnvironmentDirectives(resource.environment)) as EnvironmentVar[];
-    } catch {}
+    const environment = await resolveWebBuildEnvironment(resource.environment);
 
     const appDirectory = resource.appDirectory || '.';
     const workingDir = join(globalStateManager.workingDir, appDirectory);
