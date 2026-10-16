@@ -483,7 +483,7 @@ export class PackagingManager {
         archiveItem({
           absoluteSourcePath: layerPath,
           format: 'zip',
-          useNativeZip: true
+          parallelZip: true
         })
       )
     );
@@ -642,7 +642,9 @@ export class PackagingManager {
           planLambdaDependencies({
             dependencies,
             architecture,
-            excludedNames: sharedPackagingProperties.excludeDependencies
+            excludedNames: sharedPackagingProperties.excludeDependencies,
+            // The group shares this setting; without it the functions run without `--enable-source-maps`.
+            withoutSourceMaps: !languageSpecificConfig.keepSourceMapsInPackage
           })
         )
       );
@@ -906,7 +908,7 @@ export class PackagingManager {
       await archiveItem({
         absoluteSourcePath: distFolderPath,
         format: 'zip',
-        useNativeZip: true
+        parallelZip: true
       });
 
       const originalZipPath = `${distFolderPath}.zip`;

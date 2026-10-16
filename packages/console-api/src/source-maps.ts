@@ -13,7 +13,9 @@ export const SOURCE_MAP_KEY_PREFIX = 'source-maps/';
 
 /**
  * Where the bundle of one artifact's maps is stored: under the artifact's name and digest, so every deployment that
- * runs the same artifact shares one object and the object lives as long as an artifact with that digest does.
+ * runs the same artifact shares one object and the object lives as long as an artifact with that digest does. The
+ * object is the bundle's JSON compressed with gzip, stored with `Content-Encoding: gzip`; objects stored by earlier CLI
+ * builds are plain JSON.
  */
 export const sourceMapObjectKey = ({ artifactName, digest }: { artifactName: string; digest: string }) =>
   `${SOURCE_MAP_KEY_PREFIX}${artifactName}/${digest}.json`;

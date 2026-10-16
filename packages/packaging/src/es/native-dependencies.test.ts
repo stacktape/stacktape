@@ -137,14 +137,16 @@ const refuseDocker: RunDocker = async () => {
 const write = async ({
   dependencies,
   runDocker = refuseDocker,
-  excludedNames
+  excludedNames,
+  withoutSourceMaps
 }: {
   dependencies: ReturnType<typeof external>[];
   runDocker?: RunDocker;
   excludedNames?: string[];
+  withoutSourceMaps?: boolean;
 }) => {
   const output = await createProject();
-  const plan = await planLambdaDependencies({ dependencies, architecture: 'x64', excludedNames });
+  const plan = await planLambdaDependencies({ dependencies, architecture: 'x64', excludedNames, withoutSourceMaps });
   await writeLambdaDependencies({
     plan,
     nodeModulesPath: join(output, 'node_modules'),
@@ -416,6 +418,47 @@ describe('a workspace function and native packages built again', () => {
       { version: '1.0.0', builtInImage: true },
       { version: '2.0.0', builtInImage: true }
     ]);
+  });
+});
+
+describe('source maps of installed packages', () => {
+  const files = {
+    'dist/main.cjs': 'module.exports = 1;\n//# sourceMappingURL=main.cjs.map',
+    'dist/main.cjs.map': '{"version":3,"sources":[],"mappings":""}',
+    'dist/types.d.ts.map': '{"version":3,"sources":[],"mappings":""}',
+    'data/world.map': 'a data file the package reads'
+  };
+
+  test('are left out of a function that runs without them, while other .map files stay', async () => {
+    const { storePackage } = await createStore();
+    const kept = await storePackage({ id: 'kept@1', name: 'kept', version: '1.0.0', files });
+
+    const { artifact } = await write({ dependencies: [external(kept, 'kept')], withoutSourceMaps: true });
+    const copied = join(artifact, 'node_modules', 'kept');
+
+    expect(await pathExists(join(copied, 'dist', 'main.cjs'))).toBe(true);
+    expect(await pathExists(join(copied, 'dist', 'main.cjs.map'))).toBe(false);
+    expect(await pathExists(join(copied, 'dist', 'types.d.ts.map'))).toBe(false);
+    expect(await pathExists(join(copied, 'data', 'world.map'))).toBe(true);
+    expect(runIn(artifact, "console.log(JSON.stringify(require('kept/dist/main.cjs')))")).toBe(1);
+  });
+
+  test('are copied when the function keeps its maps, and only then decide the identity', async () => {
+    const { storePackage } = await createStore();
+    const kept = await storePackage({ id: 'kept@1', name: 'kept', version: '1.0.0', files });
+    const identity = async (withoutSourceMaps: boolean) =>
+      getLambdaDependencyIdentity(
+        await planLambdaDependencies({ dependencies: [external(kept, 'kept')], architecture: 'x64', withoutSourceMaps })
+      );
+
+    const { artifact } = await write({ dependencies: [external(kept, 'kept')] });
+    expect(await pathExists(join(artifact, 'node_modules', 'kept', 'dist', 'main.cjs.map'))).toBe(true);
+
+    const [withMaps, withoutMaps] = [await identity(false), await identity(true)];
+    expect(withoutMaps).not.toEqual(withMaps);
+    await writeFile(join(kept, 'dist', 'main.cjs.map'), '{"version":3,"sources":["changed"],"mappings":""}');
+    expect(await identity(true)).toEqual(withoutMaps);
+    expect(await identity(false)).not.toEqual(withMaps);
   });
 });
 

@@ -3,17 +3,51 @@
  *
  *   pnpm --filter @stacktape/cli run perf:zip-levels -- <label>=<directory> [<label>=<directory> ...] [--runs 5]
  *
- * Each directory is archived with the CLI's own `createArchive`, once per backend (archiver, and `zip` when it is on
- * PATH) and level, `--runs` times. The report gives the median time, the archive size and how long that archive takes
- * to upload at a few connection speeds, so the trade-off between compression time and upload time is visible.
+ * Each directory is archived with the CLI's own `createArchive`, once per backend (the parallel writer and archiver)
+ * and level, `--runs` times. Info-ZIP `zip`, which the CLI used before the parallel writer, is measured too when it is
+ * on PATH, as a reference. The report gives the median time, the archive size and how long that archive takes to
+ * upload at a few connection speeds, so the trade-off between compression time and upload time is visible.
  */
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { createArchive, getAvailableZipTool } from '../../src/utils/zip';
+import { execa } from 'execa';
+import { createArchive } from '../../src/utils/zip';
 
 const LEVELS = [1, 3, 6, 9];
+
+type Backend = 'parallel' | 'archiver' | 'info-zip';
+
+const archive = async ({
+  backend,
+  directory,
+  outputDirectory,
+  fileNameBase,
+  level
+}: {
+  backend: Backend;
+  directory: string;
+  outputDirectory: string;
+  fileNameBase: string;
+  level: number;
+}) => {
+  if (backend === 'info-zip') {
+    const path = join(outputDirectory, `${fileNameBase}.zip`);
+    await execa('zip', [`-${level}`, '--quiet', '--recurse-paths', '--symlinks', path, '.'], { cwd: directory });
+    return path;
+  }
+  const result = await createArchive({
+    absoluteSourcePath: directory,
+    absoluteDestDirPath: outputDirectory,
+    fileNameBase,
+    format: 'zip',
+    compressionLevel: level,
+    parallelZip: backend === 'parallel'
+  });
+  if (result.backend !== backend) throw new Error(`${fileNameBase}: expected ${backend}, got ${result.backend}.`);
+  return result.path;
+};
 const UPLOAD_MEGABITS_PER_SECOND = [10, 50, 200];
 
 const median = (numbers: number[]) => numbers.toSorted((left, right) => left - right)[Math.floor(numbers.length / 2)]!;
@@ -31,7 +65,11 @@ const main = async () => {
   });
   if (inputs.length === 0) throw new Error('Pass at least one <label>=<directory>.');
 
-  const backends = (await getAvailableZipTool()) === 'zip' ? ['archiver', 'zip'] : ['archiver'];
+  const hasInfoZip = await execa('zip', ['--version']).then(
+    () => true,
+    () => false
+  );
+  const backends: Backend[] = ['parallel', 'archiver', ...(hasInfoZip ? (['info-zip'] as const) : [])];
   const outputDirectory = await mkdtemp(join(tmpdir(), 'stacktape-zip-levels-'));
 
   const rows: string[][] = [];
@@ -43,17 +81,16 @@ const main = async () => {
           let bytes = 0;
           for (let run = 0; run < runs; run += 1) {
             const started = performance.now();
-            const archive = await createArchive({
-              absoluteSourcePath: directory,
-              absoluteDestDirPath: outputDirectory,
-              fileNameBase: `${label}-${backend}-${level}`,
-              format: 'zip',
-              compressionLevel: level,
-              useNativeZip: backend === 'zip'
+            const path = await archive({
+              backend,
+              directory,
+              outputDirectory,
+              fileNameBase: `${label}-${backend}-${level}-${run}`,
+              level
             });
             durations.push(performance.now() - started);
-            bytes = (await stat(archive.path)).size;
-            if (archive.backend !== backend) throw new Error(`${label}: expected ${backend}, got ${archive.backend}.`);
+            bytes = (await stat(path)).size;
+            await rm(path);
           }
           const milliseconds = median(durations);
           const uploadSeconds = UPLOAD_MEGABITS_PER_SECOND.map((speed) => (bytes * 8) / (speed * 1_000_000));

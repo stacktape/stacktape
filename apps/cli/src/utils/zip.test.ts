@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { join } from 'node:path';
 import * as tar from 'tar';
 import yauzl from 'yauzl';
-import { archiveItem } from './zip';
+import { archiveItem, createArchive } from './zip';
+import { writeZip as writeParallelZip, ZipLimitError } from './zip-writer';
 
 /** Links, execute bits, shell fixtures and unreadable files are POSIX fixtures; the portable tests run everywhere. */
 const isPosix = process.platform !== 'win32';
@@ -169,50 +171,57 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
   );
 });
 
-describe.if(isPosix)('native ZIP tool fallback', () => {
-  /** Deliberately report native success with corrupt bytes; the real archive consumer must recover. */
-  const runWithFakeZip = async ({ root, onArchive, script }: { root: string; onArchive: string; script: string }) => {
-    const toolDirectory = join(root, 'fake tools');
-    await mkdir(toolDirectory);
-    await file(
-      join(toolDirectory, 'zip'),
-      `#!/bin/sh\nif [ "$1" = "--version" ]; then exit 0; fi\n${onArchive}`,
-      0o755
-    );
-    const child = Bun.spawnSync([process.execPath, '-e', script], {
-      env: { ...process.env, PATH: `${toolDirectory}${delimiter}${process.env.PATH}` },
-      stdout: 'pipe',
-      stderr: 'pipe'
-    });
-    expect(child.exitCode, child.stderr.toString()).toBe(0);
-    return JSON.parse(child.stdout.toString().trim().split('\n').at(-1)!);
-  };
-
-  const zipModule = JSON.stringify(join(import.meta.dir, 'zip.ts'));
-
-  test('falls back to archiver when native zip reports success with corrupt output', async () => {
-    const onArchive =
-      'for argument in "$@"; do case "$argument" in *.zip) printf "not a zip" > "$argument";; esac; done\nexit 0\n';
+describe('parallel ZIP writer', () => {
+  test('writes the entries, modes, links and bytes archiver writes for the same source', async () => {
     const root = await createRoot();
     const source = await createSource(root);
+    // Compressible and incompressible content: one is deflated, the other stored.
+    await file(join(source, 'bundle.js'), 'export const value = "repeated text";\n'.repeat(2000));
+    await writeFile(join(source, 'random.bin'), randomBytes(4096));
+    if (isPosix) await symlink('bin/tool.sh', join(source, 'tool-link'));
 
-    const output = await runWithFakeZip({
-      root,
-      onArchive,
-      script: `const { createArchive } = await import(${zipModule});
-        console.log(JSON.stringify(await createArchive({ absoluteSourcePath: ${JSON.stringify(source)}, format: 'zip', useNativeZip: true })));`
+    const parallel = await createArchive({
+      absoluteSourcePath: source,
+      absoluteDestDirPath: join(root, 'parallel'),
+      format: 'zip',
+      parallelZip: true
+    });
+    const archiver = await createArchive({
+      absoluteSourcePath: source,
+      absoluteDestDirPath: join(root, 'archiver'),
+      format: 'zip'
     });
 
-    expect(output.backend).toBe('archiver');
-    expect(output.nativeFailure.tool).toBe('zip');
-    expect(Object.keys(await readZip(output.path)).toSorted()).toEqual([
+    expect(parallel.backend).toBe('parallel');
+    expect(archiver.backend).toBe('archiver');
+    expect(await readZip(parallel.path)).toEqual(await readZip(archiver.path));
+    expect(Object.keys(await readZip(parallel.path)).toSorted()).toEqual([
       '.hidden',
       'bin/',
       'bin/tool.sh',
+      'bundle.js',
       'empty/',
       'index.js',
-      'private.txt'
+      'private.txt',
+      'random.bin',
+      ...(isPosix ? ['tool-link'] : [])
     ]);
-    expect((await readdir(root)).toSorted()).toEqual(['fake tools', 'source dir', 'source dir.zip']);
+    if (Bun.which('unzip')) {
+      expect(Bun.spawnSync(['unzip', '-tq', parallel.path]).exitCode).toBe(0);
+    }
+  });
+
+  test('leaves archives that need ZIP64 to the fallback', async () => {
+    const root = await createRoot();
+    const entries = Array.from({ length: 0x10000 }, (_, index) => ({
+      type: 'directory' as const,
+      path: `d${index}`,
+      mode: 0o755
+    }));
+
+    await expect(writeParallelZip({ entries, outputPath: join(root, 'many.zip'), level: 6 })).rejects.toBeInstanceOf(
+      ZipLimitError
+    );
+    expect(await readdir(root)).toEqual([]);
   });
 });

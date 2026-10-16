@@ -155,6 +155,7 @@ export class AwsS3 {
     filePath,
     s3Key,
     contentType,
+    contentEncoding,
     bucketName,
     useS3Acceleration,
     metadata
@@ -163,6 +164,8 @@ export class AwsS3 {
     filePath: string;
     s3Key: string;
     contentType?: string;
+    /** `gzip` for a file stored compressed; readers decompress it. */
+    contentEncoding?: 'gzip';
     useS3Acceleration?: boolean;
     metadata?: Record<string, string>;
   }) => {
@@ -175,6 +178,7 @@ export class AwsS3 {
         Key: s3Key,
         Body: fsExtra.createReadStream(filePath),
         ...(contentType ? { ContentType: contentType } : {}),
+        ...(contentEncoding ? { ContentEncoding: contentEncoding } : {}),
         ...(metadata ? { Metadata: metadata } : {})
       },
       client: useS3Acceleration ? this.#createAcceleratedClient() : this.#createClient()

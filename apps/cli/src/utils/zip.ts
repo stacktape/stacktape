@@ -6,71 +6,17 @@ import { mkdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { listArchiveEntries, matchesExecutablePattern } from '@stacktape/packaging/artifact/archive-entries';
 import { TarArchive, ZipArchive } from 'archiver';
-import { execa } from 'execa';
 import * as tar from 'tar';
-import { applyArchivePolicy } from './zip-central-directory';
-
-/**
- * Native ZIP tools Stacktape can drive to store links as links and whose output it then normalizes, fastest first.
- * PowerShell's ZipFile writes no Unix modes or links and is not used until it is qualified.
- */
-type NativeZipTool = 'zip' | '7z';
-
-type ArchiveBackend = NativeZipTool | 'archiver';
+import { writeZip as writeParallelZip, ZipLimitError } from './zip-writer';
 
 export type ArchiveResult = {
   path: string;
-  /** The tool that wrote the published archive. */
-  backend: ArchiveBackend;
-  /** A native tool tried first that failed or produced the wrong entries; its output was discarded before fallback. */
-  nativeFailure?: { tool: NativeZipTool; message: string } | undefined;
+  /**
+   * What wrote the archive: Stacktape's own parallel ZIP writer (`zip-writer.ts`), or archiver, which writes tarballs,
+   * ZIPs without `parallelZip` and the few ZIPs that need ZIP64.
+   */
+  backend: 'parallel' | 'archiver';
 };
-
-let detectedNativeZipTool: Promise<NativeZipTool | null> | null = null;
-
-const detectNativeZipTool = () => {
-  detectedNativeZipTool ??= (async () => {
-    for (const [tool, args] of [
-      ['zip', ['--version']],
-      ['7z', ['--help']]
-    ] as const) {
-      try {
-        // The first working tool wins; later probes are unnecessary.
-        await execa(tool, args);
-        return tool;
-      } catch {
-        // Not installed or not runnable.
-      }
-    }
-    return null;
-  })();
-  return detectedNativeZipTool;
-};
-
-/** The native ZIP tool archives would try first, or `archiver`. This is detection only: see `ArchiveResult.backend`. */
-export const getAvailableZipTool = async (): Promise<string> => (await detectNativeZipTool()) ?? 'archiver';
-
-const runNativeZipTool = ({
-  tool,
-  sourceDirectory,
-  outputPath,
-  compressionLevel
-}: {
-  tool: NativeZipTool;
-  sourceDirectory: string;
-  outputPath: string;
-  compressionLevel: number;
-}) =>
-  // Paths are separate arguments, never shell or script text. Both tools archive `.` from inside the source so entry
-  // names carry no directory prefix, and both store links as links; every link was already checked to stay inside.
-  execa(
-    tool,
-    tool === 'zip'
-      ? [`-${compressionLevel}`, '--quiet', '--recurse-paths', '--symlinks', outputPath, '.']
-      : // -sse stops instead of skipping an unreadable file; -mcu=on writes UTF-8 names.
-        ['a', '-tzip', `-mx=${compressionLevel}`, '-snl', '-sse', '-mcu=on', '-bd', '-bso0', '-bsp0', outputPath, '.'],
-    { cwd: sourceDirectory }
-  );
 
 /**
  * Settles once the archive stream is completely written, or with the first error. A warning means an entry listed a
@@ -186,13 +132,13 @@ const writeTarWithArchiver = ({
 };
 
 /**
- * The level a directory ZIP uses unless the caller names one, from `scripts/perf/zip-levels.ts` on a 17 MB function
- * with sharp's binaries, a 20 MB bundle with its source map, a 14 MB shared layer and 144 MB of node_modules. Level 3
- * took 1.1-1.5x the time of level 1 for files 5-30% smaller, and level 6 took 1.6-2.7x longer again for files 4-11%
- * smaller still, so 3 gave the shortest compression plus upload at 50 Mbit/s with both backends. Release tarballs keep
- * level 1 and every other archive keeps 9.
+ * The level a `parallelZip` directory uses unless the caller names one. Measured with `scripts/perf/zip-levels.ts` on an
+ * 18 MB function with its node_modules, a 16 MB dependency layer and 292 MB of node_modules in 15,000 files: the
+ * parallel writer at level 6 wrote archives 9-13 % smaller than Info-ZIP `zip` at level 3, the level used before, in
+ * about 57 % of its time on 24 cores and about 90 % on 2. Level 9 took 1.3-1.7 times as long again for 1-2 % fewer
+ * bytes. Release tarballs keep level 1 and every other archive keeps 9.
  */
-const DIRECTORY_LEVEL = 3;
+const PARALLEL_ZIP_LEVEL = 6;
 const TARBALL_DIRECTORY_LEVEL = 1;
 const DEFAULT_LEVEL = 9;
 
@@ -201,39 +147,29 @@ const writeZip = async ({
   outputPath,
   executablePatterns,
   compressionLevel,
-  useNativeZip
+  parallelZip
 }: {
   sourcePath: string;
   outputPath: string;
   executablePatterns: string[];
   /** An explicit level, used by whichever backend writes the archive; otherwise the backend's default. */
   compressionLevel: number | undefined;
-  useNativeZip: boolean;
+  parallelZip: boolean;
 }): Promise<Omit<ArchiveResult, 'path'>> => {
-  const { root, isDirectory, entries } = await listArchiveEntries({ sourcePath, executablePatterns });
-  let nativeFailure: ArchiveResult['nativeFailure'];
-  const nativeTool = useNativeZip && isDirectory ? await detectNativeZipTool() : null;
-  if (nativeTool) {
+  const { isDirectory, entries } = await listArchiveEntries({ sourcePath, executablePatterns });
+  const level = compressionLevel ?? (parallelZip && isDirectory ? PARALLEL_ZIP_LEVEL : DEFAULT_LEVEL);
+  if (parallelZip && isDirectory) {
     try {
-      await runNativeZipTool({
-        tool: nativeTool,
-        sourceDirectory: root,
-        outputPath,
-        compressionLevel: compressionLevel ?? DIRECTORY_LEVEL
-      });
-      await applyArchivePolicy({ zipPath: outputPath, entries });
-      return { backend: nativeTool };
+      await writeParallelZip({ entries, outputPath, level });
+      return { backend: 'parallel' };
     } catch (error) {
-      nativeFailure = { tool: nativeTool, message: error instanceof Error ? error.message : String(error) };
+      // An archive that needs ZIP64 goes to archiver, which writes it; anything else is a real failure.
+      if (!(error instanceof ZipLimitError)) throw error;
       await rm(outputPath, { force: true });
     }
   }
-  await writeZipWithArchiver({
-    entries,
-    outputPath,
-    compressionLevel: compressionLevel ?? (useNativeZip && isDirectory ? DIRECTORY_LEVEL : DEFAULT_LEVEL)
-  });
-  return { backend: 'archiver', ...(nativeFailure && { nativeFailure }) };
+  await writeZipWithArchiver({ entries, outputPath, compressionLevel: level });
+  return { backend: 'archiver' };
 };
 
 /** An archive written inside the directory it archives would end up in the next archive of that directory. */
@@ -264,9 +200,9 @@ const withoutExtension = (name: string) => {
  * that actually wrote it.
  *
  * ZIPs follow Stacktape's archive policy (`listArchiveEntries`): hidden files included, normalized modes, executable
- * intent kept, links stored as links only when they stay inside. With `useNativeZip`, a directory is first given to
- * zip or 7-Zip, whose result is rewritten to the policy's modes and checked entry by entry; any failure discards it and
- * falls back to archiver.
+ * intent kept, links stored as links only when they stay inside. With `parallelZip`, a directory is written by
+ * Stacktape's parallel ZIP writer, at level 6 unless the caller names one; an archive that needs ZIP64 falls back to
+ * archiver.
  *
  * The archive is built under a temporary name beside the destination, which must be outside the source, and renamed
  * over the destination only when complete. A failed attempt removes its own output and leaves any previous archive at
@@ -280,7 +216,7 @@ export const createArchive = async ({
   executablePatterns = [],
   compressionLevel,
   store = false,
-  useNativeZip = false
+  parallelZip = false
 }: Parameters<ArchiveItem>[0]): Promise<ArchiveResult> => {
   const isDirectory = (await stat(absoluteSourcePath)).isDirectory();
   const extension = format === 'zip' ? 'zip' : 'tar.gz';
@@ -306,7 +242,7 @@ export const createArchive = async ({
             outputPath: temporaryPath,
             executablePatterns,
             compressionLevel: explicitLevel,
-            useNativeZip
+            parallelZip
           })
         : (await writeTarWithArchiver({
             sourcePath: absoluteSourcePath,
@@ -314,7 +250,7 @@ export const createArchive = async ({
             outputPath: temporaryPath,
             executablePatterns,
             // Release tarballs, the only tar archives, keep the level they always had.
-            compressionLevel: explicitLevel ?? (useNativeZip && isDirectory ? TARBALL_DIRECTORY_LEVEL : DEFAULT_LEVEL),
+            compressionLevel: explicitLevel ?? (parallelZip && isDirectory ? TARBALL_DIRECTORY_LEVEL : DEFAULT_LEVEL),
             store
           }),
           { backend: 'archiver' as const });

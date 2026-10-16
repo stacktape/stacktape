@@ -129,11 +129,28 @@ export const addRuntimeDependencies = async ({
 };
 
 /**
- * The files a package is copied with, in a stable order: everything except its own `node_modules`, with linked
- * directories followed, so a directory reached through two names is listed under both, as copying writes it. A link
- * back to a directory being listed is skipped; copying it would never end.
+ * A source map an installed package ships beside its code, by the name bundlers give one: `index.js.map`,
+ * `main.cjs.map`, `types.d.ts.map`, `style.css.map`. Node.js reads such a map only under `--enable-source-maps`, to
+ * rewrite a stack trace; the maps of installed packages are often larger than their code. Other `.map` files may be
+ * data a package reads, and are kept.
  */
-const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
+const isInstalledSourceMap = (path: string) => /\.(?:[cm]?[jt]sx?|css)\.map$/.test(path);
+
+/**
+ * Which of a package's files an artifact gets. `withoutSourceMaps` leaves out its source maps
+ * (`isInstalledSourceMap`), for an artifact whose functions do not run with `--enable-source-maps`.
+ */
+export type PackageFileSelection = { withoutSourceMaps?: boolean | undefined };
+
+const isSelected = (path: string, { withoutSourceMaps }: PackageFileSelection) =>
+  !(withoutSourceMaps && isInstalledSourceMap(path));
+
+/**
+ * The files a package is copied with, in a stable order: everything except its own `node_modules` and the files
+ * `selection` leaves out, with linked directories followed, so a directory reached through two names is listed under
+ * both, as copying writes it. A link back to a directory being listed is skipped; copying it would never end.
+ */
+const listPackageFiles = async (packageRoot: string, selection: PackageFileSelection): Promise<string[]> => {
   const files: string[] = [];
   const visit = async (directory: string, enclosing: Set<string>) => {
     const realDirectory = await realpath(directory);
@@ -143,8 +160,9 @@ const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
     for (const entry of entries.toSorted((left, right) => (left.name < right.name ? -1 : 1))) {
       const path = join(directory, entry.name);
       const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
-      if (!isDirectory) files.push(path);
-      else if (entry.name !== 'node_modules') await visit(path, withThis);
+      if (!isDirectory) {
+        if (isSelected(path, selection)) files.push(path);
+      } else if (entry.name !== 'node_modules') await visit(path, withThis);
     }
   };
   await visit(packageRoot, new Set());
@@ -154,13 +172,16 @@ const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
 const fingerprints = new Map<string, { signature: string; fingerprint: string }>();
 
 /**
- * A hash of what copying the package puts into an artifact: each file's path, bytes and, where the host records it,
- * whether it is executable. A package edited or rebuilt in place keeps its version but changes this. File names, sizes
- * and modification times decide whether a hash computed earlier in this process still holds, so a watched rebuild sees
- * edits.
+ * A hash of what copying the package with `selection` puts into an artifact: each file's path, bytes and, where the
+ * host records it, whether it is executable. A package edited or rebuilt in place keeps its version but changes this.
+ * File names, sizes and modification times decide whether a hash computed earlier in this process still holds, so a
+ * watched rebuild sees edits.
  */
-export const getPackageFingerprint = async (packageRoot: string): Promise<string> => {
-  const files = await listPackageFiles(packageRoot);
+export const getPackageFingerprint = async (
+  packageRoot: string,
+  selection: PackageFileSelection = {}
+): Promise<string> => {
+  const files = await listPackageFiles(packageRoot, selection);
   const stats = await Promise.all(files.map((path) => stat(path)));
   const signature = files
     .map(
@@ -168,7 +189,8 @@ export const getPackageFingerprint = async (packageRoot: string): Promise<string
         `${relative(packageRoot, path)}:${stats[index]!.size}:${stats[index]!.mtimeMs}:${stats[index]!.mode}`
     )
     .join('\n');
-  const cached = fingerprints.get(packageRoot);
+  const cacheKey = `${packageRoot}\0${Boolean(selection.withoutSourceMaps)}`;
+  const cached = fingerprints.get(cacheKey);
   if (cached?.signature === signature) return cached.fingerprint;
 
   const records: string[] = [];
@@ -185,7 +207,7 @@ export const getPackageFingerprint = async (packageRoot: string): Promise<string
     records.push(...(await Promise.all(batch)));
   }
   const fingerprint = createHash('sha256').update(records.join('\n')).digest('hex');
-  fingerprints.set(packageRoot, { signature, fingerprint });
+  fingerprints.set(cacheKey, { signature, fingerprint });
   return fingerprint;
 };
 
@@ -342,13 +364,16 @@ export const writePackageLayout = async ({
   layout,
   packages,
   artifactRoot,
-  sources = new Map()
+  sources = new Map(),
+  selection = {}
 }: {
   layout: PackageLayout;
   packages: Map<string, InstalledPackage>;
   artifactRoot: string;
   /** Packages whose files come from somewhere other than their installed directory, by real directory. */
   sources?: Map<string, PackageSource> | undefined;
+  /** Files of every package the artifact leaves out. */
+  selection?: PackageFileSelection | undefined;
 }) => {
   const copyDirectory = async ({ path, root }: PackageLayout['directories'][number]) => {
     const destination = join(artifactRoot, path);
@@ -356,22 +381,29 @@ export const writePackageLayout = async ({
     const source = sources.get(root);
     if (files && !source) {
       await Promise.all(
-        [...files].map(async (sourcePath) => {
-          const destinationPath = join(destination, relative(root, sourcePath));
-          await ensureDir(dirname(destinationPath));
-          await copy(sourcePath, destinationPath, { dereference: true, overwrite: true });
-        })
+        [...files]
+          .filter((sourcePath) => isSelected(sourcePath, selection))
+          .map(async (sourcePath) => {
+            const destinationPath = join(destination, relative(root, sourcePath));
+            await ensureDir(dirname(destinationPath));
+            await copy(sourcePath, destinationPath, { dereference: true, overwrite: true });
+          })
       );
     } else {
       const from = source?.copyFrom ?? root;
       await copy(from, destination, {
         dereference: true,
         overwrite: true,
-        filter: (sourcePath) => !relative(from, sourcePath).split(sep).includes('node_modules')
+        filter: (sourcePath) =>
+          !relative(from, sourcePath).split(sep).includes('node_modules') && isSelected(sourcePath, selection)
       });
     }
     for (const [name, nestedRoot] of source?.nestedPackages ?? []) {
-      await copy(nestedRoot, join(destination, 'node_modules', name), { dereference: true, overwrite: true });
+      await copy(nestedRoot, join(destination, 'node_modules', name), {
+        dereference: true,
+        overwrite: true,
+        filter: (sourcePath) => isSelected(sourcePath, selection)
+      });
     }
   };
   // A nested package is copied after the package it sits in, so two copies never create the same directory.

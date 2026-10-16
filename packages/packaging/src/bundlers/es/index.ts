@@ -861,7 +861,8 @@ export const createEsBundle = async ({
       ? await planLambdaDependencies({
           dependencies: externalDependencies,
           architecture: getLambdaArchitecture(dockerBuildOutputArchitecture),
-          excludedNames: [...excludeDependencies, ...(dependenciesToExcludeFromDeploymentPackage ?? [])]
+          excludedNames: [...excludeDependencies, ...(dependenciesToExcludeFromDeploymentPackage ?? [])],
+          withoutSourceMaps: mapsLeavePackage
         })
       : null;
 
