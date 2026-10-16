@@ -65,6 +65,8 @@ export const buildJsBundleImage = async ({
     bundleTarget: runtime === 'bun' ? 'bun' : 'node',
     externals: [],
     packageExternalDependencies: false,
+    // Bun and Deno run on Debian images; Node runs on Alpine unless the configuration asks for glibc.
+    requiresGlibcBinaries: requiresGlibcBinaries || runtime !== 'node',
     dockerBuildOutputArchitecture,
     name,
     progressLogger,

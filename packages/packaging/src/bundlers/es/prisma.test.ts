@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { resolvePrisma } from './utils';
 
 const temporaryDirectories: string[] = [];
@@ -20,6 +20,122 @@ const writePrismaClientVersion = async (projectRoot: string, version: string) =>
 };
 
 describe('Prisma deployment artifacts', () => {
+  const ENGINES = [
+    'libquery_engine-debian-openssl-3.0.x.so.node',
+    'libquery_engine-rhel-openssl-1.1.x.so.node',
+    'libquery_engine-rhel-openssl-3.0.x.so.node',
+    'libquery_engine-linux-arm64-openssl-3.0.x.so.node',
+    'libquery_engine-linux-musl.so.node',
+    'libquery_engine-linux-musl-openssl-3.0.x.so.node',
+    'libquery_engine-linux-musl-arm64-openssl-3.0.x.so.node',
+    'query-engine-rhel-openssl-3.0.x'
+  ];
+
+  // Prisma loads one engine by C library, distribution and CPU; any other engine only makes the artifact bigger.
+  test.each([
+    [
+      'Lambda x64',
+      { isLambda: true, architecture: 'x64' },
+      ['rhel-openssl-1.1.x', 'rhel-openssl-3.0.x', 'rhel-openssl-3.0.x (binary)']
+    ],
+    ['Lambda arm64', { isLambda: true, architecture: 'arm64' }, ['linux-arm64-openssl-3.0.x']],
+    ['Alpine x64', { isAlpine: true, architecture: 'x64' }, ['linux-musl', 'linux-musl-openssl-3.0.x']],
+    ['Alpine arm64', { isAlpine: true, architecture: 'arm64' }, ['linux-musl-arm64-openssl-3.0.x']],
+    ['Debian x64', { isAlpine: false, architecture: 'x64' }, ['debian-openssl-3.0.x']],
+    ['Debian arm64', { isAlpine: false, architecture: 'arm64' }, ['linux-arm64-openssl-3.0.x']]
+  ] as const)('copies only the query engines %s loads', async (_, platform, expectedTargets) => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-engines-'));
+    temporaryDirectories.push(projectRoot);
+    // pnpm's layout: the client is generated beside `@prisma/client` in the store, not in the project's node_modules.
+    const store = join(projectRoot, 'node_modules', '.pnpm', '@prisma+client@6.19.3', 'node_modules');
+    const generatedDirectory = join(store, '.prisma', 'client');
+    const distFolderPath = join(projectRoot, 'dist');
+    await Promise.all([
+      mkdir(join(projectRoot, 'prisma')),
+      mkdir(generatedDirectory, { recursive: true }),
+      mkdir(join(projectRoot, 'node_modules', '@prisma'), { recursive: true }),
+      mkdir(distFolderPath),
+      writeFile(join(projectRoot, 'package.json'), '{"name":"prisma-test"}')
+    ]);
+    await writePrismaClientVersion(dirname(store), '6.19.3');
+    await symlink(
+      join(store, '@prisma', 'client'),
+      join(projectRoot, 'node_modules', '@prisma', 'client'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    await writeFile(join(projectRoot, 'prisma', 'schema.prisma'), 'generator client { provider = "prisma-client-js" }');
+    await Promise.all(
+      [...ENGINES, 'schema.prisma', 'index.js'].map((file) => writeFile(join(generatedDirectory, file), file))
+    );
+
+    await resolvePrisma({
+      createPackagingError: ({ message }) => new Error(message),
+      distFolderPath,
+      workingDir: projectRoot,
+      workloadName: 'api',
+      ...platform
+    });
+
+    const copied = (await readdir(distFolderPath)).filter((file) => file !== 'schema.prisma');
+    expect(
+      copied
+        .map((file) =>
+          file.startsWith('query-engine-')
+            ? `${file.slice('query-engine-'.length)} (binary)`
+            : file.slice('libquery_engine-'.length, -'.so.node'.length)
+        )
+        .toSorted()
+    ).toEqual([...expectedTargets]);
+    expect(await Bun.file(join(distFolderPath, 'schema.prisma')).exists()).toBe(true);
+  });
+
+  test('names the binary target a platform without an engine needs, and finds engines in a custom output', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-engines-'));
+    temporaryDirectories.push(projectRoot);
+    const generatedDirectory = join(projectRoot, 'generated');
+    const distFolderPath = join(projectRoot, 'dist');
+    await Promise.all([
+      mkdir(join(projectRoot, 'prisma')),
+      mkdir(generatedDirectory),
+      mkdir(distFolderPath),
+      writeFile(join(projectRoot, 'package.json'), '{"name":"prisma-test"}')
+    ]);
+    await writeFile(
+      join(projectRoot, 'prisma', 'schema.prisma'),
+      'generator client {\n  provider = "prisma-client-js"\n  output   = "../generated"\n}'
+    );
+    await Promise.all(
+      ['schema.prisma', 'libquery_engine-rhel-openssl-3.0.x.so.node'].map((file) =>
+        writeFile(join(generatedDirectory, file), file)
+      )
+    );
+    const options = {
+      distFolderPath,
+      workingDir: projectRoot,
+      workloadName: 'api',
+      isLambda: true,
+      architecture: 'arm64'
+    } as const;
+    let hint: string | undefined;
+
+    const error = await resolvePrisma({
+      ...options,
+      createPackagingError: (details) => {
+        hint = details.hint;
+        return new Error(details.message);
+      }
+    }).catch((caught: unknown) => caught);
+    expect(String(error)).toContain('Lambda (arm64)');
+    expect(hint).toContain('"linux-arm64-openssl-3.0.x"');
+
+    await writeFile(join(generatedDirectory, 'libquery_engine-linux-arm64-openssl-3.0.x.so.node'), 'arm64 engine');
+    await resolvePrisma({ ...options, createPackagingError: ({ message }) => new Error(message) });
+    expect((await readdir(distFolderPath)).toSorted()).toEqual([
+      'libquery_engine-linux-arm64-openssl-3.0.x.so.node',
+      'schema.prisma'
+    ]);
+  });
+
   test('prunes dependency and build trees before following their cyclic directory links', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-cycles-'));
     temporaryDirectories.push(projectRoot);

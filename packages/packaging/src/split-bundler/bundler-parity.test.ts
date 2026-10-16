@@ -13,7 +13,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -301,6 +301,116 @@ test('dependency rules select bundled bytes or runtime modules on both build pat
       expect(execution.status, `${label}: ${execution.stderr}`).toBe(0);
       expect(JSON.parse(execution.stdout), label).toBe(expected);
     }
+  }
+}, 30_000);
+
+test("a package's own subpath imports are bundled on both build paths", async () => {
+  // Prisma 6's generated client loads itself with `require('#main-entry-point')`, a name only its own package.json
+  // `imports` map defines. Two packages here map the same name to different files, and the `node` condition must win.
+  const root = await createRoot();
+  for (const name of ['first-client', 'second-client']) {
+    await writePackage({
+      root,
+      name,
+      packageJson: {
+        main: 'default.js',
+        imports: {
+          '#main-entry-point': {
+            require: { node: './node.js', browser: './browser.js', default: './node.js' },
+            default: './node.js'
+          }
+        }
+      },
+      files: {
+        'default.js': "module.exports = { ...require('#main-entry-point') };",
+        'node.js': `exports.value = ${JSON.stringify(name)};`,
+        'browser.js': "exports.value = 'browser';"
+      }
+    });
+  }
+  await mkdir(join(root, 'src'));
+  await writeFile(
+    join(root, 'src/api.ts'),
+    [
+      "import first from 'first-client';",
+      "import second from 'second-client';",
+      'export const handler = () => [first.value, second.value];'
+    ].join('\n')
+  );
+  await buildEsCode({
+    sourcePath: join(root, 'src/api.ts'),
+    distPath: join(root, 'single/index.js'),
+    cwd: root,
+    externals: [],
+    outputModuleFormat: 'esm',
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'disabled',
+    createPackagingError
+  });
+  await splitBundle({ root, entries: ['api'] });
+  for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+    // The artifact runs without the project's node_modules, as it does once deployed.
+    const runtime = await mkdtemp(join(tmpdir(), 'stacktape-subpath-imports-'));
+    temporaryDirectories.push(runtime);
+    await cp(source, runtime, { recursive: true });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+      ],
+      { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(execution.status, `${basename(source)}: ${execution.stderr}`).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual(['first-client', 'second-client']);
+  }
+}, 30_000);
+
+test('an ES module artifact answers eval("__dirname") with its own directory on both build paths', async () => {
+  // Prisma 5 looks for its query engine from `eval("__dirname")`, which the build cannot redirect as it does a plain
+  // `__dirname`. The project's own `__dirname`, common in ES modules, must keep working beside it.
+  const root = await createRoot();
+  await writePackage({ root, name: 'engine-finder', files: { 'index.js': 'exports.find = () => eval("__dirname");' } });
+  await mkdir(join(root, 'src'));
+  await writeFile(
+    join(root, 'src/api.ts'),
+    [
+      "import { dirname } from 'node:path';",
+      "import { fileURLToPath } from 'node:url';",
+      "import { find } from 'engine-finder';",
+      'const __filename = fileURLToPath(import.meta.url);',
+      'const __dirname = dirname(__filename);',
+      'export const handler = () => [find(), __dirname];'
+    ].join('\n')
+  );
+  await buildEsCode({
+    sourcePath: join(root, 'src/api.ts'),
+    distPath: join(root, 'single/index.js'),
+    cwd: root,
+    externals: [],
+    outputModuleFormat: 'esm',
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'pre-compiled',
+    createPackagingError
+  });
+  await splitBundle({ root, entries: ['api'] });
+  for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+    // Node.js reports a module's real path, so a temporary directory behind a link would not compare equal.
+    const runtime = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-eval-dirname-')));
+    temporaryDirectories.push(runtime);
+    await cp(source, runtime, { recursive: true });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+      ],
+      { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(execution.status, `${basename(source)}: ${execution.stderr}`).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual([runtime, runtime]);
   }
 }, 30_000);
 

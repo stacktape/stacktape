@@ -12,10 +12,12 @@ import { isAbsolute } from 'node:path';
  * Whether a specifier names a package rather than a file.
  *
  * Both resolvers run on a `^[^.]` filter, which still admits absolute paths and POSIX roots, so
- * each one drops those before looking anything up.
+ * each one drops those before looking anything up. A subpath import (`#name`) is not a package
+ * either: it names a file of the importing package through that package's `imports` map, which
+ * Bun's own resolver follows. Prisma 6's generated client loads itself this way.
  */
 export const isBareImportSpecifier = (specifier: string): boolean =>
-  !specifier.startsWith('.') && !specifier.startsWith('/') && !isAbsolute(specifier);
+  !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !isAbsolute(specifier);
 
 /**
  * `.node` addons stay external: they are copied next to the artifact and loaded by the runtime,

@@ -344,9 +344,10 @@ export const buildEsCode = async ({
       setup(build) {
         // A bare workspace import is resolved to a forward-slash real path above, but relative imports inside that
         // package otherwise fall back to Bun's Windows resolver. Bun 1.3.14 then panics while formatting the
-        // backslash path for source maps. Keep the complete workspace module graph normalized.
+        // backslash path for source maps. Keep the complete workspace module graph normalized. A subpath import
+        // (`#name`) also names a file inside the importing package.
         if (process.platform === 'win32') {
-          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)\.\.?[\\/]/ }, (args) => {
+          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)(?:\.\.?[\\/]|#)/ }, (args) => {
             if (!args.importer) return undefined;
             return resolvePackageImport(args);
           });
@@ -952,6 +953,7 @@ export const createEsBundle = async ({
         workloadName: name,
         isAlpine: !requiresGlibcBinaries,
         isLambda,
+        architecture: dockerBuildOutputArchitecture ? getLambdaArchitecture(dockerBuildOutputArchitecture) : undefined,
         createPackagingError
       }),
     dependencyPlan &&

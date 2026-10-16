@@ -442,8 +442,7 @@ export interface JsBundleSharedProps {
   *           entryfilePath: src/handlers/api.ts
   *           # stp-focus
   *           dependenciesToExcludeFromBundle:
-  *             - sharp
-  *             - "@prisma/client"
+  *             - dd-trace
   *           # stp-end-focus
   *       memory: 1024
   * ```
@@ -460,7 +459,7 @@ export interface JsBundleSharedProps {
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
   *         // stp-focus
-  *         dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+  *         dependenciesToExcludeFromBundle: ['dd-trace']
   *         // stp-end-focus
   *       }
   *     },

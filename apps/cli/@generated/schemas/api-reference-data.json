@@ -1031,11 +1031,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -8777,11 +8777,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -16026,11 +16026,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -23037,11 +23037,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -24549,11 +24549,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -27286,11 +27286,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -32268,11 +32268,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
           }
         ]
       },
@@ -32737,11 +32737,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
           }
         ]
       },
@@ -33180,11 +33180,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
           }
         ]
       },
@@ -36127,11 +36127,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -44934,11 +44934,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -51562,11 +51562,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -61324,11 +61324,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -64871,11 +64871,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - sharp\n           - \"@prisma/client\"\n         # [!code focus-end]\n     memory: 1024"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: js-bundle\n       properties:\n         entryfilePath: src/handlers/api.ts\n         # [!code focus-start]\n         dependenciesToExcludeFromBundle:\n           - dd-trace\n         # [!code focus-end]\n     memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       // [!code focus-start]\n       dependenciesToExcludeFromBundle: ['dd-trace']\n       // [!code focus-end]\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },

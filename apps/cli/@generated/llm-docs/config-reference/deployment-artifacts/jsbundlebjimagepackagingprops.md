@@ -220,8 +220,7 @@ resources:
        properties:
          entryfilePath: src/handlers/api.ts
          dependenciesToExcludeFromBundle:
-           - sharp
-           - "@prisma/client"
+           - dd-trace
      memory: 1024
 ```
 
@@ -236,7 +235,7 @@ export default defineConfig(() => {
      type: 'js-bundle',
      properties: {
        entryfilePath: 'src/handlers/api.ts',
-       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+       dependenciesToExcludeFromBundle: ['dd-trace']
      }
    },
    memory: 1024

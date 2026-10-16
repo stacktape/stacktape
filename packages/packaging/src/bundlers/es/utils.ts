@@ -1,6 +1,7 @@
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { getFolder, getPathRelativeTo, isFileAccessible } from '../../fs/files';
 import { findProjectRoot } from '../../es/project-root';
+import { readdir } from 'node:fs/promises';
 import { chmod, copy, readFile, readJson, stat } from 'fs-extra';
 import kleur from 'kleur';
 import type {
@@ -178,6 +179,7 @@ export const resolvePrisma = async ({
   debug,
   isAlpine,
   isLambda,
+  architecture = process.arch === 'arm64' ? 'arm64' : 'x64',
   workloadName,
   createPackagingError
 }: {
@@ -186,6 +188,8 @@ export const resolvePrisma = async ({
   debug?: boolean | undefined;
   isAlpine?: boolean | undefined;
   isLambda?: boolean | undefined;
+  /** The CPU the artifact runs on. Docker builds an image for this machine's CPU when none is configured. */
+  architecture?: 'x64' | 'arm64' | undefined;
   workloadName: string;
   createPackagingError: CreatePackagingError;
 }) => {
@@ -320,59 +324,78 @@ export const resolvePrisma = async ({
     }
   }
 
-  // @todo validate if exists and tell user to install it if not
-  const queryEngineFileGlobs = ['rhel*', 'linux-musl*', 'linux-arm*', 'debian*'];
-
-  // available engines: https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#binarytargets-options
-
-  let availableEngines = await getMatchingFilesByGlob({
-    globPattern: queryEngineFileGlobs.flatMap((glob) => [
-      `node_modules/.prisma/client/libquery_engine-${glob}`,
-      `node_modules/.prisma/client/query-engine-${glob}`
-    ]),
-    cwd: projectRoot
+  // `prisma-client-js` generates into `.prisma/client` beside the installed `@prisma/client` unless the schema sets
+  // `output`. pnpm keeps that pair in its store, not in the project's own `node_modules`.
+  const schemaDirectory = parsedPrismaSchemaFile ? getFolder(parsedPrismaSchemaFile.prismaSchemaFilePath) : packageRoot;
+  const installedClient = await findInstalledPackage({ name: '@prisma/client', fromDirectory: schemaDirectory });
+  const generatedClientDirectory = parsedPrismaSchemaFile?.output
+    ? join(schemaDirectory, parsedPrismaSchemaFile.output)
+    : installedClient
+      ? join(installedClient, '..', '..', '.prisma', 'client')
+      : join(projectRoot, 'node_modules', '.prisma', 'client');
+  const target = getPrismaEngineTarget({ isAlpine, isLambda, architecture });
+  const generatedClientFiles = await readdir(generatedClientDirectory).catch(() => [] as string[]);
+  const availableEngines = generatedClientFiles.filter((fileName) => {
+    const engineTarget = getPrismaEngineTargetName(fileName);
+    return engineTarget !== undefined && target.matches(engineTarget);
   });
-  if (isLambda) {
-    availableEngines = availableEngines.filter((e) => e.includes('rhel-openssl'));
-    if (!availableEngines.length) {
-      throw createPackagingError({
-        type: 'PACKAGING',
-        message: `Lambda function ${workloadName} uses Prisma, but the prisma query engine compatible with Lambda is not available.`,
-        hint: 'Please add engine "rhel-openssl-3.0.x" to "schema.prisma" -> "generator client" -> "binaryTargets" and run prisma generate.'
-      });
-    }
-  } else if (isAlpine) {
-    availableEngines = availableEngines.filter((e) => e.includes('linux-musl'));
-    if (!availableEngines.length) {
-      throw createPackagingError({
-        type: 'PACKAGING',
-        message: `Container ${workloadName} uses Prisma and Alpine linux (with musl), but the prisma query engine compatible with this linux version is not available.`,
-        hint: 'Please add engine "linux-musl" to "schema.prisma" -> "generator client" -> "binaryTargets" and run prisma generate.'
-      });
-    }
-  }
   if (!availableEngines.length) {
     throw createPackagingError({
       type: 'PACKAGING',
-      message: `Workload ${workloadName} uses Prisma, but no query engine is available. Did you forget to run "prisma generate"?`
+      message: `${workloadName} uses Prisma and runs on ${target.description}, but the Prisma query engine for it is not available.`,
+      hint: `Add "${target.binaryTarget}" to "schema.prisma" -> "generator client" -> "binaryTargets" and run prisma generate.`
     });
   }
   await Promise.all(
-    availableEngines
-      .map((enginePath) => {
-        const queryEngineFileName = basename(enginePath);
-        return copyToDeploymentPackage({
-          from: join(projectRoot, 'node_modules', '.prisma', 'client', queryEngineFileName),
-          to: join(distFolderPath, queryEngineFileName)
-        });
+    [...availableEngines, 'schema.prisma'].map((fileName) =>
+      copyToDeploymentPackage({
+        from: join(generatedClientDirectory, fileName),
+        to: join(distFolderPath, fileName)
       })
-      .concat(
-        copyToDeploymentPackage({
-          from: join(projectRoot, 'node_modules', '.prisma', 'client', 'schema.prisma'),
-          to: join(distFolderPath, 'schema.prisma')
-        })
-      )
+    )
   );
+};
+
+/** `linux-musl-openssl-3.0.x` for `libquery_engine-linux-musl-openssl-3.0.x.so.node` or `query-engine-linux-musl-openssl-3.0.x`. */
+const getPrismaEngineTargetName = (fileName: string): string | undefined =>
+  fileName.match(/^(?:libquery_engine|query-engine)-(.+?)(?:\.so\.node)?$/)?.[1];
+
+/**
+ * The Prisma engine target the artifact's platform loads. Prisma picks one by C library, distribution and CPU, so an
+ * engine for any other target is never read: Lambda runs Amazon Linux (`rhel`), Stacktape's glibc images are Debian,
+ * and arm64 Linux with glibc is `linux-arm64` on both. Every OpenSSL variant of the target is kept, because Prisma
+ * chooses among them by the OpenSSL it finds at run time.
+ */
+const getPrismaEngineTarget = ({
+  isAlpine,
+  isLambda,
+  architecture
+}: {
+  isAlpine?: boolean | undefined;
+  isLambda?: boolean | undefined;
+  architecture: 'x64' | 'arm64';
+}): { description: string; binaryTarget: string; matches: (target: string) => boolean } => {
+  const arm64 = architecture === 'arm64';
+  if (isAlpine && !isLambda) {
+    return {
+      description: `Alpine Linux (musl, ${architecture})`,
+      binaryTarget: arm64 ? 'linux-musl-arm64-openssl-3.0.x' : 'linux-musl-openssl-3.0.x',
+      matches: (target) => target.startsWith('linux-musl') && target.startsWith('linux-musl-arm64-') === arm64
+    };
+  }
+  if (arm64) {
+    return {
+      description: isLambda ? 'Lambda (arm64)' : 'Debian Linux (arm64)',
+      binaryTarget: 'linux-arm64-openssl-3.0.x',
+      matches: (target) => target.startsWith('linux-arm64-openssl-')
+    };
+  }
+  const distribution = isLambda ? 'rhel' : 'debian';
+  return {
+    description: isLambda ? 'Lambda (x64)' : 'Debian Linux (x64)',
+    binaryTarget: `${distribution}-openssl-3.0.x`,
+    matches: (target) => target.startsWith(`${distribution}-openssl-`)
+  };
 };
 
 const JAVASCRIPT_EXTENSIONS = new Set(['.js', '.cjs', '.mjs']);

@@ -75,6 +75,7 @@ export const buildSplitBundle = async ({
   bundleAwsSdk = false,
   isLambda = true,
   nodeTarget,
+  architecture = 'x64',
   installDependencies,
   createPackagingError,
   packageAnalysisCache = createPackageAnalysisCache()
@@ -129,6 +130,7 @@ export const buildSplitBundle = async ({
     entrypoints,
     cwd,
     projectRoot: monorepoRoot || cwd,
+    architecture,
     packageAnalysisCache,
     metafile,
     tracker,
@@ -767,6 +769,7 @@ const processLambdaOutputsWithMetafile = async ({
   entrypoints,
   cwd,
   projectRoot,
+  architecture,
   packageAnalysisCache,
   metafile,
   tracker,
@@ -779,6 +782,7 @@ const processLambdaOutputsWithMetafile = async ({
   cwd: string;
   /** The project the functions belong to, whose manifests say what it depends on in production. */
   projectRoot: string;
+  architecture: 'x64' | 'arm64';
   packageAnalysisCache: PackageAnalysisCache;
   metafile: BuildMetafile;
   tracker: DependencyTracker;
@@ -872,6 +876,7 @@ const processLambdaOutputsWithMetafile = async ({
           // Split output is a Lambda package, and Lambda runs on Amazon Linux with glibc.
           isAlpine: false,
           isLambda: true,
+          architecture,
           createPackagingError: (details) => createPackagingError(details)
         });
       }
