@@ -67,6 +67,7 @@ import {
   pullDockerImage
 } from '@utils/docker';
 import { keepBaseImagePulled } from '@utils/base-images';
+import { getImageRuntimeTools } from './image-runtime-tools';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { exec } from '@utils/exec';
@@ -1028,7 +1029,8 @@ export class PackagingManager {
       ? []
       : configManager.allContainersRequiringPackaging
           .filter(({ workloadName }) => shouldPackageWorkload(workloadName))
-          .map(({ jobName, packaging, workloadName, resources }) => {
+          .map((container) => {
+            const { jobName, packaging, workloadName, resources } = container;
             return () => {
               // Asking Docker which platforms it builds for takes about 0.1 s and does not depend on the build, so it
               // runs while the code is bundled. A failure here is reported, if it matters, by the build that needs it.
@@ -1039,7 +1041,11 @@ export class PackagingManager {
                 packaging,
                 workloadName,
                 target: 'container',
-                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
+                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
+                imageRuntimeTools: getImageRuntimeTools({
+                  healthCheckCommand:
+                    'internalHealthCheck' in container ? container.internalHealthCheck?.healthCheckCommand : undefined
+                })
               });
             };
           });
@@ -1057,7 +1063,8 @@ export class PackagingManager {
                 workloadName: name,
                 workloadType: 'agentcore-runtime',
                 target: 'container',
-                dockerBuildOutputArchitecture: 'linux/arm64'
+                dockerBuildOutputArchitecture: 'linux/arm64',
+                imageRuntimeTools: getImageRuntimeTools({ workloadType: 'agentcore-runtime' })
               });
           });
 
@@ -1393,7 +1400,8 @@ export class PackagingManager {
     parentEventType = 'PACKAGE_ARTIFACTS',
     devMode,
     customProgressLogger,
-    workloadType
+    workloadType,
+    imageRuntimeTools = { tini: true, curl: true }
   }: {
     workloadName: string;
     jobName: string;
@@ -1412,6 +1420,8 @@ export class PackagingManager {
     customProgressLogger?: ProgressLogger;
     /** Workload type - used to determine packaging behavior (e.g., edge functions don't support ESM) */
     workloadType?: string;
+    /** What a `js-bundle` image installs beside its runtime: tini where nothing else starts an init process. */
+    imageRuntimeTools?: { tini: boolean; curl: boolean };
   }): Promise<PackagingOutput | undefined> => {
     const shouldUseCache = this.#canUseCache(commandCanUseCache);
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
@@ -1544,7 +1554,8 @@ export class PackagingManager {
           debug: globalStateManager.isDebugMode,
           distFolderPath,
           additionalDigestInput,
-          devMode
+          devMode,
+          runtimeTools: imageRuntimeTools
         })
       );
     }

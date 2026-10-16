@@ -53,7 +53,9 @@ export const createPreflightRunners = (): PreflightRunners => ({
         additionalDigestInput: '',
         minify: true,
         nodeTarget: String(resolveNodeVersion({ nodeVersion, target: 'container' })),
-        requiresGlibcBinaries
+        requiresGlibcBinaries,
+        // The image of an ECS service, which starts the init process; the boot probe runs it with `--init`.
+        runtimeTools: { tini: false, curl: false }
       });
     } finally {
       await rm(workDirectory, { recursive: true, force: true });

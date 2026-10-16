@@ -14,7 +14,7 @@ import type { LanguageSpecificBundleOutput, PackagingOutput } from '../runtime-c
 
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
-import { buildEsDevDockerfile, buildEsDockerfile } from '../docker/dockerfiles';
+import { buildEsDevDockerfile, buildEsDockerfile, type EsImageRuntimeTools } from '../docker/dockerfiles';
 import { getFolder } from '../fs/files';
 import objectHash from 'object-hash';
 import { createEsBundle } from '../bundlers/es';
@@ -38,6 +38,7 @@ export const buildJsBundleImage = async ({
   cacheToRef,
   devMode,
   runtime = 'node',
+  runtimeTools,
   ...otherProps
 }: StpBuildpackInput &
   JsBundleOptions &
@@ -52,6 +53,8 @@ export const buildJsBundleImage = async ({
     devMode?: boolean | undefined;
     /** The image's JavaScript runtime. */
     runtime?: JsBundleImageRuntime | undefined;
+    /** What the production image installs beside the runtime; see `EsImageRuntimeTools`. Dev images keep all of it. */
+    runtimeTools: EsImageRuntimeTools;
   }): Promise<PackagingOutput> => {
   const nodeVersion = otherProps.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
@@ -67,6 +70,7 @@ export const buildJsBundleImage = async ({
     additionalDigestInput: objectHash({
       bundleOptions: pickJsBundleOptions(otherProps),
       runtime,
+      runtimeTools,
       additionalDigestInput
     }),
     minify: devMode ? false : minify,
@@ -144,6 +148,7 @@ export const buildJsBundleImage = async ({
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
     nodeVersion,
     runtime,
+    runtimeTools,
     buildContextPath
   });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
@@ -333,6 +338,7 @@ const createEsDockerFile = async ({
   customDockerBuildCommands,
   nodeVersion,
   runtime,
+  runtimeTools,
   buildContextPath
 }: {
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
@@ -340,6 +346,7 @@ const createEsDockerFile = async ({
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
   runtime: JsBundleImageRuntime;
+  runtimeTools: EsImageRuntimeTools;
   buildContextPath: string;
 }) => {
   const dependencies = languageSpecificBundleOutput.es?.externalDependencies ?? [];
@@ -351,6 +358,7 @@ const createEsDockerFile = async ({
     customDockerBuildCommands,
     nodeVersion,
     runtime,
+    runtimeTools,
     // Only an npm, pnpm or Bun install of external dependencies can run without the source; others ignore the bundle.
     installBeforeSource:
       (packageManager === 'npm' || packageManager === 'pnpm' || packageManager === 'bun') && dependencies.length > 0

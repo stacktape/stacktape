@@ -470,6 +470,7 @@ const buildEsImage = async ({
     minify: true,
     nodeTarget: String(NODE_VERSION),
     requiresGlibcBinaries: true,
+    runtimeTools: { tini: false, curl: false },
     dockerBuildOutputArchitecture: 'linux/amd64'
   });
   return { output, build };

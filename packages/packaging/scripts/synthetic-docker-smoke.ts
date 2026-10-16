@@ -4,7 +4,7 @@
  *   Rust through cargo-lambda) run their artifact in a matching runtime image; the Go and Rust `bootstrap` are invoked through
  *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
  * - Python dependencies, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
- * - the `js-bundle` image runs its entry file;
+ * - the `js-bundle` image runs its entry file, and a server in it stops promptly under the init process ECS starts;
  * - the container `buildpack` (Railpack) builds a FastAPI app, a Node.js app and a PHP app, which must answer HTTP. Python
  *   apps are built on the official slim image: pip and uv projects run, a source-only change reuses the installed
  *   dependencies, and a dependency without a wheel is compiled with the fallback build tools. The Node.js
@@ -174,6 +174,33 @@ const fetchFromContainer = async (image: string, port = 8080): Promise<string> =
       (error: unknown) => String(error)
     );
     throw new Error(`${image} did not answer HTTP on port ${port}: ${String(lastError)}\n${logs}`);
+  } finally {
+    await run('docker', ['rm', '--force', name]).catch(() => undefined);
+  }
+};
+
+/**
+ * Starts a server image as ECS starts Stacktape's containers, with an init process as PID 1, and stops it as ECS does.
+ * Docker would wait 30 seconds before killing a server that ignores the stop signal; this one must exit within 5.
+ */
+const assertStopsPromptly = async ({ imageTag, ready }: { imageTag: string; ready: string }) => {
+  const name = `stacktape-buildpack-smoke-${runId}-${Math.random().toString(36).slice(2, 8)}`;
+  await run('docker', ['run', '--detach', '--init', '--name', name, '--label', containerLabel, imageTag]);
+  try {
+    let logs = '';
+    for (let attempt = 0; attempt < 120 && !logs.includes(ready); attempt += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- Polls the logs until the server is listening.
+      await Bun.sleep(250);
+      // oxlint-disable-next-line no-await-in-loop -- Polls the logs until the server is listening.
+      const result = await run('docker', ['logs', name]);
+      logs = `${result.stdout}${result.stderr}`;
+    }
+    if (!logs.includes(ready)) throw new Error(`${imageTag} did not print "${ready}":\n${logs}`);
+    const started = performance.now();
+    await run('docker', ['stop', '--time', '30', name]);
+    const seconds = (performance.now() - started) / 1000;
+    if (seconds > 5)
+      throw new Error(`${imageTag} took ${seconds.toFixed(1)} s to stop; the stop signal did not reach it.`);
   } finally {
     await run('docker', ['rm', '--force', name]).catch(() => undefined);
   }
@@ -1094,11 +1121,15 @@ async function buildpackScenarios() {
     await write(
       join(esRoot, 'src', 'index.ts'),
       [
-        "import { execFileSync } from 'node:child_process';",
+        "import { execFileSync, spawnSync } from 'node:child_process';",
+        "import { readFileSync } from 'node:fs';",
         "const libc = execFileSync('getconf', ['GNU_LIBC_VERSION'], { encoding: 'utf8' }).trim();",
         "if (!libc.startsWith('glibc ')) throw new Error('The image must supply GNU libc: ' + libc);",
-        "const init = execFileSync('curl', ['--fail', '--silent', 'file:///proc/1/comm'], { encoding: 'utf8' }).trim();",
-        "if (init !== 'tini') throw new Error('The image must run tini as PID 1: ' + init);",
+        // ECS starts the init process (`initProcessEnabled`), as `docker run --init` does here; the image has none.
+        "const init = readFileSync('/proc/1/comm', 'utf8').trim();",
+        "if (init !== 'docker-init') throw new Error('The platform init must run as PID 1: ' + init);",
+        "if (spawnSync('tini', ['--version']).error === undefined) throw new Error('The image must not install tini');",
+        "if (spawnSync('curl', ['--version']).error === undefined) throw new Error('No health check asked for curl');",
         "const digest = execFileSync('openssl', ['dgst', '-sha256'], { input: 'abc', encoding: 'utf8' }).trim();",
         "if (!digest.endsWith('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')) throw new Error('OpenSSL must hash runtime input');",
         'console.log("es-glibc-runtime-ok");',
@@ -1121,13 +1152,54 @@ async function buildpackScenarios() {
       nativeDependencyInstallationRootPath: join(artifactsRoot, 'es-native-install'),
       minify: true,
       nodeTarget: '24',
-      requiresGlibcBinaries: true
+      requiresGlibcBinaries: true,
+      runtimeTools: { tini: false, curl: false }
     });
     await assertRunOutput({
-      dockerArgs: [esImageTag],
+      dockerArgs: ['--init', esImageTag],
       expected: 'es-glibc-runtime-ok'
     });
     record('js-bundle-node24-glibc-image', esImageOutput);
+
+    console.log('Building a synthetic Alpine js-bundle server image and stopping it under the platform init...');
+    const alpineRoot = join(projectsRoot, 'es-image-alpine');
+    await write(
+      join(alpineRoot, 'src', 'index.ts'),
+      [
+        "import { execFileSync } from 'node:child_process';",
+        "import { existsSync, readFileSync } from 'node:fs';",
+        "import { createServer } from 'node:http';",
+        // Prisma's engines and other native packages load the OpenSSL 3 libraries; Alpine's base image has them.
+        "if (!['/lib/libssl.so.3', '/usr/lib/libssl.so.3'].some((path) => existsSync(path))) throw new Error('libssl.so.3 is missing');",
+        "const page = execFileSync('curl', ['--fail', '--silent', 'file:///proc/1/comm'], { encoding: 'utf8' }).trim();",
+        "if (page !== readFileSync('/proc/1/comm', 'utf8').trim()) throw new Error('curl must read files');",
+        // No SIGTERM handler: under an init process the default action stops the server at once.
+        "createServer((_, response) => response.end('ok')).listen(8080, () => console.log('es-alpine-server-ready'));",
+        ''
+      ].join('\n')
+    );
+    const alpineImageTag = `stacktape-buildpack-smoke-js-bundle-alpine:${runId}`;
+    const alpineImageOutput = await buildJsBundleImage({
+      ...common,
+      cwd: alpineRoot,
+      name: alpineImageTag,
+      entryfilePath: join(alpineRoot, 'src', 'index.ts'),
+      distFolderPath: join(artifactsRoot, 'es-image-alpine'),
+      nodeVersion: 24,
+      outputModuleFormat: 'esm',
+      buildDockerImage,
+      checkDockerImageExists: async () => false,
+      getDockerImageDetails,
+      installDependencies: async () => undefined,
+      nativeDependencyInstallationRootPath: join(artifactsRoot, 'es-native-install-alpine'),
+      minify: true,
+      nodeTarget: '24',
+      requiresGlibcBinaries: false,
+      // A service whose health check calls curl.
+      runtimeTools: { tini: false, curl: true }
+    });
+    await assertStopsPromptly({ imageTag: alpineImageTag, ready: 'es-alpine-server-ready' });
+    record('js-bundle-node24-alpine-image', alpineImageOutput);
 
     for (const runtime of ['bun', 'deno'] as const) {
       console.log(`Building and executing a synthetic js-bundle image on the ${runtime} runtime...`);
@@ -1160,10 +1232,14 @@ async function buildpackScenarios() {
         nativeDependencyInstallationRootPath: join(artifactsRoot, `es-native-install-${runtime}`),
         minify: true,
         nodeTarget: '24',
-        requiresGlibcBinaries: true
+        requiresGlibcBinaries: true,
+        runtimeTools: { tini: false, curl: false }
       });
       // oxlint-disable-next-line no-await-in-loop -- one Docker build at a time keeps the daemon load bounded.
-      await assertRunOutput({ dockerArgs: [runtimeImageTag], expected: `es-${runtime}-runtime-ok:8fd1032d` });
+      await assertRunOutput({
+        dockerArgs: ['--init', runtimeImageTag],
+        expected: `es-${runtime}-runtime-ok:8fd1032d`
+      });
       record(`js-bundle-${runtime}-image`, runtimeOutput);
     }
   }

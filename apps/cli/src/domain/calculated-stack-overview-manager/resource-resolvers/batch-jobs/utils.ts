@@ -276,6 +276,8 @@ const getBatchJobDefinitionContainerProperties = ({
     Environment: getCfEnvironment(augmentedEnvironment),
     Secrets: secrets.length ? secrets : undefined,
     Image: getImageUrlForSingleTask(workload),
+    // Stacktape's js-bundle images run no init process of their own; Batch starts one as PID 1.
+    ...(packagingType === 'js-bundle' && { LinuxParameters: { InitProcessEnabled: true } }),
     // @todo set this cpu number properties consistently
     Vcpus: workload.resources.cpu,
     Memory: workload.resources.memory,
