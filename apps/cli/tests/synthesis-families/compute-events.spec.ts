@@ -146,6 +146,8 @@ describe('Batch and Step Functions family', () => {
     const template = await synthesizeFamily('batch-and-state-machines', config());
     expectReferencesResolve(template);
     const job = onlyResourceOfType(template, 'AWS::Batch::JobDefinition');
+    // A prebuilt image may bring its own init; only Stacktape's js-bundle images get Batch's.
+    expect(literal(job.resource.Properties.ContainerProperties).LinuxParameters).toBeUndefined();
     expect(job.resource.Properties?.ContainerProperties).toMatchObject({
       Command: ['node', 'report.js'],
       Image: 'example.invalid/reports:v1',
@@ -243,6 +245,22 @@ describe('Batch and Step Functions family', () => {
         actions.includes('lambda:InvokeFunction')
       )?.resource
     ).toBe(json('arn:aws:lambda:eu-west-1:123456789999:function:characterization-baseline*'));
+  });
+
+  test("Batch starts the init process in Stacktape's js-bundle images", async () => {
+    const template = await synthesizeFamily(
+      'batch-js-bundle-init',
+      defineConfig(() => ({
+        resources: {
+          report: new BatchJob({
+            container: { packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } } },
+            resources: { cpu: 1, memory: 2048 }
+          })
+        }
+      }))
+    );
+    const job = onlyResourceOfType(template, 'AWS::Batch::JobDefinition');
+    expect(literal(job.resource.Properties.ContainerProperties).LinuxParameters).toEqual({ InitProcessEnabled: true });
   });
 
   test('rejects a scheduled Batch trigger with competing input and inputPath', async () => {

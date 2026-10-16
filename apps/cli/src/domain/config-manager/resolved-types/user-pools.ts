@@ -6,4 +6,3 @@ export type StpUserAuthPool = UserAuthPool['properties'] & {
   configParentResourceType: UserAuthPool['type'];
   nameChain: string[];
 };
-export type UserPoolReferencableParam = 'id' | 'clientId' | 'arn' | 'domain' | 'clientSecret' | 'providerUrl';

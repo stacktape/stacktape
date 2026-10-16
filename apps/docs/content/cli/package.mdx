@@ -80,9 +80,9 @@ Use `package` when you want to verify that your compute resources package correc
 
 No. The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code. This ensures the output accurately reflects your code at the time of the run.
 
-### Does `package` require AWS credentials even though it doesn't deploy?
+### Does `package` require AWS credentials?
 
-Yes. Even though `package` never touches your stack, it loads user credentials and target stack information during initialization, so valid credentials are required. Use `--profile` to specify an AWS profile or `--awsAccount` to use a connected AWS account. Use [`aws-profile:create`](/cli/aws-profile-create) to set up a profile if you haven't already.
+Only when your configuration reads something from AWS. `package` builds on your machine, so a typical project packages without AWS credentials and without any request to AWS. Credentials are loaded when packaging needs them: for a directive such as [`$Secret`](/configuration/directives), `$StackOutput` or `$AwsAccountId`, or for a web framework build whose environment references deployed resources. Stacktape then uses the profile selected with `--profile` or `AWS_PROFILE`, or the standard AWS credential chain.
 
 ### Can I package only specific workloads?
 

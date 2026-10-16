@@ -10,4 +10,3 @@ export type StpBatchJob = BatchJob['properties'] & {
     triggerFunction: StpHelperLambdaFunction;
   };
 };
-export type BatchJobReferencableParam = 'jobDefinitionArn' | 'stateMachineArn' | 'logGroupArn';

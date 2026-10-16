@@ -319,6 +319,7 @@ export default defineConfig(() => ({
       builtInDirectives: {
         runtime: {
           calculatedStackOverviewManager: { getStpResource: () => undefined },
+          configManager: { findResourceInConfig: () => ({ resource: undefined, fullyResolved: false }) as never },
           deployedStackOverviewManager: { getStpResource: () => undefined },
           stackManager: { getExistingResourceDetails: () => undefined, existingStackDetails: undefined },
           templateManager: {

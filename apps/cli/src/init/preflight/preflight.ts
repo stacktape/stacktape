@@ -296,6 +296,8 @@ const bootProbe = async ({
     await runners.docker([
       'run',
       '--detach',
+      // ECS starts an init process in Stacktape's containers (`initProcessEnabled`); so does the probe.
+      '--init',
       '--name',
       containerName,
       '--network',

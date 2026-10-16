@@ -8,4 +8,3 @@ export type StpWebAppFirewall = Partial<NonNullable<WebAppFirewall['properties']
   configParentResourceType: WebAppFirewall['type'];
   nameChain: string[];
 };
-export type WebAppFirewallReferencableParams = 'arn' | 'scope';

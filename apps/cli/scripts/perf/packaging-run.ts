@@ -251,6 +251,8 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
       nativeDependencyInstallationRootPath: join(fsPaths.absoluteBuildFolderPath({ invocationId }), '_bin-install'),
       runDocker: docker.execDocker,
       requiresGlibcBinaries: false,
+      // A web service's image: ECS starts the init process.
+      runtimeTools: { tini: false, curl: false },
       debug: false,
       distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
         jobName: getJobName({ workloadName: 'api', workloadType: 'web-service' }),

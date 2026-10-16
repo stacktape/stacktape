@@ -10,17 +10,18 @@ import type {
   StpBuildpackInput
 } from '../runtime-contracts';
 import { pickJsBundleOptions } from '../runtime-contracts';
-import type { LanguageSpecificBundleOutput, PackagingOutput } from '../runtime-contracts';
+import type { LanguageSpecificBundleOutput, PackagingOutput, ResolvedPackageDependency } from '../runtime-contracts';
 
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
-import { buildEsDevDockerfile, buildEsDockerfile } from '../docker/dockerfiles';
+import { buildEsDevDockerfile, buildEsDockerfile, type EsImageRuntimeTools } from '../docker/dockerfiles';
 import { getFolder } from '../fs/files';
 import objectHash from 'object-hash';
 import { createEsBundle } from '../bundlers/es';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '../bundlers/constants';
 import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 import { getFolderSize } from '../fs/files';
+import { addRuntimeDependencies, type InstalledPackage, readPackageManifest } from '../es/installed-packages';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
 export const buildJsBundleImage = async ({
@@ -38,6 +39,7 @@ export const buildJsBundleImage = async ({
   cacheToRef,
   devMode,
   runtime = 'node',
+  runtimeTools,
   ...otherProps
 }: StpBuildpackInput &
   JsBundleOptions &
@@ -52,6 +54,8 @@ export const buildJsBundleImage = async ({
     devMode?: boolean | undefined;
     /** The image's JavaScript runtime. */
     runtime?: JsBundleImageRuntime | undefined;
+    /** What the production image installs beside the runtime; see `EsImageRuntimeTools`. Dev images keep all of it. */
+    runtimeTools: EsImageRuntimeTools;
   }): Promise<PackagingOutput> => {
   const nodeVersion = otherProps.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
@@ -67,6 +71,7 @@ export const buildJsBundleImage = async ({
     additionalDigestInput: objectHash({
       bundleOptions: pickJsBundleOptions(otherProps),
       runtime,
+      runtimeTools,
       additionalDigestInput
     }),
     minify: devMode ? false : minify,
@@ -144,6 +149,13 @@ export const buildJsBundleImage = async ({
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
     nodeVersion,
     runtime,
+    runtimeTools: {
+      ...runtimeTools,
+      openssl: await usesPrisma({
+        bundledModules: bundlingOutput.resolvedModules ?? [],
+        installedPackages: languageSpecificBundleOutput.es?.externalDependencies ?? []
+      })
+    },
     buildContextPath
   });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
@@ -174,6 +186,41 @@ export const buildJsBundleImage = async ({
     details: { ...otherOutputProps, dockerOutput, duration, imageCreated: created },
     jobName: name
   };
+};
+
+const isPrismaModule = (name: string) => name === 'prisma' || name.startsWith('prisma/') || name.startsWith('@prisma/');
+
+/**
+ * Whether the image loads Prisma, whose client may need the `openssl` command; see `EsImageRuntimeTools`. Prisma can
+ * come from the bundle's imports or from any package the image installs, directly or through that package's own
+ * dependencies, such as an internal database package that ships a generated client. The installed packages are followed
+ * as they are installed on this machine. When that tree cannot be read, or a required dependency is not installed
+ * here, it is not known what the image installs, and it gets `openssl`.
+ */
+const usesPrisma = async ({
+  bundledModules,
+  installedPackages
+}: {
+  bundledModules: string[];
+  installedPackages: ResolvedPackageDependency[];
+}) => {
+  if (bundledModules.some(isPrismaModule) || installedPackages.some(({ name }) => isPrismaModule(name))) return true;
+  const packages = new Map<string, InstalledPackage>();
+  try {
+    await addRuntimeDependencies({ packages, start: installedPackages.map(({ path }) => path) });
+    const verdicts = await Promise.all(
+      [...packages.values()].map(async (installedPackage) => {
+        const required = Object.keys((await readPackageManifest(installedPackage.root)).dependencies ?? {});
+        return (
+          [installedPackage.name, ...installedPackage.dependencies.keys(), ...required].some(isPrismaModule) ||
+          required.some((name) => !installedPackage.dependencies.has(name))
+        );
+      })
+    );
+    return verdicts.includes(true);
+  } catch {
+    return true;
+  }
 };
 
 // Deduplicates concurrent builds of the same dev base image tag.
@@ -333,6 +380,7 @@ const createEsDockerFile = async ({
   customDockerBuildCommands,
   nodeVersion,
   runtime,
+  runtimeTools,
   buildContextPath
 }: {
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
@@ -340,6 +388,7 @@ const createEsDockerFile = async ({
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
   runtime: JsBundleImageRuntime;
+  runtimeTools: EsImageRuntimeTools;
   buildContextPath: string;
 }) => {
   const dependencies = languageSpecificBundleOutput.es?.externalDependencies ?? [];
@@ -351,6 +400,7 @@ const createEsDockerFile = async ({
     customDockerBuildCommands,
     nodeVersion,
     runtime,
+    runtimeTools,
     // Only an npm, pnpm or Bun install of external dependencies can run without the source; others ignore the bundle.
     installBeforeSource:
       (packageManager === 'npm' || packageManager === 'pnpm' || packageManager === 'bun') && dependencies.length > 0

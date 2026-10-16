@@ -1735,6 +1735,9 @@
                 }
               }
             ],
+            "LinuxParameters": {
+              "InitProcessEnabled": true
+            },
             "StopTimeout": 30,
             "LogConfiguration": {
               "LogDriver": "awslogs",
@@ -2200,6 +2203,9 @@
                 }
               }
             ],
+            "LinuxParameters": {
+              "InitProcessEnabled": true
+            },
             "StopTimeout": 30,
             "LogConfiguration": {
               "LogDriver": "awslogs",

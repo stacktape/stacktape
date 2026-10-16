@@ -8,7 +8,7 @@ const DENO_IMAGE_VERSION = '2.9.7';
 
 /**
  * The official images of the non-Node JavaScript runtimes. Debian based, so native dependencies build against glibc
- * and the same `tini` install applies. Bun's major tag moves with the runtime's minor version, as Node's does.
+ * and the runtime tools are installed with apt. Bun's major tag moves with the runtime's minor version, as Node's does.
  */
 const JS_RUNTIME_IMAGES: Record<Exclude<JsBundleImageRuntime, 'node'>, { build: string; run: string }> = {
   bun: { build: 'docker.io/oven/bun:1', run: 'docker.io/oven/bun:1-slim' },
@@ -26,6 +26,41 @@ const jsRuntimeCommand = (runtime: JsBundleImageRuntime, entry: string) =>
       : `CMD ["node", "--max-old-space-size=16384", "${entry}"]`;
 
 /**
+ * What a production image installs beside its runtime. Nothing by default: ECS and Batch start an init process as PID 1
+ * (`initProcessEnabled`), which forwards stop signals to the server and reaps orphaned processes, so the image needs no
+ * tini. A runtime that cannot start one (an AgentCore runtime) gets tini. curl is there for container health checks
+ * that call it.
+ *
+ * `openssl` is for Prisma on Node's Alpine image, which has the OpenSSL 3 libraries but not the command. Prisma 5's
+ * client finds the libraries' version through `ldconfig` or the `openssl` command; Alpine has neither, so the client
+ * picks the OpenSSL 1.1 engine, which fails to load. Prisma 6 and 7 find it, and the Debian-based Bun and Deno images
+ * list it in `ldconfig`. Node's slim Debian image has no OpenSSL libraries, so it always gets `openssl`.
+ */
+export type EsImageRuntimeTools = {
+  tini: boolean;
+  curl: boolean;
+  /** Set by the buildpack when the bundle loads Prisma; used by the Alpine image only. */
+  openssl?: boolean | undefined;
+};
+
+const NO_RUNTIME_TOOLS: EsImageRuntimeTools = { tini: false, curl: false };
+
+const alpineRuntimeTools = ({ tini, curl, openssl }: EsImageRuntimeTools) => {
+  const packages = [tini && 'tini', curl && 'curl', openssl && 'openssl'].filter(Boolean);
+  return packages.length
+    ? `RUN apk add --no-cache ${packages.join(' ')}${tini ? '\nENTRYPOINT ["/sbin/tini", "--"]' : ''}`
+    : '';
+};
+
+const debianRuntimeTools = ({ tini, curl, openssl }: EsImageRuntimeTools & { openssl: boolean }) => {
+  const packages = [tini && 'tini', curl && 'curl', openssl && 'openssl'].filter(Boolean);
+  return packages.length
+    ? `RUN apt-get update && apt-get install -y --no-install-recommends ${packages.join(' ')} \\
+    && rm -rf /var/lib/apt/lists/*${tini ? '\nENTRYPOINT ["tini", "--"]' : ''}`
+    : '';
+};
+
+/**
  * A Bun or Deno image. Both are Debian based: dependencies that cannot be bundled are installed with the runtime's
  * own package manager in a build stage and copied into the slim runtime stage beside the bundle.
  */
@@ -34,25 +69,26 @@ const buildNonNodeEsDockerfile = ({
   dependencies,
   customDockerBuildCommands,
   entry,
-  devMode
+  devMode,
+  runtimeTools = NO_RUNTIME_TOOLS
 }: {
   runtime: Exclude<JsBundleImageRuntime, 'node'>;
   dependencies: { name: string; version: string }[];
   customDockerBuildCommands?: string[] | undefined;
   entry: string;
   devMode: boolean;
+  runtimeTools?: EsImageRuntimeTools | undefined;
 }) => {
   const images = JS_RUNTIME_IMAGES[runtime];
   const installDepsCommand = getInstallDependenciesCommand({ dependencies, packageManager: runtime });
-  const installTini = `RUN apt-get update && apt-get install -y --no-install-recommends tini curl openssl \\
-    && rm -rf /var/lib/apt/lists/*`;
+  const installRuntimeTools = debianRuntimeTools({ ...runtimeTools, openssl: false });
   const customCommands = (customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n');
   if (devMode) {
     // Dev mode bind-mounts the bundle at /app/dist; dependencies live in /app so resolution walks up into them.
+    // `stacktape dev` runs the image without an init process of its own, so it keeps tini.
     return `FROM ${images.build}
 
-${installTini}
-ENTRYPOINT ["tini", "--"]
+${debianRuntimeTools({ tini: true, curl: true, openssl: true })}
 
 WORKDIR /app
 ${installDepsCommand}
@@ -62,9 +98,7 @@ ${jsRuntimeCommand(runtime, 'dist/index.js')}`;
   if (!dependencies.length) {
     return `FROM ${images.run}
 
-# correct process signal handling
-${installTini}
-ENTRYPOINT ["tini", "--"]
+${installRuntimeTools}
 
 ${customCommands}
 
@@ -83,9 +117,7 @@ ${installDepsCommand}
 
 FROM ${images.run}
 
-# correct process signal handling
-${installTini}
-ENTRYPOINT ["tini", "--"]
+${installRuntimeTools}
 
 ${customCommands}
 
@@ -182,7 +214,8 @@ export const buildEsDockerfile = ({
   customDockerBuildCommands,
   nodeVersion,
   installBeforeSource,
-  runtime = 'node'
+  runtime = 'node',
+  runtimeTools = NO_RUNTIME_TOOLS
 }: {
   dependencies: { name: string; version: string }[];
   requiresGlibcBinaries: boolean;
@@ -191,6 +224,8 @@ export const buildEsDockerfile = ({
   nodeVersion: number;
   /** The image's JavaScript runtime; `bun` and `deno` use their official images and package managers. */
   runtime?: JsBundleImageRuntime | undefined;
+  /** Tools the runtime stage installs; see `EsImageRuntimeTools`. */
+  runtimeTools?: EsImageRuntimeTools | undefined;
   /**
    * npm, pnpm and Bun only: install the dependencies without the bundle's source, so a source-only change reuses the
    * install. When the bundle has its generated `package.json` (`manifest`), the install starts from it as it would
@@ -205,7 +240,8 @@ export const buildEsDockerfile = ({
       dependencies,
       customDockerBuildCommands,
       entry: 'index.js',
-      devMode: false
+      devMode: false,
+      runtimeTools
     });
   }
   const installDepsCommand = getInstallDependenciesCommand({
@@ -229,15 +265,11 @@ export const buildEsDockerfile = ({
       ? `public.ecr.aws/docker/library/node:${nodeVersion}-bookworm-slim`
       : `public.ecr.aws/docker/library/node:${nodeVersion}-alpine`;
     const installRuntimeTools = requiresGlibcBinaries
-      ? `RUN apt-get update && apt-get install -y --no-install-recommends tini curl openssl \\
-    && rm -rf /var/lib/apt/lists/*`
-      : 'RUN apk add --no-cache tini curl openssl';
-    const tiniPath = requiresGlibcBinaries ? 'tini' : '/sbin/tini';
+      ? debianRuntimeTools({ ...runtimeTools, openssl: true })
+      : alpineRuntimeTools(runtimeTools);
     return `FROM ${baseImage}
 
-# correct process signal handling
 ${installRuntimeTools}
-ENTRYPOINT ["${tiniPath}", "--"]
 
 ${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
 
@@ -258,10 +290,7 @@ ${installPackageManagerCommand}${installDepsCommand}
 
 FROM public.ecr.aws/docker/library/node:${nodeVersion}-bookworm-slim
 
-# correct process signal handling
-RUN apt-get update && apt-get install -y --no-install-recommends tini curl openssl \\
-    && rm -rf /var/lib/apt/lists/*
-ENTRYPOINT ["tini", "--"]
+${debianRuntimeTools({ ...runtimeTools, openssl: true })}
 
 ${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
 
@@ -303,9 +332,7 @@ ${installPackageManagerCommand}${installDepsCommand}
 # use minimal node package for security and size (slim version doesn't have npm or yarn)
 FROM public.ecr.aws/docker/library/node:${nodeVersion}-alpine
 
-# correct process signal handling
-RUN apk add --no-cache tini curl openssl
-ENTRYPOINT ["/sbin/tini", "--"]
+${alpineRuntimeTools(runtimeTools)}
 
 ${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
 

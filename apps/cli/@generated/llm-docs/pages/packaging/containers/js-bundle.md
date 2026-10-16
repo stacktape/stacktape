@@ -72,6 +72,12 @@ The `cpu` and `memory` values belong to the web service, not to packaging. See [
 3. The bundle and those dependencies are copied into an Alpine-based Node.js image.
 4. The image is pushed to a managed ECR repository.
 
+The image holds the runtime and your code, with nothing else installed:
+
+- **No init process in the image.** ECS and AWS Batch start one as PID 1 (`initProcessEnabled`). It passes the stop signal to your server and reaps orphaned processes. An AgentCore runtime cannot start one, so its image gets `tini`.
+- **curl only for health checks.** When the container's `internalHealthCheck` command calls `curl`, the image installs it. BusyBox `wget` is always available on Alpine.
+- **OpenSSL.** The Alpine image already has the OpenSSL 3 libraries that Prisma and other native packages load. When your code, or a package installed beside the bundle, uses Prisma, it also gets the `openssl` command, which Prisma 5 needs to choose its query engine. The glibc image (`requiresGlibcBinaries`) installs `openssl`. Install anything else, such as the `openssl` command for your own code, with `customDockerBuildCommands`.
+
 Artifacts are cached by a checksum of their inputs. When the code and dependencies have not changed, Stacktape does not build the image again.
 
 ## Bundling options

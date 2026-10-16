@@ -602,6 +602,31 @@ describe('container rolling deployment family', () => {
         ?.ContainerDefinitions as { StopTimeout: number }[]
     ).map(({ StopTimeout }) => StopTimeout);
 
+  test("ECS starts the init process in Stacktape's js-bundle images and leaves other images alone", async () => {
+    const template = await synthesizeFamily(
+      'container-init-process',
+      defineConfig(() => ({
+        resources: {
+          web: new WebService({ packaging, resources }),
+          prebuilt: new WorkerService({
+            packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/worker:v1' } },
+            resources
+          })
+        }
+      }))
+    );
+    const linuxParameters = (workloadName: string) =>
+      (
+        (template.Resources[cfLogicalNames.ecsTaskDefinition(workloadName)] as Resource).Properties
+          ?.ContainerDefinitions as { LinuxParameters?: unknown }[]
+      ).map(({ LinuxParameters }) => LinuxParameters);
+
+    // The js-bundle image has no tini: the init process ECS starts passes the stop signal to the server.
+    expect(linuxParameters('web')).toEqual([{ InitProcessEnabled: true }]);
+    // A prebuilt image may bring its own init.
+    expect(linuxParameters('prebuilt')).toEqual([undefined]);
+  });
+
   test('a deploy succeeds once new tasks pass a health check and old tasks drain afterwards', async () => {
     const template = await synthesizeFamily('container-rolling-deployment', config());
     expectReferencesResolve(template);

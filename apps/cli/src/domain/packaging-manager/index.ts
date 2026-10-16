@@ -21,6 +21,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -61,14 +62,17 @@ import {
   execDocker,
   getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
+  getLocalImageDigestReference,
   installDockerPlatforms,
   isDockerImagePresent,
   isDockerRunning,
   pullDockerImage
 } from '@utils/docker';
 import { keepBaseImagePulled } from '@utils/base-images';
+import { getImageRuntimeTools } from './image-runtime-tools';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
+import { CliError } from '@utils/errors';
 import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
 import { runRailpackPrepare } from '@domain-services/packaging-manager/railpack-command';
@@ -104,7 +108,7 @@ import {
   LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
-import { isJsEntryFileExtension } from '@config';
+import { IDENTIFIER_FOR_MISSING_OUTPUT, isJsEntryFileExtension } from '@config';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
 import type { PackagingTarget } from './types';
 
@@ -145,6 +149,61 @@ const getCacheRef = (jobName: string) => {
   const repositoryUrl = deploymentArtifactManager.repositoryUrl;
   if (!repositoryUrl) return undefined;
   return `${repositoryUrl}:${getEcrCacheImageTag(jobName)}`;
+};
+
+/** The platform Docker builds on natively: Docker Desktop and Linux engines run on the host's architecture. */
+const HOST_DOCKER_PLATFORM = process.arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
+
+/** Errors of a variable that reads a resource of this stack before that resource has the value deployed. */
+const NOT_DEPLOYED_YET_CODES = new Set(['DIRECTIVE_RESOURCE_NOT_DEPLOYED', 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED']);
+
+/**
+ * The environment a web build runs with. Each variable resolves on its own. A variable that reads a value of this
+ * stack that is not deployed yet is left out of the build with a warning: the build cannot have it. That happens on
+ * the first deployment, or when this deployment adds the value, such as the URL of a first custom domain. Any other
+ * error stops the build, named with its variable: building without a value the configuration asks for, such as a
+ * secret that cannot be read or a parameter name the resource does not have, produces a broken site.
+ */
+export const resolveWebBuildEnvironment = async ({
+  resourceName,
+  environment
+}: {
+  resourceName: string;
+  environment: EnvironmentVar[] | undefined;
+}): Promise<EnvironmentVar[]> => {
+  const leaveOut = (variable: EnvironmentVar, reason: string) => {
+    tuiManager.warn(`Building \`${resourceName}\` without environment variable \`${variable.name}\`: ${reason}`);
+    return undefined;
+  };
+  const resolved = await Promise.all(
+    (environment ?? []).map(async (variable) => {
+      let resolvedVariable: EnvironmentVar;
+      try {
+        resolvedVariable = (await resolveEnvironmentDirectives(variable)) as EnvironmentVar;
+      } catch (error) {
+        if (!(error instanceof CliError)) throw error;
+        if (NOT_DEPLOYED_YET_CODES.has(error.code)) {
+          return leaveOut(
+            variable,
+            globalStateManager.command === 'package' ? '`package` does not read the deployed stack.' : error.message
+          );
+        }
+        throw new CliError({
+          category: error.category,
+          code: error.code,
+          message: `Cannot resolve environment variable \`${variable.name}\` for the build of \`${resourceName}\`. ${error.message}`,
+          hints: error.hints,
+          cause: error
+        });
+      }
+      // A `$CfResourceParam` of a deployed resource whose output this deployment adds.
+      if (String(resolvedVariable.value).includes(IDENTIFIER_FOR_MISSING_OUTPUT)) {
+        return leaveOut(variable, 'the value it reads is added by this deployment.');
+      }
+      return resolvedVariable;
+    })
+  );
+  return resolved.filter((variable) => variable !== undefined);
 };
 
 const doesTargetStackExist = () => {
@@ -275,7 +334,7 @@ export class PackagingManager {
    * runs in a container, that container is the host's own platform.
    */
   #dockerRunners = {
-    buildDockerImage: async ({ baseImages, ...options }: Parameters<BuildDockerImage>[0]) => {
+    buildDockerImage: async ({ baseImages, builderImages, ...options }: Parameters<BuildDockerImage>[0]) => {
       const usesRemoteCache = Boolean(options.cacheFromRef || options.cacheToRef);
       await Promise.all(
         [
@@ -285,6 +344,11 @@ export class PackagingManager {
           !usesRemoteCache &&
             (baseImages ?? []).map((reference) =>
               this.#prepareBaseImage({ reference, platform: options.dockerBuildOutputArchitecture })
+            ),
+          // A frontend runs on the builder's platform whatever the build targets.
+          !usesRemoteCache &&
+            (builderImages ?? []).map((reference) =>
+              this.#prepareBaseImage({ reference, platform: HOST_DOCKER_PLATFORM })
             )
         ].flat()
       );
@@ -294,7 +358,11 @@ export class PackagingManager {
       await this.#prepareRequestedDockerPlatform(commands);
       return execDocker(commands, options);
     },
-    runRailpackPrepare
+    runRailpackPrepare,
+    pinLocalBaseImage: async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
+      await this.#prepareBaseImage({ reference, platform });
+      return (await getLocalImageDigestReference(reference)) ?? reference;
+    }
   };
 
   init = async () => {};
@@ -1030,7 +1098,8 @@ export class PackagingManager {
       ? []
       : configManager.allContainersRequiringPackaging
           .filter(({ workloadName }) => shouldPackageWorkload(workloadName))
-          .map(({ jobName, packaging, workloadName, resources }) => {
+          .map((container) => {
+            const { jobName, packaging, workloadName, resources } = container;
             return () => {
               // Asking Docker which platforms it builds for takes about 0.1 s and does not depend on the build, so it
               // runs while the code is bundled. A failure here is reported, if it matters, by the build that needs it.
@@ -1041,7 +1110,11 @@ export class PackagingManager {
                 packaging,
                 workloadName,
                 target: 'container',
-                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
+                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
+                imageRuntimeTools: getImageRuntimeTools({
+                  healthCheckCommand:
+                    'internalHealthCheck' in container ? container.internalHealthCheck?.healthCheckCommand : undefined
+                })
               });
             };
           });
@@ -1059,7 +1132,8 @@ export class PackagingManager {
                 workloadName: name,
                 workloadType: 'agentcore-runtime',
                 target: 'container',
-                dockerBuildOutputArchitecture: 'linux/arm64'
+                dockerBuildOutputArchitecture: 'linux/arm64',
+                imageRuntimeTools: getImageRuntimeTools({ workloadType: 'agentcore-runtime' })
               });
           });
 
@@ -1224,10 +1298,10 @@ export class PackagingManager {
       instanceId: nextjsWebResource.name,
       label: nextjsWebResource.name
     });
-    let environment: EnvironmentVar[] = [];
-    try {
-      environment = (await resolveEnvironmentDirectives(nextjsWebResource.environment)) as EnvironmentVar[];
-    } catch {}
+    const environment = await resolveWebBuildEnvironment({
+      resourceName: nextjsWebResource.name,
+      environment: nextjsWebResource.environment
+    });
     const packagingOutputs = await createNextjsWebArtifacts({
       environmentVars: environment,
       resource: nextjsWebResource,
@@ -1315,10 +1389,10 @@ export class PackagingManager {
     commandCanUseCache: boolean;
   }) => {
     const frameworkConfig = SSR_WEB_FRAMEWORK_CONFIGS[resourceType];
-    let environment: EnvironmentVar[] = [];
-    try {
-      environment = (await resolveEnvironmentDirectives(resource.environment)) as EnvironmentVar[];
-    } catch {}
+    const environment = await resolveWebBuildEnvironment({
+      resourceName: resource.name,
+      environment: resource.environment
+    });
 
     const appDirectory = resource.appDirectory || '.';
     const workingDir = join(globalStateManager.workingDir, appDirectory);
@@ -1395,7 +1469,8 @@ export class PackagingManager {
     parentEventType = 'PACKAGE_ARTIFACTS',
     devMode,
     customProgressLogger,
-    workloadType
+    workloadType,
+    imageRuntimeTools = { tini: true, curl: true }
   }: {
     workloadName: string;
     jobName: string;
@@ -1414,6 +1489,8 @@ export class PackagingManager {
     customProgressLogger?: ProgressLogger;
     /** Workload type - used to determine packaging behavior (e.g., edge functions don't support ESM) */
     workloadType?: string;
+    /** What a `js-bundle` image installs beside its runtime: tini where nothing else starts an init process. */
+    imageRuntimeTools?: { tini: boolean; curl: boolean };
   }): Promise<PackagingOutput | undefined> => {
     const shouldUseCache = this.#canUseCache(commandCanUseCache);
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
@@ -1465,7 +1542,8 @@ export class PackagingManager {
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
-        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
+        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare,
+        pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage
       });
       this.#recordPackagedJob(result);
       return result;
@@ -1546,7 +1624,8 @@ export class PackagingManager {
           debug: globalStateManager.isDebugMode,
           distFolderPath,
           additionalDigestInput,
-          devMode
+          devMode,
+          runtimeTools: imageRuntimeTools
         })
       );
     }

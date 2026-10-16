@@ -6,5 +6,3 @@ export type StpDsqlDatabase = DsqlDatabase['properties'] & {
   configParentResourceType: DsqlDatabase['type'];
   nameChain: string[];
 };
-
-export type DsqlDatabaseReferencableParam = 'endpoint' | 'port' | 'databaseName' | 'username' | 'region' | 'id' | 'arn';

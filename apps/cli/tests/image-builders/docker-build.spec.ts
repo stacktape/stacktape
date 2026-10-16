@@ -4,7 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execa } from 'execa';
-import { buildDockerImage, checkDockerImageExists, getDockerImageDetails } from '../../src/utils/docker';
+import {
+  buildDockerImage,
+  checkDockerImageExists,
+  getDockerImageDetails,
+  getLocalImageDigestReference
+} from '../../src/utils/docker';
 
 /**
  * The CLI's own Docker runner, against the real daemon: every image build of the product goes through it. The
@@ -140,3 +145,18 @@ test('reports a missing image as such rather than inventing details', async () =
   expect(await checkDockerImageExists(imageTag)).toBe(false);
   await expect(getDockerImageDetails(imageTag)).rejects.toMatchObject({ code: 'DOCKER_IMAGE_NOT_FOUND' });
 });
+
+test('pins a pulled image to the digest it was pulled by, and a missing image to nothing', async () => {
+  const pinned = await getLocalImageDigestReference(BASE_IMAGE);
+  expect(pinned).toMatch(new RegExp(`^${BASE_IMAGE}@sha256:[0-9a-f]{64}$`));
+  // The pinned reference names the same local image.
+  const [byTag, byDigest] = await Promise.all([
+    docker(['image', 'inspect', '--format', '{{.Id}}', BASE_IMAGE]),
+    docker(['image', 'inspect', '--format', '{{.Id}}', pinned!])
+  ]);
+  expect(byDigest.exitCode, byDigest.all).toBe(0);
+  expect(byDigest.stdout).toBe(byTag.stdout);
+
+  // An image that is not local has none.
+  expect(await getLocalImageDigestReference(`stp-docker-runner-missing-${randomUUID()}:none`)).toBeUndefined();
+}, 120_000);

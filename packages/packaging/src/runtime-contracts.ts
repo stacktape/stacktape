@@ -138,6 +138,11 @@ export type BuildDockerImage = (input: {
    * Unset for a customer's own Dockerfile.
    */
   baseImages?: string[] | undefined;
+  /**
+   * Images the build runs on the builder's own platform rather than the target's, such as a BuildKit frontend. The CLI
+   * keeps them in the local image store like `baseImages`.
+   */
+  builderImages?: string[] | undefined;
 }) => Promise<{
   size: number;
   id: string;
@@ -177,6 +182,16 @@ export type InstallDependencies = (input: {
  * variables; the runner hands them over through the planner's environment, never on its command line, because build
  * variable values are secrets. `config` is an inline railpack.json that replaces the directory's own.
  */
+/**
+ * The reference a build should use for a public base image the caller keeps in the local image store: the same image
+ * pinned to its local digest, so a BuildKit frontend can use it without asking the registry what the tag points to.
+ * Returns the reference unchanged when the image is not local.
+ */
+export type PinLocalBaseImage = (input: {
+  reference: string;
+  platform: DockerBuildOutputArchitecture | undefined;
+}) => Promise<string>;
+
 export type RunRailpackPrepare = (input: {
   sourceDirectoryPath: string;
   variables: Record<string, string>;

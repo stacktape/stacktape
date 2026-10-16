@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   applyStacktapePlanPolicy,
+  buildUsingRailpack,
   excludeNonSourceDirectories,
   getBuildEnvironmentHash,
   getRailpackVariables,
+  pinPlanImages,
   takesVersionFromVersionControl,
   type RailpackPlan
 } from './railpack';
@@ -245,4 +247,67 @@ describe('Python projects that take their version from version control', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+});
+
+describe('building a Railpack plan', () => {
+  test('builds with the pinned frontend and asks for it to be kept local for the builder', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'stacktape-railpack-build-'));
+    const frontend = 'ghcr.io/railwayapp/railpack-frontend:v0.40.1@sha256:' + 'a'.repeat(64);
+    const builds: Record<string, unknown>[] = [];
+    try {
+      await writeFile(join(source, 'server.js'), 'console.log(1);\n');
+      await buildUsingRailpack({
+        name: 'web',
+        cwd: source,
+        existingDigests: [],
+        dockerBuildOutputArchitecture: 'linux/arm64',
+        railpackFrontendImage: frontend,
+        progressLogger: {
+          startEvent: async () => {},
+          finishEvent: async () => {},
+          updateEvent: async () => {}
+        } as never,
+        createPackagingError: createPackagingError as never,
+        runRailpackPrepare: async () => ({
+          plan: preparedPlan(),
+          info: { success: true, detectedProviders: ['node'] }
+        }),
+        buildDockerImage: async (options) => {
+          builds.push(options as Record<string, unknown>);
+          return { size: 1, id: 'sha256:image', created: 0, dockerOutput: '', duration: 0 };
+        }
+      });
+    } finally {
+      await rm(source, { recursive: true, force: true });
+    }
+    expect(builds).toHaveLength(1);
+    expect(builds[0]).toMatchObject({ buildArgs: { BUILDKIT_SYNTAX: frontend }, builderImages: [frontend] });
+  });
+});
+
+test('pins the images a plan names wherever a step or the deploy names them, and nothing else', () => {
+  const slim = 'public.ecr.aws/docker/library/python:3.11.14-slim';
+  const uv = 'ghcr.io/astral-sh/uv:0.12.21';
+  const plan = preparedPlan({
+    steps: [
+      { name: 'install', inputs: [{ image: slim }], commands: [{ image: uv, src: '/uv', dest: '/bin/uv' }] },
+      { name: 'build', inputs: [{ step: 'install' }, { image: 'example.invalid/other:1' }] }
+    ] as RailpackPlan['steps'],
+    deploy: { base: { image: slim }, startCommand: 'python app.py' } as RailpackPlan['deploy']
+  });
+  const pinned = pinPlanImages(plan, {
+    [slim]: `${slim}@sha256:${'1'.repeat(64)}`,
+    [uv]: `${uv}@sha256:${'2'.repeat(64)}`
+  });
+
+  expect(JSON.stringify(pinned)).not.toContain(`${slim}"`);
+  expect(JSON.stringify(pinned)).not.toContain(`${uv}"`);
+  expect(pinned.steps?.[0]).toMatchObject({
+    inputs: [{ image: `${slim}@sha256:${'1'.repeat(64)}` }],
+    commands: [{ image: `${uv}@sha256:${'2'.repeat(64)}`, src: '/uv', dest: '/bin/uv' }]
+  });
+  expect(pinned.steps?.[1]).toEqual(plan.steps![1]!);
+  expect((pinned.deploy as { base: unknown }).base).toEqual({ image: `${slim}@sha256:${'1'.repeat(64)}` });
+  // The input is left as it was: the digest identifies the unpinned plan.
+  expect(JSON.stringify(plan)).not.toContain('@sha256');
 });

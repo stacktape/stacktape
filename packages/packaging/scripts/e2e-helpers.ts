@@ -361,9 +361,12 @@ export const invokeNodeHandlerInLambdaImage = async ({
   };
 };
 
-/** The Railpack release the CLI pins (`apps/cli/src/config/railpack.ts`); the binary and the frontend come from it. */
+/**
+ * The Railpack release the CLI pins (`apps/cli/src/config/external-tools.json`, written by its `pin-external-tools.ts`);
+ * the binary and the frontend come from it.
+ */
 export const RAILPACK_VERSION = '0.40.1';
-export const RAILPACK_FRONTEND_IMAGE = `ghcr.io/railwayapp/railpack-frontend:v${RAILPACK_VERSION}`;
+export const RAILPACK_FRONTEND_IMAGE = `ghcr.io/railwayapp/railpack-frontend:v${RAILPACK_VERSION}@sha256:f1973377693af30c9b37a92c97c661c07b277ccdc6be909213c74c771f8d2d6d`;
 
 /** The CLI's tools-directory platform keys this host could use, most likely first. */
 const railpackPlatformKeys = (): string[] => {

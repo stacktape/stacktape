@@ -7,4 +7,3 @@ export type StpDynamoTable = DynamoDbTable['properties'] & {
   configParentResourceType: DynamoDbTable['type'] | NextjsWeb['type'];
   nameChain: string[];
 };
-export type DynamoDBTableReferencableParam = 'name' | 'arn' | 'streamArn';

@@ -78,32 +78,51 @@ export const readAwsProfile = async (
   return profiles[profile];
 };
 
-/**
- * Credentials of exactly this profile. `fromIni` handles SSO, `credential_process` and role chains, and fails when the
- * profile fails. The default chain would fall through to container, instance or environment credentials instead, and
- * their account would then be reported as the profile's.
- */
-export const loadProfileCredentials = async ({
-  profile,
-  environment = process.env,
-  region,
-  clientPlugins
-}: {
+type ProfileCredentialsOptions = {
   profile: string;
   environment?: Environment;
   region?: string;
   clientPlugins?: Pluggable<any, any>[];
-}): Promise<AwsCredentialIdentity> => {
-  const { fromIni } = await import('@aws-sdk/credential-providers');
-  return fromIni({
+};
+
+/** Like the default chain, temporary credentials are renewed five minutes before they expire. */
+const expiresSoon = (credentials: AwsCredentialIdentity) =>
+  credentials.expiration !== undefined && credentials.expiration.getTime() - Date.now() < 300_000;
+
+/**
+ * A provider of exactly this profile's credentials, shared by every client and renewed before they expire. `fromIni`
+ * handles SSO, `credential_process` and role chains, and fails when the profile fails. The default chain would fall
+ * through to container, instance or environment credentials instead, and their account would then be reported as the
+ * profile's.
+ */
+export const createProfileCredentialsProvider = async ({
+  profile,
+  environment = process.env,
+  region,
+  clientPlugins
+}: ProfileCredentialsOptions): Promise<() => Promise<AwsCredentialIdentity>> => {
+  const [{ fromIni }, { memoize }] = await Promise.all([
+    import('@aws-sdk/credential-providers'),
+    import('@smithy/core/config')
+  ]);
+  const provider = fromIni({
     profile,
     filepath: environment.AWS_SHARED_CREDENTIALS_FILE,
     configFilepath: environment.AWS_CONFIG_FILE,
     ignoreCache: true,
     ...(region ? { clientConfig: { region } } : {}),
     ...(clientPlugins ? { clientPlugins } : {})
-  })();
+  });
+  return memoize(
+    () => provider(),
+    expiresSoon,
+    (credentials) => credentials.expiration !== undefined
+  );
 };
+
+/** Credentials of exactly this profile, loaded once; see `createProfileCredentialsProvider`. */
+export const loadProfileCredentials = async (options: ProfileCredentialsOptions): Promise<AwsCredentialIdentity> =>
+  (await createProfileCredentialsProvider(options))();
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 const isOptionalString = (value: unknown) => value === undefined || isString(value);
@@ -167,6 +186,45 @@ const unresolved = ({ selector, cause, hint }: { selector: LocalAwsSelector; cau
     hints: [hint],
     cause
   });
+
+const localCredentialsLabel = (profile: string | undefined) =>
+  profile ? `AWS profile "${profile}"` : 'the standard AWS credential chain';
+
+/** The reason an AWS request failed, without the request description `createAwsErrorHandler` puts first. */
+const awsErrorText = (error: unknown) =>
+  errorText(error instanceof CliError && error.code === 'AWS_REQUEST_FAILED' ? error.cause : error);
+
+/** Local credentials that could not be loaded when an AWS client first needed them. */
+export const localAwsCredentialsUnavailable = ({ profile, cause }: { profile: string | undefined; cause: unknown }) =>
+  cause instanceof CliError && cause.category === 'CREDENTIALS'
+    ? cause
+    : new CliError({
+        category: 'CREDENTIALS',
+        code: 'LOCAL_AWS_CREDENTIALS_UNAVAILABLE',
+        message: `Could not load AWS credentials from ${localCredentialsLabel(profile)}: ${errorText(cause)}.`,
+        hints: [
+          profile
+            ? `Check profile "${profile}" in your AWS config, or log in again ("aws sso login --profile ${profile}" for SSO).`
+            : 'Set AWS_PROFILE or pass --profile, or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.'
+        ],
+        cause
+      });
+
+/** The account of local credentials could not be looked up with STS. */
+export const localAwsAccountUnresolved = ({ profile, cause }: { profile: string | undefined; cause: unknown }) =>
+  cause instanceof CliError && (cause.category === 'CREDENTIALS' || cause.category === 'AWS_ACCOUNT')
+    ? cause
+    : new CliError({
+        category: 'AWS_ACCOUNT',
+        code: 'LOCAL_AWS_ACCOUNT_UNRESOLVED',
+        message: `Could not find the AWS account of ${localCredentialsLabel(profile)}: ${awsErrorText(cause)}.`,
+        hints: [
+          profile
+            ? `Check the credentials of profile "${profile}".`
+            : 'Check the AWS credentials in your environment or AWS config.'
+        ],
+        cause
+      });
 
 const resolveProfileAccountId = async ({
   selector,

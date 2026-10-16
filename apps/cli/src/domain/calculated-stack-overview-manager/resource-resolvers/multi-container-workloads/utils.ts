@@ -435,6 +435,9 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       DockerLabels: Object.keys(secretVersionLabels).length ? secretVersionLabels : undefined,
       EntryPoint: entryPoint,
       Command: command,
+      // Stacktape's js-bundle images run no init process of their own. ECS starts one as PID 1: it passes the stop
+      // signal to the server and reaps orphaned processes.
+      ...(packagingType === 'js-bundle' && { LinuxParameters: { InitProcessEnabled: true } }),
       StopTimeout:
         container.stopTimeout ||
         (workload.deployment ? BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS : DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS),

@@ -33,6 +33,21 @@ export const configErrors = {
       ]
     });
   },
+  /** A resource of this stack whose values a local resolution needs is not deployed yet; see web builds. */
+  directiveResourceNotDeployed({
+    directiveType,
+    resourceName
+  }: {
+    directiveType: '$ResourceParam' | '$CfResourceParam';
+    resourceName: string;
+  }): CliError {
+    return new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_RESOURCE_NOT_DEPLOYED',
+      message: `Resource ${inlineCode(resourceName)} referenced by ${inlineCode(directiveType)} is not deployed yet.`,
+      hints: `Deploy the stack, then run the command again.`
+    });
+  },
   directiveResourceParameterInvalid({
     directiveType,
     referencableParams,

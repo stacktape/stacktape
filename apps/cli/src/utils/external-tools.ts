@@ -43,6 +43,8 @@ type ExternalToolRelease = {
   version: string;
   /** No asset means the tool is not downloaded on that platform (the Session Manager plugin stays bundled on Windows). */
   assets: Partial<Record<SupportedPlatform, ExternalToolAsset>>;
+  /** A container image of the same release, pinned by the digest of its multi-platform index (Railpack's frontend). */
+  image?: string;
 };
 
 export type ExternalToolManifest = Record<ExternalTool, ExternalToolRelease>;

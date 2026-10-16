@@ -10,6 +10,34 @@ const withDependencies = (requiresGlibcBinaries: boolean) =>
     nodeVersion: 24
   });
 
+type RuntimeTools = { tini: boolean; curl: boolean; openssl?: boolean };
+const alpine = (runtimeTools?: RuntimeTools) =>
+  buildEsDockerfile({
+    dependencies: [],
+    packageManager: 'npm',
+    requiresGlibcBinaries: false,
+    nodeVersion: 24,
+    runtimeTools
+  });
+const alpineWithDependencies = (runtimeTools: RuntimeTools) =>
+  buildEsDockerfile({
+    dependencies: [{ name: 'sharp', version: '0.34.0' }],
+    packageManager: 'npm',
+    requiresGlibcBinaries: false,
+    nodeVersion: 24,
+    runtimeTools
+  });
+const runtimeStage = (dockerfile: string) => dockerfile.slice(dockerfile.lastIndexOf('\nFROM '));
+const bunImage = (runtimeTools: RuntimeTools) =>
+  buildEsDockerfile({
+    dependencies: [],
+    packageManager: 'npm',
+    requiresGlibcBinaries: false,
+    nodeVersion: 24,
+    runtime: 'bun',
+    runtimeTools
+  });
+
 describe('Stacktape Dockerfile contracts', () => {
   test('names the public images a generated Dockerfile starts from, not its own stages', () => {
     expect(getDockerfileBaseImages(withDependencies(true))).toEqual([
@@ -33,8 +61,35 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(dockerfile).toStartWith('FROM public.ecr.aws/docker/library/node:24-bookworm AS deps\n');
     expect(dockerfile).toContain('FROM public.ecr.aws/docker/library/node:24-bookworm-slim');
     expect(dockerfile).toContain('COPY --from=deps /install-dir/ /app');
-    expect(dockerfile).toContain('tini curl openssl');
+    // The slim Debian image lacks the OpenSSL libraries Prisma and other native packages load.
+    expect(dockerfile).toContain('apt-get install -y --no-install-recommends openssl \\');
+    expect(dockerfile).not.toContain('ENTRYPOINT');
     expect(dockerfile).toContain('ENV NODE_ENV production');
+  });
+
+  test('installs tini and curl only where the image needs them', () => {
+    // An ECS or Batch container without Prisma: the platform starts the init process, and Alpine has OpenSSL 3.
+    for (const dockerfile of [alpine(), alpine({ tini: false, curl: false }), bunImage({ tini: false, curl: false })]) {
+      expect(dockerfile).not.toContain('apk add');
+      expect(dockerfile).not.toContain('apt-get');
+      expect(dockerfile).not.toContain('ENTRYPOINT');
+    }
+    expect(runtimeStage(alpineWithDependencies({ tini: false, curl: false }))).not.toContain('apk add');
+    // A health check that calls curl.
+    expect(alpine({ tini: false, curl: true })).toContain('RUN apk add --no-cache curl\n');
+    expect(alpine({ tini: false, curl: true })).not.toContain('ENTRYPOINT');
+    // An AgentCore runtime, which cannot start an init process.
+    expect(runtimeStage(alpineWithDependencies({ tini: true, curl: false }))).toContain(
+      'RUN apk add --no-cache tini\nENTRYPOINT ["/sbin/tini", "--"]'
+    );
+    expect(bunImage({ tini: true, curl: true })).toContain('apt-get install -y --no-install-recommends tini curl \\');
+    expect(bunImage({ tini: true, curl: true })).toContain('ENTRYPOINT ["tini", "--"]');
+    // A bundle that loads Prisma: Prisma 5 needs the command on Alpine; Debian-based images list OpenSSL in ldconfig.
+    expect(alpine({ tini: false, curl: false, openssl: true })).toContain('RUN apk add --no-cache openssl\n');
+    expect(runtimeStage(alpineWithDependencies({ tini: false, curl: true, openssl: true }))).toContain(
+      'RUN apk add --no-cache curl openssl\n'
+    );
+    expect(bunImage({ tini: false, curl: false, openssl: true })).not.toContain('apt-get');
   });
 
   test('builds .NET Lambda artifacts in runtime-compatible SAM images', () => {

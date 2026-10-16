@@ -24,17 +24,51 @@ export {
   RESOURCES_CONVERTIBLE_TO_CLASSES
 };
 
-// These can be referenced using $ResourceParam directive
+/** Parameters of a resource with a CDN in front of it. `cdnUrl` exists only while the CDN has no custom domains. */
+const CDN_PARAMS = [
+  { name: 'cdnUrl', description: 'CDN URL (without custom domains)' },
+  { name: 'cdnDomain', description: 'CDN domain' },
+  { name: 'cdnCanonicalDomain', description: 'Canonical CDN domain' },
+  { name: 'cdnCanonicalUrl', description: 'Canonical CDN URL' },
+  { name: 'cdnCustomDomains', description: 'CDN custom domains' },
+  { name: 'cdnCustomDomainUrls', description: 'CDN custom domain URLs' }
+] as const;
+
+/**
+ * Parameters of an API or load balancer. `domain` and `url` are the default domain while there are no custom domains;
+ * with custom domains they are the first custom domain.
+ */
+const ENDPOINT_PARAMS = [
+  { name: 'domain', description: 'Domain' },
+  { name: 'url', description: 'URL' },
+  { name: 'customDomains', description: 'Custom domains' },
+  { name: 'customDomainUrl', description: 'First custom domain URL' },
+  { name: 'customDomainUrls', description: 'Custom domain URLs' },
+  { name: 'canonicalDomain', description: 'Canonical domain' }
+] as const;
+
+const SSR_WEB_PARAMS = [{ name: 'url', description: 'Website URL' }] as const;
+
+/**
+ * The parameters each resource type can expose to `$ResourceParam`, the resource classes and `stacktape param:get`.
+ * Which of them a deployed resource has depends on its configuration: a custom domain, for example, adds
+ * `customDomainUrl`. The synthesis test `referenceable-params.spec.ts` keeps this list equal to what the CLI publishes.
+ */
 export const REFERENCEABLE_PARAMS = {
   'relational-database': [
     { name: 'connectionString', description: 'Connection string for the database' },
     { name: 'jdbcConnectionString', description: 'JDBC connection string' },
     { name: 'host', description: 'Database host' },
+    { name: 'hosts', description: 'Hosts of all Aurora instances' },
     { name: 'port', description: 'Database port' },
     { name: 'dbName', description: 'Database name' },
     { name: 'readerHost', description: 'Reader endpoint host' },
+    { name: 'readerPort', description: 'Reader endpoint port' },
     { name: 'readerConnectionString', description: 'Reader connection string' },
-    { name: 'readerJdbcConnectionString', description: 'Reader JDBC connection string' }
+    { name: 'readerJdbcConnectionString', description: 'Reader JDBC connection string' },
+    { name: 'readReplicaHosts', description: 'Read replica hosts' },
+    { name: 'readReplicaConnectionStrings', description: 'Read replica connection strings' },
+    { name: 'readReplicaJdbcConnectionStrings', description: 'Read replica JDBC connection strings' }
   ],
   'dsql-database': [
     { name: 'endpoint', description: 'DSQL cluster endpoint' },
@@ -57,17 +91,14 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'configurationSetName', description: 'SES configuration set used by default' },
     { name: 'feedbackTopicArn', description: 'Shared SNS topic ARN for bounce and complaint events' }
   ],
-  'web-service': [
-    { name: 'domain', description: 'Web service domain' },
-    { name: 'url', description: 'Web service URL' },
-    { name: 'customDomains', description: 'Custom domains' },
-    { name: 'customDomainUrls', description: 'Custom domain URLs' }
+  'web-service': [...ENDPOINT_PARAMS, ...CDN_PARAMS],
+  'private-service': [
+    { name: 'address', description: 'Private service address' },
+    { name: 'domain', description: 'Load balancer domain' },
+    { name: 'url', description: 'Load balancer URL' },
+    { name: 'canonicalDomain', description: 'Canonical load balancer domain' }
   ],
-  'private-service': [{ name: 'address', description: 'Private service address' }],
-  bucket: [
-    { name: 'name', description: 'Bucket name' },
-    { name: 'arn', description: 'Bucket ARN' }
-  ],
+  bucket: [{ name: 'name', description: 'Bucket name' }, { name: 'arn', description: 'Bucket ARN' }, ...CDN_PARAMS],
   'dynamo-db-table': [
     { name: 'name', description: 'Table name' },
     { name: 'arn', description: 'Table ARN' },
@@ -75,8 +106,11 @@ export const REFERENCEABLE_PARAMS = {
   ],
   function: [
     { name: 'arn', description: 'Function ARN' },
-    { name: 'logGroupArn', description: 'Log group ARN' }
+    { name: 'logGroupArn', description: 'Log group ARN' },
+    { name: 'url', description: 'Function URL' },
+    ...CDN_PARAMS
   ],
+  'edge-lambda-function': [{ name: 'arn', description: 'Function version ARN' }],
   'batch-job': [
     { name: 'jobDefinitionArn', description: 'Job definition ARN' },
     { name: 'stateMachineArn', description: 'State machine ARN' },
@@ -86,20 +120,15 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'arn', description: 'Event bus ARN' },
     { name: 'archiveArn', description: 'Archive ARN' }
   ],
-  'http-api-gateway': [
-    { name: 'domain', description: 'API Gateway domain' },
-    { name: 'url', description: 'API Gateway URL' },
-    { name: 'customDomains', description: 'Custom domains' },
-    { name: 'customDomainUrls', description: 'Custom domain URLs' },
-    { name: 'customDomainUrl', description: 'First custom domain URL' }
-  ],
+  'http-api-gateway': [...ENDPOINT_PARAMS, ...CDN_PARAMS],
   'websocket-api-gateway': [
     { name: 'apiId', description: 'API Gateway ID' },
     { name: 'url', description: 'WebSocket client URL' },
     { name: 'managementEndpoint', description: 'HTTPS endpoint for sending messages to connected clients' },
     { name: 'customDomains', description: 'Custom domains' },
     { name: 'customDomainUrl', description: 'First custom domain URL' },
-    { name: 'customDomainUrls', description: 'Custom domain URLs' }
+    { name: 'customDomainUrls', description: 'Custom domain URLs' },
+    { name: 'canonicalDomain', description: 'Canonical domain' }
   ],
   'appsync-api': [
     { name: 'apiId', description: 'AppSync API ID' },
@@ -112,8 +141,11 @@ export const REFERENCEABLE_PARAMS = {
   'mongo-db-atlas-cluster': [{ name: 'connectionString', description: 'MongoDB connection string' }],
   'redis-cluster': [
     { name: 'host', description: 'Redis host' },
-    { name: 'readerHost', description: 'Redis reader host' },
     { name: 'port', description: 'Redis port' },
+    { name: 'connectionString', description: 'Redis connection string' },
+    { name: 'readerHost', description: 'Redis reader host' },
+    { name: 'readerPort', description: 'Redis reader port' },
+    { name: 'readerConnectionString', description: 'Redis reader connection string' },
     { name: 'sharding', description: 'Sharding status' }
   ],
   'state-machine': [
@@ -122,7 +154,10 @@ export const REFERENCEABLE_PARAMS = {
   ],
   'user-auth-pool': [
     { name: 'id', description: 'User pool ID' },
+    { name: 'arn', description: 'User pool ARN' },
     { name: 'clientId', description: 'Client ID' },
+    { name: 'clientSecret', description: 'Client secret when generateClientSecret is enabled' },
+    { name: 'providerUrl', description: 'Identity provider URL' },
     { name: 'domain', description: 'User pool domain' }
   ],
   'upstash-redis': [
@@ -136,15 +171,21 @@ export const REFERENCEABLE_PARAMS = {
   ],
   'application-load-balancer': [
     { name: 'domain', description: 'Load balancer domain' },
-    { name: 'customDomains', description: 'Custom domains' }
+    { name: 'url', description: 'Load balancer URL' },
+    { name: 'customDomains', description: 'Custom domains' },
+    { name: 'canonicalDomain', description: 'Canonical domain' },
+    { name: 'address', description: 'Address of the load balancer of a private service' },
+    ...CDN_PARAMS
   ],
   'network-load-balancer': [
     { name: 'domain', description: 'Load balancer domain' },
-    { name: 'customDomains', description: 'Custom domains' }
+    { name: 'customDomains', description: 'Custom domains' },
+    { name: 'canonicalDomain', description: 'Canonical domain' }
   ],
   'hosting-bucket': [
     { name: 'name', description: 'Bucket name' },
-    { name: 'arn', description: 'Bucket ARN' }
+    { name: 'arn', description: 'Bucket ARN' },
+    ...CDN_PARAMS
   ],
   'web-app-firewall': [
     { name: 'arn', description: 'Firewall ARN' },
@@ -158,14 +199,20 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'arn', description: 'EFS ARN' },
     { name: 'id', description: 'EFS ID' }
   ],
-  'nextjs-web': [{ name: 'url', description: 'Website URL' }],
-  'astro-web': [{ name: 'url', description: 'Website URL' }],
-  'nuxt-web': [{ name: 'url', description: 'Website URL' }],
-  'sveltekit-web': [{ name: 'url', description: 'Website URL' }],
-  'solidstart-web': [{ name: 'url', description: 'Website URL' }],
-  'tanstack-web': [{ name: 'url', description: 'Website URL' }],
-  'remix-web': [{ name: 'url', description: 'Website URL' }],
-  'multi-container-workload': [{ name: 'logGroupArn', description: 'Log group ARN' }],
+  'nextjs-web': SSR_WEB_PARAMS,
+  'astro-web': SSR_WEB_PARAMS,
+  'nuxt-web': SSR_WEB_PARAMS,
+  'sveltekit-web': SSR_WEB_PARAMS,
+  'solidstart-web': SSR_WEB_PARAMS,
+  'tanstack-web': SSR_WEB_PARAMS,
+  'remix-web': SSR_WEB_PARAMS,
+  convex: [
+    { name: 'url', description: 'Cloud origin that frontend clients connect to' },
+    { name: 'siteUrl', description: 'HTTP actions origin' },
+    { name: 'dashboardUrl', description: 'Admin dashboard URL when the dashboard is enabled' },
+    { name: 'adminKey', description: 'Sensitive admin key for Convex tooling; never injected by connectTo' },
+    { name: 'instanceSecret', description: 'Sensitive instance boot secret' }
+  ],
   'sqs-queue': [
     { name: 'arn', description: 'Queue ARN' },
     { name: 'url', description: 'Queue URL' },
@@ -174,6 +221,10 @@ export const REFERENCEABLE_PARAMS = {
   'sns-topic': [
     { name: 'arn', description: 'Topic ARN' },
     { name: 'name', description: 'Topic name' }
+  ],
+  'kinesis-stream': [
+    { name: 'arn', description: 'Stream ARN' },
+    { name: 'name', description: 'Stream name' }
   ],
   'agentcore-runtime': [
     { name: 'id', description: 'AgentCore runtime ID' },
@@ -201,3 +252,70 @@ export const REFERENCEABLE_PARAMS = {
 } as const satisfies Partial<
   Record<StacktapeResourceType, ReadonlyArray<{ readonly name: string; readonly description: string }>>
 >;
+
+const LISTENER_PORT = { min: 1, max: 65535 } as const;
+
+/**
+ * Parameters named after a number from the configuration, which therefore have no resource class property: the port
+ * of each load balancer listener (`port443`) and of each read replica (`readReplica0Port`). The number is written as
+ * synthesis writes it, without leading zeros, and lies within `min` and `max`: a valid port, or the index of one of the
+ * at most 15 read replicas RDS allows per database.
+ */
+export const NUMBERED_REFERENCEABLE_PARAMS = {
+  'application-load-balancer': [{ prefix: 'port', suffix: '', ...LISTENER_PORT, description: 'Listener port' }],
+  'web-service': [{ prefix: 'port', suffix: '', ...LISTENER_PORT, description: 'Load balancer listener port' }],
+  'private-service': [{ prefix: 'port', suffix: '', ...LISTENER_PORT, description: 'Load balancer listener port' }],
+  'relational-database': [{ prefix: 'readReplica', suffix: 'Port', min: 0, max: 14, description: 'Read replica port' }]
+} as const satisfies Partial<
+  Record<
+    StacktapeResourceType,
+    ReadonlyArray<{
+      readonly prefix: string;
+      readonly suffix: string;
+      readonly min: number;
+      readonly max: number;
+      readonly description: string;
+    }>
+  >
+>;
+
+type NumberedParamName<Param> = Param extends {
+  prefix: infer Prefix extends string;
+  suffix: infer Suffix extends string;
+}
+  ? `${Prefix}${number}${Suffix}`
+  : never;
+
+/** Every parameter name some resource type can expose. */
+export type AnyReferenceableParamName =
+  | (typeof REFERENCEABLE_PARAMS)[keyof typeof REFERENCEABLE_PARAMS][number]['name']
+  | NumberedParamName<(typeof NUMBERED_REFERENCEABLE_PARAMS)[keyof typeof NUMBERED_REFERENCEABLE_PARAMS][number]>;
+
+const paramsOfType = (resourceType: string) => ({
+  named: (REFERENCEABLE_PARAMS as Partial<Record<string, ReadonlyArray<{ name: string }>>>)[resourceType] ?? [],
+  numbered:
+    (
+      NUMBERED_REFERENCEABLE_PARAMS as Partial<
+        Record<string, ReadonlyArray<{ prefix: string; suffix: string; min: number; max: number }>>
+      >
+    )[resourceType] ?? []
+});
+
+/** The parameter names a resource type can expose, numbered ones written as `port<number>`. */
+export const getReferenceableParamNames = (resourceType: string): string[] => {
+  const { named, numbered } = paramsOfType(resourceType);
+  return [...named.map(({ name }) => name), ...numbered.map(({ prefix, suffix }) => `${prefix}<number>${suffix}`)];
+};
+
+/** Whether a resource of `resourceType` exposes the parameter `name` in some configuration. */
+export const isReferenceableParam = (resourceType: string, name: string): boolean => {
+  const { named, numbered } = paramsOfType(resourceType);
+  return (
+    named.some((param) => param.name === name) ||
+    numbered.some(({ prefix, suffix, min, max }) => {
+      if (!name.startsWith(prefix) || !name.endsWith(suffix)) return false;
+      const digits = name.slice(prefix.length, name.length - suffix.length);
+      return /^(0|[1-9]\d*)$/.test(digits) && Number(digits) >= min && Number(digits) <= max;
+    })
+  );
+};
