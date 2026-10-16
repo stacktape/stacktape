@@ -56,8 +56,9 @@ import { consumeRunnerCredentials } from './runner-credentials';
 import {
   detectLocalAwsSelectors,
   ignoredProfileNotice,
+  loadProfileCredentials,
   matchConnectedAwsAccount,
-  readAwsProfileSections,
+  readAwsProfile,
   resolveLocalAwsAccount,
   type LocalAwsAccount
 } from './local-aws-account';
@@ -369,14 +370,19 @@ export class GlobalStateManager {
     this.#localAwsAccount = resolveLocalAwsAccount({
       selectors: this.localAwsSelectors,
       sources: {
-        readProfile: (profile) => readAwsProfileSections(profile, environment),
+        readProfile: (profile) => readAwsProfile(profile, environment),
         profileCallerAccount: async (profile) => {
-          const [{ defaultProvider }, { assumedRoleIdentityPlugin }] = await Promise.all([
-            import('@aws-sdk/credential-provider-node'),
-            import('src/aws/identity')
-          ]);
-          return callerAccount(await defaultProvider({ profile, clientPlugins: [assumedRoleIdentityPlugin] })());
+          const { assumedRoleIdentityPlugin } = await import('src/aws/identity');
+          return callerAccount(
+            await loadProfileCredentials({
+              profile,
+              environment,
+              region: this.region,
+              clientPlugins: [assumedRoleIdentityPlugin]
+            })
+          );
         },
+        // The keys themselves, not a provider chain: nothing else can stand in for them when they are rejected.
         environmentCallerAccount: () => {
           if (!environment.AWS_SECRET_ACCESS_KEY) throw new Error('AWS_SECRET_ACCESS_KEY is not set');
           return callerAccount({

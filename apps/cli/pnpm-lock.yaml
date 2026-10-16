@@ -185,6 +185,9 @@ importers:
       '@slack/web-api':
         specifier: ^8.1.1
         version: 8.1.1
+      '@smithy/core':
+        specifier: 3.33.3
+        version: 3.33.3
       '@smithy/fetch-http-handler':
         specifier: 5.7.2
         version: 5.7.2

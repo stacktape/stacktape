@@ -7,10 +7,11 @@ import {
   detectLocalAwsSelectors,
   ignoredProfileNotice,
   matchConnectedAwsAccount,
-  parseAwsIniSections,
-  readAwsProfileSections,
+  accountIdFromProfile,
+  loadProfileCredentials,
+  readAwsProfile,
   resolveLocalAwsAccount,
-  type AwsProfileSections,
+  type AwsProfileData,
   type LocalAwsAccountSources
 } from './local-aws-account';
 
@@ -25,7 +26,7 @@ const fakeSources = ({
   environmentAccount,
   failure
 }: {
-  profiles?: Record<string, AwsProfileSections>;
+  profiles?: Record<string, AwsProfileData>;
   profileAccounts?: Record<string, string>;
   environmentAccount?: string;
   failure?: Error | 'hang';
@@ -38,7 +39,7 @@ const fakeSources = ({
     return account ? Promise.resolve(account) : Promise.reject(new Error(`no fake STS answer for ${caller}`));
   };
   const sources: LocalAwsAccountSources = {
-    readProfile: async (profile) => profiles[profile] ?? {},
+    readProfile: async (profile) => profiles[profile],
     profileCallerAccount: (profile) => answer(`profile:${profile}`, profileAccounts[profile]),
     environmentCallerAccount: () => answer('environment', environmentAccount)
   };
@@ -90,7 +91,7 @@ describe('resolveLocalAwsAccount', () => {
     ['an SSO profile', { sso_account_id: DEV, sso_role_name: 'Admin', sso_session: 'corp' }],
     ['a role profile', { role_arn: `arn:aws:iam::${DEV}:role/deploy`, source_profile: 'base' }]
   ])('reads the account of %s from config without calling STS', async (_, config) => {
-    const { sources, stsCalls } = fakeSources({ profiles: { dev: { config } } });
+    const { sources, stsCalls } = fakeSources({ profiles: { dev: config } });
     const account = await resolveLocalAwsAccount({ selectors: profileSelector('dev'), sources });
     expect(account).toEqual({ accountId: DEV, selector: expect.objectContaining({ label: 'AWS_PROFILE=dev' }) });
     expect(stsCalls).toEqual([]);
@@ -98,7 +99,7 @@ describe('resolveLocalAwsAccount', () => {
 
   test('calls STS once for a profile with keys and no account in its config', async () => {
     const { sources, stsCalls } = fakeSources({
-      profiles: { e2e: { credentials: { aws_access_key_id: 'AKIA', aws_secret_access_key: 'secret' } } },
+      profiles: { e2e: { aws_access_key_id: 'AKIA', aws_secret_access_key: 'secret' } },
       profileAccounts: { e2e: E2E }
     });
     expect((await resolveLocalAwsAccount({ selectors: profileSelector('e2e'), sources }))?.accountId).toBe(E2E);
@@ -115,7 +116,7 @@ describe('resolveLocalAwsAccount', () => {
 
   test('fails closed with the SSO login command when an SSO session has expired', async () => {
     const { sources } = fakeSources({
-      profiles: { dev: { config: { sso_session: 'corp', role_arn: 'not-an-arn' } } },
+      profiles: { dev: { sso_session: 'corp', sso_role_name: 'Admin' } },
       failure: new Error('The SSO session associated with this profile has expired.')
     });
     const error = await failure(
@@ -133,7 +134,7 @@ describe('resolveLocalAwsAccount', () => {
 
   test('fails closed when the profile keys are rejected', async () => {
     const { sources } = fakeSources({
-      profiles: { e2e: { credentials: { aws_access_key_id: 'AKIA' } } },
+      profiles: { e2e: { aws_access_key_id: 'AKIA', aws_secret_access_key: 'rejected' } },
       failure: new Error('The security token included in the request is invalid.')
     });
     const error = await failure(resolveLocalAwsAccount({ selectors: profileSelector('e2e'), sources }));
@@ -144,7 +145,7 @@ describe('resolveLocalAwsAccount', () => {
   });
 
   test('fails closed when STS does not answer in time', async () => {
-    const { sources } = fakeSources({ profiles: { e2e: { credentials: {} } }, failure: 'hang' });
+    const { sources } = fakeSources({ profiles: { e2e: { credential_process: 'slow' } }, failure: 'hang' });
     const error = await failure(resolveLocalAwsAccount({ selectors: profileSelector('e2e'), sources, timeoutMs: 20 }));
     expect(error.code).toBe('LOCAL_AWS_ACCOUNT_UNRESOLVED');
     expect(error.message).toContain('AWS did not answer within 0.02 seconds');
@@ -174,7 +175,7 @@ describe('resolveLocalAwsAccount', () => {
 
   test('uses the profile when it and the environment keys belong to the same account', async () => {
     const { sources } = fakeSources({
-      profiles: { dev: { config: { sso_account_id: DEV } } },
+      profiles: { dev: { sso_account_id: DEV } },
       environmentAccount: DEV
     });
     const selectors = detectLocalAwsSelectors({ environment: { AWS_PROFILE: 'dev', AWS_ACCESS_KEY_ID: 'AKIA' } });
@@ -183,7 +184,7 @@ describe('resolveLocalAwsAccount', () => {
 
   test('refuses a profile and environment keys that belong to different accounts', async () => {
     const { sources } = fakeSources({
-      profiles: { dev: { config: { sso_account_id: DEV } } },
+      profiles: { dev: { sso_account_id: DEV } },
       environmentAccount: E2E
     });
     const selectors = detectLocalAwsSelectors({ environment: { AWS_PROFILE: 'dev', AWS_ACCESS_KEY_ID: 'AKIA' } });
@@ -290,63 +291,153 @@ describe('ignoredProfileNotice', () => {
   });
 });
 
-describe('readAwsProfileSections', () => {
+describe('accountIdFromProfile follows fromIni for the selected profile', () => {
+  const role = (account: string) => `arn:aws:iam::${account}:role/deploy`;
+  test.each([
+    ['an assume-role profile with a source profile', { role_arn: role(DEV), source_profile: 'base' }, DEV],
+    ['an assume-role profile with a credential source', { role_arn: role(DEV), credential_source: 'Environment' }, DEV],
+    [
+      'a role ARN without a source, next to static keys',
+      { role_arn: role(DEV), aws_access_key_id: 'A', aws_secret_access_key: 'S' },
+      undefined
+    ],
+    ['a role ARN without a source or keys', { role_arn: role(DEV) }, undefined],
+    [
+      'static keys next to SSO settings',
+      { sso_account_id: DEV, aws_access_key_id: 'A', aws_secret_access_key: 'S' },
+      undefined
+    ],
+    ['a web-identity profile', { role_arn: role(DEV), web_identity_token_file: '/token' }, DEV],
+    ['credential_process next to SSO settings', { sso_account_id: DEV, credential_process: 'issue' }, undefined],
+    ['an SSO profile', { sso_account_id: DEV, sso_session: 'corp' }, DEV],
+    [
+      'a role chain that wins over SSO settings',
+      { sso_account_id: DEV, role_arn: role(E2E), source_profile: 'sso' },
+      E2E
+    ]
+  ])('%s', (_, data, account) => {
+    expect(accountIdFromProfile(data)).toBe(account);
+  });
+});
+
+describe('AWS profile files', () => {
   const directories: string[] = [];
+  const restores: (() => void)[] = [];
   afterEach(async () => {
+    for (const restore of restores.splice(0)) restore();
     await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
   });
 
-  test('reads the files the AWS SDK reads, including dotted profile names and nested settings', async () => {
+  const profileFiles = async ({ config, credentials }: { config: string[]; credentials: string[] }) => {
     const directory = await mkdtemp(join(tmpdir(), 'stacktape-aws-profile-'));
     directories.push(directory);
-    await writeFile(
-      join(directory, 'config'),
-      [
-        '# comment',
+    await writeFile(join(directory, 'config'), `${config.join('\n')}\n`);
+    await writeFile(join(directory, 'credentials'), `${credentials.join('\n')}\n`);
+    return {
+      AWS_CONFIG_FILE: join(directory, 'config'),
+      AWS_SHARED_CREDENTIALS_FILE: join(directory, 'credentials')
+    };
+  };
+
+  test('the credentials file overrides the config file, as in the SDK', async () => {
+    const environment = await profileFiles({
+      config: ['[profile dev]', `role_arn = arn:aws:iam::${DEV}:role/deploy`, 'source_profile = base'],
+      credentials: [
+        '[dev]',
+        `role_arn = arn:aws:iam::${E2E}:role/deploy`,
+        '[base]',
+        'aws_access_key_id = A',
+        'aws_secret_access_key = S'
+      ]
+    });
+    expect(accountIdFromProfile(await readAwsProfile('dev', environment))).toBe(E2E);
+  });
+
+  test('keys in the credentials file make an SSO profile need STS', async () => {
+    const environment = await profileFiles({
+      config: ['[profile dev]', `sso_account_id = ${DEV}`, 'sso_session = corp'],
+      credentials: ['[dev]', 'aws_access_key_id = A', 'aws_secret_access_key = S']
+    });
+    const { sources, stsCalls } = fakeSources({ profileAccounts: { dev: E2E } });
+    sources.readProfile = (profile) => readAwsProfile(profile, environment);
+    expect((await resolveLocalAwsAccount({ selectors: profileSelector('dev'), sources }))?.accountId).toBe(E2E);
+    expect(stsCalls).toEqual(['profile:dev']);
+  });
+
+  test('reads dotted profile names, the default profile, and reports a missing profile', async () => {
+    const environment = await profileFiles({
+      config: [
         '[default]',
         'region = eu-west-1',
         '[profile team.dev]',
         `sso_account_id = ${DEV}`,
         's3 =',
-        '  max_concurrent_requests = 20',
-        '[sso-session corp]',
-        'sso_start_url = https://example.awsapps.com/start'
-      ].join('\n')
-    );
-    await writeFile(
-      join(directory, 'credentials'),
-      '[e2e]\naws_access_key_id = AKIA\naws_secret_access_key = secret\n'
-    );
-    const environment = {
-      AWS_CONFIG_FILE: join(directory, 'config'),
-      AWS_SHARED_CREDENTIALS_FILE: join(directory, 'credentials')
-    };
-
-    expect(await readAwsProfileSections('team.dev', environment)).toEqual({
-      config: { sso_account_id: DEV, s3: '' },
-      credentials: undefined
+        '  max_concurrent_requests = 20'
+      ],
+      credentials: []
     });
-    expect((await readAwsProfileSections('e2e', environment)).credentials).toEqual({
-      aws_access_key_id: 'AKIA',
-      aws_secret_access_key: 'secret'
-    });
-    expect((await readAwsProfileSections('default', environment)).config).toEqual({ region: 'eu-west-1' });
-    expect(await readAwsProfileSections('missing', environment)).toEqual({ config: undefined, credentials: undefined });
+    expect((await readAwsProfile('team.dev', environment))?.sso_account_id).toBe(DEV);
+    expect((await readAwsProfile('default', environment))?.region).toBe('eu-west-1');
+    expect(await readAwsProfile('missing', environment)).toBeUndefined();
   });
 
-  test('treats missing files as empty', async () => {
-    const missing = join(tmpdir(), 'stacktape-no-such-aws-directory');
-    expect(
-      await readAwsProfileSections('dev', {
-        AWS_CONFIG_FILE: join(missing, 'config'),
-        AWS_SHARED_CREDENTIALS_FILE: join(missing, 'credentials')
-      })
-    ).toEqual({ config: undefined, credentials: undefined });
+  test('matches the role the SDK assumes, without contacting AWS', async () => {
+    const environment = await profileFiles({
+      config: ['[profile dev]', `role_arn = arn:aws:iam::${DEV}:role/deploy`, 'source_profile = base'],
+      credentials: [
+        '[dev]',
+        `role_arn = arn:aws:iam::${E2E}:role/deploy`,
+        '[base]',
+        'aws_access_key_id = A',
+        'aws_secret_access_key = S'
+      ]
+    });
+    const { fromIni } = await import('@aws-sdk/credential-providers');
+    const assumed: string[] = [];
+    await fromIni({
+      profile: 'dev',
+      filepath: environment.AWS_SHARED_CREDENTIALS_FILE,
+      configFilepath: environment.AWS_CONFIG_FILE,
+      ignoreCache: true,
+      roleAssumer: async (_, params) => {
+        assumed.push(params.RoleArn);
+        return { accessKeyId: 'ASIA', secretAccessKey: 'S', sessionToken: 'T' };
+      }
+    })();
+    expect(assumed.map((arn) => arn.split(':')[4])).toEqual([
+      accountIdFromProfile(await readAwsProfile('dev', environment))!
+    ]);
   });
 
-  test('keeps the last value of a repeated key and ignores lines before the first section', () => {
-    expect(parseAwsIniSections('stray = 1\n[profile dev]\nregion = a\nregion = b\n')).toEqual({
-      'profile dev': { region: 'b' }
+  test('a failing profile does not fall through to other credentials', async () => {
+    // Container credentials a fallback chain would pick up when the profile fails.
+    let containerRequests = 0;
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch: () => {
+        containerRequests += 1;
+        return Response.json({
+          AccessKeyId: 'ASIACONTAINER',
+          SecretAccessKey: 'S',
+          Token: 'T',
+          Expiration: new Date(Date.now() + 3_600_000).toISOString()
+        });
+      }
     });
+    restores.push(() => server.stop(true));
+    const previous = process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
+    process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI = `http://127.0.0.1:${server.port}/credentials`;
+    restores.push(() => {
+      if (previous === undefined) delete process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
+      else process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI = previous;
+    });
+    const environment = await profileFiles({
+      config: ['[profile broken]', `credential_process = "${process.execPath}" -e "process.exit(1)"`],
+      credentials: []
+    });
+
+    await expect(loadProfileCredentials({ profile: 'broken', environment })).rejects.toThrow();
+    expect(containerRequests).toBe(0);
   });
 });

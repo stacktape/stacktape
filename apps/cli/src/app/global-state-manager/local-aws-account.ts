@@ -1,8 +1,6 @@
 import type { GlobalStateConnectedAwsAccount } from './types';
-import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import type { AwsCredentialIdentity, Pluggable } from '@aws-sdk/types';
 import { CliError } from '@utils/errors';
-import { getHomeDir } from '@utils/misc';
 
 /**
  * Stack commands deploy into a connected AWS account. When the user has selected local AWS credentials (`--profile`,
@@ -29,11 +27,12 @@ export type LocalAwsSelectors = {
 
 export type LocalAwsAccount = { accountId: string; selector: LocalAwsSelector };
 
-/** One profile's settings from the AWS config file and the credentials file. Either is undefined when absent. */
-export type AwsProfileSections = { config?: Record<string, unknown>; credentials?: Record<string, unknown> };
+/** A profile's settings as the AWS SDK merges them: the credentials file overrides the config file key by key. */
+export type AwsProfileData = Record<string, string | undefined>;
 
 export type LocalAwsAccountSources = {
-  readProfile: (profile: string) => Promise<AwsProfileSections>;
+  /** Undefined when neither file defines the profile. */
+  readProfile: (profile: string) => Promise<AwsProfileData | undefined>;
   /** STS GetCallerIdentity with the profile's credentials. */
   profileCallerAccount: (profile: string) => Promise<string>;
   /** STS GetCallerIdentity with the credentials in the environment. */
@@ -64,65 +63,85 @@ export const detectLocalAwsSelectors = ({
   };
 };
 
-/**
- * Top-level `key = value` pairs per section. Indented lines are nested settings (for example `s3 =`) and comments
- * start with `#` or `;`. Section names are kept whole: profile names may contain dots.
- */
-export const parseAwsIniSections = (content: string) => {
-  const sections: Record<string, Record<string, string>> = {};
-  let current: Record<string, string> | undefined;
-  for (const line of content.split(/\r?\n/)) {
-    if (/^\s*([#;]|$)/.test(line) || /^\s/.test(line)) continue;
-    const header = /^\[\s*(.+?)\s*\]/.exec(line);
-    if (header) {
-      current = sections[header[1].replace(/\s+/g, ' ')] ??= {};
-      continue;
-    }
-    const separator = line.indexOf('=');
-    if (current && separator > 0) current[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
-  }
-  return sections;
-};
-
-const readAwsIniFile = async (path: string) => {
-  const content = await readFile(path, 'utf8').catch((error: NodeJS.ErrnoException) => {
-    if (error.code === 'ENOENT') return '';
-    throw error;
-  });
-  return parseAwsIniSections(content);
-};
-
-const awsFilePath = (fromEnvironment: string | undefined, fallback: string) => {
-  if (!fromEnvironment) return join(getHomeDir(), '.aws', fallback);
-  return fromEnvironment.startsWith('~/') ? join(getHomeDir(), fromEnvironment.slice(2)) : resolve(fromEnvironment);
-};
-
-/** A profile's sections, from the same files the AWS SDK reads (`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`). */
-export const readAwsProfileSections = async (
+/** Reads a profile through the SDK's own loader, so files, precedence and section names match `fromIni`. */
+export const readAwsProfile = async (
   profile: string,
   environment: Environment = process.env
-): Promise<AwsProfileSections> => {
-  const [config, credentials] = await Promise.all([
-    readAwsIniFile(awsFilePath(environment.AWS_CONFIG_FILE, 'config')),
-    readAwsIniFile(awsFilePath(environment.AWS_SHARED_CREDENTIALS_FILE, 'credentials'))
-  ]);
-  return {
-    config: config[`profile ${profile}`] ?? (profile === 'default' ? config.default : undefined),
-    credentials: credentials[profile]
-  };
+): Promise<AwsProfileData | undefined> => {
+  const { parseKnownFiles } = await import('@smithy/core/config');
+  const profiles = await parseKnownFiles({
+    profile,
+    filepath: environment.AWS_SHARED_CREDENTIALS_FILE,
+    configFilepath: environment.AWS_CONFIG_FILE,
+    ignoreCache: true
+  });
+  return profiles[profile];
 };
 
-/** The account a profile names without asking AWS: an SSO account, or the account of the role it assumes. */
-export const accountIdFromProfileConfig = (section: Record<string, unknown> | undefined) => {
-  if (!section) return undefined;
-  const ssoAccountId = String(section.sso_account_id ?? '');
-  if (ACCOUNT_ID.test(ssoAccountId)) return ssoAccountId;
-  const roleAccountId = String(section.role_arn ?? '').split(':')[4] ?? '';
-  return ACCOUNT_ID.test(roleAccountId) ? roleAccountId : undefined;
+/**
+ * Credentials of exactly this profile. `fromIni` handles SSO, `credential_process` and role chains, and fails when the
+ * profile fails. The default chain would fall through to container, instance or environment credentials instead, and
+ * their account would then be reported as the profile's.
+ */
+export const loadProfileCredentials = async ({
+  profile,
+  environment = process.env,
+  region,
+  clientPlugins
+}: {
+  profile: string;
+  environment?: Environment;
+  region?: string;
+  clientPlugins?: Pluggable<any, any>[];
+}): Promise<AwsCredentialIdentity> => {
+  const { fromIni } = await import('@aws-sdk/credential-providers');
+  return fromIni({
+    profile,
+    filepath: environment.AWS_SHARED_CREDENTIALS_FILE,
+    configFilepath: environment.AWS_CONFIG_FILE,
+    ignoreCache: true,
+    ...(region ? { clientConfig: { region } } : {}),
+    ...(clientPlugins ? { clientPlugins } : {})
+  })();
 };
 
-const isSsoProfile = (section: Record<string, unknown> | undefined) =>
-  Boolean(section?.sso_session || section?.sso_start_url || section?.sso_account_id);
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isOptionalString = (value: unknown) => value === undefined || isString(value);
+const accountOf = (value: unknown) => {
+  const accountId = isString(value) ? value : '';
+  return ACCOUNT_ID.test(accountId) ? accountId : undefined;
+};
+
+/**
+ * The account a profile's credentials belong to, when the profile alone decides it. Follows `fromIni`'s order for the
+ * selected profile: an assume-role profile gets the role's account, static keys and `credential_process` need STS, a
+ * web-identity profile gets the role's account, and an SSO profile gets `sso_account_id`.
+ */
+export const accountIdFromProfile = (data: AwsProfileData | undefined) => {
+  if (!data) return undefined;
+  const assumesRole =
+    isString(data.role_arn) &&
+    isOptionalString(data.role_session_name) &&
+    isOptionalString(data.external_id) &&
+    isOptionalString(data.mfa_serial) &&
+    ((isString(data.source_profile) && data.credential_source === undefined) ||
+      (isString(data.credential_source) && data.source_profile === undefined));
+  if (assumesRole) return accountOf(data.role_arn?.split(':')[4]);
+  const hasStaticKeys =
+    isString(data.aws_access_key_id) &&
+    isString(data.aws_secret_access_key) &&
+    isOptionalString(data.aws_session_token) &&
+    isOptionalString(data.aws_account_id);
+  if (hasStaticKeys) return undefined;
+  if (isString(data.web_identity_token_file) && isString(data.role_arn) && isOptionalString(data.role_session_name)) {
+    return accountOf(data.role_arn.split(':')[4]);
+  }
+  if (isString(data.credential_process)) return undefined;
+  return accountOf(data.sso_account_id);
+};
+
+const isSsoProfile = (data: AwsProfileData | undefined) =>
+  Boolean(data?.sso_session || data?.sso_start_url || data?.sso_account_id);
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');
 
@@ -159,8 +178,8 @@ const resolveProfileAccountId = async ({
   timeoutMs: number;
 }) => {
   const { profile } = selector;
-  const sections = await sources.readProfile(profile);
-  if (!sections.config && !sections.credentials) {
+  const data = await sources.readProfile(profile);
+  if (!data) {
     throw new CliError({
       category: 'AWS_ACCOUNT',
       code: 'LOCAL_AWS_PROFILE_NOT_FOUND',
@@ -168,12 +187,12 @@ const resolveProfileAccountId = async ({
       hints: [`Fix the profile name, ${selector.removal}, or pass --awsAccount <name>.`]
     });
   }
-  const configured = accountIdFromProfileConfig(sections.config);
+  const configured = accountIdFromProfile(data);
   if (configured) return configured;
   try {
     return await withTimeout(sources.profileCallerAccount(profile), timeoutMs);
   } catch (cause) {
-    const sso = isSsoProfile(sections.config) || /\bsso\b/i.test(errorText(cause));
+    const sso = isSsoProfile(data) || /\bsso\b/i.test(errorText(cause));
     throw unresolved({
       selector,
       cause,
