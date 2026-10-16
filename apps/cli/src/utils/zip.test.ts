@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
@@ -241,6 +241,36 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
       await expect(
         writeZipWithArchiver({ entries, outputPath: join(root, 'failed.zip'), compressionLevel: 1 })
       ).rejects.toThrow('EACCES');
+    }
+  );
+
+  test.skipIf(process.getuid?.() === 0 || process.platform !== 'linux')(
+    'opens no more files once a file early in the archive fails, and closes every one it opened',
+    async () => {
+      const root = await createRoot();
+      const source = join(root, 'source dir');
+      await mkdir(source);
+      await Promise.all(
+        Array.from({ length: 300 }, (_, index) =>
+          writeFile(join(source, `${String(index).padStart(3, '0')}.js`), ' '.repeat(70_000))
+        )
+      );
+      await chmod(join(source, '000.js'), 0o000);
+      const { entries } = await listArchiveEntries({ sourcePath: source, executablePatterns: [] });
+      const openSourceFiles = async () => {
+        const targets = await Promise.all(
+          (await readdir('/proc/self/fd')).map((fd) => readlink(join('/proc/self/fd', fd)).catch(() => ''))
+        );
+        return targets.filter((target) => target.startsWith(`${source}/`));
+      };
+
+      await expect(
+        writeZipWithArchiver({ entries, outputPath: join(root, 'failed.zip'), compressionLevel: 1 })
+      ).rejects.toThrow('EACCES');
+      expect(await openSourceFiles()).toEqual([]);
+      // A loop still appending after the failure would open further files the aborted archive never reads.
+      await Bun.sleep(200);
+      expect(await openSourceFiles()).toEqual([]);
     }
   );
 });

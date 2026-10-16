@@ -46,7 +46,8 @@ const joinChunks = () => {
 
 /**
  * Settles once the archive stream is completely written, or with the first error. A warning means an entry listed a
- * moment ago could not be read, which would leave the archive incomplete, so it fails the archive too.
+ * moment ago could not be read, which would leave the archive incomplete, so it fails the archive too. A failure is
+ * reported only once `addEntries` has settled, so nothing it starts outlives the call.
  */
 const writeArchiveStream = ({
   archive,
@@ -61,6 +62,8 @@ const writeArchiveStream = ({
     fail: (error: unknown) => void;
     /** Settles once archiver has written `count` entries, or with the error that failed the archive. */
     entriesWritten: (count: number) => Promise<void>;
+    /** Throws the error that failed the archive, if any; call it after every `await` to stop adding entries. */
+    throwIfFailed: () => void;
   }) => void | Promise<void>;
 }) =>
   new Promise<void>((resolve, reject) => {
@@ -69,13 +72,17 @@ const writeArchiveStream = ({
     let failure: { error: unknown } | undefined;
     let written = 0;
     let waiting: { count: number; resolve: () => void; reject: (error: unknown) => void } | undefined;
+    let adding = true;
     const fail = (error: unknown) => {
       if (failure) return;
       failure = { error };
       archive.abort();
       output.destroy();
       waiting?.reject(error);
-      reject(error);
+      if (!adding) reject(error);
+    };
+    const throwIfFailed = () => {
+      if (failure) throw failure.error;
     };
     const entriesWritten = (count: number) =>
       failure
@@ -108,8 +115,13 @@ const writeArchiveStream = ({
     });
     archive.pipe(joinChunks()).pipe(output);
     Promise.resolve()
-      .then(() => addEntries({ fail, entriesWritten }))
-      .then(() => (failure ? undefined : archive.finalize()))
+      .then(() => addEntries({ fail, entriesWritten, throwIfFailed }))
+      .catch(fail)
+      .then(() => {
+        adding = false;
+        if (failure) return reject(failure.error);
+        return archive.finalize();
+      })
       .catch(fail);
   });
 
@@ -155,9 +167,10 @@ export const writeZipWithArchiver = async ({
     await writeArchiveStream({
       archive,
       outputPath,
-      addEntries: async ({ fail, entriesWritten }) => {
+      addEntries: async ({ fail, entriesWritten, throwIfFailed }) => {
         for (const [index, entry] of entries.entries()) {
           if (index >= ARCHIVER_READ_AHEAD) await entriesWritten(index - ARCHIVER_READ_AHEAD + 1);
+          throwIfFailed();
           if (entry.type === 'directory') {
             archive.append(Buffer.alloc(0), { name: `${entry.path}/`, type: 'directory', mode: entry.mode, ...date });
           } else if (entry.type === 'symlink') {
@@ -171,9 +184,13 @@ export const writeZipWithArchiver = async ({
             };
             archive.append(Buffer.alloc(0), link);
           } else if (entry.size <= ARCHIVER_WHOLE_FILE_BYTES) {
-            archive.append(await readFile(entry.sourcePath), await fileData(entry));
+            const contents = await readFile(entry.sourcePath);
+            const data = await fileData(entry);
+            throwIfFailed();
+            archive.append(contents, data);
           } else {
             const data = await fileData(entry);
+            throwIfFailed();
             const stream = createReadStream(entry.sourcePath)
               .on('error', fail)
               .on('close', () => reading.delete(stream));
@@ -184,7 +201,8 @@ export const writeZipWithArchiver = async ({
       }
     });
   } finally {
-    for (const stream of reading) stream.destroy();
+    // The archive settles only after the loop stops, so no stream opens after these close.
+    await Promise.all([...reading].map((stream) => new Promise((closed) => stream.once('close', closed).destroy())));
   }
 };
 
