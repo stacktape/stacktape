@@ -68,10 +68,10 @@ const UV_SYNC_PROJECT = 'uv sync --locked --no-dev --no-editable';
 /**
  * A venv with the pip (and, before Python 3.12, setuptools) wheels the image bundles for `ensurepip`: what
  * `python -m venv` creates, without the slow `ensurepip` run and, unlike `uv venv --seed`, without contacting an index,
- * so it works where only a private index is reachable.
+ * so it works where only a private index is reachable. Like `ensurepip`, it does not compile their bytecode.
  */
 const UV_CREATE_VENV =
-  "sh -c 'uv venv /app/.venv && uv pip install --no-index --no-deps /usr/local/lib/python3*/ensurepip/_bundled/*.whl'";
+  "sh -c 'uv venv /app/.venv && UV_COMPILE_BYTECODE=0 uv pip install --no-index --no-deps /usr/local/lib/python3*/ensurepip/_bundled/*.whl'";
 /** A start command that runs `uv` or `uvx` needs them in the runtime image. */
 const RUNS_UV = /(^|[\s;&|(`])uvx?(\s|$)/;
 /** The only project file Railpack's mise step may copy: other mise or asdf files can declare more tools. */
@@ -202,7 +202,14 @@ export const usePythonSlimImage = <Plan extends PythonPlan>({
   plan: Plan;
   info: PythonPlanInfo;
   keepPip: boolean;
-}): { plan: Plan; image: string } | undefined => {
+}):
+  | {
+      plan: Plan;
+      image: string;
+      /** The public images the plan builds from, for the caller to keep in the local image store. */
+      baseImages: string[];
+    }
+  | undefined => {
   if (info.detectedProviders?.length !== 1 || info.detectedProviders[0] !== 'python') return undefined;
   const packages = info.resolvedPackages ?? {};
   if (Object.keys(packages).some((name) => name !== 'python' && name !== 'uv')) return undefined;
@@ -315,5 +322,9 @@ export const usePythonSlimImage = <Plan extends PythonPlan>({
   ) {
     return undefined;
   }
-  return { plan: rewritten, image };
+  return {
+    plan: rewritten,
+    image,
+    baseImages: [image, ...(install.usesUv ? [uvImage(uvVersion ?? STACKTAPE_UV_VERSION)] : [])]
+  };
 };

@@ -58,7 +58,8 @@ export const buildGeneratedDockerImage = async ({
         ...buildOptions,
         buildContextPath,
         dockerfilePath: relative(buildContextPath, filePath),
-        baseImages: getDockerfileBaseImages(dockerfileContents)
+        // A Railpack plan is JSON, not a Dockerfile: its caller names the images the plan starts from.
+        baseImages: buildOptions.baseImages ?? getDockerfileBaseImages(dockerfileContents)
       })
     };
   } catch (error) {

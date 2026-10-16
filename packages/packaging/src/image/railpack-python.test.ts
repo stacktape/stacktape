@@ -132,6 +132,7 @@ describe('Python plans on the official slim image', () => {
     const result = usePythonSlimImage({ plan, info: pipInfo(), keepPip: false });
     expect(plan).toEqual(original);
     expect(result?.image).toBe(SLIM);
+    expect(result?.baseImages).toEqual([SLIM, `ghcr.io/astral-sh/uv:${STACKTAPE_UV_VERSION}`]);
     const rewritten = result!.plan;
     expect(rewritten.steps.map((step) => step.name)).toEqual(['install', 'build']);
     expect(stepNamed(rewritten, 'install')?.inputs).toEqual([{ image: SLIM }]);
@@ -143,7 +144,7 @@ describe('Python plans on the official slim image', () => {
     ]);
     // The venv gets the pip wheel the image bundles, so creating it contacts no index.
     expect(install[2]).toBe(
-      "sh -c 'uv venv /app/.venv && uv pip install --no-index --no-deps /usr/local/lib/python3*/ensurepip/_bundled/*.whl'"
+      "sh -c 'uv venv /app/.venv && UV_COMPILE_BYTECODE=0 uv pip install --no-index --no-deps /usr/local/lib/python3*/ensurepip/_bundled/*.whl'"
     );
     expect(install.slice(3, 5)).toEqual([
       { path: '/app/.venv/bin' },
@@ -167,7 +168,9 @@ describe('Python plans on the official slim image', () => {
   });
 
   test('pip configured through PIP_ variables stays pip', () => {
-    const rewritten = usePythonSlimImage({ plan: pipPlan(), info: pipInfo(), keepPip: true })!.plan;
+    const result = usePythonSlimImage({ plan: pipPlan(), info: pipInfo(), keepPip: true })!;
+    expect(result.baseImages).toEqual([SLIM]);
+    const rewritten = result.plan;
     const install = commandsOf(rewritten, 'install');
     expect(install.slice(0, 3)).toEqual([
       'python -m venv /app/.venv',

@@ -394,6 +394,7 @@ export const buildUsingRailpack = async ({
     dockerBuildOutputArchitecture,
     cacheFromRef,
     cacheToRef,
+    ...(python ? { baseImages: python.baseImages } : {}),
     buildArgs: {
       BUILDKIT_SYNTAX: railpackFrontendImage,
       'secrets-hash': buildEnvironmentHash,
