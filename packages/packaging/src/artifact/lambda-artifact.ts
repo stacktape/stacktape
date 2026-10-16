@@ -47,7 +47,7 @@ export const createLambdaZipArtifact = async ({
   await archiveItem({
     absoluteSourcePath: distFolderPath,
     format: 'zip',
-    useNativeZip: true
+    parallelZip: true
   });
 
   const originalZipPath = `${distFolderPath}.zip`;

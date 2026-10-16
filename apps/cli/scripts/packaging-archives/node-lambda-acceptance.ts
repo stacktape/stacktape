@@ -33,6 +33,7 @@ import { SourceMap } from 'node:module';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { readSourceMapBundle } from '@stacktape/packaging/es/packaged-source-map';
 import { startOfflineAwsServer, type OfflineAwsServer } from '../qualification/offline-aws';
 import { outputTail } from '../qualification/process';
 import { writeJsonAtomic } from '../qualification/report';
@@ -286,8 +287,7 @@ type PackageRun = {
   optDirectory: string | undefined;
 };
 
-const readSourceMapFiles = async (path: string) =>
-  (JSON.parse(await readFile(path, 'utf8')) as { files: SourceMapFiles }).files;
+const readSourceMapFiles = async (path: string) => (await readSourceMapBundle(path)).files as unknown as SourceMapFiles;
 
 /** One `package` of the project at `project`, leaving its build directory, with `/opt` assembled from its layers. */
 const packageProject = async ({
@@ -330,12 +330,12 @@ const packageProject = async ({
     .filter((entry) => entry.isDirectory())
     .map(({ name }) => name)
     .toSorted();
-  // Each layer's maps sit beside its directory, as `<layer>.source-maps.json`.
+  // Each layer's maps sit beside its directory, as `<layer>.source-maps.json.gz`.
   const layerSourceMaps: SourceMapFiles = Object.assign(
     {},
     ...(await Promise.all(
       layerEntries
-        .filter((entry) => entry.isFile() && entry.name.endsWith('.source-maps.json'))
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.source-maps.json.gz'))
         .map(({ name }) => readSourceMapFiles(join(layersRoot, name)))
     ))
   );

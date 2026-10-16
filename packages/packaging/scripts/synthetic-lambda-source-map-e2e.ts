@@ -38,7 +38,7 @@ import { tmpdir } from 'node:os';
 import { SourceMap } from 'node:module';
 import { join, relative, resolve } from 'node:path';
 import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
-import { type SourceMapBundle, takeSourceMapsOutOfPackage } from '../src/es/packaged-source-map';
+import { readSourceMapBundle, type SourceMapBundle, takeSourceMapsOutOfPackage } from '../src/es/packaged-source-map';
 import type { JsBundleOptions } from '../src/runtime-contracts';
 import {
   archiveItem,
@@ -279,11 +279,7 @@ const topFrameLocation = (stack: string | undefined) =>
     ?.match(/\(?([^\s()]+:\d+:\d+)\)?$/)?.[1] ?? null;
 
 const readBundles = (paths: (string | undefined)[]) =>
-  Promise.all(
-    paths
-      .filter((path): path is string => Boolean(path))
-      .map(async (path) => JSON.parse(await readFile(path, 'utf8')) as SourceMapBundle)
-  );
+  Promise.all(paths.filter((path): path is string => Boolean(path)).map((path) => readSourceMapBundle(path)));
 
 /** Maps `<path>:<line>:<column>` through map bundles, as the Console maps a frame, to `<source>:<line>:<column>`. */
 const mapThroughBundles = (location: string | null, bundles: SourceMapBundle[]) => {

@@ -11,9 +11,9 @@
  */
 import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { basename, dirname, join, relative, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
-import { lstat, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
+import { lstat, open, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
 export type PackageManifest = {
   name?: string | undefined;
@@ -128,12 +128,89 @@ export const addRuntimeDependencies = async ({
   }
 };
 
+/** Code that can name its source map: the map's own name without `.map` ends in one of these. */
+const MAPPED_CODE = /\.(?:[cm]?js|css|d\.[cm]?ts)$/;
+/** How much of the end of a code file is searched for its `sourceMappingURL` comment, which bundlers write last. */
+const MAP_COMMENT_SEARCH_BYTES = 4096;
+
 /**
- * The files a package is copied with, in a stable order: everything except its own `node_modules`, with linked
- * directories followed, so a directory reached through two names is listed under both, as copying writes it. A link
- * back to a directory being listed is skipped; copying it would never end.
+ * The URL a code file's source-map comment names, when that comment is the whole of its last non-empty line:
+ * `//# sourceMappingURL=<url>` or `/*# sourceMappingURL=<url> *\/`, the older `@` in place of `#`, and in CSS only the
+ * block form. The same text anywhere else, such as in a string the package's code reads, names no map. `tail` is the
+ * end of the file, or all of it when `isWholeFile`.
  */
-const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
+const getTrailingSourceMapUrl = ({
+  tail,
+  isWholeFile,
+  isCss
+}: {
+  tail: string;
+  isWholeFile: boolean;
+  isCss: boolean;
+}) => {
+  const lines = tail.trimEnd().split(/\r\n|\n|\r|\u2028|\u2029/);
+  // A tail without a line break may start inside the last line, which then is not known.
+  if (lines.length === 1 && !isWholeFile) return undefined;
+  const lastLine = lines.at(-1)!.trim();
+  const match =
+    /^\/\*[#@]\s*sourceMappingURL=(\S+?)\s*\*\/$/.exec(lastLine) ??
+    (isCss ? null : /^\/\/[#@]\s*sourceMappingURL=(\S+)$/.exec(lastLine));
+  return match?.[1];
+};
+
+/**
+ * Whether `path` is a source map an installed package ships beside its code: a `.map` file whose sibling without the
+ * suffix, such as `index.js` for `index.js.map`, ends with a `sourceMappingURL` comment naming it
+ * (`getTrailingSourceMapUrl`). Node.js reads such a map only under `--enable-source-maps`, to rewrite a stack trace;
+ * the maps of installed packages are often larger than their code. Any other `.map` file may be data the package reads,
+ * and is kept.
+ */
+const isInstalledSourceMap = async (path: string) => {
+  if (!path.endsWith('.map')) return false;
+  const codePath = path.slice(0, -'.map'.length);
+  if (!MAPPED_CODE.test(codePath)) return false;
+  let url: string | undefined;
+  try {
+    const file = await open(codePath, 'r');
+    try {
+      const { size } = await file.stat();
+      const length = Math.min(size, MAP_COMMENT_SEARCH_BYTES);
+      const buffer = Buffer.alloc(length);
+      await file.read(buffer, 0, length, size - length);
+      url = getTrailingSourceMapUrl({
+        tail: buffer.toString('utf8'),
+        isWholeFile: length === size,
+        isCss: codePath.endsWith('.css')
+      });
+    } finally {
+      await file.close();
+    }
+  } catch {
+    return false;
+  }
+  if (!url || /^[a-z][\w+.-]*:/i.test(url)) return false;
+  try {
+    return resolve(dirname(codePath), decodeURIComponent(url.split(/[?#]/)[0]!)) === resolve(path);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Which of a package's files an artifact gets. `withoutSourceMaps` leaves out its source maps
+ * (`isInstalledSourceMap`), for an artifact whose functions do not run with `--enable-source-maps`.
+ */
+export type PackageFileSelection = { withoutSourceMaps?: boolean | undefined };
+
+const isSelected = async (path: string, { withoutSourceMaps }: PackageFileSelection) =>
+  !(withoutSourceMaps && (await isInstalledSourceMap(path)));
+
+/**
+ * The files a package is copied with, in a stable order: everything except its own `node_modules` and the files
+ * `selection` leaves out, with linked directories followed, so a directory reached through two names is listed under
+ * both, as copying writes it. A link back to a directory being listed is skipped; copying it would never end.
+ */
+const listPackageFiles = async (packageRoot: string, selection: PackageFileSelection): Promise<string[]> => {
   const files: string[] = [];
   const visit = async (directory: string, enclosing: Set<string>) => {
     const realDirectory = await realpath(directory);
@@ -143,8 +220,9 @@ const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
     for (const entry of entries.toSorted((left, right) => (left.name < right.name ? -1 : 1))) {
       const path = join(directory, entry.name);
       const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
-      if (!isDirectory) files.push(path);
-      else if (entry.name !== 'node_modules') await visit(path, withThis);
+      if (!isDirectory) {
+        if (await isSelected(path, selection)) files.push(path);
+      } else if (entry.name !== 'node_modules') await visit(path, withThis);
     }
   };
   await visit(packageRoot, new Set());
@@ -154,13 +232,16 @@ const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
 const fingerprints = new Map<string, { signature: string; fingerprint: string }>();
 
 /**
- * A hash of what copying the package puts into an artifact: each file's path, bytes and, where the host records it,
- * whether it is executable. A package edited or rebuilt in place keeps its version but changes this. File names, sizes
- * and modification times decide whether a hash computed earlier in this process still holds, so a watched rebuild sees
- * edits.
+ * A hash of what copying the package with `selection` puts into an artifact: each file's path, bytes and, where the
+ * host records it, whether it is executable. A package edited or rebuilt in place keeps its version but changes this.
+ * File names, sizes and modification times decide whether a hash computed earlier in this process still holds, so a
+ * watched rebuild sees edits.
  */
-export const getPackageFingerprint = async (packageRoot: string): Promise<string> => {
-  const files = await listPackageFiles(packageRoot);
+export const getPackageFingerprint = async (
+  packageRoot: string,
+  selection: PackageFileSelection = {}
+): Promise<string> => {
+  const files = await listPackageFiles(packageRoot, selection);
   const stats = await Promise.all(files.map((path) => stat(path)));
   const signature = files
     .map(
@@ -168,7 +249,8 @@ export const getPackageFingerprint = async (packageRoot: string): Promise<string
         `${relative(packageRoot, path)}:${stats[index]!.size}:${stats[index]!.mtimeMs}:${stats[index]!.mode}`
     )
     .join('\n');
-  const cached = fingerprints.get(packageRoot);
+  const cacheKey = `${packageRoot}\0${Boolean(selection.withoutSourceMaps)}`;
+  const cached = fingerprints.get(cacheKey);
   if (cached?.signature === signature) return cached.fingerprint;
 
   const records: string[] = [];
@@ -185,7 +267,7 @@ export const getPackageFingerprint = async (packageRoot: string): Promise<string
     records.push(...(await Promise.all(batch)));
   }
   const fingerprint = createHash('sha256').update(records.join('\n')).digest('hex');
-  fingerprints.set(packageRoot, { signature, fingerprint });
+  fingerprints.set(cacheKey, { signature, fingerprint });
   return fingerprint;
 };
 
@@ -342,13 +424,16 @@ export const writePackageLayout = async ({
   layout,
   packages,
   artifactRoot,
-  sources = new Map()
+  sources = new Map(),
+  selection = {}
 }: {
   layout: PackageLayout;
   packages: Map<string, InstalledPackage>;
   artifactRoot: string;
   /** Packages whose files come from somewhere other than their installed directory, by real directory. */
   sources?: Map<string, PackageSource> | undefined;
+  /** Files of every package the artifact leaves out. */
+  selection?: PackageFileSelection | undefined;
 }) => {
   const copyDirectory = async ({ path, root }: PackageLayout['directories'][number]) => {
     const destination = join(artifactRoot, path);
@@ -357,6 +442,7 @@ export const writePackageLayout = async ({
     if (files && !source) {
       await Promise.all(
         [...files].map(async (sourcePath) => {
+          if (!(await isSelected(sourcePath, selection))) return;
           const destinationPath = join(destination, relative(root, sourcePath));
           await ensureDir(dirname(destinationPath));
           await copy(sourcePath, destinationPath, { dereference: true, overwrite: true });
@@ -367,11 +453,16 @@ export const writePackageLayout = async ({
       await copy(from, destination, {
         dereference: true,
         overwrite: true,
-        filter: (sourcePath) => !relative(from, sourcePath).split(sep).includes('node_modules')
+        filter: async (sourcePath) =>
+          !relative(from, sourcePath).split(sep).includes('node_modules') && (await isSelected(sourcePath, selection))
       });
     }
     for (const [name, nestedRoot] of source?.nestedPackages ?? []) {
-      await copy(nestedRoot, join(destination, 'node_modules', name), { dereference: true, overwrite: true });
+      await copy(nestedRoot, join(destination, 'node_modules', name), {
+        dereference: true,
+        overwrite: true,
+        filter: (sourcePath) => isSelected(sourcePath, selection)
+      });
     }
   };
   // A nested package is copied after the package it sits in, so two copies never create the same directory.

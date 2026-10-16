@@ -17,13 +17,12 @@ they run.
 `pnpm --filter @stacktape/cli run test:lambda-archives` tests ZIPs made by the CLI's own archiver. It extracts each
 archive with `unzip` into a new directory and invokes it in the official Lambda Node.js image as an unprivileged user
 that owns none of the files: executables, a single file, hidden entries, links, removed files and quoted paths, through
-archiver, zip, 7-Zip and a failing native tool. It also seeds local deployment buckets with permission-broken ZIPs under
-their pre-format keys. Custom and managed packaging must rebuild them, reuse the rebuilt objects, and rebuild after a
-chmod-only change. Split functions with their shared and native layers go through the deploy command's own packaging and
-upload code, with real S3 and CloudFormation on the shared MiniStack fixture and a Docker fault boundary: they must
-replace the old objects, reuse unchanged ones, and rebuild after a mode-only change exactly where the archive changes.
-It needs Docker and `unzip`. Pass `--zip-dir` and `--7z-dir` for tools not on `PATH`; a native tool it cannot find is
-reported as not qualified.
+the parallel writer Lambda packaging uses and through archiver. It also seeds local deployment buckets with
+permission-broken ZIPs under their pre-format keys. Custom and managed packaging must rebuild them, reuse the rebuilt
+objects, and rebuild after a chmod-only change. Split functions with their shared and native layers go through the
+deploy command's own packaging and upload code, with real S3 and CloudFormation on the shared MiniStack fixture and a
+Docker fault boundary: they must replace the old objects, reuse unchanged ones, and rebuild after a mode-only change
+exactly where the archive changes. It needs Docker and `unzip`.
 
 ## Python, Java and Ruby Lambda artifacts
 
