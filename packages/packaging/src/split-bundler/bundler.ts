@@ -21,7 +21,8 @@ import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
 import { IGNORED_MODULES } from '../es/config';
-import { getProductionDependencies } from '../es/installed-packages';
+import { createProductionDependencyCache, getProductionDependencies } from '../es/installed-packages';
+import type { ProductionDependencyCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
 import {
@@ -75,7 +76,8 @@ export const buildSplitBundle = async ({
   isLambda = true,
   nodeTarget,
   installDependencies,
-  createPackagingError
+  createPackagingError,
+  productionDependencyCache = createProductionDependencyCache()
 }: BuildSplitBundleOptions): Promise<SplitBundleResult> => {
   const startedAt = performance.now();
 
@@ -126,6 +128,7 @@ export const buildSplitBundle = async ({
     entrypoints,
     cwd,
     projectRoot: monorepoRoot || cwd,
+    productionDependencyCache,
     metafile,
     tracker,
     assetFiles,
@@ -766,6 +769,7 @@ const processLambdaOutputsWithMetafile = async ({
   entrypoints,
   cwd,
   projectRoot,
+  productionDependencyCache,
   metafile,
   tracker,
   assetFiles,
@@ -777,6 +781,7 @@ const processLambdaOutputsWithMetafile = async ({
   cwd: string;
   /** The project the functions belong to, whose manifests say what it depends on in production. */
   projectRoot: string;
+  productionDependencyCache: ProductionDependencyCache;
   metafile: BuildMetafile;
   tracker: DependencyTracker;
   assetFiles: string[];
@@ -878,7 +883,8 @@ const processLambdaOutputsWithMetafile = async ({
         .map((path) => ({ path }));
       const productionDependencies = await getProductionDependencies({
         projectRoot,
-        sourcePaths: sourceFiles.map(({ path }) => canonicalizeEntrypointPath(path))
+        sourcePaths: sourceFiles.map(({ path }) => canonicalizeEntrypointPath(path)),
+        cache: productionDependencyCache
       });
       lambdaOutputs.set(entrypoint.name, {
         name: entrypoint.name,

@@ -50,6 +50,13 @@ async function isMonorepoRoot(dir: string): Promise<boolean> {
 }
 
 /**
+ * Whether `dir` is where `findProjectRoot` stops climbing: a workspace root or the top of a Git clone or worktree.
+ * Nothing above it belongs to the project.
+ */
+export const isProjectBoundary = async (dir: string): Promise<boolean> =>
+  (await isMonorepoRoot(dir)) || (await isRepositoryBoundary(dir));
+
+/**
  * The root of the JavaScript project `startDir` belongs to: the nearest workspace root above it, otherwise its nearest
  * `package.json`. The search stops at the top of a Git clone or worktree, so a project checked out inside another
  * workspace (a benchmark clone, a nested worktree) never takes that workspace's lockfile or `node_modules`.

@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
+import { isProjectBoundary } from './project-root';
 import { lstat, open, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
 export type PackageManifest = {
@@ -96,78 +97,127 @@ const isInstalledInProduction = ({
 /** The real path, or the resolved one when there is none; a path may reach the project through a link. */
 const toRealPath = (path: string) => realpath(path).catch(() => resolve(path));
 
+const remember = <Value>(cache: Map<string, Promise<Value>>, key: string, compute: () => Promise<Value>) => {
+  let value = cache.get(key);
+  if (!value) {
+    value = compute();
+    cache.set(key, value);
+  }
+  return value;
+};
+
+/**
+ * What `getProductionDependencies` has worked out during one build, shared by all of its functions. Create one per
+ * build and drop it afterwards: the project's manifests and installed packages can change before the next build, also
+ * within one process, as in a `dev` rebuild.
+ */
+export type ProductionDependencyCache = {
+  /** The project's own manifests, which the process-wide `readPackageManifest` must not keep between builds. */
+  manifests: Map<string, Promise<PackageManifest>>;
+  /** The project's own package directories from a directory up to the top of the project. */
+  packageRoots: Map<string, Promise<{ packageRoots: string[]; reachesBoundary: boolean }>>;
+  /** The names a production install gives each of the project's own packages. */
+  closures: Map<string, Promise<Set<string>>>;
+};
+
+export const createProductionDependencyCache = (): ProductionDependencyCache => ({
+  manifests: new Map(),
+  packageRoots: new Map(),
+  closures: new Map()
+});
+
+/** Anything outside `node_modules` is the project's own: its root, its workspace packages and nested manifests. */
+const isOwnDirectory = (directory: string) => !directory.split(sep).includes('node_modules');
+
 /**
  * The names of the packages a production install of the project contains (`npm install --omit=dev`): the
- * `dependencies` and `optionalDependencies` of its root `package.json` and of the project's own packages (outside
- * `node_modules`) that each of `sourcePaths` belongs to, such as the workspace packages a function's code comes from,
- * and what those packages need in turn: dependencies, optional dependencies and required peers, wherever they are
- * installed. npm installs the required peers of the root and of workspace packages too. An optional peer is not
- * followed: it is in the install only when something else there depends on it. npm, pnpm, Yarn and Bun all record
- * development-only packages in `devDependencies` and leave them out. A package counts whether a function bundles it or
- * gets it copied: a bundled package that requires `@swc/helpers` still puts it in the install, where `@swc/core`, which
- * lists it as an optional peer, loads it. The project's own manifests are read on every call, because they can change
- * between two builds in one process.
+ * `dependencies` and `optionalDependencies` of the project's own manifests the code belongs to, and what those packages
+ * need in turn: dependencies, optional dependencies and required peers, wherever they are installed. npm installs the
+ * required peers of the root and of workspace packages too. An optional peer is not followed: it is in the install
+ * only when something else there depends on it. npm, pnpm, Yarn and Bun all record development-only packages in
+ * `devDependencies` and leave them out. A package counts whether a function bundles it or gets it copied: a bundled
+ * package that requires `@swc/helpers` still puts it in the install, where `@swc/core`, which lists it as an optional
+ * peer, loads it.
+ *
+ * The manifests read are `projectRoot`'s and every `package.json` from the directory of each of `sourcePaths` up to the
+ * top of the project: the first workspace root or top of a Git clone or worktree, where `findProjectRoot` stops too.
+ * So a nested manifest, such as `src/package.json` that only sets `"type"` or names a package of its own, never hides
+ * the workspace package or repository root around it, and no manifest outside the repository is read. Outside Git and
+ * any workspace there is no such top; the walk then takes only the nearest `package.json`, as `findProjectRoot` does.
+ * Reading more manifests than the install used can only add optional peers that are installed anyway.
+ *
+ * Pass one `cache` for all functions of a build. Without one, everything is read again.
  */
 export const getProductionDependencies = async ({
   projectRoot,
-  sourcePaths
+  sourcePaths,
+  cache = createProductionDependencyCache()
 }: {
   projectRoot: string;
   sourcePaths: string[];
+  cache?: ProductionDependencyCache | undefined;
 }): Promise<Set<string>> => {
-  const root = await toRealPath(projectRoot);
-  const isOwnPackage = (directory: string) =>
-    isInside(root, directory) && !relative(root, directory).split(sep).includes('node_modules');
-  // A package's dependencies are looked up from where it is installed, one level of the install at a time. The
-  // project's own packages, also when a workspace links one into `node_modules`, are read again for every call.
   const readManifest = (packageRoot: string): Promise<PackageManifest> =>
-    isOwnPackage(packageRoot)
-      ? readJson(join(packageRoot, 'package.json')).catch(() => ({}))
+    isOwnDirectory(packageRoot)
+      ? remember(cache.manifests, packageRoot, () => readJson(join(packageRoot, 'package.json')).catch(() => ({})))
       : readPackageManifest(packageRoot);
-  // Every `package.json` from a source directory up to the package that owns it, the first one with a `name`. A nested
-  // one, such as `src/package.json` that only sets `"type"`, does not hide the dependencies of the package around it.
-  const findPackageRoots = async (directory: string): Promise<string[]> => {
-    const packageRoots: string[] = [];
-    for (let current = directory; isInside(root, current); current = dirname(current)) {
-      if (await pathExists(join(current, 'package.json'))) {
-        packageRoots.push(current);
-        if ((await readManifest(current)).name) break;
+  const findPackageRoots = (directory: string): Promise<{ packageRoots: string[]; reachesBoundary: boolean }> =>
+    remember(cache.packageRoots, directory, async () => {
+      const [hasManifest, isBoundary] = await Promise.all([
+        pathExists(join(directory, 'package.json')),
+        isProjectBoundary(directory)
+      ]);
+      const parent = dirname(directory);
+      const above =
+        isBoundary || parent === directory
+          ? { packageRoots: [], reachesBoundary: isBoundary }
+          : await findPackageRoots(parent);
+      return {
+        packageRoots: hasManifest ? [directory, ...above.packageRoots] : above.packageRoots,
+        reachesBoundary: above.reachesBoundary
+      };
+    });
+  // A package's dependencies are looked up from where it is installed, one level of the install at a time.
+  const getClosure = (start: string) =>
+    remember(cache.closures, start, async () => {
+      const names = new Set<string>();
+      const visited = new Set([start]);
+      let level = [start];
+      while (level.length > 0) {
+        const found = await Promise.all(
+          level.map(async (packageRoot) => {
+            const manifest = await readManifest(packageRoot);
+            return Promise.all(
+              [...getRuntimeDependencyNames(manifest)]
+                .filter((name) => !isOptionalPeer(manifest, name))
+                .map((name) => {
+                  names.add(name);
+                  return findInstalledPackage({ name, fromDirectory: packageRoot });
+                })
+            );
+          })
+        );
+        level = [];
+        for (const dependencyRoot of found.flat()) {
+          if (!dependencyRoot || visited.has(dependencyRoot)) continue;
+          visited.add(dependencyRoot);
+          level.push(dependencyRoot);
+        }
       }
-      if (current === root) break;
-    }
-    return packageRoots;
-  };
+      return names;
+    });
+
   const sourceDirectories = await Promise.all(
     [...new Set(sourcePaths.map((path) => dirname(resolve(path))))].map(toRealPath)
   );
-  const packageRoots = new Set([
-    root,
-    ...(await Promise.all([...new Set(sourceDirectories.filter(isOwnPackage))].map(findPackageRoots))).flat()
+  const chains = await Promise.all([...new Set(sourceDirectories.filter(isOwnDirectory))].map(findPackageRoots));
+  const startingPoints = new Set([
+    await toRealPath(projectRoot),
+    ...chains.flatMap((chain) => (chain.reachesBoundary ? chain.packageRoots : chain.packageRoots.slice(0, 1)))
   ]);
-
   const names = new Set<string>();
-  const visited = new Set(packageRoots);
-  let level = [...packageRoots];
-  while (level.length > 0) {
-    const found = await Promise.all(
-      level.map(async (packageRoot) => {
-        const manifest = await readManifest(packageRoot);
-        return Promise.all(
-          [...getRuntimeDependencyNames(manifest)]
-            .filter((name) => !isOptionalPeer(manifest, name))
-            .map((name) => {
-              names.add(name);
-              return findInstalledPackage({ name, fromDirectory: packageRoot });
-            })
-        );
-      })
-    );
-    level = [];
-    for (const dependencyRoot of found.flat()) {
-      if (!dependencyRoot || visited.has(dependencyRoot)) continue;
-      visited.add(dependencyRoot);
-      level.push(dependencyRoot);
-    }
+  for (const closure of await Promise.all([...startingPoints].map(getClosure))) {
+    for (const name of closure) names.add(name);
   }
   return names;
 };

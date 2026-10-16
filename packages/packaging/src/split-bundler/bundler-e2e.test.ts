@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildEsCode } from '../bundlers/es';
+import { planLambdaDependencies } from '../es/native-dependencies';
 import { buildSplitBundle } from './bundler';
 import type { PackagingErrorDetails } from './types';
 
@@ -16,6 +17,9 @@ const createPackagingError = ({ message, cause }: PackagingErrorDetails) =>
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
+
+const manifest = (name: string, fields: Record<string, unknown> = {}) =>
+  JSON.stringify({ name, version: '1.0.0', main: 'index.js', ...fields });
 
 const createRoot = async () => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-split-e2e-'));
@@ -307,5 +311,54 @@ describe('split bundler end-to-end regressions', () => {
     );
     expect(execution.status, execution.stderr).toBe(0);
     expect(execution.stdout.trim()).toBe('pure-build-copy');
+  });
+
+  test('gives a function the optional peers the project root depends on when the build runs from a subdirectory', async () => {
+    // The CLI runs from `infra/`, which has a manifest of its own, so `infra/` is detected as the project root. The
+    // handlers come from `../src`, and the repository's root manifest lists `@swc/helpers`, which `@swc/core` loads
+    // as an optional peer.
+    const root = await createRoot();
+    const files = {
+      '.git/HEAD': 'ref: refs/heads/main',
+      'package.json': manifest('app', { dependencies: { '@swc/core': '*', '@swc/helpers': '*' } }),
+      'infra/package.json': manifest('infra', { private: true }),
+      'src/handler.ts': "import { compile } from '@swc/core'; export const handler = () => compile();",
+      'node_modules/@swc/core/package.json': manifest('@swc/core', {
+        peerDependencies: { '@swc/helpers': '*' },
+        peerDependenciesMeta: { '@swc/helpers': { optional: true } }
+      }),
+      'node_modules/@swc/core/index.js': "exports.compile = () => require('@swc/helpers/_/_class_call_check').name;",
+      'node_modules/@swc/core/prebuilds/linux-x64/addon.node': 'addon',
+      'node_modules/@swc/helpers/package.json': manifest('@swc/helpers'),
+      'node_modules/@swc/helpers/_/_class_call_check.js': "exports.name = '_class_call_check';"
+    };
+    for (const [path, contents] of Object.entries(files)) {
+      await mkdir(join(root, path, '..'), { recursive: true });
+      await writeFile(join(root, path), contents);
+    }
+
+    const result = await buildSplitBundle({
+      entrypoints: [
+        {
+          name: 'handler',
+          jobName: 'handler',
+          entryfilePath: join(root, 'src', 'handler.ts'),
+          distFolderPath: join(root, 'dist', 'handler')
+        }
+      ],
+      sharedOutdir: join(root, 'shared'),
+      cwd: join(root, 'infra'),
+      installDependencies: async () => {},
+      createPackagingError
+    });
+
+    const output = result.lambdaOutputs.get('handler')!;
+    expect(output.productionDependencies).toContain('@swc/helpers');
+    const plan = await planLambdaDependencies({
+      dependencies: output.externalDependencies,
+      productionDependencies: new Set(output.productionDependencies),
+      architecture: 'x64'
+    });
+    expect([...plan.packages.values()].map(({ name }) => name).toSorted()).toEqual(['@swc/core', '@swc/helpers']);
   });
 });

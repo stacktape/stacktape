@@ -738,7 +738,8 @@ export const createEsBundle = async ({
   nativeDependencyInstallationRootPath,
   runDocker,
   sourceMapInstallPath,
-  lambdaZip
+  lambdaZip,
+  productionDependencyCache
 }: StpBuildpackInput &
   EsBuildActions &
   JsBundleOptions & {
@@ -851,7 +852,8 @@ export const createEsBundle = async ({
   // What a production install of the project gives the packages and workspace packages this code comes from.
   const productionDependencies = await getProductionDependencies({
     projectRoot,
-    sourcePaths: absoluteWorkloadSourceFiles.map(({ path }) => path)
+    sourcePaths: absoluteWorkloadSourceFiles.map(({ path }) => path),
+    cache: productionDependencyCache
   });
   const externalDependencies = dedupeDependenciesByName([
     ...bundleExternalDependencies,
@@ -967,7 +969,7 @@ export const createEsBundle = async ({
     outcome: 'bundled' as const,
     sourceFiles: absoluteWorkloadSourceFiles,
     languageSpecificBundleOutput: {
-      es: { externalDependencies, packageManager }
+      es: { externalDependencies, packageManager, productionDependencies: [...productionDependencies].toSorted() }
     },
     resolvedModules: allModules,
     sourceMapsPath: sourceMapsOutsidePackage?.path

@@ -1,3 +1,4 @@
+import type { ProductionDependencyCache } from './es/installed-packages';
 import type {
   JsBundleLambdaPackagingProps,
   JsBundleSharedProps,
@@ -222,6 +223,8 @@ export type EsBuildActions = LanguageBuildActions & {
   installDependencies: InstallDependencies;
   nativeDependencyInstallationRootPath: string;
   sourceMapInstallPath?: string | undefined;
+  /** Shared by every function of one build, so the project's production install is worked out once. */
+  productionDependencyCache?: ProductionDependencyCache | undefined;
 };
 
 export type StpBuildpackInput = {
@@ -271,6 +274,8 @@ export type LanguageSpecificBundleOutput = {
   es?: {
     externalDependencies?: ResolvedPackageDependency[] | undefined;
     packageManager?: SupportedEsPackageManager | undefined;
+    /** What a production install of the project gives this code (`getProductionDependencies`). */
+    productionDependencies?: string[] | undefined;
   };
   py?: {
     packageManager: 'uv';

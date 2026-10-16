@@ -414,6 +414,51 @@ describe('packages a Lambda gets beside its bundle', () => {
     expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
   });
 
+  test.each([
+    ['only sets the module type', { type: 'commonjs' }],
+    ['has a name of its own', { name: 'handlers', private: true }]
+  ])(
+    'include an optional peer that the project root depends on, past a nested package.json that %s',
+    async (_, nestedManifest) => {
+      // `src/package.json` is the nearest manifest, so it is what the project root is detected as. The repository's
+      // root manifest above it still lists `@swc/helpers`.
+      const cwd = await createProject({
+        '.git/HEAD': 'ref: refs/heads/main',
+        'package.json': projectManifest({ dependencies: { '@swc/core': '*', '@swc/helpers': '*' } }),
+        'src/package.json': JSON.stringify(nestedManifest),
+        'src/handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
+        ...swcCore,
+        ...swcHelpers
+      });
+
+      await bundle(cwd, { packageExternalDependencies: true, entryfilePath: join(cwd, 'src/handler.ts') });
+      const { artifact } = await copyArtifact(cwd);
+      const execution = runHandler(artifact);
+      expect(execution.status, execution.stderr).toBe(0);
+      expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
+    }
+  );
+
+  test('include an optional peer that the workspace package holding the code depends on, past a named nested package.json', async () => {
+    const cwd = await createProject({
+      'package.json': projectManifest({ workspaces: ['packages/*'] }),
+      'packages/app/package.json': manifest('app', { dependencies: { '@swc/core': '*', '@swc/helpers': '*' } }),
+      'packages/app/src/fn/package.json': JSON.stringify({ name: 'fn', private: true }),
+      'packages/app/src/fn/handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
+      ...swcCore,
+      ...swcHelpers
+    });
+
+    await bundle(cwd, {
+      packageExternalDependencies: true,
+      entryfilePath: join(cwd, 'packages/app/src/fn/handler.ts')
+    });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
+  });
+
   test('include the required peers of the workspace package holding the code, also when the project depends on it', async () => {
     // npm installs a workspace package's required peers. Here `app` is both where the code comes from and a
     // dependency of the project root, linked into `node_modules`.

@@ -31,6 +31,8 @@ import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from '
 import { buildLayerS3Key, getEcrCacheImageTag } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { buildNativeBinaryLayer, planLambdaDependencies } from '@stacktape/packaging/es/native-dependencies';
+import { createProductionDependencyCache } from '@stacktape/packaging/es/installed-packages';
+import type { ProductionDependencyCache } from '@stacktape/packaging/es/installed-packages';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
 import { getLambdaRuntimeFromNodeTarget } from '@stacktape/packaging/bundlers/es/utils';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '@stacktape/packaging/bundlers/constants';
@@ -563,7 +565,8 @@ export class PackagingManager {
    */
   #packageNodeLambdasWithSplitBundling = async ({
     nodeLambdas,
-    commandCanUseCache
+    commandCanUseCache,
+    productionDependencyCache
   }: {
     nodeLambdas: Array<{
       name: string;
@@ -573,6 +576,7 @@ export class PackagingManager {
       runtime?: LambdaRuntime;
     }>;
     commandCanUseCache: boolean;
+    productionDependencyCache: ProductionDependencyCache;
   }): Promise<void> => {
     if (nodeLambdas.length === 0) return;
     this.#layerArtifacts = [];
@@ -672,6 +676,7 @@ export class PackagingManager {
       dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
       isLambda: true,
       nodeTarget: nodeVersion,
+      productionDependencyCache,
       installDependencies: async () => {
         // Each entry file resolves against its own package; the installer joins repeated roots.
         for (const rootProjectDirPath of new Set(entrypoints.map(({ entryfilePath }) => dirname(entryfilePath)))) {
@@ -1028,6 +1033,9 @@ export class PackagingManager {
       description: 'Packaging workloads'
     });
 
+    // The project's production install, worked out once for all functions of this build and again for the next one.
+    const productionDependencyCache = createProductionDependencyCache();
+
     // Helper to check if a workload should be packaged based on onlyWorkloads filter
     const shouldPackageWorkload = (workloadName: string): boolean => {
       if (!onlyWorkloads || onlyWorkloads.length === 0) return true;
@@ -1109,6 +1117,7 @@ export class PackagingManager {
               this.#prepareDockerOnce('supported platforms', getDockerBuildxSupportedPlatforms).catch(() => {});
               return this.packageWorkload({
                 commandCanUseCache,
+                productionDependencyCache,
                 jobName,
                 packaging,
                 workloadName,
@@ -1130,6 +1139,7 @@ export class PackagingManager {
             return () =>
               this.packageWorkload({
                 commandCanUseCache,
+                productionDependencyCache,
                 jobName,
                 packaging,
                 workloadName: name,
@@ -1189,6 +1199,7 @@ export class PackagingManager {
         return () =>
           this.packageWorkload({
             commandCanUseCache,
+            productionDependencyCache,
             jobName: getJobName({ workloadName: name, workloadType: type }),
             workloadName: name,
             workloadType: type,
@@ -1223,7 +1234,11 @@ export class PackagingManager {
 
     if (splitBundledLambdas.length > 0) {
       packagingPromises.push(
-        this.#packageNodeLambdasWithSplitBundling({ nodeLambdas: splitBundledLambdas, commandCanUseCache })
+        this.#packageNodeLambdasWithSplitBundling({
+          nodeLambdas: splitBundledLambdas,
+          commandCanUseCache,
+          productionDependencyCache
+        })
       );
     }
     if (individuallyBundledLambdas.length > 0) {
@@ -1232,6 +1247,7 @@ export class PackagingManager {
           individuallyBundledLambdas.map(({ name, type, packaging, architecture, runtime }) =>
             this.packageWorkload({
               commandCanUseCache,
+              productionDependencyCache,
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
               workloadType: type,
@@ -1252,6 +1268,7 @@ export class PackagingManager {
           edgeLambdas.map(({ name, type, packaging, architecture, runtime }) =>
             this.packageWorkload({
               commandCanUseCache,
+              productionDependencyCache,
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
               workloadType: type,
@@ -1473,7 +1490,8 @@ export class PackagingManager {
     devMode,
     customProgressLogger,
     workloadType,
-    imageRuntimeTools = { tini: true, curl: true }
+    imageRuntimeTools = { tini: true, curl: true },
+    productionDependencyCache
   }: {
     workloadName: string;
     jobName: string;
@@ -1494,6 +1512,8 @@ export class PackagingManager {
     workloadType?: string;
     /** What a `js-bundle` image installs beside its runtime: tini where nothing else starts an init process. */
     imageRuntimeTools?: { tini: boolean; curl: boolean };
+    /** The build's cache when the workload is packaged with others (`createProductionDependencyCache`). */
+    productionDependencyCache?: ProductionDependencyCache;
   }): Promise<PackagingOutput | undefined> => {
     const shouldUseCache = this.#canUseCache(commandCanUseCache);
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
@@ -1607,6 +1627,7 @@ export class PackagingManager {
         const result = await buildJsBundleLambda({
           ...sharedProps,
           ...bundleProps,
+          productionDependencyCache,
           sizeLimit: 250,
           debug: globalStateManager.isDebugMode,
           distFolderPath,
@@ -1623,6 +1644,7 @@ export class PackagingManager {
         await buildJsBundleImage({
           ...sharedProps,
           ...bundleProps,
+          productionDependencyCache,
           requiresGlibcBinaries: properties.requiresGlibcBinaries,
           debug: globalStateManager.isDebugMode,
           distFolderPath,
