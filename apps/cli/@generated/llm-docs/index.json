@@ -16592,7 +16592,7 @@
         "page:/cli/package#when-should-i-use-package-instead-of-just-running-deploy",
         "page:/cli/package#how-is-package-different-from-validate-withpackage",
         "page:/cli/package#does-package-use-caching",
-        "page:/cli/package#does-package-require-aws-credentials-even-though-it-doesn-t-deploy",
+        "page:/cli/package#does-package-require-aws-credentials",
         "page:/cli/package#can-i-package-only-specific-workloads",
         "page:/cli/package#what-is-the-difference-between-package-and-synth"
       ]
