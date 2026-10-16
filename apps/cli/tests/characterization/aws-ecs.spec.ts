@@ -782,6 +782,58 @@ describe('a rolling update that finishes once the new tasks serve', () => {
     expect(polls).toBe(3);
   }, 30_000);
 
+  // A manual rollback or a concurrent deploy calls UpdateService again: the waiter's deployment turns ACTIVE while
+  // another one becomes PRIMARY, and its new targets stay healthy until ECS replaces them.
+  const supersededAfter = (primaryPolls: number, targetStateOf: (read: number) => string) => {
+    const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
+    const [primary, previous] = service.deployments;
+    const replacement = { ...primary, id: 'ecs-svc/3', taskDefinition: `${TASK_DEFINITION}-rollback` };
+    let polls = 0;
+    let targetReads = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          if (polls <= primaryPolls) return { services: [service] };
+          return { services: [{ ...service, deployments: [replacement, { ...primary, status: 'ACTIVE' }, previous] }] };
+        }
+        if (command instanceof DescribeTaskDefinitionCommand) {
+          return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      elbSend: (async () => ({
+        TargetHealthDescriptions: [
+          { Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State: targetStateOf(targetReads++) } }
+        ]
+      })) as ElbSend
+    });
+    return { ecs, polls: () => polls, targetReads: () => targetReads };
+  };
+
+  test('fails a deployment another deployment replaces during the routing allowance', async () => {
+    const { ecs, polls } = supersededAfter(1, () => 'healthy');
+
+    const error = await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn }).catch((error: Error) => error);
+    expect((error as Error).cause).toEqual(
+      new Error(
+        `ECS service ${serviceArn} failed to update. Reason: Another deployment (ecs-svc/3) replaced this one before it finished, for example a rollback or another deploy of the same service.`
+      )
+    );
+    // The re-read after the allowance sees the replacement; the next poll reports it.
+    expect(polls()).toBe(3);
+  }, 30_000);
+
+  test('fails a deployment another deployment replaces before its targets turn healthy', async () => {
+    const { ecs, polls, targetReads } = supersededAfter(1, (read) => (read === 0 ? 'initial' : 'healthy'));
+
+    await expect(ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).rejects.toThrow(
+      `ECS service ${serviceArn} failed to update.`
+    );
+    expect(polls()).toBe(2);
+    expect(targetReads()).toBe(1);
+  }, 30_000);
+
   test('restarts the routing allowance when a new task fails its health check during it', async () => {
     const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
     const healthStates = ['HEALTHY', 'UNHEALTHY'];

@@ -191,6 +191,13 @@ const rolloutFailure = ({ services, failures }: DescribeServicesCommandOutput, d
   services?.find(({ status }) => status === 'DRAINING')?.status ||
   services?.find(({ status }) => status === 'INACTIVE')?.status;
 
+/** Another `UpdateService`, such as a rollback or a concurrent deploy, replaced the deployment before it finished. */
+const supersession = ({ services }: DescribeServicesCommandOutput, deployment: Deployment | undefined) => {
+  if (deployment?.status === 'PRIMARY') return undefined;
+  const primary = services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
+  return `Another deployment${primary?.id ? ` (${primary.id})` : ''} replaced this one before it finished, for example a rollback or another deploy of the same service.`;
+};
+
 const isAccessDenied = (error: unknown) =>
   error instanceof Error && /AccessDenied|UnauthorizedOperation|not authorized/i.test(`${error.name} ${error.message}`);
 
@@ -439,12 +446,19 @@ export class AwsEcs {
         if (allowanceLeft <= 0) return true;
         // Waiting out the allowance here instead of for later polls finishes the deploy as soon as it has passed.
         await wait(allowanceLeft);
-        // ECS can roll the deployment back meanwhile (an alarm fired, say) while its targets stay healthy. The next
-        // poll then reports the failure.
+        // ECS can roll the deployment back meanwhile (an alarm fired, say), or another deploy can replace it, while its
+        // targets stay healthy. The next poll then reports the failure.
         const serviceState = await ecsClient.send(new DescribeServicesCommand(waiterInput));
         const [currentService] = serviceState.services ?? [];
         const currentDeployment = currentService?.deployments?.find(({ id }) => id === deployment.id);
-        if (!currentService || !currentDeployment || rolloutFailure(serviceState, currentDeployment)) return false;
+        if (
+          !currentService ||
+          !currentDeployment ||
+          rolloutFailure(serviceState, currentDeployment) ||
+          supersession(serviceState, currentDeployment)
+        ) {
+          return false;
+        }
         return newTasksServe(ecsClient, currentService, currentDeployment, true);
       } catch (error) {
         // A transient error is retried at the next poll; a missing permission will not change.
@@ -456,6 +470,7 @@ export class AwsEcs {
     /** Whether the new tasks were shown to serve through load balancer targets, not only their own health. */
     let newTargetsChecked = false;
     let finishedWhen: RollingUpdateFinish = 'rollout-completed';
+    let targetDeploymentSeen = false;
     const waiterResult = await createWaiter(
       // Every second of polling delay is a second added to the deploy; a few cheap read calls per second are fine.
       { client: this.#createClient(), maxWaitTime: 3600, minDelay: 1, maxDelay: 2 },
@@ -466,6 +481,13 @@ export class AwsEcs {
           ? serviceState.services[0].deployments.find(({ id }) => id === targetDeploymentId)
           : serviceState.services[0].deployments.find(({ status }) => status === 'PRIMARY');
 
+        // A deployment the waiter has seen disappears from the list only after another one replaced it.
+        if (!targetedDeployment && targetDeploymentSeen) {
+          return {
+            state: WaiterState.FAILURE,
+            reason: `ECS service ${ecsServiceArn} failed to update. Reason: ${supersession(serviceState, undefined)}`
+          };
+        }
         if (!targetedDeployment) {
           return {
             state: WaiterState.RETRY,
@@ -473,6 +495,7 @@ export class AwsEcs {
           };
         }
         targetDeploymentId = targetedDeployment.id;
+        targetDeploymentSeen = true;
 
         const failure = rolloutFailure(serviceState, targetedDeployment);
 
@@ -498,6 +521,14 @@ export class AwsEcs {
           return {
             state: WaiterState.SUCCESS,
             reason: `ECS service ${ecsServiceArn} updated successfully.`
+          };
+        }
+        // Checked after convergence: a deployment that completed and was then replaced did finish.
+        const superseded = supersession(serviceState, targetedDeployment);
+        if (superseded) {
+          return {
+            state: WaiterState.FAILURE,
+            reason: `ECS service ${ecsServiceArn} failed to update. Reason: ${superseded}`
           };
         }
         // ECS early success counts a task reached through Cloud Map as healthy before API Gateway sends it requests, so
