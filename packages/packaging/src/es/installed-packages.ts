@@ -38,7 +38,7 @@ export type InstalledPackage = {
   root: string;
   /** The packages it depends on: the name it requires each by, and that package's real directory. */
   dependencies: Map<string, string>;
-  /** The files to copy; the whole package (without its own `node_modules`) when not set. */
+  /** The files to copy; the whole package (except what `isLeftOut` names) when not set. */
   files?: Set<string> | undefined;
 };
 
@@ -286,7 +286,17 @@ const isSelected = async (path: string, { withoutSourceMaps }: PackageFileSelect
   !(withoutSourceMaps && (await isInstalledSourceMap(path)));
 
 /**
- * The files a package is copied with, in a stable order: everything except its own `node_modules` and the files
+ * Whether a path in a package, relative to the package's directory, stays out of every copy: the package's own
+ * `node_modules`, whose packages the layout places separately, and `.yarn`, Yarn's release and install state, which
+ * some packages publish by mistake and nothing loads (pdfkit 0.20 ships 3.7 MB of it).
+ */
+const isLeftOut = (relativePath: string) => {
+  const segments = relativePath.split(sep);
+  return segments[0] === '.yarn' || segments.includes('node_modules');
+};
+
+/**
+ * The files a package is copied with, in a stable order: everything except what `isLeftOut` names and the files
  * `selection` leaves out, with linked directories followed, so a directory reached through two names is listed under
  * both, as copying writes it. A link back to a directory being listed is skipped; copying it would never end.
  */
@@ -302,7 +312,7 @@ const listPackageFiles = async (packageRoot: string, selection: PackageFileSelec
       const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
       if (!isDirectory) {
         if (await isSelected(path, selection)) files.push(path);
-      } else if (entry.name !== 'node_modules') await visit(path, withThis);
+      } else if (!isLeftOut(relative(packageRoot, path))) await visit(path, withThis);
     }
   };
   await visit(packageRoot, new Set());
@@ -443,15 +453,13 @@ export const planPackageLayout = async ({
   const projectNodeModules = join(mirrorRoot, 'node_modules');
   const layoutPath = (path: string) => `${INSTALLED_LAYOUT_PATH}/${toLayoutPath(relative(mirrorRoot, path))}`;
   /**
-   * Whether copying puts this file into the artifact: it is in a package and not in that package's `node_modules`,
-   * and among the package's files when only some of them are copied.
+   * Whether copying puts this file into the artifact: it is in a package and not left out of it (`isLeftOut`), and
+   * among the package's files when only some of them are copied.
    */
   const isCopiedFile = (realPath: string) =>
     [...packages.values()].some(
       ({ root, files }) =>
-        isInside(root, realPath) &&
-        !relative(root, realPath).split(sep).includes('node_modules') &&
-        (!files || files.has(realPath))
+        isInside(root, realPath) && !isLeftOut(relative(root, realPath)) && (!files || files.has(realPath))
     );
 
   const directories = roots.map((root) => ({ path: layoutPath(root), root }));
@@ -534,7 +542,7 @@ export const writePackageLayout = async ({
         dereference: true,
         overwrite: true,
         filter: async (sourcePath) =>
-          !relative(from, sourcePath).split(sep).includes('node_modules') && (await isSelected(sourcePath, selection))
+          !isLeftOut(relative(from, sourcePath)) && (await isSelected(sourcePath, selection))
       });
     }
     for (const [name, nestedRoot] of source?.nestedPackages ?? []) {

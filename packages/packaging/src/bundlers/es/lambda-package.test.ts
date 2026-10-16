@@ -289,7 +289,10 @@ describe('packages a Lambda gets beside its bundle', () => {
       'node_modules/fast-zlib/package.json': manifest('fast-zlib'),
       'node_modules/fast-zlib/index.js': "exports.name = 'fast-zlib';",
       'node_modules/pdf-dev-tools/package.json': manifest('pdf-dev-tools'),
-      'node_modules/pdf-dev-tools/index.js': "exports.name = 'pdf-dev-tools';"
+      'node_modules/pdf-dev-tools/index.js': "exports.name = 'pdf-dev-tools';",
+      // Yarn's own state, which pdfkit publishes by mistake.
+      'node_modules/pdf/.yarn/releases/yarn-4.cjs': '// Yarn',
+      'node_modules/pdf/.yarn/install-state.gz': 'state'
     });
 
     const result = await bundle(cwd, { packageExternalDependencies: true });
@@ -303,7 +306,9 @@ describe('packages a Lambda gets beside its bundle', () => {
     temporaryDirectories.push(artifact);
     await cp(join(cwd, '.stacktape', 'dist'), artifact, { recursive: true, verbatimSymlinks: true });
     const installed = join(artifact, 'node_modules', '.installed', 'node_modules');
-    expect(['typescript', 'pdf-dev-tools'].filter((name) => existsSync(join(installed, name)))).toEqual([]);
+    expect(['typescript', 'pdf-dev-tools', 'pdf/.yarn'].filter((path) => existsSync(join(installed, path)))).toEqual(
+      []
+    );
     const url = JSON.stringify(pathToFileURL(join(artifact, 'index.js')).href);
     const execution = runNode(
       `const { default: handler } = await import(${url}); console.log(JSON.stringify(await handler()));`,
