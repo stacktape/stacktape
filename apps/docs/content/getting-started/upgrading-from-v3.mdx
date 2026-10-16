@@ -7,7 +7,7 @@ seoDescription: 'Changes to make when upgrading a Stacktape v3 configuration to 
 
 # Upgrading from v3
 
-Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page covers packaging and what the first v4 deployment changes in an existing stack.
+Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page covers packaging, removed resource parameters and what the first v4 deployment changes in an existing stack.
 
 ## Deployed stacks
 
@@ -22,6 +22,12 @@ Container services without gradual deployments shut down more gracefully in v4. 
 v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected with Stacktape-managed access. They deployed to `--awsAccount`, the saved default, or the organization's only connected account. In v4, when `--awsAccount` is not set, `--profile`, `AWS_PROFILE` or AWS keys in the environment choose the connected account they belong to. If they belong to an account that is not connected, the command stops before changing anything.
 
 Check scripts and CI jobs that set an AWS profile or AWS keys for a different account than the one they deploy to. Pass `--awsAccount <name>` in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
+## Removed resource parameters
+
+The `MultiContainerWorkload` class no longer has a `logGroupArn` property, and `$ResourceParam('<workload>', 'logGroupArn')` is rejected. Stacktape never published this parameter, so a v3 configuration using it could not deploy.
+
+A multi-container workload has one log group per container. To reference one, use [`$CfResourceParam`](/configuration/directives) with the log group's CloudFormation logical ID: the workload name and the container name in PascalCase, followed by `LogGroup`. For the `app` container of a workload named `orders`, use `$CfResourceParam('OrdersAppLogGroup', 'Arn')`. A container with `logging.disabled` has no log group. Run [`stacktape synth`](/cli/synth) to check the logical IDs in the generated template.
 
 ## Packaging
 

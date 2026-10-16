@@ -4,12 +4,13 @@
  * the `customDomainUrl` of an API that gets its first custom domain, from a typo. This test synthesizes every resource
  * type, nested resources included, in configurations that together publish every parameter: with and without custom
  * domains and CDNs, RDS read replicas, Aurora and a sharded Redis cluster. The registry must list exactly what they
- * publish.
+ * publish, and the configurations must exercise every resource type, so a new type cannot skip the registry.
  */
 import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { defineConfig } from '@stacktape/config-authoring';
+import { STACKTAPE_RESOURCE_TYPES } from '@stacktape/config/resource-types';
 import {
   getReferenceableParamNames,
   isReferenceableParam,
@@ -180,6 +181,10 @@ const variants: Record<string, Record<string, unknown>> = {
       properties: { definitionName: 'webhookProvider', resourceProperties: {} }
     },
     uptime: { type: 'uptime-check', properties: { url: 'https://example.com' } },
+    flow: {
+      type: 'synthetic-test',
+      properties: { test: { type: 'api', properties: { scriptPath: './src/canary.ts' } } }
+    },
     backend: { type: 'convex', properties: { appDirectory: './convex' } }
   },
   agents: {
@@ -269,12 +274,19 @@ type MapResource = {
   _nestedResources?: Record<string, MapResource>;
 };
 
-/** The parameters each resource type publishes in a configuration, nested resources included. */
+/**
+ * The parameters each resource type publishes in a configuration, nested resources included, and the resource types the
+ * configuration exercised, including types that publish no parameters.
+ */
 const synthesizeParameters = async (resources: Record<string, unknown>) => {
   const published: [resourceType: string, param: string][] = [];
+  const types = new Set(Object.values(resources).map((resource) => (resource as { type: string }).type));
   const collect = (resource: MapResource) => {
     for (const param of Object.keys(resource.referencableParams)) published.push([resource.resourceType, param]);
-    for (const nested of Object.values(resource._nestedResources ?? {})) collect(nested);
+    for (const nested of Object.values(resource._nestedResources ?? {})) {
+      types.add(nested.resourceType);
+      collect(nested);
+    }
   };
   const synthesis = synthesizeFixture({
     compiledConfig: defineConfig(() => ({ resources }) as never)({
@@ -297,12 +309,18 @@ const synthesizeParameters = async (resources: Record<string, unknown>) => {
   await synthesis.catch((error) => {
     if (!(error instanceof ParametersCollected)) throw error;
   });
-  return published;
+  return { published, types };
 };
 
 test('the registry lists exactly the parameters each resource type publishes', async () => {
   const published: [resourceType: string, param: string][] = [];
-  for (const resources of Object.values(variants)) published.push(...(await synthesizeParameters(resources)));
+  const exercisedTypes = new Set<string>();
+  for (const resources of Object.values(variants)) {
+    const result = await synthesizeParameters(resources);
+    published.push(...result.published);
+    for (const type of result.types) exercisedTypes.add(type);
+  }
+  expect([...exercisedTypes].sort()).toEqual([...STACKTAPE_RESOURCE_TYPES].sort());
 
   const unregistered = published
     .filter(([resourceType, param]) => !isReferenceableParam(resourceType, param))
@@ -335,5 +353,20 @@ test('numbered parameters match only their number', () => {
   expect(isReferenceableParam('application-load-balancer', 'portal')).toBe(false);
   expect(isReferenceableParam('relational-database', 'readReplica2Port')).toBe(true);
   expect(isReferenceableParam('relational-database', 'readReplicaPort')).toBe(false);
+  expect(isReferenceableParam('relational-database', 'readReplica0Port')).toBe(true);
+  expect(isReferenceableParam('relational-database', 'readReplica14Port')).toBe(true);
   expect(getReferenceableParamNames('relational-database')).toContain('readReplica<number>Port');
+});
+
+test('numbered parameters reject numbers synthesis never writes', () => {
+  expect(isReferenceableParam('application-load-balancer', 'port000443')).toBe(false);
+  expect(isReferenceableParam('application-load-balancer', 'port0')).toBe(false);
+  expect(isReferenceableParam('application-load-balancer', 'port65535')).toBe(true);
+  expect(isReferenceableParam('application-load-balancer', 'port65536')).toBe(false);
+  expect(isReferenceableParam('web-service', 'port99999999999999999999')).toBe(false);
+  expect(isReferenceableParam('application-load-balancer', 'port+443')).toBe(false);
+  expect(isReferenceableParam('application-load-balancer', 'port4.43')).toBe(false);
+  expect(isReferenceableParam('relational-database', 'readReplica00Port')).toBe(false);
+  expect(isReferenceableParam('relational-database', 'readReplica01Port')).toBe(false);
+  expect(isReferenceableParam('relational-database', 'readReplica15Port')).toBe(false);
 });

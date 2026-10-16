@@ -253,19 +253,29 @@ export const REFERENCEABLE_PARAMS = {
   Record<StacktapeResourceType, ReadonlyArray<{ readonly name: string; readonly description: string }>>
 >;
 
+const LISTENER_PORT = { min: 1, max: 65535 } as const;
+
 /**
  * Parameters named after a number from the configuration, which therefore have no resource class property: the port
- * of each load balancer listener (`port443`) and of each read replica (`readReplica0Port`).
+ * of each load balancer listener (`port443`) and of each read replica (`readReplica0Port`). The number is written as
+ * synthesis writes it, without leading zeros, and lies within `min` and `max`: a valid port, or the index of one of the
+ * at most 15 read replicas RDS allows per database.
  */
 export const NUMBERED_REFERENCEABLE_PARAMS = {
-  'application-load-balancer': [{ prefix: 'port', suffix: '', description: 'Listener port' }],
-  'web-service': [{ prefix: 'port', suffix: '', description: 'Load balancer listener port' }],
-  'private-service': [{ prefix: 'port', suffix: '', description: 'Load balancer listener port' }],
-  'relational-database': [{ prefix: 'readReplica', suffix: 'Port', description: 'Read replica port' }]
+  'application-load-balancer': [{ prefix: 'port', suffix: '', ...LISTENER_PORT, description: 'Listener port' }],
+  'web-service': [{ prefix: 'port', suffix: '', ...LISTENER_PORT, description: 'Load balancer listener port' }],
+  'private-service': [{ prefix: 'port', suffix: '', ...LISTENER_PORT, description: 'Load balancer listener port' }],
+  'relational-database': [{ prefix: 'readReplica', suffix: 'Port', min: 0, max: 14, description: 'Read replica port' }]
 } as const satisfies Partial<
   Record<
     StacktapeResourceType,
-    ReadonlyArray<{ readonly prefix: string; readonly suffix: string; readonly description: string }>
+    ReadonlyArray<{
+      readonly prefix: string;
+      readonly suffix: string;
+      readonly min: number;
+      readonly max: number;
+      readonly description: string;
+    }>
   >
 >;
 
@@ -284,9 +294,11 @@ export type AnyReferenceableParamName =
 const paramsOfType = (resourceType: string) => ({
   named: (REFERENCEABLE_PARAMS as Partial<Record<string, ReadonlyArray<{ name: string }>>>)[resourceType] ?? [],
   numbered:
-    (NUMBERED_REFERENCEABLE_PARAMS as Partial<Record<string, ReadonlyArray<{ prefix: string; suffix: string }>>>)[
-      resourceType
-    ] ?? []
+    (
+      NUMBERED_REFERENCEABLE_PARAMS as Partial<
+        Record<string, ReadonlyArray<{ prefix: string; suffix: string; min: number; max: number }>>
+      >
+    )[resourceType] ?? []
 });
 
 /** The parameter names a resource type can expose, numbered ones written as `port<number>`. */
@@ -300,11 +312,10 @@ export const isReferenceableParam = (resourceType: string, name: string): boolea
   const { named, numbered } = paramsOfType(resourceType);
   return (
     named.some((param) => param.name === name) ||
-    numbered.some(
-      ({ prefix, suffix }) =>
-        name.startsWith(prefix) &&
-        name.endsWith(suffix) &&
-        /^\d+$/.test(name.slice(prefix.length, name.length - suffix.length))
-    )
+    numbered.some(({ prefix, suffix, min, max }) => {
+      if (!name.startsWith(prefix) || !name.endsWith(suffix)) return false;
+      const digits = name.slice(prefix.length, name.length - suffix.length);
+      return /^(0|[1-9]\d*)$/.test(digits) && Number(digits) >= min && Number(digits) <= max;
+    })
   );
 };
