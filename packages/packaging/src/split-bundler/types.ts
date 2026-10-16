@@ -59,7 +59,7 @@ export type LambdaSplitOutput = {
   sourceFiles: { path: string }[];
   /** Packages the bundle leaves out, which the function's dependency layer provides. */
   externalDependencies: ResolvedPackageDependency[];
-  /** What the project depends on in production where this function's code comes from (`getProductionDependencies`). */
+  /** What a production install of the project contains for this function's code (`getProductionDependencies`). */
   productionDependencies: string[];
   /** All resolved npm modules */
   resolvedModules: string[];

@@ -79,8 +79,8 @@ export const isOptionalPeer = (manifest: PackageManifest, name: string) => {
 /**
  * Whether a production install gives a package its installed dependency `name`. npm, pnpm, Yarn and Bun install
  * dependencies, optional dependencies (for the platform) and required peers, but never an optional peer on its own:
- * it is installed only when the project depends on it in production (`getProductionDependencies`) or another
- * installed package requires it. Prisma lists TypeScript as an optional peer; a project that has TypeScript only in
+ * it is installed only when it is in the project's production install for another reason
+ * (`getProductionDependencies`). Prisma lists TypeScript as an optional peer; a project that has TypeScript only in
  * `devDependencies` has none in production.
  */
 const isInstalledInProduction = ({
@@ -97,11 +97,15 @@ const isInstalledInProduction = ({
 const toRealPath = (path: string) => realpath(path).catch(() => resolve(path));
 
 /**
- * The packages the project depends on in production: the `dependencies` and `optionalDependencies` of its root
- * `package.json` and of the project's own package (outside `node_modules`) that each of `sourcePaths` belongs to,
- * such as the workspace packages a function's code comes from. npm, pnpm, Yarn and Bun all record development-only
- * packages in `devDependencies` and leave them out of a production install. The manifests are read on every call,
- * because they can change between two builds in one process.
+ * The names of the packages a production install of the project contains (`npm install --omit=dev`): the
+ * `dependencies` and `optionalDependencies` of its root `package.json` and of the project's own package (outside
+ * `node_modules`) that each of `sourcePaths` belongs to, such as the workspace packages a function's code comes from,
+ * and what those packages need in turn: dependencies, optional dependencies and required peers, wherever they are
+ * installed. An optional peer is not followed: it is in the install only when something else there depends on it.
+ * npm, pnpm, Yarn and Bun all record development-only packages in `devDependencies` and leave them out. A package
+ * counts whether a function bundles it or gets it copied: a bundled package that requires `@swc/helpers` still puts
+ * it in the install, where `@swc/core`, which lists it as an optional peer, loads it. The project's own manifests are
+ * read on every call, because they can change between two builds in one process.
  */
 export const getProductionDependencies = async ({
   projectRoot,
@@ -116,24 +120,50 @@ export const getProductionDependencies = async ({
     const parent = dirname(directory);
     return parent === directory || !isInside(root, parent) ? undefined : findPackageRoot(parent);
   };
+  const isOwnPackage = (directory: string) =>
+    isInside(root, directory) && !relative(root, directory).split(sep).includes('node_modules');
   const sourceDirectories = await Promise.all(
     [...new Set(sourcePaths.map((path) => dirname(resolve(path))))].map(toRealPath)
   );
-  const ownSourceDirectories = sourceDirectories.filter(
-    (directory) => isInside(root, directory) && !relative(root, directory).split(sep).includes('node_modules')
-  );
   const packageRoots = new Set([root]);
-  for (const packageRoot of await Promise.all([...new Set(ownSourceDirectories)].map(findPackageRoot))) {
+  for (const packageRoot of await Promise.all(
+    [...new Set(sourceDirectories.filter(isOwnPackage))].map(findPackageRoot)
+  )) {
     if (packageRoot) packageRoots.add(packageRoot);
   }
-  const projectManifests: PackageManifest[] = await Promise.all(
-    [...packageRoots].map((packageRoot) => readJson(join(packageRoot, 'package.json')).catch(() => ({})))
-  );
-  return new Set(
-    projectManifests.flatMap(({ dependencies = {}, optionalDependencies = {} }) =>
-      Object.keys(dependencies).concat(Object.keys(optionalDependencies))
-    )
-  );
+
+  const names = new Set<string>();
+  // A package's dependencies are looked up from where it is installed, one level of the install at a time. The
+  // project's own packages, also when a workspace links one into `node_modules`, are read again for every call.
+  const readManifest = (packageRoot: string): Promise<PackageManifest> =>
+    isOwnPackage(packageRoot)
+      ? readJson(join(packageRoot, 'package.json')).catch(() => ({}))
+      : readPackageManifest(packageRoot);
+  const visited = new Set(packageRoots);
+  let level = [...packageRoots].map((packageRoot) => ({ packageRoot, isStart: true }));
+  while (level.length > 0) {
+    const found = await Promise.all(
+      level.map(async ({ packageRoot, isStart }) => {
+        const manifest = await readManifest(packageRoot);
+        const required = isStart
+          ? Object.keys(manifest.dependencies ?? {}).concat(Object.keys(manifest.optionalDependencies ?? {}))
+          : [...getRuntimeDependencyNames(manifest)].filter((name) => !isOptionalPeer(manifest, name));
+        return Promise.all(
+          required.map((name) => {
+            names.add(name);
+            return findInstalledPackage({ name, fromDirectory: packageRoot });
+          })
+        );
+      })
+    );
+    level = [];
+    for (const dependencyRoot of found.flat()) {
+      if (!dependencyRoot || visited.has(dependencyRoot)) continue;
+      visited.add(dependencyRoot);
+      level.push({ packageRoot: dependencyRoot, isStart: false });
+    }
+  }
+  return names;
 };
 
 /**

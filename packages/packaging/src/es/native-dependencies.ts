@@ -71,7 +71,7 @@ export const planLambdaDependencies = async ({
   withoutSourceMaps = false
 }: {
   dependencies: ResolvedPackageDependency[];
-  /** What the project depends on in production (`getProductionDependencies`), which decides the optional peers. */
+  /** What a production install of the project contains (`getProductionDependencies`); it decides optional peers. */
   productionDependencies: ReadonlySet<string>;
   architecture: LambdaArchitecture;
   /** Packages that must not be in the artifact, wherever they are required; `IGNORED_MODULES` always. */

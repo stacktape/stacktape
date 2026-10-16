@@ -364,6 +364,36 @@ describe('packages a Lambda gets beside its bundle', () => {
     expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
   });
 
+  test('include an optional peer that only a bundled package depends on, as a production install does', async () => {
+    // The project does not list `@swc/helpers`, but fontkit, which the bundle takes in, depends on it, so a production
+    // install has it, and `@swc/core` finds it there.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { '@swc/core': '*', pdf: '*' } }),
+      'handler.ts':
+        "import { compile } from '@swc/core'; import { render } from 'pdf'; export default async () => [compile(), render()];",
+      ...nativePackage(
+        '@swc/core',
+        { peerDependencies: { '@swc/helpers': '*' }, peerDependenciesMeta: { '@swc/helpers': { optional: true } } },
+        "exports.compile = () => require(['@swc', 'helpers', '_', '_class_call_check'].join('/')).name;"
+      ),
+      'node_modules/pdf/package.json': manifest('pdf', { dependencies: { fontkit: '*' } }),
+      'node_modules/pdf/index.js': "exports.render = () => require('fontkit').layout();",
+      'node_modules/fontkit/package.json': manifest('fontkit', { dependencies: { '@swc/helpers': '*' } }),
+      'node_modules/fontkit/index.js':
+        "const { name } = require('@swc/helpers/_/_class_call_check'); exports.layout = () => `fontkit ${name}`;",
+      'node_modules/@swc/helpers/package.json': manifest('@swc/helpers'),
+      'node_modules/@swc/helpers/_/_class_call_check.js': "exports.name = '_class_call_check';"
+    });
+
+    const result = await bundle(cwd, { packageExternalDependencies: true });
+
+    expect(result.languageSpecificBundleOutput.es.externalDependencies?.map(({ name }) => name)).toEqual(['@swc/core']);
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual(['_class_call_check', 'fontkit _class_call_check']);
+  });
+
   test('include the optional dependencies of a left-out package, which its commands load', async () => {
     // bunyan has this shape: its `bin/bunyan` command, a script without an extension, requires its optional
     // dependency `moment`.

@@ -48,22 +48,23 @@ architecture and C library), never from a list of names; an install script alone
 point loads. A short list names the few packages that give no such sign. Both kinds leave the bundle the same way.
 `es/native-dependencies` copies each left-out package with what a production install (`npm install --omit=dev`) gives it
 from the project's `node_modules`: dependencies, optional dependencies built for Lambda's platform and required peers.
-An optional peer comes only when the project depends on it in production: it is in `dependencies` or
-`optionalDependencies` of the project's root or of a project package the function's code comes from
-(`getProductionDependencies` in `es/installed-packages`), or another copied package requires it. The same rule decides
-which native peers of a bundled package are installed (`optionalPeer`): Prisma's optional TypeScript peer stays out of a
-project that has TypeScript only in `devDependencies`. Never decide from a package's source whether it loads a package:
-native compilers such as `@swc/core` emit imports that no script spells out. `es/installed-packages` reads npm, pnpm,
-Yarn and Bun layouts alike and repeats the installed layout under the artifact's `node_modules/.installed`: each
-package's real directory once, at its path relative to the project, with the `node_modules` links that lead to it. Every
-package therefore resolves what it resolved on the build machine. The artifact's top-level `node_modules` links each
-package the bundle requires to the installation the bundle resolved. The Lambda archive stores the links; on Windows
-they are junctions. A package's `.yarn` directory, Yarn's state that some packages publish by mistake, is never copied.
-The digest covers the copied files and the links. Only a native package whose installed files do not run on Lambda is
-installed again, with npm in the Lambda build image, one installation per version, with its dependencies pinned to the
-installed ones; the artifact keeps the build machine's copies of those dependencies and takes only the rebuilt package
-and its platform packages from the image. On a Linux build machine with glibc that is rare, so most builds never start
-Docker. Externalizing a package never externalizes its dependencies: a bundled importer keeps its own copy.
+An optional peer comes only when a production install of the project has it for another reason: it is reachable from
+`dependencies` or `optionalDependencies` of the project's root or of a project package the function's code comes from,
+through dependencies, optional dependencies and required peers, whether the function bundles those packages or copies
+them (`getProductionDependencies` in `es/installed-packages`). The same rule decides which native peers of a bundled
+package are installed (`optionalPeer`): Prisma's optional TypeScript peer stays out of a project that has TypeScript
+only in `devDependencies`. Never decide from a package's source whether it loads a package: native compilers such as
+`@swc/core` emit imports that no script spells out. `es/installed-packages` reads npm, pnpm, Yarn and Bun layouts alike
+and repeats the installed layout under the artifact's `node_modules/.installed`: each package's real directory once, at
+its path relative to the project, with the `node_modules` links that lead to it. Every package therefore resolves what
+it resolved on the build machine. The artifact's top-level `node_modules` links each package the bundle requires to the
+installation the bundle resolved. The Lambda archive stores the links; on Windows they are junctions. A package's
+`.yarn` directory, Yarn's state that some packages publish by mistake, is never copied. The digest covers the copied
+files and the links. Only a native package whose installed files do not run on Lambda is installed again, with npm in
+the Lambda build image, one installation per version, with its dependencies pinned to the installed ones; the artifact
+keeps the build machine's copies of those dependencies and takes only the rebuilt package and its platform packages from
+the image. On a Linux build machine with glibc that is rare, so most builds never start Docker. Externalizing a package
+never externalizes its dependencies: a bundled importer keeps its own copy.
 
 ## Sensitive behavior
 
