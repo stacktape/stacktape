@@ -499,6 +499,58 @@ describe('packages a Lambda gets beside its bundle', () => {
     expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
   });
 
+  test('include an optional peer that a production dependency starts to depend on between two builds in one process', async () => {
+    // `stacktape dev` rebuilds in one process. An update between two builds gives fontkit, which the bundle takes in,
+    // a dependency on `@swc/helpers`, so the production install now has it, and `@swc/core` finds it there.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { '@swc/core': '*', pdf: '*' } }),
+      'handler.ts':
+        "import { compile } from '@swc/core'; import { render } from 'pdf'; export default async () => [compile(), render()];",
+      ...swcCore,
+      'node_modules/pdf/package.json': manifest('pdf', { dependencies: { fontkit: '*' } }),
+      'node_modules/pdf/index.js': "exports.render = () => require('fontkit').layout();",
+      'node_modules/fontkit/package.json': manifest('fontkit'),
+      'node_modules/fontkit/index.js': "exports.layout = () => 'fontkit';",
+      ...swcHelpers
+    });
+    await bundle(cwd, { packageExternalDependencies: true });
+    expect(existsSync(join((await copyArtifact(cwd)).installed, '@swc', 'helpers'))).toBe(false);
+
+    await writeFile(
+      join(cwd, 'node_modules/fontkit/package.json'),
+      manifest('fontkit', { dependencies: { '@swc/helpers': '*' } })
+    );
+    await writeFile(
+      join(cwd, 'node_modules/fontkit/index.js'),
+      "const { name } = require('@swc/helpers/_/_class_call_check'); exports.layout = () => `fontkit ${name}`;"
+    );
+    await bundle(cwd, { packageExternalDependencies: true });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual(['_class_call_check', 'fontkit _class_call_check']);
+  });
+
+  test('include a dependency that a left-out package starts to depend on between two builds in one process', async () => {
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { pdf: '*' } }),
+      'handler.ts': "import { render } from 'pdf'; export default async () => render();",
+      ...nativePackage('pdf', {}, "exports.render = () => 'pdf';"),
+      'node_modules/fonts/package.json': manifest('fonts'),
+      'node_modules/fonts/index.js': "exports.name = 'fonts';"
+    });
+    await bundle(cwd, { packageExternalDependencies: true });
+    expect(existsSync(join((await copyArtifact(cwd)).installed, 'fonts'))).toBe(false);
+
+    await writeFile(join(cwd, 'node_modules/pdf/package.json'), manifest('pdf', { dependencies: { fonts: '*' } }));
+    await writeFile(join(cwd, 'node_modules/pdf/index.js'), "exports.render = () => require('fonts').name;");
+    await bundle(cwd, { packageExternalDependencies: true });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('fonts');
+  });
+
   test('include the optional dependencies of a left-out package, which its commands load', async () => {
     // bunyan has this shape: its `bin/bunyan` command, a script without an extension, requires its optional
     // dependency `moment`.
@@ -532,7 +584,7 @@ describe('what identifies a cached Lambda artifact', () => {
   test('a new version of a dependency installed outside the bundle is a new artifact', async () => {
     // A native dependency leaves the bundle and is installed on the target platform, so its bytes are not in the
     // package directory the digest reads. Only its version can tell the cache that the artifact changed. Each build
-    // gets its own checkout: package metadata is cached per directory for the life of the process, as one CLI run.
+    // gets its own checkout, so the three run at once.
     const checkout = async (version: string) => {
       const cwd = await createProject({
         'handler.ts': "import native from 'native-dep'; export default async () => native;",

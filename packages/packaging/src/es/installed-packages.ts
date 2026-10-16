@@ -48,15 +48,20 @@ export const isInside = (parent: string, child: string) => {
   return relativePath === '' || (!relativePath.startsWith('..') && !relativePath.includes(`..${sep}`));
 };
 
-const manifests = new Map<string, Promise<PackageManifest>>();
+const manifests = new Map<string, { signature: string; manifest: Promise<PackageManifest> }>();
 
-/** The package's `package.json`, read once per process. */
-export const readPackageManifest = (packageRoot: string): Promise<PackageManifest> => {
-  let manifest = manifests.get(packageRoot);
-  if (!manifest) {
-    manifest = readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
-    manifests.set(packageRoot, manifest);
-  }
+/**
+ * The package's `package.json`. A manifest read earlier in this process is reused while the file keeps its size and
+ * modification time, so a `dev` rebuild after an install in place sees the package's new dependencies.
+ */
+export const readPackageManifest = async (packageRoot: string): Promise<PackageManifest> => {
+  const path = join(packageRoot, 'package.json');
+  const { size, mtimeMs, ino } = await stat(path);
+  const signature = `${size}:${mtimeMs}:${ino}`;
+  const cached = manifests.get(packageRoot);
+  if (cached?.signature === signature) return cached.manifest;
+  const manifest = readJson(path) as Promise<PackageManifest>;
+  manifests.set(packageRoot, { signature, manifest });
   return manifest;
 };
 
@@ -112,7 +117,7 @@ const remember = <Value>(cache: Map<string, Promise<Value>>, key: string, comput
  * within one process, as in a `dev` rebuild.
  */
 export type ProductionDependencyCache = {
-  /** The project's own manifests, which the process-wide `readPackageManifest` must not keep between builds. */
+  /** The manifests read, of the project's own packages and of installed ones. */
   manifests: Map<string, Promise<PackageManifest>>;
   /** The project's own package directories from a directory up to the top of the project. */
   packageRoots: Map<string, Promise<PackageRootChain>>;
@@ -170,10 +175,12 @@ export const getProductionDependencies = async ({
   sourcePaths: string[];
   cache?: ProductionDependencyCache | undefined;
 }): Promise<Set<string>> => {
+  // A missing or unreadable manifest of the project's own counts as empty; an installed package's fails the build.
   const readManifest = (packageRoot: string): Promise<PackageManifest> =>
-    isOwnDirectory(packageRoot)
-      ? remember(cache.manifests, packageRoot, () => readJson(join(packageRoot, 'package.json')).catch(() => ({})))
-      : readPackageManifest(packageRoot);
+    remember(cache.manifests, packageRoot, () => {
+      const manifest = readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
+      return isOwnDirectory(packageRoot) ? manifest.catch(() => ({})) : manifest;
+    });
   const findPackageRoots = (directory: string): Promise<PackageRootChain> =>
     remember(cache.packageRoots, directory, async () => {
       const [hasManifest, isBoundary, hasLockfile] = await Promise.all([

@@ -195,8 +195,9 @@ const isPrismaModule = (name: string) => name === 'prisma' || name.startsWith('p
  * Whether the image loads Prisma, whose client may need the `openssl` command; see `EsImageRuntimeTools`. Prisma can
  * come from the bundle's imports or from any package the image installs, directly or through that package's own
  * dependencies, such as an internal database package that ships a generated client. The installed packages are followed
- * as they are installed on this machine, with the optional peers a production install of the project gives them. When that tree cannot be read, or a required dependency is not installed
- * here, it is not known what the image installs, and it gets `openssl`.
+ * as they are installed on this machine, with the optional peers a production install of the project gives them. When
+ * that tree cannot be read, or a required dependency is not installed here, it is not known what the image installs,
+ * and it gets `openssl`.
  */
 const usesPrisma = async ({
   bundledModules,
@@ -422,10 +423,12 @@ const normalizeLanguageSpecificBundleOutput = ({
   es: {
     externalDependencies?: NonNullable<LanguageSpecificBundleOutput['es']>['externalDependencies'];
     packageManager?: NonNullable<LanguageSpecificBundleOutput['es']>['packageManager'] | null;
+    productionDependencies?: NonNullable<LanguageSpecificBundleOutput['es']>['productionDependencies'];
   };
 }): LanguageSpecificBundleOutput => ({
   es: {
     ...(es.externalDependencies !== undefined ? { externalDependencies: es.externalDependencies } : {}),
-    ...(es.packageManager !== null && es.packageManager !== undefined ? { packageManager: es.packageManager } : {})
+    ...(es.packageManager !== null && es.packageManager !== undefined ? { packageManager: es.packageManager } : {}),
+    ...(es.productionDependencies !== undefined ? { productionDependencies: es.productionDependencies } : {})
   }
 });
