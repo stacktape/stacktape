@@ -282,6 +282,20 @@ const runHandler = (artifact: string) => {
 };
 
 /**
+ * @swc/core has this shape: with `externalHelpers`, code its native compiler emits imports `@swc/helpers`, an optional
+ * peer that the project installs when it relies on it.
+ */
+const swcCore = nativePackage(
+  '@swc/core',
+  { peerDependencies: { '@swc/helpers': '*' }, peerDependenciesMeta: { '@swc/helpers': { optional: true } } },
+  "exports.compile = () => require(['@swc', 'helpers', '_', '_class_call_check'].join('/')).name;"
+);
+const swcHelpers = {
+  'node_modules/@swc/helpers/package.json': manifest('@swc/helpers'),
+  'node_modules/@swc/helpers/_/_class_call_check.js': "exports.name = '_class_call_check';"
+};
+
+/**
  * The rule follows a production install (`npm install --omit=dev`): dependencies, optional dependencies and required
  * peers, and an optional peer only when the project depends on it in production.
  */
@@ -334,18 +348,11 @@ describe('packages a Lambda gets beside its bundle', () => {
   });
 
   test('include an optional peer that a left-out package loads by a name no code spells out, once the project depends on it', async () => {
-    // @swc/core has this shape: with `externalHelpers`, code its native compiler emits imports `@swc/helpers`, an
-    // optional peer that the project installs when it relies on it.
     const cwd = await createProject({
       'package.json': projectManifest({ dependencies: { '@swc/core': '*' } }),
       'handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
-      ...nativePackage(
-        '@swc/core',
-        { peerDependencies: { '@swc/helpers': '*' }, peerDependenciesMeta: { '@swc/helpers': { optional: true } } },
-        "exports.compile = () => require(['@swc', 'helpers', '_', '_class_call_check'].join('/')).name;"
-      ),
-      'node_modules/@swc/helpers/package.json': manifest('@swc/helpers'),
-      'node_modules/@swc/helpers/_/_class_call_check.js': "exports.name = '_class_call_check';"
+      ...swcCore,
+      ...swcHelpers
     });
 
     // Without it in the project's dependencies, a production install would not have it either.
@@ -371,18 +378,13 @@ describe('packages a Lambda gets beside its bundle', () => {
       'package.json': projectManifest({ dependencies: { '@swc/core': '*', pdf: '*' } }),
       'handler.ts':
         "import { compile } from '@swc/core'; import { render } from 'pdf'; export default async () => [compile(), render()];",
-      ...nativePackage(
-        '@swc/core',
-        { peerDependencies: { '@swc/helpers': '*' }, peerDependenciesMeta: { '@swc/helpers': { optional: true } } },
-        "exports.compile = () => require(['@swc', 'helpers', '_', '_class_call_check'].join('/')).name;"
-      ),
+      ...swcCore,
       'node_modules/pdf/package.json': manifest('pdf', { dependencies: { fontkit: '*' } }),
       'node_modules/pdf/index.js': "exports.render = () => require('fontkit').layout();",
       'node_modules/fontkit/package.json': manifest('fontkit', { dependencies: { '@swc/helpers': '*' } }),
       'node_modules/fontkit/index.js':
         "const { name } = require('@swc/helpers/_/_class_call_check'); exports.layout = () => `fontkit ${name}`;",
-      'node_modules/@swc/helpers/package.json': manifest('@swc/helpers'),
-      'node_modules/@swc/helpers/_/_class_call_check.js': "exports.name = '_class_call_check';"
+      ...swcHelpers
     });
 
     const result = await bundle(cwd, { packageExternalDependencies: true });
@@ -392,6 +394,46 @@ describe('packages a Lambda gets beside its bundle', () => {
     const execution = runHandler(artifact);
     expect(execution.status, execution.stderr).toBe(0);
     expect(JSON.parse(execution.stdout)).toEqual(['_class_call_check', 'fontkit _class_call_check']);
+  });
+
+  test('include an optional peer that the workspace package holding the code depends on, past a nested package.json', async () => {
+    // `src/package.json` only sets the module type; the workspace package's own manifest still lists `@swc/helpers`.
+    const cwd = await createProject({
+      'package.json': projectManifest({ workspaces: ['packages/*'] }),
+      'packages/app/package.json': manifest('app', { dependencies: { '@swc/core': '*', '@swc/helpers': '*' } }),
+      'packages/app/src/package.json': JSON.stringify({ type: 'commonjs' }),
+      'packages/app/src/handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
+      ...swcCore,
+      ...swcHelpers
+    });
+
+    await bundle(cwd, { packageExternalDependencies: true, entryfilePath: join(cwd, 'packages/app/src/handler.ts') });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
+  });
+
+  test('include the required peers of the workspace package holding the code, also when the project depends on it', async () => {
+    // npm installs a workspace package's required peers. Here `app` is both where the code comes from and a
+    // dependency of the project root, linked into `node_modules`.
+    const cwd = await createProject({
+      'package.json': projectManifest({ workspaces: ['packages/*'], dependencies: { app: '*' } }),
+      'packages/app/package.json': manifest('app', {
+        dependencies: { '@swc/core': '*' },
+        peerDependencies: { '@swc/helpers': '*' }
+      }),
+      'packages/app/handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
+      ...swcCore,
+      ...swcHelpers
+    });
+    await symlink(join('..', 'packages', 'app'), join(cwd, 'node_modules', 'app'));
+
+    await bundle(cwd, { packageExternalDependencies: true, entryfilePath: join(cwd, 'packages/app/handler.ts') });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
   });
 
   test('include the optional dependencies of a left-out package, which its commands load', async () => {
