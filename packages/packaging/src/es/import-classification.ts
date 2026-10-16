@@ -15,8 +15,8 @@
 import { isBuiltin } from 'node:module';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
-import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_OPTIONAL_PEER_DEPS } from './config';
-import { findInstalledPackage, readPackageManifest } from './installed-packages';
+import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE } from './config';
+import { findInstalledPackage, mayLoadDependency, readPackageManifest } from './installed-packages';
 import { getNativeReason } from './native-packages';
 import { readsOwnFilesAtRunTime } from './self-reading-packages';
 
@@ -118,9 +118,9 @@ const getExclusionNote = async ({
 
 /**
  * The packages a dependency needs installed beside the bundle: itself when it is native or excluded from the bundle,
- * and its installed peer dependencies that are native. A bundled package can reach a peer through a `require()` the
- * bundler cannot follow, so a native peer is installed even when nothing imports it directly. A pure-JavaScript peer
- * such as `zod` bundles safely.
+ * and its installed peer dependencies that are native and that it may load (`mayLoadDependency`). A bundled package
+ * can reach a peer through a `require()` the bundler cannot follow, so such a peer is installed even when nothing
+ * imports it directly. A pure-JavaScript peer such as `zod` bundles safely.
  *
  * Unreadable package metadata is not fatal: the import falls through to the bundler, which reports a resolution
  * failure with the context a packaging error here would lack.
@@ -144,19 +144,22 @@ const analyzeDependency = async ({
 
   const peerNames = new Set([
     ...Object.keys(manifest.peerDependencies ?? {}),
-    ...Object.keys(manifest.peerDependenciesMeta ?? {}).filter((name) => !IGNORED_OPTIONAL_PEER_DEPS.includes(name))
+    ...Object.keys(manifest.peerDependenciesMeta ?? {})
   ]);
   const nativePeers = await Promise.all(
     [...peerNames].map(async (peerName) => {
       const peerPath = await findInstalledPackage({ name: peerName, fromDirectory: dependency.path });
       const nativeReason = peerPath && (await getNativeReason(peerPath));
-      return nativeReason
-        ? describeInstalledPackage({
-            name: peerName,
-            path: peerPath,
-            note: `native peer of ${dependency.name}: ${nativeReason}`
-          })
-        : null;
+      if (!nativeReason) return null;
+      const dependencyManifest = await readPackageManifest(peerPath);
+      if (!(await mayLoadDependency({ packageRoot: dependency.path, manifest, name: peerName, dependencyManifest }))) {
+        return null;
+      }
+      return describeInstalledPackage({
+        name: peerName,
+        path: peerPath,
+        note: `native peer of ${dependency.name}: ${nativeReason}`
+      });
     })
   );
   for (const peer of nativePeers) if (peer) externalDependencies.push(peer);

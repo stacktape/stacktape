@@ -46,17 +46,20 @@ architecture and C library), never from a list of names; an install script alone
 `es/self-reading-packages` finds packages such as pdfkit that read a file they ship through a path built from
 `__dirname` or `import.meta.url`: only packages that ship data files are checked, and only the files their main entry
 point loads. A short list names the few packages that give no such sign. Both kinds leave the bundle the same way.
-`es/native-dependencies` copies each left-out package with everything it loads from the project's `node_modules`.
-`es/installed-packages` reads npm, pnpm, Yarn and Bun layouts alike and repeats the installed layout under the
-artifact's `node_modules/.installed`: each package's real directory once, at its path relative to the project, with the
-`node_modules` links that lead to it. Every package therefore resolves what it resolved on the build machine. The
-artifact's top-level `node_modules` links each package the bundle requires to the installation the bundle resolved. The
-Lambda archive stores the links; on Windows they are junctions. The digest covers the copied files and the links. Only a
-native package whose installed files do not run on Lambda is installed again, with npm in the Lambda build image, one
-installation per version, with its dependencies pinned to the installed ones; the artifact keeps the build machine's
-copies of those dependencies and takes only the rebuilt package and its platform packages from the image. On a Linux
-build machine with glibc that is rare, so most builds never start Docker. Externalizing a package never externalizes its
-dependencies: a bundled importer keeps its own copy.
+`es/native-dependencies` copies each left-out package with everything it loads from the project's `node_modules`. An
+optional dependency or optional peer counts as loaded only when it is a build for one platform or the package's code
+names it (`mayLoadDependency` in `es/installed-packages`). The same rule decides which native peers of a bundled package
+are installed: Prisma's optional TypeScript peer is never loaded and stays out. `es/installed-packages` reads npm, pnpm,
+Yarn and Bun layouts alike and repeats the installed layout under the artifact's `node_modules/.installed`: each
+package's real directory once, at its path relative to the project, with the `node_modules` links that lead to it. Every
+package therefore resolves what it resolved on the build machine. The artifact's top-level `node_modules` links each
+package the bundle requires to the installation the bundle resolved. The Lambda archive stores the links; on Windows
+they are junctions. The digest covers the copied files and the links. Only a native package whose installed files do not
+run on Lambda is installed again, with npm in the Lambda build image, one installation per version, with its
+dependencies pinned to the installed ones; the artifact keeps the build machine's copies of those dependencies and takes
+only the rebuilt package and its platform packages from the image. On a Linux build machine with glibc that is rare, so
+most builds never start Docker. Externalizing a package never externalizes its dependencies: a bundled importer keeps
+its own copy.
 
 ## Sensitive behavior
 

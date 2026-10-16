@@ -7,7 +7,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import type { PackagingProgressLogger } from '../../runtime-contracts';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -249,6 +249,68 @@ describe('packages that included files load', () => {
     });
     expect(execution.stderr).toBe('');
     expect(execution.stdout.trim()).toBe('..x');
+  });
+});
+
+const manifest = (name: string, fields: Record<string, unknown> = {}) =>
+  JSON.stringify({ name, version: '1.0.0', main: 'index.js', ...fields });
+/** A native package whose prebuilt addon runs on Lambda as installed, so no Docker build is needed. */
+const nativePackage = (name: string, fields: Record<string, unknown> = {}, code = `exports.name = '${name}';`) => ({
+  [`node_modules/${name}/package.json`]: manifest(name, fields),
+  [`node_modules/${name}/index.js`]: code,
+  [`node_modules/${name}/prebuilds/linux-x64/addon.node`]: 'addon',
+  [`node_modules/${name}/prebuilds/linux-arm64/addon.node`]: 'addon'
+});
+
+describe('packages a Lambda gets beside its bundle', () => {
+  test('are the native packages its code loads, without optional packages that no code names', async () => {
+    const cwd = await createProject({
+      'handler.ts':
+        "import { query } from 'orm'; import { render } from 'pdf'; export default async () => [query(), render()];",
+      // Bundled. It loads its database driver through a require the bundler cannot follow, as Sequelize does, and
+      // lists TypeScript as an optional peer it never loads, as Prisma does.
+      'node_modules/orm/package.json': manifest('orm', {
+        peerDependencies: { 'sqlite-driver': '*', typescript: '*' },
+        peerDependenciesMeta: { 'sqlite-driver': { optional: true }, typescript: { optional: true } }
+      }),
+      'node_modules/orm/index.js':
+        "const load = (name) => require(name); exports.query = () => load('sqlite-driver').name;",
+      ...nativePackage('sqlite-driver'),
+      // TypeScript 7 is native: it loads a compiler binary from a platform package.
+      ...nativePackage('typescript'),
+      // Left out of the bundle. It requires one of its optional dependencies when installed; nothing names the other.
+      ...nativePackage(
+        'pdf',
+        { dependencies: { fonts: '*' }, optionalDependencies: { 'fast-zlib': '*', 'pdf-dev-tools': '*' } },
+        "let zlib; try { zlib = require('fast-zlib'); } catch {} exports.render = () => [require('fonts').name, zlib?.name];"
+      ),
+      'node_modules/fonts/package.json': manifest('fonts'),
+      'node_modules/fonts/index.js': "exports.name = 'fonts';",
+      'node_modules/fast-zlib/package.json': manifest('fast-zlib'),
+      'node_modules/fast-zlib/index.js': "exports.name = 'fast-zlib';",
+      'node_modules/pdf-dev-tools/package.json': manifest('pdf-dev-tools'),
+      'node_modules/pdf-dev-tools/index.js': "exports.name = 'pdf-dev-tools';"
+    });
+
+    const result = await bundle(cwd, { packageExternalDependencies: true });
+
+    expect(result.languageSpecificBundleOutput.es.externalDependencies?.map(({ name }) => name).toSorted()).toEqual([
+      'pdf',
+      'sqlite-driver'
+    ]);
+    // Run outside the project, where only the artifact's own node_modules can be found, as on Lambda.
+    const artifact = await mkdtemp(join(tmpdir(), 'stacktape-es-artifact-'));
+    temporaryDirectories.push(artifact);
+    await cp(join(cwd, '.stacktape', 'dist'), artifact, { recursive: true, verbatimSymlinks: true });
+    const installed = join(artifact, 'node_modules', '.installed', 'node_modules');
+    expect(['typescript', 'pdf-dev-tools'].filter((name) => existsSync(join(installed, name)))).toEqual([]);
+    const url = JSON.stringify(pathToFileURL(join(artifact, 'index.js')).href);
+    const execution = runNode(
+      `const { default: handler } = await import(${url}); console.log(JSON.stringify(await handler()));`,
+      artifact
+    );
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual(['sqlite-driver', ['fonts', 'fast-zlib']]);
   });
 });
 

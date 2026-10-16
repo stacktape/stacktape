@@ -138,18 +138,23 @@ describe('installed package description', () => {
     const root = await mkdtemp(join(tmpdir(), 'stacktape-dependency-cycle-'));
     tempDirs.push(root);
     const nodeModules = join(root, 'node_modules');
-    // discord.js and @discordjs/builders have this shape: a dependency whose peer dependency is its own consumer.
+    // discord.js and @discordjs/builders have this shape: a dependency whose optional peer is its own consumer. The
+    // dependency's code loads that peer here, so the walk meets the cycle.
     await writePackage(join(nodeModules, 'client'), {
       name: 'client',
       version: '1.0.0',
       dependencies: { builders: '1.0.0' }
     });
-    await writePackage(join(nodeModules, 'builders'), {
-      name: 'builders',
-      version: '1.0.0',
-      peerDependencies: { client: '1.0.0' },
-      peerDependenciesMeta: { client: { optional: true } }
-    });
+    await writePackage(
+      join(nodeModules, 'builders'),
+      {
+        name: 'builders',
+        version: '1.0.0',
+        peerDependencies: { client: '1.0.0' },
+        peerDependenciesMeta: { client: { optional: true } }
+      },
+      { 'index.js': "exports.client = () => require('client');" }
+    );
 
     const packages = new Map<string, InstalledPackage>();
     await addRuntimeDependencies({ packages, start: [await realpath(join(nodeModules, 'client'))] });

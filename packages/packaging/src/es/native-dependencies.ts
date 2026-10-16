@@ -18,6 +18,7 @@ import { getFolderSizeBytes } from '../fs/files';
 import { IGNORED_MODULES } from './config';
 import {
   addRuntimeDependencies,
+  declaresPlatform,
   findInstalledPackage,
   getPackageFingerprint,
   planPackageLayout,
@@ -29,13 +30,7 @@ import {
   type PackageManifest,
   type PackageSource
 } from './installed-packages';
-import {
-  declaresPlatform,
-  getNativeReason,
-  isInstalledForLambda,
-  runsOnLambda,
-  type LambdaArchitecture
-} from './native-packages';
+import { getNativeReason, isInstalledForLambda, runsOnLambda, type LambdaArchitecture } from './native-packages';
 
 export type RunDocker = (commands: string[]) => Promise<unknown>;
 
