@@ -17,6 +17,12 @@ The first v4 deployment adds a log subscription filter to every function and con
 
 Container services without gradual deployments shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
 
+## Target AWS account
+
+v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected with Stacktape-managed access. They deployed to `--awsAccount`, the saved default, or the organization's only connected account. In v4, when `--awsAccount` is not set, `--profile`, `AWS_PROFILE` or AWS keys in the environment choose the connected account they belong to. If they belong to an account that is not connected, the command stops before changing anything.
+
+Check scripts and CI jobs that set an AWS profile or AWS keys for a different account than the one they deploy to. Pass `--awsAccount <name>` in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
 ## Packaging
 
 v4 replaces the v3 packaging types with a smaller set:

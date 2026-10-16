@@ -109,10 +109,18 @@ Includes sensitive values in deploy output. Handle with care.
 stacktape deploy --stage production --region us-east-1
 ```
 
-### Deploy with a specific AWS profile and project
+### Deploy to the account of an AWS profile
+
+The deploy goes to the connected AWS account that `my-aws-profile` belongs to. It fails if that account is not connected to your organization.
 
 ```bash
 stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
+```
+
+### Deploy to a named connected account
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --awsAccount production
 ```
 
 ### Deploy everything through CloudFormation

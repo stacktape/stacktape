@@ -153,6 +153,10 @@ Each stage is deployed as its own CloudFormation stack with its own resources an
 
 You need to connect an AWS account before deploying. Open the connected AWS accounts page in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) and follow the connection flow described in Step 2.
 
+### "belongs to AWS account …, which is not connected"
+
+`--profile`, `AWS_PROFILE` or AWS keys in your environment point to an AWS account that is not connected to your organization. Stacktape deploys to the account your local AWS credentials belong to. Unset them, pass `--awsAccount <name>`, or connect that account. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
 ### Deploy takes longer than expected
 
 First deploys take longer because every resource must be created from scratch. Databases and container services take longer to provision than Lambda functions. Subsequent deploys that only change code take seconds, because Stacktape updates the code directly.

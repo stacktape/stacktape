@@ -222,6 +222,8 @@ const pollForAwsConnection = async (
  * This function initializes stacktapeTrpcApiManager and loads user data into globalStateManager.
  */
 export const ensureAwsAccountConnected = async (): Promise<void> => {
+  // The account of local AWS credentials is looked up while the Console answers.
+  globalStateManager.startLocalAwsAccountResolution();
   // Initialize API and load user data
   await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
   const currentUserAndOrgData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
@@ -231,8 +233,13 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
 
   // If user has connected accounts, we're good - let normal flow handle account selection
   if (currentUserAndOrgData.connectedAwsAccounts.length > 0) {
-    // If multiple accounts and no --awsAccount specified, prompt to select
-    if (currentUserAndOrgData.connectedAwsAccounts.length > 1 && !globalStateManager.args.awsAccount) {
+    await globalStateManager.selectAwsAccountFromLocalCredentials();
+    // If multiple accounts and neither --awsAccount nor local credentials chose one, prompt to select
+    if (
+      currentUserAndOrgData.connectedAwsAccounts.length > 1 &&
+      !globalStateManager.args.awsAccount &&
+      !globalStateManager.awsAccountFromLocalCredentials
+    ) {
       if (!process.stdout.isTTY) {
         throw stpErrors.e67({
           organizationName: currentUserAndOrgData.organization.name,

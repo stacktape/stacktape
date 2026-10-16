@@ -429,7 +429,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The CLI process cancels destructive prompts, enforces termination protection and recovers failed rollbacks while observing artifacts in MiniStack.',
+      'The CLI process cancels destructive prompts, enforces termination protection, recovers failed rollbacks while observing artifacts in MiniStack, and targets the AWS account local credentials select.',
     selections: ['cli-stack-operations']
   },
   {
@@ -4104,7 +4104,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/identity.test.ts',
       'apps/cli/src/app/global-state-manager/credential-refresh.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-source.test.ts',
+      'apps/cli/src/app/global-state-manager/local-aws-account.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
+      'apps/cli/tests/cli-process/aws-account-selection.spec.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
@@ -4122,7 +4124,7 @@ export const slices: readonly Slice[] = [
       'packages/console-api/src/source-maps.test.ts',
       'packages/console-api/src/stages.test.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'console-api-test', 'console-database-cli-console']
+    lanes: ['cli', 'cli-2', 'cli-3', 'cli-stack-operations', 'console-api-test', 'console-database-cli-console']
   },
   {
     id: 'S19',

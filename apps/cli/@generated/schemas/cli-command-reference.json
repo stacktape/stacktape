@@ -158,7 +158,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -204,7 +204,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -417,7 +417,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -471,7 +471,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -564,7 +564,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -637,7 +637,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -730,7 +730,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -812,7 +812,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -887,7 +887,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -986,7 +986,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -1088,7 +1088,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1134,7 +1134,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -1200,7 +1200,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1264,7 +1264,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -1384,7 +1384,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1457,7 +1457,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -1559,7 +1559,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1641,7 +1641,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -1727,7 +1727,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -1791,7 +1791,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -1893,7 +1893,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2020,7 +2020,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -2134,7 +2134,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2198,7 +2198,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -2299,7 +2299,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2407,7 +2407,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -2495,7 +2495,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2549,7 +2549,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -2624,7 +2624,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2697,7 +2697,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -2772,7 +2772,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -2818,7 +2818,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -3259,7 +3259,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3366,7 +3366,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3412,7 +3412,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -3503,7 +3503,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3876,7 +3876,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -3922,7 +3922,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -3965,7 +3965,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4011,7 +4011,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -4095,7 +4095,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4186,7 +4186,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -4380,7 +4380,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4435,7 +4435,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -4737,7 +4737,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -4830,7 +4830,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -4885,7 +4885,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -5115,7 +5115,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5212,7 +5212,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -5313,7 +5313,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5410,7 +5410,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -5512,7 +5512,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5618,7 +5618,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -5727,7 +5727,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5809,7 +5809,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -5892,7 +5892,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -5965,7 +5965,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -6062,7 +6062,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6135,7 +6135,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -6242,7 +6242,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6288,7 +6288,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -6363,7 +6363,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6409,7 +6409,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -6484,7 +6484,7 @@
     },
     {
       "name": "awsAccount",
-      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).",
+      "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
       "required": false,
       "alias": "aa",
       "allowedTypes": [
@@ -6539,7 +6539,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -6714,7 +6714,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [
@@ -6873,7 +6873,7 @@
     },
     {
       "name": "profile",
-      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected.",
       "required": false,
       "alias": "p",
       "allowedTypes": [

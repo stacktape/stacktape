@@ -65,7 +65,8 @@ Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory
 | `--noCache` | Force fresh builds, ignoring cached artifacts. |
 | `--preserveTempFiles` | Keep generated CloudFormation templates for inspection. |
 | `--logLevel` | Set to `debug` for verbose output. |
-| `--awsProfile` | AWS profile to use instead of the default. |
+| `--awsAccount` | Connected AWS account to deploy to. |
+| `--profile` (`-p`) | AWS profile. Without `--awsAccount`, the deploy goes to the connected account this profile belongs to. |
 | `--projectName` | Stacktape project name. |
 
 For the full flag reference with all available options and short aliases, see the [`deploy` CLI reference](/cli/deploy).
