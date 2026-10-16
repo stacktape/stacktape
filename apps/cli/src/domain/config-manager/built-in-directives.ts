@@ -4,8 +4,10 @@ import type { Directive } from '@domain-services/config-manager/directive-types'
 import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
 import type { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import type { stackManager } from '@domain-services/cloudformation-stack-manager';
+import type { configManager } from '@domain-services/config-manager';
 import type { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import type { templateManager } from '@domain-services/template-manager';
+import { getReferenceableParamNames, isReferenceableParam } from '@stacktape/config-authoring/resource-metadata';
 import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { serialize } from '@utils/misc';
@@ -24,6 +26,7 @@ import { configErrors } from './errors';
 export type BuiltInDirectiveContext = Readonly<{
   runtime: Readonly<{
     calculatedStackOverviewManager: Pick<typeof calculatedStackOverviewManager, 'getStpResource'>;
+    configManager: Pick<typeof configManager, 'findResourceInConfig'>;
     deployedStackOverviewManager: Pick<typeof deployedStackOverviewManager, 'getStpResource'>;
     stackManager: Pick<typeof stackManager, 'getExistingResourceDetails' | 'existingStackDetails'>;
     templateManager: Pick<typeof templateManager, 'template' | 'addFinalTemplateOverrideFn' | 'addStackOutput'>;
@@ -81,7 +84,7 @@ const withAwsAccount = (directive: Directive, ensureAwsAccount: () => Promise<vo
 };
 
 export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Directive[] => {
-  const { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager } =
+  const { calculatedStackOverviewManager, configManager, deployedStackOverviewManager, stackManager, templateManager } =
     context.runtime;
   const directives: Directive[] = [
     {
@@ -206,39 +209,47 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         }
         return resource.referencableParams[property].value;
       },
-      localResolveFunction: (configResolver) => (resourceReference: string, property: string) => {
-        const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });
-        const value = resource?.referencableParams?.[property]?.value;
-        const isLocalInvoke = context.command === 'dev';
-        if (!resource) {
-          const [resourceName] = resourceReference.split('.');
-          const isConfigured = Object.hasOwn(configResolver.rawConfig?.resources ?? {}, resourceName);
-          throw (isConfigured ? configErrors.directiveResourceNotDeployed : configErrors.directiveResourceNotFound)({
+      // Reads the deployed stack. A parameter can be missing there because its resource is not deployed yet or because
+      // this deployment adds it, such as `customDomainUrl` of an API that gets its first custom domain; a name the
+      // resource type never exposes is a mistake in the configuration.
+      localResolveFunction: () => (resourceReference: string, property: string) => {
+        const deployedResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });
+        const value = deployedResource?.referencableParams?.[property]?.value;
+        if (value !== undefined && value !== null) {
+          return value;
+        }
+        const configured = configManager.findResourceInConfig({ nameChain: resourceReference });
+        const resourceType = (configured.fullyResolved && configured.resource?.type) || deployedResource?.resourceType;
+        if (!resourceType) {
+          throw configErrors.directiveResourceNotFound({
             resourceName: resourceReference,
             directiveType: '$ResourceParam'
           });
         }
-        if (resource.referencableParams?.[property] === undefined) {
+        if (!isReferenceableParam(resourceType, property)) {
           throw configErrors.directiveResourceParameterInvalid({
             resourceName: resourceReference,
             referencedParam: property,
-            referencableParams: Object.keys(resource.referencableParams || {}),
+            referencableParams: getReferenceableParamNames(resourceType),
             directiveType: '$ResourceParam'
           });
         }
-        if (value === undefined || value === null) {
-          if (isLocalInvoke && context.disableEmulation) {
-            return IDENTIFIER_FOR_MISSING_OUTPUT;
-          }
-          throw new CliError({
-            category: 'DIRECTIVE',
-            code: 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED',
-            message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`,
-            hints: isLocalInvoke ? getDisableEmulationHint() : undefined
+        if (!deployedResource) {
+          throw configErrors.directiveResourceNotDeployed({
+            resourceName: resourceReference,
+            directiveType: '$ResourceParam'
           });
         }
-
-        return value;
+        const isLocalInvoke = context.command === 'dev';
+        if (isLocalInvoke && context.disableEmulation) {
+          return IDENTIFIER_FOR_MISSING_OUTPUT;
+        }
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED',
+          message: `Resource \`${resourceReference}\` has no deployed value of \`${property}\` yet.`,
+          hints: isLocalInvoke ? getDisableEmulationHint() : undefined
+        });
       }
     },
     {

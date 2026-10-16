@@ -84,6 +84,7 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
     builtInDirectives: {
       runtime: {
         calculatedStackOverviewManager,
+        configManager,
         deployedStackOverviewManager,
         stackManager,
         templateManager

@@ -6,4 +6,3 @@ export type StpEventBus = EventBus['properties'] & {
   configParentResourceType: EventBus['type'];
   nameChain: string[];
 };
-export type EventBusReferencableParam = 'arn' | 'archiveArn';

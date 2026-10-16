@@ -39,4 +39,3 @@ export type StpHelperLambdaFunction = Omit<StpLambdaFunction, 'packaging'> & {
   artifactPath: string;
   runtime: LambdaRuntime;
 };
-export type FunctionReferencableParam = 'arn' | 'logGroupArn';

@@ -1,0 +1,13 @@
+{
+  "name": "referenceable-params-web",
+  "private": true,
+  "dependencies": {
+    "@remix-run/node": "2.0.0",
+    "@solidjs/start": "1.0.0",
+    "@sveltejs/kit": "2.0.0",
+    "@tanstack/react-start": "1.0.0",
+    "astro": "5.0.0",
+    "next": "15.0.0",
+    "nuxt": "3.0.0"
+  }
+}

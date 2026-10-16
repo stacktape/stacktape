@@ -42,7 +42,13 @@ const fixtureAuthoringParams: GetConfigParams = {
 const fixtureResolverContext = {
   authoringParams: fixtureAuthoringParams,
   builtInDirectives: {
-    runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
+    runtime: {
+      calculatedStackOverviewManager,
+      configManager,
+      deployedStackOverviewManager,
+      stackManager,
+      templateManager
+    },
     accountId: '123456789999',
     additionalArgs: {},
     awsProfile: '',
@@ -174,7 +180,13 @@ const getInitContext = ({
     resolver: {
       authoringParams,
       builtInDirectives: {
-        runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
+        runtime: {
+          calculatedStackOverviewManager,
+          configManager,
+          deployedStackOverviewManager,
+          stackManager,
+          templateManager
+        },
         accountId,
         additionalArgs: {},
         awsProfile: '',

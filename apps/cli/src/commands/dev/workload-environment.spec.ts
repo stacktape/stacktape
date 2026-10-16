@@ -18,7 +18,13 @@ beforeAll(() => {
   configManager.configResolver.setContext({
     authoringParams: { stage: 'local', region: 'eu-west-1', cliArgs: {}, command: 'dev', awsProfile: '' },
     builtInDirectives: {
-      runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
+      runtime: {
+        calculatedStackOverviewManager,
+        configManager,
+        deployedStackOverviewManager,
+        stackManager,
+        templateManager
+      },
       accountId: '123456789999',
       additionalArgs: {},
       awsProfile: '',

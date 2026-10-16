@@ -2,6 +2,7 @@ import { CreateSecretCommand, PutSecretValueCommand, SecretsManagerClient } from
 import { PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import type { ConfigResolverContext } from '@domain-services/config-manager/config-resolver';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -43,6 +44,7 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
     builtInDirectives: {
       runtime: {
         calculatedStackOverviewManager,
+        configManager,
         deployedStackOverviewManager,
         stackManager: {
           getExistingResourceDetails: stackManager.getExistingResourceDetails,

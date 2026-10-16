@@ -158,12 +158,13 @@ const HOST_DOCKER_PLATFORM = process.arch === 'arm64' ? 'linux/arm64' : 'linux/a
 const NOT_DEPLOYED_YET_CODES = new Set(['DIRECTIVE_RESOURCE_NOT_DEPLOYED', 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED']);
 
 /**
- * The environment a web build runs with. Each variable resolves on its own. A variable that reads a resource of this
- * stack that is not deployed yet, as on the first deployment, is left out of the build with a warning: the build
- * cannot have its value. Any other error stops the build, named with its variable: building without a value the
- * configuration asks for, such as a secret that cannot be read, produces a broken site.
+ * The environment a web build runs with. Each variable resolves on its own. A variable that reads a value of this
+ * stack that is not deployed yet is left out of the build with a warning: the build cannot have it. That happens on
+ * the first deployment, or when this deployment adds the value, such as the URL of a first custom domain. Any other
+ * error stops the build, named with its variable: building without a value the configuration asks for, such as a
+ * secret that cannot be read or a parameter name the resource does not have, produces a broken site.
  */
-const resolveWebBuildEnvironment = async ({
+export const resolveWebBuildEnvironment = async ({
   resourceName,
   environment
 }: {

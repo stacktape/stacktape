@@ -1,4 +1,3 @@
-import type { CdnReferenceableParam } from '@domain-services/config-manager/resolved-types/cdn';
 import type { AstroWeb } from '@stacktape/config/astro-web';
 import type { Bucket } from '@stacktape/config/buckets';
 import type { Convex } from '@stacktape/config/convex';
@@ -26,4 +25,3 @@ export type StpBucket = Bucket['properties'] & {
     | Convex['type'];
   nameChain: string[];
 };
-export type BucketReferencableParam = 'name' | 'arn' | CdnReferenceableParam;

@@ -6,4 +6,3 @@ export type StpKinesisStream = KinesisStream['properties'] & {
   configParentResourceType: KinesisStream['type'];
   nameChain: string[];
 };
-export type KinesisStreamReferencableParam = 'arn' | 'name';

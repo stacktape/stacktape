@@ -6,5 +6,3 @@ export type StpAppSyncApi = AppSyncApi['properties'] & {
   configParentResourceType: AppSyncApi['type'];
   nameChain: string[];
 };
-
-export type AppSyncApiReferencableParam = 'apiId' | 'arn' | 'url' | 'realtimeUrl' | 'customDomainUrl' | 'apiKey';

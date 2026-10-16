@@ -6,5 +6,3 @@ export type StpKafkaCluster = KafkaCluster['properties'] & {
   configParentResourceType: KafkaCluster['type'];
   nameChain: string[];
 };
-
-export type KafkaClusterReferencableParam = 'arn' | 'name' | 'bootstrapServers';

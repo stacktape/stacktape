@@ -10,7 +10,7 @@
  *
  * A web build resolves its environment variables one by one. A variable that reads a resource of the stack is left out
  * with a warning, as `package` does not read the deployed stack; any other failure, such as unusable credentials, a
- * refused or missing secret or a typo in a resource name, stops the build before it runs. The build command is a
+ * refused or missing secret or a typo in a resource or parameter name, stops the build before it runs. The build command is a
  * local script that records its environment.
  */
 import { afterEach, describe, expect, test as bunTest } from 'bun:test';
@@ -127,17 +127,19 @@ const startAwsFake = async () => {
 /**
  * Packages a one-function project. `entry` is the entry file's name without extension, which may be a directive;
  * the project has `handler.ts` and one file for each account, so only the right account finds its file. `resources`
- * replaces the function with other resources.
+ * replaces the function with other resources; `resourcesFromVariable` supplies them through `$Var()`.
  */
 const runPackage = async ({
   awsEndpoint,
   entry = 'src/handler.ts',
   resources,
+  resourcesFromVariable = false,
   environment = {}
 }: {
   awsEndpoint: string;
   entry?: string;
   resources?: string[];
+  resourcesFromVariable?: boolean;
   environment?: Record<string, string>;
 }) => {
   const home = await mkdtemp(join(tmpdir(), 'stacktape-package-without-aws-'));
@@ -171,19 +173,26 @@ const runPackage = async ({
   await writeFile(join(project, 'node_modules', '.bin', 'capture-env'), '#!/bin/sh\nenv > build-env.txt\n', {
     mode: 0o755
   });
+  const resourceLines = resources ?? [
+    '  api:',
+    '    type: function',
+    '    properties:',
+    '      packaging:',
+    '        type: js-bundle',
+    '        properties:',
+    `          entryfilePath: ${JSON.stringify(entry)}`
+  ];
   await writeFile(
     join(project, 'stacktape.yml'),
     [
-      'resources:',
-      ...(resources ?? [
-        '  api:',
-        '    type: function',
-        '    properties:',
-        '      packaging:',
-        '        type: js-bundle',
-        '        properties:',
-        `          entryfilePath: ${JSON.stringify(entry)}`
-      ]),
+      ...(resourcesFromVariable
+        ? [
+            'variables:',
+            '  allResources:',
+            ...resourceLines.map((line) => `  ${line}`),
+            'resources: $Var().allResources'
+          ]
+        : ['resources:', ...resourceLines]),
       ''
     ].join('\n')
   );
@@ -398,6 +407,46 @@ describe('stacktape package without AWS', () => {
     expect(run.buildEnvironment, run.output).toContain('PLAIN=kept');
     expect(run.buildEnvironment?.some((line) => line.startsWith('TABLE='))).toBe(false);
     expect(run.output).toContain('Building `web` without environment variable `TABLE`');
+  });
+
+  test('a web variable that reads a resource supplied through a directive is left out with a warning', async () => {
+    const aws = await startAwsFake();
+    const run = await runPackage({
+      awsEndpoint: aws.endpoint,
+      resources: [
+        ...recordsTable,
+        ...webResources([
+          '        - name: PLAIN',
+          '          value: kept',
+          '        - name: TABLE',
+          "          value: $ResourceParam('records', 'name')"
+        ])
+      ],
+      resourcesFromVariable: true,
+      environment: withKeys
+    });
+
+    expect(run.output).not.toContain('DIRECTIVE_RESOURCE_NOT_FOUND');
+    expect(run.buildEnvironment, run.output).toContain('PLAIN=kept');
+    expect(run.buildEnvironment?.some((line) => line.startsWith('TABLE='))).toBe(false);
+    expect(run.output).toContain('Building `web` without environment variable `TABLE`');
+  });
+
+  test('a web variable with a parameter name its resource does not have stops the build and lists the names', async () => {
+    const aws = await startAwsFake();
+    const run = await runPackage({
+      awsEndpoint: aws.endpoint,
+      resources: [
+        ...recordsTable,
+        ...webResources(['        - name: TABLE', "          value: $ResourceParam('records', 'nmae')"])
+      ],
+      environment: withKeys
+    });
+
+    expect(run.exitCode, run.output).not.toBe(0);
+    expect(run.output).toContain('Cannot resolve environment variable `TABLE` for the build of `web`');
+    expect(run.output).toContain('Available parameters: name, arn, streamArn.');
+    expect(run.buildEnvironment).toBeUndefined();
   });
 
   test('a web variable that reads a resource missing from the configuration stops the build', async () => {
