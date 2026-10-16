@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { createPackageAnalysisCache } from './installed-packages';
 import { readsOwnFilesAtRunTime } from './self-reading-packages';
 
 const root = await mkdtemp(join(tmpdir(), 'stp-self-reading-'));
@@ -126,7 +127,7 @@ describe('packages that read their own files at run time', () => {
     }
   ])('$label', async ({ label, manifest, files, reads }) => {
     const packageRoot = await installPackage(label.split(':')[0]!.replace(/\W+/g, '-'), manifest, files);
-    expect(await readsOwnFilesAtRunTime(packageRoot)).toBe(reads);
+    expect(await readsOwnFilesAtRunTime(packageRoot, createPackageAnalysisCache())).toBe(reads);
   });
 
   test('a package known to read its files without a sign of it', async () => {
@@ -137,6 +138,6 @@ describe('packages that read their own files at run time', () => {
         'build/index.js': 'module.exports = { executablePath: async (input) => input };'
       }
     );
-    expect(await readsOwnFilesAtRunTime(packageRoot)).toBe(true);
+    expect(await readsOwnFilesAtRunTime(packageRoot, createPackageAnalysisCache())).toBe(true);
   });
 });

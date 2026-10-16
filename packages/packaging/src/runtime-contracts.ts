@@ -1,4 +1,4 @@
-import type { ProductionDependencyCache } from './es/installed-packages';
+import type { PackageAnalysisCache } from './es/installed-packages';
 import type {
   JsBundleLambdaPackagingProps,
   JsBundleSharedProps,
@@ -224,7 +224,7 @@ export type EsBuildActions = LanguageBuildActions & {
   nativeDependencyInstallationRootPath: string;
   sourceMapInstallPath?: string | undefined;
   /** Shared by every function of one build, so the project's production install is worked out once. */
-  productionDependencyCache?: ProductionDependencyCache | undefined;
+  packageAnalysisCache?: PackageAnalysisCache | undefined;
 };
 
 export type StpBuildpackInput = {

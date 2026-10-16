@@ -2,7 +2,7 @@
  * Type definitions for the split bundler module.
  */
 
-import type { ProductionDependencyCache } from '../es/installed-packages';
+import type { PackageAnalysisCache } from '../es/installed-packages';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 
 /** Bun.build metafile input entry */
@@ -194,5 +194,5 @@ export type BuildSplitBundleOptions = {
   /** Preserves the application's typed PACKAGING error contract without importing application code. */
   createPackagingError: (details: PackagingErrorDetails) => Error;
   /** The build's cache when other functions are packaged beside this split build; a new one otherwise. */
-  productionDependencyCache?: ProductionDependencyCache | undefined;
+  packageAnalysisCache?: PackageAnalysisCache | undefined;
 };

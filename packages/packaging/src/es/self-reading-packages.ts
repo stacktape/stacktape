@@ -16,7 +16,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
-import { getManifestSignature, readPackageManifest } from './installed-packages';
+import { readPackageManifest, remember, type PackageAnalysisCache } from './installed-packages';
 
 /** Packages that read their own files without the sign the check looks for. */
 const PACKAGES_READING_OWN_FILES = new Set([
@@ -182,23 +182,13 @@ const findOwnFileRead = async (packageRoot: string, followImports: boolean): Pro
   return false;
 };
 
-const resultsByPackage = new Map<string, { signature: string; result: Promise<boolean> }>();
-
-/**
- * Whether the installed package at `packageRoot` reads its own files at run time. An answer worked out earlier in this
- * process is reused while the package's manifest is unchanged: an install in place can change the package's files.
- */
-export const readsOwnFilesAtRunTime = async (packageRoot: string): Promise<boolean> => {
-  const signature = await getManifestSignature(packageRoot).catch(() => undefined);
-  if (signature === undefined) return false;
-  const cached = resultsByPackage.get(packageRoot);
-  if (cached?.signature === signature) return cached.result;
-  const result = (async () => {
-    const { name } = await readPackageManifest(packageRoot);
-    if (PACKAGES_READING_OWN_FILES.has(name ?? '')) return true;
-    // A package that ships only code can still read its own scripts; its entry points are checked for that.
-    return findOwnFileRead(packageRoot, await shipsDataFiles(packageRoot));
-  })().catch(() => false);
-  resultsByPackage.set(packageRoot, { signature, result });
-  return result;
-};
+/** Whether the installed package at `packageRoot` reads its own files at run time; checked once per build. */
+export const readsOwnFilesAtRunTime = (packageRoot: string, cache: PackageAnalysisCache): Promise<boolean> =>
+  remember(cache.readsOwnFiles, packageRoot, () =>
+    (async () => {
+      const { name } = await readPackageManifest(packageRoot);
+      if (PACKAGES_READING_OWN_FILES.has(name ?? '')) return true;
+      // A package that ships only code can still read its own scripts; its entry points are checked for that.
+      return findOwnFileRead(packageRoot, await shipsDataFiles(packageRoot));
+    })().catch(() => false)
+  );

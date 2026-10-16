@@ -13,8 +13,9 @@ import { open, readdir, readFile } from 'node:fs/promises';
 import { extname, join, relative, sep } from 'node:path';
 import {
   findInstalledPackage,
-  getManifestSignature,
   readPackageManifest,
+  remember,
+  type PackageAnalysisCache,
   type PackageManifest
 } from './installed-packages';
 
@@ -49,7 +50,7 @@ type CompiledFormat = 'linux-x64' | 'linux-arm64' | 'linux-musl' | 'linux-other'
 
 type CompiledFile = { path: string; format: CompiledFormat };
 
-type NativeFiles = {
+export type NativeFiles = {
   /** Compiled addons (`*.node`), relative to the package directory. */
   addons: string[];
   /** Every compiled file, addons included, such as an `ffmpeg` an install script downloaded, outside `prebuilds/`. */
@@ -130,17 +131,9 @@ const scanNativeFiles = async (packageRoot: string): Promise<NativeFiles> => {
   return { addons, compiled, hasBindingGyp: existsSync(join(packageRoot, 'binding.gyp')), prebuildPlatforms };
 };
 
-const nativeFilesByPackage = new Map<string, { signature: string; found: Promise<NativeFiles> }>();
-
-/** `scanNativeFiles`, reused while the package's manifest is unchanged: an install in place can add an addon. */
-const findNativeFiles = async (packageRoot: string): Promise<NativeFiles> => {
-  const signature = await getManifestSignature(packageRoot);
-  const cached = nativeFilesByPackage.get(packageRoot);
-  if (cached?.signature === signature) return cached.found;
-  const found = scanNativeFiles(packageRoot);
-  nativeFilesByPackage.set(packageRoot, { signature, found });
-  return found;
-};
+/** `scanNativeFiles`, done once per package in a build (`PackageAnalysisCache`). */
+const findNativeFiles = (packageRoot: string, cache: PackageAnalysisCache): Promise<NativeFiles> =>
+  remember(cache.nativeFiles, packageRoot, () => scanNativeFiles(packageRoot));
 
 /**
  * The installed optional dependencies that are builds for one platform, as napi-rs and esbuild publish their binaries:
@@ -164,12 +157,15 @@ const findPlatformPackages = async (packageRoot: string, manifest: PackageManife
  * An install script alone does not count: many pure JavaScript packages print a message after installing. What an
  * install script builds or downloads is found among the package's files.
  */
-export const getNativeReason = async (packageRoot: string): Promise<string | undefined> => {
+export const getNativeReason = async (
+  packageRoot: string,
+  cache: PackageAnalysisCache
+): Promise<string | undefined> => {
   const manifest = await readPackageManifest(packageRoot);
   if (declaresPlatform(manifest)) return 'built for one platform';
   if (manifest.gypfile || manifest.binary?.module_path) return 'native addon';
   if ((await findPlatformPackages(packageRoot, manifest)).length > 0) return 'platform-specific binaries';
-  const { addons, compiled, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot);
+  const { addons, compiled, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot, cache);
   if (addons.length > 0 || hasBindingGyp || prebuildPlatforms.length > 0) return 'native addon';
   if (compiled.length > 0) return 'contains compiled programs';
   return undefined;
@@ -185,14 +181,18 @@ export const getNativeReason = async (packageRoot: string): Promise<string | und
  * machine. Anything else an install script left behind, and any other
  * compiled file, was chosen for this machine, so it is used only when this machine is Lambda's platform.
  */
-export const isInstalledForLambda = async (packageRoot: string, architecture: LambdaArchitecture) => {
+export const isInstalledForLambda = async (
+  packageRoot: string,
+  architecture: LambdaArchitecture,
+  cache: PackageAnalysisCache
+) => {
   const manifest = await readPackageManifest(packageRoot);
   if (declaresPlatform(manifest) && !runsOnLambda(manifest, architecture)) return false;
 
   const platformPackages = await findPlatformPackages(packageRoot, manifest);
   if (platformPackages.length > 0) return platformPackages.some((installed) => runsOnLambda(installed, architecture));
 
-  const { addons, compiled, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot);
+  const { addons, compiled, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot, cache);
   if (addons.some((addon) => addon.split(sep)[0] === 'build')) return false;
   if ((manifest.gypfile || hasBindingGyp) && addons.length === 0) return false;
   if (prebuildPlatforms.length > 0) return prebuildPlatforms.includes(`linux-${architecture}`);

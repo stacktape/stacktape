@@ -609,6 +609,29 @@ describe('packages a Lambda gets beside its bundle', () => {
     expect(JSON.parse(execution.stdout)).toBe('hello from a file');
   });
 
+  test('include a package that a patch between two builds in one process makes read its own files', async () => {
+    // patch-package and a manual edit change a package's code and leave its package.json alone.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { greeting: '*' } }),
+      'handler.ts': "import { text } from 'greeting'; export default async () => text();",
+      'node_modules/greeting/package.json': manifest('greeting'),
+      'node_modules/greeting/index.js': "exports.text = () => 'hello';"
+    });
+    const first = await bundle(cwd, { packageExternalDependencies: true });
+    expect(first.languageSpecificBundleOutput.es.externalDependencies ?? []).toEqual([]);
+
+    await mkdir(join(cwd, 'node_modules/greeting/data'));
+    await writeFile(join(cwd, 'node_modules/greeting/data/greeting.txt'), 'hello from a file');
+    await writeFile(
+      join(cwd, 'node_modules/greeting/index.js'),
+      "const fs = require('fs'); exports.text = () => fs.readFileSync(__dirname + '/data/greeting.txt', 'utf8');"
+    );
+    await bundle(cwd, { packageExternalDependencies: true });
+    const execution = runHandler((await copyArtifact(cwd)).artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('hello from a file');
+  });
+
   test('include the optional dependencies of a left-out package, which its commands load', async () => {
     // bunyan has this shape: its `bin/bunyan` command, a script without an extension, requires its optional
     // dependency `moment`.
