@@ -280,22 +280,18 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
       }
     },
     {
-      name: 'a task still pending keeps the deployment waiting',
-      plan: {
-        deployment,
-        service: behindTargetGroup,
-        containerDefinitions: withoutHealthCheck,
-        tasks: [a, newTask('b', { lastStatus: 'PENDING' })]
-      },
-      expected: { verdict: 'waiting', reason: '1 of 2 new tasks running' }
+      name: 'a task not started yet keeps the deployment waiting',
+      plan: { deployment, service: behindTargetGroup, containerDefinitions: withoutHealthCheck, tasks: [a] },
+      expected: { verdict: 'waiting', reason: '1 of 2 new tasks started' }
     },
     {
-      name: 'a task still activating counts once its target is healthy',
+      // ECS reports the task ACTIVATING or RUNNING seconds after the load balancer reported its target healthy.
+      name: 'a task ECS still reports pending counts once its target is healthy',
       plan: {
         deployment,
         service: behindTargetGroup,
         containerDefinitions: withoutHealthCheck,
-        tasks: [a, newTask('b', { lastStatus: 'ACTIVATING' })]
+        tasks: [newTask('a', { lastStatus: 'PENDING' }), newTask('b', { lastStatus: 'ACTIVATING' })]
       },
       expected: {
         verdict: 'check',
@@ -314,7 +310,7 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
         containerDefinitions: withoutHealthCheck,
         tasks: [a, newTask('b', { desiredStatus: 'STOPPED' })]
       },
-      expected: { verdict: 'waiting', reason: '1 of 2 new tasks running' }
+      expected: { verdict: 'waiting', reason: '1 of 2 new tasks started' }
     },
     {
       name: 'a container health check must pass even behind a target group',
@@ -500,7 +496,9 @@ describe('a rolling update that finishes once the new tasks serve', () => {
       }) as ServiceDiscoverySend
     });
 
-    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-targets-healthy'
+    });
     // The second read finds both healthy; the third confirms them after the routing allowance.
     expect(targetReads).toBe(3);
     expect(instanceReads).toBe(3);
@@ -558,7 +556,9 @@ describe('a rolling update that finishes once the new tasks serve', () => {
       stateOf: (_, read) => (read === 0 || read === 2 ? 'initial' : 'healthy')
     });
 
-    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-targets-healthy'
+    });
     const waited = performance.now() - healthySince(TARGET_GROUP);
     expect(reads.map(({ state }) => state)).toEqual(['initial', 'healthy', 'initial', 'healthy', 'healthy']);
     // Timers may fire a millisecond early.
@@ -574,7 +574,9 @@ describe('a rolling update that finishes once the new tasks serve', () => {
       stateOf: (targetGroupArn, read) => (targetGroupArn === TARGET_GROUP || read >= 2 ? 'healthy' : 'initial')
     });
 
-    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-targets-healthy'
+    });
     expect(reads.filter(({ targetGroupArn }) => targetGroupArn === secondTargetGroup).length).toBe(4);
     expect(performance.now() - healthySince(secondTargetGroup)).toBeGreaterThanOrEqual(
       LOAD_BALANCER_ROUTING_ALLOWANCE_MS - 10
@@ -690,10 +692,122 @@ describe('a rolling update that finishes once the new tasks serve', () => {
       }) as ElbSend
     });
 
-    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
-    expect(polls).toBe(2);
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-targets-healthy'
+    });
+    // The third read checks the deployment again after the routing allowance.
+    expect(polls).toBe(3);
     // The second read confirms the target after the routing allowance.
     expect(targetReads).toBe(2);
+  }, 30_000);
+
+  test("does not count another task's healthy target on the same EC2 instance", async () => {
+    const containerInstanceArn = 'arn:aws:ecs:eu-west-1:123456789999:container-instance/application/ci-1';
+    const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
+    const [primary, ...rest] = service.deployments;
+    let polls = 0;
+    const targetsAsked: unknown[] = [];
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          const rolloutState = polls < 4 ? 'IN_PROGRESS' : 'COMPLETED';
+          return { services: [{ ...service, deployments: [{ ...primary, rolloutState }, ...rest] }] };
+        }
+        if (command instanceof DescribeTasksCommand) {
+          return {
+            tasks: [
+              newTask('a', {
+                attachments: [],
+                containerInstanceArn,
+                containers: [{ name: 'api', networkBindings: [{ containerPort: 3000, hostPort: 32769 }] }]
+              })
+            ]
+          };
+        }
+        if (command instanceof DescribeContainerInstancesCommand) {
+          return { containerInstances: [{ containerInstanceArn, ec2InstanceId: 'i-1' }] };
+        }
+        if (command instanceof DescribeTaskDefinitionCommand) {
+          return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      elbSend: (async (command: DescribeTargetHealthCommand) => {
+        targetsAsked.push(command.input.Targets);
+        // The old task on the same instance is healthy on its own host port; the new one is not yet.
+        return {
+          TargetHealthDescriptions: [
+            { Target: { Id: 'i-1', Port: 32768 }, TargetHealth: { State: 'healthy' } },
+            { Target: { Id: 'i-1', Port: 32769 }, TargetHealth: { State: 'initial' } }
+          ]
+        };
+      }) as ElbSend
+    });
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'rollout-completed'
+    });
+    expect(polls).toBe(4);
+    expect(targetsAsked).toEqual(Array.from({ length: 3 }, () => [{ Id: 'i-1', Port: 32769 }]));
+  }, 30_000);
+
+  test('fails a deployment ECS rolls back during the routing allowance while its targets stay healthy', async () => {
+    // A CloudWatch alarm (or the circuit breaker) can fail the deployment after its targets turned healthy. ECS then
+    // starts a rollback, and the new targets stay healthy until it replaces them.
+    const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
+    const [primary, ...rest] = service.deployments;
+    let polls = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          if (polls === 1) return { services: [service] };
+          const rolledBack = { ...primary, rolloutState: 'FAILED', rolloutStateReason: 'Alarm api-5xx in ALARM' };
+          return { services: [{ ...service, deployments: [rolledBack, ...rest] }] };
+        }
+        if (command instanceof DescribeTaskDefinitionCommand) {
+          return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      elbSend: (async () => ({
+        TargetHealthDescriptions: [{ Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State: 'healthy' } }]
+      })) as ElbSend
+    });
+
+    await expect(ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).rejects.toThrow(
+      `ECS service ${serviceArn} failed to update.`
+    );
+    expect(polls).toBe(3);
+  }, 30_000);
+
+  test('restarts the routing allowance when a new task fails its health check during it', async () => {
+    const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
+    const healthStates = ['HEALTHY', 'UNHEALTHY'];
+    const taskReads: { at: number; healthStatus: string }[] = [];
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) return { services: [service] };
+        if (command instanceof DescribeTasksCommand) {
+          const healthStatus = healthStates[taskReads.length] ?? 'HEALTHY';
+          taskReads.push({ at: performance.now(), healthStatus });
+          return { tasks: [{ ...task, healthStatus }] };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      elbSend: (async () => ({
+        TargetHealthDescriptions: [{ Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State: 'healthy' } }]
+      })) as ElbSend
+    });
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-targets-healthy'
+    });
+    const recoveredAt = taskReads[2]!.at;
+    expect(taskReads.map(({ healthStatus }) => healthStatus)).toEqual(['HEALTHY', 'UNHEALTHY', 'HEALTHY', 'HEALTHY']);
+    // Timers may fire a millisecond early.
+    expect(performance.now() - recoveredAt).toBeGreaterThanOrEqual(LOAD_BALANCER_ROUTING_ALLOWANCE_MS - 10);
   }, 30_000);
 
   test('waits for the rollout when it may not read target health', async () => {
@@ -725,7 +839,9 @@ describe('a rolling update that finishes once the new tasks serve', () => {
       serviceDiscoverySend: (async () => ({ Status: { a: 'HEALTHY' } })) as ServiceDiscoverySend
     });
 
-    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: false });
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'rollout-completed'
+    });
     expect(polls).toBe(3);
     expect(targetReads).toBe(1);
   }, 30_000);

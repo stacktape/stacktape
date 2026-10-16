@@ -686,7 +686,7 @@ describe('container rolling deployment family', () => {
     // The waiter follows the deployment the update started, without waiting for it to become primary.
     awsSdkManager.ecs.waitForRollingUpdate = async ({ deploymentId }) => {
       awaited = deploymentId;
-      return { oldTasksMayStillRun: true };
+      return { finishedWhen: 'new-targets-healthy' };
     };
     try {
       await updateEcsService({

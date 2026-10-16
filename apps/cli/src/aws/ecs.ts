@@ -5,6 +5,7 @@ import type {
   ContainerDefinition,
   Deployment,
   DescribeServicesCommandInput,
+  DescribeServicesCommandOutput,
   DesiredStatus,
   ECSClient,
   ExecuteCommandCommandInput,
@@ -78,10 +79,15 @@ const taskIp = (task: Task) =>
  * merely run for a while may still be initializing, and may crash before it ever listens, so without a health check
  * the decision is ECS's.
  *
+ * The task's own state is not required: a task whose target is healthy listens, whatever ECS reports. ECS reports a
+ * task ACTIVATING or RUNNING seconds after the load balancer reported its target healthy, and the target is the task's
+ * own address and port, so no other task can make it healthy.
+ *
  * A healthy task is not yet reached through API Gateway: measured on Fargate, API Gateway sent it the first request 10
- * to 20 seconds later. Cloud Map reports the instance healthy about 30 seconds after the task, by which time API
- * Gateway always reached it, so the instance's Cloud Map health is the signal. ECS early success counts the task
- * alone, which reported such deploys done before any request reached the new version.
+ * to 20 seconds later. The task's Cloud Map health is the signal the waiter has, although it does not show when API
+ * Gateway routes: Cloud Map reported tasks healthy from 2 seconds before to 18 seconds after API Gateway sent them the
+ * first request. ECS early success counts the task alone, which reported such deploys done before any request reached
+ * the new version.
  */
 export const planNewTasksServingChecks = ({
   deployment,
@@ -95,7 +101,7 @@ export const planNewTasksServingChecks = ({
   service: Pick<Service, 'desiredCount' | 'loadBalancers' | 'serviceRegistries'>;
   /** The deployment's task definition. */
   containerDefinitions: ContainerDefinition[];
-  /** The tasks the deployment started that are meant to run. */
+  /** The tasks the deployment started. */
   tasks: Task[];
   /** The EC2 instance a task runs on, for tasks without their own network interface (EC2 bridge networking). */
   ec2InstanceIdOf?: (task: Task) => string | undefined;
@@ -115,14 +121,9 @@ export const planNewTasksServingChecks = ({
   if (reachedWithoutTargetGroup && !hasHealthCheck) {
     return { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' };
   }
-  // ECS moves a task from ACTIVATING to RUNNING a few seconds after its load balancer target turned healthy, and the
-  // load balancer routes requests to it in between, so a task counts once its containers started.
-  const running = tasks.filter(
-    ({ lastStatus, desiredStatus }) =>
-      (lastStatus === 'ACTIVATING' || lastStatus === 'RUNNING') && desiredStatus === 'RUNNING'
-  );
+  const running = tasks.filter(({ desiredStatus }) => desiredStatus === 'RUNNING');
   if (running.length < desiredCount) {
-    return { verdict: 'waiting', reason: `${running.length} of ${desiredCount} new tasks running` };
+    return { verdict: 'waiting', reason: `${running.length} of ${desiredCount} new tasks started` };
   }
   if (hasHealthCheck && running.some(({ healthStatus }) => healthStatus !== 'HEALTHY')) {
     return { verdict: 'waiting', reason: 'a new task has not passed its container health check' };
@@ -135,7 +136,8 @@ export const planNewTasksServingChecks = ({
         targets.push({ targetGroupArn: targetGroupArn!, id: ip, port: containerPort! });
         continue;
       }
-      // ECS reports the host port Docker mapped only once the container runs, possibly a poll after the task does.
+      // ECS reports the host port Docker mapped only once the container runs. Another port on the same instance is
+      // another task's target.
       const instanceId = ec2InstanceIdOf(task);
       const hostPort = task.containers
         ?.find(({ name }) => name === containerName)
@@ -167,11 +169,27 @@ export const planNewTasksServingChecks = ({
  */
 export const LOAD_BALANCER_ROUTING_ALLOWANCE_MS = 4000;
 
+/**
+ * What a rolling update waited for. Before the rollout completes, the old tasks still drain and stop in the background.
+ * `new-targets-healthy`: every new task was a healthy target in every target group for the routing allowance.
+ */
+export type RollingUpdateFinish = 'rollout-completed' | 'new-tasks-healthy' | 'new-targets-healthy';
+
 const groupBy = <T>(items: T[], key: (item: T) => string) =>
   items.reduce(
     (groups, item) => groups.set(key(item), [...(groups.get(key(item)) ?? []), item]),
     new Map<string, T[]>()
   );
+
+/**
+ * Why ECS gave up the deployment (its circuit breaker or a CloudWatch alarm rolled it back) or the service is gone, if
+ * it did.
+ */
+const rolloutFailure = ({ services, failures }: DescribeServicesCommandOutput, deployment: Deployment) =>
+  (deployment.rolloutState === DeploymentRolloutState.FAILED ? deployment.rolloutStateReason : undefined) ||
+  failures?.find(({ reason }) => reason === 'MISSING')?.detail ||
+  services?.find(({ status }) => status === 'DRAINING')?.status ||
+  services?.find(({ status }) => status === 'INACTIVE')?.status;
 
 const isAccessDenied = (error: unknown) =>
   error instanceof Error && /AccessDenied|UnauthorizedOperation|not authorized/i.test(`${error.name} ${error.message}`);
@@ -279,7 +297,13 @@ export class AwsEcs {
    * Waits until the new tasks serve, or until ECS finishes the rollout. Pass the deployment `startRollingUpdate`
    * returned: without it the waiter gives ECS two seconds to make the new deployment primary and follows that one.
    */
-  waitForRollingUpdate = async ({ ecsServiceArn, deploymentId }: { ecsServiceArn: string; deploymentId?: string }) => {
+  waitForRollingUpdate = async ({
+    ecsServiceArn,
+    deploymentId
+  }: {
+    ecsServiceArn: string;
+    deploymentId?: string;
+  }): Promise<{ finishedWhen: RollingUpdateFinish }> => {
     const errorHandler = this.#getErrorHandler(`ECS service ${ecsServiceArn} failed to update.`);
     let targetDeploymentId = deploymentId;
     if (!targetDeploymentId) await wait(2000);
@@ -366,11 +390,12 @@ export class AwsEcs {
           tasks,
           ec2InstanceIdOf: ({ containerInstanceArn }) => ec2InstanceIds.get(containerInstanceArn ?? '')
         });
-        if (plan.verdict === 'undecidable') {
-          canCheckServing = false;
+        if (plan.verdict !== 'check') {
+          // A task that stops passing a check while the allowance runs must start it again once it recovers.
+          healthyTargets = undefined;
+          if (plan.verdict === 'undecidable') canCheckServing = false;
           return false;
         }
-        if (plan.verdict === 'waiting') return false;
         const healthyTargetGroups = await Promise.all(
           [...groupBy(plan.targets, ({ targetGroupArn }) => targetGroupArn)].map(async ([targetGroupArn, targets]) => {
             const { TargetHealthDescriptions = [] } = await this.#createElbClient().send(
@@ -402,6 +427,7 @@ export class AwsEcs {
           return false;
         }
         if (!plan.targets.length) return true;
+        newTargetsChecked = true;
         const key = plan.targets
           .map(({ targetGroupArn, id, port }) => `${targetGroupArn} ${id}:${port}`)
           .sort()
@@ -413,7 +439,13 @@ export class AwsEcs {
         if (allowanceLeft <= 0) return true;
         // Waiting out the allowance here instead of for later polls finishes the deploy as soon as it has passed.
         await wait(allowanceLeft);
-        return newTasksServe(ecsClient, service, deployment, true);
+        // ECS can roll the deployment back meanwhile (an alarm fired, say) while its targets stay healthy. The next
+        // poll then reports the failure.
+        const serviceState = await ecsClient.send(new DescribeServicesCommand(waiterInput));
+        const [currentService] = serviceState.services ?? [];
+        const currentDeployment = currentService?.deployments?.find(({ id }) => id === deployment.id);
+        if (!currentService || !currentDeployment || rolloutFailure(serviceState, currentDeployment)) return false;
+        return newTasksServe(ecsClient, currentService, currentDeployment, true);
       } catch (error) {
         // A transient error is retried at the next poll; a missing permission will not change.
         healthyTargets = undefined;
@@ -421,7 +453,9 @@ export class AwsEcs {
         return false;
       }
     };
-    let oldTasksMayStillRun = false;
+    /** Whether the new tasks were shown to serve through load balancer targets, not only their own health. */
+    let newTargetsChecked = false;
+    let finishedWhen: RollingUpdateFinish = 'rollout-completed';
     const waiterResult = await createWaiter(
       // Every second of polling delay is a second added to the deploy; a few cheap read calls per second are fine.
       { client: this.#createClient(), maxWaitTime: 3600, minDelay: 1, maxDelay: 2 },
@@ -440,13 +474,7 @@ export class AwsEcs {
         }
         targetDeploymentId = targetedDeployment.id;
 
-        const failure =
-          (targetedDeployment.rolloutState === DeploymentRolloutState.FAILED
-            ? targetedDeployment.rolloutStateReason
-            : undefined) ||
-          serviceState.failures?.find(({ reason }) => reason === 'MISSING')?.detail ||
-          serviceState.services?.find(({ status }) => status === 'DRAINING')?.status ||
-          serviceState.services?.find(({ status }) => status === 'INACTIVE')?.status;
+        const failure = rolloutFailure(serviceState, targetedDeployment);
 
         if (failure) {
           return {
@@ -478,7 +506,7 @@ export class AwsEcs {
           (await newTasksServe(ecsClient, serviceState.services[0], targetedDeployment)) ||
           (!canCheckServing && usesEarlySuccess && (await reachedEarlySuccess(ecsClient, targetDeploymentId)))
         ) {
-          oldTasksMayStillRun = true;
+          finishedWhen = newTargetsChecked ? 'new-targets-healthy' : 'new-tasks-healthy';
           return {
             state: WaiterState.SUCCESS,
             reason: `ECS service ${ecsServiceArn} serves the new version.`
@@ -493,7 +521,7 @@ export class AwsEcs {
     if (waiterResult.state !== WaiterState.SUCCESS) {
       throw errorHandler(new Error(waiterResult.reason));
     }
-    return { oldTasksMayStillRun };
+    return { finishedWhen };
   };
 
   startExecSession = async (startSessionInput: ExecuteCommandCommandInput) => {

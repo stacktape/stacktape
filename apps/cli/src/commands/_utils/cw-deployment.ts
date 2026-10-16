@@ -25,6 +25,7 @@ import { configManager } from '@domain-services/config-manager';
 import { compareEcsTaskDefinitions } from '@domain-services/deployed-stack-overview-manager/hotswap-utils';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { applyResourceOverride } from '@domain-services/template-manager/resource-overrides';
+import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { EcsServiceDeploymentStatusPoller } from 'src/aws/ecs-deployment-monitoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -263,7 +264,7 @@ export const updateEcsService = async ({
     });
     const clusterName = ecsServiceArn.split('/')[1];
     const { stackName } = globalStateManager.targetStack;
-    let oldTasksMayStillRun = false;
+    let finishedWhen: RollingUpdateFinish = 'rollout-completed';
     const statusPoller = new EcsServiceDeploymentStatusPoller({
       ecsServiceArn,
       pollerPrintName: workload.nameChain[0],
@@ -371,16 +372,20 @@ export const updateEcsService = async ({
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
         const { deploymentId } = await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
-        ({ oldTasksMayStillRun } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn, deploymentId }));
+        ({ finishedWhen } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn, deploymentId }));
       }
     } finally {
       statusPoller.stopPolling();
     }
     await updateWorkloadLogger.finishEvent({
       eventType: 'UPDATE_ECS_SERVICE',
-      finalMessage: oldTasksMayStillRun
-        ? 'New version live; old containers drain in the background'
-        : 'Service updated (new version running)'
+      finalMessage: {
+        'rollout-completed': 'Service updated (new version running)',
+        // The load balancer starts routing to a healthy target within seconds; no AWS API shows when.
+        'new-targets-healthy':
+          'New version healthy and registered with the load balancer; traffic moves to it within seconds. Old containers drain in the background',
+        'new-tasks-healthy': 'New version healthy; old containers drain in the background'
+      }[finishedWhen]
     });
   }
 };
