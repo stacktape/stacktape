@@ -378,7 +378,11 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   const forceDeleteAsg = [
     {
       Resource: ['*'],
-      Action: ['autoscaling:DescribeAutoScalingGroups', 'autoscaling:SetInstanceProtection'],
+      Action: [
+        'autoscaling:DescribeAutoScalingGroups',
+        'autoscaling:SetInstanceProtection',
+        'autoscaling:UpdateAutoScalingGroup'
+      ],
       Condition: {
         StringEquals: {
           [`autoscaling:ResourceTag/${tagNames.stackName()}`]: stackName

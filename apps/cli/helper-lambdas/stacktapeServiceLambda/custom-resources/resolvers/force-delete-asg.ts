@@ -3,7 +3,8 @@ import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stackta
 import {
   AutoScalingClient,
   DescribeAutoScalingGroupsCommand,
-  SetInstanceProtectionCommand
+  SetInstanceProtectionCommand,
+  UpdateAutoScalingGroupCommand
 } from '@aws-sdk/client-auto-scaling';
 
 const autoscalingClient = new AutoScalingClient({});
@@ -18,6 +19,9 @@ const LEAVING_STATE_PREFIXES = ['Terminating', 'Terminated', 'Detaching', 'Detac
  * On Delete, removes scale-in protection from the instances in the container workload's Auto Scaling group, so
  * CloudFormation can scale the group in when it deletes it. We no longer force-delete the group itself.
  *
+ * The group's default protection is turned off before the instances are listed. Otherwise an instance launched after
+ * the listing, such as a health-check replacement, would start protected and stall the group's deletion.
+ *
  * An empty group, a group that is already gone and a group already being deleted are all normal during a stack
  * delete and succeed without calling SetInstanceProtection.
  */
@@ -29,15 +33,16 @@ export const forceDeleteAsg: ServiceLambdaResolver<StpServiceCustomResourcePrope
 ) => {
   const asgName = currentProps.asgName as string;
   if (operation === 'Delete') {
-    const { AutoScalingGroups } = await autoscalingClient.send(
-      new DescribeAutoScalingGroupsCommand({ AutoScalingGroupNames: [asgName] })
-    );
-    const asg = AutoScalingGroups?.[0];
+    let asg = await describeAsg(asgName);
     if (!asg || asg.Status) {
       console.info(`Auto Scaling group ${asgName} is ${asg ? asg.Status : 'already deleted'}, nothing to unprotect.`);
       return { data: {}, physicalResourceId: `${asgName}-fd` };
     }
-    const instanceIds = (asg.Instances ?? [])
+    await autoscalingClient.send(
+      new UpdateAutoScalingGroupCommand({ AutoScalingGroupName: asgName, NewInstancesProtectedFromScaleIn: false })
+    );
+    asg = await describeAsg(asgName);
+    const instanceIds = (asg?.Instances ?? [])
       .filter(
         ({ LifecycleState, ProtectedFromScaleIn }) =>
           ProtectedFromScaleIn !== false && !LEAVING_STATE_PREFIXES.some((prefix) => LifecycleState?.startsWith(prefix))
@@ -55,4 +60,11 @@ export const forceDeleteAsg: ServiceLambdaResolver<StpServiceCustomResourcePrope
     }
   }
   return { data: {}, physicalResourceId: `${asgName}-fd` };
+};
+
+const describeAsg = async (asgName: string) => {
+  const { AutoScalingGroups } = await autoscalingClient.send(
+    new DescribeAutoScalingGroupsCommand({ AutoScalingGroupNames: [asgName] })
+  );
+  return AutoScalingGroups?.[0];
 };

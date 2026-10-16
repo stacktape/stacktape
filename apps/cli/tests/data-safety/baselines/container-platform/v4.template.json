@@ -696,7 +696,11 @@
                 {
                   "Resource": ["*"],
                   "Effect": "Allow",
-                  "Action": ["autoscaling:DescribeAutoScalingGroups", "autoscaling:SetInstanceProtection"],
+                  "Action": [
+                    "autoscaling:DescribeAutoScalingGroups",
+                    "autoscaling:SetInstanceProtection",
+                    "autoscaling:UpdateAutoScalingGroup"
+                  ],
                   "Condition": {
                     "StringEquals": {
                       "autoscaling:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
