@@ -855,6 +855,22 @@ describe('EC2-backed container family', () => {
     }
   );
 
+  // While managed termination protection is enabled, ECS protects instances that still run tasks again. The instances
+  // must be unprotected after the service is gone and protection is disabled, and before the group is scaled in.
+  test('the instances are unprotected after the service and before the capacity provider are deleted', async () => {
+    const template = await synthesizeWithInstanceTypes('ec2-container-delete-order', config());
+    const service = cfLogicalNames.ecsService('web', false);
+    const disableProtection = cfLogicalNames.ecsDisableManagedTerminationProtectionCustomResource('web');
+    const unprotect = cfLogicalNames.ecsEc2ForceDeleteAutoscalingGroupCustomResource('web');
+    const order = [service, disableProtection, unprotect, cfLogicalNames.ecsEc2CapacityProvider('web')];
+    order.slice(0, -1).forEach((logicalId, index) => {
+      const afterIt = deletedAfter(template, logicalId);
+      expect(afterIt.has(order[index + 1])).toBe(true);
+      expect(order.slice(0, index + 1).filter((earlier) => afterIt.has(earlier))).toEqual([]);
+    });
+    expect(deletedAfter(template, unprotect).has(cfLogicalNames.ecsEc2AutoscalingGroup('web'))).toBe(true);
+  });
+
   // A reused VPC's routes and associations belong to another stack; naming them in DependsOn fails the deploy.
   test.each([
     ['public subnets', 'ec2-container-reused-vpc-public', {}, 'subnet-public-a'],

@@ -87,6 +87,18 @@ describe('forceDeleteAsg', () => {
     ]);
   });
 
+  test('leaves out instances that are already unprotected', async () => {
+    await runDelete([
+      {
+        AutoScalingGroupName: ASG_NAME,
+        Instances: [instance(1), { ...instance(2), ProtectedFromScaleIn: false }, instance(3)]
+      } as AutoScalingGroup
+    ]);
+    expect(protectionCalls().map(({ input }) => input)).toEqual([
+      { AutoScalingGroupName: ASG_NAME, InstanceIds: ['i-1', 'i-3'], ProtectedFromScaleIn: false }
+    ]);
+  });
+
   test('succeeds when every instance is already terminating', async () => {
     await runDelete([
       { AutoScalingGroupName: ASG_NAME, Instances: [instance(1, 'Terminating:Wait')] } as AutoScalingGroup
