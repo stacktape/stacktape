@@ -21,7 +21,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { isLocalAwsCredentialsFailure } from '@application-services/global-state-manager/local-aws-account';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -72,6 +72,7 @@ import { keepBaseImagePulled } from '@utils/base-images';
 import { getImageRuntimeTools } from './image-runtime-tools';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
+import { CliError } from '@utils/errors';
 import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
 import { runRailpackPrepare } from '@domain-services/packaging-manager/railpack-command';
@@ -107,7 +108,7 @@ import {
   LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
-import { isJsEntryFileExtension } from '@config';
+import { IDENTIFIER_FOR_MISSING_OUTPUT, isJsEntryFileExtension } from '@config';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
 import type { PackagingTarget } from './types';
 
@@ -153,20 +154,52 @@ const getCacheRef = (jobName: string) => {
 /** The platform Docker builds on natively: Docker Desktop and Linux engines run on the host's architecture. */
 const HOST_DOCKER_PLATFORM = process.arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
 
+/** Errors of a variable that reads a resource of this stack before that resource has the value deployed. */
+const NOT_DEPLOYED_YET_CODES = new Set(['DIRECTIVE_RESOURCE_NOT_DEPLOYED', 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED']);
+
 /**
- * The environment a web build runs with. Each variable resolves on its own, and one whose value is not available (such
- * as a resource that is not deployed yet) is left out of the build without the others. Unusable local AWS credentials
- * stop the build instead: building without the values they would have read produces a broken site.
+ * The environment a web build runs with. Each variable resolves on its own. A variable that reads a resource of this
+ * stack that is not deployed yet, as on the first deployment, is left out of the build with a warning: the build
+ * cannot have its value. Any other error stops the build, named with its variable: building without a value the
+ * configuration asks for, such as a secret that cannot be read, produces a broken site.
  */
-const resolveWebBuildEnvironment = async (environment: EnvironmentVar[] | undefined): Promise<EnvironmentVar[]> => {
+const resolveWebBuildEnvironment = async ({
+  resourceName,
+  environment
+}: {
+  resourceName: string;
+  environment: EnvironmentVar[] | undefined;
+}): Promise<EnvironmentVar[]> => {
+  const leaveOut = (variable: EnvironmentVar, reason: string) => {
+    tuiManager.warn(`Building \`${resourceName}\` without environment variable \`${variable.name}\`: ${reason}`);
+    return undefined;
+  };
   const resolved = await Promise.all(
     (environment ?? []).map(async (variable) => {
+      let resolvedVariable: EnvironmentVar;
       try {
-        return (await resolveEnvironmentDirectives(variable)) as EnvironmentVar;
+        resolvedVariable = (await resolveEnvironmentDirectives(variable)) as EnvironmentVar;
       } catch (error) {
-        if (isLocalAwsCredentialsFailure(error)) throw error;
-        return undefined;
+        if (!(error instanceof CliError)) throw error;
+        if (NOT_DEPLOYED_YET_CODES.has(error.code)) {
+          return leaveOut(
+            variable,
+            globalStateManager.command === 'package' ? '`package` does not read the deployed stack.' : error.message
+          );
+        }
+        throw new CliError({
+          category: error.category,
+          code: error.code,
+          message: `Cannot resolve environment variable \`${variable.name}\` for the build of \`${resourceName}\`. ${error.message}`,
+          hints: error.hints,
+          cause: error
+        });
       }
+      // A `$CfResourceParam` of a deployed resource whose output this deployment adds.
+      if (String(resolvedVariable.value).includes(IDENTIFIER_FOR_MISSING_OUTPUT)) {
+        return leaveOut(variable, 'the value it reads is added by this deployment.');
+      }
+      return resolvedVariable;
     })
   );
   return resolved.filter((variable) => variable !== undefined);
@@ -1262,7 +1295,10 @@ export class PackagingManager {
       instanceId: nextjsWebResource.name,
       label: nextjsWebResource.name
     });
-    const environment = await resolveWebBuildEnvironment(nextjsWebResource.environment);
+    const environment = await resolveWebBuildEnvironment({
+      resourceName: nextjsWebResource.name,
+      environment: nextjsWebResource.environment
+    });
     const packagingOutputs = await createNextjsWebArtifacts({
       environmentVars: environment,
       resource: nextjsWebResource,
@@ -1350,7 +1386,10 @@ export class PackagingManager {
     commandCanUseCache: boolean;
   }) => {
     const frameworkConfig = SSR_WEB_FRAMEWORK_CONFIGS[resourceType];
-    const environment = await resolveWebBuildEnvironment(resource.environment);
+    const environment = await resolveWebBuildEnvironment({
+      resourceName: resource.name,
+      environment: resource.environment
+    });
 
     const appDirectory = resource.appDirectory || '.';
     const workingDir = join(globalStateManager.workingDir, appDirectory);

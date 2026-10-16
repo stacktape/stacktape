@@ -226,19 +226,6 @@ export const localAwsAccountUnresolved = ({ profile, cause }: { profile: string 
         cause
       });
 
-/**
- * Whether an error, or anything that caused it, means the local AWS credentials or their account are unusable. Such a
- * failure is never skipped like a value that is not available yet: every later AWS request would fail the same way.
- */
-export const isLocalAwsCredentialsFailure = (error: unknown): boolean => {
-  for (let current = error; current; current = current instanceof Error ? current.cause : undefined) {
-    if (current instanceof CliError && (current.category === 'CREDENTIALS' || current.category === 'AWS_ACCOUNT')) {
-      return true;
-    }
-  }
-  return false;
-};
-
 const resolveProfileAccountId = async ({
   selector,
   sources,

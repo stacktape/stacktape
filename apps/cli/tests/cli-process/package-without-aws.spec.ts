@@ -8,9 +8,10 @@
  * after the account, so a wrong account fails the build. A profile that names its account is the only source of
  * credentials: when it fails, container credentials of another account must not stand in for it.
  *
- * A web build resolves its environment variables one by one. Unusable credentials stop it; a variable that cannot be
- * resolved otherwise is left out without the others. The build command is a local script that records its
- * environment.
+ * A web build resolves its environment variables one by one. A variable that reads a resource of the stack is left out
+ * with a warning, as `package` does not read the deployed stack; any other failure, such as unusable credentials, a
+ * refused or missing secret or a typo in a resource name, stops the build before it runs. The build command is a
+ * local script that records its environment.
  */
 import { afterEach, describe, expect, test as bunTest } from 'bun:test';
 import { randomUUID } from 'node:crypto';
@@ -35,8 +36,9 @@ afterEach(async () => {
 });
 
 /**
- * Answers GetCallerIdentity for the environment key and serves container credentials; Secrets Manager has no secrets.
- * Refuses everything else. Records each request's action and the key that signed it.
+ * Answers GetCallerIdentity for the environment key and serves container credentials. Secrets Manager holds the JSON
+ * secret `db-credentials` and refuses `denied-secret`; other secrets do not exist. Refuses everything else. Records
+ * each request's action and the key that signed it.
  */
 const startAwsFake = async () => {
   const actions: string[] = [];
@@ -75,9 +77,26 @@ const startAwsFake = async () => {
       return;
     }
     if (action === 'GetSecretValue') {
+      const { SecretId: secretId } = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { SecretId: string };
+      if (secretId === 'db-credentials') {
+        response.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' });
+        response.end(
+          JSON.stringify({
+            ARN: 'arn:aws:secretsmanager:eu-west-1:444444444444:secret:db-credentials-AbCdEf',
+            Name: secretId,
+            VersionId: 'version-1',
+            SecretString: JSON.stringify({ user: 'app' })
+          })
+        );
+        return;
+      }
       response.writeHead(400, { 'content-type': 'application/x-amz-json-1.1' });
       response.end(
-        JSON.stringify({ __type: 'ResourceNotFoundException', Message: "Secrets Manager can't find the secret." })
+        JSON.stringify(
+          secretId === 'denied-secret'
+            ? { __type: 'AccessDeniedException', Message: 'The AWS fake refuses this secret.' }
+            : { __type: 'ResourceNotFoundException', Message: "Secrets Manager can't find the secret." }
+        )
       );
       return;
     }
@@ -314,7 +333,9 @@ describe('stacktape package without AWS', () => {
     expect(run.buildEnvironment).toBeUndefined();
   });
 
-  test('a web variable that cannot be resolved leaves the other variables in the build', async () => {
+  const withKeys = { AWS_ACCESS_KEY_ID: ENVIRONMENT_KEY, AWS_SECRET_ACCESS_KEY: 'fake' };
+
+  test('a web build stops, naming the variable, when it may not read a secret', async () => {
     const aws = await startAwsFake();
     const run = await runPackage({
       awsEndpoint: aws.endpoint,
@@ -322,14 +343,77 @@ describe('stacktape package without AWS', () => {
         '        - name: PLAIN',
         '          value: kept',
         '        - name: DB_PASSWORD',
-        "          value: $Secret('db-password')"
+        "          value: $Secret('denied-secret')"
       ]),
-      environment: { AWS_ACCESS_KEY_ID: ENVIRONMENT_KEY, AWS_SECRET_ACCESS_KEY: 'fake' }
+      environment: withKeys
+    });
+
+    expect(run.exitCode, run.output).not.toBe(0);
+    expect(run.output).toContain('Cannot resolve environment variable `DB_PASSWORD` for the build of `web`');
+    expect(run.output).toContain('AccessDeniedException');
+    expect(run.buildEnvironment).toBeUndefined();
+  });
+
+  test('a web build stops when a secret does not contain the JSON key it reads', async () => {
+    const aws = await startAwsFake();
+    const run = await runPackage({
+      awsEndpoint: aws.endpoint,
+      resources: webResources(['        - name: DB_PASSWORD', "          value: $Secret('db-credentials.password')"]),
+      environment: withKeys
+    });
+
+    expect(run.exitCode, run.output).not.toBe(0);
+    expect(run.output).toContain('Cannot resolve environment variable `DB_PASSWORD` for the build of `web`');
+    expect(run.output).toContain('does not contain JSON key `password`');
+    expect(run.buildEnvironment).toBeUndefined();
+  });
+
+  const recordsTable = [
+    '  records:',
+    '    type: dynamo-db-table',
+    '    properties:',
+    '      primaryKey:',
+    '        partitionKey:',
+    '          name: id',
+    '          type: string'
+  ];
+
+  test('a web variable that reads a resource of the stack is left out of the build with a warning', async () => {
+    const aws = await startAwsFake();
+    const run = await runPackage({
+      awsEndpoint: aws.endpoint,
+      resources: [
+        ...recordsTable,
+        ...webResources([
+          '        - name: PLAIN',
+          '          value: kept',
+          '        - name: TABLE',
+          "          value: $ResourceParam('records', 'name')"
+        ])
+      ],
+      environment: withKeys
     });
 
     // The build command creates no Nuxt output, so packaging fails after it ran.
     expect(run.buildEnvironment, run.output).toContain('PLAIN=kept');
-    expect(run.buildEnvironment?.some((line) => line.startsWith('DB_PASSWORD='))).toBe(false);
-    expect(aws.actions).toEqual(['GetCallerIdentity', 'GetSecretValue']);
+    expect(run.buildEnvironment?.some((line) => line.startsWith('TABLE='))).toBe(false);
+    expect(run.output).toContain('Building `web` without environment variable `TABLE`');
+  });
+
+  test('a web variable that reads a resource missing from the configuration stops the build', async () => {
+    const aws = await startAwsFake();
+    const run = await runPackage({
+      awsEndpoint: aws.endpoint,
+      resources: [
+        ...recordsTable,
+        ...webResources(['        - name: TABLE', "          value: $ResourceParam('recordz', 'name')"])
+      ],
+      environment: withKeys
+    });
+
+    expect(run.exitCode, run.output).not.toBe(0);
+    expect(run.output).toContain('DIRECTIVE_RESOURCE_NOT_FOUND');
+    expect(run.output).toContain('recordz');
+    expect(run.buildEnvironment).toBeUndefined();
   });
 });

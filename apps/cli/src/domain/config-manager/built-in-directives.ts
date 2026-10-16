@@ -206,12 +206,14 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         }
         return resource.referencableParams[property].value;
       },
-      localResolveFunction: () => (resourceReference: string, property: string) => {
+      localResolveFunction: (configResolver) => (resourceReference: string, property: string) => {
         const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });
         const value = resource?.referencableParams?.[property]?.value;
         const isLocalInvoke = context.command === 'dev';
         if (!resource) {
-          throw configErrors.directiveResourceNotFound({
+          const [resourceName] = resourceReference.split('.');
+          const isConfigured = Object.hasOwn(configResolver.rawConfig?.resources ?? {}, resourceName);
+          throw (isConfigured ? configErrors.directiveResourceNotDeployed : configErrors.directiveResourceNotFound)({
             resourceName: resourceReference,
             directiveType: '$ResourceParam'
           });
@@ -280,8 +282,10 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       },
       localResolveFunction: () => (resourceName: string, property: string) => {
         const isResourceDeployed = stackManager.getExistingResourceDetails(resourceName);
+        // The logical IDs of the resources Stacktape creates are known only once the template is built, so a name that
+        // is not deployed may be one of them.
         if (!isResourceDeployed) {
-          throw configErrors.directiveResourceNotFound({ resourceName, directiveType: '$CfResourceParam' });
+          throw configErrors.directiveResourceNotDeployed({ resourceName, directiveType: '$CfResourceParam' });
         }
         const outputName = getStackOutputName(resourceName, property);
         const output = stackManager.existingStackDetails?.stackOutput[outputName];
