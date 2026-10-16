@@ -53,10 +53,12 @@ An optional peer comes only when a production install of the project has it for 
 required peers, whether the function bundles those packages or copies them (`getProductionDependencies` in
 `es/installed-packages`). The manifests are the detected project root's and every `package.json` from each source file's
 directory up to the first workspace root or top of a Git clone or worktree, where `findProjectRoot` stops. A nested
-manifest therefore never hides the ones around it, and nothing outside the repository is read; outside Git and any
-workspace only the nearest manifest counts. One build computes this once for all its functions
-(`createProductionDependencyCache`) and the next build starts again. The same rule decides which native peers of a
-bundled package are installed (`optionalPeer`): Prisma's optional TypeScript peer stays out of a project that has
+manifest therefore never hides the ones around it, and nothing outside the repository is read. Outside Git and any
+workspace (a tarball, or CI sources copied without `.git`) the walk stops at the nearest directory with a lockfile
+(`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` or `bun.lockb`); without one,
+only the nearest manifest counts. `findProjectRoot` keeps its own rule. One build computes this once for all its
+functions (`createProductionDependencyCache`) and the next build starts again. The same rule decides which native peers
+of a bundled package are installed (`optionalPeer`): Prisma's optional TypeScript peer stays out of a project that has
 TypeScript only in `devDependencies`. Never decide from a package's source whether it loads a package: native compilers
 such as `@swc/core` emit imports that no script spells out. `es/installed-packages` reads npm, pnpm, Yarn and Bun
 layouts alike and repeats the installed layout under the artifact's `node_modules/.installed`: each package's real

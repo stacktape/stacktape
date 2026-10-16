@@ -439,6 +439,24 @@ describe('packages a Lambda gets beside its bundle', () => {
     }
   );
 
+  test('include an optional peer that the project root depends on, outside Git, up to the directory with the lockfile', async () => {
+    // A tarball or a CI step that copies the sources has no `.git`; the lockfile marks where the install ran.
+    const cwd = await createProject({
+      'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: {} }),
+      'package.json': projectManifest({ dependencies: { '@swc/core': '*', '@swc/helpers': '*' } }),
+      'src/package.json': JSON.stringify({ type: 'commonjs' }),
+      'src/handler.ts': "import { compile } from '@swc/core'; export default async () => compile();",
+      ...swcCore,
+      ...swcHelpers
+    });
+
+    await bundle(cwd, { packageExternalDependencies: true, entryfilePath: join(cwd, 'src/handler.ts') });
+    const { artifact } = await copyArtifact(cwd);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('_class_call_check');
+  });
+
   test('include an optional peer that the workspace package holding the code depends on, past a named nested package.json', async () => {
     const cwd = await createProject({
       'package.json': projectManifest({ workspaces: ['packages/*'] }),

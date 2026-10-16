@@ -115,7 +115,7 @@ export type ProductionDependencyCache = {
   /** The project's own manifests, which the process-wide `readPackageManifest` must not keep between builds. */
   manifests: Map<string, Promise<PackageManifest>>;
   /** The project's own package directories from a directory up to the top of the project. */
-  packageRoots: Map<string, Promise<{ packageRoots: string[]; reachesBoundary: boolean }>>;
+  packageRoots: Map<string, Promise<PackageRootChain>>;
   /** The names a production install gives each of the project's own packages. */
   closures: Map<string, Promise<Set<string>>>;
 };
@@ -125,6 +125,17 @@ export const createProductionDependencyCache = (): ProductionDependencyCache => 
   packageRoots: new Map(),
   closures: new Map()
 });
+
+type PackageRootChain = {
+  /** The directories with a `package.json`, nearest first. */
+  packageRoots: string[];
+  /** Whether the walk stopped at a workspace root or the top of a Git clone or worktree. */
+  reachesBoundary: boolean;
+  /** The nearest directory on the way up with a lockfile, where an install outside Git and any workspace ran. */
+  lockfileRoot: string | undefined;
+};
+
+const LOCKFILES = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'];
 
 /** Anything outside `node_modules` is the project's own: its root, its workspace packages and nested manifests. */
 const isOwnDirectory = (directory: string) => !directory.split(sep).includes('node_modules');
@@ -143,7 +154,9 @@ const isOwnDirectory = (directory: string) => !directory.split(sep).includes('no
  * top of the project: the first workspace root or top of a Git clone or worktree, where `findProjectRoot` stops too.
  * So a nested manifest, such as `src/package.json` that only sets `"type"` or names a package of its own, never hides
  * the workspace package or repository root around it, and no manifest outside the repository is read. Outside Git and
- * any workspace there is no such top; the walk then takes only the nearest `package.json`, as `findProjectRoot` does.
+ * any workspace, as in a downloaded tarball or a CI step that copies the sources without `.git`, the walk stops at the
+ * nearest directory with a lockfile instead, where the install ran. Without a lockfile either it takes only the nearest
+ * `package.json`, as `findProjectRoot` does.
  * Reading more manifests than the install used can only add optional peers that are installed anyway.
  *
  * Pass one `cache` for all functions of a build. Without one, everything is read again.
@@ -161,22 +174,29 @@ export const getProductionDependencies = async ({
     isOwnDirectory(packageRoot)
       ? remember(cache.manifests, packageRoot, () => readJson(join(packageRoot, 'package.json')).catch(() => ({})))
       : readPackageManifest(packageRoot);
-  const findPackageRoots = (directory: string): Promise<{ packageRoots: string[]; reachesBoundary: boolean }> =>
+  const findPackageRoots = (directory: string): Promise<PackageRootChain> =>
     remember(cache.packageRoots, directory, async () => {
-      const [hasManifest, isBoundary] = await Promise.all([
+      const [hasManifest, isBoundary, hasLockfile] = await Promise.all([
         pathExists(join(directory, 'package.json')),
-        isProjectBoundary(directory)
+        isProjectBoundary(directory),
+        Promise.all(LOCKFILES.map((name) => pathExists(join(directory, name)))).then((found) => found.some(Boolean))
       ]);
       const parent = dirname(directory);
-      const above =
+      const above: PackageRootChain =
         isBoundary || parent === directory
-          ? { packageRoots: [], reachesBoundary: isBoundary }
+          ? { packageRoots: [], reachesBoundary: isBoundary, lockfileRoot: undefined }
           : await findPackageRoots(parent);
       return {
         packageRoots: hasManifest ? [directory, ...above.packageRoots] : above.packageRoots,
-        reachesBoundary: above.reachesBoundary
+        reachesBoundary: above.reachesBoundary,
+        lockfileRoot: hasLockfile ? directory : above.lockfileRoot
       };
     });
+  const getOwnPackageRoots = ({ packageRoots, reachesBoundary, lockfileRoot }: PackageRootChain) => {
+    if (reachesBoundary) return packageRoots;
+    if (lockfileRoot) return packageRoots.filter((packageRoot) => isInside(lockfileRoot, packageRoot));
+    return packageRoots.slice(0, 1);
+  };
   // A package's dependencies are looked up from where it is installed, one level of the install at a time.
   const getClosure = (start: string) =>
     remember(cache.closures, start, async () => {
@@ -211,10 +231,7 @@ export const getProductionDependencies = async ({
     [...new Set(sourcePaths.map((path) => dirname(resolve(path))))].map(toRealPath)
   );
   const chains = await Promise.all([...new Set(sourceDirectories.filter(isOwnDirectory))].map(findPackageRoots));
-  const startingPoints = new Set([
-    await toRealPath(projectRoot),
-    ...chains.flatMap((chain) => (chain.reachesBoundary ? chain.packageRoots : chain.packageRoots.slice(0, 1)))
-  ]);
+  const startingPoints = new Set([await toRealPath(projectRoot), ...chains.flatMap(getOwnPackageRoots)]);
   const names = new Set<string>();
   for (const closure of await Promise.all([...startingPoints].map(getClosure))) {
     for (const name of closure) names.add(name);
