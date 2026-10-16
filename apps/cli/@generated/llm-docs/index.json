@@ -19172,6 +19172,7 @@
         "page:/packaging/containers/buildpack#how-the-image-is-built",
         "page:/packaging/containers/buildpack#caching",
         "page:/packaging/containers/buildpack#image-base-and-size",
+        "page:/packaging/containers/buildpack#python",
         "page:/packaging/containers/buildpack#framework-and-platform-notes",
         "page:/packaging/containers/buildpack#django-migrations",
         "page:/packaging/containers/buildpack#dev-mode",

@@ -5,7 +5,9 @@
  *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
  * - Python dependencies, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
  * - the `js-bundle` image runs its entry file;
- * - the container `buildpack` (Railpack) builds a FastAPI app, a Node.js app and a PHP app, which must answer HTTP. The Node.js
+ * - the container `buildpack` (Railpack) builds a FastAPI app, a Node.js app and a PHP app, which must answer HTTP. Python
+ *   apps are built on the official slim image: pip and uv projects run, a source-only change reuses the installed
+ *   dependencies, and a dependency without a wheel is compiled with the fallback build tools. The Node.js
  *   app's build writes a `buildEnvironment` value that the server returns: the value must reach the build, stay out of
  *   the image configuration and history, and a changed value must change the digest. The Railpack scenarios need a
  *   railpack binary (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH); the lane fails before building when the binary is unavailable.
@@ -54,6 +56,7 @@ const groups = [
   'railpack',
   'railpack-node',
   'railpack-php',
+  'railpack-python',
   'railpack-diagnostics'
 ];
 if (onlyIndex !== -1 && !groups.includes(only ?? '')) throw new Error(`Unknown --only group ${only}.`);
@@ -309,6 +312,60 @@ const PHP_COMPOSER_LOCK = {
 /** The Node.js Railpack app's build writes this variable into the file its server returns. */
 const buildMessage = (value: string) => [{ name: 'BUILD_MESSAGE', value }];
 
+/** Whether BuildKit reused the step Railpack named `stepName` (`#12 uv pip install ...` followed by `#12 CACHED`). */
+const stepWasCached = (output: PackagingOutput, stepName: string) => {
+  const dockerOutput = String(output.details?.dockerOutput ?? '');
+  const lines = dockerOutput.split('\n');
+  const id = lines.find((line) => line.endsWith(` ${stepName}`) && /^#\d+ /.test(line))?.split(' ')[0];
+  return id !== undefined && lines.includes(`${id} CACHED`);
+};
+
+/** A Python HTTP server on the standard library that answers `GET /` with `body`, a Python expression. */
+const pythonServer = (body: string) =>
+  [
+    'import os',
+    'from http.server import BaseHTTPRequestHandler, HTTPServer',
+    '',
+    '',
+    'class Handler(BaseHTTPRequestHandler):',
+    '    def do_GET(self):',
+    `        payload = (${body}).encode()`,
+    '        self.send_response(200)',
+    '        self.send_header("content-length", str(len(payload)))',
+    '        self.end_headers()',
+    '        self.wfile.write(payload)',
+    '',
+    '',
+    'HTTPServer(("0.0.0.0", int(os.environ["PORT"])), Handler).serve_forever()',
+    ''
+  ].join('\n');
+
+/** `uv lock` output for the uv project: it depends on `idna==3.10` and is itself a package (`editable`). */
+const UV_LOCK = `version = 1
+revision = 5
+requires-python = ">=3.12"
+
+[[package]]
+name = "idna"
+version = "3.10"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7590aa73f1f1d3fa9a380e654b86af429e0934a32f7d/idna-3.10.tar.gz", hash = "sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9", size = 190490, upload-time = "2024-09-15T18:07:39.745Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl", hash = "sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3", size = 70442, upload-time = "2024-09-15T18:07:37.964Z" },
+]
+
+[[package]]
+name = "railpack-uv"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "idna" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "idna", specifier = "==3.10" }]
+`;
+
 const railpackPackagingError: CreatePackagingError = ({ message, type, cause }) =>
   Object.assign(new Error(message, { cause }), { type });
 
@@ -345,13 +402,15 @@ const railpackScenarios = async (runRailpackPrepare: RunRailpackPrepare) => {
 
   if (only === 'railpack-diagnostics') return;
   if (only !== 'railpack-node' && only !== 'railpack-php') {
-    console.log('Building and serving a FastAPI app with the Railpack buildpack...');
+    console.log('Building and serving a FastAPI app on the official Python image...');
     const fastapiRoot = join(projectsRoot, 'railpack-fastapi');
     await write(join(fastapiRoot, 'requirements.txt'), 'fastapi==0.118.0\nuvicorn==0.37.0\n');
     await write(
       join(fastapiRoot, 'main.py'),
       'from fastapi import FastAPI\n\napp = FastAPI()\n\n\n@app.get("/")\ndef root():\n    return {"message": "railpack-fastapi-ok"}\n'
     );
+    // Stacktape's own output directory in the project must stay out of the image and the digest.
+    await write(join(fastapiRoot, '.stacktape', 'invocation.log'), 'first invocation\n');
     const fastapiTag = `stacktape-buildpack-smoke-railpack-fastapi:${runId}`;
     const fastapiOutput = await buildUsingRailpack({
       ...railpack,
@@ -362,7 +421,49 @@ const railpackScenarios = async (runRailpackPrepare: RunRailpackPrepare) => {
     if (!fastapiBody.includes('railpack-fastapi-ok')) {
       throw new Error(`Unexpected FastAPI response: ${fastapiBody}`);
     }
+    assert.match(String(fastapiOutput.details?.detection), /built on python:\d+\.\d+\.\d+-slim/);
+    // Neither mise nor its interpreter, nor the project's .stacktape directory, is in the image.
+    await run('docker', [
+      'run',
+      '--rm',
+      '--entrypoint',
+      'sh',
+      fastapiTag,
+      '-c',
+      'test ! -e /mise && test ! -e /usr/local/bin/mise && test ! -e /app/.stacktape && test -x /app/.venv/bin/pip'
+    ]);
     record('railpack-fastapi-image', fastapiOutput);
+
+    await write(join(fastapiRoot, '.stacktape', 'invocation.log'), 'second invocation\n');
+    const unchanged = await buildUsingRailpack({
+      ...railpack,
+      name: `stacktape-buildpack-smoke-railpack-fastapi-unchanged:${runId}`,
+      existingDigests: [fastapiOutput.digest],
+      sourceDirectoryPath: 'railpack-fastapi'
+    });
+    assert.equal(unchanged.outcome, 'skipped', 'A new .stacktape file must not rebuild an unchanged project.');
+
+    await write(
+      join(fastapiRoot, 'main.py'),
+      'from fastapi import FastAPI\n\napp = FastAPI()\n\n\n@app.get("/")\ndef root():\n    return {"message": "railpack-fastapi-changed"}\n'
+    );
+    const fastapiChangedTag = `stacktape-buildpack-smoke-railpack-fastapi-changed:${runId}`;
+    const fastapiChanged = await buildUsingRailpack({
+      ...railpack,
+      name: fastapiChangedTag,
+      existingDigests: [fastapiOutput.digest],
+      sourceDirectoryPath: 'railpack-fastapi'
+    });
+    assert.ok(
+      stepWasCached(fastapiChanged, 'uv pip install -r requirements.txt'),
+      `A source-only change must reuse the installed dependencies:\n${String(fastapiChanged.details?.dockerOutput)}`
+    );
+    assert.match(await fetchFromContainer(fastapiChangedTag), /railpack-fastapi-changed/);
+    record('railpack-fastapi-source-change', fastapiChanged);
+  }
+  if (only === 'railpack-python') {
+    await pythonRailpackScenarios(railpack);
+    return;
   }
   if (only !== 'railpack-php') {
     console.log('Building and serving a Node.js app with a build variable through the Railpack buildpack...');
@@ -556,7 +657,88 @@ const railpackScenarios = async (runRailpackPrepare: RunRailpackPrepare) => {
     assert.match(await fetchFromContainer(phpCustomTag), /^custom-start:railpack-php-ok:jq:8\.\d+$/);
     record('railpack-php-custom-start-image', phpCustomOutput);
   }
+  if (!only || only === 'railpack') await pythonRailpackScenarios(railpack);
 };
+
+/**
+ * A uv project, and a pip project with a dependency that has no wheel, on the official Python image. The uv project
+ * compiles its own C extension when Railpack's build step installs it, and starts through `uv run`, so the compiler
+ * fallback must cover that step and uv must be in the runtime image.
+ */
+async function pythonRailpackScenarios(railpack: Omit<Parameters<typeof buildUsingRailpack>[0], 'name'>) {
+  console.log('Building and serving a uv project with its own C extension on the official Python image...');
+  const uvRoot = join(projectsRoot, 'railpack-uv');
+  await write(
+    join(uvRoot, 'pyproject.toml'),
+    [
+      '[project]',
+      'name = "railpack-uv"',
+      'version = "0.1.0"',
+      'requires-python = ">=3.12"',
+      'dependencies = ["idna==3.10"]',
+      '',
+      '[build-system]',
+      'requires = ["setuptools>=75"]',
+      'build-backend = "setuptools.build_meta"',
+      '',
+      '[tool.setuptools]',
+      'py-modules = []',
+      'ext-modules = [{ name = "railpack_native", sources = ["native.c"] }]',
+      ''
+    ].join('\n')
+  );
+  await write(join(uvRoot, 'uv.lock'), UV_LOCK);
+  await write(
+    join(uvRoot, 'native.c'),
+    [
+      '#include <Python.h>',
+      'static PyObject *answer(PyObject *self, PyObject *args) { return PyUnicode_FromString("native-ok"); }',
+      'static PyMethodDef methods[] = {{"answer", answer, METH_NOARGS, NULL}, {NULL, NULL, 0, NULL}};',
+      'static struct PyModuleDef module = {PyModuleDef_HEAD_INIT, "railpack_native", NULL, -1, methods};',
+      'PyMODINIT_FUNC PyInit_railpack_native(void) { return PyModule_Create(&module); }',
+      ''
+    ].join('\n')
+  );
+  await write(
+    join(uvRoot, 'main.py'),
+    pythonServer(
+      '"railpack-uv-ok:" + __import__("idna").encode("münich").decode() + ":" + __import__("railpack_native").answer()'
+    )
+  );
+  const uvTag = `stacktape-buildpack-smoke-railpack-uv:${runId}`;
+  const uvOutput = await buildUsingRailpack({
+    ...railpack,
+    name: uvTag,
+    sourceDirectoryPath: 'railpack-uv',
+    startCommand: 'uv run --no-sync python main.py'
+  });
+  assert.equal(await fetchFromContainer(uvTag), 'railpack-uv-ok:xn--mnich-kva:native-ok');
+  assert.match(String(uvOutput.details?.detection), /built on python:/);
+  record('railpack-uv-image', uvOutput);
+
+  // psycopg2 publishes only a source distribution. Railpack adds libpq-dev for the build and libpq5 for the runtime;
+  // the compiler comes from the install's fallback.
+  console.log('Building and serving a pip project that compiles a dependency on the official Python image...');
+  const sdistRoot = join(projectsRoot, 'railpack-python-sdist');
+  // The run ID keeps the install step out of BuildKit's cache, so the fallback runs in every run.
+  await write(join(sdistRoot, 'requirements.txt'), `# smoke run ${runId}\npsycopg2==2.9.10\n`);
+  await write(
+    join(sdistRoot, 'main.py'),
+    pythonServer('"railpack-sdist-ok:" + str(__import__("psycopg2").extensions.libpq_version() > 0)')
+  );
+  const sdistTag = `stacktape-buildpack-smoke-railpack-python-sdist:${runId}`;
+  const sdistOutput = await buildUsingRailpack({
+    ...railpack,
+    name: sdistTag,
+    sourceDirectoryPath: 'railpack-python-sdist'
+  });
+  assert.match(
+    String(sdistOutput.details?.dockerOutput),
+    /Installing build tools to compile what has no prebuilt wheel/
+  );
+  assert.equal(await fetchFromContainer(sdistTag), 'railpack-sdist-ok:True');
+  record('railpack-python-sdist-image', sdistOutput);
+}
 
 try {
   await mkdir(projectsRoot, { recursive: true });

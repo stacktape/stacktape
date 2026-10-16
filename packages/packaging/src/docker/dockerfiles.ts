@@ -350,9 +350,13 @@ export const buildPythonArtifactDockerfile = ({
         ? 'RUN apk add --no-cache build-base'
         : 'RUN apt-get update && apt-get install -y build-essential';
   const installUvCommand = alpine ? 'RUN pip install uv' : 'RUN pip install uv';
+  // uv's download cache outlives the install step, so an install that runs again (after a source change, when the
+  // install needs the source) copies the packages from the cache instead of downloading them again.
+  const uvCacheMount = '--mount=type=cache,target=/root/.cache/uv,id=stacktape-python-uv';
+  const uvEnvironment = 'ENV UV_LINK_MODE=copy';
   // pip compile selects groups with --group and omits project input for only-groups.
   // export instead accepts --no-group/--only-group; exclusions win on both paths.
-  const installDepsCommand = `RUN set -e; \
+  const installDepsCommand = `RUN ${uvCacheMount} set -e; \
 compile_uv_args=""; export_uv_args=""; \
 for extra in $STP_PY_UV_OPTIONAL_DEPENDENCIES; do compile_uv_args="$compile_uv_args --extra $extra"; export_uv_args="$export_uv_args --extra $extra"; done; \
 for group in $STP_PY_UV_WITH_GROUPS; do \
@@ -396,12 +400,13 @@ ARG STP_PY_UV_ONLY_GROUPS`;
 
 ${installUvCommand}
 ${systemDepsCommand}
+${uvEnvironment}
 
 FROM tools AS deps
 
 WORKDIR /dist
 COPY requirements.txt /dist/requirements.txt
-RUN uv pip install --system --target . -r requirements.txt
+RUN ${uvCacheMount} uv pip install --system --target . -r requirements.txt
 
 FROM tools AS build
 
@@ -418,7 +423,13 @@ COPY --from=build /dist .
 `;
   }
 
+  // The tools come before the build arguments and the source, so neither a changed source nor other arguments
+  // install them again.
   const dockerfile = `FROM ${baseImage} AS build
+
+${installUvCommand}
+${systemDepsCommand}
+${uvEnvironment}
 
 ${buildArgs}
 
@@ -426,8 +437,6 @@ RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
 
-${installUvCommand}
-${systemDepsCommand}
 ${installDepsCommand}
 
 FROM scratch AS artifact

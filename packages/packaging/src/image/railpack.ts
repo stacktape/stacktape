@@ -19,6 +19,7 @@ import { getDockerContextChecksum } from '../artifact/docker-context';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 import { mergeHashes } from '../artifact/hashing';
 import { NON_SOURCE_DIRECTORY_NAMES } from '../artifact/language-build-context';
+import { usePythonSlimImage } from './railpack-python';
 
 /** The parts of a Railpack build plan Stacktape reads or edits. Everything else is passed through untouched. */
 export type RailpackPlan = {
@@ -331,7 +332,7 @@ export const buildUsingRailpack = async ({
       hint: 'Railpack detects the language from the project files in the source directory. Set startCommand, buildCommand or installCommand when detection is incomplete, or use dockerfile packaging for full control.'
     });
   }
-  const plan = excludeNonSourceDirectories(
+  const railpackPlan = excludeNonSourceDirectories(
     applyStacktapePlanPolicy({
       plan: prepared.plan as RailpackPlan,
       startCommand,
@@ -340,6 +341,12 @@ export const buildUsingRailpack = async ({
     }),
     { keepVersionControl: await takesVersionFromVersionControl(absoluteSourceDirectoryPath) }
   );
+  const python = usePythonSlimImage({
+    plan: railpackPlan,
+    info,
+    keepPip: Object.keys(buildVariables).some((variableName) => variableName.startsWith('PIP_'))
+  });
+  const plan = python?.plan ?? railpackPlan;
   const buildEnvironmentHash = getBuildEnvironmentHash(buildVariables);
   const { checksum: contextChecksum, includedFilePaths } = await getDockerContextChecksum({
     absoluteBuildContextPath: absoluteSourceDirectoryPath,
@@ -355,7 +362,11 @@ export const buildUsingRailpack = async ({
   const resolvedPackages = Object.values(info.resolvedPackages ?? {}).map(
     ({ name: packageName, resolvedVersion }) => `${packageName} ${resolvedVersion}`
   );
-  const detection = [...(info.detectedProviders ?? []), ...resolvedPackages].join(', ');
+  const detection = [
+    ...(info.detectedProviders ?? []),
+    ...resolvedPackages,
+    ...(python ? [`built on ${python.image.split('/').at(-1)}`] : [])
+  ].join(', ');
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM', finalMessage: packagingMessages.unchanged });
     return {
@@ -383,6 +394,7 @@ export const buildUsingRailpack = async ({
     dockerBuildOutputArchitecture,
     cacheFromRef,
     cacheToRef,
+    ...(python ? { baseImages: python.baseImages } : {}),
     buildArgs: {
       BUILDKIT_SYNTAX: railpackFrontendImage,
       'secrets-hash': buildEnvironmentHash,
