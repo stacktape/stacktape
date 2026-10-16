@@ -16,7 +16,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
-import { readPackageManifest } from './installed-packages';
+import { readPackageManifest, remember, type PackageAnalysisCache } from './installed-packages';
 
 /** Packages that read their own files without the sign the check looks for. */
 const PACKAGES_READING_OWN_FILES = new Set([
@@ -182,19 +182,13 @@ const findOwnFileRead = async (packageRoot: string, followImports: boolean): Pro
   return false;
 };
 
-const resultsByPackage = new Map<string, Promise<boolean>>();
-
-/** Whether the installed package at `packageRoot` reads its own files at run time. */
-export const readsOwnFilesAtRunTime = (packageRoot: string): Promise<boolean> => {
-  let result = resultsByPackage.get(packageRoot);
-  if (!result) {
-    result = (async () => {
+/** Whether the installed package at `packageRoot` reads its own files at run time; checked once per build. */
+export const readsOwnFilesAtRunTime = (packageRoot: string, cache: PackageAnalysisCache): Promise<boolean> =>
+  remember(cache.readsOwnFiles, packageRoot, () =>
+    (async () => {
       const { name } = await readPackageManifest(packageRoot);
       if (PACKAGES_READING_OWN_FILES.has(name ?? '')) return true;
       // A package that ships only code can still read its own scripts; its entry points are checked for that.
       return findOwnFileRead(packageRoot, await shipsDataFiles(packageRoot));
-    })().catch(() => false);
-    resultsByPackage.set(packageRoot, result);
-  }
-  return result;
-};
+    })().catch(() => false)
+  );

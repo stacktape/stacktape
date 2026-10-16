@@ -262,6 +262,17 @@ const nativePackage = (name: string, fields: Record<string, unknown> = {}, code 
   [`node_modules/${name}/prebuilds/linux-arm64/addon.node`]: 'addon'
 });
 
+/** Replaces an installed package with another version in the same directory, as `npm install` does. */
+const reinstall = async (cwd: string, name: string, files: Record<string, string>) => {
+  await rm(join(cwd, 'node_modules', name), { recursive: true });
+  await Promise.all(
+    Object.entries(files).map(async ([path, contents]) => {
+      await mkdir(join(cwd, path, '..'), { recursive: true });
+      await writeFile(join(cwd, path), contents);
+    })
+  );
+};
+
 const projectManifest = (fields: Record<string, unknown>) =>
   JSON.stringify({ name: 'lambda-package-fixture', private: true, ...fields });
 
@@ -549,6 +560,76 @@ describe('packages a Lambda gets beside its bundle', () => {
     const execution = runHandler(artifact);
     expect(execution.status, execution.stderr).toBe(0);
     expect(JSON.parse(execution.stdout)).toBe('fonts');
+  });
+
+  test('include a package that an update between two builds in one process makes native', async () => {
+    // npm updates a package in place: the next version is written to the same `node_modules` directory.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { imaging: '*' } }),
+      'handler.ts': "import { hasAddon } from 'imaging'; export default async () => hasAddon();",
+      'node_modules/imaging/package.json': manifest('imaging'),
+      'node_modules/imaging/index.js': 'exports.hasAddon = () => false;'
+    });
+    const first = await bundle(cwd, { packageExternalDependencies: true });
+    expect(first.languageSpecificBundleOutput.es.externalDependencies ?? []).toEqual([]);
+
+    await reinstall(cwd, 'imaging', {
+      ...nativePackage(
+        'imaging',
+        { version: '1.1.0' },
+        "exports.hasAddon = () => require('fs').existsSync(require('path').join(__dirname, 'prebuilds/linux-x64/addon.node'));"
+      )
+    });
+    const second = await bundle(cwd, { packageExternalDependencies: true });
+    expect(second.languageSpecificBundleOutput.es.externalDependencies?.map(({ name }) => name)).toEqual(['imaging']);
+    const execution = runHandler((await copyArtifact(cwd)).artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe(true);
+  });
+
+  test('include a package that an update between two builds in one process makes read its own files', async () => {
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { greeting: '*' } }),
+      'handler.ts': "import { text } from 'greeting'; export default async () => text();",
+      'node_modules/greeting/package.json': manifest('greeting'),
+      'node_modules/greeting/index.js': "exports.text = () => 'hello';"
+    });
+    const first = await bundle(cwd, { packageExternalDependencies: true });
+    expect(first.languageSpecificBundleOutput.es.externalDependencies ?? []).toEqual([]);
+
+    await reinstall(cwd, 'greeting', {
+      'node_modules/greeting/package.json': manifest('greeting', { version: '1.1.0' }),
+      'node_modules/greeting/index.js':
+        "const fs = require('fs'); exports.text = () => fs.readFileSync(__dirname + '/data/greeting.txt', 'utf8');",
+      'node_modules/greeting/data/greeting.txt': 'hello from a file'
+    });
+    await bundle(cwd, { packageExternalDependencies: true });
+    const execution = runHandler((await copyArtifact(cwd)).artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('hello from a file');
+  });
+
+  test('include a package that a patch between two builds in one process makes read its own files', async () => {
+    // patch-package and a manual edit change a package's code and leave its package.json alone.
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { greeting: '*' } }),
+      'handler.ts': "import { text } from 'greeting'; export default async () => text();",
+      'node_modules/greeting/package.json': manifest('greeting'),
+      'node_modules/greeting/index.js': "exports.text = () => 'hello';"
+    });
+    const first = await bundle(cwd, { packageExternalDependencies: true });
+    expect(first.languageSpecificBundleOutput.es.externalDependencies ?? []).toEqual([]);
+
+    await mkdir(join(cwd, 'node_modules/greeting/data'));
+    await writeFile(join(cwd, 'node_modules/greeting/data/greeting.txt'), 'hello from a file');
+    await writeFile(
+      join(cwd, 'node_modules/greeting/index.js'),
+      "const fs = require('fs'); exports.text = () => fs.readFileSync(__dirname + '/data/greeting.txt', 'utf8');"
+    );
+    await bundle(cwd, { packageExternalDependencies: true });
+    const execution = runHandler((await copyArtifact(cwd)).artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('hello from a file');
   });
 
   test('include the optional dependencies of a left-out package, which its commands load', async () => {

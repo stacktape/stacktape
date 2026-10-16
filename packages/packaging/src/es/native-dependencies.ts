@@ -18,12 +18,14 @@ import { getFolderSizeBytes } from '../fs/files';
 import { IGNORED_MODULES } from './config';
 import {
   addRuntimeDependencies,
+  createPackageAnalysisCache,
   findInstalledPackage,
   getPackageFingerprint,
   planPackageLayout,
   readPackageManifest,
   writePackageLayout,
   type InstalledPackage,
+  type PackageAnalysisCache,
   type PackageFileSelection,
   type PackageLayout,
   type PackageManifest,
@@ -68,7 +70,8 @@ export const planLambdaDependencies = async ({
   productionDependencies,
   architecture,
   excludedNames = [],
-  withoutSourceMaps = false
+  withoutSourceMaps = false,
+  cache = createPackageAnalysisCache()
 }: {
   dependencies: ResolvedPackageDependency[];
   /** What a production install of the project contains (`getProductionDependencies`); it decides optional peers. */
@@ -81,6 +84,8 @@ export const planLambdaDependencies = async ({
    * Stacktape maps errors with the bundle's maps, which never describe installed packages.
    */
   withoutSourceMaps?: boolean | undefined;
+  /** The build's cache when other functions are planned in the same build; a new one otherwise. */
+  cache?: PackageAnalysisCache | undefined;
 }): Promise<LambdaDependencyPlan> => {
   const excluded = new Set([...IGNORED_MODULES, ...excludedNames]);
   // The real directory, which is what every lookup below returns; on Windows a temporary path may be a short alias.
@@ -96,7 +101,7 @@ export const planLambdaDependencies = async ({
   await addRuntimeDependencies({ packages, start: [...topLevelPackages.values()], productionDependencies, accept });
 
   const needsInstall = async ({ root }: InstalledPackage) =>
-    Boolean(await getNativeReason(root)) && !(await isInstalledForLambda(root, architecture));
+    Boolean(await getNativeReason(root, cache)) && !(await isInstalledForLambda(root, architecture, cache));
   const installedPackages = [...packages.values()];
   const decisions = await Promise.all(installedPackages.map(needsInstall));
   return {

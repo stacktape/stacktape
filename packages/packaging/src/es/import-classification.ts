@@ -16,7 +16,12 @@ import { isBuiltin } from 'node:module';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE } from './config';
-import { findInstalledPackage, isOptionalPeer, readPackageManifest } from './installed-packages';
+import {
+  findInstalledPackage,
+  isOptionalPeer,
+  readPackageManifest,
+  type PackageAnalysisCache
+} from './installed-packages';
 import { getNativeReason } from './native-packages';
 import { readsOwnFilesAtRunTime } from './self-reading-packages';
 
@@ -103,16 +108,18 @@ const describeInstalledPackage = async ({
 /** Why a package stays out of the bundle, or `undefined` when it is bundled. */
 const getExclusionNote = async ({
   dependency,
-  dependenciesToExcludeFromBundle
+  dependenciesToExcludeFromBundle,
+  cache
 }: {
   dependency: { path: string; name: string };
   dependenciesToExcludeFromBundle: string[];
+  cache: PackageAnalysisCache;
 }): Promise<string | undefined> => {
-  const nativeReason = await getNativeReason(dependency.path);
+  const nativeReason = await getNativeReason(dependency.path, cache);
   if (nativeReason) return `native: ${nativeReason}`;
   if (dependenciesToExcludeFromBundle.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_USER';
   if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE';
-  if (await readsOwnFilesAtRunTime(dependency.path)) return 'reads its own files at run time';
+  if (await readsOwnFilesAtRunTime(dependency.path, cache)) return 'reads its own files at run time';
   return undefined;
 };
 
@@ -128,16 +135,18 @@ const getExclusionNote = async ({
  */
 const analyzeDependency = async ({
   dependency,
-  dependenciesToExcludeFromBundle
+  dependenciesToExcludeFromBundle,
+  cache
 }: {
   dependency: { path: string; name: string };
   dependenciesToExcludeFromBundle: string[];
+  cache: PackageAnalysisCache;
 }): Promise<ResolvedPackageDependency[]> => {
   const manifest = await readPackageManifest(dependency.path).catch(() => null);
   if (!manifest) return [];
 
   const externalDependencies: ResolvedPackageDependency[] = [];
-  const note = await getExclusionNote({ dependency, dependenciesToExcludeFromBundle });
+  const note = await getExclusionNote({ dependency, dependenciesToExcludeFromBundle, cache });
   if (note) {
     const installedPackage = await describeInstalledPackage({ name: dependency.name, path: dependency.path, note });
     if (installedPackage) externalDependencies.push(installedPackage);
@@ -150,7 +159,7 @@ const analyzeDependency = async ({
   const nativePeers = await Promise.all(
     [...peerNames].map(async (peerName) => {
       const peerPath = await findInstalledPackage({ name: peerName, fromDirectory: dependency.path });
-      const nativeReason = peerPath && (await getNativeReason(peerPath));
+      const nativeReason = peerPath && (await getNativeReason(peerPath, cache));
       if (!nativeReason) return null;
       const peer = await describeInstalledPackage({
         name: peerName,
@@ -225,7 +234,8 @@ export const classifyResolvedModule = async ({
   moduleName,
   shouldIgnoreAllDeps,
   importer,
-  importKind
+  importKind,
+  cache
 }: {
   dependenciesToExcludeFromBundle: string[];
   excludeDependencies: string[];
@@ -237,6 +247,8 @@ export const classifyResolvedModule = async ({
   /** The file doing the import and how, when the bundler knows them. */
   importer?: string | undefined;
   importKind?: Bun.ImportKind | undefined;
+  /** The build's cache (`createPackageAnalysisCache`). */
+  cache: PackageAnalysisCache;
 }): Promise<ResolvedModuleVerdict> => {
   // `excludeDependencies` and the ignored modules leave the deployment package altogether.
   if (ignoredModules.includes(moduleName) || excludeDependencies.includes(moduleName)) {
@@ -270,7 +282,8 @@ export const classifyResolvedModule = async ({
 
   const externalDependencies = await analyzeDependency({
     dependenciesToExcludeFromBundle,
-    dependency: { name: moduleName, path: modulePath }
+    dependency: { name: moduleName, path: modulePath },
+    cache
   });
   const self = externalDependencies.find((dependency) => dependency.path === modulePath);
   return self

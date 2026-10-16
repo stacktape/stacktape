@@ -21,8 +21,8 @@ import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
 import { IGNORED_MODULES } from '../es/config';
-import { createProductionDependencyCache, getProductionDependencies } from '../es/installed-packages';
-import type { ProductionDependencyCache } from '../es/installed-packages';
+import { createPackageAnalysisCache, getProductionDependencies } from '../es/installed-packages';
+import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
 import {
@@ -77,7 +77,7 @@ export const buildSplitBundle = async ({
   nodeTarget,
   installDependencies,
   createPackagingError,
-  productionDependencyCache = createProductionDependencyCache()
+  packageAnalysisCache = createPackageAnalysisCache()
 }: BuildSplitBundleOptions): Promise<SplitBundleResult> => {
   const startedAt = performance.now();
 
@@ -114,6 +114,7 @@ export const buildSplitBundle = async ({
     shouldIgnoreAllDeps,
     aliases,
     tracker,
+    packageAnalysisCache,
     createPackagingError
   });
 
@@ -128,7 +129,7 @@ export const buildSplitBundle = async ({
     entrypoints,
     cwd,
     projectRoot: monorepoRoot || cwd,
-    productionDependencyCache,
+    packageAnalysisCache,
     metafile,
     tracker,
     assetFiles,
@@ -188,6 +189,20 @@ const trackDependencies = (tracker: DependencyTracker, importer: string, depende
   tracker.dependenciesByImporter.set(importerKey, trackedDependencies);
 };
 
+type AnalyzePluginOptions = {
+  cwd: string;
+  monorepoRoot: string | null;
+  excludeDependencies: string[];
+  dependenciesToExcludeFromBundle: string[];
+  bundleAwsSdk: boolean;
+  isLambda: boolean | undefined;
+  nodeTarget: number | string | undefined;
+  shouldIgnoreAllDeps: boolean;
+  aliases: Record<string, string>;
+  tracker: DependencyTracker;
+  packageAnalysisCache: PackageAnalysisCache;
+};
+
 /** Execute Bun.build with all plugins and configuration, returns build result and metafile */
 const executeBunBuild = async ({
   entrypoints,
@@ -207,25 +222,16 @@ const executeBunBuild = async ({
   shouldIgnoreAllDeps,
   aliases,
   tracker,
+  packageAnalysisCache,
   createPackagingError
-}: {
+}: AnalyzePluginOptions & {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   sharedOutdir: string;
-  cwd: string;
-  monorepoRoot: string | null;
   tsConfigPath?: string | undefined;
   minify: boolean;
   minifyIdentifiers: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
-  excludeDependencies: string[];
-  dependenciesToExcludeFromBundle: string[];
-  bundleAwsSdk: boolean;
-  isLambda: boolean | undefined;
-  nodeTarget: number | string | undefined;
-  shouldIgnoreAllDeps: boolean;
-  aliases: Record<string, string>;
-  tracker: DependencyTracker;
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
   /** The emitted files after identity normalization: their final paths, kinds and sizes. */
@@ -245,7 +251,8 @@ const executeBunBuild = async ({
     nodeTarget,
     shouldIgnoreAllDeps,
     aliases,
-    tracker
+    tracker,
+    packageAnalysisCache
   });
 
   const nativeModulesPlugin = createNativeNodeModulesPlugin();
@@ -364,19 +371,9 @@ const createAnalyzePlugin = ({
   nodeTarget,
   shouldIgnoreAllDeps,
   aliases,
-  tracker
-}: {
-  cwd: string;
-  monorepoRoot: string | null;
-  excludeDependencies: string[];
-  dependenciesToExcludeFromBundle: string[];
-  bundleAwsSdk: boolean;
-  isLambda: boolean | undefined;
-  nodeTarget: number | string | undefined;
-  shouldIgnoreAllDeps: boolean;
-  aliases: Record<string, string>;
-  tracker: DependencyTracker;
-}): BunPlugin => {
+  tracker,
+  packageAnalysisCache
+}: AnalyzePluginOptions): BunPlugin => {
   // Create module resolver with loose resolution (mimics esbuild behavior)
   const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
 
@@ -424,7 +421,8 @@ const createAnalyzePlugin = ({
           moduleName,
           shouldIgnoreAllDeps,
           importer: args.importer,
-          importKind: args.kind
+          importKind: args.kind,
+          cache: packageAnalysisCache
         });
         trackDependencies(tracker, args.importer, verdict.externalDependencies);
 
@@ -769,7 +767,7 @@ const processLambdaOutputsWithMetafile = async ({
   entrypoints,
   cwd,
   projectRoot,
-  productionDependencyCache,
+  packageAnalysisCache,
   metafile,
   tracker,
   assetFiles,
@@ -781,7 +779,7 @@ const processLambdaOutputsWithMetafile = async ({
   cwd: string;
   /** The project the functions belong to, whose manifests say what it depends on in production. */
   projectRoot: string;
-  productionDependencyCache: ProductionDependencyCache;
+  packageAnalysisCache: PackageAnalysisCache;
   metafile: BuildMetafile;
   tracker: DependencyTracker;
   assetFiles: string[];
@@ -884,7 +882,7 @@ const processLambdaOutputsWithMetafile = async ({
       const productionDependencies = await getProductionDependencies({
         projectRoot,
         sourcePaths: sourceFiles.map(({ path }) => canonicalizeEntrypointPath(path)),
-        cache: productionDependencyCache
+        cache: packageAnalysisCache
       });
       lambdaOutputs.set(entrypoint.name, {
         name: entrypoint.name,

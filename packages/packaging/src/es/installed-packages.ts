@@ -14,6 +14,7 @@ import type { Dirent } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
 import { isProjectBoundary } from './project-root';
+import type { NativeFiles } from './native-packages';
 import { lstat, open, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
 export type PackageManifest = {
@@ -51,8 +52,8 @@ export const isInside = (parent: string, child: string) => {
 const manifests = new Map<string, { signature: string; manifest: Promise<PackageManifest> }>();
 
 /**
- * The package's `package.json`. A manifest read earlier in this process is reused while the file keeps its size and
- * modification time, so a `dev` rebuild after an install in place sees the package's new dependencies.
+ * The package's `package.json`. A manifest read earlier in this process is reused while the file keeps its size,
+ * modification time and inode, so a `dev` rebuild after an install in place sees the package's new dependencies.
  */
 export const readPackageManifest = async (packageRoot: string): Promise<PackageManifest> => {
   const path = join(packageRoot, 'package.json');
@@ -102,7 +103,7 @@ const isInstalledInProduction = ({
 /** The real path, or the resolved one when there is none; a path may reach the project through a link. */
 const toRealPath = (path: string) => realpath(path).catch(() => resolve(path));
 
-const remember = <Value>(cache: Map<string, Promise<Value>>, key: string, compute: () => Promise<Value>) => {
+export const remember = <Value>(cache: Map<string, Promise<Value>>, key: string, compute: () => Promise<Value>) => {
   let value = cache.get(key);
   if (!value) {
     value = compute();
@@ -112,23 +113,30 @@ const remember = <Value>(cache: Map<string, Promise<Value>>, key: string, comput
 };
 
 /**
- * What `getProductionDependencies` has worked out during one build, shared by all of its functions. Create one per
- * build and drop it afterwards: the project's manifests and installed packages can change before the next build, also
- * within one process, as in a `dev` rebuild.
+ * What one build has worked out about the project's packages, shared by all of its functions. Create one per build and
+ * drop it afterwards: the project's manifests and installed packages can change before the next build, also within one
+ * process, as in a `dev` rebuild. An install in place, patch-package or a manual edit can change a package's files
+ * without touching its `package.json`.
  */
-export type ProductionDependencyCache = {
-  /** The manifests read, of the project's own packages and of installed ones. */
+export type PackageAnalysisCache = {
+  /** The manifests `getProductionDependencies` read, of the project's own packages and of installed ones. */
   manifests: Map<string, Promise<PackageManifest>>;
   /** The project's own package directories from a directory up to the top of the project. */
   packageRoots: Map<string, Promise<PackageRootChain>>;
   /** The names a production install gives each of the project's own packages. */
   closures: Map<string, Promise<Set<string>>>;
+  /** The addons, prebuilds and compiled programs in each installed package. */
+  nativeFiles: Map<string, Promise<NativeFiles>>;
+  /** Whether each installed package reads its own files at run time. */
+  readsOwnFiles: Map<string, Promise<boolean>>;
 };
 
-export const createProductionDependencyCache = (): ProductionDependencyCache => ({
+export const createPackageAnalysisCache = (): PackageAnalysisCache => ({
   manifests: new Map(),
   packageRoots: new Map(),
-  closures: new Map()
+  closures: new Map(),
+  nativeFiles: new Map(),
+  readsOwnFiles: new Map()
 });
 
 type PackageRootChain = {
@@ -169,11 +177,11 @@ const isOwnDirectory = (directory: string) => !directory.split(sep).includes('no
 export const getProductionDependencies = async ({
   projectRoot,
   sourcePaths,
-  cache = createProductionDependencyCache()
+  cache = createPackageAnalysisCache()
 }: {
   projectRoot: string;
   sourcePaths: string[];
-  cache?: ProductionDependencyCache | undefined;
+  cache?: PackageAnalysisCache | undefined;
 }): Promise<Set<string>> => {
   // A missing or unreadable manifest of the project's own counts as empty; an installed package's fails the build.
   const readManifest = (packageRoot: string): Promise<PackageManifest> =>

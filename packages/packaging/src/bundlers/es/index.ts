@@ -6,7 +6,8 @@ import { rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '../constants';
-import { getProductionDependencies } from '../../es/installed-packages';
+import { createPackageAnalysisCache, getProductionDependencies } from '../../es/installed-packages';
+import type { PackageAnalysisCache } from '../../es/installed-packages';
 import { findProjectRoot } from '../../es/project-root';
 import { outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
@@ -93,7 +94,8 @@ export const buildEsCode = async ({
   metafile,
   isLambda,
   createPackagingError,
-  sourceMapInstallPath
+  sourceMapInstallPath,
+  packageAnalysisCache = createPackageAnalysisCache()
 }: {
   sourcePath?: string | undefined;
   sourcePaths?: string[] | undefined;
@@ -126,6 +128,8 @@ export const buildEsCode = async ({
   isLambda?: boolean | undefined;
   createPackagingError: CreatePackagingError;
   sourceMapInstallPath?: string | undefined;
+  /** The build's cache when other functions are packaged in the same build; a new one otherwise. */
+  packageAnalysisCache?: PackageAnalysisCache | undefined;
 }): Promise<{
   /** Packages the bundle leaves out that the artifact has to carry. */
   externalDependencies: ResolvedPackageDependency[];
@@ -306,7 +310,8 @@ export const buildEsCode = async ({
               moduleName,
               shouldIgnoreAllDeps,
               importer: args.importer,
-              importKind: args.kind
+              importKind: args.kind,
+              cache: packageAnalysisCache
             });
             externalDependencies.push(...verdict.externalDependencies);
 
@@ -739,7 +744,7 @@ export const createEsBundle = async ({
   runDocker,
   sourceMapInstallPath,
   lambdaZip,
-  productionDependencyCache
+  packageAnalysisCache = createPackageAnalysisCache()
 }: StpBuildpackInput &
   EsBuildActions &
   JsBundleOptions & {
@@ -804,7 +809,8 @@ export const createEsBundle = async ({
     isLambda,
     outputModuleFormat,
     createPackagingError,
-    sourceMapInstallPath
+    sourceMapInstallPath,
+    packageAnalysisCache
   });
   // `outputSourceMapsTo` receives the complete map. A Lambda ZIP's map then loses `sourcesContent` before the digest,
   // so the identity describes what is deployed, and leaves the package unless the configuration keeps it there.
@@ -853,7 +859,7 @@ export const createEsBundle = async ({
   const productionDependencies = await getProductionDependencies({
     projectRoot,
     sourcePaths: absoluteWorkloadSourceFiles.map(({ path }) => path),
-    cache: productionDependencyCache
+    cache: packageAnalysisCache
   });
   const externalDependencies = dedupeDependenciesByName([
     ...bundleExternalDependencies,
@@ -871,7 +877,8 @@ export const createEsBundle = async ({
           productionDependencies,
           architecture: getLambdaArchitecture(dockerBuildOutputArchitecture),
           excludedNames: [...excludeDependencies, ...(dependenciesToExcludeFromDeploymentPackage ?? [])],
-          withoutSourceMaps: mapsLeavePackage
+          withoutSourceMaps: mapsLeavePackage,
+          cache: packageAnalysisCache
         })
       : null;
 

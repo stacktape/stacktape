@@ -18,6 +18,7 @@ import {
   planLambdaDependencies,
   writeLambdaDependencies
 } from './native-dependencies';
+import { createPackageAnalysisCache } from './installed-packages';
 import { getNativeReason, isInstalledForLambda } from './native-packages';
 
 const temporaryDirectories: string[] = [];
@@ -670,8 +671,8 @@ describe('which installed packages are native', () => {
     const musl = await addon('bcrypt-musl', 'libc.musl-x86_64.so.1');
     const glibc = await addon('bcrypt-glibc', 'libc.so.6');
 
-    expect(await isInstalledForLambda(musl, 'x64')).toBe(false);
-    expect(await onHost('darwin', () => isInstalledForLambda(glibc, 'x64'))).toBe(true);
+    expect(await isInstalledForLambda(musl, 'x64', createPackageAnalysisCache())).toBe(false);
+    expect(await onHost('darwin', () => isInstalledForLambda(glibc, 'x64', createPackageAnalysisCache()))).toBe(true);
   });
 
   test('a pure JavaScript package with a postinstall message is bundled', async () => {
@@ -681,7 +682,7 @@ describe('which installed packages are native', () => {
       version: '1.0.0',
       scripts: { postinstall: 'echo thanks' }
     });
-    expect(await getNativeReason(installed)).toBeUndefined();
+    expect(await getNativeReason(installed, createPackageAnalysisCache())).toBeUndefined();
   });
 
   test('a Linux build for Lambda runs on any machine; a macOS one is installed again wherever it came from', async () => {
@@ -700,10 +701,10 @@ describe('which installed packages are native', () => {
     );
     await writeFile(join(macos, 'lib/libtool.so.1'), MACH_O);
 
-    expect(await getNativeReason(linux)).toBe('contains compiled programs');
-    expect(await getNativeReason(macos)).toBe('built for one platform');
-    expect(await onHost('darwin', () => isInstalledForLambda(linux, 'x64'))).toBe(true);
-    expect(await onHost('darwin', () => isInstalledForLambda(macos, 'x64'))).toBe(false);
+    expect(await getNativeReason(linux, createPackageAnalysisCache())).toBe('contains compiled programs');
+    expect(await getNativeReason(macos, createPackageAnalysisCache())).toBe('built for one platform');
+    expect(await onHost('darwin', () => isInstalledForLambda(linux, 'x64', createPackageAnalysisCache()))).toBe(true);
+    expect(await onHost('darwin', () => isInstalledForLambda(macos, 'x64', createPackageAnalysisCache()))).toBe(false);
   });
 });
 
