@@ -2229,6 +2229,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/packaging-manager/artifact-digest-inputs.test.ts',
       'apps/cli/src/domain/packaging-manager/es-install-scripts.spec.ts',
       'apps/cli/src/domain/packaging-manager/native-layer-groups.test.ts',
+      'apps/cli/src/config/railpack.test.ts',
       'apps/cli/src/domain/packaging-manager/image-runtime-tools.test.ts',
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/domain/packaging-manager/runtime-build-version.test.ts',
@@ -4359,12 +4360,14 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/docker.ts',
       'packages/packaging/src/docker/**',
       'apps/cli/src/domain/packaging-manager/es-install-scripts.ts',
+      'apps/cli/src/config/railpack.ts',
       'apps/cli/src/domain/packaging-manager/image-runtime-tools.ts',
       'apps/cli/src/domain/packaging-manager/railpack-command.ts',
       'packages/packaging/src/buildpacks/project-root.ts'
     ],
     tests: [
       'apps/cli/src/domain/packaging-manager/es-install-scripts.spec.ts',
+      'apps/cli/src/config/railpack.test.ts',
       'apps/cli/src/domain/packaging-manager/image-runtime-tools.test.ts',
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/base-images.test.ts',

@@ -138,6 +138,11 @@ export type BuildDockerImage = (input: {
    * Unset for a customer's own Dockerfile.
    */
   baseImages?: string[] | undefined;
+  /**
+   * Images the build runs on the builder's own platform rather than the target's, such as a BuildKit frontend. The CLI
+   * keeps them in the local image store like `baseImages`.
+   */
+  builderImages?: string[] | undefined;
 }) => Promise<{
   size: number;
   id: string;

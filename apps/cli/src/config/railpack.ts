@@ -8,7 +8,11 @@ import { EXTERNAL_TOOL_MANIFEST } from '@utils/external-tools';
  */
 export const RAILPACK_VERSION = EXTERNAL_TOOL_MANIFEST.railpack.version;
 
-export const RAILPACK_FRONTEND_IMAGE = `ghcr.io/railwayapp/railpack-frontend:v${RAILPACK_VERSION}`;
+/**
+ * Pinned by digest: BuildKit then uses the image from the local store, where the CLI keeps it like a base image, without
+ * asking the registry what the tag points to.
+ */
+export const RAILPACK_FRONTEND_IMAGE = EXTERNAL_TOOL_MANIFEST.railpack.image!;
 
 /**
  * The image the planner runs in where the host binary is not supported (Windows). It is Railpack's own builder image,

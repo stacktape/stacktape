@@ -148,6 +148,9 @@ const getCacheRef = (jobName: string) => {
   return `${repositoryUrl}:${getEcrCacheImageTag(jobName)}`;
 };
 
+/** The platform Docker builds on natively: Docker Desktop and Linux engines run on the host's architecture. */
+const HOST_DOCKER_PLATFORM = process.arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
+
 const doesTargetStackExist = () => {
   return Boolean(stackManager.existingStackDetails && stackManager.existingStackResources.length);
 };
@@ -276,7 +279,7 @@ export class PackagingManager {
    * runs in a container, that container is the host's own platform.
    */
   #dockerRunners = {
-    buildDockerImage: async ({ baseImages, ...options }: Parameters<BuildDockerImage>[0]) => {
+    buildDockerImage: async ({ baseImages, builderImages, ...options }: Parameters<BuildDockerImage>[0]) => {
       const usesRemoteCache = Boolean(options.cacheFromRef || options.cacheToRef);
       await Promise.all(
         [
@@ -286,6 +289,11 @@ export class PackagingManager {
           !usesRemoteCache &&
             (baseImages ?? []).map((reference) =>
               this.#prepareBaseImage({ reference, platform: options.dockerBuildOutputArchitecture })
+            ),
+          // A frontend runs on the builder's platform whatever the build targets.
+          !usesRemoteCache &&
+            (builderImages ?? []).map((reference) =>
+              this.#prepareBaseImage({ reference, platform: HOST_DOCKER_PLATFORM })
             )
         ].flat()
       );

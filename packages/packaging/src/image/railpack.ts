@@ -288,7 +288,7 @@ export const buildUsingRailpack = async ({
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   cacheFromRef?: string | undefined;
   cacheToRef?: string | undefined;
-  /** The Railpack BuildKit frontend image of the pinned Railpack release, for example `ghcr.io/railwayapp/railpack-frontend:v0.40.1`. */
+  /** The Railpack BuildKit frontend image of the pinned Railpack release, pinned by digest. */
   railpackFrontendImage: string;
   buildDockerImage: BuildDockerImage;
   runRailpackPrepare: RunRailpackPrepare;
@@ -395,6 +395,7 @@ export const buildUsingRailpack = async ({
     cacheFromRef,
     cacheToRef,
     ...(python ? { baseImages: python.baseImages } : {}),
+    builderImages: [railpackFrontendImage],
     buildArgs: {
       BUILDKIT_SYNTAX: railpackFrontendImage,
       'secrets-hash': buildEnvironmentHash,
