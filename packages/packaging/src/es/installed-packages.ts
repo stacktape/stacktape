@@ -30,6 +30,7 @@ export type PackageManifest = {
   libc?: string[] | undefined;
   gypfile?: boolean | undefined;
   binary?: { module_path?: string | undefined } | undefined;
+  imports?: unknown;
 };
 
 /** An installed package and the installed packages it uses at run time. */

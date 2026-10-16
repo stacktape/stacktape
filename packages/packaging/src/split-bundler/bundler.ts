@@ -34,10 +34,15 @@ import {
   packageEntryConditions,
   resolveWithRequireCondition
 } from '../es/bundler-helpers';
-import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../es/bun-plugins';
+import {
+  createBunFfiShimPlugin,
+  createNativeNodeModulesPlugin,
+  createPrismaLambdaClientPlugin
+} from '../es/bun-plugins';
 import {
   classifyBeforeResolution,
   classifyResolvedModule,
+  getClassifiedSpecifier,
   getModuleName,
   isNodeBuiltinImport
 } from '../es/import-classification';
@@ -290,6 +295,7 @@ const executeBunBuild = async ({
         bunFfiShimPlugin,
         analyzePlugin,
         nativeModulesPlugin,
+        createPrismaLambdaClientPlugin(),
         createWindowsPathNormalizationPlugin({ cwd, monorepoRoot })
       ],
       root: buildRoot,
@@ -392,9 +398,10 @@ const createAnalyzePlugin = ({
 
       // Analyze and handle external dependencies
       build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-        if (!isBareImportSpecifier(args.path)) return undefined;
+        const specifier = await getClassifiedSpecifier(args);
+        if (specifier === undefined) return undefined;
 
-        const moduleName = getModuleName(args.path);
+        const moduleName = getModuleName(specifier);
         trackResolvedModule(tracker, args.importer, moduleName);
 
         const preResolution = classifyBeforeResolution({
@@ -403,10 +410,10 @@ const createAnalyzePlugin = ({
           isLambda,
           moduleName,
           nodeTarget,
-          specifier: args.path
+          specifier
         });
         if (preResolution.outcome === 'runtime-provided') {
-          return { path: args.path, external: true };
+          return { path: specifier, external: true };
         }
         if (preResolution.outcome !== 'continue') {
           return undefined;
@@ -430,7 +437,7 @@ const createAnalyzePlugin = ({
 
         if (verdict.outcome === 'external') {
           markExternal(moduleName, verdict.note);
-          return { path: args.path, external: true };
+          return { path: specifier, external: true };
         }
 
         return undefined;

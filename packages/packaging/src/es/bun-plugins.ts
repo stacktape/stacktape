@@ -6,7 +6,9 @@
  * the loader reaches every artifact Stacktape builds.
  */
 import type { BunPlugin } from 'bun';
-import { isAbsolute } from 'node:path';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join } from 'node:path';
 
 /**
  * Whether a specifier names a package rather than a file.
@@ -27,6 +29,34 @@ export const createNativeNodeModulesPlugin = (): BunPlugin => ({
   name: 'native-node-modules',
   setup(build) {
     build.onResolve({ filter: /\.node$/ }, (args) => ({ path: args.path, external: true }));
+  }
+});
+
+/**
+ * Where a Lambda carries Prisma's query engine and the generated `schema.prisma`, relative to `/var/task`, the
+ * function's working directory.
+ */
+export const PRISMA_LAMBDA_CLIENT_DIRECTORY = '.prisma/client';
+
+/**
+ * Prisma's generated client (`prisma-client-js`, Prisma 5 and 6) looks for its engine beside `schema.prisma`: in its
+ * own directory, or, when bundled code finds no schema there, in the directories its `alternativePaths` name relative
+ * to the working directory. Those names come from where `prisma generate` ran and can lead outside the artifact, and a
+ * split build can put the client in a layer chunk under `/opt`, so for a Lambda both point at
+ * {@link PRISMA_LAMBDA_CLIENT_DIRECTORY}. The engine works from the function and from a layer alike.
+ */
+export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
+  name: 'stacktape-prisma-lambda-client',
+  setup(build) {
+    build.onLoad({ filter: /[\\/]index\.js$/ }, async ({ path }) => {
+      if (!existsSync(join(dirname(path), 'schema.prisma'))) return undefined;
+      const source = await readFile(path, 'utf8');
+      const contents = source.replace(/(const alternativePaths = \[)([^\]]*)\]/, (_match, opening, paths: string) => {
+        const location = JSON.stringify(PRISMA_LAMBDA_CLIENT_DIRECTORY);
+        return `${opening}${paths.replace(/"(?:[^"\\]|\\.)*"/g, location)}]`;
+      });
+      return contents === source ? undefined : { contents, loader: 'js' };
+    });
   }
 });
 

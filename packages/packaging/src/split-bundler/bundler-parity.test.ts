@@ -234,7 +234,14 @@ test('single and split artifacts load their SDK from the promised runtime or fro
 
 test('dependency rules select bundled bytes or runtime modules on both build paths', async () => {
   // The specifier is the package name unless a row says otherwise: a rule names the package, the import may name a
-  // file inside it, and a scoped package's name has two segments.
+  // file inside it, and a scoped package's name has two segments. A `#` specifier is a subpath import the project's
+  // `imports` map points at the package; the same rules apply to the package it names, and the artifact, which has no
+  // such map, loads the package by name.
+  const subpathImports = {
+    '#dep': 'fixture-dep',
+    '#conditional': { browser: './src/browser.js', node: { require: './src/cjs.js', import: 'fixture-dep' } },
+    '#tools/*.js': '@acme/tools/*.js'
+  };
   for (const [label, manifest, options, expected, packageName, specifier = packageName] of [
     ['pure', {}, {}, 'build-copy', 'fixture-dep'],
     ['native', { gypfile: true }, {}, 'runtime-copy', 'fixture-dep'],
@@ -250,6 +257,32 @@ test('dependency rules select bundled bytes or runtime modules on both build pat
       'runtime-copy',
       '@acme/tools',
       '@acme/tools/deep.js'
+    ],
+    ['pure-subpath-import', {}, {}, 'build-copy', 'fixture-dep', '#dep'],
+    ['native-subpath-import', { gypfile: true }, {}, 'runtime-copy', 'fixture-dep', '#dep'],
+    [
+      'authored-external-subpath-import',
+      {},
+      { dependenciesToExcludeFromBundle: ['fixture-dep'] },
+      'runtime-copy',
+      'fixture-dep',
+      '#dep'
+    ],
+    [
+      'excluded-conditional-subpath-import',
+      {},
+      { excludeDependencies: ['fixture-dep'] },
+      'runtime-copy',
+      'fixture-dep',
+      '#conditional'
+    ],
+    [
+      'scoped-wildcard-subpath-import',
+      {},
+      { dependenciesToExcludeFromBundle: ['@acme/tools'] },
+      'runtime-copy',
+      '@acme/tools',
+      '#tools/deep.js'
     ]
   ] as const) {
     const root = await createRoot();
@@ -262,6 +295,10 @@ test('dependency rules select bundled bytes or runtime modules on both build pat
     if (manifest === undefined) await rm(join(packageRoot, 'package.json'));
     await mkdir(join(root, 'src'));
     await writeFile(join(root, 'src/api.ts'), `import value from '${specifier}'; export const handler = () => value;`);
+    await writeFile(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'parity-fixture', private: true, imports: subpathImports })
+    );
     const buildOptions = {
       excludeDependencies: 'excludeDependencies' in options ? [...options.excludeDependencies] : [],
       dependenciesToExcludeFromBundle:

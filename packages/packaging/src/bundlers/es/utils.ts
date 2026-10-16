@@ -9,7 +9,7 @@ import type {
   ResolvedPackageDependency,
   SupportedEsPackageManager
 } from '../../runtime-contracts';
-import { isBareImportSpecifier } from '../../es/bun-plugins';
+import { isBareImportSpecifier, PRISMA_LAMBDA_CLIENT_DIRECTORY } from '../../es/bun-plugins';
 import { getModuleName, isNodeBuiltinImport } from '../../es/import-classification';
 import { findInstalledPackage, readPackageManifest } from '../../es/installed-packages';
 import { getMatchingFilesByGlob } from '../../fs/files';
@@ -240,7 +240,7 @@ export const resolvePrisma = async ({
       continue;
     }
     const generatedSchemaPath = canonicalizeFilePath(
-      join(getFolder(parsedSchemaFile.prismaSchemaFilePath), parsedSchemaFile.output, 'schema.prisma')
+      resolve(getFolder(parsedSchemaFile.prismaSchemaFilePath), parsedSchemaFile.output, 'schema.prisma')
     );
     const declaringSchemaPaths = generatedSchemaPaths.get(generatedSchemaPath) ?? new Set<string>();
     declaringSchemaPaths.add(canonicalizeFilePath(parsedSchemaFile.prismaSchemaFilePath));
@@ -307,7 +307,7 @@ export const resolvePrisma = async ({
         if (!output) {
           throw new Error('Prisma client output is missing.');
         }
-        const from = join(getFolder(prismaSchemaFilePath), output, 'query_compiler_bg.wasm');
+        const from = resolve(getFolder(prismaSchemaFilePath), output, 'query_compiler_bg.wasm');
         const relative = getPathRelativeTo(from, projectRoot);
         return await copyToDeploymentPackage({
           from,
@@ -325,11 +325,12 @@ export const resolvePrisma = async ({
   }
 
   // `prisma-client-js` generates into `.prisma/client` beside the installed `@prisma/client` unless the schema sets
-  // `output`. pnpm keeps that pair in its store, not in the project's own `node_modules`.
+  // `output`, relative to the schema or absolute. pnpm keeps that pair in its store, not in the project's own
+  // `node_modules`.
   const schemaDirectory = parsedPrismaSchemaFile ? getFolder(parsedPrismaSchemaFile.prismaSchemaFilePath) : packageRoot;
   const installedClient = await findInstalledPackage({ name: '@prisma/client', fromDirectory: schemaDirectory });
   const generatedClientDirectory = parsedPrismaSchemaFile?.output
-    ? join(schemaDirectory, parsedPrismaSchemaFile.output)
+    ? resolve(schemaDirectory, parsedPrismaSchemaFile.output)
     : installedClient
       ? join(installedClient, '..', '..', '.prisma', 'client')
       : join(projectRoot, 'node_modules', '.prisma', 'client');
@@ -346,11 +347,14 @@ export const resolvePrisma = async ({
       hint: `Add "${target.binaryTarget}" to "schema.prisma" -> "generator client" -> "binaryTargets" and run prisma generate.`
     });
   }
+  // An image's bundle finds the engine beside itself. A Lambda's finds it in one place whether the Prisma client runs
+  // from the function or from a layer (`createPrismaLambdaClientPlugin`).
+  const engineDirectory = isLambda ? join(distFolderPath, PRISMA_LAMBDA_CLIENT_DIRECTORY) : distFolderPath;
   await Promise.all(
     [...availableEngines, 'schema.prisma'].map((fileName) =>
       copyToDeploymentPackage({
         from: join(generatedClientDirectory, fileName),
-        to: join(distFolderPath, fileName)
+        to: join(engineDirectory, fileName)
       })
     )
   );

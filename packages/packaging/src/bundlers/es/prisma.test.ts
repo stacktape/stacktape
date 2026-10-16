@@ -76,7 +76,9 @@ describe('Prisma deployment artifacts', () => {
       ...platform
     });
 
-    const copied = (await readdir(distFolderPath)).filter((file) => file !== 'schema.prisma');
+    // A Lambda's Prisma client can run from a layer, so its engine is in one place relative to `/var/task`.
+    const engineDirectory = 'isLambda' in platform ? join(distFolderPath, '.prisma', 'client') : distFolderPath;
+    const copied = (await readdir(engineDirectory)).filter((file) => file !== 'schema.prisma');
     expect(
       copied
         .map((file) =>
@@ -86,7 +88,7 @@ describe('Prisma deployment artifacts', () => {
         )
         .toSorted()
     ).toEqual([...expectedTargets]);
-    expect(await Bun.file(join(distFolderPath, 'schema.prisma')).exists()).toBe(true);
+    expect(await Bun.file(join(engineDirectory, 'schema.prisma')).exists()).toBe(true);
   });
 
   test('names the binary target a platform without an engine needs, and finds engines in a custom output', async () => {
@@ -130,8 +132,43 @@ describe('Prisma deployment artifacts', () => {
 
     await writeFile(join(generatedDirectory, 'libquery_engine-linux-arm64-openssl-3.0.x.so.node'), 'arm64 engine');
     await resolvePrisma({ ...options, createPackagingError: ({ message }) => new Error(message) });
-    expect((await readdir(distFolderPath)).toSorted()).toEqual([
+    expect((await readdir(join(distFolderPath, '.prisma', 'client'))).toSorted()).toEqual([
       'libquery_engine-linux-arm64-openssl-3.0.x.so.node',
+      'schema.prisma'
+    ]);
+  });
+
+  // An absolute `output` inside the project also leaves Prisma's copy of the schema where the schema search finds it.
+  test.each([
+    ['inside the project', (projectRoot: string) => join(projectRoot, 'generated', 'client')],
+    ['outside the project', (projectRoot: string) => join(`${projectRoot}-generated`, 'client')]
+  ])('finds the engine in an absolute generator output %s', async (_, getOutput) => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-engines-'));
+    const generatedDirectory = getOutput(projectRoot);
+    temporaryDirectories.push(projectRoot, `${projectRoot}-generated`);
+    const distFolderPath = join(projectRoot, 'dist');
+    await Promise.all([
+      mkdir(join(projectRoot, 'prisma')),
+      mkdir(generatedDirectory, { recursive: true }),
+      mkdir(distFolderPath),
+      writeFile(join(projectRoot, 'package.json'), '{"name":"prisma-test"}')
+    ]);
+    const schema = `generator client {\n  provider = "prisma-client-js"\n  output   = ${JSON.stringify(generatedDirectory)}\n}`;
+    await Promise.all([
+      writeFile(join(projectRoot, 'prisma', 'schema.prisma'), schema),
+      writeFile(join(generatedDirectory, 'schema.prisma'), schema),
+      writeFile(join(generatedDirectory, 'libquery_engine-debian-openssl-3.0.x.so.node'), 'engine')
+    ]);
+
+    await resolvePrisma({
+      createPackagingError: ({ message }) => new Error(message),
+      distFolderPath,
+      workingDir: projectRoot,
+      workloadName: 'api',
+      architecture: 'x64'
+    });
+    expect((await readdir(distFolderPath)).toSorted()).toEqual([
+      'libquery_engine-debian-openssl-3.0.x.so.node',
       'schema.prisma'
     ]);
   });

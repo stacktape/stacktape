@@ -12,8 +12,11 @@
  * `findModulePath` between them, and inserts whatever extra steps it needs (workspace packages and
  * dynamically imported modules in the per-Lambda bundler) without reordering the shared ones.
  */
+import { existsSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
+import { dirname, isAbsolute, join } from 'node:path';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
+import { isBareImportSpecifier } from './bun-plugins';
 import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE } from './config';
 import {
@@ -34,6 +37,91 @@ export const getModuleName = (importPath: string): string => {
 };
 
 export const isNodeBuiltinImport = (specifier: string): boolean => isBuiltin(specifier);
+
+/** The directory of the `package.json` that owns `directory`, as Node.js finds a module's package scope. */
+const findPackageScope = (directory: string): string | undefined => {
+  for (let current = directory; ; current = dirname(current)) {
+    if (existsSync(join(current, 'package.json'))) return current;
+    if (dirname(current) === current) return undefined;
+  }
+};
+
+/** The entry of an `imports` map that matches `specifier`, with the text a `*` pattern captured. */
+const matchImportsEntry = (
+  imports: Record<string, unknown>,
+  specifier: string
+): { target: unknown; captured?: string } | undefined => {
+  if (!specifier.includes('*') && Object.hasOwn(imports, specifier)) return { target: imports[specifier] };
+  // Node.js prefers the pattern with the longest text before the `*`, then the longest pattern.
+  let best: { key: string; base: string; captured: string } | undefined;
+  for (const key of Object.keys(imports)) {
+    const star = key.indexOf('*');
+    if (star === -1 || star !== key.lastIndexOf('*')) continue;
+    const base = key.slice(0, star);
+    const trailer = key.slice(star + 1);
+    if (specifier === base || specifier.length < key.length) continue;
+    if (!specifier.startsWith(base) || !specifier.endsWith(trailer)) continue;
+    if (
+      best &&
+      (base.length < best.base.length || (base.length === best.base.length && key.length <= best.key.length))
+    ) {
+      continue;
+    }
+    best = { key, base, captured: specifier.slice(base.length, specifier.length - trailer.length) };
+  }
+  return best && { target: imports[best.key], captured: best.captured };
+};
+
+/** The string a target selects under the build's conditions: the first matching key wins, as in Node.js. */
+const selectImportsTarget = (target: unknown, conditions: Set<string>): string | undefined => {
+  if (typeof target === 'string') return target;
+  if (Array.isArray(target)) {
+    for (const candidate of target) {
+      const selected = selectImportsTarget(candidate, conditions);
+      if (selected !== undefined) return selected;
+    }
+    return undefined;
+  }
+  if (typeof target !== 'object' || target === null) return undefined;
+  for (const [condition, value] of Object.entries(target)) {
+    if (!conditions.has(condition)) continue;
+    const selected = selectImportsTarget(value, conditions);
+    if (selected !== undefined) return selected;
+  }
+  return undefined;
+};
+
+/**
+ * The package specifier the dependency rules classify an import by, or `undefined` when the import names no package.
+ *
+ * A subpath import (`#name`) is defined by the importing package's `imports` map. When the map points it at a
+ * package, as `"#native": "fixture-native"` does, it is an import of that package and the rules decide about that
+ * package: Bun's resolver would otherwise follow the map without asking the plugins, and bundle a native or excluded
+ * package. A package left out of the bundle is then imported by its own name, because the artifact keeps no `imports`
+ * map. A subpath import of a file in the package, as Prisma's `#main-entry-point` is, names no package and is bundled.
+ */
+export const getClassifiedSpecifier = async ({
+  path: specifier,
+  importer,
+  kind
+}: {
+  /** The import's specifier, as Bun's `onResolve` arguments name it. */
+  path: string;
+  importer: string | undefined;
+  kind: Bun.ImportKind | undefined;
+}): Promise<string | undefined> => {
+  if (!specifier.startsWith('#')) return isBareImportSpecifier(specifier) ? specifier : undefined;
+  const packageScope = importer && isAbsolute(importer) ? findPackageScope(dirname(importer)) : undefined;
+  if (!packageScope) return undefined;
+  const { imports } = await readPackageManifest(packageScope).catch(() => ({ imports: undefined }));
+  if (typeof imports !== 'object' || imports === null || Array.isArray(imports)) return undefined;
+  const entry = matchImportsEntry(imports as Record<string, unknown>, specifier);
+  const conditions = new Set(['node', isRequireImportKind(kind) ? 'require' : 'import', 'default']);
+  const target = entry && selectImportsTarget(entry.target, conditions);
+  if (target === undefined) return undefined;
+  const packageSpecifier = entry?.captured === undefined ? target : target.replaceAll('*', entry.captured);
+  return isBareImportSpecifier(packageSpecifier) ? packageSpecifier : undefined;
+};
 
 /**
  * Lambda Node runtimes that ship the AWS SDK v3. Bundling it into the artifact on one of these only
