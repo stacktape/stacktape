@@ -33,9 +33,9 @@
  *   upload, with a message naming each size.
  *
  * One scenario uses the real Docker daemon, host-native only: a guard forwards `info`, `buildx inspect`, an amd64
- * `build` tagged with this run's own prefix and `image inspect` of that tag, and refuses everything else. The image
- * is built `FROM scratch`, so nothing is pulled; the daemon's image events confirm it. The image is removed at the end
- * and its removal verified.
+ * `build` tagged with this run's own prefix and `image inspect` of that tag or of the image ID the build reported, and
+ * refuses everything else. The image is built `FROM scratch`, so nothing is pulled; the daemon's image events confirm
+ * it. The image is removed at the end and its removal verified.
  *
  *   pnpm --filter @stacktape/cli run test:docker-preparation -- [--out <dir>] [--skip-real-docker]
  *
@@ -264,11 +264,27 @@ if [ "$daemon" = stuck ]; then
 fi
 
 platform=
+iidfile=
+load=no
 previous=
 for argument in "$@"; do
   [ "$previous" = --platform ] && platform=$argument
+  [ "$previous" = --iidfile ] && iidfile=$argument
+  [ "$argument" = --load ] && load=yes
   previous=$argument
 done
+# A build with --load puts a new image into the image store and writes its ID to --iidfile. The image the build's tag
+# named before is a different image. Without --load the image stays in the builder, as with a docker-container builder.
+loaded_image() {
+  [ "$load" = yes ] || return 0
+  until mkdir "$state/images.lock" 2>/dev/null; do sleep 0.05; done
+  images=$(($(cat "$state/images" 2>/dev/null || echo 0) + 1))
+  echo "$images" > "$state/images"
+  rmdir "$state/images.lock"
+  image_id=$(printf 'sha256:1d%062d' "$images")
+  [ -z "$iidfile" ] || printf '%s' "$image_id" > "$iidfile"
+  printf ' %s' "$image_id"
+}
 # A build for a platform the builder does not report fails when its first step runs.
 require_platform() {
   [ -z "$platform" ] && return 0
@@ -345,13 +361,13 @@ case "$1" in
         fi
         cache_to=$(registry_ref --cache-to "$@")
         [ -z "$cache_to" ] || publish "$(printf '%s' "$cache_to" | sed 's/.*://')"
-        record answered 0 "image built with the registry cache ($cache)" "$@"
+        record answered 0 "image built with the registry cache ($cache)$(loaded_image)" "$@"
         exit 0 ;;
     esac
     refuse 1 'builder change' "$@" ;;
   build)
     require_platform "$@"
-    record answered 0 'image built' "$@"
+    record answered 0 "image built$(loaded_image)" "$@"
     exit 0 ;;
   image)
     case "$2" in
@@ -367,7 +383,9 @@ case "$1" in
         exit $? ;;
       inspect)
         record answered 0 'image details' "$@"
-        echo '[{"Id":"sha256:5eed000000000000000000000000000000000000000000000000000000000000","Size":1048576,"Created":"2026-09-24T00:00:00Z"}]'
+        # An ID names that image; a tag names an older image than any this run built.
+        case "$3" in sha256:*) id=$3 ;; *) id=sha256:5eed000000000000000000000000000000000000000000000000000000000000 ;; esac
+        echo "[{\"Id\":\"$id\",\"Size\":1048576,\"Created\":\"2026-09-24T00:00:00Z\"}]"
         exit 0 ;;
     esac
     refuse 1 'image change' "$@" ;;
@@ -439,7 +457,7 @@ case "$1" in
     previous=
     for argument in "$@"; do
       case "$previous" in --platform) platform=$argument ;; -t) tag=$argument ;; esac
-      case "$argument" in --builder* | --push | --output* | -o | --cache-from* | --cache-to* | --load | --pull*) unsafe=$argument ;; esac
+      case "$argument" in --builder* | --push | --output* | -o | --cache-from* | --cache-to* | --pull*) unsafe=$argument ;; esac
       previous=$argument
     done
     if [ "$platform" = linux/amd64 ] && [ -z "$unsafe" ]; then
@@ -448,7 +466,8 @@ case "$1" in
     refuse 1 'a build this scenario does not own' "$@" ;;
   image)
     if [ "$2" = inspect ] && [ "$#" -eq 3 ]; then
-      case "$3" in "$prefix"*) forward "$@" ;; esac
+      # An image ID names one image; the build reports the ID of the image it built.
+      case "$3" in "$prefix"* | sha256:*) forward "$@" ;; esac
     fi
     refuse 1 'an image this scenario does not own' "$@" ;;
   run) refuse 125 'container' "$@" ;;
@@ -774,6 +793,24 @@ const expectOperations = (run: ScenarioRun, expected: string[]) =>
     JSON.stringify(operations(run)) === JSON.stringify(expected),
     `Docker was asked ${JSON.stringify(operations(run))}, expected ${JSON.stringify(expected)}.`
   );
+
+/**
+ * Every image a deployment pushes is one its own build loaded: `docker tag` names the image ID the build wrote to its
+ * `--iidfile`. The stand-in's tags still name older images, as when a builder did not load the new one or another
+ * project's build moved the tag.
+ */
+const expectBuiltImagesPushed = (deployment: WorkerRun, label: string) => {
+  const built = new Set(
+    deployment.dockerOperations.flatMap(({ operation, reason }) =>
+      operation === 'build' || operation === 'buildx build' ? (reason.match(/sha256:1d\d{62}/g) ?? []) : []
+    )
+  );
+  const tagged = deployment.dockerOperations.filter(({ operation }) => operation === 'tag').map(({ args }) => args[1]);
+  expect(tagged.length > 0, `${label} tagged no image.`);
+  for (const source of tagged) {
+    expect(built.has(source ?? ''), `${label} tagged ${source}, not an image its build loaded (${[...built]}).`);
+  }
+};
 
 const expectPackaged = (run: ScenarioRun, jobNames: string[]) => {
   expect(!run.timedOut, `The run did not finish before its deadline (${run.wallMs} ms).`);
@@ -1304,8 +1341,39 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
           );
           const pushes = deployment.dockerOperations.filter(({ operation }) => operation === 'push').length;
           expect(pushes === (index < 3 ? 2 : 0), `Deployment ${index + 1} pushed ${pushes} images.`);
+          if (pushes) expectBuiltImagesPushed(deployment, `Deployment ${index + 1}`);
         });
-        return 'four deployments; the first three rebuilt and pushed both images, the fourth reused web';
+        return 'four deployments; the first three rebuilt and pushed both images by their build IDs, the fourth reused web';
+      }
+    },
+    {
+      name: 'deployments on a developer machine',
+      command: 'deploy',
+      docker: { kind: 'stand-in', state: { daemon: 'running', platforms: HOST_PLATFORMS, cacheBuilderExists: true } },
+      resources: { web: workerService('x86_64'), worker: workerService('x86_64') },
+      files: IMAGE_FILES,
+      deployments: [
+        { files: { 'image/hello.txt': 'deployment 1\n' } },
+        { files: { 'image/hello.txt': 'deployment 2\n' } }
+      ],
+      check: (run) => {
+        const deployments = run.deployments ?? [];
+        expect(deployments.length === 2, `${deployments.length} deployments ran.`);
+        deployments.forEach((deployment, index) => {
+          expect(
+            deployment.exitCode === 0 && deployment.result?.outcome === 'packaged',
+            `Deployment ${index + 1} failed: ${deployment.result?.error?.message ?? 'no result'}`
+          );
+          const operations = deployment.dockerOperations.map(({ operation }) => operation);
+          expect(
+            !operations.some((operation) => operation.startsWith('buildx build') || operation === 'buildx ls'),
+            `Deployment ${index + 1} used the registry cache builder: ${operations}.`
+          );
+          const pushes = operations.filter((operation) => operation === 'push').length;
+          expect(pushes === 2, `Deployment ${index + 1} pushed ${pushes} images.`);
+          expectBuiltImagesPushed(deployment, `Deployment ${index + 1}`);
+        });
+        return 'two deployments with the local builder; each pushed both images by the IDs their builds reported';
       }
     },
     {
@@ -1615,7 +1683,7 @@ const main = async () => {
     await check('registry cache: deployments 2 and 3 build from the cache', () => {
       for (const index of [1, 2]) {
         for (const { reason } of imageBuilds(deployments[index]!)) {
-          expect(reason.endsWith('(found)'), `Deployment ${index + 1}: ${reason}.`);
+          expect(reason.includes('(found)'), `Deployment ${index + 1}: ${reason}.`);
         }
       }
     });

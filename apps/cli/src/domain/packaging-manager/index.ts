@@ -334,6 +334,7 @@ export class PackagingManager {
       skipped: result.outcome === 'skipped',
       size: result.size,
       ...(result.artifactPath === undefined ? {} : { artifactPath: result.artifactPath }),
+      ...(result.imageId === undefined ? {} : { imageId: result.imageId }),
       ...(result.resolvedModules === undefined ? {} : { resolvedModules: result.resolvedModules })
     });
   };

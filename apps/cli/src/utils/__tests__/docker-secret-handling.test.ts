@@ -48,7 +48,7 @@ let dockerRun: DockerModule['dockerRun'];
  * would plant the sentinels in the error itself and prove nothing.
  */
 const FAKE_DOCKER_PROGRAM = `
-const { appendFileSync } = require('node:fs');
+const { appendFileSync, writeFileSync } = require('node:fs');
 const behavior = JSON.parse(process.argv[2]);
 const args = process.argv.slice(3);
 const observedEnv = Object.fromEntries(
@@ -62,6 +62,11 @@ const respond = (stdin) => {
     // Lets buildDockerImage finish the way it does against a real Docker.
     process.stdout.write(JSON.stringify([{ Id: 'sha256:fake', Size: 1024, Created: '2026-07-28T00:00:00Z' }]));
     process.exit(0);
+  }
+  // A successful build reports the image it built, as Docker does with --iidfile.
+  const iidFile = args.indexOf('--iidfile');
+  if (iidFile !== -1 && !behavior.exitCode) {
+    writeFileSync(args[iidFile + 1], 'sha256:fake');
   }
   if (behavior.echoStdinToStderr) {
     process.stderr.write(stdin);

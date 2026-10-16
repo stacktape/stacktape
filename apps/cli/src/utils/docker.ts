@@ -1,6 +1,8 @@
 import type { StdTransformer } from '@utils/streams';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { exec } from '@utils/exec';
 import { transformToUnixPath } from '@utils/fs-utils';
@@ -822,9 +824,18 @@ export const buildDockerImage = async ({
     });
   }
 
+  // The build writes the ID of the image it produced here. The tag alone can still name an older image: a builder
+  // that keeps its result in its own cache (a `docker-container` builder selected with `BUILDX_BUILDER`, say) leaves
+  // the tag where it was, and another build with the same tag can move it before this image is pushed.
+  const iidDirectory = await mkdtemp(join(tmpdir(), 'stp-image-id-'));
+  const iidFilePath = join(iidDirectory, 'id');
   const command = [
-    // Use buildx with docker-container builder when remote cache is enabled (required for cache export)
-    ...(useRemoteCache ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME, '--load'] : ['build']),
+    // The registry cache needs the docker-container builder. Every build loads its image into the local image store,
+    // whichever builder runs it.
+    ...(useRemoteCache ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME] : ['build']),
+    '--load',
+    '--iidfile',
+    iidFilePath,
     ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
     '-t',
     imageTag,
@@ -840,6 +851,7 @@ export const buildDockerImage = async ({
   ];
 
   let stderr: string | undefined;
+  let imageId = '';
   try {
     ({ stderr } = await execDocker(command, {
       env: {
@@ -852,10 +864,22 @@ export const buildDockerImage = async ({
       // A failing install or build step can echo a secret; the rejection this call turns into a CliError must not.
       redactedValues: Object.values(secretsPassthrough.env)
     }));
+    imageId = (await readFile(iidFilePath, 'utf8').catch(() => '')).trim();
   } catch (err) {
     handleDockerError(err, `Error building docker image ${imageTag}:\n${err.message}`);
+  } finally {
+    await rm(iidDirectory, { recursive: true, force: true });
   }
-  const imageDetails = await getDockerImageDetails(imageTag);
+  if (!imageId) {
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_IMAGE_NOT_LOADED',
+      message: `Docker built image ${imageTag} but did not report it in the local image store.`,
+      hints:
+        'Use a Docker builder that can load images into the local image store, for example by unsetting BUILDX_BUILDER.'
+    });
+  }
+  const imageDetails = await getDockerImageDetails(imageId);
   // A successful build step can echo a secret too; the captured output travels into packaging details and logs.
   return {
     ...imageDetails,

@@ -983,7 +983,15 @@ class DeploymentArtifactManager {
       label: jobName.replace(/-default$/, '')
     });
     await uploadLogger.startEvent({ eventType: 'UPLOAD_IMAGE', description: 'Uploading image' });
-    await tagDockerImage(jobName, imageTagWithUrl);
+    // The image this deployment built, by its ID: the local tag (the job name) may meanwhile name another build's image.
+    const imageId = this.packagingSource.getPackagingOutputForJob(jobName)?.imageId;
+    if (!imageId) {
+      throw new ExpectedError(
+        'PACKAGING',
+        `The build of container image ${jobName} did not report the image it built.`
+      );
+    }
+    await tagDockerImage(imageId, imageTagWithUrl);
     await pushDockerImage(imageTagWithUrl);
     this.successfullyUploadedImages.push({ tag, name: jobName });
     await uploadLogger.finishEvent({ eventType: 'UPLOAD_IMAGE', finalMessage: 'Container image uploaded' });

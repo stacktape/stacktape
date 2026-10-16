@@ -384,7 +384,7 @@ export const buildUsingRailpack = async ({
   });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
-  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+  const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
     dockerfileContents: JSON.stringify(plan),
     // The context is the customer's source directory: the plan file stays out of their project tree.
     buildFileDirectoryPath: tmpdir(),
@@ -409,6 +409,7 @@ export const buildUsingRailpack = async ({
     size,
     digest,
     imageName: name,
+    imageId: id,
     sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: {
       duration,

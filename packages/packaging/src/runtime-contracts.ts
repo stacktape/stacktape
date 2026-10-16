@@ -299,6 +299,11 @@ export type PackagingOutput = {
   size: number | null | undefined;
   zippedSize?: number | undefined;
   imageName?: string | undefined;
+  /**
+   * The ID of the image a build produced, as Docker reported it for this build. A deployment tags and pushes this
+   * image, not whatever `imageName` names by then.
+   */
+  imageId?: string | undefined;
   digest: string;
   outcome: 'skipped' | 'bundled';
   sourceFiles?: { path: string }[] | undefined;
