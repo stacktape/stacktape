@@ -1142,14 +1142,25 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
   if (workload.resources.instanceTypes) {
     const dependencies = [
       cfLogicalNames.ecsDisableManagedTerminationProtectionCustomResource(workload.name),
-      cfLogicalNames.ecsEc2CapacityProviderAssociation(workload.name),
-      cfLogicalNames.routeTableToSubnetAssociation(true, 0),
-      cfLogicalNames.routeTableToSubnetAssociation(true, 1)
+      cfLogicalNames.ecsEc2CapacityProviderAssociation(workload.name)
     ];
 
-    // If using private subnets, also depend on NAT routes so instances can reach ECS API during draining
-    if (workload.usePrivateSubnetsWithNAT) {
-      dependencies.push(cfLogicalNames.natRoute(0), cfLogicalNames.natRoute(1), cfLogicalNames.natRoute(2));
+    // While the service drains, ECS waits for each instance's agent to report its tasks stopped. Deleting the
+    // service first keeps every subnet's internet path (the IGW routes, and the NAT routes for private subnets)
+    // in place until then; otherwise the agent goes offline and the delete hangs until CloudFormation times out.
+    if (!configManager.reuseVpcConfig) {
+      [0, 1, 2].forEach((subnetIndex) => {
+        dependencies.push(
+          cfLogicalNames.internetGatewayRoute(subnetIndex),
+          cfLogicalNames.routeTableToSubnetAssociation(true, subnetIndex)
+        );
+        if (workload.usePrivateSubnetsWithNAT) {
+          dependencies.push(
+            cfLogicalNames.natRoute(subnetIndex),
+            cfLogicalNames.routeTableToSubnetAssociation(false, subnetIndex)
+          );
+        }
+      });
     }
 
     service.DependsOn = ((service.DependsOn as string[]) || []).concat(dependencies);
