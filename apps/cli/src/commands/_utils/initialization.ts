@@ -147,8 +147,15 @@ const loadLocalTargetStackContext = async () => {
   );
 };
 
-const loadLocalAwsContext = async () => {
+/**
+ * Local AWS credentials without the Console. `package` passes `lookUpAccount: false`: it looks the account up only when
+ * something needs it. Commands that read the stack, such as `synth` and `validate`, look it up now.
+ */
+const loadLocalAwsContext = async ({ lookUpAccount }: { lookUpAccount: boolean }) => {
   const credentialsProvider = await globalStateManager.prepareLocalAwsCredentials();
+  if (lookUpAccount) {
+    await globalStateManager.resolveLocalAwsAccount();
+  }
   const endSdkInit = startTiming('context:aws-sdk-init');
   awsSdkManager.init({
     credentials: credentialsProvider,
@@ -175,7 +182,7 @@ export const initializeControlPlaneOperation = async ({
 };
 
 export const initializePackageOperation = async () => {
-  await loadLocalAwsContext();
+  await loadLocalAwsContext({ lookUpAccount: false });
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
   await packagingManager.init();
@@ -270,7 +277,7 @@ export const initializeStackOperationLifecycle = async ({
       projects: globalStateManager.projects
     });
   } else {
-    await loadLocalAwsContext();
+    await loadLocalAwsContext({ lookUpAccount: true });
   }
   const stackContext = getStackContext();
   await beforeConfigInit?.(stackContext);
