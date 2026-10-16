@@ -133,8 +133,9 @@ The full local-state ownership map lives in `apps/cli/src/config/local-state-pat
 
 ## Local packaging and synthesis
 
-These commands exercise the source-built CLI. They resolve AWS identity and metadata because account and region affect
-stable names, but they do not use the Stacktape Console.
+These commands exercise the source-built CLI without the Stacktape Console. `synth` and `validate` resolve the AWS
+account because account and region affect stable names. `package` loads credentials and looks up the account only when
+the configuration needs them, for example for a `$Secret` or `$AwsAccountId` directive.
 
 ```sh
 pnpm dev:cli package --configPath <config> --stage dev --region eu-west-1 --profile <profile>

@@ -429,7 +429,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The CLI process cancels destructive prompts, enforces termination protection, recovers failed rollbacks while observing artifacts in MiniStack, and targets the AWS account local credentials select.',
+      'The CLI process cancels destructive prompts, enforces termination protection, recovers failed rollbacks while observing artifacts in MiniStack, targets the AWS account local credentials select, and packages without asking AWS for anything the configuration does not need.',
     selections: ['cli-stack-operations']
   },
   {
@@ -4107,6 +4107,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/global-state-manager/local-aws-account.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
       'apps/cli/tests/cli-process/aws-account-selection.spec.ts',
+      'apps/cli/tests/cli-process/package-without-aws.spec.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',

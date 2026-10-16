@@ -169,7 +169,10 @@ export class ConfigManager {
   }
 
   setStackContext = (stackContext: StackContext) => {
-    this.#stackContext = Object.freeze({ ...stackContext });
+    // Copies accessors as accessors: `package` reads the account and the stack hash only when something needs them.
+    this.#stackContext = Object.freeze(
+      Object.defineProperties({} as StackContext, Object.getOwnPropertyDescriptors(stackContext))
+    );
   };
 
   private get helperLambdaDetails(): HelperLambdaDetails {
@@ -2351,6 +2354,8 @@ export class ConfigManager {
 
   get stacktapeServiceLambdaProps(): StpHelperLambdaFunction {
     const artifactName = 'stacktapeServiceLambda';
+    const environment = () => this.#stacktapeServiceLambdaEnvironment;
+    const iamRoleStatements = () => this.#stacktapeServiceLambdaStatements;
     const helperLambdaData = this.helperLambdaDetails[artifactName];
     return {
       name: artifactName,
@@ -2367,43 +2372,57 @@ export class ConfigManager {
       artifactPath: helperLambdaData.artifactPath,
       configParentResourceType: 'custom-resource-definition',
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, artifactName],
-      environment: getStacktapeServiceLambdaEnvironment({
-        projectName: this.stackContext.projectName,
-        globallyUniqueStackHash: this.globallyUniqueStackHash,
-        stackName: this.stackContext.stackName,
-        stage: this.stackContext.stage
-      }),
-      iamRoleStatements: [
-        ...getStacktapeServiceLambdaCustomResourceInducedStatements({
-          activeConfig: this,
-          stackContext: this.stackContext
-        }),
-        ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
-        ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
-          activeConfig: this,
-          stackName: this.stackContext.stackName
-        }),
-        ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
-        ...getStacktapeServiceLambdaNatFailoverStatements({ activeConfig: this, stackContext: this.stackContext }),
-        ...getStacktapeServiceLambdaIssueDetectionStatements({
-          issueDetectionEnabled: this.isIssueDetectionEnabled
-        }),
-        ...getStacktapeServiceLambdaUptimeMonitoringStatements({
-          uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
-          accountId: this.stackContext.accountId,
-          deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash),
-          region: this.stackContext.region
-        }),
-        ...getStacktapeServiceLambdaTracingStatements({
-          // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so
-          // the service lambda must not carry the unused account-level permissions there either.
-          tracingEnabled:
-            (this.instrumentedLambdaFunctions.length > 0 || this.instrumentedContainerWorkloads.length > 0) &&
-            this.deploymentContext.command !== 'dev',
-          region: this.stackContext.region
-        })
-      ]
+      // Environment and permissions are built when read. Validation lists this function only for its name and events,
+      // and `package` may not have looked up the AWS account they name.
+      get environment() {
+        return environment();
+      },
+      get iamRoleStatements() {
+        return iamRoleStatements();
+      }
     };
+  }
+
+  get #stacktapeServiceLambdaEnvironment() {
+    return getStacktapeServiceLambdaEnvironment({
+      projectName: this.stackContext.projectName,
+      globallyUniqueStackHash: this.globallyUniqueStackHash,
+      stackName: this.stackContext.stackName,
+      stage: this.stackContext.stage
+    });
+  }
+
+  get #stacktapeServiceLambdaStatements() {
+    return [
+      ...getStacktapeServiceLambdaCustomResourceInducedStatements({
+        activeConfig: this,
+        stackContext: this.stackContext
+      }),
+      ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
+      ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
+        activeConfig: this,
+        stackName: this.stackContext.stackName
+      }),
+      ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
+      ...getStacktapeServiceLambdaNatFailoverStatements({ activeConfig: this, stackContext: this.stackContext }),
+      ...getStacktapeServiceLambdaIssueDetectionStatements({
+        issueDetectionEnabled: this.isIssueDetectionEnabled
+      }),
+      ...getStacktapeServiceLambdaUptimeMonitoringStatements({
+        uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
+        accountId: this.stackContext.accountId,
+        deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash),
+        region: this.stackContext.region
+      }),
+      ...getStacktapeServiceLambdaTracingStatements({
+        // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so
+        // the service lambda must not carry the unused account-level permissions there either.
+        tracingEnabled:
+          (this.instrumentedLambdaFunctions.length > 0 || this.instrumentedContainerWorkloads.length > 0) &&
+          this.deploymentContext.command !== 'dev',
+        region: this.stackContext.region
+      })
+    ];
   }
 
   get stacktapeOriginRequestLambdaProps(): StpHelperEdgeLambdaFunction {

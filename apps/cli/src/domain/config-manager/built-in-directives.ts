@@ -29,6 +29,11 @@ export type BuiltInDirectiveContext = Readonly<{
     templateManager: Pick<typeof templateManager, 'template' | 'addFinalTemplateOverrideFn' | 'addStackOutput'>;
   }>;
   accountId: string;
+  /**
+   * Looks up the AWS account where a command does that only when something needs it (`package`). Directives that may
+   * read AWS or the account wait for it.
+   */
+  ensureAwsAccount?: () => Promise<void>;
   additionalArgs: Readonly<Record<string, string | boolean>>;
   awsProfile: string;
   cliArgs: Readonly<StacktapeArgs>;
@@ -39,10 +44,46 @@ export type BuiltInDirectiveContext = Readonly<{
   workingDir: string;
 }>;
 
+/** Directives that read only the configuration, local files and the invocation, never AWS or the AWS account. */
+const LOCAL_DIRECTIVES = new Set([
+  'File',
+  'FileRaw',
+  'CliArgs',
+  'Stage',
+  'Region',
+  'Profile',
+  'Format',
+  'Var',
+  'This',
+  'GitInfo'
+]);
+
+/** Looks up the AWS account before the directive runs, for commands that look it up only when needed. */
+const withAwsAccount = (directive: Directive, ensureAwsAccount: () => Promise<void>): Directive => {
+  const { resolveFunction, localResolveFunction } = directive;
+  return {
+    ...directive,
+    resolveFunction:
+      (resolver) =>
+      async (...args: unknown[]) => {
+        await ensureAwsAccount();
+        return resolveFunction(resolver)(...args);
+      },
+    ...(localResolveFunction && {
+      localResolveFunction:
+        (resolver) =>
+        async (...args: unknown[]) => {
+          await ensureAwsAccount();
+          return localResolveFunction(resolver)(...args);
+        }
+    })
+  };
+};
+
 export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Directive[] => {
   const { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager } =
     context.runtime;
-  return [
+  const directives: Directive[] = [
     {
       name: 'File',
       isRuntime: false,
@@ -569,6 +610,12 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       }
     }
   ];
+  const { ensureAwsAccount } = context;
+  return ensureAwsAccount
+    ? directives.map((directive) =>
+        LOCAL_DIRECTIVES.has(directive.name) ? directive : withAwsAccount(directive, ensureAwsAccount)
+      )
+    : directives;
 };
 
 const getDisableEmulationHint = () =>

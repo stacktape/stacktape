@@ -47,11 +47,17 @@ import { getConfigPath } from '@utils/file-loaders';
 import { startTiming, timeAsync } from '@utils/timings';
 import { finalizeTemplate, prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 
+// The account and the hash derived from it are read when used: `package` looks up the account of local credentials
+// only when something needs it (`globalStateManager.resolveLocalAwsAccount`).
 export const getStackContext = (): StackContext =>
   Object.freeze({
-    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    get accountId() {
+      return globalStateManager.targetAwsAccount.awsAccountId;
+    },
     command: globalStateManager.command,
-    globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+    get globallyUniqueStackHash() {
+      return globalStateManager.targetStack.globallyUniqueStackHash;
+    },
     invocationId: globalStateManager.invocationId,
     projectName: globalStateManager.targetStack.projectName,
     region: globalStateManager.region,
@@ -82,7 +88,12 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
         stackManager,
         templateManager
       },
-      accountId: stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId,
+      get accountId() {
+        return stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId;
+      },
+      ...(globalStateManager.localCredentialsProvider && {
+        ensureAwsAccount: globalStateManager.resolveLocalAwsAccount
+      }),
       additionalArgs: { ...(globalStateManager.additionalArgs || {}) },
       awsProfile: globalStateManager.awsProfileName,
       cliArgs: { ...args },
@@ -137,7 +148,7 @@ const loadLocalTargetStackContext = async () => {
 };
 
 const loadLocalAwsContext = async () => {
-  const credentialsProvider = await globalStateManager.loadLocalAwsCredentials();
+  const credentialsProvider = await globalStateManager.prepareLocalAwsCredentials();
   const endSdkInit = startTiming('context:aws-sdk-init');
   awsSdkManager.init({
     credentials: credentialsProvider,
