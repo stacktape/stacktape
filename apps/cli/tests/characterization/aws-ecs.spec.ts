@@ -442,9 +442,17 @@ describe('a rolling update that finishes once the new tasks serve', () => {
             taskDefinition: TASK_DEFINITION,
             desiredCount: 1,
             runningCount: 1,
-            rolloutState: 'IN_PROGRESS'
+            rolloutState: 'IN_PROGRESS',
+            createdAt: new Date('2026-10-17T10:05:00Z')
           },
-          { id: 'ecs-svc/1', status: 'ACTIVE', desiredCount: 0, runningCount: 1, rolloutState: 'COMPLETED' }
+          {
+            id: 'ecs-svc/1',
+            status: 'ACTIVE',
+            desiredCount: 0,
+            runningCount: 1,
+            rolloutState: 'COMPLETED',
+            createdAt: new Date('2026-10-17T10:00:00Z')
+          }
         ]
       }
     ]
@@ -787,7 +795,12 @@ describe('a rolling update that finishes once the new tasks serve', () => {
   const supersededAfter = (primaryPolls: number, targetStateOf: (read: number) => string) => {
     const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
     const [primary, previous] = service.deployments;
-    const replacement = { ...primary, id: 'ecs-svc/3', taskDefinition: `${TASK_DEFINITION}-rollback` };
+    const replacement = {
+      ...primary,
+      id: 'ecs-svc/3',
+      taskDefinition: `${TASK_DEFINITION}-rollback`,
+      createdAt: new Date('2026-10-17T10:06:00Z')
+    };
     let polls = 0;
     let targetReads = 0;
     const ecs = ecsWith({
@@ -832,6 +845,37 @@ describe('a rolling update that finishes once the new tasks serve', () => {
     );
     expect(polls()).toBe(2);
     expect(targetReads()).toBe(1);
+  }, 30_000);
+
+  test('keeps waiting when a stale read shows only the previous deployment', async () => {
+    // ECS reads are eventually consistent: a read can return the service as it was before the update.
+    const service = { ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} };
+    const [, previous] = service.deployments;
+    let polls = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          if (polls === 2) return { services: [{ ...service, deployments: [{ ...previous, status: 'PRIMARY' }] }] };
+          return { services: [service] };
+        }
+        if (command instanceof DescribeTaskDefinitionCommand) {
+          return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      elbSend: (async () => ({
+        TargetHealthDescriptions: [
+          { Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State: polls === 1 ? 'initial' : 'healthy' } }
+        ]
+      })) as ElbSend
+    });
+
+    await expect(ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).resolves.toEqual({
+      finishedWhen: 'new-targets-healthy'
+    });
+    // The fourth read is the re-read after the routing allowance.
+    expect(polls).toBe(4);
   }, 30_000);
 
   test('restarts the routing allowance when a new task fails its health check during it', async () => {

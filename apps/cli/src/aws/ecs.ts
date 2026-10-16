@@ -191,11 +191,16 @@ const rolloutFailure = ({ services, failures }: DescribeServicesCommandOutput, d
   services?.find(({ status }) => status === 'DRAINING')?.status ||
   services?.find(({ status }) => status === 'INACTIVE')?.status;
 
-/** Another `UpdateService`, such as a rollback or a concurrent deploy, replaced the deployment before it finished. */
-const supersession = ({ services }: DescribeServicesCommandOutput, deployment: Deployment | undefined) => {
-  if (deployment?.status === 'PRIMARY') return undefined;
+/**
+ * Another `UpdateService`, such as a rollback or a concurrent deploy, replaced the deployment before it finished. ECS
+ * reads are eventually consistent: a stale snapshot can still show the previous deployment as PRIMARY, or lack this one.
+ * Only a PRIMARY deployment created after this one proves the replacement.
+ */
+const supersession = ({ services }: DescribeServicesCommandOutput, deployment: Deployment) => {
   const primary = services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
-  return `Another deployment${primary?.id ? ` (${primary.id})` : ''} replaced this one before it finished, for example a rollback or another deploy of the same service.`;
+  if (!primary?.createdAt || !deployment.createdAt || primary.id === deployment.id) return undefined;
+  if (primary.createdAt.getTime() <= deployment.createdAt.getTime()) return undefined;
+  return `Another deployment (${primary.id}) replaced this one before it finished, for example a rollback or another deploy of the same service.`;
 };
 
 const isAccessDenied = (error: unknown) =>
@@ -470,7 +475,8 @@ export class AwsEcs {
     /** Whether the new tasks were shown to serve through load balancer targets, not only their own health. */
     let newTargetsChecked = false;
     let finishedWhen: RollingUpdateFinish = 'rollout-completed';
-    let targetDeploymentSeen = false;
+    /** The waiter's deployment as last read, once a read has shown it. */
+    let seenDeployment: Deployment | undefined;
     const waiterResult = await createWaiter(
       // Every second of polling delay is a second added to the deploy; a few cheap read calls per second are fine.
       { client: this.#createClient(), maxWaitTime: 3600, minDelay: 1, maxDelay: 2 },
@@ -481,11 +487,12 @@ export class AwsEcs {
           ? serviceState.services[0].deployments.find(({ id }) => id === targetDeploymentId)
           : serviceState.services[0].deployments.find(({ status }) => status === 'PRIMARY');
 
-        // A deployment the waiter has seen disappears from the list only after another one replaced it.
-        if (!targetedDeployment && targetDeploymentSeen) {
+        // A deployment the waiter has seen leaves the list after another one replaced it, or seems to in a stale read.
+        const replaced = !targetedDeployment && seenDeployment && supersession(serviceState, seenDeployment);
+        if (replaced) {
           return {
             state: WaiterState.FAILURE,
-            reason: `ECS service ${ecsServiceArn} failed to update. Reason: ${supersession(serviceState, undefined)}`
+            reason: `ECS service ${ecsServiceArn} failed to update. Reason: ${replaced}`
           };
         }
         if (!targetedDeployment) {
@@ -495,7 +502,7 @@ export class AwsEcs {
           };
         }
         targetDeploymentId = targetedDeployment.id;
-        targetDeploymentSeen = true;
+        seenDeployment = targetedDeployment;
 
         const failure = rolloutFailure(serviceState, targetedDeployment);
 
