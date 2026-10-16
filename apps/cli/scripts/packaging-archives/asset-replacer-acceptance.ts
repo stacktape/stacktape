@@ -680,7 +680,7 @@ const main = async () => {
       absoluteDestDirPath: join(fixtureDirectory, 'objects'),
       fileNameBase: name,
       format: 'zip',
-      useNativeZip: true
+      parallelZip: true
     });
     assert.equal(path, join(fixtureDirectory, 'objects', `${name}.zip`));
   }

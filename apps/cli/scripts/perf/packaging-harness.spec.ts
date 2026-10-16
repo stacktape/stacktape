@@ -144,8 +144,8 @@ describe('offline packaging run', () => {
     );
 
     expect(report.label).toBe('Offline packaging harness');
-    // Which tool wrote the archives is recorded, not inferred from detection; this process has no native zip on PATH.
-    expect(report.archives).toMatchObject({ format: LAMBDA_ARCHIVE_FORMAT, nativeFailures: { count: 0 } });
+    // Which backend wrote the archives is recorded by each archive.
+    expect(report.archives).toMatchObject({ format: LAMBDA_ARCHIVE_FORMAT });
     expect(
       Object.values(report.archives.backends as Record<string, number>).reduce((sum, count) => sum + count, 0)
     ).toBe(
@@ -212,8 +212,7 @@ const sample = (index: number, outcome: { ok: true; digest: string } | { ok: fal
     container: null,
     archiveFormat: 'stacktape-lambda-archive-2',
     archiveCalls: 1,
-    archiveBackends: { archiver: 1 },
-    nativeFailures: [],
+    archiveBackends: { parallel: 1 },
     resolvedModules: [],
     functions: outcome.ok
       ? [

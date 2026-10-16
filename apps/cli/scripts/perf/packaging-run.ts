@@ -60,7 +60,7 @@ export type RunRequest = {
   resultPath: string;
 };
 
-type ArchiveCall = { source: string; ms: number } & Pick<ArchiveResult, 'backend' | 'nativeFailure'>;
+type ArchiveCall = { source: string; ms: number } & Pick<ArchiveResult, 'backend'>;
 
 export type FunctionArtifact = {
   name: string;
@@ -113,8 +113,6 @@ export type RunResult = {
   archiveCalls: number;
   /** Archives written, per backend that actually wrote them. */
   archiveBackends: Record<string, number>;
-  /** Native attempts that failed or produced the wrong entries and were replaced by the fallback archiver. */
-  nativeFailures: { tool: string; message: string }[];
   resolvedModules: string[];
   functions: FunctionArtifact[];
   layers: LayerArtifact[];
@@ -206,14 +204,13 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
       `Project-root discovery escapes ${fixtureRoot}; the fixture would not be packaged as a standalone project.`
     );
   }
-  // Native-tool detection is left to the first archive, inside the timed packaging, as in the CLI; the backend each
-  // archive actually used is recorded instead of asking the archiver ahead of time.
+  // The backend each archive actually used is recorded: an archive that needs ZIP64 falls back to archiver.
   const installDependencies = verifyInstalledDependencies(fixtureRoot);
   const archiveCalls: ArchiveCall[] = [];
   const timedArchiveItem: ArchiveItem = async (input) => {
     const startedAt = performance.now();
-    const { path, backend, nativeFailure } = await createArchive(input);
-    archiveCalls.push({ source: input.absoluteSourcePath, ms: performance.now() - startedAt, backend, nativeFailure });
+    const { path, backend } = await createArchive(input);
+    archiveCalls.push({ source: input.absoluteSourcePath, ms: performance.now() - startedAt, backend });
     return path;
   };
   const describeArchiveCalls = () => ({
@@ -222,8 +219,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
     archiveBackends: archiveCalls.reduce<Record<string, number>>(
       (counts, { backend }) => ({ ...counts, [backend]: (counts[backend] ?? 0) + 1 }),
       {}
-    ),
-    nativeFailures: archiveCalls.flatMap(({ nativeFailure }) => (nativeFailure ? [nativeFailure] : []))
+    )
   });
   const artifactFolder = (jobName: string) => fsPaths.absoluteLambdaArtifactFolderPath({ jobName, invocationId });
 
@@ -391,7 +387,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
           throw new Error(`Function ${name} exceeds the combined unzipped size limit.`);
         }
         const zipStartedAt = performance.now();
-        await timedArchiveItem({ absoluteSourcePath: distFolderPath, format: 'zip', useNativeZip: true });
+        await timedArchiveItem({ absoluteSourcePath: distFolderPath, format: 'zip', parallelZip: true });
         zipMs.push(performance.now() - zipStartedAt);
         const artifactPath = `${distFolderPath}-${digest}.zip`;
         await rename(`${distFolderPath}.zip`, artifactPath);
@@ -497,7 +493,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
       splitGroup.layerArtifacts.map(async (layer) =>
         layerZips.set(
           layer.layerNumber,
-          await timedArchiveItem({ absoluteSourcePath: layer.layerPath, format: 'zip', useNativeZip: true })
+          await timedArchiveItem({ absoluteSourcePath: layer.layerPath, format: 'zip', parallelZip: true })
         )
       )
     );

@@ -167,7 +167,8 @@ export type ArchiveItem = (input: {
   executablePatterns?: string[] | undefined;
   compressionLevel?: number | undefined;
   store?: boolean | undefined;
-  useNativeZip?: boolean | undefined;
+  /** Write a directory ZIP with the CLI's parallel writer at the deployment level, as Lambda artifacts are written. */
+  parallelZip?: boolean | undefined;
 }) => Promise<string>;
 
 export type InstallDependencies = (input: {

@@ -11,6 +11,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readSourceMapBundle } from '../../es/packaged-source-map';
 import { removeExplicitlyExcludedFiles } from '../../artifact/file-selection';
 import { createEsBundle } from './index';
 
@@ -160,7 +161,8 @@ describe('the source maps of a Lambda ZIP', () => {
     const result = await bundle(cwd, { minify: true });
 
     expect(existsSync(`${result.distIndexFilePath}.map`)).toBe(false);
-    const sourceMaps = JSON.parse(await Bun.file(result.sourceMapsPath!).text()) as Bundle;
+    expect(result.sourceMapsPath!.endsWith('.source-maps.json.gz')).toBe(true);
+    const sourceMaps = (await readSourceMapBundle(result.sourceMapsPath!)) as Bundle;
     expect(Object.keys(sourceMaps.files)).toEqual(['/var/task/index.js']);
     expect(sourceMaps.files['/var/task/index.js']!.sources).toContain('handler.ts');
     expect(JSON.stringify(sourceMaps)).not.toContain('bad order');
@@ -173,7 +175,9 @@ describe('the source maps of a Lambda ZIP', () => {
     const [before, after] = [await bundle(first, { minify: true }), await bundle(shifted, { minify: true })];
 
     expect(await Bun.file(after.distIndexFilePath).text()).toBe(await Bun.file(before.distIndexFilePath).text());
-    expect(await Bun.file(after.sourceMapsPath!).text()).not.toBe(await Bun.file(before.sourceMapsPath!).text());
+    expect(await readSourceMapBundle(after.sourceMapsPath!)).not.toEqual(
+      await readSourceMapBundle(before.sourceMapsPath!)
+    );
     expect(after.digest).not.toBe(before.digest);
   });
 

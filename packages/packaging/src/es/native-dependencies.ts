@@ -24,6 +24,7 @@ import {
   readPackageManifest,
   writePackageLayout,
   type InstalledPackage,
+  type PackageFileSelection,
   type PackageLayout,
   type PackageManifest,
   type PackageSource
@@ -52,6 +53,8 @@ export type LambdaDependencyPlan = {
   packagesToInstallForLambda: InstalledPackage[];
   /** Names left out wherever they are required, as `excludeDependencies` asks. */
   excludedNames: Set<string>;
+  /** Which files of each package the artifact gets. */
+  selection: PackageFileSelection;
 };
 
 /** Leaves out excluded packages and the binaries of other platforms, such as the macOS build of a napi-rs package. */
@@ -63,12 +66,18 @@ const acceptFor =
 export const planLambdaDependencies = async ({
   dependencies,
   architecture,
-  excludedNames = []
+  excludedNames = [],
+  withoutSourceMaps = false
 }: {
   dependencies: ResolvedPackageDependency[];
   architecture: LambdaArchitecture;
   /** Packages that must not be in the artifact, wherever they are required; `IGNORED_MODULES` always. */
   excludedNames?: string[] | undefined;
+  /**
+   * Leave out the packages' own source maps: the functions run without `--enable-source-maps`, so nothing reads them.
+   * Stacktape maps errors with the bundle's maps, which never describe installed packages.
+   */
+  withoutSourceMaps?: boolean | undefined;
 }): Promise<LambdaDependencyPlan> => {
   const excluded = new Set([...IGNORED_MODULES, ...excludedNames]);
   // The real directory, which is what every lookup below returns; on Windows a temporary path may be a short alias.
@@ -92,7 +101,8 @@ export const planLambdaDependencies = async ({
     packages,
     layout: await planPackageLayout({ packages, topLevelPackages }),
     packagesToInstallForLambda: installedPackages.filter((_, index) => decisions[index]),
-    excludedNames: excluded
+    excludedNames: excluded,
+    selection: { withoutSourceMaps }
   };
 };
 
@@ -157,9 +167,12 @@ const getInstallationManifest = (plan: LambdaDependencyPlan, group: InstalledPac
  */
 export const getLambdaDependencyIdentity = async (plan: LambdaDependencyPlan) => {
   const directories = await Promise.all(
-    plan.layout.directories.map(async ({ path, root }) => `${path} ${await getPackageFingerprint(root)}`)
+    plan.layout.directories.map(
+      async ({ path, root }) => `${path} ${await getPackageFingerprint(root, plan.selection)}`
+    )
   );
   return [
+    ...(plan.selection.withoutSourceMaps ? ['without-source-maps'] : []),
     ...directories,
     ...plan.layout.links.map(({ path, target }) => `${path} -> ${target}`),
     ...groupInstallations(plan).map((group) => JSON.stringify(getInstallationManifest(plan, group)))
@@ -318,7 +331,8 @@ export const writeLambdaDependencies = async ({
     layout: plan.layout,
     packages: plan.packages,
     artifactRoot: dirname(nodeModulesPath),
-    sources
+    sources,
+    selection: plan.selection
   });
 };
 

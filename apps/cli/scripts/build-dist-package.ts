@@ -93,7 +93,7 @@ export const buildDistPackage = async ({
     absoluteSourcePath: platformDistFolderPath,
     format: isWindowsPlatform(platform) ? 'zip' : 'tgz',
     executablePatterns: EXECUTABLE_FILE_PATTERNS,
-    useNativeZip: isWindowsPlatform(platform) // Native zip for Windows archives
+    parallelZip: isWindowsPlatform(platform)
   });
 
   if (!keepUnarchived) {

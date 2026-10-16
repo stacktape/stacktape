@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, posix } from 'node:path';
+import { promisify } from 'node:util';
+import { gunzipSync, gzip } from 'node:zlib';
+
+const compress = promisify(gzip);
 
 /** The map a Lambda package ships: `map` without `sourcesContent`. See `writePackagedSourceMap`. */
 export const withoutSourcesContent = <Map extends Record<string, unknown>>(map: Map): Map => {
@@ -31,13 +35,15 @@ export type SourceMapBundle = { files: Record<string, Record<string, unknown>> }
 const SOURCE_MAP_FILE = /\.[cm]?js\.map$/;
 
 /**
- * Moves the source maps the bundler wrote into `packagePath` out of the package, into one bundle file beside it, so
- * the deployed package carries code only. Only `directories` (relative to the package) are searched: the bundle and its
- * chunks live there, while installed packages under `node_modules` keep their own files.
+ * Moves the source maps the bundler wrote into `packagePath` out of the package, into one gzip-compressed bundle file
+ * beside it (`<package>.source-maps.json.gz`), so the deployed package carries code only. Only `directories` (relative
+ * to the package) are searched: the bundle and its chunks live there, while installed packages under `node_modules`
+ * keep their own files. Mappings are base64 text and compress to about a fifth; the deployment stores the compressed
+ * bytes with `Content-Encoding: gzip`.
  *
- * Returns the bundle's path and the SHA-256 of its content, or `undefined` when the package had no map. The caller puts
- * that hash into the artifact's identity: a changed map must produce a new artifact even when the code is byte for
- * byte the same, so every deployment can be traced to its own maps.
+ * Returns the bundle's path and the SHA-256 of its uncompressed content, or `undefined` when the package had no map. The
+ * caller puts that hash into the artifact's identity: a changed map must produce a new artifact even when the code is
+ * byte for byte the same, so every deployment can be traced to its own maps.
  */
 export const takeSourceMapsOutOfPackage = async ({
   packagePath,
@@ -72,7 +78,12 @@ export const takeSourceMapsOutOfPackage = async ({
     })
   );
   const content = JSON.stringify({ files: Object.fromEntries(maps) } satisfies SourceMapBundle);
-  const path = `${packagePath}.source-maps.json`;
-  await writeFile(path, content);
+  const path = `${packagePath}.source-maps.json.gz`;
+  // Level 6: on a 1.6 MB bundle, level 9 took 2.7 times as long for 1.4 % fewer bytes.
+  await writeFile(path, await compress(content, { level: 6 }));
   return { path, sha256: createHash('sha256').update(content).digest('hex') };
 };
+
+/** Reads a bundle `takeSourceMapsOutOfPackage` wrote. */
+export const readSourceMapBundle = async (path: string): Promise<SourceMapBundle> =>
+  JSON.parse(gunzipSync(await readFile(path)).toString('utf8')) as SourceMapBundle;

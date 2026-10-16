@@ -151,7 +151,7 @@ export const buildUsingCustomArtifact = async ({
       absoluteSourcePath: absolutePackagePath,
       absoluteDestDirPath: distFolderPath,
       format: 'zip',
-      useNativeZip: true
+      parallelZip: true
     });
     await progressLogger.finishEvent({ eventType: 'ZIP_PACKAGE' });
   } else {

@@ -4,10 +4,12 @@
  * Every archive here comes from the CLI's archiver, is extracted into a new directory by Info-ZIP `unzip`, and runs in
  * the official AWS Lambda Node.js image as an unprivileged user that owns none of its files (see `lambda-runtime.ts`).
  *
- * 1. Backends. The same fixture goes through archiver, zip, 7-Zip and a zip that fails, each in a process whose PATH
- *    offers only that tool. Executables (also ones only the group or others may execute), a single file, hidden
- *    entries, links, a removed file and paths with spaces and quotes must behave the same whichever tool wrote the
- *    archive, and the report names the tool actually used.
+ * 1. Backends. The same fixture goes through the parallel writer Lambda packaging uses and through archiver, which
+ *    writes every other ZIP and those that need ZIP64. Executables (also ones only the group or others may execute), a
+ *    single file, hidden entries, links, a removed file and paths with spaces and quotes must behave the same whichever
+ *    backend wrote the archive, and the report names the backend actually used. Each backend also archives a
+ *    compressible fixture: a directory gets its backend's default level (6 for the parallel writer, 9 for archiver),
+ *    and an explicit level wins.
  * 2. Cache upgrade of single artifacts. A deployment bucket is seeded the way an older CLI left it: permission-broken
  *    ZIPs under their old digests and keys. For a custom artifact and a managed per-function build, the old object
  *    must fail in Lambda, the current packaging code must reject it and emit a working one, an unchanged run must reuse
@@ -17,17 +19,13 @@
  *    CLI's decision. After objects an older CLI left, the functions are rebuilt and new shared and native layers
  *    uploaded; unchanged, everything is reused; mode-only changes to the native layer's tool, to a Prisma engine and to
  *    the host's umask are rebuilt exactly where the archive changes and reused where it does not.
- *    Each backend also archives a compressible fixture: a `useNativeZip` directory is written at level 3 by a native
- *    tool and by archiver (none on PATH, or after a native failure), and an explicit level wins either way.
  * 4. The runtime verifier itself gives up on an invocation that never answers and on a container that cannot start,
  *    and leaves no container behind.
  *
- *   pnpm --filter @stacktape/cli run test:lambda-archives -- [--zip-dir <dir>] [--7z-dir <dir>] [--out <dir>]
- *     [--only backends]
+ *   pnpm --filter @stacktape/cli run test:lambda-archives -- [--out <dir>] [--only backends]
  *
- * Needs Docker and `unzip`; contacts no AWS service. A native tool neither given nor on PATH is reported as not
- * qualified; the split deployments use the zip tool when one is given. `--out` must be new or empty; fixtures, builds
- * and archives stay there, extracted trees are removed.
+ * Needs Docker and `unzip`; contacts no AWS service. `--out` must be new or empty; fixtures, builds and archives stay
+ * there, extracted trees are removed.
  */
 import type { PackagingProgressLogger, RunDocker } from '@stacktape/packaging/runtime-contracts';
 import assert from 'node:assert/strict';
@@ -41,8 +39,8 @@ import {
 import { startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { existsSync } from 'node:fs';
-import { chmod, lstat, mkdir, readdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
-import { delimiter, dirname, join, relative, resolve } from 'node:path';
+import { chmod, lstat, mkdir, readdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve } from 'node:path';
 import { buildLambdaS3Key, buildLayerS3Key } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { parseBucketObjectS3Key } from '@domain-services/deployment-artifact-manager/utils';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
@@ -143,16 +141,6 @@ const runArchivedFunction = ({
       : invokeInLambdaRuntime({ functionDirectory, handler })
   );
 
-/** The deflate options Info-ZIP `unzip -v` reports for a ZIP's file entries: `F` fast (1), `N` normal, `X` best (9). */
-const deflateOptions = (zipPath: string) => [
-  ...new Set(
-    Bun.spawnSync(['unzip', '-v', zipPath], { stdout: 'pipe' })
-      .stdout.toString()
-      .match(/Defl:[A-Z]/g)
-      ?.map((method) => method.slice(-1)) ?? []
-  )
-];
-
 const listZipNames = (zipPath: string) =>
   Bun.spawnSync(['unzip', '-Z1', zipPath], { stdout: 'pipe' }).stdout.toString().split('\n').filter(Boolean);
 
@@ -183,31 +171,14 @@ const EXPECTED_HANDLER_RESPONSE = {
   modes: { tool: '755', groupOnlyTool: '755', otherOnlyTool: '755', ownerOnlyOnHost: '644', directory: '755' }
 };
 
-type WorkerArchive = { path: string; backend: string; nativeFailure?: { tool: string; message: string } };
-type LevelArchives = Record<
-  'byDefault' | 'override9' | 'direct1' | 'direct3' | 'direct9',
-  WorkerArchive & { bytes: number }
->;
+type WorkerArchive = { path: string; backend: string };
+type LevelArchives = Record<'byDefault' | 'level1' | 'level6' | 'level9', WorkerArchive & { bytes: number }>;
 
-const checkBackend = async ({
-  label,
-  pathDirectory,
-  expectBackend,
-  expectNativeFailure,
-  outDirectory
-}: {
-  label: string;
-  pathDirectory: string;
-  expectBackend: string;
-  expectNativeFailure: string | null;
-  outDirectory: string;
-}) => {
+const checkBackend = async ({ label, outDirectory }: { label: 'parallel' | 'archiver'; outDirectory: string }) => {
   const directory = join(outDirectory, 'backends', label);
   await mkdir(directory, { recursive: true });
-  const child = Bun.spawnSync([process.execPath, WORKER, directory], {
+  const child = Bun.spawnSync([process.execPath, WORKER, directory, label], {
     cwd: CLI_ROOT,
-    // Only the tool under test: the archiver picks the first native tool it finds on PATH.
-    env: { ...process.env, PATH: pathDirectory },
     stdout: 'pipe',
     stderr: 'pipe'
   });
@@ -223,33 +194,19 @@ const checkBackend = async ({
   > & { levels: LevelArchives };
 
   await check(`${label}: reports the backend that wrote the archive`, async () => {
-    for (const archive of [first, second]) {
-      assert.equal(archive.backend, expectBackend);
-      assert.equal(archive.nativeFailure?.tool ?? null, expectNativeFailure);
-    }
+    for (const archive of [first, second, ...Object.values(levels)]) assert.equal(archive.backend, label);
     assert.equal(single.backend, 'archiver', 'a single file is always written by archiver');
-    return `${second.backend}${second.nativeFailure ? ` after ${second.nativeFailure.tool} failed: ${second.nativeFailure.message.split('\n')[0]}` : ''}`;
+    return second.backend;
   });
 
   await check(
-    `${label}: a directory is compressed at level 3 by either backend, and an explicit level wins`,
+    `${label}: a directory is compressed at its backend's default level, and an explicit level wins`,
     async () => {
-      const { byDefault, override9, direct1, direct3, direct9 } = levels;
-      for (const direct of [direct1, direct3, direct9]) assert.equal(direct.backend, 'archiver');
-      assert.equal(byDefault.backend, expectBackend);
-      assert.equal(override9.backend, expectBackend);
-      const sizes = `default ${byDefault.bytes} B, override 9 ${override9.bytes} B; archiver 1/3/9 ${direct1.bytes}/${direct3.bytes}/${direct9.bytes} B`;
-      if (expectBackend === 'archiver') {
-        assert.equal(byDefault.bytes, direct3.bytes, `the archiver default is level 3 (${sizes})`);
-        assert.ok(direct3.bytes < direct1.bytes, `the fixture tells level 3 from level 1 (${sizes})`);
-        assert.equal(override9.bytes, direct9.bytes, `an explicit level 9 is kept (${sizes})`);
-        return sizes;
-      }
-      if (expectBackend === 'zip') {
-        assert.deepEqual(deflateOptions(byDefault.path), ['N'], `the zip default is level 3 (${sizes})`);
-        assert.deepEqual(deflateOptions(override9.path), ['X'], `an explicit level 9 is kept (${sizes})`);
-      }
-      return `${sizes}; deflate options ${deflateOptions(byDefault.path).join('')} and ${deflateOptions(override9.path).join('')}`;
+      const { byDefault, level1, level6, level9 } = levels;
+      const sizes = `default ${byDefault.bytes} B; levels 1/6/9 ${level1.bytes}/${level6.bytes}/${level9.bytes} B`;
+      assert.equal(byDefault.bytes, label === 'parallel' ? level6.bytes : level9.bytes, `the default level (${sizes})`);
+      assert.ok(level6.bytes < level1.bytes, `the fixture tells level 6 from level 1 (${sizes})`);
+      return sizes;
     }
   );
 
@@ -542,22 +499,20 @@ type Deployment = DeployArtifactsResult & { label: string };
 
 /**
  * One deployment in its own process (see `deploy-artifacts-worker.ts`), working in the project with the Docker stand-in
- * and `pathDirectories` as its whole PATH, and optionally a umask. Its request, result, Docker commands and output stay
- * in the deployment's directory.
+ * as its whole PATH, and optionally a umask. Its request, result, Docker commands and output stay in the deployment's
+ * directory.
  */
 const deploy = async ({
   fixture,
   bucket,
   label,
   lastVersion,
-  pathDirectories,
   umask
 }: {
   fixture: SplitProjectFixture;
   bucket: string;
   label: string;
   lastVersion: string;
-  pathDirectories: string[];
   umask?: string | undefined;
 }): Promise<Deployment> => {
   const directory = join(fixture.root, 'deployments', label);
@@ -595,7 +550,7 @@ const deploy = async ({
     env: {
       HOME: process.env.HOME ?? '',
       ...ministack.childEnvironment(),
-      PATH: [fixture.dockerDirectory, ...pathDirectories].join(delimiter),
+      PATH: fixture.dockerDirectory,
       STP_FAKE_DOCKER_INSTALL: fixture.dockerInstall,
       STP_FAKE_DOCKER_LOG: join(directory, 'docker.log'),
       STP_INVOCATION_ID: label
@@ -699,19 +654,13 @@ const expectDecisions = (
   ].join(', ');
 };
 
-const splitProjectScenario = async ({
-  outDirectory,
-  pathDirectories
-}: {
-  outDirectory: string;
-  pathDirectories: string[];
-}) => {
+const splitProjectScenario = async ({ outDirectory }: { outDirectory: string }) => {
   const fixture = await writeSplitProjectFixture(join(outDirectory, 'cache', 'split project'));
   const bucket = join(fixture.root, 'deployment bucket');
   const recordingBucket = join(fixture.root, 'recording bucket');
   await Promise.all([mkdir(bucket, { recursive: true }), mkdir(recordingBucket, { recursive: true })]);
   const run = (label: string, lastVersion: string, umask?: string) =>
-    deploy({ fixture, bucket, label, lastVersion, pathDirectories, umask });
+    deploy({ fixture, bucket, label, lastVersion, umask });
   const objectPath = (s3Key: string) => join(bucket, s3Key);
   const invokeDeployed = (deployment: Deployment, name: SplitFunctionName) =>
     runArchivedFunction({
@@ -733,8 +682,7 @@ const splitProjectScenario = async ({
     fixture,
     bucket: recordingBucket,
     label: '01-recording',
-    lastVersion: 'v000000',
-    pathDirectories
+    lastVersion: 'v000000'
   });
   const previousLayerHashes = new Map([
     [0, await getPreviousNativeLayerHash(layerOf(recording, 0).layerPath)],
@@ -969,12 +917,8 @@ const runtimeVerifierScenario = async (outDirectory: string) => {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-/** The directory holding an executable named `tool` on PATH, if any. */
-const findOnPath = (tool: string) =>
-  (process.env.PATH ?? '').split(delimiter).find((directory) => directory && existsSync(join(directory, tool)));
-
 const main = async () => {
-  const args = yargsParser(process.argv.slice(2), { string: ['zip-dir', '7z-dir', 'out', 'only'] });
+  const args = yargsParser(process.argv.slice(2), { string: ['out', 'only'] });
   if (args.only !== undefined && args.only !== 'backends') throw new Error(`Unknown --only ${args.only}.`);
   const outDirectory = resolve(
     args.out ??
@@ -984,39 +928,11 @@ const main = async () => {
   const imageDigest = ensureLambdaImage();
   console.info(`Lambda image ${imageDigest}; archive format ${LAMBDA_ARCHIVE_FORMAT}; output in ${outDirectory}`);
 
-  const tools = join(outDirectory, 'tools');
-  await mkdir(join(tools, 'none'), { recursive: true });
-  // A host without a ZIP tool still has Node.js; only the ZIP tools are withheld.
-  const nodeDirectory = findOnPath('node');
-  if (nodeDirectory) await symlink(join(nodeDirectory, 'node'), join(tools, 'none', 'node'));
-  await file(
-    join(tools, 'failing zip', 'zip'),
-    '#!/bin/sh\nif [ "$1" = "--version" ]; then exit 0; fi\nfor argument in "$@"; do case "$argument" in *.zip) printf "PK partial output" > "$argument";; esac; done\necho "simulated zip failure" >&2\nexit 12\n',
-    0o755
-  );
-  const zipDirectory = args['zip-dir'] ? resolve(args['zip-dir']) : findOnPath('zip');
-  const sevenZipDirectory = args['7z-dir'] ? resolve(args['7z-dir']) : findOnPath('7z');
-  const backends = [
-    { label: 'archiver', pathDirectory: join(tools, 'none'), expectBackend: 'archiver', expectNativeFailure: null },
-    ...(zipDirectory
-      ? [{ label: 'zip', pathDirectory: zipDirectory, expectBackend: 'zip', expectNativeFailure: null }]
-      : []),
-    ...(sevenZipDirectory
-      ? [{ label: '7z', pathDirectory: sevenZipDirectory, expectBackend: '7z', expectNativeFailure: null }]
-      : []),
-    {
-      label: 'failing zip',
-      pathDirectory: join(tools, 'failing zip'),
-      expectBackend: 'archiver',
-      expectNativeFailure: 'zip'
-    }
-  ];
-  const unqualified = [...(zipDirectory ? [] : ['zip']), ...(sevenZipDirectory ? [] : ['7z'])];
-  for (const backend of backends) {
-    await checkBackend({ ...backend, outDirectory });
+  const backends = ['parallel', 'archiver'] as const;
+  for (const label of backends) {
+    await checkBackend({ label, outDirectory });
   }
 
-  const splitProjectPath = zipDirectory ? [zipDirectory] : [];
   let splitProjectDeployments: Awaited<ReturnType<typeof splitProjectScenario>> = [];
   if (args.only !== 'backends') {
     ministack = await startMiniStack({ label: 'lambda-archives' });
@@ -1032,7 +948,7 @@ const main = async () => {
       await customArtifactScenario(outDirectory);
       await jsBundleScenario(outDirectory);
       await check('split project: every deployment completes', async () => {
-        splitProjectDeployments = await splitProjectScenario({ outDirectory, pathDirectories: splitProjectPath });
+        splitProjectDeployments = await splitProjectScenario({ outDirectory });
       });
       await runtimeVerifierScenario(outDirectory);
     } finally {
@@ -1050,24 +966,20 @@ const main = async () => {
   const failed = results.filter(({ ok }) => !ok);
   const report = {
     kind: 'stacktape-lambda-archive-acceptance',
-    schemaVersion: 2,
+    schemaVersion: 3,
     createdAt: new Date().toISOString(),
     archiveFormat: LAMBDA_ARCHIVE_FORMAT,
     lambdaImage: imageDigest,
     // Bun's source-map debug IDs, and so bundle digests, depend on the working directory of the process that bundles.
     workingDirectory: process.cwd(),
     only: args.only ?? null,
-    backends: backends.map(({ label, pathDirectory }) => ({ label, pathDirectory })),
-    unqualifiedBackends: unqualified,
-    singleArtifactScenarioPathTools: { zip: findOnPath('zip') ?? null, '7z': findOnPath('7z') ?? null },
-    splitProject: { pathDirectories: splitProjectPath, deployments: splitProjectDeployments },
+    backends,
+    splitProject: { deployments: splitProjectDeployments },
     identities,
     results
   };
   await writeFile(join(outDirectory, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
-  console.info(
-    `\n${results.length - failed.length} of ${results.length} checks passed.${unqualified.length ? ` Not qualified here: ${unqualified.join(', ')} (not found; pass --zip-dir or --7z-dir).` : ''}`
-  );
+  console.info(`\n${results.length - failed.length} of ${results.length} checks passed.`);
   if (failed.length > 0) process.exitCode = 1;
 };
 

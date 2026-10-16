@@ -879,6 +879,7 @@ class DeploymentArtifactManager {
     artifactPath,
     s3Key,
     contentType,
+    contentEncoding,
     artifactName,
     metadata
   }: {
@@ -886,6 +887,7 @@ class DeploymentArtifactManager {
     s3Key: string;
     artifactName: string;
     contentType: string;
+    contentEncoding?: 'gzip';
     metadata?: { [key: string]: string };
   }) => {
     const upload = async (useS3Acceleration?: boolean) => {
@@ -894,6 +896,7 @@ class DeploymentArtifactManager {
         filePath: artifactPath,
         bucketName: this.deploymentBucketName,
         contentType,
+        contentEncoding,
         useS3Acceleration: useS3Acceleration ?? configManager.deploymentConfig.disableS3TransferAcceleration !== true,
         metadata
       });
@@ -1085,7 +1088,8 @@ class DeploymentArtifactManager {
 
   /**
    * Stores the source maps of the artifact at `artifactS3Key` (`sourceMapKeyForArtifact`), unless they are stored
-   * already. A failed deployment deletes them with its other uploads.
+   * already. The bundle is gzip-compressed JSON (`takeSourceMapsOutOfPackage`), stored as written. A failed deployment
+   * deletes it with its other uploads.
    */
   #uploadSourceMaps = async ({ artifactS3Key, sourceMapsPath }: { artifactS3Key: string; sourceMapsPath: string }) => {
     const s3Key = sourceMapKeyForArtifact(artifactS3Key);
@@ -1094,6 +1098,7 @@ class DeploymentArtifactManager {
       artifactName: 'source-maps',
       artifactPath: sourceMapsPath,
       contentType: 'application/json',
+      contentEncoding: 'gzip',
       s3Key
     });
     this.#storedSourceMapKeys.add(s3Key);
