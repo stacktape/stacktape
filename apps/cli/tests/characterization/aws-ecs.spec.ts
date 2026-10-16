@@ -10,19 +10,15 @@ import {
   ListServiceDeploymentsCommand,
   ListTasksCommand
 } from '@aws-sdk/client-ecs';
-import type {
-  ElasticLoadBalancingV2Client,
-  TargetHealthDescription,
-  TargetHealthStateEnum
-} from '@aws-sdk/client-elastic-load-balancing-v2';
+import type { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import type { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
 import { GetInstancesHealthStatusCommand } from '@aws-sdk/client-servicediscovery';
 import {
   AwsEcs,
+  LOAD_BALANCER_ROUTING_ALLOWANCE_MS,
   type NewTasksServingPlan,
-  planNewTasksServingChecks,
-  targetGroupServesOnlyNewTasks
+  planNewTasksServingChecks
 } from '../../src/aws/ecs';
 
 type EcsSend = ECSClient['send'];
@@ -433,61 +429,6 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
   });
 });
 
-describe('when a target group sends every new request to the new tasks', () => {
-  const target = (Id: string, State: TargetHealthStateEnum): TargetHealthDescription => ({
-    Target: { Id, Port: 3000 },
-    TargetHealth: { State }
-  });
-  const newTargets = [{ id: '10.0.0.2', port: 3000 }];
-
-  test.each<{ name: string; descriptions: TargetHealthDescription[]; expected: boolean }>([
-    {
-      name: 'not while an old target is still healthy, even though the new one is',
-      descriptions: [target('10.0.0.1', 'healthy'), target('10.0.0.2', 'healthy')],
-      expected: false
-    },
-    {
-      name: 'once the old target drains',
-      descriptions: [target('10.0.0.1', 'draining'), target('10.0.0.2', 'healthy')],
-      expected: true
-    },
-    { name: 'once the old target is gone', descriptions: [target('10.0.0.2', 'healthy')], expected: true },
-    {
-      // A load balancer node that does not see the new target healthy yet fails open and routes to every target.
-      name: 'not while an old target fails its health checks but is still registered',
-      descriptions: [target('10.0.0.1', 'unhealthy'), target('10.0.0.2', 'healthy')],
-      expected: false
-    },
-    {
-      name: 'once the old target of a network load balancer drains while unhealthy',
-      descriptions: [target('10.0.0.1', 'unhealthy.draining'), target('10.0.0.2', 'healthy')],
-      expected: true
-    },
-    {
-      name: 'not while the new target is still in its initial health checks',
-      descriptions: [target('10.0.0.1', 'draining'), target('10.0.0.2', 'initial')],
-      expected: false
-    },
-    {
-      name: 'not while another target registers, since it receives requests once healthy',
-      descriptions: [target('10.0.0.3', 'initial'), target('10.0.0.2', 'healthy')],
-      expected: false
-    },
-    {
-      name: 'not with health checks turned off, since every registered target receives requests',
-      descriptions: [target('10.0.0.1', 'unavailable'), target('10.0.0.2', 'healthy')],
-      expected: false
-    },
-    {
-      name: 'not when the new target is on another port of the same address',
-      descriptions: [{ Target: { Id: '10.0.0.2', Port: 8080 }, TargetHealth: { State: 'healthy' } }],
-      expected: false
-    }
-  ])('$name', ({ descriptions, expected }) => {
-    expect(targetGroupServesOnlyNewTasks(newTargets, descriptions)).toBe(expected);
-  });
-});
-
 describe('a rolling update that finishes once the new tasks serve', () => {
   const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
   const describedService = {
@@ -540,8 +481,8 @@ describe('a rolling update that finishes once the new tasks serve', () => {
 
   test('finishes when the target and the Cloud Map instance are healthy while the old task still runs', async () => {
     // ECS keeps the rollout IN_PROGRESS (and, with early success, the service deployment too) until the old task has
-    // drained and stopped, well after the load balancer stopped sending it requests.
-    const targetStates = ['initial', 'healthy', 'healthy'];
+    // drained and stopped, well after the load balancer started sending requests to the new one.
+    const targetStates = ['initial', 'healthy'];
     const instanceStates = ['UNHEALTHY', 'HEALTHY'];
     let targetReads = 0;
     let instanceReads = 0;
@@ -549,56 +490,95 @@ describe('a rolling update that finishes once the new tasks serve', () => {
       ecsSend,
       elbSend: (async (command: DescribeTargetHealthCommand) => {
         expect(command).toBeInstanceOf(DescribeTargetHealthCommand);
-        expect(command.input).toEqual({ TargetGroupArn: TARGET_GROUP });
-        const State = targetStates[targetReads++];
-        return {
-          TargetHealthDescriptions: [
-            { Target: { Id: '10.0.0.1', Port: 3000 }, TargetHealth: { State: 'draining' } },
-            { Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State } }
-          ]
-        };
+        expect(command.input).toEqual({ TargetGroupArn: TARGET_GROUP, Targets: [{ Id: ipOfTask(task), Port: 3000 }] });
+        const State = targetStates[targetReads++] ?? 'healthy';
+        return { TargetHealthDescriptions: [{ Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State } }] };
       }) as ElbSend,
       serviceDiscoverySend: (async (command: GetInstancesHealthStatusCommand) => {
         expect(command.input).toEqual({ ServiceId: 'srv-api', Instances: ['a'] });
-        const status = targetReads > 1 ? instanceStates[instanceReads++] : 'UNHEALTHY';
-        return { Status: { a: status } };
+        return { Status: { a: instanceStates[instanceReads++] ?? 'HEALTHY' } };
       }) as ServiceDiscoverySend
     });
 
     expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
+    // The second read finds both healthy; the third confirms them after the routing allowance.
     expect(targetReads).toBe(3);
-    expect(instanceReads).toBe(2);
+    expect(instanceReads).toBe(3);
   }, 30_000);
 
-  test('waits until the load balancer can no longer send requests to the old task', async () => {
-    // DescribeTargetHealth reported a new target healthy up to 2.7 seconds before the load balancer sent it the first
-    // request, so a healthy new target next to a healthy old one does not show that the new version serves.
-    const albOnly = {
-      services: [{ ...describedService.services[0], serviceRegistries: [], deploymentConfiguration: {} }]
+  // DescribeTargetHealth reported a new target healthy up to 2.7 seconds before the load balancer sent it the first
+  // request, so the waiter gives the load balancer nodes time to route to it.
+  const behindLoadBalancer = ({
+    targetGroupArns,
+    stateOf
+  }: {
+    targetGroupArns: string[];
+    stateOf: (targetGroupArn: string, read: number) => string;
+  }) => {
+    const reads: { targetGroupArn: string; at: number; state: string }[] = [];
+    const service = {
+      ...describedService.services[0],
+      serviceRegistries: [],
+      deploymentConfiguration: {},
+      loadBalancers: targetGroupArns.map((targetGroupArn) => ({
+        targetGroupArn,
+        containerName: 'api',
+        containerPort: 3000
+      }))
     };
-    const oldTargetStates = ['healthy', 'healthy', 'healthy', 'draining'];
-    let targetReads = 0;
     const ecs = ecsWith({
       ecsSend: (async (command: unknown) => {
-        if (command instanceof DescribeServicesCommand) return albOnly;
+        if (command instanceof DescribeServicesCommand) return { services: [service] };
         if (command instanceof DescribeTaskDefinitionCommand) {
           return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
         }
         return ecsSend(command as never);
       }) as EcsSend,
-      elbSend: (async () => {
-        const State = oldTargetStates[targetReads++];
+      elbSend: (async (command: DescribeTargetHealthCommand) => {
+        const targetGroupArn = command.input.TargetGroupArn!;
+        const state = stateOf(targetGroupArn, reads.filter((read) => read.targetGroupArn === targetGroupArn).length);
+        reads.push({ targetGroupArn, at: performance.now(), state });
         return {
-          TargetHealthDescriptions: [
-            { Target: { Id: '10.0.0.1', Port: 3000 }, TargetHealth: { State } },
-            { Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State: 'healthy' } }
-          ]
+          TargetHealthDescriptions: [{ Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State: state } }]
         };
       }) as ElbSend
     });
+    /** When the waiter first saw the new target healthy in a target group, for good. */
+    const healthySince = (targetGroupArn: string) => {
+      const ofGroup = reads.filter((read) => read.targetGroupArn === targetGroupArn);
+      return ofGroup[ofGroup.findLastIndex(({ state }) => state !== 'healthy') + 1]!.at;
+    };
+    return { ecs, reads, healthySince };
+  };
+
+  test('keeps waiting until the routing allowance has passed since the new target turned healthy', async () => {
+    const { ecs, reads, healthySince } = behindLoadBalancer({
+      targetGroupArns: [TARGET_GROUP],
+      // Healthy, then briefly not, which restarts the allowance.
+      stateOf: (_, read) => (read === 0 || read === 2 ? 'initial' : 'healthy')
+    });
 
     expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
-    expect(targetReads).toBe(oldTargetStates.length);
+    const waited = performance.now() - healthySince(TARGET_GROUP);
+    expect(reads.map(({ state }) => state)).toEqual(['initial', 'healthy', 'initial', 'healthy', 'healthy']);
+    // Timers may fire a millisecond early.
+    expect(waited).toBeGreaterThanOrEqual(LOAD_BALANCER_ROUTING_ALLOWANCE_MS - 10);
+    // The waiter finishes when the allowance ends, not at a later poll.
+    expect(waited).toBeLessThan(LOAD_BALANCER_ROUTING_ALLOWANCE_MS + 1000);
+  }, 30_000);
+
+  test('keeps waiting while the new target is healthy in only one of the target groups', async () => {
+    const secondTargetGroup = 'arn:aws:elasticloadbalancing:eu-west-1:123456789999:targetgroup/api-internal/2';
+    const { ecs, reads, healthySince } = behindLoadBalancer({
+      targetGroupArns: [TARGET_GROUP, secondTargetGroup],
+      stateOf: (targetGroupArn, read) => (targetGroupArn === TARGET_GROUP || read >= 2 ? 'healthy' : 'initial')
+    });
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
+    expect(reads.filter(({ targetGroupArn }) => targetGroupArn === secondTargetGroup).length).toBe(4);
+    expect(performance.now() - healthySince(secondTargetGroup)).toBeGreaterThanOrEqual(
+      LOAD_BALANCER_ROUTING_ALLOWANCE_MS - 10
+    );
   }, 30_000);
 
   test('fails a task that runs for a minute and then crashes before it ever served', async () => {
@@ -712,7 +692,8 @@ describe('a rolling update that finishes once the new tasks serve', () => {
 
     expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({ oldTasksMayStillRun: true });
     expect(polls).toBe(2);
-    expect(targetReads).toBe(1);
+    // The second read confirms the target after the routing allowance.
+    expect(targetReads).toBe(2);
   }, 30_000);
 
   test('waits for the rollout when it may not read target health', async () => {

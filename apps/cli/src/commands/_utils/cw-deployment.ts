@@ -379,7 +379,7 @@ export const updateEcsService = async ({
     await updateWorkloadLogger.finishEvent({
       eventType: 'UPDATE_ECS_SERVICE',
       finalMessage: oldTasksMayStillRun
-        ? 'New version serving traffic (old containers drain and stop in the background)'
+        ? 'New version live; old containers drain in the background'
         : 'Service updated (new version running)'
     });
   }
