@@ -12,6 +12,7 @@ import type {
   DockerBuildOutputArchitecture,
   PackagingOutput,
   PackagingProgressLogger,
+  PinLocalBaseImage,
   RunRailpackPrepare
 } from '../runtime-contracts';
 import { packagingMessages } from '../runtime-contracts';
@@ -254,6 +255,21 @@ export const takesVersionFromVersionControl = async (sourceDirectoryPath: string
 };
 
 /** The planner's own diagnostics, with build variable values removed in case a provider echoed one. */
+/** The plan with each image reference in `references` replaced by its pinned form, wherever a step or the deploy names it. */
+export const pinPlanImages = (plan: RailpackPlan, references: Record<string, string>): RailpackPlan => {
+  const pin = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(pin);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        key === 'image' && typeof entry === 'string' ? (references[entry] ?? entry) : pin(entry)
+      ])
+    );
+  };
+  return pin(plan) as RailpackPlan;
+};
+
 const describeRailpackFailure = (info: RailpackInfo | undefined, secretValues: string[]) =>
   (info?.logs ?? [])
     .filter((log) => log.Level === 'error' || log.Level === 'warn')
@@ -271,6 +287,7 @@ export const buildUsingRailpack = async ({
   railpackFrontendImage,
   buildDockerImage,
   runRailpackPrepare,
+  pinLocalBaseImage,
   createPackagingError,
   sourceDirectoryPath = '.',
   startCommand,
@@ -292,6 +309,13 @@ export const buildUsingRailpack = async ({
   railpackFrontendImage: string;
   buildDockerImage: BuildDockerImage;
   runRailpackPrepare: RunRailpackPrepare;
+  /**
+   * Pins the images a Python plan starts from to their local digests. Railpack's frontend asks the registry for every
+   * image a plan names by tag, about 0.3 s per build, even when the image is local. The digest keeps identifying the
+   * unpinned plan, so a refreshed base image does not change it. Unused with a registry cache, whose builder does not
+   * read the local image store.
+   */
+  pinLocalBaseImage?: PinLocalBaseImage | undefined;
   createPackagingError: CreatePackagingError;
 } & BuildpackCwImagePackagingProps): Promise<PackagingOutput> => {
   const start = Date.now();
@@ -384,8 +408,22 @@ export const buildUsingRailpack = async ({
   });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
+  const pinnedPlan =
+    python && pinLocalBaseImage && !cacheFromRef && !cacheToRef
+      ? pinPlanImages(
+          plan,
+          Object.fromEntries(
+            await Promise.all(
+              python.baseImages.map(
+                async (reference) =>
+                  [reference, await pinLocalBaseImage({ reference, platform: dockerBuildOutputArchitecture })] as const
+              )
+            )
+          )
+        )
+      : plan;
   const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
-    dockerfileContents: JSON.stringify(plan),
+    dockerfileContents: JSON.stringify(pinnedPlan),
     // The context is the customer's source directory: the plan file stays out of their project tree.
     buildFileDirectoryPath: tmpdir(),
     buildDockerImage,

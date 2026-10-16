@@ -61,6 +61,7 @@ import {
   execDocker,
   getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
+  getLocalImageDigestReference,
   installDockerPlatforms,
   isDockerImagePresent,
   isDockerRunning,
@@ -303,7 +304,11 @@ export class PackagingManager {
       await this.#prepareRequestedDockerPlatform(commands);
       return execDocker(commands, options);
     },
-    runRailpackPrepare
+    runRailpackPrepare,
+    pinLocalBaseImage: async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
+      await this.#prepareBaseImage({ reference, platform });
+      return (await getLocalImageDigestReference(reference)) ?? reference;
+    }
   };
 
   init = async () => {};
@@ -1481,7 +1486,8 @@ export class PackagingManager {
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
-        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
+        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare,
+        pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage
       });
       this.#recordPackagedJob(result);
       return result;

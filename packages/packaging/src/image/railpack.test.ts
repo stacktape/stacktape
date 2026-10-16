@@ -9,6 +9,7 @@ import {
   excludeNonSourceDirectories,
   getBuildEnvironmentHash,
   getRailpackVariables,
+  pinPlanImages,
   takesVersionFromVersionControl,
   type RailpackPlan
 } from './railpack';
@@ -282,4 +283,31 @@ describe('building a Railpack plan', () => {
     expect(builds).toHaveLength(1);
     expect(builds[0]).toMatchObject({ buildArgs: { BUILDKIT_SYNTAX: frontend }, builderImages: [frontend] });
   });
+});
+
+test('pins the images a plan names wherever a step or the deploy names them, and nothing else', () => {
+  const slim = 'public.ecr.aws/docker/library/python:3.11.14-slim';
+  const uv = 'ghcr.io/astral-sh/uv:0.12.21';
+  const plan = preparedPlan({
+    steps: [
+      { name: 'install', inputs: [{ image: slim }], commands: [{ image: uv, src: '/uv', dest: '/bin/uv' }] },
+      { name: 'build', inputs: [{ step: 'install' }, { image: 'example.invalid/other:1' }] }
+    ] as RailpackPlan['steps'],
+    deploy: { base: { image: slim }, startCommand: 'python app.py' } as RailpackPlan['deploy']
+  });
+  const pinned = pinPlanImages(plan, {
+    [slim]: `${slim}@sha256:${'1'.repeat(64)}`,
+    [uv]: `${uv}@sha256:${'2'.repeat(64)}`
+  });
+
+  expect(JSON.stringify(pinned)).not.toContain(`${slim}"`);
+  expect(JSON.stringify(pinned)).not.toContain(`${uv}"`);
+  expect(pinned.steps?.[0]).toMatchObject({
+    inputs: [{ image: `${slim}@sha256:${'1'.repeat(64)}` }],
+    commands: [{ image: `${uv}@sha256:${'2'.repeat(64)}`, src: '/uv', dest: '/bin/uv' }]
+  });
+  expect(pinned.steps?.[1]).toEqual(plan.steps![1]!);
+  expect((pinned.deploy as { base: unknown }).base).toEqual({ image: `${slim}@sha256:${'1'.repeat(64)}` });
+  // The input is left as it was: the digest identifies the unpinned plan.
+  expect(JSON.stringify(plan)).not.toContain('@sha256');
 });

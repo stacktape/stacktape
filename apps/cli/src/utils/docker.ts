@@ -655,6 +655,26 @@ export const isDockerImagePresent = async ({
 };
 
 /** Pulls an image into the local image store, for one platform when `platform` is set. */
+/**
+ * A pulled image's `reference` pinned to the digest it was pulled by, read from the local image store:
+ * `name:tag@sha256:...`. Undefined when the image is not local.
+ */
+export const getLocalImageDigestReference = async (reference: string): Promise<string | undefined> => {
+  try {
+    const { stdout } = await execDocker(['image', 'inspect', '--format', '{{json .RepoDigests}}', reference], {
+      skipHandleError: true
+    });
+    const lastSlash = reference.lastIndexOf('/');
+    const tagSeparator = reference.indexOf(':', lastSlash + 1);
+    const repository = tagSeparator === -1 ? reference : reference.slice(0, tagSeparator);
+    const repoDigests = (JSON.parse(stdout.trim() || '[]') as string[] | null) ?? [];
+    const digest = repoDigests.find((entry) => entry.startsWith(`${repository}@sha256:`))?.split('@')[1];
+    return digest ? `${reference}@${digest}` : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const pullDockerImage = async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
   await execDocker(['pull', '--quiet', ...(platform ? ['--platform', platform] : []), reference], {
     skipHandleError: true
