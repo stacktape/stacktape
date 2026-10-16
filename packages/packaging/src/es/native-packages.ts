@@ -11,7 +11,12 @@ import type { Dirent } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { open, readdir, readFile } from 'node:fs/promises';
 import { extname, join, relative, sep } from 'node:path';
-import { findInstalledPackage, readPackageManifest, type PackageManifest } from './installed-packages';
+import {
+  findInstalledPackage,
+  getManifestSignature,
+  readPackageManifest,
+  type PackageManifest
+} from './installed-packages';
 
 export type LambdaArchitecture = 'x64' | 'arm64';
 
@@ -90,47 +95,50 @@ const readCompiledFormat = async (path: string): Promise<CompiledFormat | undefi
   return header.length >= 20 ? (ELF_MACHINES[header.readUInt16LE(18)] ?? 'linux-other') : 'linux-other';
 };
 
-const nativeFilesByPackage = new Map<string, Promise<NativeFiles>>();
-
 /** Addons, `binding.gyp` and prebuilds in the package itself, not in its own `node_modules`. */
-const findNativeFiles = (packageRoot: string): Promise<NativeFiles> => {
-  let found = nativeFilesByPackage.get(packageRoot);
-  if (!found) {
-    found = (async () => {
-      const addons: string[] = [];
-      const compiled: CompiledFile[] = [];
-      const prebuildPlatforms: string[] = [];
-      const visit = async (directory: string): Promise<void> => {
-        let entries: Dirent[];
-        try {
-          entries = await readdir(directory, { withFileTypes: true });
-        } catch {
-          // An unreadable directory holds nothing the package could load either.
-          return;
+const scanNativeFiles = async (packageRoot: string): Promise<NativeFiles> => {
+  const addons: string[] = [];
+  const compiled: CompiledFile[] = [];
+  const prebuildPlatforms: string[] = [];
+  const visit = async (directory: string): Promise<void> => {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch {
+      // An unreadable directory holds nothing the package could load either.
+      return;
+    }
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules') return;
+          if (entry.name === 'prebuilds' && directory === packageRoot) {
+            prebuildPlatforms.push(...(await readdir(path)));
+          }
+          return visit(path);
         }
-        await Promise.all(
-          entries.map(async (entry) => {
-            const path = join(directory, entry.name);
-            if (entry.isDirectory()) {
-              if (entry.name === 'node_modules') return;
-              if (entry.name === 'prebuilds' && directory === packageRoot) {
-                prebuildPlatforms.push(...(await readdir(path)));
-              }
-              return visit(path);
-            }
-            const relativePath = relative(packageRoot, path);
-            if (entry.name.endsWith('.node')) addons.push(relativePath);
-            if (!entry.isFile() || TEXT_EXTENSIONS.has(extname(entry.name).toLowerCase())) return;
-            const format = await readCompiledFormat(path);
-            if (format && relativePath.split(sep)[0] !== 'prebuilds') compiled.push({ path: relativePath, format });
-          })
-        );
-      };
-      await visit(packageRoot);
-      return { addons, compiled, hasBindingGyp: existsSync(join(packageRoot, 'binding.gyp')), prebuildPlatforms };
-    })();
-    nativeFilesByPackage.set(packageRoot, found);
-  }
+        const relativePath = relative(packageRoot, path);
+        if (entry.name.endsWith('.node')) addons.push(relativePath);
+        if (!entry.isFile() || TEXT_EXTENSIONS.has(extname(entry.name).toLowerCase())) return;
+        const format = await readCompiledFormat(path);
+        if (format && relativePath.split(sep)[0] !== 'prebuilds') compiled.push({ path: relativePath, format });
+      })
+    );
+  };
+  await visit(packageRoot);
+  return { addons, compiled, hasBindingGyp: existsSync(join(packageRoot, 'binding.gyp')), prebuildPlatforms };
+};
+
+const nativeFilesByPackage = new Map<string, { signature: string; found: Promise<NativeFiles> }>();
+
+/** `scanNativeFiles`, reused while the package's manifest is unchanged: an install in place can add an addon. */
+const findNativeFiles = async (packageRoot: string): Promise<NativeFiles> => {
+  const signature = await getManifestSignature(packageRoot);
+  const cached = nativeFilesByPackage.get(packageRoot);
+  if (cached?.signature === signature) return cached.found;
+  const found = scanNativeFiles(packageRoot);
+  nativeFilesByPackage.set(packageRoot, { signature, found });
   return found;
 };
 

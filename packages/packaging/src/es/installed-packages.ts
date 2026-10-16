@@ -51,16 +51,23 @@ export const isInside = (parent: string, child: string) => {
 const manifests = new Map<string, { signature: string; manifest: Promise<PackageManifest> }>();
 
 /**
- * The package's `package.json`. A manifest read earlier in this process is reused while the file keeps its size and
- * modification time, so a `dev` rebuild after an install in place sees the package's new dependencies.
+ * The size, modification time and inode of the package's `package.json`. An install in place writes a new file, so
+ * what this process worked out about the package earlier holds only while the signature is the same.
+ */
+export const getManifestSignature = async (packageRoot: string) => {
+  const { size, mtimeMs, ino } = await stat(join(packageRoot, 'package.json'));
+  return `${size}:${mtimeMs}:${ino}`;
+};
+
+/**
+ * The package's `package.json`. A manifest read earlier in this process is reused while its signature is the same, so
+ * a `dev` rebuild after an install in place sees the package's new dependencies.
  */
 export const readPackageManifest = async (packageRoot: string): Promise<PackageManifest> => {
-  const path = join(packageRoot, 'package.json');
-  const { size, mtimeMs, ino } = await stat(path);
-  const signature = `${size}:${mtimeMs}:${ino}`;
+  const signature = await getManifestSignature(packageRoot);
   const cached = manifests.get(packageRoot);
   if (cached?.signature === signature) return cached.manifest;
-  const manifest = readJson(path) as Promise<PackageManifest>;
+  const manifest = readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
   manifests.set(packageRoot, { signature, manifest });
   return manifest;
 };
