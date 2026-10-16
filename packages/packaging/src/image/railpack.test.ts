@@ -1,5 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import { applyStacktapePlanPolicy, getBuildEnvironmentHash, getRailpackVariables, type RailpackPlan } from './railpack';
+import dockerIgnore from '@balena/dockerignore';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  applyStacktapePlanPolicy,
+  excludeNonSourceDirectories,
+  getBuildEnvironmentHash,
+  getRailpackVariables,
+  takesVersionFromVersionControl,
+  type RailpackPlan
+} from './railpack';
 
 const createPackagingError = ({ message, type }: { message: string; type: string }) =>
   Object.assign(new Error(message), { type });
@@ -160,5 +171,78 @@ describe('plan policy', () => {
     );
     const untouched = preparedPlan();
     expect(applyStacktapePlanPolicy({ plan: untouched, startCommand: undefined })).toBe(untouched);
+  });
+});
+
+/** The paths of a context that the plan's exclusions keep, as Docker selects them. */
+const included = (plan: RailpackPlan, paths: string[]) =>
+  dockerIgnore()
+    .add(plan.exclude ?? [])
+    .filter(paths);
+
+describe('image context', () => {
+  test('leaves version control, dependencies, caches and Stacktape output out of the image', () => {
+    const paths = [
+      'app.py',
+      'requirements.txt',
+      'templates/index.html',
+      '.git/HEAD',
+      '.stacktape/2026-10-16T00-00-00-000_x/build/out.zip',
+      'node_modules/express/index.js',
+      'web/node_modules/react/index.js',
+      '.venv/bin/python',
+      'pkg/__pycache__/mod.cpython-311.pyc',
+      '.hg/store',
+      'generated/data.bin',
+      'generated/config.json',
+      'server.log'
+    ];
+    expect(included(excludeNonSourceDirectories(preparedPlan()), paths)).toEqual([
+      'app.py',
+      'requirements.txt',
+      'templates/index.html',
+      'generated/config.json'
+    ]);
+  });
+
+  test("lets the project's .dockerignore bring a directory back", () => {
+    const plan = excludeNonSourceDirectories(preparedPlan({ exclude: ['!node_modules/vendored'] }));
+    expect(included(plan, ['node_modules/express/index.js', 'node_modules/vendored/index.js', '.git/HEAD'])).toEqual([
+      'node_modules/vendored/index.js'
+    ]);
+  });
+});
+
+/** A temporary project directory holding the given files. */
+const projectWith = async (files: Record<string, string>) => {
+  const directory = await mkdtemp(join(tmpdir(), 'stp-railpack-vcs-'));
+  await Promise.all(Object.entries(files).map(([name, contents]) => writeFile(join(directory, name), contents)));
+  return directory;
+};
+
+describe('Python projects that take their version from version control', () => {
+  test.each([
+    ['hatch-vcs', { 'pyproject.toml': '[build-system]\nrequires = ["hatchling", "hatch-vcs"]\n' }, true],
+    ['hatch version source', { 'pyproject.toml': '[tool.hatch.version]\nsource = "vcs"\n' }, true],
+    ['setuptools-scm in pyproject', { 'pyproject.toml': '[tool.setuptools_scm]\n' }, true],
+    ['setuptools-scm in setup.cfg', { 'setup.cfg': '[options]\nsetup_requires = setuptools_scm\n' }, true],
+    [
+      'setuptools-scm in setup.py',
+      { 'setup.py': 'setup(use_scm_version=True, setup_requires=["setuptools-scm"])\n' },
+      true
+    ],
+    ['a static version', { 'pyproject.toml': '[project]\nname = "shop"\nversion = "1.0.0"\n' }, false],
+    ['no manifest', { 'requirements.txt': 'fastapi\n' }, false]
+  ])('%s', async (_label, files, keeps) => {
+    const directory = await projectWith(files);
+    try {
+      expect(await takesVersionFromVersionControl(directory)).toBe(keeps);
+      const plan = excludeNonSourceDirectories(preparedPlan(), { keepVersionControl: keeps });
+      expect(included(plan, ['.git/HEAD', '.stacktape/out.zip', 'app.py'])).toEqual(
+        keeps ? ['.git/HEAD', 'app.py'] : ['app.py']
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

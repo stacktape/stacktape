@@ -15,9 +15,6 @@ import { findInstalledPackage, readPackageManifest, type PackageManifest } from 
 
 export type LambdaArchitecture = 'x64' | 'arm64';
 
-/** Packages that read their own files at run time without any sign of it in their manifest or files. */
-const PACKAGES_TO_KEEP_INSTALLED = new Set(['@sparticuz/chromium']);
-
 const INSTALL_SCRIPTS = ['preinstall', 'install', 'postinstall'];
 
 /** npm's `os`, `cpu` and `libc` fields list allowed values, or excluded ones prefixed with `!`. */
@@ -161,7 +158,6 @@ const findPlatformPackages = async (packageRoot: string, manifest: PackageManife
  */
 export const getNativeReason = async (packageRoot: string): Promise<string | undefined> => {
   const manifest = await readPackageManifest(packageRoot);
-  if (PACKAGES_TO_KEEP_INSTALLED.has(manifest.name ?? '')) return 'reads its own files at run time';
   if (declaresPlatform(manifest)) return 'built for one platform';
   if (manifest.gypfile || manifest.binary?.module_path) return 'native addon';
   if ((await findPlatformPackages(packageRoot, manifest)).length > 0) return 'platform-specific binaries';

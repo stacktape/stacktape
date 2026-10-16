@@ -9,7 +9,11 @@ import type { StpSolidStartWeb } from '@domain-services/config-manager/resolved-
 import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-types/sveltekit-web';
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import type { NativeBinaryLayerResult } from '@stacktape/packaging/es/native-dependencies';
-import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
+import type {
+  BuildDockerImage,
+  DockerBuildOutputArchitecture,
+  PackagingOutput
+} from '@stacktape/packaging/runtime-contracts';
 import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
@@ -57,8 +61,11 @@ import {
   getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
   installDockerPlatforms,
-  isDockerRunning
+  isDockerImagePresent,
+  isDockerRunning,
+  pullDockerImage
 } from '@utils/docker';
+import { keepBaseImagePulled } from '@utils/base-images';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { exec } from '@utils/exec';
@@ -222,6 +229,24 @@ export class PackagingManager {
     }
   };
 
+  /** Keeps a base image of a generated Dockerfile in the local image store; see `keepBaseImagePulled`. */
+  #prepareBaseImage = ({ reference, platform }: { reference: string; platform: string | undefined }) =>
+    this.#prepareDockerOnce(`base image ${platform ?? 'native'} ${reference}`, () =>
+      timeAsync(
+        'docker:base-image',
+        async () =>
+          markTiming('docker:base-image-outcome', {
+            outcome: await keepBaseImagePulled({
+              reference,
+              platform,
+              pull: pullDockerImage,
+              isPresent: isDockerImagePresent
+            })
+          }),
+        { platform: platform ?? 'native' }
+      )
+    );
+
   #prepareRemoteDockerCache = () =>
     this.#prepareDockerOnce('remote cache', () =>
       timeAsync('docker:remote-cache', async () => {
@@ -241,13 +266,19 @@ export class PackagingManager {
    * runs in a container, that container is the host's own platform.
    */
   #dockerRunners = {
-    buildDockerImage: async (options: Parameters<typeof buildDockerImage>[0]) => {
-      if (options.dockerBuildOutputArchitecture) {
-        await this.#prepareDockerPlatform(options.dockerBuildOutputArchitecture);
-      }
-      if (options.cacheFromRef || options.cacheToRef) {
-        await this.#prepareRemoteDockerCache();
-      }
+    buildDockerImage: async ({ baseImages, ...options }: Parameters<BuildDockerImage>[0]) => {
+      const usesRemoteCache = Boolean(options.cacheFromRef || options.cacheToRef);
+      await Promise.all(
+        [
+          options.dockerBuildOutputArchitecture && this.#prepareDockerPlatform(options.dockerBuildOutputArchitecture),
+          usesRemoteCache && this.#prepareRemoteDockerCache(),
+          // The registry-cache builder runs in its own container and never reads the local image store.
+          !usesRemoteCache &&
+            (baseImages ?? []).map((reference) =>
+              this.#prepareBaseImage({ reference, platform: options.dockerBuildOutputArchitecture })
+            )
+        ].flat()
+      );
       return buildDockerImage(options);
     },
     runDocker: async (...[commands, options]: Parameters<typeof execDocker>) => {
@@ -988,8 +1019,11 @@ export class PackagingManager {
       : configManager.allContainersRequiringPackaging
           .filter(({ workloadName }) => shouldPackageWorkload(workloadName))
           .map(({ jobName, packaging, workloadName, resources }) => {
-            return () =>
-              this.packageWorkload({
+            return () => {
+              // Asking Docker which platforms it builds for takes about 0.1 s and does not depend on the build, so it
+              // runs while the code is bundled. A failure here is reported, if it matters, by the build that needs it.
+              this.#prepareDockerOnce('supported platforms', getDockerBuildxSupportedPlatforms).catch(() => {});
+              return this.packageWorkload({
                 commandCanUseCache,
                 jobName,
                 packaging,
@@ -997,6 +1031,7 @@ export class PackagingManager {
                 target: 'container',
                 dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
               });
+            };
           });
 
     const agentCoreRuntimePackagingJobs = skipContainersAndHosting

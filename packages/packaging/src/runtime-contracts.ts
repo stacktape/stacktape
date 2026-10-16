@@ -133,6 +133,11 @@ export type BuildDockerImage = (input: {
    * value never appears on the Docker command line and is never written into an image layer.
    */
   secrets?: Record<string, string> | undefined;
+  /**
+   * The public images a Dockerfile Stacktape generated starts from, which the CLI may keep in the local image store.
+   * Unset for a customer's own Dockerfile.
+   */
+  baseImages?: string[] | undefined;
 }) => Promise<{
   size: number;
   id: string;

@@ -2150,6 +2150,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-source-cli-aws-readonly.spec.ts',
       'apps/cli/src/app/global-state-manager/api-key-storage.spec.ts',
+      'apps/cli/src/utils/__tests__/base-images.test.ts',
+      'apps/cli/src/aws/identity.test.ts',
       'apps/cli/src/app/global-state-manager/credential-refresh.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-source.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
@@ -2596,6 +2598,7 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/es/native-dependencies.test.ts',
       'packages/packaging/src/es/project-root.test.ts',
       'packages/packaging/src/es/package-manager-install.test.ts',
+      'packages/packaging/src/es/self-reading-packages.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
@@ -4097,6 +4100,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/src/app/global-state-manager/api-key-storage.spec.ts',
+      'apps/cli/src/aws/identity.test.ts',
       'apps/cli/src/app/global-state-manager/credential-refresh.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-source.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
@@ -4157,7 +4161,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/es/import-classification.test.ts',
       'packages/packaging/src/es/native-dependencies.test.ts',
       'packages/packaging/src/es/project-root.test.ts',
-      'packages/packaging/src/es/package-manager-install.test.ts'
+      'packages/packaging/src/es/package-manager-install.test.ts',
+      'packages/packaging/src/es/self-reading-packages.test.ts'
     ],
     lanes: [
       'node-lambda-offline',
@@ -4352,6 +4357,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/src/domain/packaging-manager/es-install-scripts.spec.ts',
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
+      'apps/cli/src/utils/__tests__/base-images.test.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
       'apps/cli/tests/image-builders/docker-build.spec.ts',

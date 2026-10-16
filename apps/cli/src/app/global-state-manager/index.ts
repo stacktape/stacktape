@@ -333,11 +333,14 @@ export class GlobalStateManager {
     });
     // Imported on use, like every AWS SDK module here, so commands that never use AWS do not evaluate the SDK at
     // startup.
-    const [{ defaultProvider }, { getAwsCredentialsIdentity }] = await Promise.all([
+    const [{ defaultProvider }, { assumedRoleIdentityPlugin, getAwsCredentialsIdentity }] = await Promise.all([
       import('@aws-sdk/credential-provider-node'),
       import('src/aws/identity')
     ]);
-    const credentialsProvider = defaultProvider(selectedProfile ? { profile: selectedProfile } : {});
+    const credentialsProvider = defaultProvider({
+      ...(selectedProfile ? { profile: selectedProfile } : {}),
+      clientPlugins: [assumedRoleIdentityPlugin]
+    });
     const credentials = await timeAsync('credentials:provider-chain', () => credentialsProvider());
     const identity = await getAwsCredentialsIdentity({
       credentials,

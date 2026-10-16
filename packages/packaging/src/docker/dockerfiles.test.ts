@@ -1,7 +1,27 @@
 import { describe, expect, test } from 'bun:test';
+import { getDockerfileBaseImages } from '../artifact/generated-image-build';
 import { buildDotnetArtifactDockerfile, buildEsDevDockerfile, buildEsDockerfile } from './dockerfiles';
 
+const withDependencies = (requiresGlibcBinaries: boolean) =>
+  buildEsDockerfile({
+    dependencies: [{ name: 'pdfkit', version: '0.16.0' }],
+    packageManager: 'npm',
+    requiresGlibcBinaries,
+    nodeVersion: 24
+  });
+
 describe('Stacktape Dockerfile contracts', () => {
+  test('names the public images a generated Dockerfile starts from, not its own stages', () => {
+    expect(getDockerfileBaseImages(withDependencies(true))).toEqual([
+      'public.ecr.aws/docker/library/node:24-bookworm',
+      'public.ecr.aws/docker/library/node:24-bookworm-slim'
+    ]);
+    expect(getDockerfileBaseImages(withDependencies(false))).toEqual(['public.ecr.aws/docker/library/node:24-alpine']);
+    expect(
+      getDockerfileBaseImages('FROM --platform=linux/arm64 golang:1.23 AS build\nFROM build AS test\nFROM scratch\n')
+    ).toEqual(['golang:1.23']);
+  });
+
   test('builds glibc dependencies with full tooling but ships them in the slim runtime image', () => {
     const dockerfile = buildEsDockerfile({
       dependencies: [{ name: 'bcrypt', version: '6.0.0' }],
