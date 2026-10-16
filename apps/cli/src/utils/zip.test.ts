@@ -111,6 +111,29 @@ describe('archiveItem', () => {
     expect(archivePath).toBe(`${source}.tar.gz`);
     expect(modes).toMatchObject({ stacktape: '755', 'docs/readme.md': '644' });
   });
+
+  test('keeps the modification times of small and large files in an archive without a fixed time', async () => {
+    const root = await createRoot();
+    const source = join(root, 'source dir');
+    await mkdir(source);
+    await writeFile(join(source, 'small.js'), 'small');
+    await writeFile(join(source, 'large.js'), ' '.repeat(70_000));
+    const modified = new Date('2001-02-03T04:05:06Z');
+    await Promise.all(['small.js', 'large.js'].map((name) => utimes(join(source, name), modified, modified)));
+
+    const archivePath = await archiveItem({ absoluteSourcePath: source, format: 'zip' });
+
+    const years = await new Promise<Record<string, number>>((resolve, reject) => {
+      yauzl.open(archivePath, (error, zipFile) => {
+        if (error || !zipFile) return reject(error);
+        const found: Record<string, number> = {};
+        zipFile.on('entry', (entry: yauzl.Entry) => (found[entry.fileName] = entry.getLastModDate().getFullYear()));
+        zipFile.on('end', () => resolve(found));
+        zipFile.on('error', reject);
+      });
+    });
+    expect(years).toEqual({ 'small.js': 2001, 'large.js': 2001 });
+  });
 });
 
 describe.if(isPosix)('archiveItem on POSIX hosts', () => {
@@ -156,6 +179,36 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
     expect((await readdir(root)).toSorted()).toEqual(['secret.txt', 'source dir', 'source dir.zip']);
   });
 
+  test('writes with archiver without opening more files than the process may', async () => {
+    const root = await createRoot();
+    const source = join(root, 'source dir');
+    await mkdir(source);
+    // Small files are read whole and larger ones streamed; either way only a bounded number are open at once.
+    await Promise.all(
+      Array.from({ length: 600 }, (_, index) =>
+        writeFile(join(source, `${index}.js`), index % 2 ? `${index}` : `${index}`.padEnd(70_000, ' '))
+      )
+    );
+    const outputPath = join(root, 'archiver.zip');
+    // A child process limited to 256 descriptors: appending every entry at once opened every file at once.
+    const script = `
+      const { listArchiveEntries } = await import('@stacktape/packaging/artifact/archive-entries');
+      const { writeZipWithArchiver } = await import(${JSON.stringify(join(import.meta.dir, 'zip.ts'))});
+      const { entries } = await listArchiveEntries({ sourcePath: ${JSON.stringify(source)}, executablePatterns: [] });
+      await writeZipWithArchiver({ entries, outputPath: ${JSON.stringify(outputPath)}, compressionLevel: 1 });
+    `;
+    const child = Bun.spawnSync(['sh', '-c', 'ulimit -n 256 && exec "$0" "$@"', process.execPath, '-e', script], {
+      cwd: join(import.meta.dir, '..', '..')
+    });
+
+    expect(child.stderr.toString()).toBe('');
+    expect(child.exitCode).toBe(0);
+    const entries = await readZip(outputPath);
+    expect(Object.keys(entries)).toHaveLength(600);
+    expect(entries['599.js']).toBe('100644 599');
+    expect(entries['598.js']).toBe(`100644 ${'598'.padEnd(70_000, ' ')}`);
+  });
+
   test.skipIf(process.getuid?.() === 0)(
     'reports a file that cannot be read while archiving and leaves no partial archive behind',
     async () => {
@@ -168,6 +221,26 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
       await expect(archiveItem({ absoluteSourcePath: source, format: 'zip' })).rejects.toThrow();
       expect(await readFile(archivePath)).toEqual(previous);
       expect((await readdir(root)).toSorted()).toEqual(['source dir', 'source dir.zip']);
+    }
+  );
+
+  test.skipIf(process.getuid?.() === 0)(
+    'fails rather than waits when a streamed file far into the archive cannot be read',
+    async () => {
+      const root = await createRoot();
+      const source = join(root, 'source dir');
+      await mkdir(source);
+      await Promise.all(
+        Array.from({ length: 300 }, (_, index) =>
+          writeFile(join(source, `${String(index).padStart(3, '0')}.js`), ' '.repeat(70_000))
+        )
+      );
+      await chmod(join(source, '250.js'), 0o000);
+      const { entries } = await listArchiveEntries({ sourcePath: source, executablePatterns: [] });
+
+      await expect(
+        writeZipWithArchiver({ entries, outputPath: join(root, 'failed.zip'), compressionLevel: 1 })
+      ).rejects.toThrow('EACCES');
     }
   );
 });

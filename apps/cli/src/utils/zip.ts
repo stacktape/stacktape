@@ -1,9 +1,9 @@
 import type { ArchiveEntry } from '@stacktape/packaging/artifact/archive-entries';
 import type { ArchiveItem } from '@stacktape/packaging/runtime-contracts';
 import { randomUUID } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, realpath, rename, rm, stat } from 'node:fs/promises';
-import { Readable } from 'node:stream';
+import { createReadStream, createWriteStream, type ReadStream } from 'node:fs';
+import { mkdir, readFile, realpath, rename, rm, stat } from 'node:fs/promises';
+import { Transform } from 'node:stream';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { listArchiveEntries, matchesExecutablePattern } from '@stacktape/packaging/artifact/archive-entries';
 import { TarArchive, ZipArchive } from 'archiver';
@@ -20,6 +20,31 @@ export type ArchiveResult = {
 };
 
 /**
+ * Joins the archive's chunks into writes of 1 MiB. Archiver emits several small chunks per entry, and a Bun file stream
+ * makes one system call for each: an archive of 125,000 files took 180 s written chunk by chunk and 29 s joined.
+ */
+const joinChunks = () => {
+  let chunks: Buffer[] = [];
+  let size = 0;
+  const take = () => {
+    const joined = Buffer.concat(chunks, size);
+    chunks = [];
+    size = 0;
+    return joined;
+  };
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      chunks.push(chunk);
+      size += chunk.length;
+      callback(null, size >= 1024 * 1024 ? take() : undefined);
+    },
+    flush(callback) {
+      callback(null, size ? take() : undefined);
+    }
+  });
+};
+
+/**
  * Settles once the archive stream is completely written, or with the first error. A warning means an entry listed a
  * moment ago could not be read, which would leave the archive incomplete, so it fails the archive too.
  */
@@ -30,25 +55,49 @@ const writeArchiveStream = ({
 }: {
   archive: ZipArchive | TarArchive;
   outputPath: string;
-  /** Adds the entries; `fail` fails the archive with an error archiver does not see, such as a source stream's. */
-  addEntries: (fail: (error: unknown) => void) => void;
+  /** Adds the entries; the archive is finalized once this settles. */
+  addEntries: (tools: {
+    /** Fails the archive with an error archiver does not see, such as a source stream's. */
+    fail: (error: unknown) => void;
+    /** Settles once archiver has written `count` entries, or with the error that failed the archive. */
+    entriesWritten: (count: number) => Promise<void>;
+  }) => void | Promise<void>;
 }) =>
   new Promise<void>((resolve, reject) => {
     // `wx`: the temporary name is unique to this call, so an existing file would mean something else owns it.
     const output = createWriteStream(outputPath, { flags: 'wx' });
-    let failed = false;
+    let failure: { error: unknown } | undefined;
+    let written = 0;
+    let waiting: { count: number; resolve: () => void; reject: (error: unknown) => void } | undefined;
     const fail = (error: unknown) => {
-      if (failed) return;
-      failed = true;
+      if (failure) return;
+      failure = { error };
       archive.abort();
       output.destroy();
+      waiting?.reject(error);
       reject(error);
     };
+    const entriesWritten = (count: number) =>
+      failure
+        ? Promise.reject(failure.error)
+        : written >= count
+          ? Promise.resolve()
+          : new Promise<void>((resolve, reject) => {
+              waiting = { count, resolve, reject };
+            });
+    archive.on('entry', () => {
+      written += 1;
+      if (waiting && written >= waiting.count) {
+        const { resolve } = waiting;
+        waiting = undefined;
+        resolve();
+      }
+    });
     output.on('error', fail);
     archive.on('error', fail);
     archive.on('warning', fail);
     output.on('close', () => {
-      if (failed) return;
+      if (failure) return;
       stat(outputPath).then(({ size }) => {
         if (size === archive.pointer()) {
           resolve();
@@ -57,31 +106,31 @@ const writeArchiveStream = ({
         }
       }, fail);
     });
-    archive.pipe(output);
-    addEntries(fail);
-    archive.finalize().catch(fail);
+    archive.pipe(joinChunks()).pipe(output);
+    Promise.resolve()
+      .then(() => addEntries({ fail, entriesWritten }))
+      .then(() => (failure ? undefined : archive.finalize()))
+      .catch(fail);
   });
 
 /**
- * A file's contents, opened only when archiver reads them: an archive with 65,536 entries would otherwise hold that
- * many files open. Archiver writes appended streams in the order they were appended; `archive.file` would stat files
- * four at a time and write them in the order the stats finish.
+ * How many entries are appended ahead of the one archiver writes. Archiver starts reading an appended stream at once,
+ * so this bounds the open files and the memory read ahead, while the next files are read as the current one is
+ * compressed.
  */
-const openWhenRead = (path: string, fail: (error: unknown) => void) =>
-  Readable.from(
-    (async function* () {
-      yield* createReadStream(path);
-    })(),
-    { objectMode: false }
-  ).on('error', fail);
+const ARCHIVER_READ_AHEAD = 64;
+/** Files up to this size are read whole, in one call, rather than streamed. */
+const ARCHIVER_WHOLE_FILE_BYTES = 64 * 1024;
 
 /**
- * Writes `entries` with archiver, in their given order. With `fixedTime`, every entry carries 1980-01-01 00:00, the
- * time the parallel writer gives its entries: archiver writes UTC and clamps any earlier date to that one, so the bytes
- * depend on the entries and contents alone. Otherwise files keep their modification times and directories and links
- * get the current time.
+ * Writes `entries` with archiver, in their given order: archiver writes appended entries one at a time, in the order
+ * they were appended. `archive.file` would stat files four at a time and write them in the order the stats finish.
+ *
+ * With `fixedTime`, every entry carries 1980-01-01 00:00, the time the parallel writer gives its entries: archiver
+ * writes UTC and clamps any earlier date to that one, so the bytes depend on the entries and contents alone. Otherwise
+ * files keep their modification times and directories and links get the current time.
  */
-export const writeZipWithArchiver = ({
+export const writeZipWithArchiver = async ({
   entries,
   outputPath,
   compressionLevel,
@@ -94,29 +143,49 @@ export const writeZipWithArchiver = ({
 }) => {
   const archive = new ZipArchive({ store: compressionLevel === 0, zlib: { level: compressionLevel } });
   const date = fixedTime ? { date: new Date(0) } : {};
-  return writeArchiveStream({
-    archive,
-    outputPath,
-    addEntries: (fail) => {
-      for (const entry of entries) {
-        if (entry.type === 'directory') {
-          archive.append(Buffer.alloc(0), { name: `${entry.path}/`, type: 'directory', mode: entry.mode, ...date });
-        } else if (entry.type === 'symlink') {
-          // `append` rather than `symlink`, which takes no date. Archiver reads `linkname`; its types leave it out.
-          const link: Parameters<ZipArchive['append']>[1] & { linkname: string } = {
-            name: entry.path,
-            type: 'symlink',
-            linkname: entry.target,
-            mode: entry.mode,
-            ...date
-          };
-          archive.append(Buffer.alloc(0), link);
-        } else {
-          archive.append(openWhenRead(entry.sourcePath, fail), { name: entry.path, mode: entry.mode, ...date });
+  // `archive.file` reads the modification time from the file; an appended source has none.
+  const fileData = async ({ path, sourcePath, mode }: Extract<ArchiveEntry, { type: 'file' }>) => ({
+    name: path,
+    mode,
+    date: fixedTime ? new Date(0) : (await stat(sourcePath)).mtime
+  });
+  // Archiver neither reads nor closes the sources it has not reached when the archive fails.
+  const reading = new Set<ReadStream>();
+  try {
+    await writeArchiveStream({
+      archive,
+      outputPath,
+      addEntries: async ({ fail, entriesWritten }) => {
+        for (const [index, entry] of entries.entries()) {
+          if (index >= ARCHIVER_READ_AHEAD) await entriesWritten(index - ARCHIVER_READ_AHEAD + 1);
+          if (entry.type === 'directory') {
+            archive.append(Buffer.alloc(0), { name: `${entry.path}/`, type: 'directory', mode: entry.mode, ...date });
+          } else if (entry.type === 'symlink') {
+            // `append` rather than `symlink`, which takes no date. Archiver reads `linkname`; its types leave it out.
+            const link: Parameters<ZipArchive['append']>[1] & { linkname: string } = {
+              name: entry.path,
+              type: 'symlink',
+              linkname: entry.target,
+              mode: entry.mode,
+              ...date
+            };
+            archive.append(Buffer.alloc(0), link);
+          } else if (entry.size <= ARCHIVER_WHOLE_FILE_BYTES) {
+            archive.append(await readFile(entry.sourcePath), await fileData(entry));
+          } else {
+            const data = await fileData(entry);
+            const stream = createReadStream(entry.sourcePath)
+              .on('error', fail)
+              .on('close', () => reading.delete(stream));
+            reading.add(stream);
+            archive.append(stream, data);
+          }
         }
       }
-    }
-  });
+    });
+  } finally {
+    for (const stream of reading) stream.destroy();
+  }
 };
 
 /**

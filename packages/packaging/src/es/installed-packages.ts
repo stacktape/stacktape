@@ -134,16 +134,42 @@ const MAPPED_CODE = /\.(?:[cm]?js|css|d\.[cm]?ts)$/;
 const MAP_COMMENT_SEARCH_BYTES = 4096;
 
 /**
+ * The URL a code file's source-map comment names, when that comment is the whole of its last non-empty line:
+ * `//# sourceMappingURL=<url>` or `/*# sourceMappingURL=<url> *\/`, the older `@` in place of `#`, and in CSS only the
+ * block form. The same text anywhere else, such as in a string the package's code reads, names no map. `tail` is the
+ * end of the file, or all of it when `isWholeFile`.
+ */
+const getTrailingSourceMapUrl = ({
+  tail,
+  isWholeFile,
+  isCss
+}: {
+  tail: string;
+  isWholeFile: boolean;
+  isCss: boolean;
+}) => {
+  const lines = tail.trimEnd().split(/\r\n|\n|\r|\u2028|\u2029/);
+  // A tail without a line break may start inside the last line, which then is not known.
+  if (lines.length === 1 && !isWholeFile) return undefined;
+  const lastLine = lines.at(-1)!.trim();
+  const match =
+    /^\/\*[#@]\s*sourceMappingURL=(\S+?)\s*\*\/$/.exec(lastLine) ??
+    (isCss ? null : /^\/\/[#@]\s*sourceMappingURL=(\S+)$/.exec(lastLine));
+  return match?.[1];
+};
+
+/**
  * Whether `path` is a source map an installed package ships beside its code: a `.map` file whose sibling without the
- * suffix, such as `index.js` for `index.js.map`, ends with a `sourceMappingURL` comment naming it. Node.js reads such a
- * map only under `--enable-source-maps`, to rewrite a stack trace; the maps of installed packages are often larger than
- * their code. Any other `.map` file may be data the package reads, and is kept.
+ * suffix, such as `index.js` for `index.js.map`, ends with a `sourceMappingURL` comment naming it
+ * (`getTrailingSourceMapUrl`). Node.js reads such a map only under `--enable-source-maps`, to rewrite a stack trace;
+ * the maps of installed packages are often larger than their code. Any other `.map` file may be data the package reads,
+ * and is kept.
  */
 const isInstalledSourceMap = async (path: string) => {
   if (!path.endsWith('.map')) return false;
   const codePath = path.slice(0, -'.map'.length);
   if (!MAPPED_CODE.test(codePath)) return false;
-  let tail: string;
+  let url: string | undefined;
   try {
     const file = await open(codePath, 'r');
     try {
@@ -151,14 +177,17 @@ const isInstalledSourceMap = async (path: string) => {
       const length = Math.min(size, MAP_COMMENT_SEARCH_BYTES);
       const buffer = Buffer.alloc(length);
       await file.read(buffer, 0, length, size - length);
-      tail = buffer.toString('utf8');
+      url = getTrailingSourceMapUrl({
+        tail: buffer.toString('utf8'),
+        isWholeFile: length === size,
+        isCss: codePath.endsWith('.css')
+      });
     } finally {
       await file.close();
     }
   } catch {
     return false;
   }
-  const url = [...tail.matchAll(/[#@]\s*sourceMappingURL=([^\s'"*]+)/g)].at(-1)?.[1];
   if (!url || /^[a-z][\w+.-]*:/i.test(url)) return false;
   try {
     return resolve(dirname(codePath), decodeURIComponent(url.split(/[?#]/)[0]!)) === resolve(path);

@@ -431,7 +431,11 @@ describe('source maps of installed packages', () => {
     'maps/style.css.map': '{"version":3,"sources":[],"mappings":""}',
     'theme/data.css': 'a { color: red; }',
     'theme/data.css.map': 'a data file the package reads',
-    'data/world.map': 'a data file the package reads'
+    'data/world.map': 'a data file the package reads',
+    // Code that names the map only in a string, as text it writes, then reads the "map" as data.
+    'lib/annotate.js':
+      "module.exports = require('fs').readFileSync(__filename + '.map', 'utf8');\nconst annotation = '//# sourceMappingURL=annotate.js.map';\n",
+    'lib/annotate.js.map': 'a data file the package reads'
   };
 
   test('are left out of a function that runs without them, while other .map files stay', async () => {
@@ -449,6 +453,10 @@ describe('source maps of installed packages', () => {
     expect(await pathExists(join(copied, 'theme', 'data.css.map'))).toBe(true);
     expect(await pathExists(join(copied, 'data', 'world.map'))).toBe(true);
     expect(runIn(artifact, "console.log(JSON.stringify(require('kept/dist/main.cjs')))")).toBe(1);
+    // Only a comment on the last line names a map; the same text in a string is the package's own data.
+    expect(runIn(artifact, "console.log(JSON.stringify(require('kept/lib/annotate.js')))")).toBe(
+      'a data file the package reads'
+    );
   });
 
   test('are copied when the function keeps its maps, and only then decide the identity', async () => {
