@@ -10,7 +10,8 @@ import { buildDockerImage, checkDockerImageExists, getDockerImageDetails } from 
  * The CLI's own Docker runner, against the real daemon: every image build of the product goes through it. The
  * scenarios in `packages/packaging` substitute their own `docker build` call, so the platform, secret and argument
  * plumbing of this runner is proven here. Nothing is pulled: the first image is `FROM scratch`, the second is built
- * on a base this test pulls once if it is not local.
+ * on a base this test pulls once if it is not local. The `docker-container` builder one test creates, and removes,
+ * runs Docker's BuildKit image, which Docker also pulls once if it is not local.
  */
 const BASE_IMAGE = 'node:24-slim';
 const SECRET_VALUE = `SENTINEL-build-secret-${randomUUID()}`;
@@ -18,6 +19,7 @@ const docker = (args: string[]) => execa('docker', args, { reject: false, all: t
 
 let root: string;
 const tags: string[] = [];
+const builders: string[] = [];
 const tag = (label: string) => {
   const imageTag = `stp-docker-runner-${randomUUID()}:${label}`;
   tags.push(imageTag);
@@ -34,6 +36,10 @@ beforeAll(async () => {
 }, 300_000);
 
 afterAll(async () => {
+  for (const builder of builders) {
+    const removed = await docker(['buildx', 'rm', '--force', builder]);
+    if (removed.exitCode !== 0) throw new Error(`Could not remove builder ${builder}:\n${removed.all}`);
+  }
   for (const imageTag of tags) {
     await docker(['image', 'rm', '--force', imageTag]);
     const remaining = await docker(['image', 'ls', '--quiet', '--filter', `reference=${imageTag}`]);
@@ -101,6 +107,32 @@ test('passes build arguments and secrets through the environment and redacts the
   const history = await docker(['image', 'history', '--no-trunc', '--format', '{{.CreatedBy}}', imageTag]);
   expect(history.exitCode).toBe(0);
   expect(history.stdout).not.toContain(SECRET_VALUE);
+}, 180_000);
+
+test('loads the image and reports its own ID when the selected builder keeps results in its cache', async () => {
+  // A docker-container builder does not load images by default. Selected with BUILDX_BUILDER, a plain build into it
+  // leaves the tag on the previous image, which a deployment would then push.
+  const context = join(root, 'builder-context');
+  await Bun.write(join(context, 'Dockerfile'), 'FROM scratch\nCOPY payload.txt /payload.txt\n');
+  await Bun.write(join(context, 'payload.txt'), 'previous build');
+  const imageTag = tag('builder');
+  const previous = await buildDockerImage({ buildContextPath: context, imageTag });
+
+  const builder = `stp-docker-runner-${randomUUID()}`;
+  builders.push(builder);
+  const created = await docker(['buildx', 'create', '--name', builder, '--driver', 'docker-container']);
+  if (created.exitCode !== 0) throw new Error(`Could not create builder ${builder}:\n${created.all}`);
+  process.env.BUILDX_BUILDER = builder;
+  try {
+    await Bun.write(join(context, 'payload.txt'), 'this build');
+    const details = await buildDockerImage({ buildContextPath: context, imageTag });
+
+    expect(details.id).not.toBe(previous.id);
+    const inspected = await docker(['image', 'inspect', imageTag, '--format', '{{.Id}}']);
+    expect(inspected.stdout.trim()).toBe(details.id);
+  } finally {
+    delete process.env.BUILDX_BUILDER;
+  }
 }, 180_000);
 
 test('reports a missing image as such rather than inventing details', async () => {

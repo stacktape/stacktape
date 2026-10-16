@@ -3185,7 +3185,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--disableAutoRollback (-dar)` | no | `boolean` | Disable Auto-Rollback — If `true`, disables automatic rollback on deployment failure. • **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state. • **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command. | - |
-| `--disableDockerRemoteCache (-drc)` | no | `boolean` | Disable Docker Remote Cache — Disables Docker layer caching using ECR as remote cache storage. By default, remote caching is enabled to speed up Docker builds by reusing layers. Set to `true` to disable remote caching. | - |
+| `--disableDockerRemoteCache (-drc)` | no | `boolean` | Disable Docker Remote Cache — In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to `true` to build without the ECR cache in CI as well. | - |
 | `--disableLayerOptimization (-dlo)` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
 | `--dockerArgs (-da)` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
 | `--fullDeploy (-fd)` | no | `boolean` | Full Deploy — If `true`, deploys every change through CloudFormation. By default, when only the code of `functions` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation. | - |
@@ -22701,6 +22701,8 @@ CMD ["node", "src/server.js"]
 ```
 
 By copying `package.json` and running `npm ci` before copying the rest of the source, Docker reuses the cached dependency layer whenever only application code changes. This is standard Dockerfile hygiene and helps whenever the build environment has a warm cache. Stacktape's `dockerfile` packaging controls only the Dockerfile, build context, args, command, and entry point — caching behavior depends on Docker itself.
+
+On your machine, Stacktape builds with Docker's local build cache. In CI, where a runner usually starts without that cache, Stacktape also stores the layer cache in the stack's ECR repository and reuses it in the next CI build. `--disableDockerRemoteCache` turns the ECR cache off.
 
 ## Using with batch jobs
 

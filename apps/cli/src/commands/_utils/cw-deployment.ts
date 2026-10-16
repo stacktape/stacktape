@@ -238,6 +238,9 @@ export const updateEcsService = async ({
     instanceId: workload.name,
     label: workload.name
   });
+  // The deployment status poller ignores deployments that started before this time. Reading AWS's clock is a request
+  // of its own, so it runs while the task definition is registered.
+  const updateStartTime = ecsService.needsUpdate ? getAwsSynchronizedTime() : undefined;
   let { taskDefinitionArn } = ecsTaskDefinition.currentState;
   if (ecsTaskDefinition.needsUpdate) {
     await updateWorkloadLogger.startEvent({
@@ -268,7 +271,7 @@ export const updateEcsService = async ({
       observability: awsSdkManager.observability,
       printer: awsSdkManager.printer,
       region: awsSdkManager.region,
-      inspectDeploymentsCreatedAfterDate: await getAwsSynchronizedTime()
+      inspectDeploymentsCreatedAfterDate: await updateStartTime!
     });
     try {
       if (blueGreen) {

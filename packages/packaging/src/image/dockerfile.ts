@@ -95,6 +95,7 @@ export const buildUsingDockerfile = async ({
     size: imageDetails.size,
     digest,
     imageName: name,
+    imageId: imageDetails.id,
     sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: { duration: Date.now() - start },
     jobName: name

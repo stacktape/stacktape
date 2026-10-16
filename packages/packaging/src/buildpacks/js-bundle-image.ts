@@ -149,7 +149,7 @@ export const buildJsBundleImage = async ({
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
-  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+  const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
     dockerfileContents,
     buildDockerImage,
     imageTag: name,
@@ -167,6 +167,7 @@ export const buildJsBundleImage = async ({
   return {
     outcome,
     imageName: name,
+    imageId: id,
     size,
     digest,
     sourceFiles,

@@ -18,6 +18,7 @@ import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -150,9 +151,19 @@ const doesTargetStackExist = () => {
   return Boolean(stackManager.existingStackDetails && stackManager.existingStackResources.length);
 };
 
+/**
+ * The registry cache in ECR is for builders that start without the layers of the previous build: CI runners. Using it
+ * means a separate builder that reads no local base image, a base image lookup in its registry, and a cache import
+ * and export in ECR on every build, about 3 seconds even when nothing but the source changed. A developer machine
+ * keeps Docker's own build cache between deployments, so it builds with the local builder and pushes only the layers
+ * ECR does not have yet. The Console runner sets `CI` and keeps the registry cache builder's state between jobs.
+ */
 const shouldUseRemoteDockerCache = () => {
   return (
-    globalStateManager.command !== 'dev' && !globalStateManager.args.disableDockerRemoteCache && doesTargetStackExist()
+    ci.isCI &&
+    globalStateManager.command !== 'dev' &&
+    !globalStateManager.args.disableDockerRemoteCache &&
+    doesTargetStackExist()
   );
 };
 
@@ -250,12 +261,10 @@ export class PackagingManager {
   #prepareRemoteDockerCache = () =>
     this.#prepareDockerOnce('remote cache', () =>
       timeAsync('docker:remote-cache', async () => {
-        await ensureBuildxBuilderForCache();
-        // Registry cache pulls and exports authenticate at build time, but the CLI's only other ECR
-        // login runs later, at artifact upload. Builds otherwise coast on the credential a previous
-        // deploy persisted, and ECR tokens expire after 12 hours — the first redeploy after an idle
-        // half-day then fails every cache export with 403 until the login is refreshed here.
-        await deploymentArtifactManager.loginToEcr();
+        // Registry cache pulls and exports authenticate at build time. Builds would otherwise coast on the credential
+        // a previous deploy persisted, and ECR tokens expire after 12 hours: the first redeploy after an idle
+        // half-day would fail every cache export with 403. The upload reuses this login.
+        await Promise.all([ensureBuildxBuilderForCache(), deploymentArtifactManager.loginToEcr()]);
       })
     );
 
@@ -325,6 +334,7 @@ export class PackagingManager {
       skipped: result.outcome === 'skipped',
       size: result.size,
       ...(result.artifactPath === undefined ? {} : { artifactPath: result.artifactPath }),
+      ...(result.imageId === undefined ? {} : { imageId: result.imageId }),
       ...(result.resolvedModules === undefined ? {} : { resolvedModules: result.resolvedModules })
     });
   };

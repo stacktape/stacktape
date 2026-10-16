@@ -5,7 +5,7 @@ import { resetDomainServiceInitialization } from '@utils/decorators';
  *
  * - `package` initializes what the package command does: configuration and packaging, no stack.
  * - `deploy` also reports an existing stack and initializes deployment artifacts, as the deploy command does before it
- *   packages. That is what makes image builds use the registry cache.
+ *   packages. That is what makes image builds use the registry cache in CI.
  * - `deploy` with `deployment` runs one deployment of a series: after packaging, the deploy command's own
  *   `uploadAllArtifacts` and `deleteAllObsoleteArtifacts`, the calls a deployment makes around its stack update.
  *

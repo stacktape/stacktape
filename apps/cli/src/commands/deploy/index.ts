@@ -247,6 +247,11 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const isFirstDeployment = stack.stackActionType === 'create';
 
   progress.setPhase('BUILD_AND_PACKAGE');
+  // The registry login does not depend on the build, so it runs while the images are built. The upload waits for it
+  // and reports its failure.
+  if (config.allContainersRequiringPackaging.length || config.agentCoreRuntimesRequiringPackaging.length) {
+    deploymentArtifacts.loginToEcr().catch(() => {});
+  }
   const [{ packagedWorkloads, cfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
       calculatedStackOverview,
