@@ -21,6 +21,7 @@
  *   never installs emulation, and a missing platform leads to one refused binfmt request for that platform only, with
  *   the pinned helper. Other jobs are still packaged.
  * - The registry cache builder and ECR login are prepared only for a build that uses the cache, and before it runs.
+ *   Only a CI job uses the cache; on a developer machine an existing stack's image builds with the local builder.
  * - A job that needs Docker still fails with `DOCKER_NOT_RUNNING` or `DOCKER_NOT_INSTALLED`.
  * - Across a series of deployments against one image registry, each image job's registry cache tag survives while the
  *   job exists, so later builds import it. Old image versions and replaced cache images are still deleted, and a
@@ -104,6 +105,8 @@ type Scenario = {
   /** The project's files beside the common ones; `native` adds an installed package with a native build. */
   files: Record<string, string>;
   native?: boolean;
+  /** Runs the worker as a CI job (`CI=true`). Without it, the worker runs as on a developer machine (`CI=false`). */
+  ci?: boolean;
   disableLayerOptimization?: boolean;
   /** Zip the shared layers as a deployment does, so they can be compared, measured and run. */
   zipSharedLayers?: boolean;
@@ -575,7 +578,8 @@ const runWorker = async ({
   logPath,
   request,
   deadlineMs,
-  awsEnvironment
+  awsEnvironment,
+  ci
 }: {
   name: string;
   label: string;
@@ -587,6 +591,7 @@ const runWorker = async ({
   request: DockerPreparationRequest;
   deadlineMs: number;
   awsEnvironment: Record<string, string>;
+  ci: boolean;
 }): Promise<WorkerRun> => {
   await writeFile(logPath, '');
   const requestPath = join(directory, `${label}request.json`);
@@ -603,6 +608,8 @@ const runWorker = async ({
       ...awsEnvironment,
       HOME: home,
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+      // Image builds use the registry cache only in CI.
+      CI: ci ? 'true' : 'false',
       PATH: dockerDirectory,
       STP_INVOCATION_ID: label ? `docker-preparation-${label.slice(0, -1)}` : 'docker-preparation',
       STP_TIMINGS_FILE: timingsPath
@@ -732,6 +739,7 @@ const runScenario = async (scenario: Scenario, outDirectory: string): Promise<Sc
         logPath,
         request,
         awsEnvironment,
+        ci: scenario.ci ?? false,
         deadlineMs: scenario.deadlineMs ?? DEFAULT_DEADLINE_MS
       })
     );
@@ -1213,6 +1221,7 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
     {
       name: 'registry cache used by an image build',
       command: 'deploy',
+      ci: true,
       docker: {
         kind: 'stand-in',
         state: { daemon: 'running', platforms: ALL_PLATFORMS, cacheBuilderExists: true }
@@ -1234,6 +1243,29 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
       }
     },
     {
+      name: 'image build on a developer machine',
+      command: 'deploy',
+      docker: {
+        kind: 'stand-in',
+        state: { daemon: 'running', platforms: ALL_PLATFORMS, cacheBuilderExists: true }
+      },
+      resources: { local: workerService('x86_64'), single: lambda('./src/single.ts') },
+      files: { 'src/single.ts': HANDLER, ...IMAGE_FILES },
+      check: (run) => {
+        expectPackaged(run, ['local-service-container', 'single']);
+        expectOperations(run, ['buildx inspect', 'build', 'image inspect']);
+        const build = run.dockerOperations[1]!;
+        expect(
+          !build.args.includes('stacktape-builder') &&
+            !build.args.some((arg) => arg.startsWith('--cache')) &&
+            build.platform === 'linux/amd64',
+          `The image was not built with the local builder alone: ${build.args}.`
+        );
+        expect(run.result!.ecrAuthorizations === 0, `ECR authorization ran ${run.result!.ecrAuthorizations} times.`);
+        return 'amd64 build with the local builder and its cache: no registry cache, builder check or ECR login';
+      }
+    },
+    {
       name: 'registry cache unused',
       command: 'deploy',
       docker: {
@@ -1251,6 +1283,7 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
     {
       name: REGISTRY_CACHE_SERIES,
       command: 'deploy',
+      ci: true,
       docker: { kind: 'stand-in', state: { daemon: 'running', platforms: HOST_PLATFORMS, cacheBuilderExists: true } },
       resources: { web: workerService('x86_64'), worker: workerService('x86_64') },
       files: IMAGE_FILES,

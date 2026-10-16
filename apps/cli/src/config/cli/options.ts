@@ -98,7 +98,7 @@ If \`true\`, disables the use of cached artifacts and forces a fresh build of co
 
 export const disableDockerRemoteCache = z.boolean().describe(`#### Disable Docker Remote Cache
 ---
-Disables Docker layer caching using ECR as remote cache storage. By default, remote caching is enabled to speed up Docker builds by reusing layers. Set to \`true\` to disable remote caching.`);
+In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to \`true\` to build without the ECR cache in CI as well.`);
 
 export const disableAutoRollback = z.boolean().describe(`#### Disable Auto-Rollback
 ---

@@ -842,7 +842,13 @@ export const buildDockerImage = async ({
   let stderr: string | undefined;
   try {
     ({ stderr } = await execDocker(command, {
-      env: { ...secretsPassthrough.env, ...buildArgsPassthrough.env },
+      env: {
+        // With the containerd image store, a build also stores a provenance attestation, and the image becomes an
+        // index of two manifests. Nothing that runs the image reads it, and pushing it costs about 0.3 s per image.
+        BUILDX_NO_DEFAULT_ATTESTATIONS: '1',
+        ...secretsPassthrough.env,
+        ...buildArgsPassthrough.env
+      },
       // A failing install or build step can echo a secret; the rejection this call turns into a CliError must not.
       redactedValues: Object.values(secretsPassthrough.env)
     }));

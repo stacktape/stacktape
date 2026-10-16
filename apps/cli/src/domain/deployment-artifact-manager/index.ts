@@ -69,6 +69,8 @@ const LEGACY_HOTSWAP_VERSION = 'v000000';
 /** Stored with each successful fast release, which CloudFormation's deployment version output does not record. */
 const FAST_RELEASE_MARKER_NAME = 'fast-release';
 
+const ECR_LOGIN_REUSE_MS = 60 * 60 * 1000;
+
 class DeploymentArtifactManager {
   #packagingSource: ArtifactPackagingSource | undefined;
 
@@ -844,10 +846,28 @@ class DeploymentArtifactManager {
     });
   };
 
-  loginToEcr = async () => {
-    const loginDetails = await awsSdkManager.ecr.getAuthorization();
-    await dockerLogin(loginDetails);
+  /**
+   * Logs Docker in to the stack's registry. A deployment asks for it while its images are built and again before it
+   * pushes them; both get the same login. ECR tokens last 12 hours, so a login older than an hour is not reused, and a
+   * failed one is tried again by the next caller.
+   */
+  loginToEcr = (): Promise<void> => {
+    const recent = this.#ecrLogin && Date.now() - this.#ecrLogin.startedAt < ECR_LOGIN_REUSE_MS;
+    if (!recent) {
+      const login = (async () => {
+        const loginDetails = await awsSdkManager.ecr.getAuthorization();
+        await dockerLogin(loginDetails);
+      })();
+      const attempt = { startedAt: Date.now(), login };
+      login.catch(() => {
+        if (this.#ecrLogin === attempt) this.#ecrLogin = undefined;
+      });
+      this.#ecrLogin = attempt;
+    }
+    return this.#ecrLogin!.login;
   };
+
+  #ecrLogin: { startedAt: number; login: Promise<void> } | undefined;
 
   deleteImagesFromEcrRepo = (imageTags: string[], imageDigests: string[]) => {
     if (imageDigests.length || imageTags.length) {
