@@ -13,7 +13,12 @@ import type { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import type { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
 import { GetInstancesHealthStatusCommand } from '@aws-sdk/client-servicediscovery';
-import { AwsEcs, type NewTasksServingPlan, planNewTasksServingChecks } from '../../src/aws/ecs';
+import {
+  AwsEcs,
+  type NewTasksServingPlan,
+  planNewTasksServingChecks,
+  UNCHECKED_TASK_HEALTHY_AFTER_MS
+} from '../../src/aws/ecs';
 
 type EcsSend = ECSClient['send'];
 type CodeDeploySend = CodeDeployClient['send'];
@@ -253,10 +258,20 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
   const deployment = {};
   const a = newTask('a');
   const b = newTask('b');
+  const bridged = (id: string, containerInstanceArn: string, hostPort: number) =>
+    newTask(id, {
+      attachments: [],
+      containerInstanceArn,
+      containers: [{ name: 'api', networkBindings: [{ containerPort: 3000, hostPort }] }]
+    });
+  const longRunning = () => UNCHECKED_TASK_HEALTHY_AFTER_MS;
+  const justStarted = () => UNCHECKED_TASK_HEALTHY_AFTER_MS - 1;
 
   test.each<{
     name: string;
-    plan: Parameters<typeof planNewTasksServingChecks>[0];
+    plan: Omit<Parameters<typeof planNewTasksServingChecks>[0], 'runningForMs'> & {
+      runningForMs?: Parameters<typeof planNewTasksServingChecks>[0]['runningForMs'];
+    };
     expected: NewTasksServingPlan;
   }>([
     {
@@ -282,6 +297,23 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
       expected: { verdict: 'waiting', reason: '1 of 2 new tasks running' }
     },
     {
+      name: 'a task still activating counts once its target is healthy',
+      plan: {
+        deployment,
+        service: behindTargetGroup,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, newTask('b', { lastStatus: 'ACTIVATING' })]
+      },
+      expected: {
+        verdict: 'check',
+        targets: [
+          { targetGroupArn: TARGET_GROUP, id: ipOfTask(a), port: 3000 },
+          { targetGroupArn: TARGET_GROUP, id: ipOfTask(b), port: 3000 }
+        ],
+        instances: []
+      }
+    },
+    {
       name: 'a stopping task does not count as running',
       plan: {
         deployment,
@@ -302,13 +334,54 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
       expected: { verdict: 'waiting', reason: 'a new task has not passed its container health check' }
     },
     {
-      name: 'Cloud Map registers a task before it listens, so without a health check ECS decides',
-      plan: { deployment, service: throughCloudMap, containerDefinitions: withoutHealthCheck, tasks: [a, b] },
-      expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
+      name: 'through Cloud Map without a health check, a task counts after 40 seconds in RUNNING, as ECS counts it',
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, b],
+        runningForMs: (task) => (task === b ? justStarted() : longRunning())
+      },
+      expected: { verdict: 'waiting', reason: 'a new task without a health check has not run for 40 seconds' }
+    },
+    {
+      name: 'through Cloud Map without a health check, tasks running for 40 seconds must be healthy instances',
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, b],
+        runningForMs: longRunning
+      },
+      expected: {
+        verdict: 'check',
+        targets: [],
+        instances: [
+          { serviceId: 'srv-api', instanceId: 'a' },
+          { serviceId: 'srv-api', instanceId: 'b' }
+        ]
+      }
     },
     {
       name: 'a health check on a non-essential sidecar says nothing about the application',
-      plan: { deployment, service: throughCloudMap, containerDefinitions: sidecarHealthCheckOnly, tasks: [a, b] },
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: sidecarHealthCheckOnly,
+        tasks: [a, b],
+        runningForMs: justStarted
+      },
+      expected: { verdict: 'waiting', reason: 'a new task without a health check has not run for 40 seconds' }
+    },
+    {
+      name: 'Service Connect without a health check is left to ECS',
+      plan: {
+        deployment: { ...deployment, serviceConnectConfiguration: { enabled: true } },
+        service: { desiredCount: 2 },
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, b],
+        runningForMs: longRunning
+      },
       expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
     },
     {
@@ -339,19 +412,43 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
       expected: { verdict: 'check', targets: [], instances: [] }
     },
     {
-      name: 'a service without traffic and without a health check is left to ECS',
-      plan: { deployment, service: { desiredCount: 2 }, containerDefinitions: withoutHealthCheck, tasks: [a, b] },
-      expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
+      name: 'a service without traffic and without a health check is done when its tasks ran for 40 seconds',
+      plan: {
+        deployment,
+        service: { desiredCount: 2 },
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, b],
+        runningForMs: longRunning
+      },
+      expected: { verdict: 'check', targets: [], instances: [] }
     },
     {
-      name: 'instance targets (EC2 bridge networking) are left to ECS',
+      name: 'with EC2 bridge networking, the target is the instance and the host port mapped to the container port',
       plan: {
         deployment,
         service: behindTargetGroup,
         containerDefinitions: withoutHealthCheck,
-        tasks: [newTask('a', { attachments: [] }), newTask('b', { attachments: [] })]
+        tasks: [bridged('a', 'i-1', 32768), bridged('b', 'i-2', 32769)],
+        ec2InstanceIdOf: ({ containerInstanceArn }) => containerInstanceArn
       },
-      expected: { verdict: 'undecidable', reason: 'the load balancer targets are instances, not task IPs' }
+      expected: {
+        verdict: 'check',
+        targets: [
+          { targetGroupArn: TARGET_GROUP, id: 'i-1', port: 32768 },
+          { targetGroupArn: TARGET_GROUP, id: 'i-2', port: 32769 }
+        ],
+        instances: []
+      }
+    },
+    {
+      name: 'a bridged task whose instance is unknown is left to ECS',
+      plan: {
+        deployment,
+        service: behindTargetGroup,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [bridged('a', 'i-1', 32768), bridged('b', 'i-2', 32769)]
+      },
+      expected: { verdict: 'undecidable', reason: 'the load balancer target of a new task is unknown' }
     },
     {
       name: 'a service scaled to zero is left to ECS',
@@ -359,7 +456,7 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
       expected: { verdict: 'undecidable', reason: 'the service runs no task' }
     }
   ])('$name', ({ plan, expected }) => {
-    expect(planNewTasksServingChecks(plan)).toEqual(expected);
+    expect(planNewTasksServingChecks({ runningForMs: longRunning, ...plan })).toEqual(expected);
   });
 });
 

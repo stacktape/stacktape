@@ -298,7 +298,7 @@ export default defineConfig(() => {
 
 ## Graceful shutdown
 
-The `stopTimeout` property controls how long ECS waits between sending `SIGTERM` and `SIGKILL` during container shutdown. The value must be 2–120 seconds. The default is 30 seconds. A full deployment waits until the old workers have stopped. A [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments) (only code changed) finishes once the new workers are running, or have passed their `internalHealthCheck` if they have one, and lets the old ones shut down in the background.
+The `stopTimeout` property controls how long ECS waits between sending `SIGTERM` and `SIGKILL` during container shutdown. The value must be 2–120 seconds. The default is 30 seconds. A full deployment waits until the old workers have stopped. A [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments) (only code changed) finishes once the new workers have passed their `internalHealthCheck`, or, without one, have run for 40 seconds (the time after which ECS counts them healthy), and lets the old ones shut down in the background.
 
 <CodeBlock
   intellisense

@@ -370,8 +370,8 @@ export const updateEcsService = async ({
         }
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
-        await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
-        ({ oldTasksMayStillRun } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn }));
+        const { deploymentId } = await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
+        ({ oldTasksMayStillRun } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn, deploymentId }));
       }
     } finally {
       statusPoller.stopPolling();
