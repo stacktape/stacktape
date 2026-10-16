@@ -28,7 +28,7 @@ import {
   RegisterTaskDefinitionCommand,
   UpdateServiceCommand
 } from '@aws-sdk/client-ecs';
-import type { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
+import type { ElasticLoadBalancingV2Client, TargetHealthDescription } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import type { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
 import { GetInstancesHealthStatusCommand } from '@aws-sdk/client-servicediscovery';
@@ -55,19 +55,6 @@ type ServingTarget = { targetGroupArn: string; id: string; port: number };
 /** A Cloud Map instance (ECS registers each task under its task ID) that must be healthy. */
 type ServingInstance = { serviceId: string; instanceId: string };
 
-/**
- * Without a load balancer and without a container health check on an essential container, ECS counts a task as healthy
- * once it has been RUNNING for 40 seconds (see `MinimumHealthyPercent` in the ECS service `DeploymentConfiguration`).
- */
-export const UNCHECKED_TASK_HEALTHY_AFTER_MS = 40_000;
-
-/**
- * A load balancer sends the first request to a target 1.5 to 2.7 seconds after DescribeTargetHealth reports it healthy
- * (measured on an application load balancer). The waiter's own polling covers most of that; without this wait it
- * reported a deploy done up to 1.5 seconds before the first request reached the new version.
- */
-const LOAD_BALANCER_ROUTING_DELAY_MS = 1000;
-
 export type NewTasksServingPlan =
   /** The new tasks cannot be shown to serve from health signals; ECS decides when the deployment is done. */
   | { verdict: 'undecidable'; reason: string }
@@ -83,14 +70,13 @@ const taskIp = (task: Task) =>
 /**
  * Which health signals prove that the new tasks of a rolling deployment serve traffic.
  *
- * A task behind a target group serves once the target group reports it healthy: the load balancer has started routing
- * requests to it. Tasks reached through Cloud Map (an HTTP API Gateway integration) or Service Connect are registered
- * as soon as they run, before the application may listen, so for them a container health check on an essential
- * container is the signal. Without one, a Cloud Map task or a task no traffic reaches counts as healthy the way ECS
- * counts it: after 40 seconds in RUNNING, so a task that crashes on start is never reported as serving. ECS waits for
- * the same moment before it stops the old tasks, but its rollout then also waits for them to drain and stop, which took
- * another two minutes. Service Connect without a health check is left to ECS. With EC2 bridge networking the
- * target is the task's EC2 instance and the host port Docker mapped to the container port.
+ * Behind a target group, the new tasks must be healthy targets, and `targetGroupServesOnlyNewTasks` decides when the
+ * load balancer sends requests to them. With EC2 bridge networking the target is the task's EC2 instance and the host
+ * port Docker mapped to the container port. Tasks reached through Cloud Map (an HTTP API Gateway integration) or
+ * Service Connect are registered as soon as they run, before the application may listen, so for them only a container
+ * health check on an essential container is a signal. The same goes for a service no traffic reaches. A task that has
+ * merely run for a while may still be initializing, and may crash before it ever listens, so without a health check
+ * the decision is ECS's.
  *
  * A healthy task is not yet reached through API Gateway: measured on Fargate, API Gateway sent it the first request 10
  * to 20 seconds later. Cloud Map reports the instance healthy about 30 seconds after the task, by which time API
@@ -102,7 +88,6 @@ export const planNewTasksServingChecks = ({
   service,
   containerDefinitions,
   tasks,
-  runningForMs,
   ec2InstanceIdOf = () => undefined
 }: {
   deployment: Pick<Deployment, 'serviceConnectConfiguration'>;
@@ -112,8 +97,6 @@ export const planNewTasksServingChecks = ({
   containerDefinitions: ContainerDefinition[];
   /** The tasks the deployment started that are meant to run. */
   tasks: Task[];
-  /** How long the waiter has seen a task RUNNING. Measured locally, so a skewed clock cannot shorten it. */
-  runningForMs: (task: Task) => number;
   /** The EC2 instance a task runs on, for tasks without their own network interface (EC2 bridge networking). */
   ec2InstanceIdOf?: (task: Task) => string | undefined;
 }): NewTasksServingPlan => {
@@ -127,9 +110,9 @@ export const planNewTasksServingChecks = ({
   }
   const serviceRegistries = service.serviceRegistries ?? [];
   const hasHealthCheck = containerDefinitions.some(({ healthCheck, essential }) => healthCheck && essential !== false);
-  const usesServiceConnect = !!deployment.serviceConnectConfiguration?.enabled;
-  const reachedWithoutTargetGroup = serviceRegistries.length > 0 || usesServiceConnect || !loadBalancers.length;
-  if (usesServiceConnect && !hasHealthCheck) {
+  const reachedWithoutTargetGroup =
+    serviceRegistries.length > 0 || !!deployment.serviceConnectConfiguration?.enabled || !loadBalancers.length;
+  if (reachedWithoutTargetGroup && !hasHealthCheck) {
     return { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' };
   }
   // ECS moves a task from ACTIVATING to RUNNING a few seconds after its load balancer target turned healthy, and the
@@ -144,13 +127,6 @@ export const planNewTasksServingChecks = ({
   if (hasHealthCheck && running.some(({ healthStatus }) => healthStatus !== 'HEALTHY')) {
     return { verdict: 'waiting', reason: 'a new task has not passed its container health check' };
   }
-  if (
-    reachedWithoutTargetGroup &&
-    !hasHealthCheck &&
-    running.some((task) => runningForMs(task) < UNCHECKED_TASK_HEALTHY_AFTER_MS)
-  ) {
-    return { verdict: 'waiting', reason: 'a new task without a health check has not run for 40 seconds' };
-  }
   const targets: ServingTarget[] = [];
   for (const task of running) {
     const ip = taskIp(task);
@@ -159,12 +135,13 @@ export const planNewTasksServingChecks = ({
         targets.push({ targetGroupArn: targetGroupArn!, id: ip, port: containerPort! });
         continue;
       }
+      // ECS reports the host port Docker mapped only once the container runs, possibly a poll after the task does.
       const instanceId = ec2InstanceIdOf(task);
       const hostPort = task.containers
         ?.find(({ name }) => name === containerName)
         ?.networkBindings?.find((binding) => binding.containerPort === containerPort)?.hostPort;
       if (!instanceId || !hostPort) {
-        return { verdict: 'undecidable', reason: 'the load balancer target of a new task is unknown' };
+        return { verdict: 'waiting', reason: 'the load balancer target of a new task is not known yet' };
       }
       targets.push({ targetGroupArn: targetGroupArn!, id: instanceId, port: hostPort });
     }
@@ -176,6 +153,42 @@ export const planNewTasksServingChecks = ({
     }))
   );
   return { verdict: 'check', targets, instances };
+};
+
+/**
+ * Target states in which a load balancer sends a target no new request: it is deregistering, or its target group is not
+ * in use. Every other state may receive one, now or soon: `healthy`; `initial` once its checks pass; `unavailable`
+ * (health checks turned off); and `unhealthy`, because a load balancer that sees no healthy target fails open and sends
+ * requests to all of them.
+ */
+const UNROUTED_TARGET_STATES = new Set(['draining', 'unhealthy.draining', 'unused']);
+
+/**
+ * Whether a target group sends every new request to the new tasks: each new target is healthy and every other target
+ * is draining or gone.
+ *
+ * A healthy new target alone does not show that the load balancer routes to it. Each load balancer node runs its own
+ * health checks, and DescribeTargetHealth reported a new target healthy 1.5 to 2.7 seconds before the first request
+ * reached it (measured on an application load balancer); nothing in the API says when every node routes to it. Once
+ * the old targets drain, the new ones are the only targets left to send a request to. ECS deregisters the old targets
+ * once it counts the new tasks healthy.
+ */
+export const targetGroupServesOnlyNewTasks = (
+  newTargets: Pick<ServingTarget, 'id' | 'port'>[],
+  descriptions: TargetHealthDescription[]
+) => {
+  const isNew = ({ Target }: TargetHealthDescription) =>
+    newTargets.some(({ id, port }) => Target?.Id === id && Target?.Port === port);
+  return (
+    newTargets.every(({ id, port }) =>
+      descriptions.some(
+        ({ Target, TargetHealth }) => Target?.Id === id && Target?.Port === port && TargetHealth?.State === 'healthy'
+      )
+    ) &&
+    descriptions.every(
+      (description) => isNew(description) || UNROUTED_TARGET_STATES.has(description.TargetHealth?.State ?? '')
+    )
+  );
 };
 
 const groupBy = <T>(items: T[], key: (item: T) => string) =>
@@ -318,17 +331,11 @@ export class AwsEcs {
         return false;
       }
     };
-    // A load balancer starts routing requests to a new task as soon as its target is healthy, but ECS notices that,
-    // and reports early success, only tens of seconds later. The waiter reads the same health signals itself; see
-    // `planNewTasksServingChecks`. When it cannot (no usable signal, or no permission to read one), ECS decides.
+    // The waiter reads the health signals that show the new tasks serve itself; see `planNewTasksServingChecks`. When
+    // it cannot (no usable signal, or no permission to read one), ECS decides.
     let canCheckServing = true;
     const containerDefinitionsByTaskDefinition = new Map<string, ContainerDefinition[]>();
     const ec2InstanceIds = new Map<string, string>();
-    const firstSeenRunning = new Map<string, number>();
-    const runningForMs = (task: Task) => {
-      const seenAt = firstSeenRunning.get(task.taskArn!);
-      return seenAt === undefined ? 0 : performance.now() - seenAt;
-    };
     const newTasksServe = async (ecsClient: ECSClient, service: Service, deployment: Deployment) => {
       if (!canCheckServing) return false;
       if (!deployment.id || !deployment.taskDefinition) {
@@ -349,11 +356,6 @@ export class AwsEcs {
           );
           containerDefinitions = taskDefinition?.containerDefinitions ?? [];
           containerDefinitionsByTaskDefinition.set(deployment.taskDefinition, containerDefinitions);
-        }
-        for (const { taskArn, lastStatus } of tasks) {
-          if (lastStatus === 'RUNNING' && taskArn && !firstSeenRunning.has(taskArn)) {
-            firstSeenRunning.set(taskArn, performance.now());
-          }
         }
         const unknownContainerInstances = [
           ...new Set(
@@ -379,7 +381,6 @@ export class AwsEcs {
           service,
           containerDefinitions,
           tasks,
-          runningForMs,
           ec2InstanceIdOf: ({ containerInstanceArn }) => ec2InstanceIds.get(containerInstanceArn ?? '')
         });
         if (plan.verdict === 'undecidable') {
@@ -389,17 +390,11 @@ export class AwsEcs {
         if (plan.verdict === 'waiting') return false;
         const healthyTargetGroups = await Promise.all(
           [...groupBy(plan.targets, ({ targetGroupArn }) => targetGroupArn)].map(async ([targetGroupArn, targets]) => {
+            // Every registered target, so the old tasks' targets show whether they may still receive requests.
             const { TargetHealthDescriptions = [] } = await this.#createElbClient().send(
-              new DescribeTargetHealthCommand({
-                TargetGroupArn: targetGroupArn,
-                Targets: targets.map(({ id, port }) => ({ Id: id, Port: port }))
-              })
+              new DescribeTargetHealthCommand({ TargetGroupArn: targetGroupArn })
             );
-            return targets.every(
-              ({ id, port }) =>
-                TargetHealthDescriptions.find(({ Target }) => Target?.Id === id && Target?.Port === port)?.TargetHealth
-                  ?.State === 'healthy'
-            );
+            return targetGroupServesOnlyNewTasks(targets, TargetHealthDescriptions);
           })
         );
         const healthyRegistries = await Promise.all(
@@ -413,9 +408,7 @@ export class AwsEcs {
             return instances.every(({ instanceId }) => Status[instanceId] === 'HEALTHY');
           })
         );
-        const serve = [...healthyTargetGroups, ...healthyRegistries].every(Boolean);
-        if (serve && plan.targets.length) await wait(LOAD_BALANCER_ROUTING_DELAY_MS);
-        return serve;
+        return [...healthyTargetGroups, ...healthyRegistries].every(Boolean);
       } catch (error) {
         // A transient error is retried at the next poll; a missing permission will not change.
         if (isAccessDenied(error)) canCheckServing = false;
