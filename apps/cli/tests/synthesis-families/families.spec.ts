@@ -15,6 +15,7 @@ import { ECSClient, UpdateServiceCommand, type UpdateServiceCommandInput } from 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
+import { vpcManager } from '@domain-services/vpc-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { updateEcsService } from '../../src/commands/_utils/cw-deployment';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -75,9 +76,13 @@ const onlyResourceOfType = (template: CloudFormationTemplate, type: string) => {
 
 const json = (value: unknown) => JSON.stringify(value);
 
-/** Every `Ref` and `Fn::GetAtt` target in the template must exist as a resource or a parameter; cfn-lint also checks it, this keeps the failure readable. */
+/**
+ * Every `Ref` and `Fn::GetAtt` target must exist as a resource or a parameter, and every `DependsOn` entry as a
+ * resource. cfn-lint also checks it; this keeps the failure readable.
+ */
 const expectReferencesResolve = (template: CloudFormationTemplate) => {
-  const known = new Set([...Object.keys(template.Resources), ...Object.keys(template.Parameters ?? {})]);
+  const resources = template.Resources as Record<string, Resource>;
+  const known = new Set([...Object.keys(resources), ...Object.keys(template.Parameters ?? {})]);
   const pseudo = (name: string) => name.startsWith('AWS::');
   const missing = new Set<string>();
   const walk = (value: unknown) => {
@@ -91,6 +96,12 @@ const expectReferencesResolve = (template: CloudFormationTemplate) => {
   };
   walk(template.Resources);
   walk(template.Outputs);
+  Object.entries(resources).forEach(([logicalId, resource]) =>
+    [resource.DependsOn ?? []]
+      .flat()
+      .filter((dependency) => !(dependency in resources))
+      .forEach((dependency) => missing.add(`${logicalId} DependsOn ${dependency}`))
+  );
   expect([...missing]).toEqual([]);
 };
 
@@ -733,7 +744,11 @@ describe('container rolling deployment family', () => {
 
 describe('EC2-backed container family', () => {
   const packaging = new JsBundleImagePackaging({ entryfilePath: './src/web.ts' });
-  const config = ({ privateSubnets, nat }: { privateSubnets?: boolean; nat?: 'gateway' | 'ec2' } = {}) =>
+  const config = ({
+    privateSubnets,
+    nat,
+    reuseVpc
+  }: { privateSubnets?: boolean; nat?: 'gateway' | 'ec2'; reuseVpc?: boolean } = {}) =>
     defineConfig(() => ({
       resources: {
         web: new WebService({
@@ -742,7 +757,14 @@ describe('EC2-backed container family', () => {
           ...(privateSubnets ? { usePrivateSubnetsWithNAT: true } : {})
         })
       },
-      ...(nat ? { stackConfig: { nat } } : {})
+      ...(nat || reuseVpc
+        ? {
+            stackConfig: {
+              ...(nat ? { nat } : {}),
+              ...(reuseVpc ? { vpc: { reuseVpc: { vpcId: 'vpc-0123456789abcdef0' } } } : {})
+            }
+          }
+        : {})
     }));
 
   // Synthesis reads instance memory and architecture from EC2; the fixture forbids network access.
@@ -805,6 +827,35 @@ describe('EC2-backed container family', () => {
       expect(path.length).toBeGreaterThan(6);
       const afterService = deletedAfter(template, cfLogicalNames.ecsService('web', false));
       expect(path.filter((logicalId) => !afterService.has(logicalId))).toEqual([]);
+    }
+  );
+
+  // A reused VPC's routes and associations belong to another stack; naming them in DependsOn fails the deploy.
+  test.each([
+    ['public subnets', 'ec2-container-reused-vpc-public', {}, 'subnet-public-a'],
+    ['private subnets', 'ec2-container-reused-vpc-private', { privateSubnets: true }, 'subnet-private-a']
+  ] as const)(
+    'in a reused VPC with %s, the service depends on no network resource',
+    async (_, family, options, reusedSubnet) => {
+      // Synthesis would otherwise read the reused VPC's subnets from EC2; the fixture forbids network access.
+      const lookups = [
+        spyOn(vpcManager, 'getVpcId').mockReturnValue('vpc-0123456789abcdef0'),
+        spyOn(vpcManager, 'getVpcCidr').mockReturnValue('10.0.0.0/16'),
+        spyOn(vpcManager, 'getPublicSubnetIds').mockReturnValue([
+          'subnet-public-a',
+          'subnet-public-b',
+          'subnet-public-c'
+        ]),
+        spyOn(vpcManager, 'getPrivateSubnetIds').mockReturnValue(['subnet-private-a', 'subnet-private-b'])
+      ];
+      try {
+        const template = await synthesizeWithInstanceTypes(family, config({ ...options, reuseVpc: true }));
+        expectReferencesResolve(template);
+        expect(networkPath(template)).toEqual([]);
+        expect(json(template.Resources)).toContain(reusedSubnet);
+      } finally {
+        lookups.forEach((lookup) => lookup.mockRestore());
+      }
     }
   );
 });
