@@ -148,7 +148,13 @@ export const buildJsBundleImage = async ({
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
     nodeVersion,
     runtime,
-    runtimeTools,
+    runtimeTools: {
+      ...runtimeTools,
+      openssl: usesPrisma([
+        ...(bundlingOutput.resolvedModules ?? []),
+        ...(languageSpecificBundleOutput.es?.externalDependencies ?? []).map((dependency) => dependency.name)
+      ])
+    },
     buildContextPath
   });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
@@ -180,6 +186,10 @@ export const buildJsBundleImage = async ({
     jobName: name
   };
 };
+
+/** Whether the bundle loads Prisma, whose client may need the `openssl` command; see `EsImageRuntimeTools`. */
+const usesPrisma = (moduleNames: string[]) =>
+  moduleNames.some((name) => name === 'prisma' || name.startsWith('prisma/') || name.startsWith('@prisma/'));
 
 // Deduplicates concurrent builds of the same dev base image tag.
 // When multiple workloads share the same hash, only one docker build runs.

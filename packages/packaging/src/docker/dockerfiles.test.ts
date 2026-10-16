@@ -10,7 +10,7 @@ const withDependencies = (requiresGlibcBinaries: boolean) =>
     nodeVersion: 24
   });
 
-type RuntimeTools = { tini: boolean; curl: boolean };
+type RuntimeTools = { tini: boolean; curl: boolean; openssl?: boolean };
 const alpine = (runtimeTools?: RuntimeTools) =>
   buildEsDockerfile({
     dependencies: [],
@@ -68,7 +68,7 @@ describe('Stacktape Dockerfile contracts', () => {
   });
 
   test('installs tini and curl only where the image needs them', () => {
-    // An ECS or Batch container: the platform starts the init process, and Alpine already has OpenSSL 3.
+    // An ECS or Batch container without Prisma: the platform starts the init process, and Alpine has OpenSSL 3.
     for (const dockerfile of [alpine(), alpine({ tini: false, curl: false }), bunImage({ tini: false, curl: false })]) {
       expect(dockerfile).not.toContain('apk add');
       expect(dockerfile).not.toContain('apt-get');
@@ -84,6 +84,12 @@ describe('Stacktape Dockerfile contracts', () => {
     );
     expect(bunImage({ tini: true, curl: true })).toContain('apt-get install -y --no-install-recommends tini curl \\');
     expect(bunImage({ tini: true, curl: true })).toContain('ENTRYPOINT ["tini", "--"]');
+    // A bundle that loads Prisma: Prisma 5 needs the command on Alpine; Debian-based images list OpenSSL in ldconfig.
+    expect(alpine({ tini: false, curl: false, openssl: true })).toContain('RUN apk add --no-cache openssl\n');
+    expect(runtimeStage(alpineWithDependencies({ tini: false, curl: true, openssl: true }))).toContain(
+      'RUN apk add --no-cache curl openssl\n'
+    );
+    expect(bunImage({ tini: false, curl: false, openssl: true })).not.toContain('apt-get');
   });
 
   test('builds .NET Lambda artifacts in runtime-compatible SAM images', () => {

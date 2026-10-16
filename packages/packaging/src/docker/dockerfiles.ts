@@ -29,15 +29,24 @@ const jsRuntimeCommand = (runtime: JsBundleImageRuntime, entry: string) =>
  * What a production image installs beside its runtime. Nothing by default: ECS and Batch start an init process as PID 1
  * (`initProcessEnabled`), which forwards stop signals to the server and reaps orphaned processes, so the image needs no
  * tini. A runtime that cannot start one (an AgentCore runtime) gets tini. curl is there for container health checks
- * that call it. Node's Alpine image and the Bun and Deno images already have the OpenSSL libraries that Prisma and
- * other native packages load; Node's slim Debian image does not, so it always gets `openssl`.
+ * that call it.
+ *
+ * `openssl` is for Prisma on Node's Alpine image, which has the OpenSSL 3 libraries but not the command. Prisma 5's
+ * client finds the libraries' version through `ldconfig` or the `openssl` command; Alpine has neither, so the client
+ * picks the OpenSSL 1.1 engine, which fails to load. Prisma 6 and 7 find it, and the Debian-based Bun and Deno images
+ * list it in `ldconfig`. Node's slim Debian image has no OpenSSL libraries, so it always gets `openssl`.
  */
-export type EsImageRuntimeTools = { tini: boolean; curl: boolean };
+export type EsImageRuntimeTools = {
+  tini: boolean;
+  curl: boolean;
+  /** Set by the buildpack when the bundle loads Prisma; used by the Alpine image only. */
+  openssl?: boolean | undefined;
+};
 
 const NO_RUNTIME_TOOLS: EsImageRuntimeTools = { tini: false, curl: false };
 
-const alpineRuntimeTools = ({ tini, curl }: EsImageRuntimeTools) => {
-  const packages = [tini && 'tini', curl && 'curl'].filter(Boolean);
+const alpineRuntimeTools = ({ tini, curl, openssl }: EsImageRuntimeTools) => {
+  const packages = [tini && 'tini', curl && 'curl', openssl && 'openssl'].filter(Boolean);
   return packages.length
     ? `RUN apk add --no-cache ${packages.join(' ')}${tini ? '\nENTRYPOINT ["/sbin/tini", "--"]' : ''}`
     : '';

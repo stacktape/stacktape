@@ -4,7 +4,8 @@
  *   Rust through cargo-lambda) run their artifact in a matching runtime image; the Go and Rust `bootstrap` are invoked through
  *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
  * - Python dependencies, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
- * - the `js-bundle` image runs its entry file, and a server in it stops promptly under the init process ECS starts;
+ * - the `js-bundle` image runs its entry file, a server in it stops promptly under the init process ECS starts, and a
+ *   Prisma 5 client runs a query in the Alpine image;
  * - the container `buildpack` (Railpack) builds a FastAPI app, a Node.js app and a PHP app, which must answer HTTP. Python
  *   apps are built on the official slim image: pip and uv projects run, a source-only change reuses the installed
  *   dependencies, and a dependency without a wheel is compiled with the fallback build tools. The Node.js
@@ -1200,6 +1201,69 @@ async function buildpackScenarios() {
     });
     await assertStopsPromptly({ imageTag: alpineImageTag, ready: 'es-alpine-server-ready' });
     record('js-bundle-node24-alpine-image', alpineImageOutput);
+
+    // Prisma 5 finds the OpenSSL version through the `openssl` command on Alpine; without it the client picks the
+    // OpenSSL 1.1 engine, which is not there. The client is installed in the image, as the documentation shows.
+    console.log('Building a Prisma 5 js-bundle image on Alpine and running a SQLite query in it...');
+    const prismaRoot = join(projectsRoot, 'es-image-prisma5');
+    await write(
+      join(prismaRoot, 'package.json'),
+      JSON.stringify({ name: 'prisma5', private: true, dependencies: { prisma: '5.22.0', '@prisma/client': '5.22.0' } })
+    );
+    await write(
+      join(prismaRoot, 'prisma', 'schema.prisma'),
+      [
+        'generator client {',
+        '  provider      = "prisma-client-js"',
+        '  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]',
+        '}',
+        'datasource db {',
+        '  provider = "sqlite"',
+        '  url      = "file:/tmp/app.db"',
+        '}',
+        'model Item {',
+        '  id   Int    @id @default(autoincrement())',
+        '  name String',
+        '}',
+        ''
+      ].join('\n')
+    );
+    await write(
+      join(prismaRoot, 'src', 'index.ts'),
+      [
+        "import { PrismaClient } from '@prisma/client';",
+        'const prisma = new PrismaClient();',
+        `await prisma.$executeRawUnsafe('CREATE TABLE "Item" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL)');`,
+        "await prisma.item.create({ data: { name: 'from-image' } });",
+        "console.log('es-prisma5-alpine-ok:' + (await prisma.item.count()));",
+        'await prisma.$disconnect();',
+        ''
+      ].join('\n')
+    );
+    await run('npm', ['install', '--no-audit', '--no-fund'], prismaRoot);
+    await run('npx', ['prisma', 'generate'], prismaRoot);
+    const prismaImageTag = `stacktape-buildpack-smoke-js-bundle-prisma5:${runId}`;
+    const prismaImageOutput = await buildJsBundleImage({
+      ...common,
+      cwd: prismaRoot,
+      name: prismaImageTag,
+      entryfilePath: join(prismaRoot, 'src', 'index.ts'),
+      distFolderPath: join(artifactsRoot, 'es-image-prisma5'),
+      nodeVersion: 24,
+      outputModuleFormat: 'esm',
+      dependenciesToExcludeFromBundle: ['@prisma/client'],
+      buildDockerImage,
+      checkDockerImageExists: async () => false,
+      getDockerImageDetails,
+      installDependencies: async () => undefined,
+      nativeDependencyInstallationRootPath: join(artifactsRoot, 'es-native-install-prisma5'),
+      minify: true,
+      nodeTarget: '24',
+      requiresGlibcBinaries: false,
+      runtimeTools: { tini: false, curl: false }
+    });
+    await assertRunOutput({ dockerArgs: ['--init', prismaImageTag], expected: 'es-prisma5-alpine-ok:1' });
+    record('js-bundle-node24-alpine-prisma5-image', prismaImageOutput);
 
     for (const runtime of ['bun', 'deno'] as const) {
       console.log(`Building and executing a synthetic js-bundle image on the ${runtime} runtime...`);
