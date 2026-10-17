@@ -233,7 +233,7 @@ export const updateEcsService = async ({
   blueGreen,
   ecsTaskDefinition,
   ecsService
-}: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
+}: Awaited<ReturnType<typeof getECSHotswapInformation>>): Promise<{ finishedWhen?: RollingUpdateFinish }> => {
   const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
     instanceId: workload.name,
@@ -391,5 +391,7 @@ export const updateEcsService = async ({
         'new-tasks-healthy': 'New version healthy; old containers drain in the background'
       }[finishedWhen]
     });
+    return { finishedWhen };
   }
+  return {};
 };

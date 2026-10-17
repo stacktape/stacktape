@@ -501,7 +501,10 @@ const observeService = (
             const { Namespace } = await clients.serviceDiscovery.send(
               new GetNamespaceCommand({ Id: Service?.NamespaceId })
             );
-            discoveryNames.set(serviceId, { NamespaceName: Namespace!.Name!, ServiceName: Service!.Name! });
+            discoveryNames.set(serviceId, {
+              NamespaceName: Namespace!.Properties?.HttpProperties?.HttpName ?? Namespace!.Name!,
+              ServiceName: Service!.Name!
+            });
           }
           // The call API Gateway makes to find the tasks: while no instance is healthy, it returns all of them.
           const { Instances = [] } = await clients.serviceDiscovery.send(

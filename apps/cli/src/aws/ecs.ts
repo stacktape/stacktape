@@ -380,7 +380,11 @@ export class AwsEcs {
         const client = this.#createServiceDiscoveryClient();
         const { Service } = await client.send(new GetServiceCommand({ Id: serviceId }));
         const { Namespace } = await client.send(new GetNamespaceCommand({ Id: Service?.NamespaceId }));
-        names = { NamespaceName: Namespace!.Name!, ServiceName: Service!.Name! };
+        // AWS appends a hash to the HTTP name when a namespace name was used before; `DiscoverInstances` takes that one.
+        names = {
+          NamespaceName: Namespace!.Properties?.HttpProperties?.HttpName ?? Namespace!.Name!,
+          ServiceName: Service!.Name!
+        };
         discoveryNames.set(serviceId, names);
       }
       return names;
