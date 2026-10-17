@@ -7,6 +7,7 @@ import {
   HostingBucket,
   MultiContainerWorkload,
   JsBundleImagePackaging,
+  WebService,
   type CompiledStacktapeConfig
 } from '@stacktape/config-authoring';
 import { synthesizeFixture } from './synthesis-fixture';
@@ -29,7 +30,12 @@ test('local API and UI synthesize support infrastructure without a second data p
           connectTo: [sender]
         });
         const ui = new HostingBucket({ uploadDirectoryPath: './dist', dev: { command: 'node index.ts' } });
-        return { resources: { api, ui, sender } };
+        // Runs locally in dev. Deployed, it would need an HTTP API VPC link into a VPC the dev stack does not create.
+        const web = new WebService({
+          packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
+          resources: { cpu: 0.25, memory: 512 }
+        });
+        return { resources: { api, ui, sender, web } };
       })({
         projectName: 'characterization',
         stage: 'baseline',
