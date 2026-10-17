@@ -5190,12 +5190,14 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/payments.ts',
       'apps/console/api/src/lambdas/paddle-hooks.ts',
       'apps/console/api/src/lambdas/handle-billing-attribution.ts',
-      'apps/console/api/src/services/paddle.ts'
+      'apps/console/api/src/services/paddle.ts',
+      'apps/console/api/src/services/customer-announcements.ts'
     ],
     tests: [
       'apps/console/api/scripts/billing-database.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/paddle-signature.test.ts'
+      'apps/console/api/src/billing/paddle-signature.test.ts',
+      'apps/console/api/src/services/customer-announcements.test.ts'
     ],
     lanes: ['console-fast-rules', 'console-api', 'console-api-2', 'console-database-billing']
   },
@@ -5674,12 +5676,15 @@ export const slices: readonly Slice[] = [
       'packages/analytics/**',
       'apps/cli/src/utils/telemetry.ts',
       'apps/cli/src/utils/telemetry-completion.fixture.ts',
+      'apps/cli/src/utils/file-error-stacks.ts',
+      'apps/cli/src/utils/file-error-stacks.fixture.ts',
       'apps/cli/src/init/telemetry-init.fixture.ts',
       'apps/console/api/src/integrations/posthog.ts',
       'apps/console/api/src/integrations/posthog-consumer.fixture.ts',
       'apps/cli/src/init/telemetry.ts'
     ],
     tests: [
+      'apps/cli/src/utils/file-error-stacks.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
       'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
