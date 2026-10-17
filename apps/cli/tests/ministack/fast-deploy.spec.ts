@@ -87,15 +87,10 @@ test('code-only deploys update functions directly, record a release and roll bac
           await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key: zipKey }))).Body!.transformToByteArray()
         )
       );
-      // The bundle is stored gzip-compressed with `Content-Encoding: gzip`; S3 returns the stored bytes.
+      const storedMaps = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: entry!.sourceMapKeys[0]! }));
+      expect(storedMaps.ContentEncoding).toBe('gzip');
       const bundle = sourceMapBundleSchema.parse(
-        JSON.parse(
-          gunzipSync(
-            await (
-              await s3.send(new GetObjectCommand({ Bucket: bucket, Key: entry!.sourceMapKeys[0]! }))
-            ).Body!.transformToByteArray()
-          ).toString('utf8')
-        )
+        JSON.parse(gunzipSync(await storedMaps.Body!.transformToByteArray()).toString('utf8'))
       );
       return { entry: entry!, manifests, zipEntries: zip.getEntries().map(({ entryName }) => entryName), bundle };
     };
