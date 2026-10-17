@@ -1,8 +1,8 @@
 /**
  * The resource families the offline deploy loop qualifies, one row each: a small config, the meaningful update the
  * second version makes, and the effects the real AWS SDK must observe against MiniStack after create, update and the
- * unchanged redeploy. A row with `knownGap` stays in the table but is skipped with the upstream issue as the reason;
- * delete the field once the fix is released and re-qualified.
+ * unchanged redeploy. A row with `knownGap` stays in the table but is skipped with the blocking reason;
+ * delete the field once the gap is fixed and re-qualified.
  */
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -88,7 +88,7 @@ export type EffectContext = {
 
 export type Family = {
   name: string;
-  /** Why the row cannot pass yet; the upstream issue that unblocks it. */
+  /** Why the row cannot pass yet; include the upstream issue when the emulator blocks it. */
   knownGap?: string;
   /** The Stacktape config at a version; version 2 is the meaningful update. */
   config: (version: Version) => Record<string, unknown>;
