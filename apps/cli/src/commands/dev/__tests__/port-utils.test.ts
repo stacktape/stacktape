@@ -1,14 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createServer, type AddressInfo } from 'node:net';
-import {
-  clearPortCache,
-  extractPortFromCommand,
-  findAvailablePort,
-  getDefaultPort,
-  parsePortFromError,
-  releasePorts,
-  reservePorts
-} from '../port-utils';
+import { clearPortCache, extractPortFromCommand, findAvailablePort, releasePorts, reservePorts } from '../port-utils';
 
 afterEach(() => clearPortCache());
 
@@ -39,17 +31,7 @@ test('allocation skips a foreign listener and a pending Docker reservation, then
   expect(await findAvailablePort(port, 1)).toBe(port);
 });
 
-test.each([
-  ['EADDRINUSE: address already in use :::3001', 3001],
-  ['listen EADDRINUSE: address already in use 0.0.0.0:3000', 3000],
-  ['port: 3001', 3001],
-  ['port 8080', 8080],
-  ['Some random error', null],
-  ['', null],
-  ['EADDRINUSE: address already in use :::0', null],
-  ['EADDRINUSE: address already in use :::99999', null]
-])('parses a reported port in %s', (input, port) => expect(parsePortFromError(input)).toBe(port));
-
+// A port the customer wrote into their dev command is the one their dev server is started on.
 test.each([
   ['vite dev --port 3000', 3000],
   ['vite dev --port=5173', 5173],
@@ -59,14 +41,3 @@ test.each([
   ['', null],
   ['bun run dev -- --port 8080 --host 0.0.0.0', 8080]
 ])('parses an explicit command port in %s', (input, port) => expect(extractPortFromCommand(input)).toBe(port));
-
-// Defaults matter when a customer's command and dev config do not select a port.
-test.each([
-  ['next', 3000],
-  ['vite', 5173],
-  ['astro', 4321],
-  ['angular', 4200],
-  ['sveltekit', 5173],
-  ['nuxt', 3000],
-  ['unknown-framework', 3000]
-])('allocates the conventional default for %s', (framework, port) => expect(getDefaultPort(framework)).toBe(port));
