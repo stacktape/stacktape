@@ -1,7 +1,13 @@
 import { basename, resolve } from 'node:path';
 import { z } from 'zod';
-import { CLIENT_INFO_META_KEY, fromJsonSchema, McpServer, type ServerContext } from '@modelcontextprotocol/server';
-import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import {
+  CLIENT_INFO_META_KEY,
+  fromJsonSchema,
+  McpServer,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  type ServerContext
+} from '@modelcontextprotocol/server';
+import { serveStdio, type ServeStdioOptions } from '@modelcontextprotocol/server/stdio';
 import { getStacktapeVersion } from '@utils/versioning';
 import { buildIndex, search, formatAnswer } from './lexical-index';
 import type { LexicalIndex, DocKind } from './lexical-index';
@@ -91,6 +97,15 @@ const SERVER_INSTRUCTIONS = `Stacktape MCP runs Stacktape for the user through t
 - Stacktape MCP reuses the local Stacktape CLI authentication state. Never read ~/.stacktape/, ~/.aws/, ~/.ssh/ or other credential files. Never ask for, pass or repeat API keys or API-key-like strings (say <REDACTED>), and never put secret values in chat. On auth failures, ask the user to run stacktape login in their own terminal.
 - If generic AWS/AWS SDK MCP tools are also available, use Stacktape tools for Stacktape-managed resources: they map project, stage and resource names and send only reviewed reads. Do not bypass Stacktape's mapping and gates with raw AWS calls.`;
 
+// Serves both protocol eras on one stdio connection: 2026-07-28 clients get the modern flow, older clients a classic
+// `initialize` session. Rejecting the older era leaves those clients with an empty tool list and no visible error.
+export const serveStacktapeMcp = (factory: () => McpServer, transport?: ServeStdioOptions['transport']) =>
+  serveStdio(factory, {
+    legacy: 'serve',
+    ...(transport ? { transport } : {}),
+    onerror: (error) => console.error(`[stacktape-mcp] ${error.message}`)
+  });
+
 type McpServerDependencies = {
   runCli?: typeof runStacktapeCommandJsonl;
   runDevAction?: typeof handleDevToolAction;
@@ -105,7 +120,10 @@ export const createMcpServer = (getIndex: () => Promise<LexicalIndex>, dependenc
       version: getMcpServerVersion()
     },
     {
-      supportedProtocolVersions: [MODERN_MCP_PROTOCOL_VERSION],
+      // Most clients still negotiate a 2025-era revision through `initialize` (Codex, Cursor, VS Code, Windsurf, and
+      // Claude Code without its feature flags). Listing those revisions lets the server answer with the version the
+      // client asked for instead of one it never offered.
+      supportedProtocolVersions: [MODERN_MCP_PROTOCOL_VERSION, ...SUPPORTED_PROTOCOL_VERSIONS],
       instructions: SERVER_INSTRUCTIONS,
       capabilities: {
         tools: {}
@@ -476,6 +494,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
       if (prepared.policy.safety === 'destructive') {
         const destructiveConfirmationResult = await requestDestructiveExecutionConfirmation({
           ctx,
+          initializeCapabilities: server.server.getClientCapabilities(),
           command: prepared.command,
           args: prepared.args,
           cwd: resolve(cwd || process.cwd())
@@ -564,10 +583,7 @@ export const commandMcp = async () => {
   // Create and start the MCP server before loading the docs index so CLI/project
   // tools are discoverable immediately, even when another fast AWS MCP server is
   // installed in the same client.
-  const stdioServer = serveStdio(() => createMcpServer(getIndex), {
-    legacy: 'reject',
-    onerror: (error) => console.error(`[stacktape-mcp] ${error.message}`)
-  });
+  const stdioServer = serveStacktapeMcp(() => createMcpServer(getIndex));
   void getIndex().catch(() => {
     // Surface docs-index failures through stacktape_docs calls instead of
     // failing MCP startup and hiding the operational tools.

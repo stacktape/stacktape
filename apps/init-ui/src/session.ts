@@ -120,6 +120,18 @@ export type WizardState = {
   stacktapeAccount?: { signedIn: boolean; detail: string; email?: string; organization?: string };
   /** The sign-in step to render while signed out. Absent when this CLI cannot sign in from the page. */
   signIn?: WizardSignIn;
+  /**
+   * Connecting the coding agent picked on the Start step to Stacktape, offered once a deploy has succeeded. It changes
+   * that agent's user-level configuration, outside the repository, so it happens only on a click.
+   */
+  codingAgentSetup?: {
+    agentId: string;
+    label: string;
+    status: 'offered' | 'running' | 'connected' | 'failed';
+    /** The same change from a terminal. */
+    command: string;
+    detail?: string;
+  };
   /** The git host this project pushes to, when it is one we generate a pipeline for. */
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** The deployment pipeline, once one has been written. */
@@ -271,7 +283,7 @@ export type Session = {
   setPreference: (change: DeploymentPreferenceChange) => Promise<WizardState>;
   /** Write the configuration to the repository, in the format chosen on the Review step. */
   write: (format: 'yaml' | 'typescript') => Promise<WizardState>;
-  /** Deploy it. The only thing in this wizard that creates anything outside the repository. */
+  /** Deploy it. Besides connecting a coding agent, the only thing here that changes anything outside the repository. */
   deploy: (
     stage: string,
     region: string,
@@ -283,6 +295,8 @@ export type Session = {
   dismissVerification: () => Promise<WizardState>;
   /** Write a deployment pipeline for the project's git host. */
   pipeline: (stage: string, region: string) => Promise<WizardState>;
+  /** Connect the coding agent picked on the Start step to Stacktape, at user level. */
+  connectCodingAgent: () => Promise<WizardState>;
   /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
   recheck: () => Promise<WizardState>;
   /** Price the configuration for the region picked on the Deploy step. The new price is published when it arrives. */
@@ -415,6 +429,17 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError('The pipeline could not be written.');
       }
       publish((await written.json()) as WizardState);
+      return current;
+    },
+    connectCodingAgent: async () => {
+      const connected = await fetch('/api/coding-agent-setup', {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrfToken }
+      });
+      if (!connected.ok) {
+        throw new SessionError('The coding agent could not be connected.');
+      }
+      publish((await connected.json()) as WizardState);
       return current;
     },
     setPreference: async (change) => {

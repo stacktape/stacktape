@@ -71,6 +71,12 @@ export const aiProvider = z.enum(['claude', 'codex', 'grok', 'opencode']).descri
 ---
 The AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: \`claude\` (a Claude subscription for Claude Code, through \`claude setup-token\`), \`codex\` (a ChatGPT plan for Codex, from \`codex login\`), \`grok\` (a Grok sign-in, from \`grok login\`) or \`opencode\` (what OpenCode is signed in to, from \`opencode auth login\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
 
+export const codingAgents = z.array(
+  z.enum(['claude-code', 'codex', 'cursor', 'vscode', 'copilot', 'windsurf', 'opencode'])
+).describe(`#### Coding Agents
+---
+The coding agents to set up (or remove), for example \`--codingAgents claude-code,cursor\`. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds.`);
+
 export const incidentWatchTimeoutSeconds = z.number().int().min(1).max(86_400).describe(`#### Incident Watch Timeout
 ---
 Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds.`);
@@ -630,6 +636,7 @@ export const allCliArgsSchema = z.object({
   incidentId: incidentId.optional(),
   incidentStatus: incidentStatus.optional(),
   aiProvider: aiProvider.optional(),
+  codingAgents: codingAgents.optional(),
   incidentWatchTimeoutSeconds: incidentWatchTimeoutSeconds.optional(),
   incidentWatchStabilitySeconds: incidentWatchStabilitySeconds.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),

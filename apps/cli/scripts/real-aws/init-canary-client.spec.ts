@@ -39,6 +39,7 @@ describe('init canary wizard client', () => {
         onVerify: () => undefined,
         onVerifyDismiss: () => initialState(),
         onPipeline: () => undefined,
+        onCodingAgentSetup: () => {},
         onRecheck: () => initialState(),
         onSignIn: () => undefined
       }
@@ -73,6 +74,7 @@ describe('init canary wizard client', () => {
         onVerify: () => undefined,
         onVerifyDismiss: () => initialState(),
         onPipeline: () => undefined,
+        onCodingAgentSetup: () => {},
         onRecheck: () => initialState(),
         onSignIn: () => undefined
       }

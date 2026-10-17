@@ -33,7 +33,7 @@ const posthogSourceMapPlugin = posthogSourceMapsEnabled
 export default defineConfig({
   site: SITE_URL,
   trailingSlash: 'always',
-  // Packaging pages renamed in v4. The old URLs are linked from older blog posts, issues and search results.
+  // Pages renamed or merged in v4. The old URLs are linked from older blog posts, issues and search results.
   redirects: {
     '/packaging/containers/nixpacks/': '/packaging/containers/buildpack/',
     '/packaging/containers/external-buildpack/': '/packaging/containers/buildpack/',
@@ -41,7 +41,8 @@ export default defineConfig({
     '/packaging/containers/stacktape-buildpack/': '/packaging/containers/js-bundle/',
     '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/',
     '/stacktape-console/visual-config-editor/': '/stacktape-console/console-overview/',
-    '/using-with-ai/config-generation-from-repository/': '/cli/init/'
+    '/using-with-ai/config-generation-from-repository/': '/cli/init/',
+    '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/'
   },
   prefetch: {
     prefetchAll: true,
