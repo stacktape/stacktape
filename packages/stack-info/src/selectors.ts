@@ -66,11 +66,13 @@ export const getQuickLinks = (stackInfoMap: NormalizedStackInfoMap | null): Stac
       resource.referenceableParams.url
     ].find((parameter) => typeof parameter?.value === 'string');
 
-    return typeof firstUrl?.value === 'string' && firstUrl.value
+    // Several custom domains are one comma-separated value; the link opens the first.
+    const url = typeof firstUrl?.value === 'string' ? firstUrl.value.split(',')[0]!.trim() : '';
+    return url
       ? [
           {
             resourceName: resource.name,
-            url: firstUrl.value,
+            url,
             resourceType: resource.resourceType
           }
         ]
