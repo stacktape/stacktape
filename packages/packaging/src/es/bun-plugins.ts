@@ -7,7 +7,7 @@
  */
 import type { BunPlugin } from 'bun';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 
 /**
@@ -40,22 +40,43 @@ export const PRISMA_LAMBDA_CLIENT_DIRECTORY = '.prisma/client';
 
 /**
  * Prisma's generated client (`prisma-client-js`, Prisma 5 and 6) looks for its engine beside `schema.prisma`: in its
- * own directory, or, when bundled code finds no schema there, in the directories its `alternativePaths` name relative
- * to the working directory. Those names come from where `prisma generate` ran and can lead outside the artifact, and a
- * split build can put the client in a layer chunk under `/opt`, so for a Lambda both point at
- * {@link PRISMA_LAMBDA_CLIENT_DIRECTORY}. The engine works from the function and from a layer alike.
+ * own directory, or, when bundled code finds no schema there, in a directory relative to the working directory. That
+ * name comes from where `prisma generate` ran and can lead outside the artifact, and a split build can put the client
+ * in a layer chunk under `/opt`, so for a Lambda it points at {@link PRISMA_LAMBDA_CLIENT_DIRECTORY}. The engine works
+ * from the function and from a layer alike.
+ *
+ * Prisma 5.0.0 assigns that one directory; later versions try each of their `alternativePaths`. A client generated with
+ * a query engine and neither shape fails the build, because it would deploy and then find no schema. A client without
+ * an engine (the query compiler) is left alone: it finds its `query_compiler_bg.wasm` where the build copied it, under
+ * the generator output.
  */
 export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
   name: 'stacktape-prisma-lambda-client',
   setup(build) {
     build.onLoad({ filter: /[\\/]index\.js$/ }, async ({ path }) => {
-      if (!existsSync(join(dirname(path), 'schema.prisma'))) return undefined;
+      const clientDirectory = dirname(path);
+      if (!existsSync(join(clientDirectory, 'schema.prisma'))) return undefined;
+      const files = await readdir(clientDirectory);
+      if (!files.some((file) => /^(?:libquery_engine|query-engine|query_engine)-/.test(file))) return undefined;
       const source = await readFile(path, 'utf8');
-      const contents = source.replace(/(const alternativePaths = \[)([^\]]*)\]/, (_match, opening, paths: string) => {
-        const location = JSON.stringify(PRISMA_LAMBDA_CLIENT_DIRECTORY);
-        return `${opening}${paths.replace(/"(?:[^"\\]|\\.)*"/g, location)}]`;
-      });
-      return contents === source ? undefined : { contents, loader: 'js' };
+      const location = JSON.stringify(PRISMA_LAMBDA_CLIENT_DIRECTORY);
+      const contents = source
+        .replace(
+          /(const alternativePaths = \[)([^\]]*)\]/,
+          (_match, opening, paths: string) => `${opening}${paths.replace(/"(?:[^"\\]|\\.)*"/g, location)}]`
+        )
+        .replace(
+          /(config\.dirname = path\.join\(process\.cwd\(\), )"(?:[^"\\]|\\.)*"\)/,
+          (_match, opening) => `${opening}${location})`
+        );
+      if (contents === source) {
+        const version = source.match(/"clientVersion": "([^"]+)"/)?.[1];
+        throw new Error(
+          `The Prisma client generated in ${clientDirectory} (${version ? `Prisma ${version}` : 'unknown Prisma version'}) looks for its query engine in a way Stacktape cannot redirect, so the Lambda would deploy and then fail to find schema.prisma. ` +
+            'Use Prisma 5.0 to 6.19, or generate the client with engineType = "client" and a driver adapter, which needs no query engine.'
+        );
+      }
+      return { contents, loader: 'js' };
     });
   }
 });

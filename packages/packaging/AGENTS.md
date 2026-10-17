@@ -89,7 +89,9 @@ caches or produce artifacts that deploy but cannot load. Preserve these contract
   per-Lambda buildpack does after its own bundle; anything missing here is a function that deploys and then fails, so a
   split build either does it or the CLI's policy keeps that function off this path;
 - a Lambda carries Prisma's engine and schema in `.prisma/client` under `/var/task`, and its bundled client is pointed
-  there, because a split build can move the client into a layer under `/opt`; an image keeps them beside its bundle;
+  there, because a split build can move the client into a layer under `/opt`; an image keeps them beside its bundle. A
+  client with an engine whose generated fallback the build does not recognize fails the build, and a query-compiler
+  client keeps its own fallback;
 - split chunks promoted into a layer carry their dependency closure;
 - a chunk that cannot be packed is un-layered together with its importers;
 - layer files use the `nodejs/chunks` layout expected by Lambda;

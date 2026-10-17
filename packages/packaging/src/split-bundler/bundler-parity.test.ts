@@ -75,6 +75,7 @@ const splitBundle = async ({
   root: string;
   entries: string[];
   tsConfigPath?: string;
+  sourceMapBannerType?: 'disabled' | 'pre-compiled';
   isLambda?: boolean;
   nodeTarget?: number | string;
   bundleAwsSdk?: boolean;
@@ -122,6 +123,115 @@ describe('Prisma, whose query engine no import reaches', () => {
     await expect(splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 })).rejects.toThrow(
       /engineType/i
     );
+  });
+});
+
+describe("a Lambda's bundled Prisma client", () => {
+  // The fallback each `prisma-client-js` version generates when the bundled client finds no `schema.prisma` beside
+  // itself, as `prisma generate` writes it for the default output.
+  const fallbacks = {
+    '5.0.0': [
+      "if (!fs.existsSync(path.join(__dirname, 'schema.prisma'))) {",
+      '  config.dirname = path.join(process.cwd(), "node_modules/.prisma/client")',
+      '  config.isBundled = true',
+      '}'
+    ],
+    '6.19.3': [
+      "if (!fs.existsSync(path.join(__dirname, 'schema.prisma'))) {",
+      '  const alternativePaths = [',
+      '    "node_modules/.prisma/client",',
+      '    ".prisma/client",',
+      '  ]',
+      '  const alternativePath = alternativePaths.find((altPath) => {',
+      "    return fs.existsSync(path.join(process.cwd(), altPath, 'schema.prisma'))",
+      '  }) ?? alternativePaths[0]',
+      '  config.dirname = path.join(process.cwd(), alternativePath)',
+      '  config.isBundled = true',
+      '}'
+    ],
+    // Not a shape Prisma generates: the build cannot tell where this client looks.
+    '6.99.0': ['config.dirname = require("./locate")(__dirname)']
+  };
+
+  /** A client generated into the project, as a custom `output` puts it, with its schema and optionally an engine. */
+  const writeGeneratedClient = async (root: string, version: keyof typeof fallbacks, engine: string | undefined) => {
+    const clientDirectory = join(root, 'generated', 'client');
+    await mkdir(clientDirectory, { recursive: true });
+    const files: Record<string, string> = {
+      'index.js': [
+        "const path = require('path')",
+        "const fs = require('fs')",
+        `const config = {\n  "clientVersion": ${JSON.stringify(version)},\n}`,
+        'config.dirname = __dirname',
+        ...fallbacks[version],
+        'exports.dirname = config.dirname'
+      ].join('\n'),
+      'locate.js': 'module.exports = (directory) => directory;',
+      'schema.prisma': 'generator client { provider = "prisma-client-js" }',
+      ...(engine ? { [engine]: 'engine' } : {})
+    };
+    await Promise.all(
+      Object.entries(files).map(([file, contents]) => writeFile(join(clientDirectory, file), contents))
+    );
+    await mkdir(join(root, 'src'));
+    await writeFile(
+      join(root, 'src/api.ts'),
+      "import { dirname } from '../generated/client/index.js'; export const handler = () => dirname;"
+    );
+  };
+
+  const buildLambda = (root: string) =>
+    buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      externals: [],
+      isLambda: true,
+      outputModuleFormat: 'esm',
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'pre-compiled',
+      createPackagingError
+    });
+
+  test.each([
+    ['Prisma 5.0.0', '5.0.0', 'libquery_engine-rhel-openssl-3.0.x.so.node', '.prisma/client'],
+    ['Prisma 6 with a binary engine', '6.19.3', 'query-engine-rhel-openssl-3.0.x', '.prisma/client'],
+    // The query compiler finds its wasm under the generator output, where the build copies it.
+    ['the query compiler', '6.19.3', undefined, 'node_modules/.prisma/client']
+  ] as const)(
+    'built from %s looks for its engine in /var/task',
+    async (_, version, engine, expected) => {
+      const root = await createRoot();
+      await writeGeneratedClient(root, version, engine);
+      await buildLambda(root);
+      await splitBundle({ root, entries: ['api'], sourceMapBannerType: 'pre-compiled' });
+      for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+        // The working directory stands in for `/var/task`. The client is bundled, so no schema is beside it.
+        const runtime = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-prisma-fallback-')));
+        temporaryDirectories.push(runtime);
+        await cp(source, runtime, { recursive: true });
+        const execution = spawnSync(
+          process.env.npm_node_execpath || 'node',
+          [
+            '--input-type=module',
+            '--eval',
+            `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+          ],
+          { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+        );
+        expect(execution.status, `${basename(source)}: ${execution.stderr}`).toBe(0);
+        expect(JSON.parse(execution.stdout), basename(source)).toBe(join(runtime, expected));
+      }
+    },
+    30_000
+  );
+
+  test('with a query engine and a fallback the build cannot redirect fails the build on both paths', async () => {
+    const root = await createRoot();
+    await writeGeneratedClient(root, '6.99.0', 'libquery_engine-rhel-openssl-3.0.x.so.node');
+    const message = /Prisma 6\.99\.0.*cannot redirect[\s\S]*engineType = "client"/;
+    await expect(buildLambda(root)).rejects.toThrow(message);
+    await expect(splitBundle({ root, entries: ['api'] })).rejects.toThrow(message);
   });
 });
 
