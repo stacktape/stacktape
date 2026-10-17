@@ -5,10 +5,11 @@
  * It deploys `_test-stacks/container-fast-deploy` (a tiny Node.js web service behind an application load balancer and
  * the same service behind an HTTP API Gateway with a container health check) through the source-built CLI, then, for
  * every measurement, changes only the release string in the server source and deploys again. While the deploy runs it
- * polls ECS, the target group and both public URLs, and it reports one timeline per service: image build and push,
- * task definition registration, UpdateService, the new task's PROVISIONING → PENDING → RUNNING (image pull and
- * container start from the task timestamps), target registration and health, the first response with the new release,
- * the moment from which every response has it, and when the CLI finished.
+ * polls ECS, the target group, Cloud Map and both public URLs, and it reports one timeline per service: image build
+ * and push, task definition registration, UpdateService, the new task's PROVISIONING → PENDING → RUNNING (image pull
+ * and container start from the task timestamps), target registration and health, Cloud Map health and when
+ * `DiscoverInstances` returns the task as API Gateway calls it, the first response with the new release, the moment
+ * from which every response has it, and when the CLI finished.
  *
  * The CLI must report the deploy done only once the new release serves traffic: every measurement fails when a probe
  * got an error response, or when the CLI finished before the first response with the new release.
@@ -50,7 +51,13 @@ import {
   ElasticLoadBalancingV2Client
 } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
-import { GetInstancesHealthStatusCommand, ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
+import {
+  DiscoverInstancesCommand,
+  GetInstancesHealthStatusCommand,
+  GetNamespaceCommand,
+  GetServiceCommand,
+  ServiceDiscoveryClient
+} from '@aws-sdk/client-servicediscovery';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -467,6 +474,8 @@ const observeService = (
     probes: []
   };
   const stopping = new AbortController();
+  /** Cloud Map service ID → the names `DiscoverInstances` takes. */
+  const discoveryNames = new Map<string, { NamespaceName: string; ServiceName: string }>();
   const ecsLoop = async () => {
     while (!stopping.signal.aborted) {
       const loopStartedAt = Date.now();
@@ -486,6 +495,21 @@ const observeService = (
           }
           const oldListed = [...before.taskArns].some((arn) => Status[arn.split('/').at(-1)!] !== undefined);
           if (!oldListed && observation.deploymentId) observation.oldInstancesGoneAt ??= instanceAt;
+          const serviceId = registryArn!.split('/').at(-1)!;
+          if (!discoveryNames.has(serviceId)) {
+            const { Service } = await clients.serviceDiscovery.send(new GetServiceCommand({ Id: serviceId }));
+            const { Namespace } = await clients.serviceDiscovery.send(
+              new GetNamespaceCommand({ Id: Service?.NamespaceId })
+            );
+            discoveryNames.set(serviceId, { NamespaceName: Namespace!.Name!, ServiceName: Service!.Name! });
+          }
+          // The call API Gateway makes to find the tasks: while no instance is healthy, it returns all of them.
+          const { Instances = [] } = await clients.serviceDiscovery.send(
+            new DiscoverInstancesCommand({ ...discoveryNames.get(serviceId)!, HealthStatus: 'HEALTHY_OR_ELSE_ALL' })
+          );
+          const discoveredAt = Date.now();
+          for (const { InstanceId } of Instances)
+            firstTime(observation.firstSeen, `discoverable:${InstanceId}`, discoveredAt);
         }
         if (deployment?.id) {
           observation.deploymentId = deployment.id;
@@ -665,6 +689,9 @@ const summarizeService = ({
     ),
     cloudMapHealthySeen: at(
       latest(tasks.map((task) => observation.firstSeen.get(`cloudmap:${task.taskArn!.split('/').at(-1)}:HEALTHY`)))
+    ),
+    discoverableSeen: at(
+      latest(tasks.map((task) => observation.firstSeen.get(`discoverable:${task.taskArn!.split('/').at(-1)}`)))
     ),
     firstNewResponse: at(firstNew),
     serviceUpdatedInCli: at(eventTime('UPDATE_ECS_SERVICE', 'completed', target.name)),

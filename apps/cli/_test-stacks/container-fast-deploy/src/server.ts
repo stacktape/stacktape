@@ -10,9 +10,9 @@ const server = createServer((_request, response) => {
   console.info(`listening, release ${RELEASE}`);
 });
 
-// A load balancer or API Gateway can still send requests for a few seconds after ECS asks the container to stop, so
-// it keeps serving for 20 seconds (the default stopTimeout is 30) before it closes.
+// A load balancer or API Gateway can still send requests for up to 20 seconds after ECS asks the container to stop,
+// so it keeps serving for 25 seconds (the default stopTimeout is 30) before it closes.
 process.on('SIGTERM', () => {
-  console.info('SIGTERM received, closing in 20 seconds');
-  setTimeout(() => server.close(() => process.exit(0)), 20_000);
+  console.info('SIGTERM received, closing in 25 seconds');
+  setTimeout(() => server.close(() => process.exit(0)), 25_000);
 });

@@ -109,9 +109,10 @@ service behind an HTTP API Gateway with a container health check. Each measureme
 the server source and deploys again, which takes the fast path (RegisterTaskDefinition and UpdateService). While the
 deploy runs, the canary polls ECS, the target group, Cloud Map and both public URLs, and it writes one timeline per
 service to the report: image build and push, task definition registration, UpdateService, task creation, image pull and
-container start (from the task timestamps), target and Cloud Map health, the first response with the new release, when
-the CLI reported the service updated, and when the old tasks drained and stopped. A measurement fails when the CLI
-reported a service updated more than a second before it served the new release, or when any probe failed.
+container start (from the task timestamps), target and Cloud Map health, when Cloud Map's `DiscoverInstances` returns
+the new task as API Gateway calls it, the first response with the new release, when the CLI reported the service
+updated, and when the old tasks drained and stopped. A measurement fails when the CLI reported a service updated more
+than a second before it served the new release, or when any probe failed.
 
 It uses the alias canary's guardrails and environment contract with the `STP_AWS_CONTAINER_CANARY_` prefix, and cleanup
 verifies that the stack, deployment bucket, image repository and log groups are gone. `--keep` leaves the stack in place
