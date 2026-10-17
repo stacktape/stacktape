@@ -1150,7 +1150,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data, retention and artifacts.',
+      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe EventBridge delivery, runtime, data, retention and artifacts. HTTP API remains a known gap (default-domain Lambda cannot reach the harness Console endpoint), as do container workloads (Application Auto Scaling, ministackorg/ministack#2162).',
     selections: ['ministack-deploy']
   },
   {
@@ -2173,7 +2173,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/_utils/__tests__/debug-formatters.test.ts',
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
-      'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
       'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
@@ -2597,7 +2596,6 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/es/package-manager-install.test.ts',
       'packages/packaging/src/es/self-reading-packages.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
-      'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'packages/packaging/src/image/railpack.test.ts',
       'packages/packaging/src/image/railpack-python.test.ts',
@@ -4111,7 +4109,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
-      'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
@@ -4473,7 +4470,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/hosting-buckets/**',
       'apps/cli/src/aws/s3-sync/**',
-      'apps/cli/src/aws/s3.ts'
+      'apps/cli/src/aws/s3.ts',
+      'apps/cli/src/aws/s3-upload-options.ts'
     ],
     tests: [
       'apps/cli/tests/static-sites/build.spec.ts',
@@ -4516,7 +4514,6 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
-      'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],

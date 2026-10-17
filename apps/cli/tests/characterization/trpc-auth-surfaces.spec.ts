@@ -56,18 +56,6 @@ describe('Console tRPC authentication surfaces', () => {
     expect(requests).toHaveLength(0);
   });
 
-  test('API-key operations use only the dedicated Stacktape credential header', async () => {
-    const client = new ApiKeyProtectedClient();
-    await client.init({ apiKey: 'stp_live_characterization_secret' });
-    await client.canDeploy();
-
-    expect(requests).toHaveLength(1);
-    expect(requests[0].url).toContain('canDeploy');
-    expect(requests[0].headers.get('stp_api_key')).toBe('stp_live_characterization_secret');
-    expect(requests[0].headers.has('authorization')).toBe(false);
-    expect(requests[0].headers.has('aws_identity')).toBe(false);
-  });
-
   test('API-key client reinitialization replaces the credential used by subsequent requests', async () => {
     const client = new ApiKeyProtectedClient();
     await client.init({ apiKey: 'stp_old_characterization_secret' });

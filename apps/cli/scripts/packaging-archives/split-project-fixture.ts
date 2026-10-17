@@ -90,7 +90,7 @@ export const handler = async () => ({
   uid: process.getuid?.(),
   catalog: catalogSize(),
   client: new PrismaClient().engine,
-  engine: run('/var/task/${PRISMA_ENGINE}')
+  engine: run('/var/task/.prisma/client/${PRISMA_ENGINE}')
 });
 `,
   plain: `import { catalogSize } from '../shared/catalog';

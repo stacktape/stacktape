@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
   DeleteFunctionCommand,
@@ -86,12 +87,10 @@ test('code-only deploys update functions directly, record a release and roll bac
           await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key: zipKey }))).Body!.transformToByteArray()
         )
       );
+      const storedMaps = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: entry!.sourceMapKeys[0]! }));
+      expect(storedMaps.ContentEncoding).toBe('gzip');
       const bundle = sourceMapBundleSchema.parse(
-        JSON.parse(
-          await (
-            await s3.send(new GetObjectCommand({ Bucket: bucket, Key: entry!.sourceMapKeys[0]! }))
-          ).Body!.transformToString()
-        )
+        JSON.parse(gunzipSync(await storedMaps.Body!.transformToByteArray()).toString('utf8'))
       );
       return { entry: entry!, manifests, zipEntries: zip.getEntries().map(({ entryName }) => entryName), bundle };
     };
