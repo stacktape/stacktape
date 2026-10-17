@@ -1,4 +1,5 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { StateValue } from '@aws-sdk/client-cloudwatch';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -31,16 +32,16 @@ export const commandAlarms = async () => {
   // Convert state string to StateValue enum
   const stateValue = state ? (StateValue[state as keyof typeof StateValue] as StateValue) : undefined;
 
-  // The separator keeps another stage whose stack name starts with this one (`app-dev2` for `app-dev`) out.
+  // A name prefix also matches other stages (`app-dev-john` for `app-dev`), so the stack's own alarm resources decide.
   const alarms = await awsSdkManager.observability.describeAlarms({
     alarmNamePrefix: `${stackName}-`,
     stateValue
   });
 
-  // Alarm names do not encode the resource reliably. Each alarm is a CloudFormation child of its resource.
-  const stackResources = deployedStackOverviewManager.stackInfoMap?.resources || {};
+  // Alarm names do not encode the resource reliably. Each alarm is a CloudFormation child of its resource or of one of
+  // its nested resources, such as a web service's HTTP API Gateway.
   const resourceByAlarmName = new Map<string, string>();
-  for (const [stpResourceName, resource] of Object.entries(stackResources)) {
+  const collectAlarms = (stpResourceName: string, resource: StackInfoMapResource) => {
     for (const [logicalId, { cloudformationResourceType }] of Object.entries(
       resource.cloudformationChildResources || {}
     )) {
@@ -50,19 +51,29 @@ export const commandAlarms = async () => {
       )?.PhysicalResourceId;
       if (alarmName) resourceByAlarmName.set(alarmName, stpResourceName);
     }
-  }
-  const alarmInfos: AlarmInfo[] = alarms.map((alarm) => {
-    return {
-      name: alarm.AlarmName || '',
-      resource: resourceByAlarmName.get(alarm.AlarmName || ''),
-      state: alarm.StateValue || 'UNKNOWN',
-      metric: alarm.MetricName || '',
-      threshold: String(alarm.Threshold ?? ''),
-      comparison: alarm.ComparisonOperator || '',
-      lastUpdated: alarm.StateUpdatedTimestamp?.toISOString() || '',
-      ...(alarm.StateReason && alarm.StateValue === StateValue.ALARM && { reason: alarm.StateReason })
-    };
-  });
+    for (const nested of Object.values(resource._nestedResources || {})) collectAlarms(stpResourceName, nested);
+  };
+  for (const [stpResourceName, resource] of Object.entries(deployedStackOverviewManager.stackInfoMap?.resources || {}))
+    collectAlarms(stpResourceName, resource);
+  const stackAlarmNames = new Set(
+    stackManager.existingStackResources
+      .filter(({ ResourceType }) => ResourceType === 'AWS::CloudWatch::Alarm')
+      .map(({ PhysicalResourceId }) => PhysicalResourceId)
+  );
+  const alarmInfos: AlarmInfo[] = alarms
+    .filter(({ AlarmName }) => stackAlarmNames.has(AlarmName))
+    .map((alarm) => {
+      return {
+        name: alarm.AlarmName || '',
+        resource: resourceByAlarmName.get(alarm.AlarmName || ''),
+        state: alarm.StateValue || 'UNKNOWN',
+        metric: alarm.MetricName || '',
+        threshold: String(alarm.Threshold ?? ''),
+        comparison: alarm.ComparisonOperator || '',
+        lastUpdated: alarm.StateUpdatedTimestamp?.toISOString() || '',
+        ...(alarm.StateReason && alarm.StateValue === StateValue.ALARM && { reason: alarm.StateReason })
+      };
+    });
 
   // Filter by resource if specified
   const filteredAlarms = resourceName ? alarmInfos.filter((a) => a.resource === resourceName) : alarmInfos;

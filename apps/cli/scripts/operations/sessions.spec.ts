@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createServer, type AddressInfo } from 'node:net';
 import {
   CloudWatchLogsClient,
   CreateLogGroupCommand,
@@ -168,12 +169,21 @@ test.skipIf(process.platform === 'win32')(
         serverTerminated = true;
         return { kind: 'json', body: {} };
       });
+      // A fixed local port lets a database client keep its saved connection.
+      const localPort = await new Promise<number>((resolve) => {
+        const server = createServer().listen(0, '127.0.0.1', () => {
+          const { port } = server.address() as AddressInfo;
+          server.close(() => resolve(port));
+        });
+      });
       const child = fixture.start([
         'bastion:tunnel',
         '--resourceName',
         'cache',
         '--bastionResource',
         'bastion',
+        '--localTunnelingPort',
+        String(localPort),
         ...targetArgs,
         '--agent'
       ]);
@@ -182,11 +192,9 @@ test.skipIf(process.platform === 'win32')(
       expect(fixture.aws.callsTo('ssm.StartSession')[0].input).toMatchObject({
         Target: 'i-j9-current',
         DocumentName: 'AWS-StartPortForwardingSessionToRemoteHost',
-        Parameters: { host: ['redis.j9.internal'], portNumber: ['6379'] }
+        Parameters: { host: ['redis.j9.internal'], portNumber: ['6379'], localPortNumber: [String(localPort)] }
       });
-      expect(
-        Number((state.target as unknown as { Parameters: { localPortNumber: string[] } }).Parameters.localPortNumber[0])
-      ).toBeGreaterThan(0);
+      expect(child.output()).toContain(`127.0.0.1:${localPort}`);
       child.child.kill('SIGINT');
       const result = await child.finished;
       expect(result.exitCode).toBe(0);

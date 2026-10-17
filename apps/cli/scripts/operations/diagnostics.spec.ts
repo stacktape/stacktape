@@ -117,18 +117,37 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
         cloudformationChildResources: {
           [alarmLogicalId('SqsQueueNotEmptyForJobs0')]: { cloudformationResourceType: 'AWS::CloudWatch::Alarm' }
         }
+      },
+      // A web service's alarm belongs to its nested HTTP API Gateway.
+      web: {
+        ...lambda,
+        resourceType: 'web-service',
+        _nestedResources: {
+          httpApiGateway: {
+            ...lambda,
+            resourceType: 'http-api-gateway',
+            cloudformationChildResources: {
+              [alarmLogicalId('HttpApiGatewayErrorRateForWebHttpApiGateway0')]: {
+                cloudformationResourceType: 'AWS::CloudWatch::Alarm'
+              }
+            }
+          }
+        }
       }
     });
     fixture.aws.on('cloudformation.ListStackResources', () =>
       xml('ListStackResources', {
-        StackResourceSummaries: ['LambdaErrorRateForApi0', 'LambdaDurationForApi1', 'SqsQueueNotEmptyForJobs0'].map(
-          (name) => ({
-            LogicalResourceId: alarmLogicalId(name),
-            PhysicalResourceId: `j9-operations-test-${name}`,
-            ResourceType: 'AWS::CloudWatch::Alarm',
-            ResourceStatus: 'CREATE_COMPLETE'
-          })
-        )
+        StackResourceSummaries: [
+          'LambdaErrorRateForApi0',
+          'LambdaDurationForApi1',
+          'SqsQueueNotEmptyForJobs0',
+          'HttpApiGatewayErrorRateForWebHttpApiGateway0'
+        ].map((name) => ({
+          LogicalResourceId: alarmLogicalId(name),
+          PhysicalResourceId: `j9-operations-test-${name}`,
+          ResourceType: 'AWS::CloudWatch::Alarm',
+          ResourceStatus: 'CREATE_COMPLETE'
+        }))
       })
     );
     const storedAlarms = [
@@ -140,7 +159,14 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
       },
       { AlarmName: 'j9-operations-test-LambdaDurationForApi1', StateValue: 'OK', MetricName: 'Duration', Threshold: 3 },
       { AlarmName: 'j9-operations-test-SqsQueueNotEmptyForJobs0', StateValue: 'ALARM', MetricName: 'Messages' },
-      { AlarmName: 'j9-operations-test2-LambdaErrorRateForApi0', StateValue: 'ALARM', MetricName: 'Errors' }
+      {
+        AlarmName: 'j9-operations-test-HttpApiGatewayErrorRateForWebHttpApiGateway0',
+        StateValue: 'ALARM',
+        MetricName: '5xx'
+      },
+      // Other stages: `test2`, and `test-john`, whose stack name extends this one with a dash.
+      { AlarmName: 'j9-operations-test2-LambdaErrorRateForApi0', StateValue: 'ALARM', MetricName: 'Errors' },
+      { AlarmName: 'j9-operations-test-john-LambdaErrorRateForApi0', StateValue: 'ALARM', MetricName: 'Errors' }
     ];
     fixture.aws.on('monitoring.DescribeAlarms', ({ input }) => {
       const matching = storedAlarms.filter(
@@ -167,8 +193,14 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
     >;
     expect(alarming.map(({ name, resource }) => ({ name, resource }))).toEqual([
       { name: 'j9-operations-test-LambdaErrorRateForApi0', resource: 'api' },
-      { name: 'j9-operations-test-SqsQueueNotEmptyForJobs0', resource: 'jobs' }
+      { name: 'j9-operations-test-SqsQueueNotEmptyForJobs0', resource: 'jobs' },
+      { name: 'j9-operations-test-HttpApiGatewayErrorRateForWebHttpApiGateway0', resource: 'web' }
     ]);
+    expect(
+      (payload((await run(fixture, ['alarms', '--resourceName', 'web'])).events).alarms as Array<{ name: string }>).map(
+        ({ name }) => name
+      )
+    ).toEqual(['j9-operations-test-HttpApiGatewayErrorRateForWebHttpApiGateway0']);
     const table = await fixture.run(['alarms', '--resourceName', 'api', ...targetArgs, '--outputFormat', 'plain']);
     expect(table.exitCode).toBe(0);
     expect(table.stdout).toContain('2 alarm(s)');
