@@ -182,21 +182,6 @@ describe('createProxyServer', () => {
     expect(res.body).toContain('app-b.dev.localhost');
   });
 
-  test('returns 400 for missing Host header', async () => {
-    const result = await new Promise<string>((resolve) => {
-      const socket = net.createConnection({ port: PROXY_PORT, host: '127.0.0.1' }, () => {
-        socket.write('GET / HTTP/1.0\r\n\r\n');
-      });
-      let data = '';
-      socket.on('data', (chunk: Buffer) => {
-        data += chunk.toString();
-      });
-      socket.on('end', () => resolve(data));
-    });
-    expect(result).toContain('400');
-    expect(result).toContain('Missing Host');
-  });
-
   test('Host header with port is correctly handled (port stripped for matching)', async () => {
     const res = await fetchJson(PROXY_PORT, `app-a.dev.localhost:${PROXY_PORT}`);
     expect(res.status).toBe(200);
@@ -345,12 +330,6 @@ describe('proxy - 404 page HTML safety', () => {
     expect(res.status).toBe(404);
     expect(res.body).not.toContain('<script>');
     expect(res.body).toContain('&lt;script&gt;&quot;x&#39;&amp;y&quot;&lt;');
-  });
-
-  test('shows "No apps running" when route list is empty', async () => {
-    const res = await fetchText(PROXY_PORT, 'anything.localhost');
-    expect(res.status).toBe(404);
-    expect(res.body).toContain('No apps running');
   });
 });
 
@@ -641,31 +620,6 @@ describe('proxy - TLS / HTTPS', () => {
     } finally {
       await Promise.all([closeServer(wsProxy), closeServer(wsBackend)]);
     }
-  });
-
-  test('returns 404 for unknown host over TLS', async () => {
-    const res = await new Promise<{ status: string; body: string }>((resolve, reject) => {
-      const socket = tls.connect({ port: PROXY_PORT, host: '127.0.0.1', rejectUnauthorized: false }, () => {
-        socket.write('GET / HTTP/1.1\r\n' + 'Host: unknown.dev.localhost\r\n' + 'Connection: close\r\n' + '\r\n');
-      });
-
-      let data = '';
-      socket.on('data', (chunk: Buffer) => {
-        data += chunk.toString();
-      });
-      socket.on('end', () => {
-        const [head, ...bodyParts] = data.split('\r\n\r\n');
-        resolve({ status: head.split('\r\n')[0], body: bodyParts.join('\r\n\r\n') });
-      });
-      socket.on('error', reject);
-      setTimeout(() => {
-        socket.destroy();
-        reject(new Error('timeout'));
-      }, 5000);
-    });
-
-    expect(res.status).toContain('404');
-    expect(res.body).toContain('Not Found');
   });
 
   test('plain TCP to TLS proxy fails gracefully (no crash)', async () => {

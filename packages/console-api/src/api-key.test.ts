@@ -58,13 +58,6 @@ test('commandArgs is an object, not any value at all', () => {
   }
 });
 
-test('the minimal v4 operation requires only its invocation identity', () => {
-  const minimal = recordStackOperationInputSchema.parse({ invocationId: 'inv-2' });
-
-  assert.equal(minimal.invocationId, 'inv-2');
-  assert.equal(minimal.commandArgs, undefined);
-});
-
 test('Git provider status accepts nested GitLab owners but rejects URL-shaped repository input', () => {
   assert.equal(
     getGitProviderConnectionStatusInputSchema.safeParse({

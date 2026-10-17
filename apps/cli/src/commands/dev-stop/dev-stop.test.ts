@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -152,3 +152,65 @@ test.skipIf(process.platform === 'win32').each(['ignores-stop', 'rejects-stop'] 
   },
   60_000
 );
+
+// The real agent server, with the application manager's signal handling, as the `dev` command runs it. `dev:stop`
+// must reach its stop route, and the route must run the registered cleanup hooks (Lambda environment restore, container
+// stop) before the process ends; a stop that only kills the agent leaves deployed functions pointing at a dead relay.
+const startRealAgent = async (directory: string) => {
+  const driver = join(directory, 'agent.ts');
+  await writeFile(
+    driver,
+    `
+import { createServer } from 'node:net';
+import { applicationManager } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/app/application-manager/index.ts'))};
+import { startAgentServer } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
+await applicationManager.init();
+applicationManager.registerCleanUpHook(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  console.log('FIXTURE cleanup-hook-ran');
+});
+const probe = createServer();
+await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+const port = probe.address().port;
+await new Promise((resolve) => probe.close(resolve));
+await startAgentServer(port, ${JSON.stringify(directory)}, () => null);
+console.log(JSON.stringify({ port, pid: process.pid }));
+`
+  );
+  const agent = spawn(
+    process.execPath,
+    ['--no-env-file', '--preload', join(CLI_DIRECTORY, 'scripts/test-preload.ts'), driver],
+    {
+      cwd: CLI_DIRECTORY,
+      env: { PATH: process.env.PATH, HOME: directory, SKIP_LOADING_ENV: '1', STP_DISABLE_TELEMETRY: '1' }
+    }
+  );
+  let output = '';
+  const started = new Promise<{ port: number; pid: number }>((resolve, reject) => {
+    agent.stdout.on('data', (data) => {
+      output += data;
+      const line = output.split('\n').find((candidate) => candidate.startsWith('{"port"'));
+      if (line) resolve(JSON.parse(line));
+    });
+    agent.stderr.on('data', (data) => (output += data));
+    agent.once('exit', (code) => reject(new Error(`agent exited early (${code}): ${output}`)));
+  });
+  return { agent, ...(await started), output: () => output };
+};
+
+test('dev:stop ends a real dev agent through its stop route after its cleanup hooks ran', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-real-agent-'));
+  const { agent, port, output } = await startRealAgent(directory);
+  try {
+    const status = (await (await fetch(`http://127.0.0.1:${port}/status`)).json()) as { data: { pid: number } };
+    expect(status.data.pid).toBe(agent.pid!);
+    const result = await runDevStop(port);
+    expect(result.output).toContain('Dev agent stopped.');
+    expect(result.exitCode).toBe(0);
+    expect(isRunning(agent.pid!)).toBeFalse();
+    expect(output()).toContain('FIXTURE cleanup-hook-ran');
+  } finally {
+    stopIfRunning(agent);
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
