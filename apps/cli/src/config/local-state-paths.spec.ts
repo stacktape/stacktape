@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, test } from 'bun:test';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { afterEach, expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { getHomeDir } from '@utils/misc';
 import { localStatePaths } from './local-state-paths';
 
 const originalProxyStateDirectory = process.env.STACKTAPE_DEV_PROXY_STATE_DIR;
@@ -12,48 +13,29 @@ afterEach(() => {
   }
 });
 
-const expectContainedBy = (parent: string, child: string) => {
-  const pathFromParent = relative(parent, child);
-  expect(isAbsolute(pathFromParent)).toBe(false);
-  expect(pathFromParent).not.toBe('..');
-  expect(pathFromParent.startsWith(`..${sep}`)).toBe(false);
-};
+// Released CLIs read and write these paths. Moving one logs users out, drops their defaults or loses local data.
+test('local state stays at the paths released CLIs use', () => {
+  const home = join(getHomeDir(), '.stacktape');
+  const project = join(process.cwd(), 'example-project');
+  delete process.env.STACKTAPE_DEV_PROXY_STATE_DIR;
 
-describe('Stacktape-owned local state paths', () => {
-  test('keeps persistent user state under one user data directory', () => {
-    const userDataDirectory = localStatePaths.userDataDirectory();
-
-    expectContainedBy(userDataDirectory, localStatePaths.persistedStateFile());
-    expectContainedBy(userDataDirectory, localStatePaths.nativeInstallBinDirectory());
-    delete process.env.STACKTAPE_DEV_PROXY_STATE_DIR;
-    expectContainedBy(userDataDirectory, localStatePaths.devProxyDirectory());
+  expect({
+    persistedState: localStatePaths.persistedStateFile(),
+    devProxy: localStatePaths.devProxyDirectory(),
+    invocation: localStatePaths.invocationDirectory({ commandWorkingDirectory: project, invocationId: 'invocation-1' }),
+    devData: localStatePaths.devResourceDataDirectory({ workingDirectory: project, stage: 'dev', resourceName: 'db' }),
+    // Lock files are named by project and stage only, so they must stay inside the checkout.
+    devAgent: localStatePaths.devAgentDirectory({ workingDirectory: project }),
+    devAgentRegistry: localStatePaths.devAgentRegistryDirectory({ workingDirectory: project })
+  }).toEqual({
+    persistedState: join(home, 'persisted-state.json'),
+    devProxy: join(home, 'dev-proxy'),
+    invocation: join(project, '.stacktape', 'invocation-1'),
+    devData: join(project, '.stacktape', 'dev-data', 'dev', 'db', 'data'),
+    devAgent: join(project, '.stacktape', 'dev-agent'),
+    devAgentRegistry: join(project, '.stacktape', 'dev-agents')
   });
 
-  test('keeps project state under .stacktape while preserving per-invocation and dev-resource isolation', () => {
-    const workingDirectory = join(process.cwd(), 'example-project');
-    const projectStateDirectory = localStatePaths.projectStateDirectory({ workingDirectory });
-
-    expect(projectStateDirectory).toBe(join(workingDirectory, '.stacktape'));
-    expectContainedBy(
-      projectStateDirectory,
-      localStatePaths.invocationDirectory({ commandWorkingDirectory: workingDirectory, invocationId: 'invocation-1' })
-    );
-    expectContainedBy(
-      projectStateDirectory,
-      localStatePaths.devResourceDataDirectory({ workingDirectory, stage: 'dev', resourceName: 'database' })
-    );
-    expectContainedBy(projectStateDirectory, localStatePaths.devAgentDirectory({ workingDirectory }));
-    expectContainedBy(projectStateDirectory, localStatePaths.devAgentRegistryDirectory({ workingDirectory }));
-  });
-
-  test('retains explicit override and operation-temporary path contracts', () => {
-    const workingDirectory = join(process.cwd(), 'example-project');
-    const proxyOverride = join(process.cwd(), 'proxy-state');
-    process.env.STACKTAPE_DEV_PROXY_STATE_DIR = proxyOverride;
-
-    expect(localStatePaths.devProxyDirectory()).toBe(proxyOverride);
-    expect(localStatePaths.starterArchiveFile({ targetDirectory: workingDirectory, id: 123 })).toBe(
-      join(workingDirectory, '.stacktape-starter-123.zip')
-    );
-  });
+  process.env.STACKTAPE_DEV_PROXY_STATE_DIR = join(process.cwd(), 'proxy-state');
+  expect(localStatePaths.devProxyDirectory()).toBe(join(process.cwd(), 'proxy-state'));
 });

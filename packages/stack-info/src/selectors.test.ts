@@ -61,6 +61,14 @@ const stackInfoMap: NormalizedStackInfoMap = {
   }
 };
 
+const gateway = (referenceableParams: NormalizedStackInfoMap['resources'][string]['referenceableParams']) => ({
+  resourceType: 'http-api-gateway',
+  referenceableParams,
+  cloudformationChildResources: {},
+  links: {},
+  outputs: {}
+});
+
 describe('stack-info selectors', () => {
   test('selects customer resources and their nested CloudFormation children without changing the payload', () => {
     const before = structuredClone(stackInfoMap);
@@ -82,6 +90,25 @@ describe('stack-info selectors', () => {
         resourceType: 'web-service'
       }
     ]);
+  });
+
+  test('links a custom domain before the AWS URL, and only the first of several domains', () => {
+    // The CLI records several custom domains as one comma-separated parameter value.
+    expect(
+      getQuickLinks({
+        ...stackInfoMap,
+        resources: {
+          single: gateway({
+            url: { showDuringPrint: true, value: 'https://abc.execute-api.eu-west-1.amazonaws.com' },
+            customDomainUrls: { showDuringPrint: true, value: 'https://api.example.com' }
+          }),
+          several: gateway({
+            url: { showDuringPrint: true, value: 'https://def.execute-api.eu-west-1.amazonaws.com' },
+            cdnCustomDomainUrls: { showDuringPrint: true, value: 'https://www.example.com, https://example.com' }
+          })
+        }
+      }).map(({ url }) => url)
+    ).toEqual(['https://api.example.com', 'https://www.example.com']);
   });
 
   test('exposes WebSocket client URLs as quick links', () => {
