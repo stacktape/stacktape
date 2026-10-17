@@ -17972,7 +17972,8 @@
         "page:/getting-started/deploy-your-first-stage#is-the-connection-between-stacktape-and-my-aws-account-secure",
         "page:/getting-started/deploy-your-first-stage#what-happens-if-i-lose-internet-during-a-deploy",
         "page:/getting-started/deploy-your-first-stage#what-s-the-difference-between-stages-and-aws-accounts",
-        "page:/getting-started/deploy-your-first-stage#can-i-preview-what-a-deploy-will-change-before-running-it"
+        "page:/getting-started/deploy-your-first-stage#can-i-preview-what-a-deploy-will-change-before-running-it",
+        "page:/getting-started/deploy-your-first-stage#what-does-the-cli-send-to-stacktape"
       ]
     },
     {

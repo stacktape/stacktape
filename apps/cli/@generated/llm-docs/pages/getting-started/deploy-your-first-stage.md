@@ -194,3 +194,13 @@ Stages are logical environments (dev, staging, production) within a single AWS a
 Yes. Use [`stacktape diff`](/cli/diff) to see the CloudFormation change set without actually deploying. This shows which resources would be created, updated, replaced, or deleted.
 
 ---
+
+### What does the CLI send to Stacktape?
+
+The CLI sends usage statistics and reports of its own crashes, so we can see which commands fail and fix them. Set `STP_DISABLE_TELEMETRY=1` to turn both off.
+
+- **After every command:** the command name, the names of the options you used (not their values), how long it took, whether it succeeded, the error code if it failed, your operating system, locale, time zone and the CLI version.
+- **When the CLI crashes:** the error type, message and stack trace, the command, your operating system, CPU architecture and whether it ran in CI. The CLI prints an error ID you can give our support. Errors in your configuration, code or AWS account are not reported this way; only failures of the CLI itself are.
+- **Identity:** a random ID of your machine. After `stacktape login`, events are linked to your Stacktape user and organization, and your account's email and name are attached to your user.
+
+Before a crash report leaves your machine, the CLI masks tokens and other credentials, email and IP addresses, AWS account IDs and the user name in home-directory paths. Error messages can still contain other text, such as file or resource names. The CLI never sends configuration values, source code, environment variables or AWS credentials. Stacktape processes this data in [PostHog](https://posthog.com) in the EU.
