@@ -646,7 +646,7 @@ test('deploys publish the configured directory, and configured bucket sync updat
 
 test('listing and batch deletion reach every object version and delete marker beyond the first page', async () => {
   const { client, s3, destroy } = createSyncScenario();
-  // MiniStack 1.5.26 accepts oversized batches. Inject AWS's documented rejection; valid requests still
+  // MiniStack 1.5.27 accepts oversized batches. Inject AWS's documented rejection; valid requests still
   // reach the emulator, and the assertion below observes that every stored version and marker was deleted.
   client.middlewareStack.add(
     (next, context) => async (args) => {
