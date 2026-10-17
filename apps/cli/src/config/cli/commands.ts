@@ -2,6 +2,7 @@ import {
   apiKey,
   agent,
   aiProvider,
+  codingAgents,
   agentChild,
   agentPort,
   awsAccount,
@@ -962,9 +963,9 @@ You can identify the stack in two ways:
   },
 
   mcp: {
-    description: `Starts a local MCP (Model Context Protocol) server that provides Stacktape tools and documentation to AI coding agents.
+    description: `Starts the local Stacktape MCP (Model Context Protocol) server for coding agents.
 
-The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, Codex, VS Code/Copilot, OpenCode, Windsurf, etc.) and exposes four tools: \`stacktape_docs\` for documentation search/fetch, \`stacktape_project\` for project scanning, \`stacktape_cli\` for CLI discovery/planning/execution, and \`stacktape_dev\` for dev-mode lifecycle operations.`,
+Coding agents start it themselves over stdio after \`stacktape mcp:add\` set them up; you do not run it by hand. It serves both the 2026-07-28 protocol and the earlier 2025 revisions, and exposes five tools: \`stacktape_incident\` to start an incident investigation, \`stacktape_docs\` for documentation search, \`stacktape_project\` for project scanning, \`stacktape_cli\` to plan and run CLI commands, and \`stacktape_dev\` for dev mode.`,
     args: {
       logLevel: logLevel.optional()
     },
@@ -972,12 +973,27 @@ The server communicates over stdio using the MCP protocol. It is spawned by MCP-
   },
 
   'mcp:add': {
-    description: `Installs Stacktape MCP server config into popular coding-agent clients on this machine.
+    description: `Connects your coding agents to Stacktape: Claude Code, Codex, Cursor, VS Code (GitHub Copilot), GitHub Copilot CLI, Windsurf and OpenCode.
 
-Detects client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, Windsurf), then adds or updates a \`stacktape\` MCP server entry that runs \`stacktape mcp\`. Creates timestamped backups before modifying existing files.`,
+For each agent you pick, it adds the Stacktape MCP server at user level (Claude Code and Codex through their own \`mcp add\` commands, the others by editing their config file in place, with a backup), then starts the server once to check that it works. In a terminal it asks which agents to set up, with the ones found on this machine preselected; \`--codingAgents\` skips the question. Safe to run again, for example after moving the CLI.`,
     args: {
       logLevel: logLevel.optional(),
       autoConfirmOperation: autoConfirmOperation.optional(),
+      codingAgents: codingAgents.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'mcp:remove': {
+    description: `Removes the user-level Stacktape MCP server entry that \`stacktape mcp:add\` added to your coding agents.
+
+Project-level entries (such as a committed \`.mcp.json\`) are shared with your team, so they are listed but not changed.`,
+    args: {
+      logLevel: logLevel.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional(),
+      codingAgents: codingAgents.optional(),
       agent: agent.optional(),
       outputFormat: outputFormat.optional()
     },
@@ -1105,6 +1121,7 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'dev',
   'mcp',
   'mcp:add',
+  'mcp:remove',
   'version',
   'help',
   'upgrade',
@@ -1120,6 +1137,7 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'logout',
   'mcp',
   'mcp:add',
+  'mcp:remove',
   'version',
   'help',
   'defaults:list',

@@ -19,7 +19,7 @@ const SENSITIVE_RECENT_ARG_NAMES = new Set([
 
 // Commands that don't make sense to launch from an interactive picker (covered by other flows
 // or not useful without piping into other tooling).
-const HIDDEN_LAUNCHER_COMMANDS = new Set<StacktapeCommand>(['help', 'mcp', 'mcp:add', 'version']);
+const HIDDEN_LAUNCHER_COMMANDS = new Set<StacktapeCommand>(['help', 'mcp', 'version']);
 
 // Args that aren't required by the Zod schema but should be required by the interactive launcher
 // (so users always end up with a usable command line for deploys / deletes / dev / etc.).

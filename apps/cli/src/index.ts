@@ -68,6 +68,7 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
   'info:stacks': { ui: 'none' },
   mcp: { ui: 'none' },
   'mcp:add': { ui: 'none' },
+  'mcp:remove': { ui: 'none' },
   'param:get': { ui: 'none' },
   'secret:set': { ui: 'none' },
   'secret:delete': { ui: 'none' },
@@ -309,7 +310,8 @@ const commandLoaders = {
   'issues:reopen': async () => (await import('./commands/issues-reopen')).commandIssuesReopen,
   'info:stack': async () => (await import('./commands/info-stack')).commandInfoStack,
   mcp: async () => (await import('./commands/mcp')).commandMcp,
-  'mcp:add': async () => (await import('./commands/mcp-add')).commandMcpAdd
+  'mcp:add': async () => (await import('./commands/mcp-add')).commandMcpAdd,
+  'mcp:remove': async () => (await import('./commands/mcp-add')).commandMcpRemove
 } satisfies Record<StacktapeCommand, () => Promise<CommandExecutor>>;
 
 const getCommandExecutor = (command: StacktapeCommand): Promise<CommandExecutor> => commandLoaders[command]();

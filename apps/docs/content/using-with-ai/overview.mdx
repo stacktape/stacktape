@@ -21,7 +21,7 @@ For most users, the shortest path is:
 stacktape mcp:add
 ```
 
-Select your coding assistant, reload its workspace, and ask it to “use Stacktape tools to inspect this project.” The assistant should discover four tools: `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. See [MCP server setup](/using-with-ai/mcp-server-setup) for verification, permissions, and troubleshooting.
+It connects the coding agents installed on your machine (Claude Code, Codex, Cursor, VS Code, Copilot CLI, Windsurf and OpenCode) to Stacktape: it adds the Stacktape MCP server to each one you pick, then checks that the server starts. Start a new session in your agent and ask it to “use Stacktape to show what this project deploys.” The agent gets five tools: `stacktape_incident`, `stacktape_docs`, `stacktape_project`, `stacktape_cli` and `stacktape_dev`. See [MCP server setup](/using-with-ai/mcp-server-setup) for what it changes, manual setup and troubleshooting.
 
 ## The AI-assisted development workflow
 
@@ -76,7 +76,7 @@ The MCP server categorizes every CLI command by safety level and enforces approp
 | `destructive` | Requires direct user confirmation for the exact command and target | `delete`, `secret:delete` |
 | `interactive` | Rejected — must use user's terminal or `stacktape_dev` | `dev`, `init` |
 
-Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, but their query text can still modify data; review SQL, Redis, DynamoDB, and OpenSearch operations carefully. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server presents a confirmation dialog directly to the user, and the operation proceeds only if the user confirms the exact command and target. If the MCP client does not support confirmation forms, destructive commands are refused entirely and the user is told to run them in their own terminal.
+Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, because the server accepts only read operations for them and refuses anything else. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server presents a confirmation dialog directly to the user, and the operation proceeds only if the user confirms the exact command and target. If the MCP client does not support confirmation forms, destructive commands are refused entirely and the user is told to run them in their own terminal.
 
 Interactive commands like [`stacktape dev`](/cli/dev) and [`stacktape init`](/cli/init) require a terminal UI and are rejected by `stacktape_cli`. Dev mode lifecycle is handled through the dedicated `stacktape_dev` tool instead.
 
@@ -117,15 +117,13 @@ To generate a config from an existing codebase, run [`stacktape init`](/cli/init
 
 ## Coding assistant setup
 
-The [`stacktape mcp:add`](/cli/mcp-add) command automates MCP server registration for supported editors. Availability and the supported client list depend on the installed Stacktape CLI version. See the [MCP server setup guide](/using-with-ai/mcp-server-setup) for current client-specific registration steps.
+The [`stacktape mcp:add`](/cli/mcp-add) command connects your coding agents to Stacktape in one step. See the [MCP server setup guide](/using-with-ai/mcp-server-setup) for each agent and for manual setup.
 
 ```bash
 stacktape mcp:add
 ```
 
 The [`stacktape mcp`](/cli/mcp) command starts a local stdio MCP server. Clients that support launching local stdio MCP servers can connect to it.
-
-For per-assistant setup walkthroughs, see [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations).
 
 ## Choosing the right approach
 
@@ -146,7 +144,7 @@ For per-assistant setup walkthroughs, see [AI coding assistant integrations](/us
 
 ### Which AI coding assistants work with Stacktape?
 
-Stacktape works with any MCP-compatible coding assistant. Run [`stacktape mcp:add`](/cli/mcp-add) to register the MCP server with supported editors — the current client list depends on the installed CLI version. For an assistant that isn't on that list, start the server with [`stacktape mcp`](/cli/mcp) on stdio and point the assistant at the command `stacktape` with argument `mcp`. See [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) for per-assistant setup walkthroughs.
+Stacktape works with any MCP-compatible coding assistant. [`stacktape mcp:add`](/cli/mcp-add) sets up Claude Code, Codex, Cursor, VS Code with GitHub Copilot, GitHub Copilot CLI, Windsurf and OpenCode. For any other assistant, point it at the command `stacktape` with the argument `mcp`. See [MCP server setup](/using-with-ai/mcp-server-setup#manual-setup) for each agent's configuration.
 
 ### Can an AI assistant deploy to production through the MCP server?
 

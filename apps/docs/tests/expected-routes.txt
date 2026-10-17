@@ -49,6 +49,7 @@
 /cli/logs
 /cli/mcp
 /cli/mcp-add
+/cli/mcp-remove
 /cli/metrics
 /cli/org-create
 /cli/org-delete
@@ -205,6 +206,5 @@
 /stacktape-console/organizations-projects-and-stages
 /stacktape-console/team-and-access-control
 /using-with-ai/agent-mode-in-dev
-/using-with-ai/ai-coding-assistant-integrations
 /using-with-ai/mcp-server-setup
 /using-with-ai/overview

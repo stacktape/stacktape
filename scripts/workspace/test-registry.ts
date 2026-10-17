@@ -2198,6 +2198,9 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts',
+      'apps/cli/src/commands/mcp/mcp-server-stdio-eras.spec.ts',
+      'apps/cli/src/domain/coding-agent-setup/config-files.spec.ts',
+      'apps/cli/src/domain/coding-agent-setup/setup.spec.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/configuration-errors.spec.ts',
@@ -4609,6 +4612,7 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/cli/src/commands/mcp/**',
       'apps/cli/src/commands/mcp-add/**',
+      'apps/cli/src/domain/coding-agent-setup/**',
       'apps/cli/scripts/generate-llm-docs.ts',
       'apps/cli/scripts/llm-docs/**'
     ],
@@ -4622,7 +4626,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/tool-output.spec.ts'
+      'apps/cli/src/commands/mcp/tool-output.spec.ts',
+      'apps/cli/src/commands/mcp/mcp-server-stdio-eras.spec.ts',
+      'apps/cli/src/domain/coding-agent-setup/config-files.spec.ts',
+      'apps/cli/src/domain/coding-agent-setup/setup.spec.ts'
     ],
     lanes: ['mcp-executable', 'mcp-corpus', 'cli-test-mcp-docs', 'cli-test-llm-docs']
   },
