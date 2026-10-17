@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { getPrismaClientEngine } from '../../es/bun-plugins';
 import { resolvePrisma } from './utils';
 
 const temporaryDirectories: string[] = [];
@@ -11,6 +12,39 @@ const temporaryDirectories: string[] = [];
 afterEach(async () => {
   await Promise.all(temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })));
   temporaryDirectories.length = 0;
+});
+
+describe('getPrismaClientEngine', () => {
+  const schema =
+    'generator client {\n  provider = "prisma-client-js"\n  // engineType: \'client\', copyEngine: false\n}';
+  test.each([
+    [
+      'as prisma generate writes it',
+      `const config = {\n  "generator": {\n    "config": {\n      "engineType": "library"\n    }\n  },\n  "inlineSchema": ${JSON.stringify(schema)},\n  "copyEngine": true\n}`,
+      'query-engine'
+    ],
+    [
+      'with bare keys and a template literal schema',
+      `const config = {\n  generator: { config: { engineType: 'library', }, },\n  inlineSchema: \`${schema}\`,\n};`,
+      'query-engine'
+    ],
+    ['with single-quoted keys', "const config={'generator':{'config':{'engineType':'client'}}}", 'query-compiler'],
+    [
+      'after prisma generate --no-engine',
+      'const config = { generator: { config: { engineType: "library" } }, copyEngine: false }',
+      'no-engine'
+    ],
+    // A schema the configuration does not record an engine for decides nothing, however it reads.
+    ['only the schema names an engine', `const config = { inlineSchema: \`${schema}\` }`, undefined],
+    [
+      'from the client code without a readable configuration',
+      "config.compilerWasm = { getRuntime: async () => require('./query_compiler_bg.js') }",
+      'query-compiler'
+    ],
+    ['from a file that is no generated client', 'export const engineType = "client";', undefined]
+  ] as const)('reads the engine %s', (_, source, expected) => {
+    expect(getPrismaClientEngine(source)).toBe(expected);
+  });
 });
 
 const writePrismaClientVersion = async (projectRoot: string, version: string) => {
@@ -265,7 +299,10 @@ describe('Prisma deployment artifacts', () => {
       'generator client {\n  provider = "prisma-client-js"\n  output   = "../generated/client"\n}'
     );
     await Promise.all([
-      writeFile(join(generatedDirectory, 'index.js'), 'const config = {\n  "engineType": "client",\n}'),
+      writeFile(
+        join(generatedDirectory, 'index.js'),
+        'const config = {\n  generator: { config: { engineType: "client" } },\n  clientVersion: "6.19.3",\n};'
+      ),
       writeFile(join(generatedDirectory, 'query_compiler_bg.wasm'), 'wasm'),
       writeFile(join(generatedDirectory, 'libquery_engine-rhel-openssl-3.0.x.so.node'), 'stale engine'),
       writeFile(join(generatedDirectory, 'schema.prisma'), 'generated schema copy')

@@ -315,7 +315,8 @@ export const resolvePrisma = async ({
       ? join(installedClient, '..', '..', '.prisma', 'client')
       : join(projectRoot, 'node_modules', '.prisma', 'client');
   // The generated client says which engine it loads; `createPrismaLambdaClientPlugin` decides by the same record, so
-  // the files copied here are the ones the bundled client looks for. The schema decides only before generation.
+  // the files copied here are the ones the bundled client looks for. The schema decides only where no generated client
+  // is recognized; a Lambda that bundles such a client has already failed in the plugin, which runs before this copy.
   const generatedEngine = await readFile(join(generatedClientDirectory, 'index.js'), 'utf8').then(
     getPrismaClientEngine,
     () => undefined

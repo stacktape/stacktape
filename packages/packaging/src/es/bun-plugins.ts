@@ -7,7 +7,7 @@
  */
 import type { BunPlugin } from 'bun';
 import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 
 /**
@@ -38,26 +38,80 @@ export const createNativeNodeModulesPlugin = (): BunPlugin => ({
  */
 export const PRISMA_LAMBDA_CLIENT_DIRECTORY = '.prisma/client';
 
+export type PrismaClientEngine = 'query-engine' | 'query-compiler' | 'no-engine';
+
+/** One token of a JavaScript object literal: whitespace, a string in any quotes, a word, a number or punctuation. */
+const OBJECT_LITERAL_TOKEN =
+  /\s+|"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*'|`(?:[^`\\]|\\[\s\S])*`|[A-Za-z_$][\w$]*|-?\d[\w.+-]*|[{}[\]:,]/y;
+
 /**
- * What a generated `prisma-client-js` client (Prisma 5 and 6) needs at run time, from the configuration it records in
- * its `index.js`: `"engineType"` (every version since 5.0) and `"copyEngine"` (5.2 and later; `false` after
- * `prisma generate --no-engine`). The files in the client's directory cannot tell: regenerating with another engine
- * type leaves the old engine behind.
+ * The `config` object a generated client's `index.js` builds, as data. Keys may be quoted in either quote or bare, and
+ * any whitespace or trailing comma is accepted, so a client that a tool such as Bun's transpiler reformatted reads the
+ * same. A string with an escape reads as empty: the configuration's keys and engine names have none, and the inlined
+ * schema, the one value that can spell out `engineType`, always has one.
+ */
+const readPrismaClientConfig = (indexSource: string): Record<string, unknown> | undefined => {
+  const start = indexSource.match(/\bconfig\s*=\s*(?=\{)/);
+  if (start?.index === undefined) return undefined;
+  const json: string[] = [];
+  let depth = 0;
+  OBJECT_LITERAL_TOKEN.lastIndex = start.index + start[0].length;
+  for (let match = OBJECT_LITERAL_TOKEN.exec(indexSource); match; match = OBJECT_LITERAL_TOKEN.exec(indexSource)) {
+    const [token] = match;
+    if (/^\s/.test(token)) continue;
+    if (/^["'`]/.test(token)) {
+      const content = token.slice(1, -1);
+      json.push(JSON.stringify(content.includes('\\') ? '' : content));
+    } else if (/^[A-Za-z_$]/.test(token)) {
+      json.push(['true', 'false', 'null'].includes(token) ? token : JSON.stringify(token));
+    } else if (token === '}' || token === ']') {
+      if (json.at(-1) === ',') json.pop();
+      json.push(token);
+      depth--;
+      if (depth === 0) break;
+    } else {
+      if (token === '{' || token === '[') depth++;
+      json.push(token);
+    }
+  }
+  if (depth !== 0) return undefined;
+  try {
+    const config: unknown = JSON.parse(json.join(''));
+    return isRecord(config) ? config : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * What a generated `prisma-client-js` client (Prisma 5 and 6) needs at run time. `createPrismaLambdaClientPlugin`
+ * rewrites by this decision and `resolvePrisma` copies by it, so the bundle never looks for files packaging left out.
  *
  * - `query-engine`: the library or binary query engine, found beside `schema.prisma`;
  * - `query-compiler`: `engineType = "client"`, whose `query_compiler_bg.wasm` stays under the generator output;
  * - `no-engine`: a client for Prisma Accelerate, which loads nothing from disk.
  *
- * `undefined` when the source records no engine type, as a file that is not a generated client does not.
+ * The configuration in `index.js` records `generator.config.engineType` (every version since 5.0) and `copyEngine`
+ * (5.2 and later; `false` after `prisma generate --no-engine`). Without a readable configuration, the client's own code
+ * decides: a query compiler loads `query_compiler_bg`, and a query engine client names its engine files for bundlers.
+ * The files in the client's directory never decide: regenerating with another engine type leaves the old engine there.
+ *
+ * `undefined` when the source is no generated client Stacktape recognizes.
  */
-export const getPrismaClientEngine = (
-  indexSource: string
-): 'query-engine' | 'query-compiler' | 'no-engine' | undefined => {
-  // The inlined schema is an escaped string, so its own `engineType = "client"` never matches.
-  const engineType = indexSource.match(/"engineType": "(\w+)"/)?.[1];
-  if (engineType === undefined) return undefined;
-  if (engineType === 'client') return 'query-compiler';
-  return /"copyEngine": false\b/.test(indexSource) ? 'no-engine' : 'query-engine';
+export const getPrismaClientEngine = (indexSource: string): PrismaClientEngine | undefined => {
+  const config = readPrismaClientConfig(indexSource);
+  const generator = isRecord(config?.generator) ? config.generator : undefined;
+  const engineType = isRecord(generator?.config) ? generator.config.engineType : undefined;
+  if (typeof engineType === 'string') {
+    if (engineType === 'client') return 'query-compiler';
+    return config?.copyEngine === false ? 'no-engine' : 'query-engine';
+  }
+  if (/\bquery_compiler_bg\.(?:js|wasm)\b/.test(indexSource)) return 'query-compiler';
+  if (/\b(?:libquery_engine|query-engine|query_engine)-[\w.-]+/.test(indexSource)) return 'query-engine';
+  return undefined;
 };
 
 /**
@@ -71,8 +125,7 @@ export const getPrismaClientEngine = (
  * a query engine and neither shape fails the build, because it would deploy and then find no schema. Only a client
  * whose configuration names a query engine ({@link getPrismaClientEngine}) is rewritten, the same decision
  * `resolvePrisma` copies the engine by. The query compiler is left alone: it finds its `query_compiler_bg.wasm` where
- * the build copied it, under the generator output. A client that records no engine type counts as one with an engine
- * when an engine file lies beside it.
+ * the build copied it, under the generator output. A client whose engine cannot be told fails the build too.
  */
 export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
   name: 'stacktape-prisma-lambda-client',
@@ -81,11 +134,17 @@ export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
       const clientDirectory = dirname(path);
       if (!existsSync(join(clientDirectory, 'schema.prisma'))) return undefined;
       const source = await readFile(path, 'utf8');
-      const engine =
-        getPrismaClientEngine(source) ??
-        ((await readdir(clientDirectory)).some((file) => /^(?:libquery_engine|query-engine|query_engine)-/.test(file))
-          ? 'query-engine'
-          : undefined);
+      const engine = getPrismaClientEngine(source);
+      const version = source.match(/["']?clientVersion["']?\s*:\s*["']([^"']+)["']/)?.[1];
+      const description = `The Prisma client generated in ${clientDirectory} (${version ? `Prisma ${version}` : 'unknown Prisma version'})`;
+      // Every generated client records its version; a file of the project's own beside a schema does not.
+      if (engine === undefined && !/\bclientVersion\b/.test(source)) return undefined;
+      if (engine === undefined) {
+        throw new Error(
+          `${description} does not record which engine it uses in a form Stacktape reads, so Stacktape cannot tell which files the Lambda needs. ` +
+            'Regenerate it with prisma generate from Prisma 5.0 to 6.19 and bundle the generated files unchanged.'
+        );
+      }
       if (engine !== 'query-engine') return undefined;
       const location = JSON.stringify(PRISMA_LAMBDA_CLIENT_DIRECTORY);
       const contents = source
@@ -98,9 +157,8 @@ export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
           (_match, opening) => `${opening}${location})`
         );
       if (contents === source) {
-        const version = source.match(/"clientVersion": "([^"]+)"/)?.[1];
         throw new Error(
-          `The Prisma client generated in ${clientDirectory} (${version ? `Prisma ${version}` : 'unknown Prisma version'}) looks for its query engine in a way Stacktape cannot redirect, so the Lambda would deploy and then fail to find schema.prisma. ` +
+          `${description} looks for its query engine in a way Stacktape cannot redirect, so the Lambda would deploy and then fail to find schema.prisma. ` +
             'Use Prisma 5.0 to 6.19, or generate the client with engineType = "client" and a driver adapter, which needs no query engine.'
         );
       }

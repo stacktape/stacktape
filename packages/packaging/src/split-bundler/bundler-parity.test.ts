@@ -126,6 +126,37 @@ describe('Prisma, whose query engine no import reaches', () => {
   });
 });
 
+type ClientFormat = 'generated' | 'reformatted' | 'opaque';
+
+/**
+ * The configuration `prisma generate` writes, or the same object after a transpiler such as Bun's reformatted it:
+ * bare keys and the inlined schema in a template literal, where a schema comment can spell out a configuration key.
+ */
+const writeConfig = (version: string, engineType: string, format: ClientFormat) =>
+  format === 'opaque'
+    ? `const config = JSON.parse(${JSON.stringify(JSON.stringify({ clientVersion: version, engineType }))})`
+    : format === 'generated'
+      ? [
+          'const config = {',
+          `  "generator": {\n    "name": "client",\n    "config": {\n      "engineType": ${JSON.stringify(engineType)}\n    }\n  },`,
+          `  "clientVersion": ${JSON.stringify(version)},`,
+          '  "inlineSchema": "generator client {\\n  provider = \\"prisma-client-js\\"\\n}",',
+          '  "copyEngine": true',
+          '}'
+        ].join('\n')
+      : [
+          'const config = {',
+          `  generator: {\n    name: 'client',\n    config: {\n      engineType: ${JSON.stringify(engineType)},\n    },\n  },`,
+          `  clientVersion: ${JSON.stringify(version)},`,
+          '  inlineSchema: `generator client {',
+          '  provider   = "prisma-client-js"',
+          '  // was engineType: "library", copyEngine: false',
+          `  engineType = ${JSON.stringify(engineType)}`,
+          '}`,',
+          '  copyEngine: true,',
+          '};'
+        ].join('\n');
+
 describe("a Lambda's bundled Prisma client", () => {
   // The fallback each `prisma-client-js` version generates when the bundled client finds no `schema.prisma` beside
   // itself, as `prisma generate` writes it for the default output.
@@ -161,7 +192,8 @@ describe("a Lambda's bundled Prisma client", () => {
     root: string,
     version: keyof typeof fallbacks,
     engineType: 'library' | 'binary' | 'client',
-    engine: string | undefined
+    engine: string | undefined,
+    format: ClientFormat = 'generated'
   ) => {
     const clientDirectory = join(root, 'generated', 'client');
     await mkdir(clientDirectory, { recursive: true });
@@ -169,7 +201,7 @@ describe("a Lambda's bundled Prisma client", () => {
       'index.js': [
         "const path = require('path')",
         "const fs = require('fs')",
-        `const config = {\n  "clientVersion": ${JSON.stringify(version)},\n  "engineType": ${JSON.stringify(engineType)},\n}`,
+        writeConfig(version, engineType, format),
         'config.dirname = __dirname',
         ...fallbacks[version],
         'exports.dirname = config.dirname'
@@ -202,23 +234,40 @@ describe("a Lambda's bundled Prisma client", () => {
     });
 
   test.each([
-    ['Prisma 5.0.0', '5.0.0', 'library', 'libquery_engine-rhel-openssl-3.0.x.so.node', '.prisma/client'],
-    ['Prisma 6 with a binary engine', '6.19.3', 'binary', 'query-engine-rhel-openssl-3.0.x', '.prisma/client'],
+    ['Prisma 5.0.0', '5.0.0', 'library', 'libquery_engine-rhel-openssl-3.0.x.so.node', '.prisma/client', 'generated'],
+    [
+      'Prisma 6 with a binary engine',
+      '6.19.3',
+      'binary',
+      'query-engine-rhel-openssl-3.0.x',
+      '.prisma/client',
+      'generated'
+    ],
     // The query compiler finds its wasm under the generator output, where the build copies it.
-    ['the query compiler', '6.19.3', 'client', undefined, 'node_modules/.prisma/client'],
+    ['the query compiler', '6.19.3', 'client', undefined, 'node_modules/.prisma/client', 'generated'],
     // Regenerating with `engineType = "client"` leaves the library engine behind; the client never loads it.
     [
       'the query compiler beside a stale query engine',
       '6.19.3',
       'client',
       'libquery_engine-rhel-openssl-3.0.x.so.node',
-      'node_modules/.prisma/client'
-    ]
+      'node_modules/.prisma/client',
+      'generated'
+    ],
+    [
+      'a reformatted query compiler beside a stale query engine',
+      '6.19.3',
+      'client',
+      'libquery_engine-rhel-openssl-3.0.x.so.node',
+      'node_modules/.prisma/client',
+      'reformatted'
+    ],
+    ['a reformatted Prisma 6 library client', '6.19.3', 'library', undefined, '.prisma/client', 'reformatted']
   ] as const)(
     'built from %s looks for its engine in /var/task',
-    async (_, version, engineType, engine, expected) => {
+    async (_, version, engineType, engine, expected, format: ClientFormat) => {
       const root = await createRoot();
-      await writeGeneratedClient(root, version, engineType, engine);
+      await writeGeneratedClient(root, version, engineType, engine, format);
       await buildLambda(root);
       await splitBundle({ root, entries: ['api'], sourceMapBannerType: 'pre-compiled' });
       for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
@@ -246,6 +295,15 @@ describe("a Lambda's bundled Prisma client", () => {
     const root = await createRoot();
     await writeGeneratedClient(root, '6.99.0', 'library', 'libquery_engine-rhel-openssl-3.0.x.so.node');
     const message = /Prisma 6\.99\.0.*cannot redirect[\s\S]*engineType = "client"/;
+    await expect(buildLambda(root)).rejects.toThrow(message);
+    await expect(splitBundle({ root, entries: ['api'] })).rejects.toThrow(message);
+  });
+
+  // An engine file beside the client does not decide: it can be one an earlier generation left.
+  test('whose engine the build cannot read fails the build on both paths', async () => {
+    const root = await createRoot();
+    await writeGeneratedClient(root, '6.19.3', 'client', 'libquery_engine-rhel-openssl-3.0.x.so.node', 'opaque');
+    const message = /Prisma client generated in .* does not record which engine it uses/;
     await expect(buildLambda(root)).rejects.toThrow(message);
     await expect(splitBundle({ root, entries: ['api'] })).rejects.toThrow(message);
   });

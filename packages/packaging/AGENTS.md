@@ -91,8 +91,9 @@ caches or produce artifacts that deploy but cannot load. Preserve these contract
 - a Lambda carries Prisma's engine and schema in `.prisma/client` under `/var/task`, and its bundled client is pointed
   there, because a split build can move the client into a layer under `/opt`; an image keeps them beside its bundle. A
   client with an engine whose generated fallback the build does not recognize fails the build, and a query-compiler
-  client keeps its own fallback. Which engine a client has comes from the configuration its `index.js` records, for the
-  files copied and the rewrite alike, never from the files beside it: regenerating leaves the previous engine there;
+  client keeps its own fallback. Which engine a client has comes from the configuration its `index.js` records, however
+  a tool reformatted it, for the files copied and the rewrite alike (`getPrismaClientEngine`), never from the files
+  beside it: regenerating leaves the previous engine there. A Lambda client whose engine cannot be read fails the build;
 - split chunks promoted into a layer carry their dependency closure;
 - a chunk that cannot be packed is un-layered together with its importers;
 - layer files use the `nodejs/chunks` layout expected by Lambda;
