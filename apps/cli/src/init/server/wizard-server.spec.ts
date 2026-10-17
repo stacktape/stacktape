@@ -48,6 +48,7 @@ const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]>
       onVerify: () => {},
       onVerifyDismiss: () => baseState,
       onPipeline: () => {},
+      onCodingAgentSetup: () => {},
       onRecheck: () => baseState,
       onSignIn: (action) => {
         signInActions.push(action);

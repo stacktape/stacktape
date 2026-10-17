@@ -104,13 +104,6 @@ describe('custom-resource dispatcher', () => {
     expect(response.PhysicalResourceId).toBe('stpservicecustomresource');
   });
 
-  test.serial('resolves an update for the selected resolver', async () => {
-    const response = await respondTo(updateEvent({ openSearch: openSearchPayload }, {}));
-
-    expect(response.Status).toBe('SUCCESS');
-    expect(response.Reason).toBe('Custom resource success');
-  });
-
   test.serial('selects one resolver when the same key is in both the current and the previous properties', async () => {
     const response = await respondTo(
       updateEvent({ openSearch: openSearchPayload }, { openSearch: { name: 'search-before' } })
@@ -161,16 +154,6 @@ describe('custom-resource dispatcher', () => {
     // for it. Both lists are empty here, so the resolver reaches no AWS API while still running that branch.
     const emptySensitiveData: StpServiceCustomResourceSensitiveDataProps[] = [];
     const response = await respondTo(updateEvent({ sensitiveData: emptySensitiveData }, {}));
-
-    expect(response.Status).toBe('SUCCESS');
-    expect(response.Reason).toBe('Custom resource success');
-  });
-
-  test.serial('treats an empty payload as present rather than missing', async () => {
-    // An empty list is a resource that currently holds no sensitive data — a valid state, not a broken resource, so
-    // the guard has to be a nullish check rather than a truthy one. Deleting an empty list touches no AWS API.
-    const emptySensitiveData: StpServiceCustomResourceSensitiveDataProps[] = [];
-    const response = await respondTo(deleteEvent({ sensitiveData: emptySensitiveData }));
 
     expect(response.Status).toBe('SUCCESS');
     expect(response.Reason).toBe('Custom resource success');

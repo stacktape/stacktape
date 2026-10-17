@@ -1,6 +1,6 @@
 # mcp:add
 
-The `mcp:add` command installs the Stacktape MCP server configuration into coding-agent clients on your machine. It detects supported clients, adds or updates a `stacktape` MCP server entry pointing to `stacktape mcp`, and creates timestamped backups before modifying any existing configuration files. Neither `mcp:add` nor [`mcp`](/cli/mcp) require a Stacktape API key to run.
+`stacktape mcp:add` connects your coding agents to Stacktape. For each agent you pick, it adds the Stacktape MCP server ([`stacktape mcp`](/cli/mcp)) for your user, then starts the server once to check that it works. Neither `mcp:add` nor `mcp` needs a Stacktape API key.
 
 ## Usage
 
@@ -8,50 +8,51 @@ The `mcp:add` command installs the Stacktape MCP server configuration into codin
 stacktape mcp:add
 ```
 
-In interactive mode, `mcp:add` presents a multi-select prompt listing all supported clients, marks detected ones, and preselects the default target set before asking for confirmation. With `--autoConfirmOperation`, the command skips prompts and installs to the default target set: detected clients, or all supported clients when none are detected. The `--agent` flag disables the interactive UI and uses the same default target selection as `--autoConfirmOperation`.
+In a terminal, `mcp:add` lists every supported agent with the ones installed on this machine preselected. Confirm the selection and it sets them up, prints what it changed and tells you how to reload each agent. Then ask your agent: “Use Stacktape to show what this project deploys.”
 
-## Supported clients
+## Supported agents
 
-The `mcp:add` command detects and configures the following coding-agent clients:
+| Agent | How the server is added |
+|-------|-------------------------|
+| Claude Code (`claude-code`) | `claude mcp add --scope user` |
+| Codex (`codex`) | `codex mcp add`, or `~/.codex/config.toml` when the `codex` command is missing |
+| Cursor (`cursor`) | `~/.cursor/mcp.json` |
+| VS Code with GitHub Copilot (`vscode`) | The user `mcp.json` of your default profile |
+| GitHub Copilot CLI (`copilot`) | `~/.copilot/mcp-config.json` |
+| Windsurf, now Devin Desktop (`windsurf`) | The existing `mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` |
+| OpenCode (`opencode`) | `~/.config/opencode/opencode.jsonc` or `opencode.json` |
 
-| Client | Config format | Config locations (checked in order) |
-|--------|--------------|-------------------------------------|
-| Claude Code | JSON | `.mcp.json` (project), `~/.claude.json` (user) |
-| OpenAI Codex | TOML | `.codex/config.toml` (project), `~/.codex/config.toml` (user) |
-| Cursor | JSON | `.cursor/mcp.json` (project), `~/.cursor/mcp.json` (user) |
-| VS Code / Copilot | JSON | `.vscode/mcp.json` (project), platform-specific user path |
-| OpenCode | JSON/JSONC | `opencode.jsonc` (project), `.opencode/config.json` (project), platform-specific user paths |
-| Windsurf | JSON | `./.codeium/windsurf/mcp_config.json` (project), `~/.codeium/windsurf/mcp_config.json` (user) |
-
-For each client, Stacktape checks the configured candidate paths in order and uses the first existing file. If no candidate file exists for a selected client, Stacktape creates that client's first configured path, which is project-local for all supported clients.
-
-
-> **Info:** **OpenCode paths in detail:** On Windows, the user-level paths are `%APPDATA%/opencode/opencode.jsonc` and `%APPDATA%/opencode/config.json`. On macOS/Linux, the user-level paths include `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/config.json`, and `~/.opencode/config.json`. Stacktape can read existing JSONC-style files, but it rewrites modified files as formatted JSON, so comments are not preserved in the output.
-
+An agent counts as installed when its command is on your PATH, or its app or settings folder exists. The name in brackets is the value for `--codingAgents`.
 
 ## Behavior details
 
-**Local vs global command resolution** — When the selected config path is under the current working directory, `mcp:add` checks whether `stacktape` is listed as a dependency in `package.json` (including `devDependencies`, `optionalDependencies`, and `peerDependencies`). If so, it writes `node_modules/.bin/stacktape` as the command path so the MCP server uses the project-local Stacktape version. For user-level config files outside the project, it always uses the global `stacktape` command.
+**User level only.** `mcp:add` never writes into your project, so nothing reaches your repository or your teammates. Claude Code's `~/.claude.json` is changed only through `claude mcp add`.
 
-**Backups** — Before modifying an existing file, the command copies it to a timestamped backup (e.g., `.mcp.json.bak.2025-01-15T10-30-00-000Z`). New files are created without a backup.
+**Edits in place, with a backup.** In JSON and JSONC files only the `stacktape` entry changes; comments, other servers and formatting stay. The previous file is kept as `<file>.bak.<timestamp>`. A file that cannot be parsed is left untouched and reported as failed.
 
-**Idempotency** — If the `stacktape` entry already exists with identical configuration, the file is reported as `unchanged` and no backup is created.
+**Safe to repeat.** Entries that already match are reported as already set up and not touched. Run `mcp:add` again to add another agent or after moving the CLI.
 
-**Invalid config files** — For JSON-based clients, if an existing config file contains invalid JSON or JSONC, `mcp:add` reports that client as `failed` and leaves the file unchanged.
+**The command it writes.** When `stacktape` is on your PATH, agents run `stacktape mcp`. When you installed Stacktape with the install script, they run `~/.stacktape/bin/stacktape mcp` by its full path, which keeps working for agents started from the Dock or Start menu. In any other case `mcp:add` writes the running binary's full path and tells you to run it again if that file moves.
+
+**Connection check.** After writing, `mcp:add` starts the configured command, completes an MCP handshake and lists the tools. If the server does not start, it prints the server's error output and exits with an error.
+
+**Project entries.** If the current project has its own Stacktape entry for a configured agent (for example a committed `.mcp.json`), that agent uses it inside this project. `mcp:add` names the file so you can decide whether to keep it.
 
 ## Examples
 
-Install to all detected clients without interactive prompts:
+Set up two agents without the question:
+
+```bash
+stacktape mcp:add --codingAgents claude-code,cursor
+```
+
+Set up every installed agent, for example from a dotfiles script:
 
 ```bash
 stacktape mcp:add --autoConfirmOperation
 ```
 
-Run in agent mode, which disables the interactive UI and auto-confirms the operation:
-
-```bash
-stacktape mcp:add --agent
-```
+With `--autoConfirmOperation` or `--agent`, `mcp:add` sets up every installed agent. When it finds none, it changes nothing and exits with an error.
 
 ## Flags reference
 
@@ -62,11 +63,13 @@ stacktape mcp:add --agent
 | --- | --- | --- | --- | --- |
 | `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
 | `--autoConfirmOperation (-aco, yes, y)` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `--codingAgents` | no | `array` | Coding Agents — The coding agents to set up (or remove), for example `--codingAgents claude-code,cursor`. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds. | - |
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 
 
 ## Related commands
 
-- [`mcp`](/cli/mcp) — Starts the MCP server process that `mcp:add` configures clients to invoke.
-- [`login`](/cli/login) — Configure your Stacktape API key. Use [`login`](/cli/login) when MCP tools need authenticated Stacktape operations (deployments, secret management, etc.).
+- [`mcp:remove`](/cli/mcp-remove) — Removes what `mcp:add` set up.
+- [`mcp`](/cli/mcp) — The MCP server process that the agents start.
+- [`login`](/cli/login) — Signs in to Stacktape, which tools that deploy or read deployed stacks need.
