@@ -7,6 +7,9 @@ import {
   HostingBucket,
   MultiContainerWorkload,
   JsBundleImagePackaging,
+  PrivateService,
+  WebService,
+  WorkerService,
   type CompiledStacktapeConfig
 } from '@stacktape/config-authoring';
 import { synthesizeFixture } from './synthesis-fixture';
@@ -29,7 +32,22 @@ test('local API and UI synthesize support infrastructure without a second data p
           connectTo: [sender]
         });
         const ui = new HostingBucket({ uploadDirectoryPath: './dist', dev: { command: 'node index.ts' } });
-        return { resources: { api, ui, sender } };
+        // Every service type runs locally in dev. Deployed, a web service needs an HTTP API VPC link and a private
+        // service a service-discovery namespace, both in a VPC the dev stack does not create; a worker would add its
+        // ECS service. One of each proves the dev-mode selection per type.
+        const web = new WebService({
+          packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
+          resources: { cpu: 0.25, memory: 512 }
+        });
+        const internal = new PrivateService({
+          packaging: new JsBundleImagePackaging({ entryfilePath: './src/api.ts' }),
+          resources: { cpu: 0.25, memory: 512 }
+        });
+        const worker = new WorkerService({
+          packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
+          resources: { cpu: 0.25, memory: 512 }
+        });
+        return { resources: { api, ui, sender, web, internal, worker } };
       })({
         projectName: 'characterization',
         stage: 'baseline',
