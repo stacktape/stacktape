@@ -1236,11 +1236,9 @@ export const lanes: readonly Lane[] = [
       'bun',
       'test',
       '--isolate',
-      'src/http-server.test.ts',
       'src/lambdas/sign-up-user-name.test.ts',
       'src/services/api-key-security.test.ts',
       'src/utils/safe-error.test.ts',
-      'src/organizations/personal-organization.test.ts',
       'src/aws/browser-access.test.ts',
       'src/aws/context.test.ts',
       'infrastructure/console-connection/connection-template.test.ts'
@@ -1248,11 +1246,9 @@ export const lanes: readonly Lane[] = [
     level: 'focused',
     tier: 'pr',
     tests: [
-      'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
-      'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/infrastructure/console-connection/connection-template.test.ts'
@@ -2372,7 +2368,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/deployments/invocation-id.test.ts',
       'apps/console/api/src/deployments/operation-description.test.ts',
       'apps/console/api/src/deployments/failure-explanations.test.ts',
-      'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/integrations/git/bitbucket-forge-events.test.ts',
       'apps/console/api/src/integrations/git/connection-authorization.test.ts',
       'apps/console/api/src/integrations/git/gitlab-events.test.ts',
@@ -2390,7 +2385,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/lambdas/webhook-delivery.test.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
-      'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/api/src/runtime-parameters-process.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts',
@@ -4775,7 +4769,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/sign-up-database.test.ts',
-      'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
@@ -4816,7 +4809,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
-      'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
       'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts'
     ],
