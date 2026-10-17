@@ -4,6 +4,9 @@ import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-ch
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeDeleteOperation } from '../_utils/initialization';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { SHARED_LAYER_NUMBERS } from '@domain-services/deployment-artifact-manager/shared-layers';
+import { deleteSupersededSharedLayerVersions } from '../_utils/fn-deployment';
 
 type DeleteOperation = Awaited<ReturnType<typeof initializeDeleteOperation>>;
 type RetainedSharedResource = { kind: string; identity: string; stackName: string };
@@ -89,6 +92,14 @@ export const commandDelete = async () => {
     stack,
     stackName,
     tui
+  });
+  // CloudFormation deleted the layer versions it published. Those fast deployments published under the stack's layer
+  // names are not CloudFormation's, so they go here, now that no function runs them.
+  await deleteSupersededSharedLayerVersions({
+    layers: SHARED_LAYER_NUMBERS.map((layerNumber) => ({
+      layerName: awsResourceNames.sharedChunkLayer({ stackName, layerNumber })
+    })),
+    functionNames: []
   });
   // The stack is gone, so its uptime checks leave the Console projection with it. Best effort: a
   // failed sync leaves paused rows behind, which the next deploy of this stage reconciles.

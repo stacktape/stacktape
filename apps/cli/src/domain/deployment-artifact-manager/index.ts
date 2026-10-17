@@ -19,6 +19,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import type { PackagingManager } from '@domain-services/packaging-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { fsPaths } from 'src/config/runtime-paths';
 import {
   buildLambdaS3Key,
@@ -45,6 +46,18 @@ import { tagNames } from '@stacktape/naming/tag-names';
 import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
+import {
+  buildRepublishedLayerS3Key,
+  formatSharedLayersTag,
+  getDeployedSharedLayers,
+  getSharedLayersOfFunctionInTemplate,
+  getTagValue,
+  needsLayerRepublish,
+  type SharedLayerContent,
+  sharedLayerIdentity,
+  sharedLayerNumberOf
+} from './shared-layers';
+import { templateManager } from '@domain-services/template-manager';
 import { getSourceMapManifest, selectObsoleteSourceMapKeys, sourceMapKeyForArtifact } from './source-maps';
 import { SOURCE_MAP_KEY_PREFIX } from '@stacktape/console-api/source-maps';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
@@ -52,7 +65,12 @@ import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 
 type ArtifactPackagingSource = Pick<
   PackagingManager,
-  'getPackagingOutputForJob' | 'getPendingSharedLayer' | 'getLayerArtifacts' | 'publishSharedLayer'
+  | 'getPackagingOutputForJob'
+  | 'getPendingSharedLayer'
+  | 'getLayerArtifacts'
+  | 'getLayerArtifact'
+  | 'getLayerNumbersForLambda'
+  | 'publishSharedLayer'
 >;
 
 type LambdaS3UploadInfo = {
@@ -326,10 +344,74 @@ class DeploymentArtifactManager {
     const lambda = configManager.allLambdasToUpload.find((candidate) => candidate.artifactName === artifactName);
     const cfLogicalName = lambda && 'cfLogicalName' in lambda ? lambda.cfLogicalName : undefined;
     if (!cfLogicalName) return false;
-    const runningDigest = stackManager.existingStackResources
-      .find(({ LogicalResourceId }) => LogicalResourceId === cfLogicalName)
-      ?.tags?.find(({ key }) => key === tagNames.codeDigest())?.value;
+    const runningDigest = getTagValue(
+      stackManager.existingStackResources.find(({ LogicalResourceId }) => LogicalResourceId === cfLogicalName)?.tags,
+      tagNames.codeDigest()
+    );
     return runningDigest !== undefined && runningDigest !== digest;
+  };
+
+  /** The shared layer content a deployed function runs, or `undefined` when CloudFormation gives it the layer anyway. */
+  #deployedSharedLayerIdentity = ({
+    functionLogicalName,
+    layerNumber
+  }: {
+    functionLogicalName: string;
+    layerNumber: number;
+  }) => {
+    const deployedResource = stackManager.existingStackResources.find(
+      ({ LogicalResourceId }) => LogicalResourceId === functionLogicalName
+    );
+    if (!deployedResource) return undefined;
+    return getDeployedSharedLayers({
+      tags: deployedResource.tags,
+      deployedTemplate: templateManager.oldTemplate,
+      functionLogicalName
+    }).get(layerNumber);
+  };
+
+  #cfnSharedLayerIdentity = (layerNumber: number) => {
+    const s3Key = (
+      templateManager.oldTemplate.Resources?.[cfLogicalNames.sharedChunkLayer(layerNumber)]?.Properties as
+        | { Content?: { S3Key?: unknown } }
+        | undefined
+    )?.Content?.S3Key;
+    return typeof s3Key === 'string' ? sharedLayerIdentity(s3Key) : undefined;
+  };
+
+  /** Layer objects this deployment copies under a release key so that CloudFormation republishes them. */
+  #republishedLayers = new Map<number, { sourceKey: string; targetKey: string }>();
+
+  /**
+   * The S3 key the template gives a shared layer: the layer's own object, or a copy of it under this release when a
+   * function runs a version a fast deployment published and CloudFormation would otherwise leave it there (see
+   * `needsLayerRepublish`). The copy is made with the other uploads.
+   */
+  getSharedLayerS3Key = ({ layerNumber, s3Key }: { layerNumber: number; s3Key: string }) => {
+    const identity = sharedLayerIdentity(s3Key);
+    const deployedIdentities = configManager.allLambdasToUpload.flatMap((lambda) =>
+      'cfLogicalName' in lambda && this.packagingSource.getLayerNumbersForLambda(lambda.name).includes(layerNumber)
+        ? [this.#deployedSharedLayerIdentity({ functionLogicalName: lambda.cfLogicalName, layerNumber })]
+        : []
+    );
+    if (
+      !needsLayerRepublish({ identity, cfnIdentity: this.#cfnSharedLayerIdentity(layerNumber), deployedIdentities })
+    ) {
+      this.#republishedLayers.delete(layerNumber);
+      return s3Key;
+    }
+    const targetKey = buildRepublishedLayerS3Key(s3Key, stackManager.nextVersion);
+    this.#republishedLayers.set(layerNumber, { sourceKey: s3Key, targetKey });
+    return targetKey;
+  };
+
+  #copyRepublishedLayers = async () => {
+    await Promise.all(
+      [...this.#republishedLayers].map(async ([layerNumber, { sourceKey, targetKey }]) => {
+        await awsSdkManager.s3.copyObject({ bucketName: this.deploymentBucketName, sourceKey, targetKey });
+        this.successfullyCreatedObjects.push({ s3Key: targetKey, name: `shared-layer-${layerNumber}` });
+      })
+    );
   };
 
   #imageRunsOtherCode = ({ jobName, digest }: { jobName: string; digest: string }) =>
@@ -1034,6 +1116,7 @@ class DeploymentArtifactManager {
 
     // If all layers are cached, skip upload entirely
     if (layersToUpload.length === 0) {
+      await this.#copyRepublishedLayers();
       return;
     }
 
@@ -1073,6 +1156,7 @@ class DeploymentArtifactManager {
         });
       }
 
+      await this.#copyRepublishedLayers();
       await uploadLogger.finishEvent({
         eventType: 'UPLOAD_SHARED_LAYER',
         finalMessage: `${layersToUpload.length} layer(s) uploaded${cachedLayers.length > 0 ? `, ${cachedLayers.length} cached` : ''}`
@@ -1186,13 +1270,30 @@ class DeploymentArtifactManager {
         const digest = (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
           ({ Key }) => Key === tagNames.codeDigest()
         )?.Value;
-        if (digest) this.#restoredFunctionDigests.push({ logicalId, digest });
+        if (digest) {
+          const layers = [...getSharedLayersOfFunctionInTemplate(template, logicalId)].map(
+            ([layerNumber, identity]) => ({ layerNumber, identity })
+          );
+          this.#restoredFunctionDigests.push({ logicalId, digest, layers });
+        }
         const { Code: code } = properties;
         if (code.S3Bucket === this.deploymentBucketName && typeof code.S3Key === 'string') {
           code.S3Key = this.#copyFunctionCodeToRelease({ s3Key: code.S3Key, newVersion, copies });
         }
         if (typeof code.ImageUri === 'string') {
           code.ImageUri = this.#tagImageForRelease({ imageUri: code.ImageUri, newVersion, copies });
+        }
+      }
+      if (resource.Type === 'AWS::Lambda::LayerVersion') {
+        const { Content: content } = properties;
+        if (content?.S3Bucket === this.deploymentBucketName && typeof content.S3Key === 'string') {
+          content.S3Key = this.#republishLayerForRelease({
+            logicalId,
+            s3Key: content.S3Key,
+            template,
+            newVersion,
+            copies
+          });
         }
       }
       if (resource.Type === 'AWS::ECS::TaskDefinition') {
@@ -1219,15 +1320,44 @@ class DeploymentArtifactManager {
     return { templateUrl: this.getCloudformationTemplateUrlForVersion(newVersion), template };
   };
 
-  #restoredFunctionDigests: { logicalId: string; digest: string }[] = [];
+  /**
+   * Makes each function's code-digest and shared-layers tags say what `template`, now deployed, gave it. CloudFormation
+   * rewrites a tag only when its value differs from the template it applied before, so a tag a fast deployment changed
+   * in between keeps that value, although the function runs the template's code and layers again. Left alone, the
+   * next deployment would update the function once more for nothing.
+   */
+  repairFunctionTags = async (template: CloudFormationTemplate) => {
+    const repaired = [tagNames.codeDigest(), tagNames.sharedLayers()];
+    await Promise.all(
+      stackManager.existingStackResources
+        .filter(({ ResourceType }) => ResourceType === 'AWS::Lambda::Function')
+        .map(async ({ LogicalResourceId, PhysicalResourceId, tags }) => {
+          const properties = template.Resources[LogicalResourceId]?.Properties as
+            | { Tags?: { Key?: string; Value?: unknown }[] }
+            | undefined;
+          const stale = (properties?.Tags ?? []).filter(
+            ({ Key, Value }) =>
+              Key && repaired.includes(Key) && typeof Value === 'string' && getTagValue(tags, Key) !== Value
+          );
+          if (!stale.length) return;
+          const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: PhysicalResourceId });
+          await awsSdkManager.lambda.tagFunction({
+            lambdaArn: FunctionArn,
+            tags: stale.map(({ Key, Value }) => ({ key: Key!, value: Value as string }))
+          });
+        })
+    );
+  };
+
+  #restoredFunctionDigests: { logicalId: string; digest: string; layers: SharedLayerContent[] }[] = [];
 
   /**
-   * Sets each restored function's code-digest tag after a rollback. CloudFormation leaves a tag alone when the restored
-   * template has the same value it last applied, even if a fast deployment changed it since.
+   * Sets each restored function's code-digest and shared-layers tags after a rollback. CloudFormation leaves a tag
+   * alone when the restored template has the same value it last applied, even if a fast deployment changed it since.
    */
   tagRestoredFunctions = async () => {
     await Promise.all(
-      this.#restoredFunctionDigests.map(async ({ logicalId, digest }) => {
+      this.#restoredFunctionDigests.map(async ({ logicalId, digest, layers }) => {
         const functionName = stackManager.existingStackResources.find(
           ({ LogicalResourceId }) => LogicalResourceId === logicalId
         )?.PhysicalResourceId;
@@ -1235,7 +1365,10 @@ class DeploymentArtifactManager {
         const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: functionName });
         await awsSdkManager.lambda.tagFunction({
           lambdaArn: FunctionArn,
-          tags: [{ key: tagNames.codeDigest(), value: digest }]
+          tags: [
+            { key: tagNames.codeDigest(), value: digest },
+            ...(layers.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
+          ]
         });
       })
     );
@@ -1254,6 +1387,43 @@ class DeploymentArtifactManager {
     // Stacktape's own functions and shared layers never change without CloudFormation.
     if (!artifact?.digest || getDeploymentBucketObjectType(artifact.name) !== 'user-lambda') return s3Key;
     const targetKey = buildLambdaS3Key(artifact.name, newVersion, artifact.digest);
+    copies.push(awsSdkManager.s3.copyObject({ bucketName: this.deploymentBucketName, sourceKey: s3Key, targetKey }));
+    return targetKey;
+  };
+
+  /**
+   * The restored template's layer object, or a copy of it under the new release when a function that uses the layer
+   * runs a version a fast deployment published: CloudFormation then republishes the layer and gives the functions the
+   * new version with their restored code, instead of leaving them on the published version (`needsLayerRepublish`).
+   */
+  #republishLayerForRelease = ({
+    logicalId,
+    s3Key,
+    template,
+    newVersion,
+    copies
+  }: {
+    logicalId: string;
+    s3Key: string;
+    template: CloudFormationTemplate;
+    newVersion: string;
+    copies: Promise<unknown>[];
+  }) => {
+    const layerNumber = sharedLayerNumberOf(logicalId);
+    if (layerNumber === undefined) return s3Key;
+    const deployedIdentities = Object.entries(template.Resources).flatMap(([functionLogicalName, resource]) =>
+      resource.Type === 'AWS::Lambda::Function' &&
+      getSharedLayersOfFunctionInTemplate(template, functionLogicalName).has(layerNumber)
+        ? [this.#deployedSharedLayerIdentity({ functionLogicalName, layerNumber })]
+        : []
+    );
+    const identity = sharedLayerIdentity(s3Key);
+    if (
+      !needsLayerRepublish({ identity, cfnIdentity: this.#cfnSharedLayerIdentity(layerNumber), deployedIdentities })
+    ) {
+      return s3Key;
+    }
+    const targetKey = buildRepublishedLayerS3Key(s3Key, newVersion);
     copies.push(awsSdkManager.s3.copyObject({ bucketName: this.deploymentBucketName, sourceKey: s3Key, targetKey }));
     return targetKey;
   };

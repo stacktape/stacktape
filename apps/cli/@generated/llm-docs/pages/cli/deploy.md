@@ -28,6 +28,8 @@ After a successful deploy, Stacktape prints short stack information and completi
 
 When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds; a container service runs a normal rolling deployment. Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
 
+Code that several functions share is packaged into a Lambda layer. A change to it is a code change too: Stacktape publishes the new layer version itself and gives every function that uses it the new version together with its own code, so a change to shared code deploys as fast as a change to one function.
+
 A deployment uses CloudFormation when:
 
 - the stack is new, or the template changes anything other than function code or container images built by Stacktape (configuration, environment variables, permissions, resources, external images),

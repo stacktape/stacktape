@@ -5,6 +5,8 @@ import { getNumericVersion } from '@utils/versioning';
 
 import { initializeRollbackOperation } from '../_utils/initialization';
 import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
+import { deleteSupersededSharedLayerVersions } from '../_utils/fn-deployment';
+import { getSharedLayersOfTemplate } from '@domain-services/deployment-artifact-manager/shared-layers';
 
 type RollbackOperation = Awaited<ReturnType<typeof initializeRollbackOperation>>;
 
@@ -220,6 +222,8 @@ export const executeRollbackOperation = async ({
     await stack.deployStackForRollback(templateUrl);
     await deploymentArtifacts.tagRestoredFunctions();
     spinner.success({ text: `Stack rolled back to ${targetVersion} (deployed as ${newVersion})` });
+    // The restored template's layers are CloudFormation's; versions fast deployments published may now be unused.
+    await deleteSupersededSharedLayerVersions({ layers: getSharedLayersOfTemplate(template) });
   } catch (err) {
     spinner.error(`Rollback deployment failed`);
     throw err;

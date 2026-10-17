@@ -88,6 +88,20 @@ import type { JsBundleLambdaPackagingProps } from '@stacktape/config/deployment-
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
+import { formatSharedLayersTag, sharedLayerIdentity } from '@domain-services/deployment-artifact-manager/shared-layers';
+
+/**
+ * The shared layers tag of a function that uses shared chunk layers: which content each layer had when the function was
+ * deployed. A fast deployment reads it to tell whether the function needs a new layer version, and writes it after a
+ * direct update, as it does with the code digest tag.
+ */
+const getSharedLayersTag = (lambdaName: string) => {
+  const layers = packagingManager.getLayerNumbersForLambda(lambdaName).flatMap((layerNumber) => {
+    const layer = packagingManager.getLayerArtifact(layerNumber);
+    return layer ? [{ layerNumber, identity: sharedLayerIdentity(layer.s3Key) }] : [];
+  });
+  return layers.length ? [{ name: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [];
+};
 
 export const resolveFunctions = async () => {
   // Create shared chunk layer resources (from split bundling) before resolving individual functions
@@ -97,12 +111,15 @@ export const resolveFunctions = async () => {
 
     // Create the LayerVersion resource with the S3 key computed during packaging
     const layerResource = cfnResource('AWS::Lambda::LayerVersion', {
-      LayerName: `${calculatedStackOverviewManager.context.stackName}-shared-chunk-layer-${layer.layerNumber}`,
+      LayerName: awsResourceNames.sharedChunkLayer({
+        stackName: calculatedStackOverviewManager.context.stackName,
+        layerNumber: layer.layerNumber
+      }),
       Description: `Shared chunk layer ${layer.layerNumber} for code splitting`,
       CompatibleRuntimes: [`nodejs${DEFAULT_LAMBDA_NODE_VERSION}.x`],
       Content: {
         S3Bucket: deploymentArtifactManager.deploymentBucketName,
-        S3Key: layer.s3Key
+        S3Key: deploymentArtifactManager.getSharedLayerS3Key({ layerNumber: layer.layerNumber, s3Key: layer.s3Key })
       }
     });
 
@@ -603,6 +620,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     functionProperties.Tags = stackManager.getTags([
       ...(tags || []),
       { name: tagNames.codeDigest(), value: digest },
+      ...getSharedLayersTag(name),
       { name: tagNames.cfAttributionLogicalName(), value: cfLogicalName }
     ]);
   });
@@ -638,7 +656,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       S3Bucket: deploymentArtifactManager.deploymentBucketName
     };
 
-    functionProperties.Tags = stackManager.getTags([{ name: tagNames.codeDigest(), value: digest }]);
+    functionProperties.Tags = stackManager.getTags([
+      { name: tagNames.codeDigest(), value: digest },
+      ...getSharedLayersTag(name)
+    ]);
   });
   if (configParentResourceType !== 'batch-job') {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
