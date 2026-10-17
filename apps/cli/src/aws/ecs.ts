@@ -32,7 +32,12 @@ import {
 import type { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import type { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
-import { GetInstancesHealthStatusCommand } from '@aws-sdk/client-servicediscovery';
+import {
+  DiscoverInstancesCommand,
+  GetNamespaceCommand,
+  GetServiceCommand,
+  HealthStatusFilter
+} from '@aws-sdk/client-servicediscovery';
 import type { StartSessionResponse } from '@aws-sdk/client-ssm';
 import { createWaiter, WaiterState } from '@smithy/util-waiter';
 import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from '@utils/misc';
@@ -53,14 +58,14 @@ type ErrorHandlerFactory = (message: string) => (error: Error) => never;
 
 /** A load balancer target that must be healthy before a new task counts as serving. */
 type ServingTarget = { targetGroupArn: string; id: string; port: number };
-/** A Cloud Map instance (ECS registers each task under its task ID) that must be healthy. */
+/** A Cloud Map instance (ECS registers each task under its task ID) that API Gateway must be able to discover. */
 type ServingInstance = { serviceId: string; instanceId: string };
 
 export type NewTasksServingPlan =
   /** The new tasks cannot be shown to serve from health signals; ECS decides when the deployment is done. */
   | { verdict: 'undecidable'; reason: string }
   | { verdict: 'waiting'; reason: string }
-  /** Every new task runs and passed its container health check; these targets and instances must be healthy too. */
+  /** Every new task runs and passed its container health check; these targets must be healthy and these instances discoverable. */
   | { verdict: 'check'; targets: ServingTarget[]; instances: ServingInstance[] };
 
 const taskIp = (task: Task) =>
@@ -83,11 +88,11 @@ const taskIp = (task: Task) =>
  * task ACTIVATING or RUNNING seconds after the load balancer reported its target healthy, and the target is the task's
  * own address and port, so no other task can make it healthy.
  *
- * A healthy task is not yet reached through API Gateway: measured on Fargate, API Gateway sent it the first request 10
- * to 20 seconds later. The task's Cloud Map health is the signal the waiter has, although it does not show when API
- * Gateway routes: Cloud Map reported tasks healthy from 2 seconds before to 18 seconds after API Gateway sent them the
- * first request. ECS early success counts the task alone, which reported such deploys done before any request reached
- * the new version.
+ * Behind an HTTP API, the new tasks' Cloud Map instances must be discoverable the way API Gateway discovers them; see
+ * `API_GATEWAY_ROUTING_ALLOWANCE_MS`. Neither the task's health nor its Cloud Map health status shows that: API Gateway
+ * sent a new task its first request 8 to 24 seconds after the task turned healthy, and from 33 seconds before to 25
+ * seconds after Cloud Map reported it healthy. ECS early success counts the task alone, which reported such deploys done
+ * before any request reached the new version.
  */
 export const planNewTasksServingChecks = ({
   deployment,
@@ -170,10 +175,29 @@ export const planNewTasksServingChecks = ({
 export const LOAD_BALANCER_ROUTING_ALLOWANCE_MS = 4000;
 
 /**
+ * How long the waiter keeps the new tasks discoverable in Cloud Map before it reports that API Gateway sends them
+ * requests. An HTTP API's VPC link integration finds tasks with Cloud Map's `DiscoverInstances`, which returns the healthy
+ * instances or, while none is healthy, all of them. ECS registers a task with a container health check as unhealthy and
+ * reports it healthy to Cloud Map once the check passes, but Cloud Map applies that change seconds to a minute later.
+ * So API Gateway usually starts sending requests to the new task once ECS deregisters the old one, before Cloud Map
+ * reports the new one healthy. No AWS API says when API Gateway itself sees the change. Measured on 17 October 2026 in 30
+ * rollouts on Fargate, 20 of them with a container health check: API Gateway sent the first request to the new task from 0.3
+ * seconds before to 2.2 seconds after an observer polling `DiscoverInstances` about every 300 ms first saw it there. The
+ * allowance starts when the waiter first sees every new task there.
+ */
+export const API_GATEWAY_ROUTING_ALLOWANCE_MS = 4000;
+
+/**
  * What a rolling update waited for. Before the rollout completes, the old tasks still drain and stop in the background.
  * `new-targets-healthy`: every new task was a healthy target in every target group for the routing allowance.
+ * `new-instances-discoverable`: API Gateway could discover every new task in Cloud Map for the routing allowance.
  */
-export type RollingUpdateFinish = 'rollout-completed' | 'new-tasks-healthy' | 'new-targets-healthy';
+export type RollingUpdateFinish =
+  | 'rollout-completed'
+  | 'new-tasks-healthy'
+  | 'new-targets-healthy'
+  | 'new-instances-discoverable'
+  | 'new-targets-healthy-and-instances-discoverable';
 
 const groupBy = <T>(items: T[], key: (item: T) => string) =>
   items.reduce(
@@ -348,8 +372,21 @@ export class AwsEcs {
     let canCheckServing = true;
     const containerDefinitionsByTaskDefinition = new Map<string, ContainerDefinition[]>();
     const ec2InstanceIds = new Map<string, string>();
-    /** The targets the waiter last saw healthy in every target group, and since when. */
-    let healthyTargets: { key: string; since: number } | undefined;
+    /** Cloud Map service ID → the names `DiscoverInstances` takes. */
+    const discoveryNames = new Map<string, { NamespaceName: string; ServiceName: string }>();
+    const discoveryNamesOf = async (serviceId: string) => {
+      let names = discoveryNames.get(serviceId);
+      if (!names) {
+        const client = this.#createServiceDiscoveryClient();
+        const { Service } = await client.send(new GetServiceCommand({ Id: serviceId }));
+        const { Namespace } = await client.send(new GetNamespaceCommand({ Id: Service?.NamespaceId }));
+        names = { NamespaceName: Namespace!.Name!, ServiceName: Service!.Name! };
+        discoveryNames.set(serviceId, names);
+      }
+      return names;
+    };
+    /** The targets and instances the waiter last saw healthy and discoverable, and since when. */
+    let ready: { key: string; since: number } | undefined;
     const newTasksServe = async (
       ecsClient: ECSClient,
       service: Service,
@@ -404,7 +441,7 @@ export class AwsEcs {
         });
         if (plan.verdict !== 'check') {
           // A task that stops passing a check while the allowance runs must start it again once it recovers.
-          healthyTargets = undefined;
+          ready = undefined;
           if (plan.verdict === 'undecidable') canCheckServing = false;
           return false;
         }
@@ -423,36 +460,45 @@ export class AwsEcs {
             );
           })
         );
-        const healthyRegistries = await Promise.all(
+        // The same call API Gateway makes: while no instance is healthy, it returns all of them.
+        const discoverableRegistries = await Promise.all(
           [...groupBy(plan.instances, ({ serviceId }) => serviceId)].map(async ([serviceId, instances]) => {
-            const { Status = {} } = await this.#createServiceDiscoveryClient().send(
-              new GetInstancesHealthStatusCommand({
-                ServiceId: serviceId,
-                Instances: instances.map(({ instanceId }) => instanceId)
+            const { Instances = [] } = await this.#createServiceDiscoveryClient().send(
+              new DiscoverInstancesCommand({
+                ...(await discoveryNamesOf(serviceId)),
+                HealthStatus: HealthStatusFilter.HEALTHY_OR_ELSE_ALL,
+                MaxResults: 1000
               })
             );
-            return instances.every(({ instanceId }) => Status[instanceId] === 'HEALTHY');
+            return instances.every(({ instanceId }) => Instances.some(({ InstanceId }) => InstanceId === instanceId));
           })
         );
-        if (![...healthyTargetGroups, ...healthyRegistries].every(Boolean)) {
-          healthyTargets = undefined;
+        if (![...healthyTargetGroups, ...discoverableRegistries].every(Boolean)) {
+          ready = undefined;
           return false;
         }
-        if (!plan.targets.length) return true;
-        newTargetsChecked = true;
-        const key = plan.targets
-          .map(({ targetGroupArn, id, port }) => `${targetGroupArn} ${id}:${port}`)
+        const allowance = Math.max(
+          plan.targets.length ? LOAD_BALANCER_ROUTING_ALLOWANCE_MS : 0,
+          plan.instances.length ? API_GATEWAY_ROUTING_ALLOWANCE_MS : 0
+        );
+        if (!allowance) return true;
+        newTargetsChecked = plan.targets.length > 0;
+        newInstancesChecked = plan.instances.length > 0;
+        const key = [
+          ...plan.targets.map(({ targetGroupArn, id, port }) => `${targetGroupArn} ${id}:${port}`),
+          ...plan.instances.map(({ serviceId, instanceId }) => `${serviceId} ${instanceId}`)
+        ]
           .sort()
           .join(',');
         // A monotonic clock: the system clock can be stepped while the waiter runs.
-        if (healthyTargets?.key !== key) healthyTargets = { key, since: performance.now() };
+        if (ready?.key !== key) ready = { key, since: performance.now() };
         else if (allowanceServed) return true;
-        const allowanceLeft = healthyTargets.since + LOAD_BALANCER_ROUTING_ALLOWANCE_MS - performance.now();
+        const allowanceLeft = ready.since + allowance - performance.now();
         if (allowanceLeft <= 0) return true;
         // Waiting out the allowance here instead of for later polls finishes the deploy as soon as it has passed.
         await wait(allowanceLeft);
         // ECS can roll the deployment back meanwhile (an alarm fired, say), or another deploy can replace it, while its
-        // targets stay healthy. The next poll then reports the failure.
+        // targets stay healthy and its tasks discoverable. The next poll then reports the failure.
         const serviceState = await ecsClient.send(new DescribeServicesCommand(waiterInput));
         const [currentService] = serviceState.services ?? [];
         const currentDeployment = currentService?.deployments?.find(({ id }) => id === deployment.id);
@@ -467,13 +513,15 @@ export class AwsEcs {
         return newTasksServe(ecsClient, currentService, currentDeployment, true);
       } catch (error) {
         // A transient error is retried at the next poll; a missing permission will not change.
-        healthyTargets = undefined;
+        ready = undefined;
         if (isAccessDenied(error)) canCheckServing = false;
         return false;
       }
     };
     /** Whether the new tasks were shown to serve through load balancer targets, not only their own health. */
     let newTargetsChecked = false;
+    /** Whether API Gateway could discover the new tasks in Cloud Map. */
+    let newInstancesChecked = false;
     let finishedWhen: RollingUpdateFinish = 'rollout-completed';
     /** The waiter's deployment as last read, once a read has shown it. */
     let seenDeployment: Deployment | undefined;
@@ -544,7 +592,14 @@ export class AwsEcs {
           (await newTasksServe(ecsClient, serviceState.services[0], targetedDeployment)) ||
           (!canCheckServing && usesEarlySuccess && (await reachedEarlySuccess(ecsClient, targetDeploymentId)))
         ) {
-          finishedWhen = newTargetsChecked ? 'new-targets-healthy' : 'new-tasks-healthy';
+          finishedWhen =
+            newTargetsChecked && newInstancesChecked
+              ? 'new-targets-healthy-and-instances-discoverable'
+              : newTargetsChecked
+                ? 'new-targets-healthy'
+                : newInstancesChecked
+                  ? 'new-instances-discoverable'
+                  : 'new-tasks-healthy';
           return {
             state: WaiterState.SUCCESS,
             reason: `ECS service ${ecsServiceArn} serves the new version.`

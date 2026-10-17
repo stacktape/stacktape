@@ -100,7 +100,7 @@ Full deploys are the only mode that can add or remove resources, change IAM perm
 
 ### Fast deployments
 
-When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds. A container service runs a normal rolling deployment, and Stacktape finishes once the new containers are healthy while the old ones drain and shut down in the background ([details](/resources/compute/web-service#how-deploys-replace-containers)). Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
+When only the code of functions or container services changed, `stacktape deploy` updates them directly instead of through CloudFormation. A function update takes seconds. A container service runs a normal rolling deployment, and Stacktape finishes a few seconds after the new containers are healthy and registered with the load balancer or API Gateway, while the old ones drain and shut down in the background ([details](/resources/compute/web-service#how-deploys-replace-containers)). Stacktape decides this on its own for every deployment, using CloudFormation whenever anything else changed. It prints the reason when it does.
 
 A deployment uses CloudFormation when:
 
