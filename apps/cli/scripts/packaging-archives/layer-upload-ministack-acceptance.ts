@@ -35,6 +35,8 @@ const RETENTION_BUCKET = awsResourceNames.deploymentBucket(RETENTION_HASH);
 const FAILURE_HASH = 'failurx1';
 const FAILURE_BUCKET = awsResourceNames.deploymentBucket(FAILURE_HASH);
 const MISSING_BUCKET = awsResourceNames.deploymentBucket('missingx1');
+const DENIED_HASH = 'deniedx1';
+const DENIED_BUCKET = awsResourceNames.deploymentBucket(DENIED_HASH);
 const WORKER_TIMEOUT_MS = 120_000;
 const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
 
@@ -71,6 +73,7 @@ const main = async () => {
     bucket: BUCKET,
     retentionBucket: RETENTION_BUCKET,
     failureBucket: FAILURE_BUCKET,
+    deniedBucket: DENIED_BUCKET,
     scenarios: [],
     cleanup: 'pending'
   };
@@ -97,6 +100,9 @@ const main = async () => {
       );
       await client.send(
         new CreateBucketCommand({ Bucket: FAILURE_BUCKET, CreateBucketConfiguration: { LocationConstraint: REGION } })
+      );
+      await client.send(
+        new CreateBucketCommand({ Bucket: DENIED_BUCKET, CreateBucketConfiguration: { LocationConstraint: REGION } })
       );
       // A hand-placed root object once crashed the next deployment. It must survive artifact loading and retention.
       const note = Buffer.from('customer-owned deployment note');
@@ -399,45 +405,70 @@ const main = async () => {
       scenarios.at(-1)!.assertions = { existingVersionUploadedAgain: true, uploadedObjectSurvivedDeletion: true };
 
       const failureFixture = await writeSplitProjectFixture(join(out, 'failure-fixture'));
-      const failedRequest: DeployArtifactsRequest = {
+      /** Runs a worker whose upload must fail, and checks that it reports the failure and no success. */
+      const runFailing = async (label: string, request: Omit<DeployArtifactsRequest, 'resultPath'>) => {
+        const failedRequest: DeployArtifactsRequest = { ...request, resultPath: join(out, `${label}.result.json`) };
+        const failedRequestPath = join(out, `${label}.request.json`);
+        await writeFile(failedRequestPath, `${JSON.stringify(failedRequest, null, 2)}\n`);
+        const failedCommand = [
+          process.execPath,
+          '--preload',
+          join(CLI_ROOT, 'scripts', 'test-preload.ts'),
+          WORKER,
+          failedRequestPath
+        ];
+        const failed = Bun.spawnSync(failedCommand, {
+          cwd: failureFixture.project,
+          env: {
+            HOME: process.env.HOME ?? '',
+            PATH: failureFixture.dockerDirectory,
+            STP_FAKE_DOCKER_INSTALL: failureFixture.dockerInstall,
+            STP_FAKE_DOCKER_LOG: join(out, `${label}.docker.log`),
+            STP_INVOCATION_ID: label,
+            ...ministack!.childEnvironment()
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: WORKER_TIMEOUT_MS
+        });
+        const failedOutput = `${failed.stdout.toString()}${failed.stderr.toString()}`;
+        await writeFile(join(out, `${label}.output.log`), failedOutput);
+        scenarios.push({ label, command: failedCommand, exitCode: failed.exitCode });
+        assert.equal(failed.signalCode, undefined, `${label}: the worker timed out or was signaled`);
+        assert.notEqual(failed.exitCode, 0, `${label}: the failed upload reported success`);
+        assert.doesNotMatch(failedOutput, /Deployment artifacts uploaded/, `${label}: a failed upload printed success`);
+        assert.equal(
+          await Bun.file(failedRequest.resultPath).exists(),
+          false,
+          `${label}: a failed upload wrote a success result`
+        );
+        return failedOutput;
+      };
+      const missingBucketOutput = await runFailing('09-failed-layer-upload', {
         localAwsEndpoint: endpoint,
         stackHash: FAILURE_HASH,
         failLayerUploadToBucket: MISSING_BUCKET,
-        lastVersion: 'v000000',
-        resultPath: join(out, '09-failed-layer-upload.result.json')
-      };
-      const failedRequestPath = join(out, '09-failed-layer-upload.request.json');
-      await writeFile(failedRequestPath, `${JSON.stringify(failedRequest, null, 2)}\n`);
-      const failedCommand = [
-        process.execPath,
-        '--preload',
-        join(CLI_ROOT, 'scripts', 'test-preload.ts'),
-        WORKER,
-        failedRequestPath
-      ];
-      const failed = Bun.spawnSync(failedCommand, {
-        cwd: failureFixture.project,
-        env: {
-          HOME: process.env.HOME ?? '',
-          PATH: failureFixture.dockerDirectory,
-          STP_FAKE_DOCKER_INSTALL: failureFixture.dockerInstall,
-          STP_FAKE_DOCKER_LOG: join(out, '09-failed-layer-upload.docker.log'),
-          STP_INVOCATION_ID: '09-failed-layer-upload',
-          ...ministack.childEnvironment()
-        },
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: WORKER_TIMEOUT_MS
+        lastVersion: 'v000000'
       });
-      const failedOutput = `${failed.stdout.toString()}${failed.stderr.toString()}`;
-      await writeFile(join(out, '09-failed-layer-upload.output.log'), failedOutput);
-      scenarios.push({ label: '09-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
-      assert.equal(failed.signalCode, undefined, 'The failed upload worker timed out or was signaled');
-      assert.notEqual(failed.exitCode, 0, 'The failed S3 layer upload reported success');
-      assert.match(failedOutput, /NoSuchBucket|not exist|404/i, 'The failure did not come from the missing S3 bucket');
-      assert.doesNotMatch(failedOutput, /Deployment artifacts uploaded/, 'A failed upload printed a success message');
-      assert.equal(await Bun.file(failedRequest.resultPath).exists(), false, 'A failed upload wrote a success result');
+      assert.match(
+        missingBucketOutput,
+        /NoSuchBucket|not exist|404/i,
+        'The failure did not come from the missing S3 bucket'
+      );
       scenarios.at(-1)!.assertions = { localSdkUploadFailed: true, noSuccessResult: true, noSuccessMessage: true };
+      // A denied function upload has no retry: the deployment must stop rather than point a template at nothing.
+      const deniedOutput = await runFailing('10-denied-function-upload', {
+        localAwsEndpoint: endpoint,
+        stackHash: DENIED_HASH,
+        denyFunctionUploads: true,
+        lastVersion: 'v000000'
+      });
+      assert.match(deniedOutput, /AccessDenied: injected denial/, 'The failure did not come from the denied upload');
+      assert.ok(
+        !(await listKeys(DENIED_BUCKET)).some((key) => key.endsWith('.zip') && !key.startsWith('shared-layer-')),
+        'A denied function ZIP is stored'
+      );
+      scenarios.at(-1)!.assertions = { deniedUploadFailed: true, noSuccessResult: true, noSuccessMessage: true };
     } finally {
       client.destroy();
     }
