@@ -247,6 +247,43 @@ describe('Prisma deployment artifacts', () => {
     expect(await Bun.file(join(distFolderPath, 'generated', 'client', 'query_compiler_bg.wasm')).text()).toBe('wasm');
   });
 
+  test('copies what the generated client records, not an engine an earlier generation left behind', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-package-'));
+    temporaryDirectories.push(projectRoot);
+    const schemaDirectory = join(projectRoot, 'prisma');
+    const generatedDirectory = join(projectRoot, 'generated', 'client');
+    const distFolderPath = join(projectRoot, 'dist');
+    await Promise.all([
+      mkdir(schemaDirectory, { recursive: true }),
+      mkdir(generatedDirectory, { recursive: true }),
+      mkdir(distFolderPath, { recursive: true }),
+      writeFile(join(projectRoot, 'package.json'), '{"name":"prisma-test"}')
+    ]);
+    // The query compiler chosen outside the schema (PRISMA_CLIENT_ENGINE_TYPE or the queryCompiler preview feature).
+    await writeFile(
+      join(schemaDirectory, 'schema.prisma'),
+      'generator client {\n  provider = "prisma-client-js"\n  output   = "../generated/client"\n}'
+    );
+    await Promise.all([
+      writeFile(join(generatedDirectory, 'index.js'), 'const config = {\n  "engineType": "client",\n}'),
+      writeFile(join(generatedDirectory, 'query_compiler_bg.wasm'), 'wasm'),
+      writeFile(join(generatedDirectory, 'libquery_engine-rhel-openssl-3.0.x.so.node'), 'stale engine'),
+      writeFile(join(generatedDirectory, 'schema.prisma'), 'generated schema copy')
+    ]);
+
+    await resolvePrisma({
+      createPackagingError: ({ message }) => new Error(message),
+      distFolderPath,
+      workingDir: projectRoot,
+      workloadName: 'prismaFunction',
+      isLambda: true,
+      architecture: 'x64'
+    });
+
+    expect(await Bun.file(join(distFolderPath, 'generated', 'client', 'query_compiler_bg.wasm')).text()).toBe('wasm');
+    expect(await readdir(distFolderPath)).toEqual(['generated']);
+  });
+
   test('preserves the semantic packaging error when a generated query compiler is missing', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-package-'));
     temporaryDirectories.push(projectRoot);

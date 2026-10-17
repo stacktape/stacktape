@@ -39,6 +39,28 @@ export const createNativeNodeModulesPlugin = (): BunPlugin => ({
 export const PRISMA_LAMBDA_CLIENT_DIRECTORY = '.prisma/client';
 
 /**
+ * What a generated `prisma-client-js` client (Prisma 5 and 6) needs at run time, from the configuration it records in
+ * its `index.js`: `"engineType"` (every version since 5.0) and `"copyEngine"` (5.2 and later; `false` after
+ * `prisma generate --no-engine`). The files in the client's directory cannot tell: regenerating with another engine
+ * type leaves the old engine behind.
+ *
+ * - `query-engine`: the library or binary query engine, found beside `schema.prisma`;
+ * - `query-compiler`: `engineType = "client"`, whose `query_compiler_bg.wasm` stays under the generator output;
+ * - `no-engine`: a client for Prisma Accelerate, which loads nothing from disk.
+ *
+ * `undefined` when the source records no engine type, as a file that is not a generated client does not.
+ */
+export const getPrismaClientEngine = (
+  indexSource: string
+): 'query-engine' | 'query-compiler' | 'no-engine' | undefined => {
+  // The inlined schema is an escaped string, so its own `engineType = "client"` never matches.
+  const engineType = indexSource.match(/"engineType": "(\w+)"/)?.[1];
+  if (engineType === undefined) return undefined;
+  if (engineType === 'client') return 'query-compiler';
+  return /"copyEngine": false\b/.test(indexSource) ? 'no-engine' : 'query-engine';
+};
+
+/**
  * Prisma's generated client (`prisma-client-js`, Prisma 5 and 6) looks for its engine beside `schema.prisma`: in its
  * own directory, or, when bundled code finds no schema there, in a directory relative to the working directory. That
  * name comes from where `prisma generate` ran and can lead outside the artifact, and a split build can put the client
@@ -46,9 +68,11 @@ export const PRISMA_LAMBDA_CLIENT_DIRECTORY = '.prisma/client';
  * from the function and from a layer alike.
  *
  * Prisma 5.0.0 assigns that one directory; later versions try each of their `alternativePaths`. A client generated with
- * a query engine and neither shape fails the build, because it would deploy and then find no schema. A client without
- * an engine (the query compiler) is left alone: it finds its `query_compiler_bg.wasm` where the build copied it, under
- * the generator output.
+ * a query engine and neither shape fails the build, because it would deploy and then find no schema. Only a client
+ * whose configuration names a query engine ({@link getPrismaClientEngine}) is rewritten, the same decision
+ * `resolvePrisma` copies the engine by. The query compiler is left alone: it finds its `query_compiler_bg.wasm` where
+ * the build copied it, under the generator output. A client that records no engine type counts as one with an engine
+ * when an engine file lies beside it.
  */
 export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
   name: 'stacktape-prisma-lambda-client',
@@ -56,9 +80,13 @@ export const createPrismaLambdaClientPlugin = (): BunPlugin => ({
     build.onLoad({ filter: /[\\/]index\.js$/ }, async ({ path }) => {
       const clientDirectory = dirname(path);
       if (!existsSync(join(clientDirectory, 'schema.prisma'))) return undefined;
-      const files = await readdir(clientDirectory);
-      if (!files.some((file) => /^(?:libquery_engine|query-engine|query_engine)-/.test(file))) return undefined;
       const source = await readFile(path, 'utf8');
+      const engine =
+        getPrismaClientEngine(source) ??
+        ((await readdir(clientDirectory)).some((file) => /^(?:libquery_engine|query-engine|query_engine)-/.test(file))
+          ? 'query-engine'
+          : undefined);
+      if (engine !== 'query-engine') return undefined;
       const location = JSON.stringify(PRISMA_LAMBDA_CLIENT_DIRECTORY);
       const contents = source
         .replace(

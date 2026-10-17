@@ -9,7 +9,7 @@ import type {
   ResolvedPackageDependency,
   SupportedEsPackageManager
 } from '../../runtime-contracts';
-import { isBareImportSpecifier, PRISMA_LAMBDA_CLIENT_DIRECTORY } from '../../es/bun-plugins';
+import { getPrismaClientEngine, isBareImportSpecifier, PRISMA_LAMBDA_CLIENT_DIRECTORY } from '../../es/bun-plugins';
 import { getModuleName, isNodeBuiltinImport } from '../../es/import-classification';
 import { findInstalledPackage, readPackageManifest } from '../../es/installed-packages';
 import { getMatchingFilesByGlob } from '../../fs/files';
@@ -273,7 +273,7 @@ export const resolvePrisma = async ({
   logDebug(`Parsed Prisma schema file: ${JSON.stringify(parsedPrismaSchemaFile)}`);
 
   if (parsedPrismaSchemaFile) {
-    const { output, prismaSchemaFilePath, engineType, provider } = parsedPrismaSchemaFile;
+    const { engineType, provider } = parsedPrismaSchemaFile;
     if (provider === 'prisma-client') {
       if (engineType === 'client') {
         logDebug('Prisma schema explicitly uses the TypeScript client engine; no runtime binary copy is required.');
@@ -302,26 +302,6 @@ export const resolvePrisma = async ({
         hint: 'Remove engineType and use Prisma’s default TypeScript query compiler with a driver adapter.'
       });
     }
-    if (engineType === 'client' && provider === 'prisma-client-js') {
-      try {
-        if (!output) {
-          throw new Error('Prisma client output is missing.');
-        }
-        const from = resolve(getFolder(prismaSchemaFilePath), output, 'query_compiler_bg.wasm');
-        const relative = getPathRelativeTo(from, projectRoot);
-        return await copyToDeploymentPackage({
-          from,
-          to: join(distFolderPath, relative)
-        });
-      } catch (cause) {
-        throw createPackagingError({
-          type: 'PACKAGING',
-          message: `Failed to copy Prisma query compiler files for resource ${workloadName}.`,
-          hint: 'Run Prisma generate and verify that the configured client output contains query_compiler_bg.wasm.',
-          cause
-        });
-      }
-    }
   }
 
   // `prisma-client-js` generates into `.prisma/client` beside the installed `@prisma/client` unless the schema sets
@@ -334,6 +314,33 @@ export const resolvePrisma = async ({
     : installedClient
       ? join(installedClient, '..', '..', '.prisma', 'client')
       : join(projectRoot, 'node_modules', '.prisma', 'client');
+  // The generated client says which engine it loads; `createPrismaLambdaClientPlugin` decides by the same record, so
+  // the files copied here are the ones the bundled client looks for. The schema decides only before generation.
+  const generatedEngine = await readFile(join(generatedClientDirectory, 'index.js'), 'utf8').then(
+    getPrismaClientEngine,
+    () => undefined
+  );
+  const engine =
+    generatedEngine ?? (parsedPrismaSchemaFile?.engineType === 'client' ? 'query-compiler' : 'query-engine');
+  logDebug(`Prisma client in ${generatedClientDirectory} uses: ${engine}.`);
+  if (engine === 'no-engine') return;
+  if (engine === 'query-compiler') {
+    try {
+      const from = join(generatedClientDirectory, 'query_compiler_bg.wasm');
+      return await copyToDeploymentPackage({
+        from,
+        to: join(distFolderPath, getPathRelativeTo(from, projectRoot))
+      });
+    } catch (cause) {
+      throw createPackagingError({
+        type: 'PACKAGING',
+        message: `Failed to copy Prisma query compiler files for resource ${workloadName}.`,
+        hint: 'Run Prisma generate and verify that the configured client output contains query_compiler_bg.wasm.',
+        cause
+      });
+    }
+  }
+
   const target = getPrismaEngineTarget({ isAlpine, isLambda, architecture });
   const generatedClientFiles = await readdir(generatedClientDirectory).catch(() => [] as string[]);
   const availableEngines = generatedClientFiles.filter((fileName) => {
