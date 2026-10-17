@@ -13,8 +13,14 @@ import {
 import type { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import type { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
-import { GetInstancesHealthStatusCommand } from '@aws-sdk/client-servicediscovery';
 import {
+  DiscoverInstancesCommand,
+  GetInstancesHealthStatusCommand,
+  GetNamespaceCommand,
+  GetServiceCommand
+} from '@aws-sdk/client-servicediscovery';
+import {
+  API_GATEWAY_ROUTING_ALLOWANCE_MS,
   AwsEcs,
   LOAD_BALANCER_ROUTING_ALLOWANCE_MS,
   type NewTasksServingPlan,
@@ -53,6 +59,55 @@ const ecsWith = ({
 
 const TARGET_GROUP = 'arn:aws:elasticloadbalancing:eu-west-1:123456789999:targetgroup/api/1';
 const REGISTRY = 'arn:aws:servicediscovery:eu-west-1:123456789999:service/srv-api';
+const DISCOVERY_NAMES = { NamespaceName: 'app-stage-private-namespace', ServiceName: 'ApiPort3000Discovery' };
+/**
+ * Cloud Map as ECS and API Gateway see it. `discoverable(read)` lists the instances `DiscoverInstances` returns, as API
+ * Gateway calls it; the health status Cloud Map reports for the new instance `a` is HEALTHY from the start, as it can be
+ * long before API Gateway may route to it. `DiscoverInstances` finds the namespace by its HTTP name, which AWS can make
+ * differ from its name.
+ */
+const cloudMapWith = (
+  discoverable: (read: number) => string[],
+  namespace: { Name: string; HttpName: string } = {
+    Name: DISCOVERY_NAMES.NamespaceName,
+    HttpName: DISCOVERY_NAMES.NamespaceName
+  }
+) => {
+  const discoverReads: number[] = [];
+  const send = (async (command: unknown) => {
+    if (command instanceof GetServiceCommand) {
+      expect(command.input).toEqual({ Id: 'srv-api' });
+      return { Service: { Id: 'srv-api', Name: DISCOVERY_NAMES.ServiceName, NamespaceId: 'ns-app' } };
+    }
+    if (command instanceof GetNamespaceCommand) {
+      expect(command.input).toEqual({ Id: 'ns-app' });
+      return {
+        Namespace: {
+          Id: 'ns-app',
+          Name: namespace.Name,
+          Properties: { HttpProperties: { HttpName: namespace.HttpName } }
+        }
+      };
+    }
+    if (command instanceof GetInstancesHealthStatusCommand) return { Status: { a: 'HEALTHY', old: 'HEALTHY' } };
+    if (command instanceof DiscoverInstancesCommand) {
+      if (command.input.NamespaceName !== namespace.HttpName) {
+        throw Object.assign(new Error('Namespace not found'), { name: 'NamespaceNotFound' });
+      }
+      expect(command.input).toEqual({
+        NamespaceName: namespace.HttpName,
+        ServiceName: DISCOVERY_NAMES.ServiceName,
+        HealthStatus: 'HEALTHY_OR_ELSE_ALL',
+        MaxResults: 1000
+      });
+      const instances = discoverable(discoverReads.length);
+      discoverReads.push(performance.now());
+      return { Instances: instances.map((InstanceId) => ({ InstanceId })) };
+    }
+    throw new Error(`Unexpected Cloud Map call ${(command as object).constructor.name}`);
+  }) as ServiceDiscoverySend;
+  return { send, discoverReads };
+};
 const TASK_DEFINITION = 'arn:aws:ecs:eu-west-1:123456789999:task-definition/api:2';
 const newTask = (id: string, overrides: Partial<Task> = {}): Task => ({
   taskArn: `arn:aws:ecs:eu-west-1:123456789999:task/application/${id}`,
@@ -483,13 +538,12 @@ describe('a rolling update that finishes once the new tasks serve', () => {
     throw new Error(`Unexpected ECS call ${(command as object).constructor.name}`);
   }) as EcsSend;
 
-  test('finishes when the target and the Cloud Map instance are healthy while the old task still runs', async () => {
+  test('finishes when the target is healthy and the Cloud Map instance discoverable while the old task still runs', async () => {
     // ECS keeps the rollout IN_PROGRESS (and, with early success, the service deployment too) until the old task has
     // drained and stopped, well after the load balancer started sending requests to the new one.
     const targetStates = ['initial', 'healthy'];
-    const instanceStates = ['UNHEALTHY', 'HEALTHY'];
     let targetReads = 0;
-    let instanceReads = 0;
+    const cloudMap = cloudMapWith((read) => (read === 0 ? ['old'] : ['a']));
     const ecs = ecsWith({
       ecsSend,
       elbSend: (async (command: DescribeTargetHealthCommand) => {
@@ -498,18 +552,91 @@ describe('a rolling update that finishes once the new tasks serve', () => {
         const State = targetStates[targetReads++] ?? 'healthy';
         return { TargetHealthDescriptions: [{ Target: { Id: ipOfTask(task), Port: 3000 }, TargetHealth: { State } }] };
       }) as ElbSend,
-      serviceDiscoverySend: (async (command: GetInstancesHealthStatusCommand) => {
-        expect(command.input).toEqual({ ServiceId: 'srv-api', Instances: ['a'] });
-        return { Status: { a: instanceStates[instanceReads++] ?? 'HEALTHY' } };
-      }) as ServiceDiscoverySend
+      serviceDiscoverySend: cloudMap.send
     });
 
     expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
-      finishedWhen: 'new-targets-healthy'
+      finishedWhen: 'new-targets-healthy-and-instances-discoverable'
     });
-    // The second read finds both healthy; the third confirms them after the routing allowance.
+    // The second read finds both ready; the third confirms them after the routing allowance.
     expect(targetReads).toBe(3);
-    expect(instanceReads).toBe(3);
+    expect(cloudMap.discoverReads.length).toBe(3);
+  }, 30_000);
+
+  // Behind an HTTP API, API Gateway finds the tasks with DiscoverInstances. Cloud Map can report the new task healthy
+  // while DiscoverInstances still returns only the old one, and API Gateway then sends every request to the old task.
+  const behindHttpApi = (
+    discoverable: (read: number) => string[],
+    deploymentAt: (poll: number) => Record<string, unknown> = () => ({}),
+    namespace?: Parameters<typeof cloudMapWith>[1]
+  ) => {
+    const service = { ...describedService.services[0], loadBalancers: [] };
+    const [primary, ...rest] = service.deployments;
+    let polls = 0;
+    const cloudMap = cloudMapWith(discoverable, namespace);
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          return { services: [{ ...service, deployments: [{ ...primary, ...deploymentAt(polls) }, ...rest] }] };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      serviceDiscoverySend: cloudMap.send
+    });
+    return { ecs, discoverReads: cloudMap.discoverReads, polls: () => polls };
+  };
+
+  test('finishes behind an HTTP API once API Gateway can discover the new task, plus the routing allowance', async () => {
+    const { ecs, discoverReads } = behindHttpApi((read) => (read < 2 ? ['old'] : ['a']));
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-instances-discoverable'
+    });
+    const waited = performance.now() - discoverReads[2]!;
+    // Two reads still return the old task; the fourth confirms the new one after the allowance.
+    expect(discoverReads.length).toBe(4);
+    // Timers may fire a millisecond early.
+    expect(waited).toBeGreaterThanOrEqual(API_GATEWAY_ROUTING_ALLOWANCE_MS - 10);
+    expect(waited).toBeLessThan(API_GATEWAY_ROUTING_ALLOWANCE_MS + 1000);
+  }, 30_000);
+
+  test('discovers the new task in a namespace whose HTTP name differs from its name', async () => {
+    // A reused namespace name gets a hash appended to its HTTP name. Asking for the plain name finds no namespace, and
+    // the deploy would wait for ECS to complete the rollout.
+    const { ecs, discoverReads } = behindHttpApi(
+      () => ['a'],
+      (poll) => (poll >= 4 ? { rolloutState: 'COMPLETED' } : {}),
+      { Name: DISCOVERY_NAMES.NamespaceName, HttpName: `${DISCOVERY_NAMES.NamespaceName}-c3f1a2` }
+    );
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-instances-discoverable'
+    });
+    expect(discoverReads.length).toBe(2);
+  }, 30_000);
+
+  test('restarts the API Gateway allowance when the new task is no longer discoverable', async () => {
+    const { ecs, discoverReads } = behindHttpApi((read) => (read === 1 ? ['old'] : ['a']));
+
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).toEqual({
+      finishedWhen: 'new-instances-discoverable'
+    });
+    expect(discoverReads.length).toBe(4);
+    expect(performance.now() - discoverReads[2]!).toBeGreaterThanOrEqual(API_GATEWAY_ROUTING_ALLOWANCE_MS - 10);
+  }, 30_000);
+
+  test('fails an HTTP API deployment ECS rolls back during the API Gateway allowance', async () => {
+    const { ecs, polls } = behindHttpApi(
+      () => ['a'],
+      (poll) => (poll === 1 ? {} : { rolloutState: 'FAILED', rolloutStateReason: 'Alarm api-5xx in ALARM' })
+    );
+
+    await expect(ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).rejects.toThrow(
+      `ECS service ${serviceArn} failed to update.`
+    );
+    // The re-read after the allowance sees the rollback; the next poll reports it.
+    expect(polls()).toBe(3);
   }, 30_000);
 
   // DescribeTargetHealth reported a new target healthy up to 2.7 seconds before the load balancer sent it the first
