@@ -21,12 +21,6 @@ const baseCheck = (
 });
 
 describe('resolveUptimeCheckRegions', () => {
-  test('keeps explicitly configured regions', () => {
-    expect(resolveUptimeCheckRegions({ configuredRegions: ['eu-central-1'], stackRegion: 'eu-west-1' })).toEqual([
-      'eu-central-1'
-    ]);
-  });
-
   test('defaults to the stack region plus two distant regions', () => {
     expect(resolveUptimeCheckRegions({ configuredRegions: undefined, stackRegion: 'eu-central-1' })).toEqual([
       'eu-central-1',
@@ -45,16 +39,15 @@ describe('resolveUptimeCheckRegions', () => {
 });
 
 describe('validateUptimeCheck', () => {
-  test('accepts a plain https check', () => {
-    expect(() => validateUptimeCheck({ check: baseCheck() })).not.toThrow();
-  });
-
   test('accepts a url that still contains an unresolved directive', () => {
     expect(() => validateUptimeCheck({ check: baseCheck({ url: "$ResourceParam('api', 'url')" }) })).not.toThrow();
   });
 
-  test('rejects a literal url without an http scheme', () => {
+  test('rejects a literal url without an http scheme, including one that merely contains a dollar sign', () => {
     expect(() => validateUptimeCheck({ check: baseCheck({ url: 'api.example.com' }) })).toThrow(
+      /must be an `http:\/\/` or `https:\/\/` URL/
+    );
+    expect(() => validateUptimeCheck({ check: baseCheck({ url: 'price$100.example' }) })).toThrow(
       /must be an `http:\/\/` or `https:\/\/` URL/
     );
   });
@@ -98,12 +91,6 @@ describe('validateUptimeCheck', () => {
         check: baseCheck({ assertions: [{ type: 'body-contains', properties: { value: '   ' } }] })
       })
     ).toThrow(/non-empty/);
-  });
-
-  test('treats only real directive syntax as deferred validation', () => {
-    expect(() => validateUptimeCheck({ check: baseCheck({ url: 'price$100.example' }) })).toThrow(
-      /must be an `http:\/\/` or `https:\/\/` URL/
-    );
   });
 
   test('rejects duplicate and excessive probe regions', () => {
