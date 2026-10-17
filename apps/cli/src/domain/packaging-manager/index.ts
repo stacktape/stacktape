@@ -662,6 +662,8 @@ export class PackagingManager {
     const tsConfigPath = explicitTsConfigPath ?? (existsSync(defaultTsConfigPath) ? defaultTsConfigPath : undefined);
 
     const endSplitBuild = startTiming('split:build', { functions: entrypoints.length });
+    // Every function in a split build has the same architecture.
+    const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
     const splitResult = await buildSplitBundle({
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
@@ -676,6 +678,7 @@ export class PackagingManager {
       dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
       isLambda: true,
       nodeTarget: nodeVersion,
+      architecture,
       packageAnalysisCache,
       installDependencies: async () => {
         // Each entry file resolves against its own package; the installer joins repeated roots.
@@ -708,8 +711,6 @@ export class PackagingManager {
           dependencies: output.externalDependencies
         }))
       );
-      // Every function in a split build has the same architecture.
-      const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
       const plans = await Promise.all(
         dependencyGroups.map(({ dependencies, lambdaNames }) =>
           planLambdaDependencies({

@@ -203,7 +203,7 @@ export default defineConfig(() => {
       entryfilePath: './src/api.ts',
       nodeVersion: 22,
       outputModuleFormat: 'esm',
-      dependenciesToExcludeFromBundle: ['@prisma/client'],
+      dependenciesToExcludeFromBundle: ['dd-trace'],
       tsConfigPath: './tsconfig.json'
     }),
     memory: 1024,
@@ -219,7 +219,7 @@ export default defineConfig(() => {
   ]}
 />
 
-This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the Node.js version the bundle targets. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package, which is the safer path for packages with native binaries like `@prisma/client`. Setting `tsConfigPath` lets the bundler resolve TypeScript path aliases during bundling.
+This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the Node.js version the bundle targets. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package. An APM agent such as `dd-trace` needs this, because it instruments other modules as they load from `node_modules`. Setting `tsConfigPath` lets the bundler resolve TypeScript path aliases during bundling.
 
 <Info>
 
@@ -281,7 +281,7 @@ AWS Lambda allows 250 MB unzipped for a function and all its layers together. It
 
 ### How do I handle native binary dependencies like sharp or Prisma?
 
-Add native binary packages to `dependenciesToExcludeFromBundle`. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. If a dependency works locally but fails in Lambda with a binary error, excluding it from the bundle is usually the fix.
+Usually you don't need to do anything. Stacktape detects packages that load native binaries or read their own files at run time, keeps them out of the bundle and installs them for the function's platform. Prisma's client is bundled, and the function gets the query engine for its architecture. With Prisma 5 or 6, add `rhel-openssl-3.0.x` (x86_64) or `linux-arm64-openssl-3.0.x` (arm64) to `binaryTargets` in `schema.prisma`; Prisma 7 needs no engine. If a dependency still works locally but fails in Lambda, add it to `dependenciesToExcludeFromBundle` to install it beside the bundle.
 
 ### My function runs an older AWS SDK than the one in my package.json — why?
 

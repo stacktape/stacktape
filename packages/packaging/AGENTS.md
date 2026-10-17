@@ -24,6 +24,10 @@ reads global invocation state.
 They ask the same question of every bare import — bundle it, leave it to the runtime, or externalize and install it —
 and they differ only in where the answer is recorded, flat arrays against per-importer attribution.
 
+A subpath import (`#name`) that the importing package's `imports` map points at a package is asked about that package,
+and an import left out of the bundle is written with the package's own name, because the artifact keeps no `imports`
+map.
+
 That decision lives once, in `es/import-classification`, and the plugins both call it. Add a rule there, never in a
 plugin: two copies of these rules drifted for months and shipped the AWS SDK in every split artifact. `es/bun-plugins`
 holds the plugins both builds install for the same reason. Where the two must genuinely differ, say so at the call site
@@ -84,6 +88,12 @@ caches or produce artifacts that deploy but cannot load. Preserve these contract
 - what a split build must do besides bundling — Prisma engines, the tracing wrapper, file selection — is what the
   per-Lambda buildpack does after its own bundle; anything missing here is a function that deploys and then fails, so a
   split build either does it or the CLI's policy keeps that function off this path;
+- a Lambda carries Prisma's engine and schema in `.prisma/client` under `/var/task`, and its bundled client is pointed
+  there, because a split build can move the client into a layer under `/opt`; an image keeps them beside its bundle. A
+  client with an engine whose generated fallback the build does not recognize fails the build, and a query-compiler
+  client keeps its own fallback. Which engine a client has comes from the configuration its `index.js` records, however
+  a tool reformatted it, for the files copied and the rewrite alike (`getPrismaClientEngine`), never from the files
+  beside it: regenerating leaves the previous engine there. A Lambda client whose engine cannot be read fails the build;
 - split chunks promoted into a layer carry their dependency closure;
 - a chunk that cannot be packed is un-layered together with its importers;
 - layer files use the `nodejs/chunks` layout expected by Lambda;

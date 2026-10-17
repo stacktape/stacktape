@@ -4,8 +4,8 @@
  *   Rust through cargo-lambda) run their artifact in a matching runtime image; the Go and Rust `bootstrap` are invoked through
  *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
  * - Python dependencies, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
- * - the `js-bundle` image runs its entry file, a server in it stops promptly under the init process ECS starts, and a
- *   Prisma 5 client runs a query in the Alpine image;
+ * - the `js-bundle` image runs its entry file, a server in it stops promptly under the init process ECS starts, and
+ *   bundled Prisma 5 and 6 clients run a query in the Alpine image, Prisma 6 also on Bun;
  * - the container `buildpack` (Railpack) builds a FastAPI app, a Node.js app and a PHP app, which must answer HTTP. Python
  *   apps are built on the official slim image: pip and uv projects run, a source-only change reuses the installed
  *   dependencies, and a dependency without a wheel is compiled with the fallback build tools. The Node.js
@@ -1202,68 +1202,104 @@ async function buildpackScenarios() {
     await assertStopsPromptly({ imageTag: alpineImageTag, ready: 'es-alpine-server-ready' });
     record('js-bundle-node24-alpine-image', alpineImageOutput);
 
-    // Prisma 5 finds the OpenSSL version through the `openssl` command on Alpine; without it the client picks the
-    // OpenSSL 1.1 engine, which is not there. The client is installed in the image, as the documentation shows.
-    console.log('Building a Prisma 5 js-bundle image on Alpine and running a SQLite query in it...');
-    const prismaRoot = join(projectsRoot, 'es-image-prisma5');
-    await write(
-      join(prismaRoot, 'package.json'),
-      JSON.stringify({ name: 'prisma5', private: true, dependencies: { prisma: '5.22.0', '@prisma/client': '5.22.0' } })
+    // Prisma 5 and 6 are bundled, as the default leaves them, and run a SQLite query. Prisma 5 finds the OpenSSL
+    // version through the `openssl` command on Alpine, without which it picks the OpenSSL 1.1 engine that is not there,
+    // and looks for its engine through `eval("__dirname")`. Prisma 6's generated client loads itself through
+    // `#main-entry-point`, a subpath import of its own package. Bun runs on Debian and needs the Debian engine.
+    const prismaRoots = new Map(
+      await Promise.all(
+        ['5.22.0', '6.19.3'].map(async (prisma) => {
+          const prismaRoot = join(projectsRoot, `es-image-prisma${prisma}`);
+          await Promise.all([
+            write(
+              join(prismaRoot, 'package.json'),
+              JSON.stringify({
+                name: 'prisma',
+                private: true,
+                dependencies: { '@prisma/client': prisma },
+                devDependencies: { prisma }
+              })
+            ),
+            write(
+              join(prismaRoot, 'prisma', 'schema.prisma'),
+              [
+                'generator client {',
+                '  provider      = "prisma-client-js"',
+                '  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]',
+                '}',
+                'datasource db {',
+                '  provider = "sqlite"',
+                '  url      = "file:/tmp/app.db"',
+                '}',
+                'model Item {',
+                '  id   Int    @id @default(autoincrement())',
+                '  name String',
+                '}',
+                ''
+              ].join('\n')
+            ),
+            write(
+              join(prismaRoot, 'src', 'index.ts'),
+              [
+                "import { PrismaClient } from '@prisma/client';",
+                'const prisma = new PrismaClient();',
+                `await prisma.$executeRawUnsafe('CREATE TABLE "Item" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL)');`,
+                "await prisma.item.create({ data: { name: 'from-image' } });",
+                "console.log('es-prisma-ok:' + (await prisma.item.count()));",
+                'await prisma.$disconnect();',
+                ''
+              ].join('\n')
+            )
+          ]);
+          await run('npm', ['install', '--no-audit', '--no-fund'], prismaRoot);
+          await run('npx', ['prisma', 'generate'], prismaRoot);
+          return [prisma, prismaRoot] as const;
+        })
+      )
     );
-    await write(
-      join(prismaRoot, 'prisma', 'schema.prisma'),
-      [
-        'generator client {',
-        '  provider      = "prisma-client-js"',
-        '  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]',
-        '}',
-        'datasource db {',
-        '  provider = "sqlite"',
-        '  url      = "file:/tmp/app.db"',
-        '}',
-        'model Item {',
-        '  id   Int    @id @default(autoincrement())',
-        '  name String',
-        '}',
-        ''
-      ].join('\n')
-    );
-    await write(
-      join(prismaRoot, 'src', 'index.ts'),
-      [
-        "import { PrismaClient } from '@prisma/client';",
-        'const prisma = new PrismaClient();',
-        `await prisma.$executeRawUnsafe('CREATE TABLE "Item" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL)');`,
-        "await prisma.item.create({ data: { name: 'from-image' } });",
-        "console.log('es-prisma5-alpine-ok:' + (await prisma.item.count()));",
-        'await prisma.$disconnect();',
-        ''
-      ].join('\n')
-    );
-    await run('npm', ['install', '--no-audit', '--no-fund'], prismaRoot);
-    await run('npx', ['prisma', 'generate'], prismaRoot);
-    const prismaImageTag = `stacktape-buildpack-smoke-js-bundle-prisma5:${runId}`;
-    const prismaImageOutput = await buildJsBundleImage({
-      ...common,
-      cwd: prismaRoot,
-      name: prismaImageTag,
-      entryfilePath: join(prismaRoot, 'src', 'index.ts'),
-      distFolderPath: join(artifactsRoot, 'es-image-prisma5'),
-      nodeVersion: 24,
-      outputModuleFormat: 'esm',
-      dependenciesToExcludeFromBundle: ['@prisma/client'],
-      buildDockerImage,
-      checkDockerImageExists: async () => false,
-      getDockerImageDetails,
-      installDependencies: async () => undefined,
-      nativeDependencyInstallationRootPath: join(artifactsRoot, 'es-native-install-prisma5'),
-      minify: true,
-      nodeTarget: '24',
-      requiresGlibcBinaries: false,
-      runtimeTools: { tini: false, curl: false }
-    });
-    await assertRunOutput({ dockerArgs: ['--init', prismaImageTag], expected: 'es-prisma5-alpine-ok:1' });
-    record('js-bundle-node24-alpine-prisma5-image', prismaImageOutput);
+    const buildAndRunPrismaImage = async ({ prisma, runtime }: { prisma: string; runtime: 'node' | 'bun' }) => {
+      const label = `prisma${prisma.split('.')[0]}-${runtime}`;
+      console.log(
+        `Building a bundled Prisma ${prisma} js-bundle image on ${runtime} and running a SQLite query in it...`
+      );
+      const prismaRoot = prismaRoots.get(prisma)!;
+      const distFolderPath = join(artifactsRoot, `es-image-${label}`);
+      const prismaImageTag = `stacktape-buildpack-smoke-js-bundle-${label}:${runId}`;
+      const prismaImageOutput = await buildJsBundleImage({
+        ...common,
+        cwd: prismaRoot,
+        name: prismaImageTag,
+        entryfilePath: join(prismaRoot, 'src', 'index.ts'),
+        distFolderPath,
+        nodeVersion: 24,
+        outputModuleFormat: 'esm',
+        runtime,
+        buildDockerImage,
+        checkDockerImageExists: async () => false,
+        getDockerImageDetails,
+        installDependencies: async () => undefined,
+        nativeDependencyInstallationRootPath: join(artifactsRoot, `es-native-install-${label}`),
+        minify: true,
+        nodeTarget: '24',
+        requiresGlibcBinaries: false,
+        dockerBuildOutputArchitecture: 'linux/amd64',
+        runtimeTools: { tini: false, curl: false }
+      });
+      await assertRunOutput({ dockerArgs: ['--init', prismaImageTag], expected: 'es-prisma-ok:1' });
+      // The image carries the one engine its platform loads.
+      const engines = (await readdir(distFolderPath)).filter((file) => file.includes('query_engine'));
+      const expectedEngine = `libquery_engine-${runtime === 'bun' ? 'debian' : 'linux-musl'}-openssl-3.0.x.so.node`;
+      assert.deepEqual(engines, [expectedEngine], `${label} image engines`);
+      record(`js-bundle-${label}-image`, prismaImageOutput);
+    };
+    for (const image of [
+      { prisma: '5.22.0', runtime: 'node' },
+      { prisma: '6.19.3', runtime: 'node' },
+      { prisma: '6.19.3', runtime: 'bun' }
+    ] as const) {
+      // oxlint-disable-next-line no-await-in-loop -- one Docker build at a time keeps the daemon load bounded.
+      await buildAndRunPrismaImage(image);
+    }
 
     for (const runtime of ['bun', 'deno'] as const) {
       console.log(`Building and executing a synthetic js-bundle image on the ${runtime} runtime...`);

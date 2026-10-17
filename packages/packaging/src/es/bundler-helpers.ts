@@ -201,9 +201,15 @@ export const getDefaultExportEdit = (content: string): TextEdit | null => {
 /** A CommonJS bundle gets `__dirname` and `__filename` from Node.js; the build redirects both identifiers here. */
 export const CJS_PATH_BANNER = 'var __stp_dirname = __dirname, __stp_filename = __filename;';
 
+/**
+ * An ES module has no `require`, `__filename` or `__dirname`; the build redirects the last two identifiers to the
+ * `__stp_` names. Code that reaches them through `eval`, as Prisma 5 does to find its query engine, sees the plain names,
+ * which Bun never gives a bundled module's own declarations.
+ */
 export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";
 import { fileURLToPath as __stp_fileURLToPath } from "node:url";
 import { dirname as __stp_pathDirname } from "node:path";
 const require = __stp_createRequire(import.meta.url);
 const __stp_filename = __stp_fileURLToPath(import.meta.url);
-const __stp_dirname = __stp_pathDirname(__stp_filename);`;
+const __stp_dirname = __stp_pathDirname(__stp_filename);
+const __filename = __stp_filename, __dirname = __stp_dirname;`;

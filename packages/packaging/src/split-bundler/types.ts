@@ -189,6 +189,8 @@ export type BuildSplitBundleOptions = {
   isLambda?: boolean | undefined;
   /** Node major version the artifacts run on: `24`, `'24'` or `'nodejs24.x'`. */
   nodeTarget?: number | string | undefined;
+  /** The CPU every function of the build runs on; it selects the Prisma query engine each one carries. */
+  architecture?: 'x64' | 'arm64' | undefined;
   /** Application action run before Bun resolves the entrypoints. */
   installDependencies: () => Promise<void>;
   /** Preserves the application's typed PACKAGING error contract without importing application code. */

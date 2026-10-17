@@ -4,11 +4,15 @@
  * Lambda runtime. On this Linux x64 host, native packages that were installed for Linux (bcrypt's prebuilds, a napi-rs
  * platform package), pdfkit and uglify-js, which read their own files, and a scoped package excluded from the
  * bundle are copied from node_modules without Docker, while better-sqlite3, whose addon prebuild-install fetched
- * for this machine's Node.js into build/, is installed again in the Lambda build image, for x64 and for arm64.
+ * for this machine's Node.js into build/, is installed again in the Lambda build image, for x64 and for arm64. A
+ * bundled Prisma 6 client and a bundled Prisma 5.0.0 client, which generates a different fallback for its engine, each
+ * run a query from the per-function build and from two split functions whose shared Prisma code is in a layer, each
+ * function with only its own query engine. A Prisma 6 query-compiler client, generated where a library engine was
+ * generated before, runs the same queries with only its compiler.
  */
 import { mkdtemp, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
 import { buildNativeBinaryLayer, planLambdaDependencies, writeLambdaDependencies } from '../src/es/native-dependencies';
 import type { RunDocker } from '../src/runtime-contracts';
@@ -18,6 +22,7 @@ import { createLayerArtifacts } from '../src/split-bundler/layer-builder';
 import {
   archiveItem,
   assertRunOutput,
+  buildSplitProjectWithLayers,
   createPackagingError,
   progressLogger,
   run,
@@ -26,10 +31,35 @@ import {
 } from './e2e-helpers';
 
 const root = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-e2e-'));
+// Its own project: a second schema in `root` would be a second schema to the Prisma 6 build.
+const prisma5Root = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-e2e-prisma5-'));
+const prismaCompilerRoot = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-e2e-prisma-compiler-'));
 const sourceRoot = join(root, 'src');
 const buildRoot = join(root, 'build');
 const nativeInstallationRoot = join(buildRoot, 'native-installations');
 const containers = new Set<string>();
+
+/** A SQLite schema for `prisma-client-js` with the engines for this machine and both Lambda architectures. */
+const writePrismaSchema = (project: string, generatorLines: string[] = []) =>
+  write(
+    join(project, 'prisma', 'schema.prisma'),
+    [
+      'generator client {',
+      '  provider      = "prisma-client-js"',
+      '  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]',
+      ...generatorLines,
+      '}',
+      'datasource db {',
+      '  provider = "sqlite"',
+      '  url      = "file:/tmp/lambda.db"',
+      '}',
+      'model Item {',
+      '  id   Int    @id @default(autoincrement())',
+      '  name String',
+      '}',
+      ''
+    ].join('\n')
+  );
 
 /** Fails the run when packaging asks Docker for something it should have copied. */
 const refuseDocker: RunDocker = async (commands) => {
@@ -49,6 +79,16 @@ const countingDocker = () => {
 /** The pnpm store directories a function's `node_modules` carries, such as `@hapi+boom@10.0.1`. */
 const listStoreDirectories = async (nodeModulesPath: string) =>
   (await readdir(join(nodeModulesPath, '.installed', 'node_modules', '.pnpm'))).toSorted();
+
+/** Every file under `directory`, as forward-slash paths relative to it. */
+const listFilesRecursively = async (directory: string) =>
+  (await readdir(directory, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(directory, join(entry.parentPath, entry.name)).replaceAll('\\', '/'))
+    .toSorted();
+
+/** A Prisma query engine or query compiler, as `listFilesRecursively` names it. */
+const isPrismaEngineFile = (file: string) => file.includes('query_engine') || file.endsWith('query_compiler_bg.wasm');
 
 /** The Lambda Node runtimes the CLI's split-bundling policy admits. Add one there only after adding it here. */
 const SUPPORTED_LAMBDA_NODE_VERSIONS = [18, 20, 22, 24];
@@ -156,7 +196,8 @@ try {
     // Reads its font metrics from its own directory at run time, so it must stay out of the bundle.
     pdfkit: '0.16.0',
     // Finds the sources it compiles itself from with `require.resolve` and reads them at load.
-    'uglify-js': '3.19.3'
+    'uglify-js': '3.19.3',
+    '@prisma/client': '6.19.3'
   };
   await write(
     join(root, 'package.json'),
@@ -166,7 +207,8 @@ try {
         private: true,
         type: 'module',
         packageManager: 'pnpm@11.17.0',
-        dependencies
+        dependencies,
+        devDependencies: { prisma: '6.19.3' }
       },
       null,
       2
@@ -174,9 +216,11 @@ try {
   );
   await write(
     join(root, 'pnpm-workspace.yaml'),
-    'packages:\n  - "."\nallowBuilds:\n  bcrypt: true\n  better-sqlite3: true\n'
+    'packages:\n  - "."\nallowBuilds:\n  bcrypt: true\n  better-sqlite3: true\n  prisma: true\n  "@prisma/client": true\n  "@prisma/engines": true\n'
   );
+  await writePrismaSchema(root);
   await run('pnpm', ['install', '--prefer-offline'], root);
+  await run('pnpm', ['exec', 'prisma', 'generate'], root);
 
   const sharedMarker = `split-layer-${'x'.repeat(4096)}`;
   await write(join(sourceRoot, 'shared.ts'), `export const sharedMarker = ${JSON.stringify(sharedMarker)};\n`);
@@ -410,13 +454,16 @@ try {
 
   const buildFunction = (
     name: string,
-    extraOptions: { dependenciesToExcludeFromBundle?: string[] },
+    {
+      project = root,
+      ...extraOptions
+    }: { dependenciesToExcludeFromBundle?: string[]; distFolderPath?: string; project?: string },
     docker: RunDocker
   ) =>
     buildJsBundleLambda({
-      cwd: root,
+      cwd: project,
       name: `synthetic-${name}`,
-      entryfilePath: join(sourceRoot, `${name}.ts`),
+      entryfilePath: join(project, 'src', `${name}.ts`),
       distFolderPath: join(buildRoot, 'functions', name),
       existingDigests: [],
       progressLogger,
@@ -530,6 +577,162 @@ try {
     throw new Error(`Unexpected better-sqlite3 Lambda response: ${JSON.stringify(sqliteResponse)}`);
   }
 
+  /*
+   * Prisma bundled, as the default leaves it. Prisma 6's generated client loads itself through `#main-entry-point`, a
+   * subpath import of its own package, and Prisma 5.0.0's names one fallback directory for its engine where later
+   * versions list several. The function must carry the query engine for its own CPU and nothing else. pnpm generates
+   * the client inside its store, beside `@prisma/client`. The per-function build runs one function; the split build
+   * runs two that share a service module, so the Prisma runtime moves into a layer under `/opt` while each function
+   * carries the engine. A query-compiler client carries its compiler under the generator output instead.
+   */
+  const runPrismaFunctions = async (
+    project: string,
+    {
+      clientSetup = ['import { PrismaClient } from "@prisma/client";', 'const prisma = new PrismaClient();'],
+      engineFile = '.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node',
+      splitDependencyMounts = []
+    }: {
+      clientSetup?: string[];
+      engineFile?: string;
+      /** The split functions' external dependencies, which the CLI installs and `buildSplitProjectWithLayers` does not. */
+      splitDependencyMounts?: Array<{ source: string; target: string }>;
+    } = {}
+  ) => {
+    await write(
+      join(project, 'src', 'prisma-service.ts'),
+      [
+        ...clientSetup,
+        'export const countItems = async () => {',
+        `  await prisma.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Item" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL)');`,
+        '  await prisma.item.create({ data: { name: "from-lambda" } });',
+        '  return { items: await prisma.item.count() };',
+        '};'
+      ].join('\n')
+    );
+    for (const name of ['prisma', 'prisma-a', 'prisma-b']) {
+      await write(
+        join(project, 'src', `${name}.ts`),
+        ['import { countItems } from "./prisma-service";', 'export const handler = () => countItems();'].join('\n')
+      );
+    }
+    // The CLI builds under `.stacktape`, where the schema search does not look; a copied schema is not a second one.
+    const prismaBuildRoot = join(project, '.stacktape', 'prisma');
+    const prismaOutput = await buildFunction(
+      'prisma',
+      { project, distFolderPath: join(prismaBuildRoot, 'functions', 'prisma') },
+      refuseDocker
+    );
+    if (prismaOutput.outcome !== 'bundled' || !prismaOutput.artifactPath) {
+      throw new Error(`The Prisma function did not emit an artifact: ${JSON.stringify(prismaOutput)}`);
+    }
+    const prismaSplit = await buildSplitProjectWithLayers({
+      project,
+      names: ['prisma-a', 'prisma-b'],
+      directory: prismaBuildRoot
+    });
+    const prismaLayer = prismaSplit.layerArtifacts[0];
+    if (prismaSplit.layerArtifacts.length !== 1 || !prismaLayer) {
+      throw new Error(`The shared Prisma runtime should form one layer: ${prismaSplit.layerArtifacts.length}`);
+    }
+    const prismaLayerMounts = [
+      { source: join(prismaLayer.layerPath, 'nodejs', 'chunks'), target: '/opt/nodejs/chunks' },
+      { source: join(prismaLayer.layerPath, 'nodejs', 'package.json'), target: '/opt/nodejs/package.json' },
+      ...splitDependencyMounts
+    ];
+    if ((await listFilesRecursively(prismaLayer.layerPath)).some(isPrismaEngineFile)) {
+      throw new Error('The Prisma layer should carry no query engine; each function carries its own.');
+    }
+    for (const name of ['prisma', 'prisma-a', 'prisma-b']) {
+      const functionPath = join(prismaBuildRoot, 'functions', name);
+      const engines = (await listFilesRecursively(functionPath)).filter(isPrismaEngineFile);
+      if (engines.join() !== engineFile) {
+        throw new Error(`The ${name} function should carry only ${engineFile}: ${engines.join(', ')}`);
+      }
+      const response = JSON.parse(
+        await invokeLambdaRuntime({ functionPath, layerMounts: name === 'prisma' ? [] : prismaLayerMounts })
+      ) as Record<string, unknown>;
+      if (typeof response.items !== 'number' || response.items < 1) {
+        throw new Error(`Unexpected ${name} Lambda response: ${JSON.stringify(response)}`);
+      }
+    }
+  };
+  console.log('Packaging a Prisma 6 client with the per-function and split builds and running a SQLite query...');
+  await runPrismaFunctions(root);
+
+  console.log('Packaging a Prisma 5.0.0 client with the per-function and split builds and running a SQLite query...');
+  await write(
+    join(prisma5Root, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'stacktape-node-lambda-e2e-prisma5',
+        private: true,
+        type: 'module',
+        packageManager: 'pnpm@11.17.0',
+        dependencies: { '@prisma/client': '5.0.0' },
+        devDependencies: { prisma: '5.0.0' }
+      },
+      null,
+      2
+    )}\n`
+  );
+  await write(
+    join(prisma5Root, 'pnpm-workspace.yaml'),
+    'packages:\n  - "."\nallowBuilds:\n  prisma: true\n  "@prisma/client": true\n  "@prisma/engines": true\n'
+  );
+  await writePrismaSchema(prisma5Root);
+  await run('pnpm', ['install', '--prefer-offline'], prisma5Root);
+  await run('pnpm', ['exec', 'prisma', 'generate'], prisma5Root);
+  await runPrismaFunctions(prisma5Root);
+
+  // `prisma generate` with `engineType = "client"` leaves the library engine an earlier generation wrote into the same
+  // output. The client must still be packaged, and pointed at, as a query-compiler client.
+  console.log('Packaging a Prisma 6 query-compiler client beside a stale query engine and running a SQLite query...');
+  await write(
+    join(prismaCompilerRoot, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'stacktape-node-lambda-e2e-prisma-compiler',
+        private: true,
+        type: 'module',
+        packageManager: 'pnpm@11.17.0',
+        dependencies: { '@prisma/client': '6.19.3', '@prisma/adapter-libsql': '6.19.3' },
+        devDependencies: { prisma: '6.19.3' }
+      },
+      null,
+      2
+    )}\n`
+  );
+  await write(
+    join(prismaCompilerRoot, 'pnpm-workspace.yaml'),
+    // Hoisted, so the split functions find libsql in the mounted node_modules.
+    'packages:\n  - "."\npublicHoistPattern:\n  - "*libsql*"\nallowBuilds:\n  prisma: true\n  "@prisma/client": true\n  "@prisma/engines": true\n'
+  );
+  await writePrismaSchema(prismaCompilerRoot, ['  output        = "../generated/client"']);
+  await run('pnpm', ['install', '--prefer-offline'], prismaCompilerRoot);
+  await run('pnpm', ['exec', 'prisma', 'generate'], prismaCompilerRoot);
+  await writePrismaSchema(prismaCompilerRoot, [
+    '  output        = "../generated/client"',
+    '  engineType    = "client"'
+  ]);
+  await run('pnpm', ['exec', 'prisma', 'generate'], prismaCompilerRoot);
+  if (
+    !(await readdir(join(prismaCompilerRoot, 'generated', 'client'))).some((file) =>
+      file.startsWith('libquery_engine-')
+    )
+  ) {
+    throw new Error('The query-compiler client should keep the library engine generated before it.');
+  }
+  await runPrismaFunctions(prismaCompilerRoot, {
+    clientSetup: [
+      'import { PrismaLibSQL } from "@prisma/adapter-libsql";',
+      'import { PrismaClient } from "../generated/client";',
+      'const prisma = new PrismaClient({ adapter: new PrismaLibSQL({ url: "file:/tmp/lambda.db" }) });'
+    ],
+    engineFile: 'generated/client/query_compiler_bg.wasm',
+    // The adapter's libsql is a native package; this host's glibc build of it runs on Lambda.
+    splitDependencyMounts: [{ source: join(prismaCompilerRoot, 'node_modules'), target: '/opt/nodejs/node_modules' }]
+  });
+
   console.log('Preparing the same packages for arm64: bcrypt from its prebuilds, better-sqlite3 in Docker...');
   const sqlitePackage = {
     name: 'better-sqlite3',
@@ -569,9 +772,11 @@ try {
   });
 
   console.log(
-    'Synthetic Node Lambda E2E passed: split/shared/dependency layers, copied native, napi-rs, self-reading and scoped packages without Docker, better-sqlite3 installed in Docker for x64 and arm64, and Lambda Node 18-24 execution.'
+    'Synthetic Node Lambda E2E passed: split/shared/dependency layers, copied native, napi-rs, self-reading and scoped packages without Docker, bundled Prisma 6, Prisma 5.0.0 and a Prisma 6 query compiler per function and from a shared layer, better-sqlite3 installed in Docker for x64 and arm64, and Lambda Node 18-24 execution.'
   );
 } finally {
   await Promise.all([...containers].map((name) => run('docker', ['rm', '--force', name]).catch(() => undefined)));
-  await rm(root, { recursive: true, force: true });
+  await Promise.all(
+    [root, prisma5Root, prismaCompilerRoot].map((directory) => rm(directory, { recursive: true, force: true }))
+  );
 }

@@ -18,7 +18,12 @@ import {
   planLambdaDependencies,
   writeLambdaDependencies
 } from '../../es/native-dependencies';
-import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../../es/bun-plugins';
+import {
+  createBunFfiShimPlugin,
+  createNativeNodeModulesPlugin,
+  createPrismaLambdaClientPlugin,
+  isBareImportSpecifier
+} from '../../es/bun-plugins';
 import { getBunMinifyConfig } from '../../es/minify';
 import { takeSourceMapsOutOfPackage, writePackagedSourceMap } from '../../es/packaged-source-map';
 import { writeEditedJavaScript } from '../../es/source-map-edits';
@@ -26,6 +31,7 @@ import { normalizeBundleIdentity } from '../../es/artifact-identity';
 import {
   classifyBeforeResolution,
   classifyResolvedModule,
+  getClassifiedSpecifier,
   getModuleName as getModuleNameFromPath,
   isNodeBuiltinImport
 } from '../../es/import-classification';
@@ -221,9 +227,10 @@ export const buildEsCode = async ({
         build.onResolve(
           { filter: /^[^.]/ },
           async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-            if (!isBareImportSpecifier(args.path)) return undefined;
+            const specifier = await getClassifiedSpecifier(args);
+            if (specifier === undefined) return undefined;
 
-            const moduleName = getModuleNameFromPath(args.path);
+            const moduleName = getModuleNameFromPath(specifier);
             allModules.push(moduleName);
 
             if (args.path === sourcePath) {
@@ -232,7 +239,7 @@ export const buildEsCode = async ({
 
             // Already marked as external
             if (externalModules.find((m) => m.name === moduleName)) {
-              return { path: args.path, external: true };
+              return { path: specifier, external: true };
             }
 
             const preResolution = classifyBeforeResolution({
@@ -241,13 +248,13 @@ export const buildEsCode = async ({
               isLambda,
               moduleName,
               nodeTarget,
-              specifier: args.path
+              specifier
             });
             if (preResolution.outcome === 'builtin') {
               return undefined;
             }
             if (preResolution.outcome === 'runtime-provided') {
-              return { path: args.path, external: true };
+              return { path: specifier, external: true };
             }
 
             if (preResolution.outcome === 'alias') {
@@ -317,7 +324,7 @@ export const buildEsCode = async ({
 
             if (verdict.outcome === 'external') {
               externalModules.push({ name: moduleName, note: verdict.note });
-              return { path: args.path, external: true };
+              return { path: specifier, external: true };
             }
 
             if (!modulePath) {
@@ -344,9 +351,10 @@ export const buildEsCode = async ({
       setup(build) {
         // A bare workspace import is resolved to a forward-slash real path above, but relative imports inside that
         // package otherwise fall back to Bun's Windows resolver. Bun 1.3.14 then panics while formatting the
-        // backslash path for source maps. Keep the complete workspace module graph normalized.
+        // backslash path for source maps. Keep the complete workspace module graph normalized. A subpath import
+        // (`#name`) also names a file inside the importing package.
         if (process.platform === 'win32') {
-          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)\.\.?[\\/]/ }, (args) => {
+          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)(?:\.\.?[\\/]|#)/ }, (args) => {
             if (!args.importer) return undefined;
             return resolvePackageImport(args);
           });
@@ -457,6 +465,8 @@ export const buildEsCode = async ({
       stpAnalyzeDepsPlugin,
       looseResolvePlugin,
       createNativeNodeModulesPlugin(),
+      // An image keeps Prisma's engine beside its bundle: `stacktape dev` runs the bundle from another directory.
+      ...(isLambda ? [createPrismaLambdaClientPlugin()] : []),
       ...(decoratorMetadataPlugin ? [decoratorMetadataPlugin] : []),
       ...(plugins || [])
     ];
@@ -952,6 +962,7 @@ export const createEsBundle = async ({
         workloadName: name,
         isAlpine: !requiresGlibcBinaries,
         isLambda,
+        architecture: dockerBuildOutputArchitecture ? getLambdaArchitecture(dockerBuildOutputArchitecture) : undefined,
         createPackagingError
       }),
     dependencyPlan &&
