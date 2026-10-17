@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
  * and the Console lanes that use this fixture pass against it; the digest is the tag's `linux/amd64` image.
  */
 export const MINISTACK_IMAGE =
-  'ministackorg/ministack:1.5.26@sha256:f90981c85c9b431d819afa8bdad9735d1434e22e42f1deb8c99a0bcaf30363e7';
+  'ministackorg/ministack:1.5.27@sha256:4cb4f8c5c1b8e58e9a37af1c80f243de5b5cecf2e7b0461086d0dc7781d6642c';
 export const MINISTACK_DEFAULT_REGION = 'eu-west-1';
 /** The account MiniStack provisions CloudFormation stacks in and gives to code it runs. */
 export const MINISTACK_DEFAULT_ACCOUNT_ID = '000000000000';

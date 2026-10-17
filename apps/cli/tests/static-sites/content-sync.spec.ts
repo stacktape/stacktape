@@ -509,7 +509,7 @@ test('listing and batch deletion reach every object version and delete marker be
   const config = ministack.clientConfig(ministack.account());
   const client = new S3Client(config);
   const sync = new S3Sync({ clientArgs: config, s3Plugins: [] });
-  // MiniStack 1.5.26 accepts oversized batches. Inject AWS's documented rejection; valid requests still
+  // MiniStack 1.5.27 accepts oversized batches. Inject AWS's documented rejection; valid requests still
   // reach the emulator, and the assertion below observes that every stored version and marker was deleted.
   client.middlewareStack.add(
     (next, context) => async (args) => {

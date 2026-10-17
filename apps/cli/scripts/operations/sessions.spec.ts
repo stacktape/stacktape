@@ -118,7 +118,7 @@ const seedBastion = async (fixture: Awaited<ReturnType<typeof create>>, sessionI
   fixture.aws.on('ssm.TerminateSession', () => ({ kind: 'json', body: { SessionId: sessionId } }));
 };
 
-// MiniStack 1.5.26 rejects StartSession with InvalidAction; session transport and runtime availability are supplied deliberately here.
+// MiniStack 1.5.27 rejects StartSession with InvalidAction; session transport and runtime availability are supplied deliberately here.
 // The Windows plugin is bundled rather than resolved through STACKTAPE_TOOLS_DIR. This fixture exercises the POSIX cache boundary.
 test.skipIf(process.platform === 'win32')(
   'bastion shell selects the newest instance, forwards terminal stdin, and terminates the session',

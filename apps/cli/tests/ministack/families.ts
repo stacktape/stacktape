@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { ApiGatewayV2Client, GetRoutesCommand } from '@aws-sdk/client-apigatewayv2';
+import { ApiGatewayV2Client, GetRoutesCommand, GetStagesCommand } from '@aws-sdk/client-apigatewayv2';
 import {
   CloudFormationClient,
   DescribeStacksCommand,
@@ -15,7 +15,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { DescribeTableCommand, DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { DescribeEventBusCommand, EventBridgeClient } from '@aws-sdk/client-eventbridge';
+import { DescribeEventBusCommand, EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   GetFunctionConfigurationCommand,
   GetLayerVersionByArnCommand,
@@ -178,7 +178,7 @@ export const families: Family[] = [
   {
     name: 'lambda-http-api',
     knownGap:
-      "MiniStack's Ref of AWS::ApiGatewayV2::Stage returns `<apiId>/<stageName>`, and Stacktape passes that Ref as the Stage of the default-domain ApiMapping; MiniStack then fails the mapping with BadRequestException 'Invalid stage identifier specified' (AWS returns the stage name). ministackorg/ministack#2164.",
+      'MiniStack 1.5.27 fixes Stage Ref (ministackorg/ministack#2164), and GatewayApiMapping creates successfully. The deploy still fails at GatewayDefaultDomainCustomResource with TRPCClientError: fetch failed: its Lambda cannot reach the harness host-loopback Console endpoint from inside the emulator container.',
     config: (version) => ({
       resources: {
         gateway: { type: 'http-api-gateway' },
@@ -200,9 +200,10 @@ export const families: Family[] = [
         routes.some((route) => route.RouteKey === 'GET /'),
         `the HTTP API has no GET / route (${routes.map((route) => route.RouteKey).join(', ')})`
       );
-      const [stage] = context.physicalOfType('AWS::ApiGatewayV2::Stage');
-      // MiniStack's Stage Ref is `<apiId>/<stageName>`; AWS returns the stage name alone.
-      const stageName = stage?.split('/').at(-1) ?? '$default';
+      const stages = (await context.clients.apiGateway.send(new GetStagesCommand({ ApiId: apiId }))).Items ?? [];
+      assert.equal(stages.length, 1, 'the HTTP API must have one deployed stage');
+      const stageName = stages[0].StageName;
+      assert.ok(stageName, 'the HTTP API stage has no name');
       const response = await fetch(`${context.endpoint}/_aws/execute-api/${apiId}/${stageName}/`);
       assert.equal(response.status, 200, `GET through the HTTP API answered ${response.status}`);
       assert.equal(await response.text(), `ministack-v${context.version}`, 'the HTTP API did not reach the function');
@@ -355,8 +356,6 @@ export const families: Family[] = [
   },
   {
     name: 'event-bus-function',
-    knownGap:
-      'MiniStack CloudFormation stores an EventBridge rule under the bus ARN, so PutEvents on the bus never reaches the function (ministackorg/ministack#2161; fixed upstream, unreleased).',
     config: (version) => ({
       resources: {
         bus: { type: 'event-bus' },
@@ -374,7 +373,22 @@ export const families: Family[] = [
       const [bus] = context.physicalOfType('AWS::Events::EventBus');
       assert.ok(bus, 'the stack has no event bus');
       await context.clients.events.send(new DescribeEventBusCommand({ Name: bus }));
-      await awaitLogLine(context, handler, 'ministack.probe', 'a bus event');
+      const probe = `bus-event-${context.step}-v${context.version}`;
+      const published = await context.clients.events.send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              EventBusName: bus,
+              Source: 'ministack.probe',
+              DetailType: 'deploy-probe',
+              Detail: JSON.stringify({ probe })
+            }
+          ]
+        })
+      );
+      assert.equal(published.FailedEntryCount, 0, 'the event bus rejected the probe event');
+      assert.ok(published.Entries?.[0]?.EventId, 'the event bus returned no event ID');
+      await awaitLogLine(context, handler, probe, 'a bus event');
     }
   },
   {
