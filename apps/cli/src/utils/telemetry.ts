@@ -37,6 +37,22 @@ const projectToken = explicitProjectToken || (environment === 'production' ? POS
 const telemetryEnabled = !IS_TELEMETRY_DISABLED && Boolean(projectToken);
 const fallbackDistinctId = `cli:${randomUUID()}`;
 
+/**
+ * posthog-node rewrites frame paths relative to the working directory, which turns the executable's fixed
+ * `/$bunfs/root/stacktape` into `../../$bunfs/root/stacktape` with one `../` per directory level. Frames without a
+ * source map would then differ by the user's directory, and the path would reveal its depth.
+ */
+const restoreExecutableFramePaths = (properties: Record<string, any> | undefined) => {
+  for (const exception of properties?.$exception_list ?? []) {
+    for (const frame of exception?.stacktrace?.frames ?? []) {
+      if (typeof frame.filename === 'string') {
+        frame.filename = frame.filename.replace(/^(?:\.\.\/)+(\$bunfs\/)/, '/$1');
+      }
+    }
+  }
+  return properties;
+};
+
 const posthogOptions: ConstructorParameters<typeof PostHog>[1] = {
   host: process.env.POSTHOG_HOST || process.env.STP_POSTHOG_HOST || getPostHogIngestionHost(environment),
   flushAt: 1,
@@ -48,7 +64,7 @@ const posthogOptions: ConstructorParameters<typeof PostHog>[1] = {
           ...event,
           properties:
             event.event === '$exception'
-              ? sanitizeExceptionTelemetryValue(event.properties)
+              ? sanitizeExceptionTelemetryValue(restoreExecutableFramePaths(event.properties))
               : sanitizeTelemetryValue(event.properties)
         } as typeof event)
       : null
@@ -176,6 +192,22 @@ export const reportTelemetryEvent = async ({
   return flushPostHog();
 };
 
+declare const STACKTAPE_ERROR_TRACKING_CHUNK_ID: string | undefined;
+
+/**
+ * Tells posthog-node which uploaded source map describes this executable's frames: it attaches the chunk ID registered
+ * for a stack to every frame from the same file. Release builds define the ID and upload the map
+ * (`writeErrorTrackingSourceMap` in `scripts/release/build-cli-sources.ts`); other builds leave it empty.
+ */
+const registerErrorTrackingChunk = () => {
+  const chunkId = typeof STACKTAPE_ERROR_TRACKING_CHUNK_ID === 'string' ? STACKTAPE_ERROR_TRACKING_CHUNK_ID : '';
+  const stack = new Error().stack;
+  if (!chunkId || !stack) return;
+  const registry = globalThis as { _posthogChunkIds?: Record<string, string> };
+  registry._posthogChunkIds ??= {};
+  registry._posthogChunkIds[stack] = chunkId;
+};
+
 export const reportErrorToPostHog = async ({
   error,
   command,
@@ -189,6 +221,7 @@ export const reportErrorToPostHog = async ({
 }) => {
   if (!posthogClient) return null;
 
+  registerErrorTrackingChunk();
   const errorTrackingId = randomUUID();
   const { distinctId, hasIdentifiedUser, groups } = getIdentity();
   try {
@@ -198,6 +231,10 @@ export const reportErrorToPostHog = async ({
       mechanism,
       command,
       invocation_id: invocationId,
+      platform: process.platform,
+      arch: process.arch,
+      runtime_version: process.versions.bun ? `bun ${process.versions.bun}` : `node ${process.versions.node}`,
+      is_ci: Boolean(process.env.CI),
       ...(groups ? { $groups: groups } : {}),
       ...(!hasIdentifiedUser ? { $process_person_profile: false } : {})
     });

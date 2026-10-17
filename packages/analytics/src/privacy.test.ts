@@ -54,7 +54,7 @@ describe('telemetry redaction', () => {
     );
 
     expect(sanitized.message).toBe(
-      'Failed for [REDACTED_EMAIL] in arn:aws:iam::[REDACTED_AWS_ACCOUNT_ID]:role/example'
+      'Failed for [redacted:email]@example.com in arn:aws:iam::[REDACTED_AWS_ACCOUNT_ID]:role/example'
     );
     expect(sanitized.stack).not.toContain('user@example.com');
     expect(
@@ -62,7 +62,29 @@ describe('telemetry redaction', () => {
         $exception_list: [{ value: 'Failed for user@example.com in account 123456789012' }]
       })
     ).toEqual({
-      $exception_list: [{ value: 'Failed for [REDACTED_EMAIL] in account [REDACTED_AWS_ACCOUNT_ID]' }]
+      $exception_list: [{ value: 'Failed for [redacted:email]@example.com in account [REDACTED_AWS_ACCOUNT_ID]' }]
+    });
+  });
+
+  test.each([
+    ['ENOENT: open /home/jane/app/stacktape.ts', 'ENOENT: open /home/[user]/app/stacktape.ts'],
+    ['at load (/Users/jane.doe/app/index.ts:4:2)', 'at load (/Users/[user]/app/index.ts:4:2)'],
+    ['EPERM: C:\\Users\\Jane\\app\\.env', 'EPERM: C:\\Users\\[user]\\app\\.env'],
+    ['connect ECONNREFUSED 10.0.12.7:5432', 'connect ECONNREFUSED [redacted:ip]:5432'],
+    ['git push with ghp_abcdefghijklmnopqrstuvwxyz123456 failed', 'git push with [redacted:secret] failed'],
+    // Code locations and error class names stay readable.
+    ['TokenExpiredError at token.ts:42:7', 'TokenExpiredError at token.ts:42:7']
+  ])('masks %p in exception text', (input, expected) => {
+    expect(sanitizeErrorForTelemetry(new Error(input)).message).toBe(expected);
+  });
+
+  test('masks home paths in PostHog stack frames', () => {
+    expect(
+      sanitizeExceptionTelemetryValue({
+        $exception_list: [{ stacktrace: { frames: [{ filename: '/home/jane/app/src/index.ts', lineno: 3 }] } }]
+      })
+    ).toEqual({
+      $exception_list: [{ stacktrace: { frames: [{ filename: '/home/[user]/app/src/index.ts', lineno: 3 }] } }]
     });
   });
 });

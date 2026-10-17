@@ -4,6 +4,8 @@ run-name: ${{ inputs.bytecode_qualification && 'Qualify bytecode for macOS, Linu
 # Preview and stable releases build the same verified artifacts. The selected channel changes only the npm dist-tag,
 # GitHub release classification, protected publishing environment, and installer endpoint. npm and AWS authenticate
 # independently with short-lived OIDC credentials; no long-lived npm, Stacktape, or AWS credential enters this workflow.
+# The one long-lived credential, a PostHog key limited to uploading error-tracking source maps, is only given to the
+# upload job behind its own environment.
 on:
   workflow_dispatch:
     inputs:
@@ -136,10 +138,16 @@ jobs:
         run: pnpm turbo run build --filter=@stacktape/init-ui
       - name: Build binary archive
         working-directory: apps/cli
-        run: >-
-          bun scripts/build-dist-package.ts
-          --platform "${{ matrix.platform }}"
-          --version "$RELEASE_VERSION"
+        run: |
+          # Only stable executables report errors to PostHog, so only they need their source maps there.
+          source_map_args=()
+          if [ "$RELEASE_CHANNEL" = stable ]; then
+            source_map_args=(--error-tracking-source-map-directory "$RUNNER_TEMP/error-tracking-source-maps/${{ matrix.platform }}")
+          fi
+          bun scripts/build-dist-package.ts \
+            --platform "${{ matrix.platform }}" \
+            --version "$RELEASE_VERSION" \
+            "${source_map_args[@]}"
       - name: Smoke-test Alpine runtime
         if: matrix.platform == 'alpine'
         run: |
@@ -178,6 +186,43 @@ jobs:
           path: apps/cli/__dist/${{ matrix.archive }}
           if-no-files-found: error
           retention-days: 7
+      - name: Upload error-tracking source map
+        if: inputs.channel == 'stable'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: error-tracking-source-maps-${{ matrix.platform }}
+          path: ${{ runner.temp }}/error-tracking-source-maps
+          if-no-files-found: error
+          retention-days: 1
+
+  # PostHog shows the stable CLI's exceptions with TypeScript files and lines from these maps, which the executables do
+  # not ship (`writeErrorTrackingSourceMap` in apps/cli/scripts/release/build-cli-sources.ts). Publication does not wait
+  # for this job; a failed upload only leaves that release's stack traces pointing into the bundle.
+  upload-error-tracking-source-maps:
+    name: Upload error-tracking source maps
+    needs: build-binaries
+    if: inputs.channel == 'stable' && inputs.recovery_run_id == '' && !inputs.bytecode_qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: error-tracking
+    steps:
+      - name: Download source maps
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: error-tracking-source-maps-*
+          path: error-tracking-source-maps
+      - name: Install posthog-cli
+        run: npm install --global @posthog/cli@0.18.10
+      - name: Upload to PostHog
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
+        run: >-
+          posthog-cli --host https://eu.posthog.com sourcemap upload
+          --directory error-tracking-source-maps
+          --release-name stacktape-cli
+          --release-version "$RELEASE_VERSION"
+          --release-mode symbol-set
 
   # Bytecode ships only for targets qualified on their own host (`BYTECODE_PLATFORMS` in
   # apps/cli/scripts/release/build-cli-sources.ts). Dispatched with `bytecode_qualification`, this builds the remaining

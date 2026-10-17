@@ -5,7 +5,9 @@ import { reportErrorToPostHog, reportTelemetryEvent } from './telemetry';
 const run = async () => {
   if (process.argv[2] === 'exception') {
     const id = await reportErrorToPostHog({
-      error: new Error('Failed for user@example.com in account 123456789012 with token=secret-value'),
+      error: new Error(
+        'Failed for user@example.com in account 123456789012 with token=secret-value at /home/synthetic-user/app'
+      ),
       mechanism: 'command_handler'
     });
     console.log(JSON.stringify({ id }));

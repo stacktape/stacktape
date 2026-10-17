@@ -51,7 +51,8 @@ export const buildDistPackage = async ({
   debug,
   keepUnarchived,
   distFolderPath = DIST_PACKAGE_FOLDER_PATH,
-  bytecodeDepth
+  bytecodeDepth,
+  errorTrackingSourceMapDirectory
 }: {
   platform: SupportedPlatform;
   version: string;
@@ -59,6 +60,7 @@ export const buildDistPackage = async ({
   keepUnarchived?: boolean;
   distFolderPath?: string;
   bytecodeDepth?: number | 'off';
+  errorTrackingSourceMapDirectory?: string;
 }) => {
   logInfo(`Building binary for platform: ${platform}, version: ${version}`);
 
@@ -69,7 +71,8 @@ export const buildDistPackage = async ({
     platform,
     debug,
     version,
-    bytecodeDepth
+    bytecodeDepth,
+    errorTrackingSourceMapDirectory
   });
 
   await Promise.all([
@@ -115,5 +118,7 @@ if (import.meta.main) {
     throw new Error('Platform and version are required. Usage: --platform <platform> --version <version>');
   }
   const { debug, keepUnarchived } = getCliArgs();
-  buildDistPackage({ platform, version, debug, keepUnarchived });
+  // The release workflow uploads this directory to PostHog error tracking; it is not part of the archive.
+  const errorTrackingSourceMapDirectory = argv.errorTrackingSourceMapDirectory as string | undefined;
+  buildDistPackage({ platform, version, debug, keepUnarchived, errorTrackingSourceMapDirectory });
 }

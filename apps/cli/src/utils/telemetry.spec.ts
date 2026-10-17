@@ -100,9 +100,15 @@ test('unexpected CLI errors send a useful exception envelope without user or cre
     expect(event.event).toBe('$exception');
     expect(event.properties).toMatchObject({ app: 'cli', environment: 'test', mechanism: 'command_handler' });
     expect(event.properties.$exception_list[0].value).toBe(
-      'Failed for [REDACTED_EMAIL] in account [REDACTED_AWS_ACCOUNT_ID] with token=[REDACTED]'
+      'Failed for [redacted:email]@example.com in account [REDACTED_AWS_ACCOUNT_ID] with token=[REDACTED] at /home/[user]/app'
     );
-    for (const value of ['user@example.com', '123456789012', 'secret-value']) {
+    expect(event.properties).toMatchObject({
+      error_tracking_id: JSON.parse(requests[0]!.body).batch[0].properties.error_tracking_id,
+      platform: process.platform,
+      arch: process.arch,
+      runtime_version: `bun ${process.versions.bun}`
+    });
+    for (const value of ['user@example.com', '123456789012', 'secret-value', 'synthetic-user']) {
       expect(requests[0]!.body).not.toContain(value);
     }
   } finally {

@@ -262,7 +262,7 @@ class ApplicationManager {
     this.isErrored = true;
     this.cancelPendingPromises(err);
 
-    await reportErrorToPostHog({
+    const errorTrackingId = await reportErrorToPostHog({
       error: err,
       command: globalStateManager.command,
       invocationId: globalStateManager.invocationId,
@@ -282,6 +282,9 @@ class ApplicationManager {
       process.stderr.write(`\n[${label}] ${err.message || err}\n`);
       if (err.stack) {
         process.stderr.write(`${err.stack}\n`);
+      }
+      if (errorTrackingId) {
+        process.stderr.write(`Error ID: ${errorTrackingId}\n`);
       }
     } catch {}
   };
