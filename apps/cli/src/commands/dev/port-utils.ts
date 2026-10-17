@@ -102,29 +102,6 @@ export const findAvailablePort = async (startPort: number, maxAttempts = 100): P
 };
 
 /**
- * Parse EADDRINUSE error to extract the port number.
- */
-export const parsePortFromError = (errorOutput: string): number | null => {
-  // Match patterns like:
-  // "EADDRINUSE: address already in use :::3001"
-  // "listen EADDRINUSE: address already in use 0.0.0.0:3000"
-  // "port: 3001"
-  const patterns = [/EADDRINUSE.*?:(\d+)/i, /address already in use.*?:(\d+)/i, /port[:\s]+(\d+)/i];
-
-  for (const pattern of patterns) {
-    const match = errorOutput.match(pattern);
-    if (match) {
-      const port = parseInt(match[1], 10);
-      if (!isNaN(port) && port > 0 && port < 65536) {
-        return port;
-      }
-    }
-  }
-
-  return null;
-};
-
-/**
  * Extract port from a dev command if specified.
  * Looks for common patterns like --port, -p, etc.
  */

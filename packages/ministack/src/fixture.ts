@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 /**
  * The one local AWS emulator the tests use. Pin a new release only after the deploy loop in `apps/cli/tests/ministack`
- * and the Console lanes that use this fixture pass against it; the digest is the tag's `linux/amd64` image.
+ * and the Console lanes that use this fixture pass against it; the digest is the tag's multi-platform index.
  */
 export const MINISTACK_IMAGE =
   'ministackorg/ministack:1.5.27@sha256:4cb4f8c5c1b8e58e9a37af1c80f243de5b5cecf2e7b0461086d0dc7781d6642c';

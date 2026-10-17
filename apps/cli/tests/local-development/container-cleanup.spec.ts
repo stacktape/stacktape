@@ -14,11 +14,23 @@ test('container cleanup removes abandoned and stopped containers while preservin
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-container-cleanup-'));
   const owner = randomUUID();
   const names = ['live', 'abandoned', 'stopped', 'legacy'].map((kind) => `stp-t07-${owner}-${kind}`);
+  // A customer's own stopped container: not a Stacktape dev container, so cleanup must never list or remove it.
+  const foreign = `customer-${owner}-stopped`;
   const lock = join(directory, 'live.json');
   const invoke = (args: string[]) => spawnSync(docker!, args, { encoding: 'utf8', timeout: 60_000 });
   const inspect = (name: string) => invoke(['inspect', '--format', '{{.State.Status}}', name]);
   try {
     await writeFile(lock, JSON.stringify({ pid: process.pid }));
+    const foreignCreated = invoke([
+      'create',
+      '--name',
+      foreign,
+      '--label',
+      `stacktape.qa.task=${owner}`,
+      'alpine:3',
+      'true'
+    ]);
+    expect(foreignCreated.status, foreignCreated.stderr).toBe(0);
     for (const [index, name] of names.entries()) {
       const labels = ['--label', `stacktape.qa.task=${owner}`];
       if (index < 2)
@@ -41,7 +53,7 @@ test('container cleanup removes abandoned and stopped containers while preservin
       `#!${process.execPath}
 import { spawnSync } from 'node:child_process';
 const args = process.argv.slice(2);
-const names = ${JSON.stringify(names)};
+const names = ${JSON.stringify([...names, foreign])};
 if (args[0] === 'ps') args.push('--filter', ${JSON.stringify(`label=stacktape.qa.task=${owner}`)});
 else if (!['stop', 'rm'].includes(args[0]) || !names.includes(args.at(-1))) {
   console.error('Refusing a Docker command outside the owned fixture'); process.exit(1);
@@ -80,13 +92,14 @@ console.log('REMOVED ' + JSON.stringify(await cleanupOrphanedContainers()));
     expect(removed.sort()).toEqual([names[1], names[2]].sort());
     expect(inspect(names[0]).stdout.trim()).toBe('running');
     expect(inspect(names[3]).stdout.trim()).toBe('running');
+    expect(inspect(foreign).stdout.trim()).toBe('created');
     for (const name of [names[1], names[2]]) {
       const absent = inspect(name);
       expect(absent.status).not.toBe(0);
       expect(absent.stderr).toMatch(/no such (object|container)/i);
     }
   } finally {
-    for (const name of names) {
+    for (const name of [...names, foreign]) {
       const removed = invoke(['rm', '-f', name]);
       if (removed.status !== 0) expect(removed.stderr).toMatch(/no such (object|container)/i);
       expect(inspect(name).status, `owned container ${name} must be gone`).not.toBe(0);

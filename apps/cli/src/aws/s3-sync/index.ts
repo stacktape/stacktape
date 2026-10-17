@@ -1274,20 +1274,18 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
 
         const fullPath = path.join(dir, entry.name);
         let stat: Stats;
-        let actualPath = fullPath;
 
-        // Handle symlinks if followSymlinks is enabled
-        if (entry.isSymbolicLink() && followSymlinks) {
-          try {
-            actualPath = await fsExtra.realpath(fullPath);
-            stat = await fsExtra.stat(actualPath);
-          } catch {
-            // Skip broken symlinks
+        if (entry.isSymbolicLink()) {
+          if (!followSymlinks) {
             continue;
           }
-        } else if (entry.isSymbolicLink()) {
-          // Skip symlinks if not following
-          continue;
+          // `stat` follows the link and fails for a broken one, which is skipped. The link keeps its own path as
+          // the object key; its target only supplies the size and bytes.
+          try {
+            stat = await fsExtra.stat(fullPath);
+          } catch {
+            continue;
+          }
         } else {
           stat = await fsExtra.stat(fullPath);
         }
@@ -1308,7 +1306,7 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
           // Recurse into directory
           await walkDirectory(fullPath);
         } else if (stat.isFile()) {
-          const relPath = path.relative(localDir, actualPath !== fullPath ? actualPath : fullPath);
+          const relPath = path.relative(localDir, fullPath);
 
           // ignoring local files (considering them non-existent)
           // works only for directionToS3=true
