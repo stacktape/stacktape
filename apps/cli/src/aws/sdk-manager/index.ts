@@ -7,19 +7,19 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
-import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
+import { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { OpenSearchClient } from '@aws-sdk/client-opensearch';
 import { RDSClient } from '@aws-sdk/client-rds';
-import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
 import { SESClient } from '@aws-sdk/client-ses';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { SSMClient } from '@aws-sdk/client-ssm';
@@ -159,6 +159,8 @@ export class AwsSdkManager {
     this.#ecs = new AwsEcs({
       createClient: () => this.#ecsClient(),
       createCodeDeployClient: () => this.#codeDeployClient(),
+      createElbClient: () => this.#applyPlugins(new ElasticLoadBalancingV2Client(this.#getClientArgs())),
+      createServiceDiscoveryClient: () => this.#applyPlugins(new ServiceDiscoveryClient(this.#getClientArgs())),
       getErrorHandler: this.#getErrorHandler
     });
     this.#systemsManager = new AwsSystemsManager({
@@ -167,8 +169,6 @@ export class AwsSdkManager {
     });
     this.#costManagement = new AwsCostManagement({
       createBudgetsClient: () => this.#budgets(),
-      createCostExplorerClient: () => this.#costExplorer(),
-      createResourceTaggingClient: () => this.#resourceGroupsTaggingApi(),
       getErrorHandler: this.#getErrorHandler
     });
     this.#cloudFront = new AwsCloudFront({
@@ -415,14 +415,22 @@ export class AwsSdkManager {
     return this.#applyPlugins(new ACMClient(this.#getClientArgs({ region: 'us-east-1' })));
   }
 
-  #acceleratedS3Client() {
-    return this.#applyPlugins(
-      new S3Client(
-        this.#getClientArgs({
-          endpoint: this.#getContext().endpoint || 'https://s3-accelerate.amazonaws.com'
-        })
-      )
+  /**
+   * Uploads go through S3 Transfer Acceleration. An explicit endpoint, from the context or from the standard
+   * `AWS_ENDPOINT_URL` variables, replaces it: every client of one invocation must talk to the same endpoint, or an
+   * emulator-backed run leaks its uploads to the real service.
+   */
+  #acceleratedEndpoint() {
+    return (
+      this.#getContext().endpoint ||
+      process.env.AWS_ENDPOINT_URL_S3 ||
+      process.env.AWS_ENDPOINT_URL ||
+      'https://s3-accelerate.amazonaws.com'
     );
+  }
+
+  #acceleratedS3Client() {
+    return this.#applyPlugins(new S3Client(this.#getClientArgs({ endpoint: this.#acceleratedEndpoint() })));
   }
 
   #syncS3Client() {
@@ -436,9 +444,7 @@ export class AwsSdkManager {
   #acceleratedSyncS3Client() {
     return new S3Sync({
       s3RetryCount: 5,
-      clientArgs: this.#getClientArgs({
-        endpoint: this.#getContext().endpoint || 'https://s3-accelerate.amazonaws.com'
-      }),
+      clientArgs: this.#getClientArgs({ endpoint: this.#acceleratedEndpoint() }),
       s3Plugins: [...this.plugins]
     });
   }
@@ -508,14 +514,6 @@ export class AwsSdkManager {
 
   #openSearchClient() {
     return this.#applyPlugins(new OpenSearchClient(this.#getClientArgs()));
-  }
-
-  #resourceGroupsTaggingApi() {
-    return this.#applyPlugins(new ResourceGroupsTaggingAPIClient(this.#getClientArgs()));
-  }
-
-  #costExplorer() {
-    return this.#applyPlugins(new CostExplorerClient(this.#getClientArgs()));
   }
 
   #budgets() {

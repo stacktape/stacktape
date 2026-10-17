@@ -12,8 +12,9 @@ import { getHomeDir } from '@utils/misc';
  *   the Session Manager plugin) in `toolsDirectory` (one directory per tool and version, so an upgrade never
  *   overwrites a binary in use; old versions may be deleted);
  *   the last fetched update notice and announcements in `noticesCacheFile`, replaced by a newer fetch and safe to
- *   delete at any time; and the caller identity STS returned for each access key in `awsIdentityCacheFile`, kept a
- *   day and safe to delete at any time.
+ *   delete at any time; the caller identity STS returned for each access key in `awsIdentityCacheFile`, kept a
+ *   day and safe to delete at any time; and when each base image of Stacktape's generated Dockerfiles was last
+ *   pulled in `baseImagePullsFile`, kept a day and safe to delete at any time.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`).
  * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
@@ -38,6 +39,9 @@ export const localStatePaths = {
   },
   awsIdentityCacheFile() {
     return join(localStatePaths.userDataDirectory(), 'aws-identity-cache.json');
+  },
+  baseImagePullsFile() {
+    return join(localStatePaths.userDataDirectory(), 'base-image-pulls.json');
   },
   nativeInstallBinDirectory() {
     return join(localStatePaths.userDataDirectory(), 'bin');

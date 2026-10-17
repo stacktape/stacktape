@@ -20,9 +20,6 @@ export const getNextVersionString = (lastVersion: string) => {
   return buildStringVersion(digitsLength, nextNumericVersion);
 };
 
-export const getHotSwapDeployVersionString = () => {
-  return buildStringVersion(1, 0);
-};
 export const getStacktapeVersion = (): string => {
   // @ts-expect-error - injected using define
   return STACKTAPE_VERSION;

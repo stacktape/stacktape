@@ -33,12 +33,12 @@
  *    script cannot run; an unchanged repeat hits the cache; `chmod 755` must change the digest and rebuild, so the
  *    deployed image runs it; a handler edit must still change the digest and the output.
  * 12. `rp1` to `rp-checkout`, a Python container app built by the production Railpack path (`buildpack` packaging,
- *    `buildUsingRailpack`) from a pinned `requirements.txt` (`--only railpack`): a handler-only edit must reuse the pip
- *    install, change the digest and the image, and print the edit; a requirements edit must install again; the same
+ *    `buildUsingRailpack`) from a pinned `requirements.txt` (`--only railpack`): a handler-only edit must reuse the
+ *    dependency install, change the digest and the image, and print the edit; a requirements edit must install again; the same
  *    project in another checkout root must get the same digest and be reused. Railpack plans with a railpack binary
- *    (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH; without one this section is skipped and reported) and
- *    builds with its pinned frontend, builder and runtime images, which BuildKit fetches itself: they are the only
- *    images exempt from the no-pull check. Its fixture names the run, so no earlier build can satisfy its install.
+ *    (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH; full qualification requires it) and
+ *    builds with its pinned frontend and the official Python and uv images, which BuildKit fetches itself: they are the
+ *    only images exempt from the no-pull check. Its fixture names the run, so no earlier build can satisfy its install.
  *
  * Each bundle is also built in the generator's conservative layout, which installs beside the whole bundle: every
  * optimized image must hold exactly its entries under `/app` (kind, mode, owner, link target, contents), the runtime
@@ -107,8 +107,8 @@ if (only !== undefined && only !== 'python-checkouts' && only !== 'es-image-mode
   throw new Error(`Unknown --only ${only}.`);
 }
 const railpackBinary = findRailpackBinary();
-if (only === 'railpack' && !railpackBinary) {
-  throw new Error('--only railpack needs a railpack binary: set STP_RAILPACK_BINARY or put railpack on PATH.');
+if ((!only || only === 'railpack') && !railpackBinary) {
+  throw new Error('Railpack qualification needs a railpack binary: set STP_RAILPACK_BINARY or put railpack on PATH.');
 }
 const out = resolve(argument('--out') ?? (await mkdtemp(join(tmpdir(), 'stacktape-es-image-deps-'))));
 const runId = argument('--run-id') ?? randomBytes(4).toString('hex');
@@ -470,6 +470,7 @@ const buildEsImage = async ({
     minify: true,
     nodeTarget: String(NODE_VERSION),
     requiresGlibcBinaries: true,
+    runtimeTools: { tini: false, curl: false },
     dockerBuildOutputArchitecture: 'linux/amd64'
   });
   return { output, build };
@@ -935,8 +936,8 @@ type RailpackPackaged = {
 const railpackProject = join(out, 'project-railpack');
 /** What the Railpack fixture prints for a marker and an installed `idna` version. */
 const railpackOutput = (marker: string, idna: string) => `railpack-python ${marker} idna=${idna} xn--mnich-kva`;
-/** The install step of Railpack's Python plan, which copies only `requirements.txt` before it runs. */
-const RAILPACK_INSTALL_STEP = /^pip install -r requirements\.txt$/;
+/** The install step of the Python plan, which copies only `requirements.txt` before it runs. */
+const RAILPACK_INSTALL_STEP = /^uv pip install -r requirements\.txt$/;
 
 /**
  * A Python app for Railpack: `main.py` (whose start command Railpack detects) and a pinned `requirements.txt`. The
@@ -960,7 +961,7 @@ const writeRailpackProject = async ({
 
 /**
  * Each step of a plain BuildKit log of a Railpack build with its cache decision. Railpack names its steps by their
- * command (`pip install -r requirements.txt`), without the `[stage]` prefix a Dockerfile step has.
+ * command (`uv pip install -r requirements.txt`), without the `[stage]` prefix a Dockerfile step has.
  */
 const parseRailpackSteps = (log: string): Step[] => {
   const steps = new Map<string, Step>();
@@ -1547,14 +1548,14 @@ if (packageLabel) {
       const railpackInstallStep = ({ steps }: RailpackPackaged) =>
         steps.find(({ instruction }) => RAILPACK_INSTALL_STEP.test(instruction)) ?? null;
       check(
-        'rp1: the first Railpack build ran the pip install, and the image runs its handler with the dependency',
+        'rp1: the first Railpack build ran the dependency install, and the image runs its handler with the dependency',
         rp1.outcome === 'bundled' &&
           railpackInstallStep(rp1)?.decision === 'DONE' &&
           rp1.run?.stdout === railpackOutput('handler-rp1', '3.10'),
         `${rp1.detection}; ${JSON.stringify(railpackInstallStep(rp1))}; ${rp1.run?.stdout}`
       );
       check(
-        'rp2: a handler-only edit reused the pip install',
+        'rp2: a handler-only edit reused the dependency install',
         railpackInstallStep(rp2)?.decision === 'CACHED',
         JSON.stringify(railpackInstallStep(rp2))
       );
@@ -1567,7 +1568,7 @@ if (packageLabel) {
         `digest ${rp1.digest} → ${rp2.digest}; image ${rp1.imageId} → ${rp2.imageId}; ${rp2.run?.stdout}`
       );
       check(
-        'rp3: a requirements edit ran the pip install again',
+        'rp3: a requirements edit ran the dependency install again',
         railpackInstallStep(rp3)?.decision === 'DONE' && rp3.run?.stdout === railpackOutput('handler-rp2', '3.9'),
         `${JSON.stringify(railpackInstallStep(rp3))}; ${rp3.run?.stdout}`
       );

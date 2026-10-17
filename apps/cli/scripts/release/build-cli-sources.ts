@@ -1,5 +1,6 @@
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import type { BunPlugin } from 'bun';
+import { randomUUID } from 'node:crypto';
 import { arch, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
@@ -12,7 +13,9 @@ import {
   LAMBDA_TRACING_RUNTIME_SOURCE_PATH,
   LLM_DOCS_FOLDER_PATH,
   SCRIPTS_ASSETS_PATH,
-  SOURCE_MAP_INSTALL_FILE_NAME
+  SOURCE_MAP_INSTALL_FILE_NAME,
+  BRIDGE_FILES_FOLDER_NAME,
+  BRIDGE_FILES_SOURCE_PATH
 } from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { getPlatform } from '@utils/bin-executable';
@@ -22,6 +25,7 @@ import { createCliPackagingError } from '@domain-services/packaging-manager/erro
 import { localBuildTsConfigPath } from '@utils/misc';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import { createCloudFormationSpecBuildPlugin } from '@scripts/support/cloudformation-spec-loader';
+import { createFsExtraSingleCopyPlugin } from '@scripts/support/fs-extra-single-copy-plugin';
 import { archiveItem, extractTgzArchive } from '@utils/zip';
 import {
   chmod,
@@ -49,6 +53,7 @@ import {
 
 export const ALL_SUPPORTED_PLATFORMS: SupportedPlatform[] = [
   'win',
+  'win-arm',
   'linux',
   'macos',
   'macos-arm',
@@ -76,6 +81,7 @@ export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?
 
 const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
   win: 'windows',
+  'win-arm': 'windows-arm',
   macos: 'macos',
   linux: 'linux',
   'macos-arm': 'macos-arm',
@@ -85,6 +91,7 @@ const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
 
 const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string } = {
   win: '@esbuild/win32-x64',
+  'win-arm': '@esbuild/win32-arm64',
   macos: '@esbuild/darwin-x64',
   linux: '@esbuild/linux-x64',
   'macos-arm': '@esbuild/darwin-arm64',
@@ -93,6 +100,7 @@ const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string }
 };
 const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[] } = {
   win: ['esbuild.exe'],
+  'win-arm': ['esbuild.exe'],
   macos: ['bin', 'esbuild'],
   linux: ['bin', 'esbuild'],
   'macos-arm': ['bin', 'esbuild'],
@@ -104,7 +112,7 @@ const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[
 export const EXECUTABLE_FILE_PATTERNS = [
   'stacktape',
   'stacktape.exe',
-  // The Session Manager plugin that only the Windows archive ships.
+  // The Session Manager plugin that only the Windows archives ship.
   '*/smp.exe',
   '*/exec',
   '*/exec.exe'
@@ -150,6 +158,7 @@ export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderP
 // variants. Other targets have one native package per OS/architecture pair.
 export const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string[] } = {
   win: ['win32-x64'],
+  'win-arm': ['win32-arm64'],
   macos: ['darwin-x64'],
   'macos-arm': ['darwin-arm64'],
   linux: ['linux-x64', 'linux-x64-musl'],
@@ -159,6 +168,7 @@ export const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: s
 
 export const BUN_COMPILE_TARGETS: { [_platform in SupportedPlatform]: Bun.Build.CompileTarget } = {
   win: 'bun-windows-x64',
+  'win-arm': 'bun-windows-arm64',
   macos: 'bun-darwin-x64',
   'macos-arm': 'bun-darwin-arm64',
   linux: 'bun-linux-x64',
@@ -281,11 +291,14 @@ const createOpenTuiDebugStripPlugin = (): BunPlugin => ({
 export const getReleaseBundleOptions = ({
   debug,
   platform,
-  version
+  version,
+  errorTrackingChunkId
 }: {
   debug?: boolean;
   platform: SupportedPlatform;
   version?: string;
+  /** Identifies the executable's source map in PostHog (`writeErrorTrackingSourceMap`). */
+  errorTrackingChunkId?: string;
 }) => ({
   entrypoints: [join(process.cwd(), 'src', 'entrypoints', 'compiled-cli.ts')],
   // Preserve command-level dynamic imports as ESM chunks inside the executable instead of initializing every command.
@@ -299,10 +312,14 @@ export const getReleaseBundleOptions = ({
   plugins: [
     createStacktapeOpenTuiBuildPlugin(),
     createCloudFormationSpecBuildPlugin(),
+    createFsExtraSingleCopyPlugin(),
     ...(OPENTUI_DEBUG_STRIPPED_PLATFORMS.includes(platform) ? [createOpenTuiDebugStripPlugin()] : [])
   ],
   tsconfig: localBuildTsConfigPath,
-  define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') }
+  define: {
+    STACKTAPE_VERSION: JSON.stringify(version || 'dev'),
+    STACKTAPE_ERROR_TRACKING_CHUNK_ID: JSON.stringify(errorTrackingChunkId || '')
+  }
 });
 
 /**
@@ -313,16 +330,86 @@ export const getReleaseBundleOptions = ({
  * Windows x64 natively through WSL interop (Wave 1H). macOS x64 (`macos-15-intel`), macOS arm64 (`macos-15`) and
  * Linux arm64 (`ubuntu-24.04-arm`) were qualified by the release workflow's `bytecode_qualification` run 36174122384
  * on 2026-09-25: 22/22 checks each and `--version` in 0.23-0.25 of the time. Linux arm64's depth-1 archive measured
- * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips.
+ * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips. Windows arm64
+ * (`windows-11-arm`) was qualified by `bytecode_qualification` run 38414606180 on 2026-10-13: 20/20 checks, `--version`
+ * in 0.24 of the time and a 71.5 MiB depth-1 archive.
  */
-const BYTECODE_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine', 'win', 'macos', 'macos-arm', 'linux-arm'];
+const BYTECODE_PLATFORMS: SupportedPlatform[] = [
+  'linux',
+  'alpine',
+  'win',
+  'win-arm',
+  'macos',
+  'macos-arm',
+  'linux-arm'
+];
+
+/**
+ * Writes the executable's code and source map for upload to PostHog error tracking, which then shows CLI exceptions with
+ * TypeScript files and lines. The map is never shipped (see `sourcemap` above), and Bun embeds it in any executable
+ * built with one, so a second build of the same code produces it. That build may only append its `debugId` comment;
+ * any other difference means the map does not describe the released code, and the release fails.
+ *
+ * Both builds define the same `errorTrackingChunkId`. The CLI registers it for its frames at runtime
+ * (`utils/telemetry.ts`), and it replaces Bun's own debug ID in the written pair, which `posthog-cli sourcemap upload`
+ * uses as the chunk ID.
+ */
+const writeErrorTrackingSourceMap = async ({
+  options,
+  compileTarget,
+  releasedCode,
+  chunkId,
+  directory
+}: {
+  options: ReturnType<typeof getReleaseBundleOptions>;
+  compileTarget: Bun.Build.CompileTarget;
+  releasedCode: string;
+  chunkId: string;
+  directory: string;
+}) => {
+  const workDirectory = await mkdtemp(join(tmpdir(), 'stacktape-error-tracking-map-'));
+  try {
+    const result = await Bun.build({
+      ...options,
+      sourcemap: 'external',
+      compile: {
+        target: compileTarget,
+        outfile: join(workDirectory, 'stacktape'),
+        autoloadTsconfig: true,
+        autoloadPackageJson: true
+      },
+      throw: false
+    });
+    const code = result.outputs.find(({ kind }) => kind === 'entry-point');
+    const sourceMap = result.outputs.find(({ kind }) => kind === 'sourcemap');
+    if (!result.success || !code || !sourceMap) {
+      throw new Error(`Failed to build the error-tracking source map:\n${result.logs.map(String).join('\n')}`);
+    }
+    const mappedCode = (await code.text()).replace(/\n\/\/# debugId=[0-9A-F]+\n$/, '');
+    if (mappedCode !== releasedCode) {
+      throw new Error('The error-tracking source map build produced different code than the release executable.');
+    }
+    const map = JSON.parse(await sourceMap.text());
+    map.debugId = chunkId;
+    await ensureDir(directory);
+    await outputFile(
+      join(directory, 'stacktape.js'),
+      `${mappedCode}\n//# debugId=${chunkId}\n//# sourceMappingURL=stacktape.js.map\n`
+    );
+    await outputFile(join(directory, 'stacktape.js.map'), JSON.stringify(map));
+    logSuccess(`Error-tracking source map written to ${directory}.`);
+  } finally {
+    await remove(workDirectory);
+  }
+};
 
 export const buildBinaryFile = async ({
   distFolderPath,
   debug,
   platform,
   version,
-  bytecodeDepth = !debug && BYTECODE_PLATFORMS.includes(platform) ? 1 : 'off'
+  bytecodeDepth = !debug && BYTECODE_PLATFORMS.includes(platform) ? 1 : 'off',
+  errorTrackingSourceMapDirectory
 }: {
   distFolderPath?: string;
   debug?: boolean;
@@ -330,6 +417,8 @@ export const buildBinaryFile = async ({
   version?: string;
   /** Overrides the platform's release bytecode, for `qualify-bytecode.ts` only. */
   bytecodeDepth?: number | 'off';
+  /** Where to write the executable's code and source map for PostHog (`writeErrorTrackingSourceMap`). */
+  errorTrackingSourceMapDirectory?: string;
 }) => {
   const binFolderName = BINARY_FOLDER_NAMES[platform];
   const outputFolderPath = join(distFolderPath, binFolderName);
@@ -344,13 +433,17 @@ export const buildBinaryFile = async ({
 
   const compileTarget = BUN_COMPILE_TARGETS[platform];
 
-  const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
+  const outputFileName = isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
 
-  const result = await Bun.build({
-    ...getReleaseBundleOptions({ debug, platform, version }),
+  const errorTrackingChunkId = errorTrackingSourceMapDirectory && !debug ? randomUUID() : undefined;
+  const options = {
+    ...getReleaseBundleOptions({ debug, platform, version, errorTrackingChunkId }),
     // Only the executable build: `getReleaseBundleOptions` also serves bundle analysis, which compiles nothing.
-    ...(bytecodeDepth !== 'off' && { bytecode: true, bytecodeDepth }),
+    ...(bytecodeDepth !== 'off' && { bytecode: true, bytecodeDepth })
+  };
+  const result = await Bun.build({
+    ...options,
     compile: {
       target: compileTarget,
       outfile: outputPath,
@@ -365,7 +458,17 @@ export const buildBinaryFile = async ({
     throw new Error(`Failed to build binary for platform ${platform}:\n${errors}`);
   }
 
-  if (platform !== 'win') {
+  if (errorTrackingChunkId) {
+    await writeErrorTrackingSourceMap({
+      options,
+      compileTarget,
+      releasedCode: await result.outputs.find(({ kind }) => kind === 'entry-point')!.text(),
+      chunkId: errorTrackingChunkId,
+      directory: errorTrackingSourceMapDirectory!
+    });
+  }
+
+  if (!isWindowsPlatform(platform)) {
     await chmod(outputPath, 0o755);
   }
   logSuccess(`Binary for platform ${platform} generated successfully.`);
@@ -375,7 +478,8 @@ export const buildBinaryFile = async ({
 
 /**
  * railpack and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`). The one
- * exception is the plugin on Windows, where AWS publishes only an installer: that archive keeps shipping it.
+ * exception is the plugin on Windows, where AWS publishes only an installer: those archives keep shipping it. AWS
+ * builds it for x64 only, so Windows ARM64 runs the same executable under the system's x64 emulation.
  */
 export const copySessionsManagerPluginBinary = async ({
   distFolderPath,
@@ -384,7 +488,7 @@ export const copySessionsManagerPluginBinary = async ({
   distFolderPath?: string;
   platform: SupportedPlatform;
 }) => {
-  if (platform !== 'win') return;
+  if (!isWindowsPlatform(platform)) return;
   const sourcePath = join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', 'smp-win.exe');
   const distPath = join(distFolderPath, BINARY_FOLDER_NAMES[platform], 'session-manager-plugin', 'smp.exe');
   return await copy(sourcePath, distPath);
@@ -417,11 +521,11 @@ export const copyEsbuildBinary = async ({
     'esbuild',
     esbuildBinFileLocations[esbuildBinFileLocations.length - 1].replace('esbuild', 'exec')
   );
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await chmod(esbuildExecutableSourcePath, '755');
   }
   await copy(esbuildExecutableSourcePath, esbuildExecutableDistPath);
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await chmod(esbuildExecutableDistPath, '755');
   }
   await Promise.all([remove(extractedPath), remove(downloadedFilePath)]);
@@ -475,6 +579,12 @@ export const copyConfigSchema = async ({ distFolderPath }: { distFolderPath?: st
   logInfo('Copying config schema...');
   await copy(CONFIG_SCHEMA_PATH, join(distFolderPath, basename(CONFIG_SCHEMA_PATH)));
   logSuccess('Config schema copied successfully.');
+};
+
+export const copyBridgeFiles = async ({ distFolderPath }: { distFolderPath?: string }) => {
+  logInfo('Copying bridge files...');
+  await copy(BRIDGE_FILES_SOURCE_PATH, join(distFolderPath, BRIDGE_FILES_FOLDER_NAME));
+  logSuccess('Bridge files copied successfully.');
 };
 
 export const copyHelperLambdas = async ({ distFolderPath }: { distFolderPath?: string }) => {
@@ -576,7 +686,7 @@ export const archiveCliBinaries = async ({
     if (await pathExists(platformDistFolderPath)) {
       await archiveItem({
         absoluteSourcePath: platformDistFolderPath,
-        format: platform === 'win' ? 'zip' : 'tgz',
+        format: isWindowsPlatform(platform) ? 'zip' : 'tgz',
         executablePatterns: EXECUTABLE_FILE_PATTERNS
       });
       logSuccess(`Archived binary for platform: ${platform}`);

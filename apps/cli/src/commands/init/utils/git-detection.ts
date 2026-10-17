@@ -1,5 +1,20 @@
 import { execSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { isAbsolute, relative, sep } from 'node:path';
+
+/**
+ * A path as the file system spells it. Git prints the repository root with `/` separators and long names, while the
+ * working directory or config path may use the other separator, another letter case or Windows 8.3 short names
+ * (`RUNNER~1`); `relative` cannot match those, so both sides are canonicalized before they are compared. A path that
+ * does not exist is kept as given.
+ */
+const canonicalPath = (path: string): string => {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+};
 
 export type GitProvider = 'github' | 'gitlab' | 'bitbucket' | null;
 
@@ -48,13 +63,15 @@ export const detectGitInfo = (cwd: string = process.cwd()): GitInfo => {
   }
 
   try {
-    result.rootDirectory = execSync('git rev-parse --show-toplevel', {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-      .toString()
-      .trim();
+    result.rootDirectory = canonicalPath(
+      execSync('git rev-parse --show-toplevel', {
+        cwd,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+        .toString()
+        .trim()
+    );
   } catch {
     // Ignore
   }
@@ -81,7 +98,7 @@ export const detectGitInfo = (cwd: string = process.cwd()): GitInfo => {
  */
 export const getPathInRepository = (repositoryRoot: string | null, filePath: string | null): string | null => {
   if (!repositoryRoot || !filePath) return null;
-  const pathInRepository = relative(repositoryRoot, filePath);
+  const pathInRepository = relative(canonicalPath(repositoryRoot), canonicalPath(filePath));
   if (
     !pathInRepository ||
     pathInRepository === '..' ||

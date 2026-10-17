@@ -288,7 +288,7 @@ Common parameters accepted by `plan` and `run`:
 | `secretName` | string | Secret name for secret commands |
 | `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
-| `hotSwap` | boolean | Request hotswap deployment when supported |
+| `fullDeploy` | boolean | Deploy every change through CloudFormation instead of updating changed code directly |
 | `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through the client's confirmation form; this flag alone cannot authorize them. |
 | `timeoutMs` | number | Command timeout in milliseconds for `run` |
 

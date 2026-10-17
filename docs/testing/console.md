@@ -18,23 +18,119 @@ the relevant real router/context when changing those behaviors. Bun isolates tes
 between suites; do not add mutable production call tables merely to work around mock leakage.
 
 Use `pnpm --filter @stacktape/console-api-app test:db` for schema adoption and migration changes. It starts an isolated
-PostgreSQL container, creates scratch databases, runs the real migration-adoption path, and verifies container removal
-in a `finally` block. The default selection covers migration/adoption only. Feature suites are available explicitly:
+PostgreSQL container, creates scratch databases, runs the real migration-adoption path and migration-to-schema diff, and
+verifies container removal in a `finally` block. The default selection covers migration/adoption only. Feature suites
+are available explicitly:
 
 ```sh
+pnpm --filter @stacktape/console-api-app test:db --startup
+pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
+pnpm --filter @stacktape/console-api-app test:db --incident-journey
+pnpm --filter @stacktape/console-api-app test:db --alerts
+pnpm --filter @stacktape/console-api-app test:db --uptime
+pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --security
+pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
+pnpm --filter @stacktape/console-api-app test:db --gitlab-lifecycle
+pnpm --filter @stacktape/console-api-app test:db --bitbucket-pairing
 pnpm --filter @stacktape/console-api-app test:db --runner
+pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
+pnpm --filter @stacktape/console-api-app test:db --console-access
+pnpm --filter @stacktape/console-api-app test:db --secrets
+pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
 
-Pass the flag directly: an extra `--` is forwarded to this script and rejected. Choose the suite whose assertions cover
-the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
-defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only to qualify
-a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+`--startup` reads stage-scoped SecureString parameters through concurrent cold-start processes on MiniStack, then
+executes the built Prisma proxy against the disposable database. It checks committed CRUD and date filtering through
+Lambda. Only PostgreSQL TLS options and deliberate service-limit failures are substituted. It needs `zip` for the proxy
+bundle. MiniStack does not enforce SSM's ten-name `GetParameters` limit; the scenario injects that rejection before
+oversized requests while successful reads use the emulator.
+
+Workspace AWS isolation and browser-credential loading have separate Docker lanes without Chromium or a database:
+
+```sh
+pnpm --filter @stacktape/console-api-app test:workspace:aws
+pnpm --filter @stacktape/console-ui test:credentials:aws
+```
+
+They use MiniStack STS/SSM state. The credential loader deliberately ignores endpoint overrides in production; its test
+forwards SDK commands to owned emulator clients without changing that policy. Malformed records and foreign-account
+rejection remain offline fault-injection checks.
+
+`--alerts` exercises delivery leases, provider retries, saved receipts and signed Slack actions with PostgreSQL and
+MiniStack SQS/Secrets Manager/SES. Provider contract checks use HTTPS receivers; evidence uploads use the real Slack
+SDK. `--uptime` drives regional quorum and rejected reports through the production HTTP API. `--incident-journey` also
+runs the built prober against MiniStack SSM/STS and the built Prisma proxy on MiniStack Lambda; build the CLI dev
+artifacts first with `pnpm --filter @stacktape/cli build:dev-artifacts`. CloudWatch metrics/history remain an explicit
+HTTP provider fixture.
+
+`--secrets` runs the source CLI and production Console AWS helpers and credential cache through the real HTTP API and
+isolated PostgreSQL, with Secrets Manager, SSM and Lambda configuration on MiniStack. It checks CRUD, fresh-client
+reads, pagination, version selectors, account/region isolation and denied credentials. ECS metadata and cross-account
+STS remain explicit fixtures; browser interaction runs separately.
+
+Pass the flag directly: an extra `--` is forwarded to this script and rejected. The `--incident-agent` suite also spawns
+the source CLI for `stacktape ai:connect`, so the runner first builds the CLI dev artifacts
+(`turbo run build:dev-artifacts --filter=@stacktape/cli`, cached after the first run). Choose the suite whose assertions
+cover the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner
+currently defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only
+to qualify a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+
+The hosted-run suite runs funding, runtime and handoff files in separate processes. For a focused rerun, use
+`--incident-agent-funding`, `--incident-agent-runtime` or `--incident-handoff`. MiniStack owns Secrets Manager, SSM
+parameters, SQS messages, CloudFormation stack metadata, Lambda configurations and log-group metadata. The fixture keeps
+controlled remote-execution faults, cross-account AssumeRole, metrics and Logs Insights outside the emulator. The
+runtime scenarios execute the pinned agents against loopback provider and GitHub responses; no live credentials or
+shared-dev reservation are needed.
+
+The `--cli-console` suite runs source CLI processes against the production HTTP router and disposable PostgreSQL. It
+covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and
+project commands, and isolated AWS profiles/defaults. STS identity, CloudFormation, S3, ECR, resource tags and
+deployment logs use the shared MiniStack fixture; the suite substitutes cross-account AssumeRole, Cost Explorer and
+Budgets and deliberate failures. External network requests are rejected. It needs Docker, builds self-contained helper
+Lambdas for the emulator and restores the ordinary CLI dev artifacts during cleanup.
+
+The `--incident-journey` suite extends issue and incident coverage through the production HTTP router, signed loopback
+webhook delivery and authenticated incident actions. It also invokes the built uptime prober in the official Node.js 22
+Lambda image and checks the monitoring sweeper through its Lambda proxy. Build the helpers first with
+`pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
+`public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
+
+`--gitlab-lifecycle` runs OAuth, clone credential rotation, disconnect and recovery with PostgreSQL leases and MiniStack
+Secrets Manager. `--bitbucket-pairing` sends locally signed FIT requests through HTTP and claims them through the
+production Console router, checking workspace ownership, concurrent claim, expiry, reinstall and credential cleanup.
+Both use loopback provider HTTP and need no shared-dev access.
+
+`--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
+with real API middleware, disposable PostgreSQL and MiniStack S3 payloads, SQS queues, SSM parameters, Secrets Manager
+credentials, CloudWatch Logs and CloudFormation metadata. Controlled runner execution and lost responses remain fault
+fixtures. It uses a ready runner fixture; EC2 provisioning and AMI qualification remain separate. Dispatched deployment,
+Actions and cancellation scripts execute in a network-disabled `node:24-bookworm` container with controlled external
+tools and a systemd stand-in. A local file relay forwards only the suite's AWS/API HTTP requests, including real CLI and
+runner completion callbacks, across Docker Desktop and WSL.
+
+Runner AWS state has two standalone offline lanes:
+
+```sh
+pnpm --filter @stacktape/console-api-app test:runner:aws:offline
+pnpm --filter @stacktape/console-api-app test:remote-session:aws:offline
+```
+
+The first uses MiniStack EC2, IAM and regional SSM pointers to verify cleanup recovery, policy replacement and gated AMI
+publication. The second selects a real MiniStack ECS task and container; Session Manager alone uses a loopback protocol
+fixture because the pinned emulator rejects `StartSession`. Both lanes own their emulator and verify cleanup. The
+Docker-free `test:runner:rules` lane runs parsing, pricing, redaction, artifact policy and controlled readiness failures
+in per-PR CI. `--git-deploy` also verifies that authenticated rollback preserves the chosen version through queueing,
+dispatch, the executed CLI arguments and terminal reporting.
+
+The billing suite sends Paddle Classic form events through the real webhook and reads plan restrictions and receipts
+through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
+and telemetry providers. It never contacts Paddle or creates real charges.
 
 The isolated Console browser lane uses the same disposable database runner:
 
@@ -151,11 +247,12 @@ pnpm dev:console
 STP_CONSOLE_E2E_CREDENTIAL_SOURCE=ssm pnpm --filter @stacktape/console-ui test:e2e
 ```
 
-Use `pnpm test:console:browser:smoke` for the separate anonymous shell check. It is not a substitute for authenticated
-coverage. Both browser modes verify the running UI's API target before entering credentials; a local-API test cannot
-silently use the deployed dev API. The authenticated lane currently covers login and projects navigation, not complete
-feature acceptance. Missing credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and
-videos are disabled to avoid storing credentials, tokens, or private account data.
+Use `pnpm test:console:browser:offline` for the anonymous screens and the pages that answer their own API requests. It
+needs no credentials or reservation and is not a substitute for authenticated coverage. The dev-API and local-API modes
+both verify the running UI's API target before entering credentials; a local-API test cannot silently use the deployed
+dev API. The authenticated lane currently covers login and projects navigation, not complete feature acceptance. Missing
+credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and videos are disabled to avoid
+storing credentials, tokens, or private account data.
 
 Authenticated automation uses a dedicated email/password user in the dev Cognito pool. Invite it to the existing dev
 Stacktape organization with Developer access to the intended test projects. For interactive development, the owner's

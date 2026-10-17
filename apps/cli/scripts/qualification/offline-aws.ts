@@ -40,12 +40,8 @@ const queryAction = (request: IncomingMessage, body: string): string => {
 const isMissingStackRead = (request: IncomingMessage, body: string) =>
   ['DescribeStacks', 'ListStackResources'].includes(queryAction(request, body).split('.').at(-1) ?? '');
 
-const isGetTagKeys = (request: IncomingMessage, body: string) =>
-  queryAction(request, body).split('.').at(-1) === 'GetTagKeys';
-
 const emptyJsonReadResponse = (request: IncomingMessage, body: string): Record<string, unknown> | undefined => {
   const action = queryAction(request, body);
-  if (action === 'AWSInsightsIndexService.GetTags') return { Tags: [] };
   if (action.endsWith('.DescribeBudgets')) return { Budgets: [] };
   return undefined;
 };
@@ -128,11 +124,6 @@ export const startOfflineAwsServer = async (): Promise<OfflineAwsServer> => {
       if (isMissingStackRead(request, body)) {
         response.writeHead(400, { 'content-type': 'text/xml; charset=utf-8' });
         response.end(missingStackResponse(body));
-        return;
-      }
-      if (isGetTagKeys(request, body)) {
-        response.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' });
-        response.end(JSON.stringify({ TagKeys: [] }));
         return;
       }
       const emptyRead = emptyJsonReadResponse(request, body);

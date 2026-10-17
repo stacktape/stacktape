@@ -1,18 +1,28 @@
 /* eslint-disable no-await-in-loop -- Docker builds and runtime probes are deliberately serialized to bound host load. */
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+/*
+ * Node Lambda artifacts with dependencies the bundle leaves out, built from a pnpm project and run in the official
+ * Lambda runtime. On this Linux x64 host, native packages that were installed for Linux (bcrypt's prebuilds, a napi-rs
+ * platform package), pdfkit and uglify-js, which read their own files, and a scoped package excluded from the
+ * bundle are copied from node_modules without Docker, while better-sqlite3, whose addon prebuild-install fetched
+ * for this machine's Node.js into build/, is installed again in the Lambda build image, for x64 and for arm64. A
+ * bundled Prisma 6 client and a bundled Prisma 5.0.0 client, which generates a different fallback for its engine, each
+ * run a query from the per-function build and from two split functions whose shared Prisma code is in a layer, each
+ * function with only its own query engine. A Prisma 6 query-compiler client, generated where a library engine was
+ * generated before, runs the same queries with only its compiler.
+ */
+import { mkdtemp, readdir, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathExists } from 'fs-extra';
+import { join, relative } from 'node:path';
 import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
-import { buildNativeBinaryLayer } from '../src/es/native-dependencies';
+import { buildNativeBinaryLayer, planLambdaDependencies, writeLambdaDependencies } from '../src/es/native-dependencies';
+import type { RunDocker } from '../src/runtime-contracts';
 import { assignChunksToLayers } from '../src/split-bundler/layer-assignment';
 import { buildSplitBundle } from '../src/split-bundler/bundler';
 import { createLayerArtifacts } from '../src/split-bundler/layer-builder';
-import type { SplitBundleDependency } from '../src/split-bundler/types';
 import {
   archiveItem,
-  assertFile,
   assertRunOutput,
+  buildSplitProjectWithLayers,
   createPackagingError,
   progressLogger,
   run,
@@ -21,10 +31,64 @@ import {
 } from './e2e-helpers';
 
 const root = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-e2e-'));
+// Its own project: a second schema in `root` would be a second schema to the Prisma 6 build.
+const prisma5Root = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-e2e-prisma5-'));
+const prismaCompilerRoot = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-e2e-prisma-compiler-'));
 const sourceRoot = join(root, 'src');
 const buildRoot = join(root, 'build');
 const nativeInstallationRoot = join(buildRoot, 'native-installations');
 const containers = new Set<string>();
+
+/** A SQLite schema for `prisma-client-js` with the engines for this machine and both Lambda architectures. */
+const writePrismaSchema = (project: string, generatorLines: string[] = []) =>
+  write(
+    join(project, 'prisma', 'schema.prisma'),
+    [
+      'generator client {',
+      '  provider      = "prisma-client-js"',
+      '  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]',
+      ...generatorLines,
+      '}',
+      'datasource db {',
+      '  provider = "sqlite"',
+      '  url      = "file:/tmp/lambda.db"',
+      '}',
+      'model Item {',
+      '  id   Int    @id @default(autoincrement())',
+      '  name String',
+      '}',
+      ''
+    ].join('\n')
+  );
+
+/** Fails the run when packaging asks Docker for something it should have copied. */
+const refuseDocker: RunDocker = async (commands) => {
+  throw new Error(`Packaging ran Docker for packages already installed for Lambda: docker ${commands.join(' ')}`);
+};
+
+/** Real Docker, counting the native installations packaging asks for. */
+const countingDocker = () => {
+  const builds: string[][] = [];
+  const counted: RunDocker = (commands) => {
+    builds.push(commands);
+    return runDocker(commands);
+  };
+  return { builds, runDocker: counted };
+};
+
+/** The pnpm store directories a function's `node_modules` carries, such as `@hapi+boom@10.0.1`. */
+const listStoreDirectories = async (nodeModulesPath: string) =>
+  (await readdir(join(nodeModulesPath, '.installed', 'node_modules', '.pnpm'))).toSorted();
+
+/** Every file under `directory`, as forward-slash paths relative to it. */
+const listFilesRecursively = async (directory: string) =>
+  (await readdir(directory, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(directory, join(entry.parentPath, entry.name)).replaceAll('\\', '/'))
+    .toSorted();
+
+/** A Prisma query engine or query compiler, as `listFilesRecursively` names it. */
+const isPrismaEngineFile = (file: string) => file.includes('query_engine') || file.endsWith('query_compiler_bg.wasm');
 
 /** The Lambda Node runtimes the CLI's split-bundling policy admits. Add one there only after adding it here. */
 const SUPPORTED_LAMBDA_NODE_VERSIONS = [18, 20, 22, 24];
@@ -52,68 +116,89 @@ const invokeLambdaRuntime = async ({
   /** Lambda Node runtime to invoke in. Split output is version-independent; the matrix proves it. */
   nodeVersion?: number;
 }) => {
-  const name = `stp-node-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  containers.add(name);
-  try {
-    await run('docker', [
-      'run',
-      '--platform',
-      'linux/amd64',
-      '--detach',
-      '--rm',
-      '--name',
-      name,
-      '--publish',
-      '127.0.0.1::8080',
-      '--mount',
-      `type=bind,source=${functionPath},target=/var/task,readonly`,
-      ...layerMounts.flatMap(({ source, target }) => [
+  // Docker Desktop on WSL sometimes publishes a port that nothing listens on: every host connection is refused while
+  // the runtime waits inside. The emulator listens within a second, and before that Docker's proxies reset connections
+  // rather than refuse them. A refused request never reached the function, so a new container is safe.
+  runtimes: for (let container = 1; ; container += 1) {
+    const name = `stp-node-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    containers.add(name);
+    try {
+      await run('docker', [
+        'run',
+        '--platform',
+        'linux/amd64',
+        '--detach',
+        '--rm',
+        '--name',
+        name,
+        '--publish',
+        '127.0.0.1::8080',
         '--mount',
-        `type=bind,source=${source},target=${target},readonly`
-      ]),
-      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-      `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
-      handler
-    ]);
+        `type=bind,source=${functionPath},target=/var/task,readonly`,
+        ...layerMounts.flatMap(({ source, target }) => [
+          '--mount',
+          `type=bind,source=${source},target=${target},readonly`
+        ]),
+        ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+        `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
+        handler
+      ]);
 
-    let invocationUrl: string | undefined;
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      try {
-        const portOutput = await run('docker', ['port', name, '8080/tcp']);
-        const port = portOutput.stdout.trim().match(/:(\d+)$/)?.[1];
-        if (port) {
-          invocationUrl = `http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`;
-          const response = await fetch(invocationUrl, {
-            method: 'POST',
-            body: JSON.stringify(event)
-          });
-          const body = await response.text();
-          if (!response.ok) {
-            throw new Error(`Lambda runtime returned HTTP ${response.status}: ${body}`);
+      let invocationUrl: string | undefined;
+      let lastError: unknown;
+      let refusedSince: number | undefined;
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        let refused = false;
+        try {
+          const portOutput = await run('docker', ['port', name, '8080/tcp']);
+          const port = portOutput.stdout.trim().match(/:(\d+)$/)?.[1];
+          if (port) {
+            invocationUrl = `http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`;
+            const response = await fetch(invocationUrl, {
+              method: 'POST',
+              body: JSON.stringify(event)
+            });
+            const body = await response.text();
+            if (!response.ok) {
+              throw new Error(`Lambda runtime returned HTTP ${response.status}: ${body}`);
+            }
+            return body;
           }
-          return body;
+        } catch (error) {
+          lastError = error;
+          refused = (error as { code?: string }).code === 'ConnectionRefused';
         }
-      } catch (error) {
-        lastError = error;
+        refusedSince = refused ? (refusedSince ?? Date.now()) : undefined;
+        if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000 && container < 3) continue runtimes;
+        await Bun.sleep(250);
       }
-      await Bun.sleep(250);
+      const logs = await run('docker', ['logs', name]).catch((error) => ({
+        stdout: '',
+        stderr: String(error)
+      }));
+      throw new Error(
+        `Lambda runtime at ${invocationUrl ?? 'an unpublished port'} did not become ready: ${String(lastError)}\n${logs.stdout}\n${logs.stderr}`
+      );
+    } finally {
+      await run('docker', ['rm', '--force', name]).catch(() => undefined);
+      containers.delete(name);
     }
-    const logs = await run('docker', ['logs', name]).catch((error) => ({
-      stdout: '',
-      stderr: String(error)
-    }));
-    throw new Error(
-      `Lambda runtime at ${invocationUrl ?? 'an unpublished port'} did not become ready: ${String(lastError)}\n${logs.stdout}\n${logs.stderr}`
-    );
-  } finally {
-    await run('docker', ['rm', '--force', name]).catch(() => undefined);
-    containers.delete(name);
   }
 };
 
 try {
   await run('docker', ['version', '--format', '{{.Server.Version}}']);
+  const dependencies = {
+    '@hapi/boom': '10.0.1',
+    '@node-rs/xxhash': '1.7.8',
+    bcrypt: '6.0.0',
+    'better-sqlite3': '12.11.1',
+    // Reads its font metrics from its own directory at run time, so it must stay out of the bundle.
+    pdfkit: '0.16.0',
+    // Finds the sources it compiles itself from with `require.resolve` and reads them at load.
+    'uglify-js': '3.19.3',
+    '@prisma/client': '6.19.3'
+  };
   await write(
     join(root, 'package.json'),
     `${JSON.stringify(
@@ -122,14 +207,20 @@ try {
         private: true,
         type: 'module',
         packageManager: 'pnpm@11.17.0',
-        dependencies: { bcrypt: '6.0.0' }
+        dependencies,
+        devDependencies: { prisma: '6.19.3' }
       },
       null,
       2
     )}\n`
   );
-  await write(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "."\nonlyBuiltDependencies:\n  - bcrypt\n');
-  await run('pnpm', ['add', 'bcrypt@6.0.0', '--allow-build=bcrypt', '--prefer-offline'], root);
+  await write(
+    join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - "."\nallowBuilds:\n  bcrypt: true\n  better-sqlite3: true\n  prisma: true\n  "@prisma/client": true\n  "@prisma/engines": true\n'
+  );
+  await writePrismaSchema(root);
+  await run('pnpm', ['install', '--prefer-offline'], root);
+  await run('pnpm', ['exec', 'prisma', 'generate'], root);
 
   const sharedMarker = `split-layer-${'x'.repeat(4096)}`;
   await write(join(sourceRoot, 'shared.ts'), `export const sharedMarker = ${JSON.stringify(sharedMarker)};\n`);
@@ -180,17 +271,14 @@ try {
   if (!nativeOutput || !plainOutput) {
     throw new Error('Split bundling did not produce both synthetic functions.');
   }
-  if (
-    nativeOutput.dependenciesToInstallInDocker.length !== 1 ||
-    nativeOutput.dependenciesToInstallInDocker[0]?.name !== 'bcrypt'
-  ) {
+  if (nativeOutput.externalDependencies.length !== 1 || nativeOutput.externalDependencies[0]?.name !== 'bcrypt') {
     throw new Error(
-      `Native dependency attribution was incorrect: ${JSON.stringify(nativeOutput.dependenciesToInstallInDocker)}`
+      `Native dependency attribution was incorrect: ${JSON.stringify(nativeOutput.externalDependencies)}`
     );
   }
-  if (plainOutput.dependenciesToInstallInDocker.length !== 0) {
+  if (plainOutput.externalDependencies.length !== 0) {
     throw new Error(
-      `The plain Lambda incorrectly inherited native dependencies: ${JSON.stringify(plainOutput.dependenciesToInstallInDocker)}`
+      `The plain Lambda incorrectly inherited native dependencies: ${JSON.stringify(plainOutput.externalDependencies)}`
     );
   }
 
@@ -211,76 +299,21 @@ try {
   const sharedLayer = layerArtifacts[0];
   if (!sharedLayer) throw new Error('No shared chunk layer was emitted.');
 
-  console.log('Building and executing bcrypt native layers with npm, Yarn, pnpm, Bun, and Deno...');
-  const nativeLayers = new Map<string, Awaited<ReturnType<typeof buildNativeBinaryLayer>>>();
-  for (const packageManager of ['npm', 'yarn', 'pnpm', 'bun', 'deno'] as const) {
-    const layer = await buildNativeBinaryLayer({
-      dependencies: nativeOutput.dependenciesToInstallInDocker,
-      installationRootPath: nativeInstallationRoot,
-      layerBasePath: join(buildRoot, 'native-layers'),
-      lambdaRuntimeVersion: 24,
-      packageManager,
-      dockerBuildOutputArchitecture: 'linux/amd64',
-      usedByLambdas: ['native'],
-      layerName: `layer-${packageManager}`,
-      runDocker: (commands) => runDocker(commands)
-    });
-    if (!layer) throw new Error(`${packageManager} did not emit a native layer.`);
-    nativeLayers.set(packageManager, layer);
-    await assertRunOutput({
-      dockerArgs: [
-        '--platform',
-        'linux/amd64',
-        '--mount',
-        `type=bind,source=${layer.layerPath},target=/opt,readonly`,
-        'node:24-bookworm-slim',
-        'node',
-        '-e',
-        "const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('native-matrix:'+v))"
-      ],
-      expected: 'native-matrix:true'
-    });
-  }
-
-  console.log('Building an isolated incompatible bcrypt 5 layer...');
-  const bcrypt5Dependencies: SplitBundleDependency[] = nativeOutput.dependenciesToInstallInDocker.map(
-    ({ name, note, hasBinary, peerDependencies, optionalPeerDependencies }) => ({
-      name,
-      version: '5.1.1',
-      note,
-      hasBinary,
-      peerDependencies,
-      optionalPeerDependencies
-    })
-  );
-  const bcrypt5Layer = await buildNativeBinaryLayer({
-    dependencies: bcrypt5Dependencies,
+  console.log('Building the dependency layer from the installed bcrypt, without Docker...');
+  const nativeLayer = await buildNativeBinaryLayer({
+    dependencies: nativeOutput.externalDependencies,
+    plan: await planLambdaDependencies({
+      dependencies: nativeOutput.externalDependencies,
+      productionDependencies: new Set(nativeOutput.productionDependencies),
+      architecture: 'x64'
+    }),
     installationRootPath: nativeInstallationRoot,
     layerBasePath: join(buildRoot, 'native-layers'),
     lambdaRuntimeVersion: 24,
-    packageManager: 'pnpm',
-    dockerBuildOutputArchitecture: 'linux/amd64',
-    usedByLambdas: ['bcrypt5'],
-    layerName: 'layer-pnpm-bcrypt5',
-    runDocker: (commands) => runDocker(commands)
-  });
-  if (!bcrypt5Layer) throw new Error('bcrypt 5 did not emit a native layer.');
-  await assertRunOutput({
-    dockerArgs: [
-      '--platform',
-      'linux/amd64',
-      '--mount',
-      `type=bind,source=${bcrypt5Layer.layerPath},target=/opt,readonly`,
-      'node:24-bookworm-slim',
-      'node',
-      '-e',
-      "const p=require('/opt/nodejs/node_modules/bcrypt/package.json'); const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('isolated:'+p.version+':'+v))"
-    ],
-    expected: 'isolated:5.1.1:true'
+    usedByLambdas: ['native'],
+    runDocker: refuseDocker
   });
 
-  const pnpmLayer = nativeLayers.get('pnpm');
-  if (!pnpmLayer) throw new Error('The pnpm native layer was not available.');
   const lambdaArchives = await Promise.all([
     archiveItem({
       absoluteSourcePath: join(buildRoot, 'functions', 'native'),
@@ -301,7 +334,7 @@ try {
       format: 'zip'
     }),
     archiveItem({
-      absoluteSourcePath: pnpmLayer.layerPath,
+      absoluteSourcePath: nativeLayer.layerPath,
       absoluteDestDirPath: buildRoot,
       fileNameBase: 'native-layer',
       format: 'zip'
@@ -322,7 +355,7 @@ try {
         target: '/opt/nodejs/package.json'
       },
       {
-        source: join(pnpmLayer.layerPath, 'nodejs', 'node_modules'),
+        source: join(nativeLayer.layerPath, 'nodejs', 'node_modules'),
         target: '/opt/nodejs/node_modules'
       }
     ],
@@ -419,69 +452,331 @@ try {
     }
   }
 
-  console.log('Packaging a native dependency into a single-function hot-swap ZIP without relying on layers...');
+  const buildFunction = (
+    name: string,
+    {
+      project = root,
+      ...extraOptions
+    }: { dependenciesToExcludeFromBundle?: string[]; distFolderPath?: string; project?: string },
+    docker: RunDocker
+  ) =>
+    buildJsBundleLambda({
+      cwd: project,
+      name: `synthetic-${name}`,
+      entryfilePath: join(project, 'src', `${name}.ts`),
+      distFolderPath: join(buildRoot, 'functions', name),
+      existingDigests: [],
+      progressLogger,
+      invocationId: 'synthetic-node-lambda-e2e',
+      sizeLimit: 250,
+      nodeVersion: 24,
+      outputModuleFormat: 'esm',
+      disableSourceMaps: true,
+      // The opt-in, exercised on the real runtime; the split build above runs with the default.
+      minifyIdentifiers: true,
+      requiresGlibcBinaries: true,
+      dockerBuildOutputArchitecture: 'linux/amd64',
+      nodeTarget: '24',
+      minify: true,
+      archiveItem,
+      createPackagingError,
+      runDocker: docker,
+      installDependencies: async () => undefined,
+      nativeDependencyInstallationRootPath: nativeInstallationRoot,
+      ...extraOptions
+    });
+
+  console.log(
+    'Packaging installed native packages, a package that reads its own files and an excluded scoped package without Docker...'
+  );
   await write(
-    join(sourceRoot, 'hotswap.ts'),
+    join(sourceRoot, 'copied.ts'),
     [
       'import bcrypt from "bcrypt";',
+      'import { xxh64 } from "@node-rs/xxhash";',
+      'import * as Boom from "@hapi/boom";',
+      'import PDFDocument from "pdfkit";',
+      'import UglifyJS from "uglify-js";',
+      'const renderPdf = () => new Promise((resolve, reject) => {',
+      '  const document = new PDFDocument();',
+      '  const chunks = [];',
+      '  document.on("data", (chunk) => chunks.push(chunk));',
+      '  document.on("end", () => resolve(Buffer.concat(chunks).subarray(0, 4).toString()));',
+      '  document.on("error", reject);',
+      '  document.font("Helvetica").text("Stacktape");',
+      '  document.end();',
+      '});',
       'export const handler = async () => ({',
-      '  function: "hotswap",',
-      '  native: await bcrypt.compare("secret", await bcrypt.hash("secret", 4)),',
-      '  nodeEnv: process.env.NODE_ENV',
+      '  bcrypt: await bcrypt.compare("secret", await bcrypt.hash("secret", 4)),',
+      '  xxhash: xxh64("stacktape").toString(16),',
+      '  boom: Boom.badRequest("invalid").output.statusCode,',
+      '  pdf: await renderPdf(),',
+      '  minified: UglifyJS.minify("var answer = 40 + 2;").code',
       '});'
     ].join('\n')
   );
-  const hotSwapDist = join(buildRoot, 'functions', 'hotswap');
-  const hotSwapOutput = await buildJsBundleLambda({
-    cwd: root,
-    name: 'synthetic-hotswap',
-    entryfilePath: join(sourceRoot, 'hotswap.ts'),
-    distFolderPath: hotSwapDist,
-    existingDigests: [],
-    progressLogger,
-    invocationId: 'synthetic-node-lambda-e2e',
-    sizeLimit: 250,
-    nodeVersion: 24,
-    outputModuleFormat: 'esm',
-    disableSourceMaps: true,
-    // The opt-in, exercised on the real runtime; the split build above runs with the default.
-    minifyIdentifiers: true,
-    requiresGlibcBinaries: true,
-    dockerBuildOutputArchitecture: 'linux/amd64',
-    nodeTarget: '24',
-    minify: true,
-    archiveItem,
-    createPackagingError,
-    runDocker,
-    installDependencies: async () => undefined,
-    nativeDependencyInstallationRootPath: nativeInstallationRoot
-  });
-  if (hotSwapOutput.outcome !== 'bundled' || !hotSwapOutput.artifactPath) {
-    throw new Error(`Hot-swap packaging did not emit an artifact: ${JSON.stringify(hotSwapOutput)}`);
+  const copiedDist = join(buildRoot, 'functions', 'copied');
+  const copiedOutput = await buildFunction('copied', { dependenciesToExcludeFromBundle: ['@hapi/boom'] }, refuseDocker);
+  if (copiedOutput.outcome !== 'bundled' || !copiedOutput.artifactPath) {
+    throw new Error(`The copied-dependency function did not emit an artifact: ${JSON.stringify(copiedOutput)}`);
   }
-  await assertZipWithinLambdaLimit(hotSwapOutput.artifactPath);
-  await assertFile(join(hotSwapDist, 'node_modules', 'bcrypt', 'package.json'));
-  if (!(await pathExists(join(hotSwapDist, 'index.js')))) {
-    throw new Error('Hot-swap Lambda index.js is missing.');
+  await assertZipWithinLambdaLimit(copiedOutput.artifactPath);
+  // The function repeats the project's pnpm layout under `node_modules/.installed`: each package once in `.pnpm`.
+  const copiedPackages = await listStoreDirectories(join(copiedDist, 'node_modules'));
+  for (const expected of [
+    '@hapi+boom@',
+    '@hapi+hoek@',
+    '@node-rs+xxhash@',
+    '@node-rs+xxhash-linux-x64-gnu@',
+    'bcrypt@',
+    'pdfkit@',
+    'uglify-js@'
+  ]) {
+    if (!copiedPackages.some((name) => name.startsWith(expected))) {
+      throw new Error(`${expected} is missing from the function's node_modules: ${copiedPackages.join(', ')}`);
+    }
   }
-  const hotSwapResponse = JSON.parse(
-    await invokeLambdaRuntime({
-      functionPath: hotSwapDist,
-      environment: { NODE_ENV: 'production' }
-    })
+  if (copiedPackages.some((name) => name.includes('musl') || name.includes('darwin'))) {
+    throw new Error(`The function carries binaries for other platforms: ${copiedPackages.join(', ')}`);
+  }
+  const copiedResponse = JSON.parse(
+    await invokeLambdaRuntime({ functionPath: copiedDist, environment: { NODE_ENV: 'production' } })
   ) as Record<string, unknown>;
   if (
-    hotSwapResponse.function !== 'hotswap' ||
-    hotSwapResponse.native !== true ||
-    hotSwapResponse.nodeEnv !== 'production'
+    copiedResponse.bcrypt !== true ||
+    typeof copiedResponse.xxhash !== 'string' ||
+    copiedResponse.boom !== 400 ||
+    copiedResponse.pdf !== '%PDF' ||
+    copiedResponse.minified !== 'var answer=42;'
   ) {
-    throw new Error(`Unexpected standalone hot-swap Lambda response: ${JSON.stringify(hotSwapResponse)}`);
+    throw new Error(`Unexpected copied-dependency Lambda response: ${JSON.stringify(copiedResponse)}`);
   }
 
   console.log(
-    'Synthetic Node Lambda E2E passed: split/shared/native layers, five package managers, version isolation, real ZIPs, Lambda Node 24 execution, and standalone hot-swap.'
+    'Installing better-sqlite3 again in the Lambda build image, because its addon was built for this host...'
+  );
+  await write(
+    join(sourceRoot, 'sqlite.ts'),
+    [
+      'import Database from "better-sqlite3";',
+      'export const handler = async () => {',
+      '  const database = new Database(":memory:");',
+      '  return { sqlite: database.prepare("select sqlite_version() as version").get().version };',
+      '};'
+    ].join('\n')
+  );
+  const sqliteDocker = countingDocker();
+  const sqliteOutput = await buildFunction('sqlite', {}, sqliteDocker.runDocker);
+  if (sqliteOutput.outcome !== 'bundled' || sqliteDocker.builds.length !== 1) {
+    throw new Error(`better-sqlite3 should take exactly one Docker installation, took ${sqliteDocker.builds.length}.`);
+  }
+  const sqliteResponse = JSON.parse(
+    await invokeLambdaRuntime({ functionPath: join(buildRoot, 'functions', 'sqlite') })
+  ) as Record<string, unknown>;
+  if (typeof sqliteResponse.sqlite !== 'string') {
+    throw new Error(`Unexpected better-sqlite3 Lambda response: ${JSON.stringify(sqliteResponse)}`);
+  }
+
+  /*
+   * Prisma bundled, as the default leaves it. Prisma 6's generated client loads itself through `#main-entry-point`, a
+   * subpath import of its own package, and Prisma 5.0.0's names one fallback directory for its engine where later
+   * versions list several. The function must carry the query engine for its own CPU and nothing else. pnpm generates
+   * the client inside its store, beside `@prisma/client`. The per-function build runs one function; the split build
+   * runs two that share a service module, so the Prisma runtime moves into a layer under `/opt` while each function
+   * carries the engine. A query-compiler client carries its compiler under the generator output instead.
+   */
+  const runPrismaFunctions = async (
+    project: string,
+    {
+      clientSetup = ['import { PrismaClient } from "@prisma/client";', 'const prisma = new PrismaClient();'],
+      engineFile = '.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node',
+      splitDependencyMounts = []
+    }: {
+      clientSetup?: string[];
+      engineFile?: string;
+      /** The split functions' external dependencies, which the CLI installs and `buildSplitProjectWithLayers` does not. */
+      splitDependencyMounts?: Array<{ source: string; target: string }>;
+    } = {}
+  ) => {
+    await write(
+      join(project, 'src', 'prisma-service.ts'),
+      [
+        ...clientSetup,
+        'export const countItems = async () => {',
+        `  await prisma.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "Item" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT NOT NULL)');`,
+        '  await prisma.item.create({ data: { name: "from-lambda" } });',
+        '  return { items: await prisma.item.count() };',
+        '};'
+      ].join('\n')
+    );
+    for (const name of ['prisma', 'prisma-a', 'prisma-b']) {
+      await write(
+        join(project, 'src', `${name}.ts`),
+        ['import { countItems } from "./prisma-service";', 'export const handler = () => countItems();'].join('\n')
+      );
+    }
+    // The CLI builds under `.stacktape`, where the schema search does not look; a copied schema is not a second one.
+    const prismaBuildRoot = join(project, '.stacktape', 'prisma');
+    const prismaOutput = await buildFunction(
+      'prisma',
+      { project, distFolderPath: join(prismaBuildRoot, 'functions', 'prisma') },
+      refuseDocker
+    );
+    if (prismaOutput.outcome !== 'bundled' || !prismaOutput.artifactPath) {
+      throw new Error(`The Prisma function did not emit an artifact: ${JSON.stringify(prismaOutput)}`);
+    }
+    const prismaSplit = await buildSplitProjectWithLayers({
+      project,
+      names: ['prisma-a', 'prisma-b'],
+      directory: prismaBuildRoot
+    });
+    const prismaLayer = prismaSplit.layerArtifacts[0];
+    if (prismaSplit.layerArtifacts.length !== 1 || !prismaLayer) {
+      throw new Error(`The shared Prisma runtime should form one layer: ${prismaSplit.layerArtifacts.length}`);
+    }
+    const prismaLayerMounts = [
+      { source: join(prismaLayer.layerPath, 'nodejs', 'chunks'), target: '/opt/nodejs/chunks' },
+      { source: join(prismaLayer.layerPath, 'nodejs', 'package.json'), target: '/opt/nodejs/package.json' },
+      ...splitDependencyMounts
+    ];
+    if ((await listFilesRecursively(prismaLayer.layerPath)).some(isPrismaEngineFile)) {
+      throw new Error('The Prisma layer should carry no query engine; each function carries its own.');
+    }
+    for (const name of ['prisma', 'prisma-a', 'prisma-b']) {
+      const functionPath = join(prismaBuildRoot, 'functions', name);
+      const engines = (await listFilesRecursively(functionPath)).filter(isPrismaEngineFile);
+      if (engines.join() !== engineFile) {
+        throw new Error(`The ${name} function should carry only ${engineFile}: ${engines.join(', ')}`);
+      }
+      const response = JSON.parse(
+        await invokeLambdaRuntime({ functionPath, layerMounts: name === 'prisma' ? [] : prismaLayerMounts })
+      ) as Record<string, unknown>;
+      if (typeof response.items !== 'number' || response.items < 1) {
+        throw new Error(`Unexpected ${name} Lambda response: ${JSON.stringify(response)}`);
+      }
+    }
+  };
+  console.log('Packaging a Prisma 6 client with the per-function and split builds and running a SQLite query...');
+  await runPrismaFunctions(root);
+
+  console.log('Packaging a Prisma 5.0.0 client with the per-function and split builds and running a SQLite query...');
+  await write(
+    join(prisma5Root, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'stacktape-node-lambda-e2e-prisma5',
+        private: true,
+        type: 'module',
+        packageManager: 'pnpm@11.17.0',
+        dependencies: { '@prisma/client': '5.0.0' },
+        devDependencies: { prisma: '5.0.0' }
+      },
+      null,
+      2
+    )}\n`
+  );
+  await write(
+    join(prisma5Root, 'pnpm-workspace.yaml'),
+    'packages:\n  - "."\nallowBuilds:\n  prisma: true\n  "@prisma/client": true\n  "@prisma/engines": true\n'
+  );
+  await writePrismaSchema(prisma5Root);
+  await run('pnpm', ['install', '--prefer-offline'], prisma5Root);
+  await run('pnpm', ['exec', 'prisma', 'generate'], prisma5Root);
+  await runPrismaFunctions(prisma5Root);
+
+  // `prisma generate` with `engineType = "client"` leaves the library engine an earlier generation wrote into the same
+  // output. The client must still be packaged, and pointed at, as a query-compiler client.
+  console.log('Packaging a Prisma 6 query-compiler client beside a stale query engine and running a SQLite query...');
+  await write(
+    join(prismaCompilerRoot, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'stacktape-node-lambda-e2e-prisma-compiler',
+        private: true,
+        type: 'module',
+        packageManager: 'pnpm@11.17.0',
+        dependencies: { '@prisma/client': '6.19.3', '@prisma/adapter-libsql': '6.19.3' },
+        devDependencies: { prisma: '6.19.3' }
+      },
+      null,
+      2
+    )}\n`
+  );
+  await write(
+    join(prismaCompilerRoot, 'pnpm-workspace.yaml'),
+    // Hoisted, so the split functions find libsql in the mounted node_modules.
+    'packages:\n  - "."\npublicHoistPattern:\n  - "*libsql*"\nallowBuilds:\n  prisma: true\n  "@prisma/client": true\n  "@prisma/engines": true\n'
+  );
+  await writePrismaSchema(prismaCompilerRoot, ['  output        = "../generated/client"']);
+  await run('pnpm', ['install', '--prefer-offline'], prismaCompilerRoot);
+  await run('pnpm', ['exec', 'prisma', 'generate'], prismaCompilerRoot);
+  await writePrismaSchema(prismaCompilerRoot, [
+    '  output        = "../generated/client"',
+    '  engineType    = "client"'
+  ]);
+  await run('pnpm', ['exec', 'prisma', 'generate'], prismaCompilerRoot);
+  if (
+    !(await readdir(join(prismaCompilerRoot, 'generated', 'client'))).some((file) =>
+      file.startsWith('libquery_engine-')
+    )
+  ) {
+    throw new Error('The query-compiler client should keep the library engine generated before it.');
+  }
+  await runPrismaFunctions(prismaCompilerRoot, {
+    clientSetup: [
+      'import { PrismaLibSQL } from "@prisma/adapter-libsql";',
+      'import { PrismaClient } from "../generated/client";',
+      'const prisma = new PrismaClient({ adapter: new PrismaLibSQL({ url: "file:/tmp/lambda.db" }) });'
+    ],
+    engineFile: 'generated/client/query_compiler_bg.wasm',
+    // The adapter's libsql is a native package; this host's glibc build of it runs on Lambda.
+    splitDependencyMounts: [{ source: join(prismaCompilerRoot, 'node_modules'), target: '/opt/nodejs/node_modules' }]
+  });
+
+  console.log('Preparing the same packages for arm64: bcrypt from its prebuilds, better-sqlite3 in Docker...');
+  const sqlitePackage = {
+    name: 'better-sqlite3',
+    version: dependencies['better-sqlite3'],
+    path: await realpath(join(root, 'node_modules', 'better-sqlite3'))
+  };
+  const armPlan = await planLambdaDependencies({
+    dependencies: [sqlitePackage, ...nativeOutput.externalDependencies],
+    productionDependencies: new Set(nativeOutput.productionDependencies),
+    architecture: 'arm64'
+  });
+  if (armPlan.packagesToInstallForLambda.map(({ name }) => name).join() !== 'better-sqlite3') {
+    throw new Error(
+      `Only better-sqlite3 should need an arm64 installation: ${armPlan.packagesToInstallForLambda.map(({ name }) => name)}`
+    );
+  }
+  const armNodeModules = join(buildRoot, 'arm64', 'node_modules');
+  await writeLambdaDependencies({
+    plan: armPlan,
+    nodeModulesPath: armNodeModules,
+    installationRootPath: nativeInstallationRoot,
+    lambdaRuntimeVersion: 24,
+    runDocker
+  });
+  await assertRunOutput({
+    dockerArgs: [
+      '--platform',
+      'linux/arm64',
+      '--mount',
+      `type=bind,source=${armNodeModules},target=/opt/nodejs/node_modules,readonly`,
+      'node:24-bookworm-slim',
+      'node',
+      '-e',
+      "const b=require('/opt/nodejs/node_modules/bcrypt'); const D=require('/opt/nodejs/node_modules/better-sqlite3'); new D(':memory:'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('arm64:'+process.arch+':'+v))"
+    ],
+    expected: 'arm64:arm64:true'
+  });
+
+  console.log(
+    'Synthetic Node Lambda E2E passed: split/shared/dependency layers, copied native, napi-rs, self-reading and scoped packages without Docker, bundled Prisma 6, Prisma 5.0.0 and a Prisma 6 query compiler per function and from a shared layer, better-sqlite3 installed in Docker for x64 and arm64, and Lambda Node 18-24 execution.'
   );
 } finally {
   await Promise.all([...containers].map((name) => run('docker', ['rm', '--force', name]).catch(() => undefined)));
-  await rm(root, { recursive: true, force: true });
+  await Promise.all(
+    [root, prisma5Root, prismaCompilerRoot].map((directory) => rm(directory, { recursive: true, force: true }))
+  );
 }

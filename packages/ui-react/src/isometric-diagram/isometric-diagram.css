@@ -46,10 +46,6 @@
       filter var(--stp-motion-duration-fast) var(--stp-motion-easing);
   }
 
-  .stp-diagram__zone-tag {
-    text-transform: uppercase;
-  }
-
   .stp-diagram__chip {
     pointer-events: none;
   }
@@ -102,8 +98,6 @@
   .stp-diagram__tooltip-subtitle {
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
     color: var(--stp-color-brand);
   }
 
@@ -136,8 +130,8 @@
     left: 12px;
     bottom: 12px;
     margin: 0;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
+    font-size: 12px;
+    color: var(--stp-text-subtle);
     pointer-events: none;
     user-select: none;
   }
@@ -148,22 +142,22 @@
     bottom: 12px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
 
+  /* Square icon buttons at the shared control size; they act, so they take the pointer cursor. */
   .stp-diagram__control {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 35px;
+    height: 35px;
+    padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: var(--stp-radius-small);
+    border-radius: var(--stp-radius-medium);
     background: rgba(9, 11, 17, 0.72);
     color: var(--stp-text-subtle);
-    font-size: 14px;
-    line-height: 1;
-    cursor: default;
+    cursor: pointer;
   }
 
   .stp-diagram__control:hover {

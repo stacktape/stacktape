@@ -508,8 +508,7 @@ export const getTaskDefinitionTemplateOverrideFns = ({
             workloadName: resource.name,
             workloadType: resource.configParentResourceType,
             containerName: containerDef.Name as string
-          }),
-          hotSwapDeploy
+          })
         })?.imageTagWithUrl;
         if (imageUrl) {
           containerDef.Image = imageUrl;

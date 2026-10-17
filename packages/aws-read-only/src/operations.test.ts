@@ -1,0 +1,154 @@
+import { describe, expect, test } from 'bun:test';
+import {
+  AWS_READ_ONLY_OPERATIONS,
+  describeAwsCallRefusal,
+  getReadOnlyAwsOperations,
+  isReadOnlyAwsCommand,
+  resolveAwsServiceName
+} from './operations';
+
+describe('read-only AWS operation catalog', () => {
+  test('rejects Step Functions GetActivityTask, which claims a task rather than observing one', () => {
+    // The operation this allowlist exists for: a `Get*` name that starts a task's timeout, records `ActivityStarted`
+    // and can take work from the worker that should have received it.
+    expect(isReadOnlyAwsCommand('sfn', 'GetActivityTask')).toBe(false);
+    expect(isReadOnlyAwsCommand('stepfunctions', 'GetActivityTask')).toBe(false);
+    expect(isReadOnlyAwsCommand('sfn', 'GetActivityTaskCommand')).toBe(false);
+    expect(AWS_READ_ONLY_OPERATIONS.sfn).not.toContain('GetActivityTask');
+
+    // The Step Functions reads it does accept still work.
+    expect(isReadOnlyAwsCommand('sfn', 'DescribeExecution')).toBe(true);
+    expect(isReadOnlyAwsCommand('sfn', 'GetExecutionHistory')).toBe(true);
+
+    // Logs Insights `StartQuery` is accepted as an explicit diagnostic job, which AWS can charge for. `StopQuery` is not
+    // a read: it stops a query job, which need not be the caller's.
+    expect(isReadOnlyAwsCommand('logs', 'StartQuery')).toBe(true);
+    expect(isReadOnlyAwsCommand('logs', 'StopQuery')).toBe(false);
+  });
+
+  test('rejects the mutating operations the old prefix rule let through', () => {
+    for (const [service, command] of [
+      ['dynamodb', 'BatchWriteItem'],
+      ['dynamodb', 'BatchExecuteStatement'],
+      ['dynamodb', 'ExecuteStatement'],
+      ['dynamodb', 'PutItem'],
+      ['dynamodb', 'DeleteItem'],
+      ['dynamodb', 'UpdateItem'],
+      ['ecr', 'BatchDeleteImage'],
+      ['ecr', 'GetAuthorizationToken'],
+      ['s3', 'PutObject'],
+      ['s3', 'DeleteObject'],
+      ['sns', 'Publish'],
+      ['lambda', 'Invoke'],
+      ['lambda', 'UpdateFunctionCode'],
+      ['sqs', 'SendMessage'],
+      ['sqs', 'DeleteMessage'],
+      ['sqs', 'ReceiveMessage'],
+      ['sfn', 'StartExecution'],
+      ['eventbridge', 'PutEvents'],
+      ['logs', 'DeleteLogGroup'],
+      ['ec2', 'TerminateInstances'],
+      ['cloudformation', 'DetectStackDrift'],
+      ['sts', 'GetSessionToken'],
+      ['sts', 'AssumeRole'],
+      ['xray', 'GetSamplingTargets']
+    ] as const) {
+      expect(isReadOnlyAwsCommand(service, command)).toBe(false);
+    }
+  });
+
+  test('does not accept reads that return plaintext secret or parameter values, only their metadata', () => {
+    for (const [service, command] of [
+      ['secretsmanager', 'GetSecretValue'],
+      ['secretsmanager', 'BatchGetSecretValue'],
+      ['ssm', 'GetParameter'],
+      ['ssm', 'GetParameters'],
+      ['ssm', 'GetParametersByPath'],
+      ['ssm', 'GetParameterHistory']
+    ] as const) {
+      expect(isReadOnlyAwsCommand(service, command)).toBe(false);
+    }
+
+    for (const [service, command] of [
+      ['secretsmanager', 'DescribeSecret'],
+      ['secretsmanager', 'ListSecrets'],
+      ['secretsmanager', 'ListSecretVersionIds'],
+      ['ssm', 'DescribeParameters']
+    ] as const) {
+      expect(isReadOnlyAwsCommand(service, command)).toBe(true);
+    }
+  });
+
+  test('accepts a reviewed operation only on the service it was reviewed for', () => {
+    expect(isReadOnlyAwsCommand('cloudformation', 'DescribeStacks')).toBe(true);
+    expect(isReadOnlyAwsCommand('lambda', 'DescribeStacks')).toBe(false);
+
+    expect(isReadOnlyAwsCommand('dynamodb', 'Scan')).toBe(true);
+    expect(isReadOnlyAwsCommand('s3', 'Scan')).toBe(false);
+
+    expect(isReadOnlyAwsCommand('logs', 'FilterLogEvents')).toBe(true);
+    expect(isReadOnlyAwsCommand('cloudwatch', 'FilterLogEvents')).toBe(false);
+
+    expect(isReadOnlyAwsCommand('lambda', 'ListFunctions')).toBe(true);
+    expect(isReadOnlyAwsCommand('sts', 'ListFunctions')).toBe(false);
+
+    expect(isReadOnlyAwsCommand('s3', 'HeadObject')).toBe(true);
+    expect(isReadOnlyAwsCommand('dynamodb', 'HeadObject')).toBe(false);
+  });
+
+  test('resolves the alternate service spellings to the same operations', () => {
+    for (const [alias, canonical] of [
+      ['stepfunctions', 'sfn'],
+      ['events', 'eventbridge'],
+      ['elb', 'elbv2']
+    ] as const) {
+      expect(resolveAwsServiceName(alias)).toBe(canonical);
+      expect(getReadOnlyAwsOperations(alias)).toBe(AWS_READ_ONLY_OPERATIONS[canonical]);
+    }
+
+    expect(isReadOnlyAwsCommand('stepfunctions', 'ListStateMachines')).toBe(true);
+    expect(isReadOnlyAwsCommand('events', 'ListRules')).toBe(true);
+    expect(isReadOnlyAwsCommand('elb', 'DescribeTargetHealth')).toBe(true);
+    expect(isReadOnlyAwsCommand('ELB', 'DescribeTargetHealth')).toBe(true);
+  });
+
+  test('judges the `Command`-suffixed spelling the executor also accepts', () => {
+    expect(isReadOnlyAwsCommand('dynamodb', 'GetItemCommand')).toBe(true);
+    expect(isReadOnlyAwsCommand('dynamodb', 'ScanCommand')).toBe(true);
+    expect(isReadOnlyAwsCommand('dynamodb', 'BatchWriteItemCommand')).toBe(false);
+    expect(isReadOnlyAwsCommand('s3', 'PutObjectCommand')).toBe(false);
+  });
+
+  test('defaults to rejection for anything it has not been told about', () => {
+    // Unknown service, including one whose client exists nowhere in the CLI.
+    expect(resolveAwsServiceName('glacier')).toBeUndefined();
+    expect(getReadOnlyAwsOperations('glacier')).toEqual([]);
+    expect(isReadOnlyAwsCommand('glacier', 'ListVaults')).toBe(false);
+
+    // Unknown operation on a known service, including read-looking names that were never reviewed.
+    expect(isReadOnlyAwsCommand('lambda', 'GetProvisionedConcurrencyConfig')).toBe(false);
+    expect(isReadOnlyAwsCommand('s3', 'ListSomethingInvented')).toBe(false);
+
+    // Inherited object properties are not services or operations.
+    expect(resolveAwsServiceName('constructor')).toBeUndefined();
+    expect(isReadOnlyAwsCommand('constructor', 'toString')).toBe(false);
+    expect(isReadOnlyAwsCommand('lambda', 'toString')).toBe(false);
+
+    // Operation names are matched exactly, not by prefix, suffix or case.
+    expect(isReadOnlyAwsCommand('lambda', 'listFunctions')).toBe(false);
+    expect(isReadOnlyAwsCommand('dynamodb', 'DeleteBatchGetItem')).toBe(false);
+    expect(isReadOnlyAwsCommand('sts', 'CreateGetCallerIdentity')).toBe(false);
+  });
+
+  test('refuses with the words both the CLI and a hosted agent give, naming what is accepted', () => {
+    expect(describeAwsCallRefusal('ssm', 'GetParameter')).toEqual({
+      message: 'Command `GetParameter` is not an accepted read-only operation for service `ssm`.',
+      hint: '`aws:call` sends only operations reviewed as read-only. Accepted for ssm: DescribeParameters, ListTagsForResource.'
+    });
+    expect(describeAwsCallRefusal('glacier', 'ListVaults')?.message).toBe(
+      'Service `glacier` has no operations that `aws:call` is allowed to send.'
+    );
+    expect(describeAwsCallRefusal('glacier', 'ListVaults')?.hint).toContain('lambda');
+    expect(describeAwsCallRefusal('stepfunctions', 'DescribeExecution')).toBeNull();
+  });
+});

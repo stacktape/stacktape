@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop -- Build modes and runtime dependency transitions reuse output directories sequentially. */
 /*
  * The two ES bundlers must classify a bare import the same way.
  *
@@ -9,10 +10,14 @@
  * These tests pin the shared behaviour at the level a customer feels it: what ends up in the
  * artifact.
  */
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { buildEsCode } from '../bundlers/es';
 import { buildSplitBundle } from './bundler';
 import type { PackagingErrorDetails } from './types';
@@ -69,9 +74,13 @@ const splitBundle = async ({
 }: {
   root: string;
   entries: string[];
+  tsConfigPath?: string;
+  sourceMapBannerType?: 'disabled' | 'pre-compiled';
   isLambda?: boolean;
   nodeTarget?: number | string;
   bundleAwsSdk?: boolean;
+  excludeDependencies?: string[];
+  dependenciesToExcludeFromBundle?: string[];
 }) =>
   buildSplitBundle({
     entrypoints: entries.map((name) => ({
@@ -89,236 +98,7 @@ const splitBundle = async ({
     ...options
   });
 
-const perFunctionBundle = ({
-  root,
-  entry,
-  ...options
-}: {
-  root: string;
-  entry: string;
-  isLambda?: boolean;
-  nodeTarget?: string;
-  bundleAwsSdk?: boolean;
-}) =>
-  buildEsCode({
-    sourcePath: join(root, 'src', `${entry}.ts`),
-    distPath: join(root, 'dist-single', entry, 'index.js'),
-    cwd: root,
-    externals: [],
-    minify: false,
-    sourceMaps: 'disabled',
-    sourceMapBannerType: 'disabled',
-    outputModuleFormat: 'esm',
-    createPackagingError,
-    ...options
-  });
-
-/** Everything the built artifacts for these Lambdas contain, concatenated. */
-const artifactSources = async (root: string, entries: string[]) => {
-  const sources = await Promise.all(
-    entries.flatMap((entry) => [
-      Bun.file(join(root, 'dist', entry, 'index.js'))
-        .text()
-        .catch(() => '')
-    ])
-  );
-  const { readdir } = await import('node:fs/promises');
-  const chunkSources = await Promise.all(
-    entries.map(async (entry) => {
-      const chunkDirectory = join(root, 'dist', entry, 'chunks');
-      const names = await readdir(chunkDirectory).catch(() => [] as string[]);
-      const chunks = await Promise.all(names.map((name) => Bun.file(join(chunkDirectory, name)).text()));
-      return chunks.join('\n');
-    })
-  );
-  return [...sources, ...chunkSources].join('\n');
-};
-
-describe('modules the Lambda runtime already provides', () => {
-  test('a split bundle leaves the AWS SDK to the Lambda runtime instead of shipping it', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: {
-        'index.js': 'module.exports = { S3Client: class { constructor() {} }, MARKER: "sdk-bytes-in-artifact" };'
-      }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client({});\n`
-        )
-      )
-    );
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-
-    const sources = await artifactSources(root, ['api', 'worker']);
-    expect(sources).not.toContain('sdk-bytes-in-artifact');
-    expect(sources).toContain('@aws-sdk/client-s3');
-  });
-
-  test('both bundlers agree about it, so a project keeps its artifact when it starts sharing a build', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: { 'index.js': 'module.exports = { S3Client: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client();\n`
-        )
-      )
-    );
-
-    await perFunctionBundle({ root, entry: 'api', isLambda: true, nodeTarget: '24' });
-    const perFunctionSource = await Bun.file(join(root, 'dist-single', 'api', 'index.js')).text();
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-    const splitSource = await artifactSources(root, ['api']);
-
-    expect(perFunctionSource).not.toContain('sdk-bytes-in-artifact');
-    expect(splitSource).not.toContain('sdk-bytes-in-artifact');
-  });
-
-  test('the lib helpers built on the clients are left to the runtime with them, on both paths', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/lib-dynamodb',
-      files: { 'index.js': 'module.exports = { DynamoDBDocumentClient: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';\nexport const handler = async () => new DynamoDBDocumentClient();\n`
-        )
-      )
-    );
-
-    await perFunctionBundle({ root, entry: 'api', isLambda: true, nodeTarget: '24' });
-    const perFunctionSource = await Bun.file(join(root, 'dist-single', 'api', 'index.js')).text();
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-    const splitSource = await artifactSources(root, ['api', 'worker']);
-
-    expect(perFunctionSource).not.toContain('sdk-bytes-in-artifact');
-    expect(splitSource).not.toContain('sdk-bytes-in-artifact');
-  });
-
-  test('`bundleAwsSdk` ships the SDK from node_modules on both paths, for code that needs a newer one', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/lib-dynamodb',
-      files: { 'index.js': 'module.exports = { DynamoDBDocumentClient: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';\nexport const handler = async () => new DynamoDBDocumentClient();\n`
-        )
-      )
-    );
-
-    await perFunctionBundle({ root, entry: 'api', isLambda: true, nodeTarget: '24', bundleAwsSdk: true });
-    const perFunctionSource = await Bun.file(join(root, 'dist-single', 'api', 'index.js')).text();
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24, bundleAwsSdk: true });
-    const splitSource = await artifactSources(root, ['api', 'worker']);
-
-    expect(perFunctionSource).toContain('sdk-bytes-in-artifact');
-    expect(splitSource).toContain('sdk-bytes-in-artifact');
-  });
-
-  test('a container build still bundles it, because no container runtime provides it', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: { 'index.js': 'module.exports = { S3Client: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client();\n`
-        )
-      )
-    );
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: false, nodeTarget: 24 });
-
-    expect(await artifactSources(root, ['api', 'worker'])).toContain('sdk-bytes-in-artifact');
-  });
-
-  test('a Node version the Lambda runtime does not ship the SDK on keeps it bundled', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: { 'index.js': 'module.exports = { S3Client: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client();\n`
-        )
-      )
-    );
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 16 });
-
-    expect(await artifactSources(root, ['api', 'worker'])).toContain('sdk-bytes-in-artifact');
-  });
-});
-
 describe('Prisma, whose query engine no import reaches', () => {
-  test('is resolved for a split artifact too, not only for a per-Lambda one', async () => {
-    const root = await createRoot();
-    // A Prisma 7 client generator with the TypeScript engine: no Rust binary to copy, but `resolvePrisma`
-    // must still run and accept the schema. If the split path never called it, a schema this builder
-    // rejects would go unnoticed — and a schema needing a Rust engine would ship without one.
-    await writeFile(
-      join(root, 'schema.prisma'),
-      'generator client { provider = "prisma-client" engineType = "client" }'
-    );
-    await writePackage({
-      root,
-      name: '@prisma/client',
-      packageJson: { version: '7.0.0' },
-      files: { 'index.js': 'module.exports = { PrismaClient: class {} };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { PrismaClient } from '@prisma/client';\nexport const handler = async () => new PrismaClient();\n`
-        )
-      )
-    );
-
-    const result = await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-
-    expect(Array.from(result.lambdaOutputs.keys()).toSorted()).toEqual(['api', 'worker']);
-    for (const output of result.lambdaOutputs.values()) {
-      expect(output.resolvedModules).toContain('@prisma/client');
-    }
-  });
-
   test('a schema the artifact cannot run with fails the build instead of the first invocation', async () => {
     const root = await createRoot();
     // Prisma 6 with the `prisma-client` generator and no engineType is unsupported. The per-Lambda path
@@ -346,6 +126,189 @@ describe('Prisma, whose query engine no import reaches', () => {
   });
 });
 
+type ClientFormat = 'generated' | 'reformatted' | 'opaque';
+
+/**
+ * The configuration `prisma generate` writes, or the same object after a transpiler such as Bun's reformatted it:
+ * bare keys and the inlined schema in a template literal, where a schema comment can spell out a configuration key.
+ */
+const writeConfig = (version: string, engineType: string, format: ClientFormat) =>
+  format === 'opaque'
+    ? `const config = JSON.parse(${JSON.stringify(JSON.stringify({ clientVersion: version, engineType }))})`
+    : format === 'generated'
+      ? [
+          'const config = {',
+          `  "generator": {\n    "name": "client",\n    "config": {\n      "engineType": ${JSON.stringify(engineType)}\n    }\n  },`,
+          `  "clientVersion": ${JSON.stringify(version)},`,
+          '  "inlineSchema": "generator client {\\n  provider = \\"prisma-client-js\\"\\n}",',
+          '  "copyEngine": true',
+          '}'
+        ].join('\n')
+      : [
+          'const config = {',
+          `  generator: {\n    name: 'client',\n    config: {\n      engineType: ${JSON.stringify(engineType)},\n    },\n  },`,
+          `  clientVersion: ${JSON.stringify(version)},`,
+          '  inlineSchema: `generator client {',
+          '  provider   = "prisma-client-js"',
+          '  // was engineType: "library", copyEngine: false',
+          `  engineType = ${JSON.stringify(engineType)}`,
+          '}`,',
+          '  copyEngine: true,',
+          '};'
+        ].join('\n');
+
+describe("a Lambda's bundled Prisma client", () => {
+  // The fallback each `prisma-client-js` version generates when the bundled client finds no `schema.prisma` beside
+  // itself, as `prisma generate` writes it for the default output.
+  const fallbacks = {
+    '5.0.0': [
+      "if (!fs.existsSync(path.join(__dirname, 'schema.prisma'))) {",
+      '  config.dirname = path.join(process.cwd(), "node_modules/.prisma/client")',
+      '  config.isBundled = true',
+      '}'
+    ],
+    '6.19.3': [
+      "if (!fs.existsSync(path.join(__dirname, 'schema.prisma'))) {",
+      '  const alternativePaths = [',
+      '    "node_modules/.prisma/client",',
+      '    ".prisma/client",',
+      '  ]',
+      '  const alternativePath = alternativePaths.find((altPath) => {',
+      "    return fs.existsSync(path.join(process.cwd(), altPath, 'schema.prisma'))",
+      '  }) ?? alternativePaths[0]',
+      '  config.dirname = path.join(process.cwd(), alternativePath)',
+      '  config.isBundled = true',
+      '}'
+    ],
+    // Not a shape Prisma generates: the build cannot tell where this client looks.
+    '6.99.0': ['config.dirname = require("./locate")(__dirname)']
+  };
+
+  /**
+   * A client generated into the project, as a custom `output` puts it, with its schema and optionally an engine file.
+   * `engineType` is what the client's configuration records; the file can be one an earlier generation left behind.
+   */
+  const writeGeneratedClient = async (
+    root: string,
+    version: keyof typeof fallbacks,
+    engineType: 'library' | 'binary' | 'client',
+    engine: string | undefined,
+    format: ClientFormat = 'generated'
+  ) => {
+    const clientDirectory = join(root, 'generated', 'client');
+    await mkdir(clientDirectory, { recursive: true });
+    const files: Record<string, string> = {
+      'index.js': [
+        "const path = require('path')",
+        "const fs = require('fs')",
+        writeConfig(version, engineType, format),
+        'config.dirname = __dirname',
+        ...fallbacks[version],
+        'exports.dirname = config.dirname'
+      ].join('\n'),
+      'locate.js': 'module.exports = (directory) => directory;',
+      'schema.prisma': 'generator client { provider = "prisma-client-js" }',
+      ...(engine ? { [engine]: 'engine' } : {})
+    };
+    await Promise.all(
+      Object.entries(files).map(([file, contents]) => writeFile(join(clientDirectory, file), contents))
+    );
+    await mkdir(join(root, 'src'));
+    await writeFile(
+      join(root, 'src/api.ts'),
+      "import { dirname } from '../generated/client/index.js'; export const handler = () => dirname;"
+    );
+  };
+
+  const buildLambda = (root: string) =>
+    buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      externals: [],
+      isLambda: true,
+      outputModuleFormat: 'esm',
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'pre-compiled',
+      createPackagingError
+    });
+
+  test.each([
+    ['Prisma 5.0.0', '5.0.0', 'library', 'libquery_engine-rhel-openssl-3.0.x.so.node', '.prisma/client', 'generated'],
+    [
+      'Prisma 6 with a binary engine',
+      '6.19.3',
+      'binary',
+      'query-engine-rhel-openssl-3.0.x',
+      '.prisma/client',
+      'generated'
+    ],
+    // The query compiler finds its wasm under the generator output, where the build copies it.
+    ['the query compiler', '6.19.3', 'client', undefined, 'node_modules/.prisma/client', 'generated'],
+    // Regenerating with `engineType = "client"` leaves the library engine behind; the client never loads it.
+    [
+      'the query compiler beside a stale query engine',
+      '6.19.3',
+      'client',
+      'libquery_engine-rhel-openssl-3.0.x.so.node',
+      'node_modules/.prisma/client',
+      'generated'
+    ],
+    [
+      'a reformatted query compiler beside a stale query engine',
+      '6.19.3',
+      'client',
+      'libquery_engine-rhel-openssl-3.0.x.so.node',
+      'node_modules/.prisma/client',
+      'reformatted'
+    ],
+    ['a reformatted Prisma 6 library client', '6.19.3', 'library', undefined, '.prisma/client', 'reformatted']
+  ] as const)(
+    'built from %s looks for its engine in /var/task',
+    async (_, version, engineType, engine, expected, format: ClientFormat) => {
+      const root = await createRoot();
+      await writeGeneratedClient(root, version, engineType, engine, format);
+      await buildLambda(root);
+      await splitBundle({ root, entries: ['api'], sourceMapBannerType: 'pre-compiled' });
+      for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+        // The working directory stands in for `/var/task`. The client is bundled, so no schema is beside it.
+        const runtime = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-prisma-fallback-')));
+        temporaryDirectories.push(runtime);
+        await cp(source, runtime, { recursive: true });
+        const execution = spawnSync(
+          process.env.npm_node_execpath || 'node',
+          [
+            '--input-type=module',
+            '--eval',
+            `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+          ],
+          { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+        );
+        expect(execution.status, `${basename(source)}: ${execution.stderr}`).toBe(0);
+        expect(JSON.parse(execution.stdout), basename(source)).toBe(join(runtime, expected));
+      }
+    },
+    30_000
+  );
+
+  test('with a query engine and a fallback the build cannot redirect fails the build on both paths', async () => {
+    const root = await createRoot();
+    await writeGeneratedClient(root, '6.99.0', 'library', 'libquery_engine-rhel-openssl-3.0.x.so.node');
+    const message = /Prisma 6\.99\.0.*cannot redirect[\s\S]*engineType = "client"/;
+    await expect(buildLambda(root)).rejects.toThrow(message);
+    await expect(splitBundle({ root, entries: ['api'] })).rejects.toThrow(message);
+  });
+
+  // An engine file beside the client does not decide: it can be one an earlier generation left.
+  test('whose engine the build cannot read fails the build on both paths', async () => {
+    const root = await createRoot();
+    await writeGeneratedClient(root, '6.19.3', 'client', 'libquery_engine-rhel-openssl-3.0.x.so.node', 'opaque');
+    const message = /Prisma client generated in .* does not record which engine it uses/;
+    await expect(buildLambda(root)).rejects.toThrow(message);
+    await expect(splitBundle({ root, entries: ['api'] })).rejects.toThrow(message);
+  });
+});
+
 describe('a handler the config names by export', () => {
   test('survives split bundling, so naming one need not cost the shared layer', async () => {
     const root = await createRoot();
@@ -363,11 +326,386 @@ describe('a handler the config names by export', () => {
     await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
 
     // `index.processOrder` is the handler the CloudFormation template points at.
-    const source = await Bun.file(join(root, 'dist', 'api', 'index.js')).text();
     const module = (await import(`${join(root, 'dist', 'api', 'index.js')}?parity=${Date.now()}`)) as {
       processOrder?: () => Promise<string>;
     };
-    expect(source).toContain('processOrder');
     expect(await module.processOrder?.()).toBe('shared');
   });
+});
+
+// These are the installed SDK packages, not AWS service fakes. No SDK request is made.
+test('single and split artifacts load their SDK from the promised runtime or from their own bytes', async () => {
+  const root = await createRoot();
+  const sdkModules = join(import.meta.dir, '../../node_modules');
+  await symlink(sdkModules, join(root, 'node_modules'), 'junction');
+  await mkdir(join(root, 'src'));
+  await Promise.all(
+    ['api', 'worker'].map((name) =>
+      writeFile(
+        join(root, 'src', `${name}.ts`),
+        [
+          "import { DynamoDBClient } from '@aws-sdk/client-dynamodb';",
+          "import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';",
+          'export const handler = () => {',
+          "  const client = new DynamoDBClient({ region: 'eu-west-1', credentials: { accessKeyId: 'test', secretAccessKey: 'test' } });",
+          '  const document = DynamoDBDocumentClient.from(client);',
+          '  const result = { client: client.constructor.name, service: document.constructor.name, environment: process.env.NODE_ENV };',
+          '  document.destroy(); return result;',
+          '};'
+        ].join('\n')
+      )
+    )
+  );
+
+  for (const [label, options, provided] of [
+    ['managed', { isLambda: true, nodeTarget: 24 }, true],
+    ['explicit', { isLambda: true, nodeTarget: 24, bundleAwsSdk: true }, false],
+    ['container', { isLambda: false, nodeTarget: 24 }, false],
+    ['older', { isLambda: true, nodeTarget: 16 }, false]
+  ] as const) {
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      externals: [],
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      outputModuleFormat: 'esm',
+      minify: true,
+      createPackagingError,
+      ...options,
+      nodeTarget: String(options.nodeTarget)
+    });
+    await splitBundle({ root, entries: ['api', 'worker'], ...options });
+    for (const [kind, source] of [
+      ['single', join(root, 'single')],
+      ['split', join(root, 'dist/api')]
+    ] as const) {
+      const runtime = await mkdtemp(join(tmpdir(), `stacktape-sdk-${label}-${kind}-`));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      const invoke = () =>
+        spawnSync(
+          process.env.npm_node_execpath || 'node',
+          [
+            '--input-type=module',
+            '--eval',
+            `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+          ],
+          {
+            cwd: runtime,
+            env: { ...process.env, NODE_ENV: 'runtime-only', NODE_PATH: '' },
+            encoding: 'utf8',
+            timeout: 10_000
+          }
+        );
+      if (provided) {
+        const missingRuntime = invoke();
+        expect(missingRuntime.status, `${label}/${kind}: should require the runtime SDK`).not.toBe(0);
+        expect(missingRuntime.stderr).toContain('ERR_MODULE_NOT_FOUND');
+        await symlink(sdkModules, join(runtime, 'node_modules'), 'junction');
+      }
+      const execution = invoke();
+      expect(execution.status, `${label}/${kind}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({
+        client: DynamoDBClient.name,
+        service: DynamoDBDocumentClient.name,
+        environment: 'runtime-only'
+      });
+    }
+  }
+}, 30_000);
+
+test('dependency rules select bundled bytes or runtime modules on both build paths', async () => {
+  // The specifier is the package name unless a row says otherwise: a rule names the package, the import may name a
+  // file inside it, and a scoped package's name has two segments. A `#` specifier is a subpath import the project's
+  // `imports` map points at the package; the same rules apply to the package it names, and the artifact, which has no
+  // such map, loads the package by name.
+  const subpathImports = {
+    '#dep': 'fixture-dep',
+    '#conditional': { browser: './src/browser.js', node: { require: './src/cjs.js', import: 'fixture-dep' } },
+    '#tools/*.js': '@acme/tools/*.js'
+  };
+  for (const [label, manifest, options, expected, packageName, specifier = packageName] of [
+    ['pure', {}, {}, 'build-copy', 'fixture-dep'],
+    ['native', { gypfile: true }, {}, 'runtime-copy', 'fixture-dep'],
+    ['authored-external', {}, { dependenciesToExcludeFromBundle: ['fixture-dep'] }, 'runtime-copy', 'fixture-dep'],
+    ['excluded', {}, { excludeDependencies: ['fixture-dep'] }, 'runtime-copy', 'fixture-dep'],
+    ['wildcard', {}, { dependenciesToExcludeFromBundle: ['*'] }, 'runtime-copy', 'fixture-dep'],
+    ['ignored', {}, {}, 'runtime-copy', 'pnpapi'],
+    ['missing-manifest', undefined, {}, 'build-copy', 'fixture-dep'],
+    [
+      'scoped-subpath',
+      {},
+      { dependenciesToExcludeFromBundle: ['@acme/tools'] },
+      'runtime-copy',
+      '@acme/tools',
+      '@acme/tools/deep.js'
+    ],
+    ['pure-subpath-import', {}, {}, 'build-copy', 'fixture-dep', '#dep'],
+    ['native-subpath-import', { gypfile: true }, {}, 'runtime-copy', 'fixture-dep', '#dep'],
+    [
+      'authored-external-subpath-import',
+      {},
+      { dependenciesToExcludeFromBundle: ['fixture-dep'] },
+      'runtime-copy',
+      'fixture-dep',
+      '#dep'
+    ],
+    [
+      'excluded-conditional-subpath-import',
+      {},
+      { excludeDependencies: ['fixture-dep'] },
+      'runtime-copy',
+      'fixture-dep',
+      '#conditional'
+    ],
+    [
+      'scoped-wildcard-subpath-import',
+      {},
+      { dependenciesToExcludeFromBundle: ['@acme/tools'] },
+      'runtime-copy',
+      '@acme/tools',
+      '#tools/deep.js'
+    ]
+  ] as const) {
+    const root = await createRoot();
+    const packageRoot = await writePackage({
+      root,
+      name: packageName,
+      packageJson: manifest ?? {},
+      files: { 'index.js': "module.exports = 'build-copy';", 'deep.js': "module.exports = 'build-copy';" }
+    });
+    if (manifest === undefined) await rm(join(packageRoot, 'package.json'));
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src/api.ts'), `import value from '${specifier}'; export const handler = () => value;`);
+    await writeFile(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'parity-fixture', private: true, imports: subpathImports })
+    );
+    const buildOptions = {
+      excludeDependencies: 'excludeDependencies' in options ? [...options.excludeDependencies] : [],
+      dependenciesToExcludeFromBundle:
+        'dependenciesToExcludeFromBundle' in options ? [...options.dependenciesToExcludeFromBundle] : []
+    };
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      externals: [],
+      outputModuleFormat: 'esm',
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      createPackagingError,
+      ...buildOptions
+    });
+    await splitBundle({ root, entries: ['api'], ...buildOptions });
+    for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+      const runtime = await mkdtemp(join(tmpdir(), `stacktape-dependency-${label}-`));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      // The dependency available to the runtime has different bytes. Loading the artifact tells us which it chose.
+      await writePackage({
+        root: runtime,
+        name: packageName,
+        files: { 'index.js': "module.exports = 'runtime-copy';", 'deep.js': "module.exports = 'runtime-copy';" }
+      });
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+        ],
+        { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, `${label}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout), label).toBe(expected);
+    }
+  }
+}, 30_000);
+
+test("a package's own subpath imports are bundled on both build paths", async () => {
+  // Prisma 6's generated client loads itself with `require('#main-entry-point')`, a name only its own package.json
+  // `imports` map defines. Two packages here map the same name to different files, and the `node` condition must win.
+  const root = await createRoot();
+  for (const name of ['first-client', 'second-client']) {
+    await writePackage({
+      root,
+      name,
+      packageJson: {
+        main: 'default.js',
+        imports: {
+          '#main-entry-point': {
+            require: { node: './node.js', browser: './browser.js', default: './node.js' },
+            default: './node.js'
+          }
+        }
+      },
+      files: {
+        'default.js': "module.exports = { ...require('#main-entry-point') };",
+        'node.js': `exports.value = ${JSON.stringify(name)};`,
+        'browser.js': "exports.value = 'browser';"
+      }
+    });
+  }
+  await mkdir(join(root, 'src'));
+  await writeFile(
+    join(root, 'src/api.ts'),
+    [
+      "import first from 'first-client';",
+      "import second from 'second-client';",
+      'export const handler = () => [first.value, second.value];'
+    ].join('\n')
+  );
+  await buildEsCode({
+    sourcePath: join(root, 'src/api.ts'),
+    distPath: join(root, 'single/index.js'),
+    cwd: root,
+    externals: [],
+    outputModuleFormat: 'esm',
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'disabled',
+    createPackagingError
+  });
+  await splitBundle({ root, entries: ['api'] });
+  for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+    // The artifact runs without the project's node_modules, as it does once deployed.
+    const runtime = await mkdtemp(join(tmpdir(), 'stacktape-subpath-imports-'));
+    temporaryDirectories.push(runtime);
+    await cp(source, runtime, { recursive: true });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+      ],
+      { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(execution.status, `${basename(source)}: ${execution.stderr}`).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual(['first-client', 'second-client']);
+  }
+}, 30_000);
+
+test('an ES module artifact answers eval("__dirname") with its own directory on both build paths', async () => {
+  // Prisma 5 looks for its query engine from `eval("__dirname")`, which the build cannot redirect as it does a plain
+  // `__dirname`. The project's own `__dirname`, common in ES modules, must keep working beside it.
+  const root = await createRoot();
+  await writePackage({ root, name: 'engine-finder', files: { 'index.js': 'exports.find = () => eval("__dirname");' } });
+  await mkdir(join(root, 'src'));
+  await writeFile(
+    join(root, 'src/api.ts'),
+    [
+      "import { dirname } from 'node:path';",
+      "import { fileURLToPath } from 'node:url';",
+      "import { find } from 'engine-finder';",
+      'const __filename = fileURLToPath(import.meta.url);',
+      'const __dirname = dirname(__filename);',
+      'export const handler = () => [find(), __dirname];'
+    ].join('\n')
+  );
+  await buildEsCode({
+    sourcePath: join(root, 'src/api.ts'),
+    distPath: join(root, 'single/index.js'),
+    cwd: root,
+    externals: [],
+    outputModuleFormat: 'esm',
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'pre-compiled',
+    createPackagingError
+  });
+  await splitBundle({ root, entries: ['api'] });
+  for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+    // Node.js reports a module's real path, so a temporary directory behind a link would not compare equal.
+    const runtime = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-eval-dirname-')));
+    temporaryDirectories.push(runtime);
+    await cp(source, runtime, { recursive: true });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+      ],
+      { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(execution.status, `${basename(source)}: ${execution.stderr}`).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual([runtime, runtime]);
+  }
+}, 30_000);
+
+test('aliased sources and Node builtins execute from portable single and split artifacts', async () => {
+  const artifacts: Record<string, Buffer>[] = [];
+  for (let checkout = 0; checkout < 2; checkout++) {
+    const root = await createRoot();
+    await mkdir(join(root, 'src'));
+    // A real installed package shadows this name. The authored path must win over package resolution.
+    await writePackage({
+      root,
+      name: '@app/shared',
+      files: { 'index.js': "exports.marker = 'shadow-package'; exports.payload = 'wrong';" }
+    });
+    const tsConfigPath = join(root, 'tsconfig.json');
+    await writeFile(
+      tsConfigPath,
+      JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/*'] } } })
+    );
+    await writeFile(
+      join(root, 'src/shared.ts'),
+      "export const marker = 'aliased-source'; export const payload = 'shared'.repeat(4096);"
+    );
+    for (const name of ['api', 'worker']) {
+      await writeFile(
+        join(root, `src/${name}.ts`),
+        // `__dirname` must name the directory the function runs from, not the one it was built in.
+        "import { marker, payload } from '@app/shared'; import { basename } from 'node:path'; export const handler = () => ({ marker, size: payload.length, file: basename('/runtime/value'), directory: basename(__dirname) });"
+      );
+    }
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      tsConfigPath,
+      externals: [],
+      outputModuleFormat: 'esm',
+      sourceMaps: 'external',
+      sourceMapBannerType: 'pre-compiled',
+      createPackagingError
+    });
+    await splitBundle({ root, entries: ['api', 'worker'], tsConfigPath });
+    const bytes: Record<string, Buffer> = {};
+    for (const [kind, source] of [
+      ['single', join(root, 'single')],
+      ['split', join(root, 'dist/api')]
+    ] as const) {
+      for (const relative of (await readdir(source, { recursive: true, withFileTypes: true })).filter((entry) =>
+        entry.isFile()
+      )) {
+        const path = join(relative.parentPath, relative.name);
+        bytes[`${kind}/${path.slice(source.length + 1).replaceAll('\\', '/')}`] = await readFile(path);
+      }
+      const runtime = await mkdtemp(join(tmpdir(), 'stacktape-portable-artifact-'));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+        ],
+        { cwd: runtime, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, `${kind}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({
+        marker: 'aliased-source',
+        size: 24576,
+        file: 'value',
+        directory: basename(runtime)
+      });
+    }
+    artifacts.push(bytes);
+  }
+  expect(artifacts[1]).toEqual(artifacts[0]);
 });

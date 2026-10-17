@@ -6,11 +6,3 @@ export type StpUpstashRedis = UpstashRedis['properties'] & {
   configParentResourceType: UpstashRedis['type'];
   nameChain: string[];
 };
-export type UpstashRedisReferencableParam =
-  | 'host'
-  | 'port'
-  | 'password'
-  | 'restToken'
-  | 'readOnlyRestToken'
-  | 'restUrl'
-  | 'redisUrl';

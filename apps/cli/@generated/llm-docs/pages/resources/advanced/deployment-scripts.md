@@ -211,10 +211,7 @@ export default defineConfig(() => {
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/seed.ts'
     }),
-    environment: [
-      { name: 'SEED_COUNT', value: '100' },
-      { name: 'ADMIN_EMAIL', value: '$Secret(admin-email)' }
-    ],
+    environment: { SEED_COUNT: '100', ADMIN_EMAIL: '$Secret(admin-email)' },
     parameters: {
       tableName: 'seed-jobs',
       region: 'eu-west-1'

@@ -3,6 +3,7 @@ import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from 'src/config/project-paths';
 import { dynamicRequire } from '@utils/fs-utils';
 import { logError, logInfo, logWarn } from '@scripts/support/logging';
 import { localBuildTsConfigPath } from '@utils/misc';
+import { createFsExtraSingleCopyPlugin } from '@scripts/support/fs-extra-single-copy-plugin';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import packageJson from '../package.json';
 import { config } from 'dotenv';
@@ -132,7 +133,7 @@ const buildSource = async () => {
     minify: false,
     sourcemap: 'inline',
     bytecode: false,
-    plugins: [openTuiBuildPlugin],
+    plugins: [openTuiBuildPlugin, createFsExtraSingleCopyPlugin()],
     // @opentui/core dynamically imports a native package per platform (@opentui/core-darwin-x64, etc.).
     // Only the current platform's package is installed, so externalize them all — the matching one
     // resolves from node_modules at runtime, the rest are never imported.

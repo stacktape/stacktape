@@ -1,8 +1,5 @@
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
-import type {
-  ContainerWorkloadReferencableParam,
-  StpContainerWorkload
-} from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { PrivateService } from '@stacktape/config/private-services';
 
 export type StpPrivateService = PrivateService['properties'] & {
@@ -15,4 +12,3 @@ export type StpPrivateService = PrivateService['properties'] & {
     loadBalancer?: StpApplicationLoadBalancer;
   };
 };
-export type PrivateServiceReferencableParams = ContainerWorkloadReferencableParam | 'address';

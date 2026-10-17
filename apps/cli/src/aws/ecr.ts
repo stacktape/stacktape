@@ -1,5 +1,12 @@
 import type { ECRClient, ImageIdentifier } from '@aws-sdk/client-ecr';
-import { BatchDeleteImageCommand, GetAuthorizationTokenCommand, ListImagesCommand } from '@aws-sdk/client-ecr';
+import {
+  BatchDeleteImageCommand,
+  BatchGetImageCommand,
+  GetAuthorizationTokenCommand,
+  ImageAlreadyExistsException,
+  ListImagesCommand,
+  PutImageCommand
+} from '@aws-sdk/client-ecr';
 import { chunkArray } from '@utils/misc';
 import { Buffer } from 'node:buffer';
 
@@ -53,6 +60,42 @@ export class AwsEcr {
       return;
     }
     return Promise.resolve();
+  };
+
+  /** Adds `targetTag` to the image tagged `sourceTag`, without pulling or pushing it. */
+  tagImage = async ({
+    repositoryName,
+    sourceTag,
+    targetTag
+  }: {
+    repositoryName: string;
+    sourceTag: string;
+    targetTag: string;
+  }) => {
+    const errorHandler = this.#getErrorHandler(
+      `Failed to tag image ${sourceTag} as ${targetTag} in ${repositoryName}.`
+    );
+    const { images } = await this.#createClient()
+      .send(new BatchGetImageCommand({ repositoryName, imageIds: [{ imageTag: sourceTag }] }))
+      .catch(errorHandler);
+    const image = images?.[0];
+    if (!image?.imageManifest) {
+      errorHandler(new Error(`Image ${sourceTag} was not found.`));
+    }
+    await this.#createClient()
+      .send(
+        new PutImageCommand({
+          repositoryName,
+          imageManifest: image.imageManifest,
+          imageManifestMediaType: image.imageManifestMediaType,
+          imageTag: targetTag
+        })
+      )
+      .catch((error: Error) => {
+        // A retried rollback finds the tag already in place.
+        if (error instanceof ImageAlreadyExistsException) return;
+        errorHandler(error);
+      });
   };
 
   getAuthorization = async () => {

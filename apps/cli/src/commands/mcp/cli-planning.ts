@@ -300,7 +300,7 @@ export const buildCliPlan = async ({
   awsAccount,
   configPath,
   currentWorkingDirectory,
-  hotSwap,
+  fullDeploy,
   resourceName,
   scriptName,
   secretName,
@@ -316,7 +316,7 @@ export const buildCliPlan = async ({
   awsAccount?: string;
   configPath?: string;
   currentWorkingDirectory?: string;
-  hotSwap?: boolean;
+  fullDeploy?: boolean;
   resourceName?: string;
   scriptName?: string;
   secretName?: string;
@@ -386,7 +386,7 @@ export const buildCliPlan = async ({
     ...(awsAccount !== undefined ? { awsAccount } : {}),
     ...(configPath !== undefined ? { configPath } : {}),
     ...(currentWorkingDirectory !== undefined ? { currentWorkingDirectory } : {}),
-    ...(hotSwap !== undefined ? { hotSwap } : {}),
+    ...(fullDeploy !== undefined ? { fullDeploy } : {}),
     ...(resourceName !== undefined ? { resourceName } : {}),
     ...(scriptName !== undefined ? { scriptName } : {}),
     ...(secretName !== undefined ? { secretName } : {}),

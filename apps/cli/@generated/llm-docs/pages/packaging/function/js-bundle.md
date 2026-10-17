@@ -1,6 +1,6 @@
 # JS Bundle for Lambda
 
-The `js-bundle` packaging type (`JsBundleLambdaPackaging`) packages a JavaScript or TypeScript [Lambda function](/resources/compute/lambda-function) from its entry file. Stacktape bundles the entry file and everything it imports into one minified file with source maps, installs the dependencies that cannot be bundled, and uploads the result.
+The `js-bundle` packaging type (`JsBundleLambdaPackaging`) packages a JavaScript or TypeScript [Lambda function](/resources/compute/lambda-function) from its entry file. Stacktape bundles the entry file and everything it imports into one minified file, installs the dependencies that cannot be bundled, and uploads the result. The bundle's source maps are stored in the stack's deployment bucket, outside the package.
 
 `js-bundle` supports JavaScript and TypeScript only. For Python, Java, Go, Ruby, .NET and Rust functions, use [`buildpack`](/packaging/function/buildpack).
 
@@ -135,7 +135,17 @@ All options are properties of `JsBundleLambdaPackaging` next to `entryfilePath`.
 
 ### How the bundle is built
 
-Stacktape bundles your code starting from the entry file into a single output file. The bundle is minified (whitespace and syntax only, so function names stay readable in stack traces), and on Node.js 18 and later, imports of `@aws-sdk/client-*` and `@aws-sdk/lib-*` are left out of the package because the Lambda runtime provides them. Source maps are generated automatically. If you set `outputSourceMapsTo`, source maps are saved locally instead of uploaded, and CloudWatch stack traces will not be mapped.
+Stacktape bundles your code starting from the entry file into a single output file. The bundle is minified (whitespace and syntax only, so function names stay readable in stack traces), and on Node.js 18 and later, imports of `@aws-sdk/client-*` and `@aws-sdk/lib-*` are left out of the package because the Lambda runtime provides them. Source maps are generated automatically and kept outside the package; see [Source maps](#source-maps).
+
+### Source maps
+
+Each deployment stores the function's source maps in the stack's deployment bucket instead of the deployment package, so the package carries code only. The maps contain no source code. When the [Stacktape Console](/observability/issues) first sees an error from the function, it uses the maps of the code that threw to show the stack trace with the original file, line and function. Stack traces in CloudWatch logs point into the bundled code.
+
+The deployment bucket keeps a function's maps as long as it keeps a deployment package that uses them, so the maps of every release you can [roll back](/cli/rollback) to stay available.
+
+- **`keepSourceMapsInPackage: true`** ships the maps in the package and turns on Node.js `--enable-source-maps`, so CloudWatch stack traces are mapped too. The package gets larger, and Node.js reads the maps on every cold start.
+- **`outputSourceMapsTo`** also saves complete maps, original source included, to a local directory, for uploading to Sentry, Datadog or another tool.
+- **`disableSourceMaps: true`** generates no maps; error locations then point into the bundled code everywhere.
 
 Key options:
 
@@ -145,8 +155,9 @@ Key options:
 - **`emitTsDecoratorMetadata`** — enable for frameworks that rely on TypeScript decorator metadata reflection (NestJS, TypeORM).
 - **`dependenciesToExcludeFromBundle`** — packages treated as external (not bundled into the single output file). They're installed separately in the deployment package. Set the array to `['*']` to exclude all dependencies from the bundle.
 - **`dependenciesToExcludeFromDeploymentPackage`** — removes non-bundled dependencies from the final package. Only applies to dependencies already excluded from the bundle. Set the array to `['*']` to exclude all non-bundled dependencies.
-- **`disableSourceMaps`** — skips source map generation, reducing package size but making production errors harder to debug.
-- **`outputSourceMapsTo`** — saves source maps to a local directory instead of uploading them to AWS. Useful for external error tracking tools like Sentry or Datadog. CloudWatch stack traces won't be mapped when this is set.
+- **`disableSourceMaps`** — skips source map generation. Error locations then point into the bundled code.
+- **`keepSourceMapsInPackage`** — keeps source maps in the deployment package and maps CloudWatch stack traces. Default: `false`. See [Source maps](#source-maps).
+- **`outputSourceMapsTo`** — also saves complete source maps to a local directory. Useful for external error tracking tools like Sentry or Datadog.
 - **`minify`** — minifies the bundle (whitespace and syntax). Local function and variable names are kept, so stack traces and error messages stay readable. Default: `true`.
 - **`minifyIdentifiers`** — also shortens local variable and function names. Slightly smaller bundle, but the names disappear from stack traces and error messages and change with every build, so Stacktape Console cannot group the same error across deployments. Default: `false`.
 - **`bundleAwsSdk`** — bundles `@aws-sdk/*` from your `node_modules` instead of using the copy the Lambda runtime provides. Enable it when you need a newer SDK than the runtime ships. Default: `false`.
@@ -163,7 +174,7 @@ export default defineConfig(() => {
       entryfilePath: './src/api.ts',
       nodeVersion: 22,
       outputModuleFormat: 'esm',
-      dependenciesToExcludeFromBundle: ['@prisma/client'],
+      dependenciesToExcludeFromBundle: ['dd-trace'],
       tsConfigPath: './tsconfig.json'
     }),
     memory: 1024,
@@ -177,7 +188,7 @@ export default defineConfig(() => {
 ```
 
 
-This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the Node.js version the bundle targets. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package, which is the safer path for packages with native binaries like `@prisma/client`. Setting `tsConfigPath` lets the bundler resolve TypeScript path aliases during bundling.
+This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the Node.js version the bundle targets. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package. An APM agent such as `dd-trace` needs this, because it instruments other modules as they load from `node_modules`. Setting `tsConfigPath` lets the bundler resolve TypeScript path aliases during bundling.
 
 
 > **Info:** Use `dependenciesToExcludeFromBundle` for dependencies with native binaries. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. This is the most common fix when a dependency works locally but fails in Lambda with a binary-related error.
@@ -207,7 +218,7 @@ A function is packaged individually, without a shared layer, when it uses an opt
 - `includeFiles` or `excludeFiles`
 - a `nodeVersion` other than 18, 20, 22 or 24
 
-Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
+Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `keepSourceMapsInPackage`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
 
 
 > **Info:** Changing shared code changes every package that depends on it, because each function's entry file references the shared chunk by a content hash. Changing one handler's own code changes only that one package.
@@ -236,6 +247,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `excludeFiles` | no | `Array<string>` | - |
 | `handlerFunction` | no | `string` | - |
 | `includeFiles` | no | `Array<string>` | - |
+| `keepSourceMapsInPackage` | no | `boolean` | `false` |
 | `minify` | no | `boolean` | `true` |
 | `minifyIdentifiers` | no | `boolean` | `false` |
 | `nodeVersion` | no | `number: 16 \| 17 \| 18 \| 19 \| 20 \| 21 \| 22 \| 23 \| 24` | - |
@@ -260,7 +272,7 @@ AWS Lambda allows 250 MB unzipped for a function and all its layers together. It
 
 ### How do I handle native binary dependencies like sharp or Prisma?
 
-Add native binary packages to `dependenciesToExcludeFromBundle`. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. If a dependency works locally but fails in Lambda with a binary error, excluding it from the bundle is usually the fix.
+Usually you don't need to do anything. Stacktape detects packages that load native binaries or read their own files at run time, keeps them out of the bundle and installs them for the function's platform. Prisma's client is bundled, and the function gets the query engine for its architecture. With Prisma 5 or 6, add `rhel-openssl-3.0.x` (x86_64) or `linux-arm64-openssl-3.0.x` (arm64) to `binaryTargets` in `schema.prisma`; Prisma 7 needs no engine. If a dependency still works locally but fails in Lambda, add it to `dependenciesToExcludeFromBundle` to install it beside the bundle.
 
 ### My function runs an older AWS SDK than the one in my package.json — why?
 
@@ -272,4 +284,4 @@ When several functions can be packaged together, Stacktape moves the code they s
 
 ### How do I debug a function packaged with `js-bundle`?
 
-Source maps are generated automatically and included in the deployment package so CloudWatch stack traces map back to your source. If you set `outputSourceMapsTo`, source maps are saved locally instead and CloudWatch stack traces will not be mapped. For rapid iteration without a full redeploy, use [dev mode](/local-development/dev-mode-overview) with Lambda functions.
+The Stacktape Console shows each runtime error with the original file, line and function, read from the source maps the deployment stored in your deployment bucket. CloudWatch logs show positions in the bundled code; set `keepSourceMapsInPackage: true` to have Node.js map them as well. For rapid iteration without a full redeploy, use [dev mode](/local-development/dev-mode-overview) with Lambda functions.

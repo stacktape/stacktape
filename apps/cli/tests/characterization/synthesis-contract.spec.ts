@@ -13,10 +13,7 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import type { StackContext } from '@domain-services/stack-context';
-import {
-  hasEnabledCdn,
-  type ResourceWithPresentCdn
-} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
+import { hasEnabledCdn } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
 import { configManager } from '@domain-services/config-manager';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 
@@ -63,6 +60,7 @@ const createDenseConfig = ({
   includeAppsync = false,
   includeDsql = false,
   includeWebsocket = false,
+  websocketIamConnect = false,
   includeKafka = false,
   kafkaConnectTo = true,
   kafkaRemoteInDev = false,
@@ -75,6 +73,7 @@ const createDenseConfig = ({
   includeAppsync?: boolean;
   includeDsql?: boolean;
   includeWebsocket?: boolean;
+  websocketIamConnect?: boolean;
   includeKafka?: boolean;
   kafkaConnectTo?: boolean;
   kafkaRemoteInDev?: boolean;
@@ -269,6 +268,10 @@ const createDenseConfig = ({
           eventPattern: {
             source: ['characterization'],
             'detail-type': ['RecordChanged']
+          },
+          inputTransformer: {
+            inputPathsMap: { recordId: '$.detail.recordId' },
+            inputTemplate: { recordId: '<recordId>' }
           }
         })
       ]
@@ -278,12 +281,14 @@ const createDenseConfig = ({
       packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/api.ts'
       }),
-      timeout: 10,
+      timeout: 60,
       events: [
         new WebSocketApiIntegration({
           websocketApiGatewayName: realtime,
           routeKey: '$connect',
-          authorizer: { type: 'lambda', properties: { functionName: audit } }
+          authorizer: websocketIamConnect
+            ? { type: 'aws-iam' }
+            : { type: 'lambda', properties: { functionName: audit } }
         }),
         new WebSocketApiIntegration({
           websocketApiGatewayName: realtime,
@@ -360,6 +365,7 @@ export const synthesizeDenseFixture = async ({
   beforeFinalize,
   command = 'synth',
   includeWebsocket,
+  websocketIamConnect,
   includeAppsync,
   includeDsql,
   includeKafka,
@@ -376,6 +382,7 @@ export const synthesizeDenseFixture = async ({
   beforeFinalize?: () => void;
   command?: 'dev' | 'synth';
   includeWebsocket?: boolean;
+  websocketIamConnect?: boolean;
   includeAppsync?: boolean;
   includeDsql?: boolean;
   includeKafka?: boolean;
@@ -396,6 +403,7 @@ export const synthesizeDenseFixture = async ({
       kafkaConnectTo,
       kafkaRemoteInDev,
       includeWebsocket,
+      websocketIamConnect,
       infrequentAccessWorkerLogs,
       subscribeToWorkerLogs,
       includeUptimeCheck,
@@ -981,7 +989,7 @@ describe('full synthesis contract', () => {
       OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
       OTEL_TRACES_SAMPLER_ARG: '0.3',
       OTEL_RESOURCE_ATTRIBUTES:
-        'stacktape.project=characterization,stacktape.stage=baseline,deployment.environment.name=baseline'
+        'stacktape.project=characterization,stacktape.stage=baseline,stacktape.resource=worker,deployment.environment.name=baseline'
     });
     expect(workerFn.DependsOn).toContain(cfLogicalNames.customResourceTransactionSearch());
     // Active tracing is what gives the OTel distro its UDP export path in traces-only mode; without
@@ -1293,6 +1301,26 @@ describe('full synthesis contract', () => {
 
     expect(cluster.Properties.ClientAuthentication).toEqual({ Sasl: { Iam: { Enabled: true } } });
     expect(cluster.Properties.VpcConfigs[0].SecurityGroups).toHaveLength(1);
+    // Brokers talk to each other through a standalone self-ingress; an inline self-reference would be a
+    // CloudFormation circular dependency, and an open CIDR would expose the IAM port.
+    const clusterSecurityGroupId = cluster.Properties.VpcConfigs[0].SecurityGroups[0].Ref;
+    const selfIngress = Object.values(resources).find(
+      ({ Type, Properties }: any) =>
+        Type === 'AWS::EC2::SecurityGroupIngress' && Properties.GroupId?.Ref === clusterSecurityGroupId
+    ) as any;
+    expect(selfIngress.Properties).toEqual({
+      GroupId: { Ref: clusterSecurityGroupId },
+      SourceSecurityGroupId: { Ref: clusterSecurityGroupId },
+      FromPort: 9098,
+      ToPort: 9098,
+      IpProtocol: 'tcp'
+    });
+    const inlineIngress = (resources[clusterSecurityGroupId].Properties.SecurityGroupIngress ?? []) as {
+      SourceSecurityGroupId?: unknown;
+    }[];
+    expect(inlineIngress.map(({ SourceSecurityGroupId }) => SourceSecurityGroupId)).not.toContainEqual({
+      Ref: clusterSecurityGroupId
+    });
     expect(mapping.Properties).toMatchObject({
       EventSourceArn: { Ref: expect.any(String) },
       StartingPosition: 'LATEST',
@@ -1350,6 +1378,23 @@ describe('full synthesis contract', () => {
     }
     expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:CreateTopic'))).toBe(false);
     expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:WriteData'))).toBe(false);
+    // Reads are scoped to the one topic on this cluster, never to every topic in the account.
+    const clusterArn = { Ref: cfLogicalNames.kafkaServerlessCluster('kafkaCluster') };
+    const topicRead = statements.find(({ Action }: any) => Action?.includes?.('kafka-cluster:ReadData'));
+    expect(topicRead.Resource).toEqual([
+      {
+        'Fn::Join': [
+          '',
+          [
+            'arn:aws:kafka:eu-west-1:123456789999:topic/',
+            { 'Fn::Select': [1, { 'Fn::Split': ['/', clusterArn] }] },
+            '/',
+            { 'Fn::Select': [2, { 'Fn::Split': ['/', clusterArn] }] },
+            '/orders'
+          ]
+        ]
+      }
+    ]);
   });
 
   test('keeps costly Kafka resources out of dev unless remote use is explicit', async () => {
@@ -1424,7 +1469,6 @@ describe('full synthesis contract', () => {
     expect(Object.values(resources).some(({ Type }) => Type === 'AWS::ApiGatewayV2::Deployment')).toBe(false);
     expect(resources[messageRouteResponseLogicalName]).toEqual({
       Type: 'AWS::ApiGatewayV2::RouteResponse',
-      DependsOn: [],
       Properties: {
         ApiId: { Ref: apiLogicalName },
         RouteId: { Ref: messageRouteLogicalName },
@@ -1442,15 +1486,77 @@ describe('full synthesis contract', () => {
       'AuthorizerPayloadFormatVersion'
     );
 
+    const integrationLogicalName = cfLogicalNames.websocketApiLambdaIntegration({
+      stpResourceName: 'realtimeHandler',
+      stpWebsocketApiGatewayName: 'realtime'
+    });
+    expect(resources[integrationLogicalName].Properties).toEqual({
+      ApiId: { Ref: apiLogicalName },
+      IntegrationMethod: 'POST',
+      IntegrationType: 'AWS_PROXY',
+      TimeoutInMillis: 29000,
+      IntegrationUri: {
+        'Fn::Sub': [
+          'arn:aws:apigateway:eu-west-1:lambda:path/2015-03-31/functions/${lambdaEndpointArn}/invocations',
+          { lambdaEndpointArn: { 'Fn::GetAtt': ['RealtimeHandlerFunction', 'Arn'] } }
+        ]
+      }
+    });
+    for (const route of [connectRouteLogicalName, messageRouteLogicalName]) {
+      expect(resources[route].Properties.Target).toEqual({
+        'Fn::Join': ['/', ['integrations', { Ref: integrationLogicalName }]]
+      });
+    }
+    const permissionName = cfLogicalNames.websocketApiLambdaPermission({
+      stpResourceNameOfLambda: 'realtimeHandler',
+      stpResourceNameOfWebsocketApiGateway: 'realtime'
+    });
+    expect(resources[permissionName].Properties).toEqual({
+      Action: 'lambda:InvokeFunction',
+      FunctionName: { 'Fn::GetAtt': ['RealtimeHandlerFunction', 'Arn'] },
+      Principal: 'apigateway.amazonaws.com',
+      SourceAccount: '123456789999',
+      SourceArn: {
+        'Fn::Join': ['', ['arn:aws:execute-api:eu-west-1:123456789999:', { Ref: apiLogicalName }, '/default/*']]
+      }
+    });
     const handler = resources[cfLogicalNames.lambda('realtimeHandler')];
+    // Clients connect to the `default` stage and the handler posts to connections through the same stage.
     expect(handler.Properties.Environment.Variables).toMatchObject({
       STP_REALTIME_API_ID: { Ref: apiLogicalName },
-      STP_REALTIME_MANAGEMENT_ENDPOINT: expect.any(Object),
-      STP_REALTIME_URL: expect.any(Object)
+      STP_REALTIME_MANAGEMENT_ENDPOINT: {
+        'Fn::Sub': [
+          'https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/default',
+          { ApiId: { Ref: apiLogicalName } }
+        ]
+      },
+      STP_REALTIME_URL: { 'Fn::Join': ['', [{ 'Fn::GetAtt': [apiLogicalName, 'ApiEndpoint'] }, '/default']] }
     });
     const role = resources[cfLogicalNames.lambdaRole('realtimeHandler')];
-    expect(JSON.stringify(role)).toContain('execute-api:ManageConnections');
-    expect(JSON.stringify(role)).toContain('/default/POST/@connections');
+    expect(
+      role.Properties.Policies.flatMap(
+        ({ PolicyDocument }: { PolicyDocument: { Statement: unknown[] } }) => PolicyDocument.Statement
+      ).filter((statement: { Action: string[] }) => statement.Action.includes('execute-api:ManageConnections'))
+    ).toEqual([
+      {
+        Effect: 'Allow',
+        Action: ['execute-api:ManageConnections'],
+        Resource: [
+          {
+            'Fn::Join': [
+              '',
+              ['arn:aws:execute-api:eu-west-1:123456789999:', { Ref: apiLogicalName }, '/default/POST/@connections']
+            ]
+          }
+        ]
+      }
+    ]);
+    const iamTemplate = await synthesizeDenseFixture({ includeWebsocket: true, websocketIamConnect: true });
+    expect(iamTemplate.Resources[connectRouteLogicalName]).toMatchObject({
+      Type: 'AWS::ApiGatewayV2::Route',
+      Properties: { AuthorizationType: 'AWS_IAM' }
+    });
+    expect(iamTemplate.Resources[cfLogicalNames.websocketApiAuthorizer('realtime')]).toBeUndefined();
   });
 
   test('applies resource and final transforms during real template finalization', () => {
@@ -1711,6 +1817,13 @@ describe('full synthesis contract', () => {
     ).json();
 
     expect(createSynthesisIdentityManifest(synthesizedTemplate)).toEqual(expectedManifest);
+    // A resource without dependencies carries no DependsOn at all. An empty list is harmless to CloudFormation, but
+    // v3 templates never carried it, so it made the change plan report an update on almost every resource.
+    expect(
+      Object.entries(synthesizedTemplate.Resources)
+        .filter(([, resource]) => Array.isArray(resource.DependsOn) && resource.DependsOn.length === 0)
+        .map(([logicalId]) => logicalId)
+    ).toEqual([]);
   });
 
   test('applies the shared EventBridge target contract to an SQS queue', () => {
@@ -1851,6 +1964,10 @@ describe('full synthesis contract', () => {
       },
       EventBusName: { 'Fn::GetAtt': ['EventsEventBus', 'Arn'] }
     });
+    // A valid input transformer reaches the target with its paths map and templated input.
+    const [auditTarget] = resources.AuditEvent0Rule.Properties.Targets;
+    expect(auditTarget.InputTransformer.InputPathsMap).toEqual({ recordId: '$.detail.recordId' });
+    expect(JSON.stringify(auditTarget.InputTransformer.InputTemplate)).toContain('<recordId>');
 
     const apiPolicyStatements = resources.ApiRole.Properties.Policies.flatMap(
       ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement
@@ -1954,7 +2071,7 @@ describe('load balancer and CDN synthesis contract', () => {
     expect(byPort.get(80).Protocol).toBe('HTTP');
     expect(byPort.get(80).DefaultActions[0]).toMatchObject({
       Type: 'redirect',
-      RedirectConfig: { Protocol: 'HTTPS', StatusCode: 'HTTP_301' }
+      RedirectConfig: { Protocol: 'HTTPS', Port: '443', StatusCode: 'HTTP_301' }
     });
     expect(byPort.get(443).Protocol).toBe('HTTPS');
   });
@@ -2016,8 +2133,8 @@ describe('load balancer and CDN synthesis contract', () => {
 });
 
 describe('enabled-CDN predicate', () => {
-  // `hasEnabledCdn` is the branch the resolvers above already took, written so that it also narrows the resource for
-  // the CloudFront helpers it guards. These pin the three configurations it has to tell apart.
+  // `hasEnabledCdn` is the branch the resolvers above already took. The dense fixture covers an enabled CDN and
+  // resources without a CDN block; only the switched-off block has no synthesized counterpart.
 
   const bucketWith = (cdn?: StpBucket['cdn']): StpBucket => ({
     name: 'assets',
@@ -2027,40 +2144,8 @@ describe('enabled-CDN predicate', () => {
     ...(cdn ? { cdn } : {})
   });
 
-  test('rejects a resource that authored no CDN block at all', () => {
-    expect(hasEnabledCdn(bucketWith())).toBe(false);
-  });
-
   test('rejects a CDN block that is present but switched off', () => {
     // A disabled block is authored, so absence alone is not the question the resolvers ask.
     expect(hasEnabledCdn(bucketWith({ enabled: false }))).toBe(false);
-  });
-
-  test('accepts a CDN block that is switched on', () => {
-    expect(hasEnabledCdn(bucketWith({ enabled: true }))).toBe(true);
-  });
-
-  test('narrows the resource so a guarded caller can read the CDN block', () => {
-    const bucket = bucketWith({ enabled: true, errorDocument: 'oops.html' });
-
-    if (!hasEnabledCdn(bucket)) throw new Error('expected the enabled CDN fixture to pass the predicate');
-
-    // Reachable only because the predicate narrowed `bucket`; before the guard `cdn` is optional.
-    expect(bucket.cdn.errorDocument).toBe('oops.html');
-  });
-
-  /**
-   * The narrowing itself, checked through the optionality modifier rather than by reading a property: this project's
-   * test typecheck runs with `strictNullChecks` off, where an optional property is freely assignable to a required
-   * one, so a plain read would prove nothing. The production proof is stronger and lives in the resolvers — the five
-   * CloudFront helpers now demand `ResourceWithPresentCdn`, and the six-project typecheck only passes because every
-   * call site sits inside one of these guards.
-   */
-  const cdnIsOptionalBeforeTheGuard: {} extends Pick<StpBucket, 'cdn'> ? false : true = false;
-  const cdnIsRequiredAfterTheGuard: {} extends Pick<ResourceWithPresentCdn<StpBucket>, 'cdn'> ? false : true = true;
-
-  test('treats the CDN block as optional before the guard and present after it', () => {
-    expect(cdnIsOptionalBeforeTheGuard).toBe(false);
-    expect(cdnIsRequiredAfterTheGuard).toBe(true);
   });
 });

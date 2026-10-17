@@ -28,8 +28,6 @@ import {
   saveDetailedStackInfoMap,
   writeEnvironmentDotenvFile
 } from '../_utils/common';
-import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
-import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
 import { initializeDeployOperation } from '../_utils/initialization';
 import { hintCodingAgentSetupAfterFirstDeploy } from '../_utils/coding-agent-hint';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
@@ -41,6 +39,7 @@ import { startSecurityInventory, uploadSecurityInventory } from '../_utils/secur
 import { assessAndPrintSecurityPosture, describeSecurityReportRejection } from '../_utils/security-posture-output';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
+import { type FastDeployPlan, performFastDeploy, planFastDeploy } from './fast-deploy';
 import { buildPreviewResourceChanges } from '../diff/utils';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 import {
@@ -53,6 +52,7 @@ import {
 } from '../../init/deploy/stack-expectation';
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -181,7 +181,29 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
-  tui.info(`Issues: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
+  tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
+
+  // A function in the VPC has no outbound internet until the stack has NAT; the failure otherwise only shows at
+  // runtime, as a timeout on the first external call.
+  const nat = config.natSettings;
+  if (nat.configured && config.allResourcesRequiringPrivateSubnets.length && !config.reuseVpcConfig) {
+    const description =
+      nat.type === 'gateway'
+        ? `${nat.availabilityZones} NAT Gateway${nat.availabilityZones === 1 ? '' : 's'} (~$32/month each plus $0.045/GB)`
+        : nat.type === 'ec2'
+          ? `1 NAT instance (${nat.instanceSize}, ~$7/month, no failover)`
+          : `${nat.availabilityZones} NAT instances (${nat.instanceSize}, ~$7/month each, automatic failover)`;
+    tui.info(`NAT: ${description}.`);
+  } else if (!nat.configured && config.vpcLambdas.length) {
+    const names = config.vpcLambdas.map(({ name }) => name);
+    tui.warn(
+      `${names.length === 1 ? 'Function' : 'Functions'} ${names.join(', ')} ${
+        names.length === 1 ? 'joins' : 'join'
+      } the VPC and ${names.length === 1 ? 'has' : 'have'} no outbound internet access (S3 and DynamoDB stay reachable). Calls to external APIs will fail. To give ${
+        names.length === 1 ? 'it' : 'them'
+      } internet access, set stackConfig.nat to ec2, ha-ec2 or gateway.`
+    );
+  }
 
   const uptimeChecks = config.uptimeChecks;
   if (uptimeChecks.length) {
@@ -226,7 +248,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const isFirstDeployment = stack.stackActionType === 'create';
 
   progress.setPhase('BUILD_AND_PACKAGE');
-  const [{ packagedWorkloads, cfTemplateDiff: initialCfTemplateDiff }] = await Promise.all([
+  // The registry login does not depend on the build, so it runs while the images are built. The upload waits for it
+  // and reports its failure.
+  if (config.allContainersRequiringPackaging.length || config.agentCoreRuntimesRequiringPackaging.length) {
+    deploymentArtifacts.loginToEcr().catch(() => {});
+  }
+  const [{ packagedWorkloads, cfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
       calculatedStackOverview,
       packaging,
@@ -238,41 +265,40 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     cloudformationRegistry.registerLatestCfPrivateTypes(config.requiredCloudformationPrivateTypes)
   ]);
 
-  // here we decide if we will do hotswap(fast deploy) or full deploy
-  let useHotswap = false;
-  let cfTemplateDiff = initialCfTemplateDiff;
-  if (args.hotSwap) {
-    const { isHotswapPossible = false, hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation = [] } =
-      stack.stackActionType !== 'create' &&
-      deployedStackOverview.analyzeCloudformationTemplateDiff({
-        cfTemplateDiff
+  // When only code changed, the changed functions and container services are updated directly instead of through
+  // CloudFormation, which takes seconds instead of minutes.
+  let fastDeployPlan: FastDeployPlan | undefined;
+  if (stack.stackActionType !== 'create') {
+    const reason =
+      stack.findChangedStackSetting() ??
+      deployedStackOverview.findReasonForFullDeployment({
+        cfTemplateDiff,
+        builtImageRepositoryUrl: deploymentArtifacts.repositoryUrl
       });
-    useHotswap = isHotswapPossible;
-    if (!useHotswap) {
-      // in this case we are falling back to standard Cloudformation deploy
-      tui.warn(
-        'These changes touch infrastructure, so they cannot be hot-swapped. Running a full CloudFormation deployment instead.'
-      );
-      // this means we might need to create new versions for some packages(jobs) that were previously skipped
-      // otherwise Cloudformation might not detect the change
-      // currently we are only able to create new versions by uploading new artifacts.
-      // this can be skipped if we are creating new stack
-      if (stack.stackActionType !== 'create') {
-        await packaging.repackageSkippedPackagingJobsCurrentlyUsingHotSwapDeploy({
-          ignoreWorkloads: hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation.map(
-            ({ stpResourceName }) => stpResourceName
-          )
-        });
-        // after we repackaged some of the resources (potentially)
-        // we must rerun prepare deploy to reflect changes in cloudformation template
-        await prepareTemplateForDeploy();
-        cfTemplateDiff = template.getOldTemplateDiff();
+    if (args.fullDeploy) {
+      // Even a forced full deployment changes nothing when nothing changed.
+      if (!reason && !deployedStackOverview.hasTemplateChanges(cfTemplateDiff)) {
+        fastDeployPlan = { functions: [], services: [] };
+      }
+    } else {
+      const planning = reason ? { reason } : await planFastDeploy({ config });
+      if ('plan' in planning) {
+        fastDeployPlan = planning.plan;
+      } else {
+        tui.info(`Deploying through CloudFormation: ${planning.reason}.`);
       }
     }
   }
+  // A fast deployment that changes nothing creates no release. Synced bucket content may have changed, and its restore
+  // manifest belongs to a release of its own.
+  const createsRelease =
+    !fastDeployPlan ||
+    fastDeployPlan.functions.length + fastDeployPlan.services.length > 0 ||
+    config.allBucketsToSync.length > 0;
+  const releaseVersion = createsRelease ? stack.nextVersion : stack.lastVersion;
 
   let changePlan: DeploymentChangePlanV1 | undefined;
-  if (!useHotswap) {
+  if (!fastDeployPlan) {
     const dangerousResources = getCriticalResourcesPotentiallyEndangeredByOperation({
       calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
       deployedStackInfoMap: deployedStackOverview.stackInfoMap,
@@ -295,7 +321,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       },
       action: stack.stackActionType === 'create' ? 'create' : 'update',
       changeEvidence: 'local-template-diff',
-      deploymentVersion: stack.nextVersion,
+      deploymentVersion: releaseVersion,
       stackId: stack.existingStackDetails?.StackId,
       previousDeploymentVersion: stack.lastVersion,
       previousTemplate: stack.stackActionType === 'update' ? template.oldTemplate : undefined,
@@ -306,9 +332,6 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     });
     tui.info(formatDeploymentChangePlanSummary(changePlan));
 
-    // Approval must describe the last finalized template. A hotswap fallback can
-    // repackage workloads and finalize again, so prompting during initial preparation
-    // would approve a different change from the one that is uploaded below.
     const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });
     if (abort) {
       await application.handleExitSignal('SIGINT');
@@ -316,40 +339,41 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   }
 
-  // A newly added/changed EmailSender changes StackInfo and therefore cannot enter the hotswap path. Existing
-  // dependencies were already ensured by their full deployment, so keep routine code hotswaps free of this preflight.
-  if (!useHotswap) {
+  // A newly added or changed EmailSender changes the template, so it never takes the fast path. Existing senders were
+  // ensured by their full deployment, which keeps routine code updates free of this preflight.
+  if (!fastDeployPlan) {
     await ensureManagedEmailSenders();
   }
   if (stack.stackActionType === 'create') {
     await stack.createResourcesForArtifacts();
   }
 
-  // deploy all artifacts - use versions depending on whether this is hotswap or not
   progress.setPhase('UPLOAD');
-  await deploymentArtifacts.uploadAllArtifacts({ useHotswap });
+  await deploymentArtifacts.uploadAllArtifacts({ includeTemplates: !fastDeployPlan });
+  const sourceMapManifest = await recordSourceMapsBeforeSwitch(template.getTemplate());
 
   // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
   // CloudFormation works; it is uploaded and reported only after the deployment succeeds.
   const securityInventoryPromise = securityAssessment
-    ? startSecurityInventory({ deploymentArtifacts, stackContext, version: stack.nextVersion, tui })
+    ? startSecurityInventory({ deploymentArtifacts, stackContext, version: releaseVersion, tui })
     : null;
 
   // Release identity: stamped onto every event this operation reports, so the Console can associate
   // incidents and error-group resolutions with the release that produced them.
   notification.setReleaseContext({
-    deploymentVersion: stack.nextVersion,
+    deploymentVersion: releaseVersion,
     configRevision: createHash('sha256').update(JSON.stringify(template.getTemplate())).digest('hex').slice(0, 24),
     // 'unset' tells the Console the config declares no classification, so a previously stored
     // explicit stageType is removed and name inference takes over again.
     stageType: config.stackConfig.stageType ?? 'unset'
   });
 
-  await notification.sendDeploymentNotification({
+  // Sent while the deployment runs. Later events, the outcome included, are sent after it.
+  notification.queueDeploymentNotification({
     message: {
       text: 'Deployment started',
       type: 'progress',
-      details: { deploymentMode: useHotswap ? 'Hotswap' : 'Full deployment' }
+      details: { deploymentMode: fastDeployPlan ? 'Fast deployment' : 'Full deployment' }
     }
   });
 
@@ -357,9 +381,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // the prober manifests DURING the CloudFormation update, so on long deploys probers report the
   // new revision minutes before the post-deploy sync — without this, those reports are dropped.
   // Best-effort and update-only: on a first deploy nothing probes yet, and runtime directives can
-  // only resolve against an existing stack. Hotswaps never run the custom resource, so announcing
+  // only resolve against an existing stack. Fast deployments never run the custom resource, so announcing
   // a new revision under one would split the Console's definition from the manifests probers use.
-  if (config.uptimeChecks.length && stack.existingStackDetails && !useHotswap) {
+  if (config.uptimeChecks.length && stack.existingStackDetails && !fastDeployPlan) {
     try {
       await stacktapeApi.apiClient.syncUptimeChecks(
         (await config.resolveDirectives({
@@ -377,16 +401,21 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
-  if (useHotswap) {
-    await performHotswapDeploy({ config, progress });
-  } else {
-    await performFullDeploy({ deploymentArtifacts, stack, tui });
+  try {
+    if (fastDeployPlan) {
+      await performFastDeploy({ plan: fastDeployPlan, recordRelease: createsRelease, deploymentArtifacts, progress });
+    } else {
+      await performFullDeploy({ deploymentArtifacts, stack, tui });
+    }
+  } finally {
+    // Also after a failure: functions a partial deployment switched still need their maps. It never throws.
+    await recordSourceMapActivation(sourceMapManifest);
   }
 
   progress.setPhase('POST_DEPLOY');
 
-  // refreshing stack details is only useful if we used full deploy
-  if (!useHotswap) {
+  // A fast deployment leaves the stack unchanged.
+  if (!fastDeployPlan) {
     await Promise.all([
       stack.refetchStackDetails(stackContext.stackName),
       budget.loadBudgets(),
@@ -404,7 +433,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   if (config.allBucketsToSync.length) {
     await injectEnvironmentToHostedHtmlFiles();
     await deploymentArtifacts.syncBuckets();
-    await deploymentArtifacts.saveBucketSyncManifest(stack.nextVersion);
+    await deploymentArtifacts.saveBucketSyncManifest(releaseVersion);
     await writeEnvironmentDotenvFile();
   }
 
@@ -433,20 +462,21 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
   lifecycle.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
-  await notification.sendDeploymentNotification({
+  // Sent while the remaining reporting runs; the command waits for it before it returns.
+  notification.queueDeploymentNotification({
     message: {
       text: 'Deployment succeeded',
       type: 'success',
-      details: { deploymentMode: useHotswap ? 'Hotswap' : 'Full deployment' }
+      details: { deploymentMode: fastDeployPlan ? 'Fast deployment' : 'Full deployment' }
     }
   });
 
   // Config is the source of truth for uptime checks; the Console keeps a read-only projection so it
   // can evaluate probe results and render history. A sync failure must not fail a finished deploy.
-  // Hotswaps skip the sync: changed uptime definitions always change the template and therefore
-  // force a full deploy, so under a hotswap the sync could only re-announce unchanged definitions —
-  // and must never announce anything the manifests (untouched by hotswap) do not carry.
-  if (!useHotswap) {
+  // Fast deployments skip the sync: changed uptime definitions always change the template and therefore
+  // force a full deploy, so a fast deployment could only re-announce unchanged definitions —
+  // and must never announce anything the manifests (untouched by it) do not carry.
+  if (!fastDeployPlan) {
     try {
       // The revision hashes the authored (unresolved) definition, so it is computed BEFORE resolving
       // directives — it must stay byte-identical to the revision the prober manifests carry. The
@@ -493,7 +523,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     const securityInventory = await uploadSecurityInventory({
       inventory: securityInventoryPromise ? await securityInventoryPromise : null,
       deploymentArtifacts,
-      version: stack.nextVersion,
+      version: releaseVersion,
       tui
     });
     try {
@@ -511,6 +541,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       tui.warn(`Could not report the security findings to the Stacktape Console: ${err}`);
     }
   }
+
+  await notification.waitForQueuedEvents();
 
   return {
     stackInfo: detailedStackInfoSensitive,
@@ -572,44 +604,4 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
   }
 
   await deploymentArtifacts.deleteAllObsoleteArtifacts();
-};
-
-const performHotswapDeploy = async ({ config, progress }: Pick<DeployOperation, 'config' | 'progress'>) => {
-  // we need to invalidate directives, because we have previously resolved (and cached) them for usage with CF
-  // directives in some resources(multi-container-workloads) need to be "resolved" again using the local resolve
-  config.invalidatePotentiallyChangedDirectiveResults();
-
-  await progress.startEvent({
-    eventType: 'HOTSWAP_UPDATE',
-    description: 'Performing hotswap update'
-  });
-
-  await progress.updateEvent({
-    eventType: 'HOTSWAP_UPDATE',
-    additionalMessage: 'Determining compute resources to update'
-  });
-  // this includes web-services, private-services and worker-services
-  const containerWorkloadsToBeUpdated = (
-    await Promise.all(config.allContainerWorkloads.map((workload) => getECSHotswapInformation({ workload })))
-  ).filter(({ ecsTaskDefinition, ecsService }) => ecsTaskDefinition.needsUpdate || ecsService.needsUpdate);
-
-  const lambdaFunctionsToBeUpdated = (
-    await Promise.all(
-      config.allLambdasEligibleForHotswap.map((lambdaProps) => getLambdaFunctionHotswapInformation({ lambdaProps }))
-    )
-  ).filter(({ needsUpdate }) => needsUpdate);
-
-  await progress.updateEvent({ eventType: 'HOTSWAP_UPDATE' });
-
-  const results = await Promise.all([
-    ...containerWorkloadsToBeUpdated.map(updateEcsService),
-    ...lambdaFunctionsToBeUpdated.map(updateFunctionCode)
-  ]);
-
-  await progress.finishEvent({
-    eventType: 'HOTSWAP_UPDATE',
-    finalMessage: results.length
-      ? `Hot-swapped ${results.length} workload${results.length === 1 ? '' : 's'}`
-      : 'No code changes detected (nothing to update)'
-  });
 };

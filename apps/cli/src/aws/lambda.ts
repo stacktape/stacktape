@@ -1,5 +1,8 @@
+import { pRateLimit } from 'p-ratelimit';
 import type { LambdaClient } from '@aws-sdk/client-lambda';
 import {
+  GetAliasCommand,
+  GetFunctionCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
@@ -7,10 +10,10 @@ import {
   PublishVersionCommand,
   TagResourceCommand,
   UpdateAliasCommand,
-  UpdateFunctionCodeCommand,
-  waitUntilFunctionUpdated
+  UpdateFunctionCodeCommand
 } from '@aws-sdk/client-lambda';
 import { fromUtf8, toUtf8 } from '@smithy/util-utf8';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
 
@@ -19,6 +22,11 @@ export type InvokeLambdaReturnValue = Omit<import('@aws-sdk/client-lambda').Invo
 };
 
 export class AwsLambda {
+  /**
+   * Status reads of all functions a deployment waits for share one budget, well below Lambda's GetFunction quota of 100
+   * requests per second, so a stack that updates many functions at once is not throttled.
+   */
+  readonly #readFunctionStatus = pRateLimit({ interval: 1000, rate: 25, concurrency: 10 });
   readonly #createClient: () => LambdaClient;
   readonly #getErrorHandler: ErrorHandlerFactory;
 
@@ -54,10 +62,10 @@ export class AwsLambda {
       .catch(errorHandler);
   };
 
-  getFunction = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
+  getFunction = async ({ lambdaResourceName, qualifier }: { lambdaResourceName: string; qualifier?: string }) => {
     const errorHandler = this.#getErrorHandler(`Failed to get configuration of function ${lambdaResourceName}.`);
     return this.#createClient()
-      .send(new GetFunctionConfigurationCommand({ FunctionName: lambdaResourceName }))
+      .send(new GetFunctionConfigurationCommand({ FunctionName: lambdaResourceName, Qualifier: qualifier }))
       .catch(errorHandler);
   };
 
@@ -121,14 +129,38 @@ export class AwsLambda {
       .catch(errorHandler);
   };
 
-  waitUntilUpdated = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
+  /**
+   * Waits until the function's last update has finished. A code update usually finishes within a second or two, and
+   * the SDK waiter checks only every five seconds, so this checks after 250 ms and then backs off to once a second. It
+   * reads the state with GetFunction, whose request quota is several times that of GetFunctionConfiguration.
+   */
+  waitUntilUpdated = async ({
+    lambdaResourceName,
+    maxWaitTimeMs = 120_000
+  }: {
+    lambdaResourceName: string;
+    maxWaitTimeMs?: number;
+  }) => {
     const errorHandler = this.#getErrorHandler(
       `Failure when waiting for update of lambda function ${lambdaResourceName}.`
     );
-    await waitUntilFunctionUpdated(
-      { client: this.#createClient(), maxWaitTime: 120 },
-      { FunctionName: lambdaResourceName }
-    ).catch(errorHandler);
+    const deadline = Date.now() + maxWaitTimeMs;
+    for (let delayMs = 250; ; delayMs = Math.min(delayMs * 1.5, 1000)) {
+      await sleep(delayMs);
+      const { Configuration } = await this.#readFunctionStatus(() =>
+        this.#createClient().send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+      ).catch(errorHandler);
+      const { LastUpdateStatus, LastUpdateStatusReason } = Configuration ?? {};
+      if (LastUpdateStatus === 'Successful') {
+        return;
+      }
+      if (LastUpdateStatus === 'Failed') {
+        errorHandler(new Error(LastUpdateStatusReason || 'The update failed.'));
+      }
+      if (Date.now() >= deadline) {
+        errorHandler(new Error(`The update did not finish within ${maxWaitTimeMs / 1000} seconds.`));
+      }
+    }
   };
 
   publishVersion = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
@@ -137,6 +169,13 @@ export class AwsLambda {
     );
     return this.#createClient()
       .send(new PublishVersionCommand({ FunctionName: lambdaResourceName }))
+      .catch(errorHandler);
+  };
+
+  getAlias = async ({ lambdaResourceName, aliasName }: { lambdaResourceName: string; aliasName: string }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to get alias ${aliasName} of function ${lambdaResourceName}.`);
+    return this.#createClient()
+      .send(new GetAliasCommand({ FunctionName: lambdaResourceName, Name: aliasName }))
       .catch(errorHandler);
   };
 

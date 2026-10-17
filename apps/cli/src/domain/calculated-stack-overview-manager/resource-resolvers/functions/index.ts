@@ -80,11 +80,11 @@ import {
   getLambdaFunctionRole,
   getLambdaFunctionSecurityGroup,
   getLambdaLogGroup,
-  getLambdaPublicUrlPermission,
+  getLambdaPublicUrlPermissions,
   getLambdaUrl,
   getLambdaVersionPublisherCustomResource
 } from './utils';
-import type { JsBundleSharedProps } from '@stacktape/config/deployment-artifacts';
+import type { JsBundleLambdaPackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
@@ -259,7 +259,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
 
   const packagingType = packaging?.type as Parameters<typeof getAugmentedEnvironment>[0]['packagingType'];
   const entryfilePath = (packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-  const languageSpecificConfig = packaging?.properties as JsBundleSharedProps | undefined;
+  const languageSpecificConfig = packaging?.properties as JsBundleLambdaPackagingProps | undefined;
   const nodeVersion = resolveNodeVersion({
     nodeVersion: languageSpecificConfig?.nodeVersion,
     runtime,
@@ -273,7 +273,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     packagingType,
     entryfilePath,
     nodeVersion,
-    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'lambda')
   }).forEach(({ name: varName, value: varVal }) => {
     transformedEnvVars[varName] = varVal;
   });
@@ -340,7 +340,11 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     Object.assign(lambdaFunctionResource.Properties, {
       VpcConfig: {
         SecurityGroupIds: [ref(securityGroupLogicalName)],
-        SubnetIds: vpcManager.getPublicSubnetIds()
+        // A function in the public subnets has no internet (no public IP). Once the stack has private subnets with
+        // NAT, every VPC function uses them and gets outbound internet through the NAT.
+        SubnetIds: configManager.allResourcesRequiringPrivateSubnets.length
+          ? vpcManager.getPrivateSubnetIds()
+          : vpcManager.getPublicSubnetIds()
       }
     });
   } else if (accessToResourcesPotentiallyRequiringSecurityGroupCreation.length) {
@@ -383,9 +387,15 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       showDuringPrint: true
     });
     if (!url?.authMode || url.authMode === 'NONE') {
+      const { invokeUrl, invokeThroughUrl } = getLambdaPublicUrlPermissions({ lambdaProps });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.lambdaPublicUrlPermission(name),
-        resource: getLambdaPublicUrlPermission({ lambdaProps }),
+        resource: invokeUrl,
+        nameChain
+      });
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.lambdaPublicUrlInvokePermission(name),
+        resource: invokeThroughUrl,
         nameChain
       });
     }

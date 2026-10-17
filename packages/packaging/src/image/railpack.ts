@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathExists } from 'fs-extra';
@@ -11,12 +12,15 @@ import type {
   DockerBuildOutputArchitecture,
   PackagingOutput,
   PackagingProgressLogger,
+  PinLocalBaseImage,
   RunRailpackPrepare
 } from '../runtime-contracts';
 import { packagingMessages } from '../runtime-contracts';
 import { getDockerContextChecksum } from '../artifact/docker-context';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 import { mergeHashes } from '../artifact/hashing';
+import { NON_SOURCE_DIRECTORY_NAMES } from '../artifact/language-build-context';
+import { usePythonSlimImage } from './railpack-python';
 
 /** The parts of a Railpack build plan Stacktape reads or edits. Everything else is passed through untouched. */
 export type RailpackPlan = {
@@ -152,10 +156,14 @@ const isRailpackConfigurationVariable = (name: string) => name.startsWith('RAILP
  */
 export const applyStacktapePlanPolicy = ({
   plan,
-  startCommand
+  startCommand,
+  buildCommand,
+  installCommand
 }: {
   plan: RailpackPlan;
   startCommand: string | undefined;
+  buildCommand?: string | undefined;
+  installCommand?: string | undefined;
 }): RailpackPlan => {
   let result = plan;
   if (plan.secrets?.some(isRailpackConfigurationVariable)) {
@@ -170,6 +178,34 @@ export const applyStacktapePlanPolicy = ({
       : plan.steps;
     result = { ...result, secrets: plan.secrets.filter((name) => !isRailpackConfigurationVariable(name)), steps };
   }
+  // Railpack 0.40.1 emits an authored command as `sh -c '<command>'` without escaping quotes inside it.
+  // Correct only that exact wrapper for commands the user supplied; provider-generated commands stay intact.
+  const authoredCommands = new Set([buildCommand, installCommand].filter((command) => command !== undefined));
+  let repairedCommand = false;
+  const steps =
+    authoredCommands.size > 0 && Array.isArray(result.steps)
+      ? result.steps.map((step) => {
+          if (typeof step !== 'object' || step === null) return step;
+          const commands = (step as { commands?: unknown }).commands;
+          if (!Array.isArray(commands)) return step;
+          return Object.assign({}, step, {
+            commands: commands.map((command: unknown) => {
+              if (typeof command !== 'object' || command === null) return command;
+              const { cmd, customName } = command as { cmd?: unknown; customName?: unknown };
+              if (
+                typeof customName !== 'string' ||
+                !authoredCommands.has(customName) ||
+                !customName.includes("'") ||
+                cmd !== `sh -c '${customName}'`
+              )
+                return command;
+              repairedCommand = true;
+              return Object.assign({}, command, { cmd: `sh -c '${customName.replaceAll("'", `'"'"'`)}'` });
+            })
+          });
+        })
+      : result.steps;
+  if (repairedCommand) result = { ...result, steps };
   const detectedStart = result.deploy?.startCommand;
   if (startCommand === undefined && detectedStart?.startsWith(DJANGO_MIGRATE_PREFIX)) {
     result = {
@@ -180,7 +216,60 @@ export const applyStacktapePlanPolicy = ({
   return result;
 };
 
+const VERSION_CONTROL_DIRECTORIES = new Set(['.git', '.hg']);
+/** Python build plugins that read the package version from version control: setuptools-scm, hatch-vcs and the like. */
+const VERSION_FROM_VCS =
+  /setuptools[_-]scm|hatch[_-]vcs|\[tool\.hatch\.version\][^[]*source\s*=\s*["']vcs["']|versioningit|poetry[_-]dynamic[_-]versioning/;
+
+/**
+ * Keeps version control data, installed dependencies, caches and Stacktape's own output out of the image. Railpack
+ * copies the whole source directory and excludes only what `.dockerignore` lists, so without this an image carried
+ * `.git` and `.stacktape`, grew with every build and changed its digest when the source had not. The patterns come
+ * first: a `!` pattern in the project's `.dockerignore`, which Railpack puts in the plan after them, still brings a
+ * directory back. A Python project that takes its version from version control keeps `.git` and `.hg`.
+ */
+export const excludeNonSourceDirectories = (
+  plan: RailpackPlan,
+  { keepVersionControl = false }: { keepVersionControl?: boolean } = {}
+): RailpackPlan => ({
+  ...plan,
+  exclude: [
+    ...NON_SOURCE_DIRECTORY_NAMES.filter((name) => !(keepVersionControl && VERSION_CONTROL_DIRECTORIES.has(name))).map(
+      (name) => `**/${name}`
+    ),
+    ...(plan.exclude ?? [])
+  ]
+});
+
+/**
+ * Whether a Python project takes its version from version control, so its build needs `.git`. setuptools-scm and
+ * hatch-vcs fail the install without it.
+ */
+export const takesVersionFromVersionControl = async (sourceDirectoryPath: string): Promise<boolean> => {
+  const manifests = await Promise.all(
+    ['pyproject.toml', 'setup.cfg', 'setup.py'].map((name) =>
+      readFile(join(sourceDirectoryPath, name), 'utf8').catch(() => '')
+    )
+  );
+  return manifests.some((contents) => VERSION_FROM_VCS.test(contents));
+};
+
 /** The planner's own diagnostics, with build variable values removed in case a provider echoed one. */
+/** The plan with each image reference in `references` replaced by its pinned form, wherever a step or the deploy names it. */
+export const pinPlanImages = (plan: RailpackPlan, references: Record<string, string>): RailpackPlan => {
+  const pin = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(pin);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        key === 'image' && typeof entry === 'string' ? (references[entry] ?? entry) : pin(entry)
+      ])
+    );
+  };
+  return pin(plan) as RailpackPlan;
+};
+
 const describeRailpackFailure = (info: RailpackInfo | undefined, secretValues: string[]) =>
   (info?.logs ?? [])
     .filter((log) => log.Level === 'error' || log.Level === 'warn')
@@ -198,6 +287,7 @@ export const buildUsingRailpack = async ({
   railpackFrontendImage,
   buildDockerImage,
   runRailpackPrepare,
+  pinLocalBaseImage,
   createPackagingError,
   sourceDirectoryPath = '.',
   startCommand,
@@ -215,10 +305,17 @@ export const buildUsingRailpack = async ({
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   cacheFromRef?: string | undefined;
   cacheToRef?: string | undefined;
-  /** The Railpack BuildKit frontend image of the pinned Railpack release, for example `ghcr.io/railwayapp/railpack-frontend:v0.40.1`. */
+  /** The Railpack BuildKit frontend image of the pinned Railpack release, pinned by digest. */
   railpackFrontendImage: string;
   buildDockerImage: BuildDockerImage;
   runRailpackPrepare: RunRailpackPrepare;
+  /**
+   * Pins the images a Python plan starts from to their local digests. Railpack's frontend asks the registry for every
+   * image a plan names by tag, about 0.3 s per build, even when the image is local. The digest keeps identifying the
+   * unpinned plan, so a refreshed base image does not change it. Unused with a registry cache, whose builder does not
+   * read the local image store.
+   */
+  pinLocalBaseImage?: PinLocalBaseImage | undefined;
   createPackagingError: CreatePackagingError;
 } & BuildpackCwImagePackagingProps): Promise<PackagingOutput> => {
   const start = Date.now();
@@ -259,7 +356,21 @@ export const buildUsingRailpack = async ({
       hint: 'Railpack detects the language from the project files in the source directory. Set startCommand, buildCommand or installCommand when detection is incomplete, or use dockerfile packaging for full control.'
     });
   }
-  const plan = applyStacktapePlanPolicy({ plan: prepared.plan as RailpackPlan, startCommand });
+  const railpackPlan = excludeNonSourceDirectories(
+    applyStacktapePlanPolicy({
+      plan: prepared.plan as RailpackPlan,
+      startCommand,
+      buildCommand,
+      installCommand
+    }),
+    { keepVersionControl: await takesVersionFromVersionControl(absoluteSourceDirectoryPath) }
+  );
+  const python = usePythonSlimImage({
+    plan: railpackPlan,
+    info,
+    keepPip: Object.keys(buildVariables).some((variableName) => variableName.startsWith('PIP_'))
+  });
+  const plan = python?.plan ?? railpackPlan;
   const buildEnvironmentHash = getBuildEnvironmentHash(buildVariables);
   const { checksum: contextChecksum, includedFilePaths } = await getDockerContextChecksum({
     absoluteBuildContextPath: absoluteSourceDirectoryPath,
@@ -275,7 +386,11 @@ export const buildUsingRailpack = async ({
   const resolvedPackages = Object.values(info.resolvedPackages ?? {}).map(
     ({ name: packageName, resolvedVersion }) => `${packageName} ${resolvedVersion}`
   );
-  const detection = [...(info.detectedProviders ?? []), ...resolvedPackages].join(', ');
+  const detection = [
+    ...(info.detectedProviders ?? []),
+    ...resolvedPackages,
+    ...(python ? [`built on ${python.image.split('/').at(-1)}`] : [])
+  ].join(', ');
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM', finalMessage: packagingMessages.unchanged });
     return {
@@ -293,8 +408,22 @@ export const buildUsingRailpack = async ({
   });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
-  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
-    dockerfileContents: JSON.stringify(plan),
+  const pinnedPlan =
+    python && pinLocalBaseImage && !cacheFromRef && !cacheToRef
+      ? pinPlanImages(
+          plan,
+          Object.fromEntries(
+            await Promise.all(
+              python.baseImages.map(
+                async (reference) =>
+                  [reference, await pinLocalBaseImage({ reference, platform: dockerBuildOutputArchitecture })] as const
+              )
+            )
+          )
+        )
+      : plan;
+  const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+    dockerfileContents: JSON.stringify(pinnedPlan),
     // The context is the customer's source directory: the plan file stays out of their project tree.
     buildFileDirectoryPath: tmpdir(),
     buildDockerImage,
@@ -303,6 +432,8 @@ export const buildUsingRailpack = async ({
     dockerBuildOutputArchitecture,
     cacheFromRef,
     cacheToRef,
+    ...(python ? { baseImages: python.baseImages } : {}),
+    builderImages: [railpackFrontendImage],
     buildArgs: {
       BUILDKIT_SYNTAX: railpackFrontendImage,
       'secrets-hash': buildEnvironmentHash,
@@ -317,6 +448,7 @@ export const buildUsingRailpack = async ({
     size,
     digest,
     imageName: name,
+    imageId: id,
     sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: {
       duration,

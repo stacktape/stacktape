@@ -21127,7 +21127,7 @@ type CustomResourceDefinitionPackaging =
 How the Lambda function code is packaged and deployed.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -24126,7 +24126,7 @@ type JsBundleBjImagePackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -24147,7 +24147,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
   requiresGlibcBinaries?: boolean;
@@ -24330,8 +24330,7 @@ resources:
        properties:
          entryfilePath: src/handlers/api.ts
          dependenciesToExcludeFromBundle:
-           - sharp
-           - "@prisma/client"
+           - dd-trace
      memory: 1024
 ```
 
@@ -24346,7 +24345,7 @@ export default defineConfig(() => {
      type: 'js-bundle',
      properties: {
        entryfilePath: 'src/handlers/api.ts',
-       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+       dependenciesToExcludeFromBundle: ['dd-trace']
      }
    },
    memory: 1024
@@ -24410,7 +24409,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -24812,9 +24814,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 
@@ -25039,7 +25044,7 @@ type JsBundleCwImagePackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -25060,7 +25065,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
   requiresGlibcBinaries?: boolean;
@@ -25243,8 +25248,7 @@ resources:
        properties:
          entryfilePath: src/handlers/api.ts
          dependenciesToExcludeFromBundle:
-           - sharp
-           - "@prisma/client"
+           - dd-trace
      memory: 1024
 ```
 
@@ -25259,7 +25263,7 @@ export default defineConfig(() => {
      type: 'js-bundle',
      properties: {
        entryfilePath: 'src/handlers/api.ts',
-       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+       dependenciesToExcludeFromBundle: ['dd-trace']
      }
    },
    memory: 1024
@@ -25323,7 +25327,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -25725,9 +25732,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 
@@ -25948,7 +25958,7 @@ type JsBundleLambdaPackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -25963,6 +25973,8 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   handlerFunction?: string;
   /** A glob pattern of files to explicitly include in the deployment package. */
   includeFiles?: Array<string>;
+  /** Keep source maps inside the deployment package. */
+  keepSourceMapsInPackage?: boolean;
   /** Minify the bundled code. Local names are kept, so stack traces stay readable. */
   minify?: boolean;
   /** Also shorten local variable and function names when minifying. */
@@ -25971,7 +25983,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** The path to the `tsconfig.json` file. */
   tsConfigPath?: string;
@@ -26095,8 +26107,7 @@ resources:
        properties:
          entryfilePath: src/handlers/api.ts
          dependenciesToExcludeFromBundle:
-           - sharp
-           - "@prisma/client"
+           - dd-trace
      memory: 1024
 ```
 
@@ -26111,7 +26122,7 @@ export default defineConfig(() => {
      type: 'js-bundle',
      properties: {
        entryfilePath: 'src/handlers/api.ts',
-       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+       dependenciesToExcludeFromBundle: ['dd-trace']
      }
    },
    memory: 1024
@@ -26175,7 +26186,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -26433,6 +26447,55 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `keepSourceMapsInPackage`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Keep source maps inside the deployment package.
+
+By default, Stacktape stores a function's source maps in the stack's deployment bucket, outside the package. The
+Stacktape Console uses them to show each error at the original file, line and function, while stack traces in
+CloudWatch logs point into the bundled code. Set this to `true` to ship the maps in the package and turn on
+Node.js `--enable-source-maps`, so logged stack traces are mapped too. The package gets larger, and Node.js reads
+the maps on every cold start.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+ apiFunction:
+   type: function
+   properties:
+     packaging:
+       type: js-bundle
+       properties:
+         entryfilePath: src/handlers/api.ts
+         keepSourceMapsInPackage: true
+     memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+ const apiFunction = new LambdaFunction({
+   packaging: {
+     type: 'js-bundle',
+     properties: {
+       entryfilePath: 'src/handlers/api.ts',
+       keepSourceMapsInPackage: true
+     }
+   },
+   memory: 512
+ });
+ return { resources: { apiFunction } };
+});
+```
+
 ## Property: `minify`
 
 - Required: no
@@ -26619,9 +26682,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 
@@ -27514,7 +27580,7 @@ type DeploymentScriptPackaging =
 How the script code is packaged. Use `js-bundle` for auto-bundling.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -29751,7 +29817,7 @@ type EdgeLambdaFunctionPackaging =
 How the function code is packaged and deployed.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -36099,7 +36165,7 @@ bundles, and uploads it automatically.
 **`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload.
 
 Choices:
-- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
@@ -41422,33 +41488,39 @@ Route: `/config-reference/helpers`
 
 ```typescript
 type NatSettings = {
-  /** How many availability zones get a NAT Gateway (~$32/month each). */
-  availabilityZones?: 1 | 2 | 3;
+  /** Which kind of NAT the stack runs. */
+  type: "ec2" | "gateway" | "ha-ec2";
+  /** How many availability zones get their own NAT (`ha-ec2` and `gateway` only). */
+  availabilityZones?: 2 | 3;
+  /** EC2 instance size of the NAT instances (`ec2` and `ha-ec2` only). */
+  instanceSize?: string;
 };
 ```
 
-## Property: `availabilityZones`
+## Property: `type`
 
-- Required: no
-- Type: `number: 1 | 2 | 3`
-- Default: `2`
+- Required: yes
+- Type: `string: "ec2" | "gateway" | "ha-ec2"`
 
-How many availability zones get a NAT Gateway (~$32/month each).
+Which kind of NAT the stack runs.
 
-**1**: Cheapest, but no redundancy if that AZ goes down.
-**2**: Balanced cost and availability.
-**3**: Highest availability.
+**ec2**: one small EC2 instance (`t4g.nano` by default) managed by Stacktape. About $7/month, no per-GB
+charge. If the instance dies, AWS replaces it, which takes about three minutes without outbound internet.
+**ha-ec2**: one such instance per availability zone (two by default) with automatic failover. About $7/month
+per zone. When an instance fails, Stacktape routes its zone through another zone's instance within about a
+minute and routes back once the replacement is healthy; outbound calls from that zone fail during that minute
+and open connections are reset.
+**gateway**: AWS-managed NAT Gateways, one per availability zone. About $32/month per zone plus $0.045 per GB
+processed. No instances, scales to 100 Gbps; the choice for high sustained throughput and strict uptime.
 
-Each NAT Gateway gets a static Elastic IP that persists across deployments —
-useful for IP whitelisting with external services.
+The shorthand `nat: ha-ec2` is the same as `nat: { type: ha-ec2 }`.
 
 ### Example 1 (yaml)
 
 ```yaml
 stackConfig:
-  vpc:
-    nat:
-      availabilityZones: 1
+  nat:
+    type: ha-ec2
 resources:
   worker:
     type: worker-service
@@ -41476,7 +41548,113 @@ export default defineConfig(() => {
   });
 
   return {
-    stackConfig: { vpc: { nat: { availabilityZones: 1 } } },
+    stackConfig: { nat: { type: 'ha-ec2' } },
+    resources: { worker }
+  };
+});
+```
+
+## Property: `availabilityZones`
+
+- Required: no
+- Type: `number: 2 | 3`
+- Default: `2`
+
+How many availability zones get their own NAT (`ha-ec2` and `gateway` only).
+
+**2**: Balanced cost and availability.
+**3**: Highest availability.
+
+Each NAT gets a static Elastic IP that persists across deployments —
+useful for IP whitelisting with external services.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat:
+    type: gateway
+    availabilityZones: 3
+resources:
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/worker.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      usePrivateSubnetsWithNAT: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    usePrivateSubnetsWithNAT: true
+  });
+
+  return {
+    stackConfig: { nat: { type: 'gateway', availabilityZones: 3 } },
+    resources: { worker }
+  };
+});
+```
+
+## Property: `instanceSize`
+
+- Required: no
+- Type: `string`
+- Default: `t4g.nano`
+
+EC2 instance size of the NAT instances (`ec2` and `ha-ec2` only).
+
+Must be an arm64 (Graviton) size, for example `t4g.nano`, `t4g.micro`, `t4g.small` or `c7gn.medium`.
+`t4g.nano` bursts to 5 Gbps and is enough for most applications; pick a larger size for sustained
+high throughput.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat:
+    type: ha-ec2
+    instanceSize: t4g.small
+resources:
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/worker.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      usePrivateSubnetsWithNAT: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    usePrivateSubnetsWithNAT: true
+  });
+
+  return {
+    stackConfig: { nat: { type: 'ha-ec2', instanceSize: 't4g.small' } },
     resources: { worker }
   };
 });
@@ -42079,9 +42257,13 @@ Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait after SIGTERM before SIGKILL (2-120).
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -42096,7 +42278,7 @@ resources:
             type: js-bundle
             properties:
               entryfilePath: src/server.ts
-          stopTimeout: 30
+          stopTimeout: 60
       resources:
         cpu: 0.5
         memory: 1024
@@ -42113,7 +42295,7 @@ export default defineConfig(() => {
       {
         name: 'api',
         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
-        stopTimeout: 30
+        stopTimeout: 60
       }
     ],
     resources: { cpu: 0.5, memory: 1024 }
@@ -42187,11 +42369,13 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
+import type { CloudformationTag, NatSettings, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
 
 type StackConfig = {
   /** Stop saving stack info to a local file after each deployment. */
   disableStackInfoSaving?: boolean;
+  /** NAT: outbound internet for workloads in the private subnets. */
+  nat?: StackConfigNat;
   /** Custom values to display and save after each deployment. */
   outputs?: Array<StackOutput>;
   /** Directory for the stack info JSON file. */
@@ -42214,9 +42398,14 @@ to return different values for different stages. */
   tags?: Array<CloudformationTag>;
   /** Stack-wide distributed tracing default. */
   tracing?: TracingOptions;
-  /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */
+  /** VPC configuration: reuse an existing VPC. */
   vpc?: VpcSettings;
 };
+
+/** Union choices used by the properties above. */
+type StackConfigNat =
+  | NatSettings
+  | "option-2";
 ```
 
 ## Property: `disableStackInfoSaving`
@@ -42261,6 +42450,65 @@ export default defineConfig(() => {
 
   return {
     stackConfig: { disableStackInfoSaving: true },
+    resources: { api }
+  };
+});
+```
+
+## Property: `nat`
+
+- Required: no
+- Type: `NatSettings | option-2`
+
+NAT: outbound internet for workloads in the private subnets.
+
+Who uses it:
+
+container workloads with `usePrivateSubnetsWithNAT: true` (they cannot run without it, so setting that flag
+requires `nat`);
+Lambda functions with `joinDefaultVpc: true`, which have no internet access at all until `nat` is set;
+AgentCore runtimes that connect to VPC-only resources.
+
+Pick `ec2` (one small instance, ~$7/month, no failover), `ha-ec2` (one instance per availability zone with
+automatic failover, ~$7/month per zone) or `gateway` (AWS-managed NAT Gateways, ~$32/month per zone plus
+$0.045 per GB). Switching between kinds keeps the VPC and subnets, but the public IPs change.
+
+With `vpc.reuseVpc`, the reused VPC's own NAT is used and this setting creates nothing; set it to any kind to
+place this stack's VPC functions in the reused VPC's private subnets.
+
+Choices:
+- `NatSettings` (`NatSettings`). Properties: `type: string: "ec2" | "gateway" | "ha-ec2"`, `instanceSize?: string`, `availabilityZones?: number: 2 | 3`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  nat: ha-ec2
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      joinDefaultVpc: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
+    joinDefaultVpc: true
+  });
+
+  return {
+    stackConfig: { nat: 'ha-ec2' },
     resources: { api }
   };
 });
@@ -42522,7 +42770,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `VpcSettings`
 
-VPC configuration: reuse an existing VPC or configure NAT Gateways.
+VPC configuration: reuse an existing VPC.
 
 ---
 
@@ -43006,25 +43254,13 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { NatSettings, VpcReuseConfig } from 'stacktape';
+import type { VpcReuseConfig } from 'stacktape';
 
 type VpcSettings = {
-  /** NAT Gateway configuration for private subnets. */
-  nat?: NatSettings;
   /** Share a VPC with another Stacktape stack or use an existing VPC. */
   reuseVpc?: VpcReuseConfig;
 };
 ```
-
-## Property: `nat`
-
-- Required: no
-- Type: `NatSettings`
-
-NAT Gateway configuration for private subnets.
-
-Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`.
-Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
 
 ## Property: `reuseVpc`
 
@@ -49273,9 +49509,13 @@ Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait after SIGTERM before SIGKILL (2-120).
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -49290,7 +49530,7 @@ resources:
             type: js-bundle
             properties:
               entryfilePath: src/server.ts
-          stopTimeout: 30
+          stopTimeout: 60
       resources:
         cpu: 0.5
         memory: 1024
@@ -49307,7 +49547,7 @@ export default defineConfig(() => {
       {
         name: 'api',
         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
-        stopTimeout: 30
+        stopTimeout: 60
       }
     ],
     resources: { cpu: 0.5, memory: 1024 }
@@ -49948,7 +50188,7 @@ type ContainerWorkloadProps = {
   scaling?: ContainerWorkloadScaling;
   /** Distributed tracing for this workload. */
   tracing?: ContainerWorkloadTracing;
-  /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
 };
 
@@ -50438,13 +50678,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-Useful for IP whitelisting with third-party APIs. NAT Gateway costs ~$32/month per AZ + data processing fees.
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
+
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   app:
     type: multi-container-workload
@@ -50474,7 +50720,7 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 },
     usePrivateSubnetsWithNAT: true
   });
-  return { resources: { app } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { app } };
 });
 ```
 
@@ -55447,7 +55693,7 @@ export default defineConfig(() => {
   stopTimeout?: number;
   /** Distributed tracing for this service. */
   tracing?: PrivateServiceTracing;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -56171,11 +56417,15 @@ Can reach the main container via `localhost`.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait for graceful shutdown before force-killing the container.
 
 The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -56191,7 +56441,7 @@ resources:
       resources:
         cpu: 0.25
         memory: 512
-      stopTimeout: 30
+      stopTimeout: 60
 ```
 
 ### Example 2 (typescript)
@@ -56203,7 +56453,7 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
-    stopTimeout: 30
+    stopTimeout: 60
   });
 
   return { resources: { api } };
@@ -56274,18 +56524,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -56312,7 +56563,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 
@@ -78741,6 +78992,8 @@ type WebServiceProps = {
   loadBalancing?: WebServiceLoadBalancing;
   /** Logging configuration. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it. */
+  port?: number;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
   /** Sensitive environment variables fetched by the container runtime.
@@ -78773,7 +79026,7 @@ export default defineConfig(() => {
   tracing?: WebServiceTracing;
   /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */
   useFirewall?: string;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -79661,6 +79914,58 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `port`
+
+- Required: no
+- Type: `number`
+- Default: `3000`
+
+Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it.
+
+Set it when your app listens on a fixed port (for example `app.listen(8080)` or a Spring Boot default) instead
+of reading `PORT`. Not used with `network-load-balancer`, whose `ports[].containerPort` sets the container port.
+
+Changing it on a deployed service replaces the load balancer target group (or the API gateway integration),
+which briefly interrupts traffic during the update.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiService:
+    type: web-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/main.ts
+      port: 8080
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiService = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: 'src/main.ts'
+    }),
+    port: 8080,
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { apiService } };
+});
+```
+
 ## Property: `scaling`
 
 - Required: no
@@ -79753,11 +80058,15 @@ Can reach the main container via `localhost`.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait for graceful shutdown before force-killing the container.
 
 The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -79773,7 +80082,7 @@ resources:
       resources:
         cpu: 0.25
         memory: 512
-      stopTimeout: 30
+      stopTimeout: 60
 ```
 
 ### Example 2 (typescript)
@@ -79785,7 +80094,7 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
-    stopTimeout: 30
+    stopTimeout: 60
   });
 
   return { resources: { api } };
@@ -79922,18 +80231,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -79960,7 +80270,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 
@@ -80436,7 +80746,7 @@ export default defineConfig(() => {
   stopTimeout?: number;
   /** Distributed tracing for this service. */
   tracing?: WorkerServiceTracing;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -80997,11 +81307,15 @@ Can reach the main container via `localhost`.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait for graceful shutdown before force-killing the container.
 
 The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -81017,7 +81331,7 @@ resources:
       resources:
         cpu: 0.25
         memory: 512
-      stopTimeout: 30
+      stopTimeout: 60
 ```
 
 ### Example 2 (typescript)
@@ -81029,7 +81343,7 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
-    stopTimeout: 30
+    stopTimeout: 60
   });
 
   return { resources: { api } };
@@ -81100,18 +81414,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -81138,7 +81453,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 

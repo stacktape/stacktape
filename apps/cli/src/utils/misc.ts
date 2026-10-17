@@ -411,12 +411,14 @@ export const chunkString = (str: string, chunkSize: number): string[] => {
   return str.match(regexPattern) || []; // In case of no matches, return an empty array
 };
 
-export const settleAllBeforeThrowing = async (promises: Promise<any>[]) => {
+export const settleAllBeforeThrowing = async <const T extends readonly unknown[]>(
+  promises: T
+): Promise<{ -readonly [K in keyof T]: Awaited<T[K]> }> => {
   const results = await Promise.allSettled(promises);
   return results.map((res) => {
     if (res.status === 'rejected') {
       throw res.reason;
     }
     return res.value;
-  });
+  }) as { -readonly [K in keyof T]: Awaited<T[K]> };
 };

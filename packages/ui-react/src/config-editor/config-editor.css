@@ -44,6 +44,15 @@
     min-width: 0;
   }
 
+  /* The editor is already the frame; its view tabs sit directly in the header instead of in a
+   * second well inside it. The selected tab's surface still marks the active view. */
+  .stp-config-editor__tabs .stp-ui-tabs__list {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
   .stp-config-editor__actions {
     z-index: 11;
     display: flex;
@@ -74,9 +83,25 @@
   }
 
   .stp-config-editor__panel {
+    position: relative;
     flex: 1 1 auto;
     min-height: 0;
     width: 100%;
+  }
+
+  /* A file taller than the panel fades out at the bottom edge instead of stopping mid-line, so it
+   * reads as "scroll for more" rather than as the end of the file. */
+  .stp-config-editor__panel::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    height: 28px;
+    border-radius: 0 0 var(--stp-radius-medium) var(--stp-radius-medium);
+    background: linear-gradient(180deg, transparent, var(--stp-surface-input));
+    pointer-events: none;
   }
 
   .stp-config-editor__overlay {

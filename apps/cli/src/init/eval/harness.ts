@@ -54,6 +54,8 @@ type EvalExpectation = {
    * cannot reach it deploys green — so the corpus has to assert the emitted values directly.
    */
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
+  /** The port the saved service must route traffic to, independently of agent prose. */
+  servicePorts?: ReadonlyArray<{ resource: string; port: number }>;
 };
 
 export type EvalCase = {
@@ -142,6 +144,12 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
     }
   }
 
+  for (const { resource, port } of expected.servicePorts ?? []) {
+    if (result.composition.config.resources[resource]?.properties.port !== port) {
+      failures.push({ stage: 'composition', detail: `Expected "${resource}" to route to port ${port}.` });
+    }
+  }
+
   if (expected.deployable !== undefined && result.composition.deployable !== expected.deployable) {
     failures.push({
       stage: 'composition',
@@ -203,11 +211,4 @@ export const runEvalCase = async (evalCase: EvalCase, runAgent?: AgentRunner): P
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-};
-
-export const summarise = (scores: readonly EvalScore[]): string => {
-  const passed = scores.filter((score) => score.passed).length;
-  const questions = scores.reduce((total, score) => total + score.questionsAsked, 0);
-  const dropped = scores.reduce((total, score) => total + score.claimsDropped, 0);
-  return `${passed}/${scores.length} cases passed · ${questions} things assumed · ${dropped} claims dropped`;
 };

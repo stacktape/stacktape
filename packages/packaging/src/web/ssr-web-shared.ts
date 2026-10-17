@@ -13,7 +13,9 @@ import { runWebBuildExclusive } from './build-coordinator';
 import { parseCommand } from '../process/command';
 import { copyTracedNodeRuntimeFiles } from './node-runtime-files';
 import { resolveInstalledNodePackage } from './node-runtime-files';
-import { copyDockerInstalledModulesForLambda } from '../es/native-dependencies';
+import { getLambdaArchitecture, planLambdaDependencies, writeLambdaDependencies } from '../es/native-dependencies';
+import { getProductionDependencies } from '../es/installed-packages';
+import { findProjectRoot } from '../es/project-root';
 import type { DockerBuildOutputArchitecture, RunDocker } from '../runtime-contracts';
 
 /**
@@ -580,6 +582,8 @@ export const createSsrWebArtifacts = async ({
           const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
           if (await pathExists(serverWithinCopied)) {
             await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
+            // The parent is published to S3. Keep the private server output only in the Lambda artifact.
+            await remove(serverWithinCopied);
           }
         } else {
           // Independent paths - copy both
@@ -613,12 +617,6 @@ export const createSsrWebArtifacts = async ({
 
   await reorganizeBuildOutput({ distFolderPath, buildConfig });
   if (buildConfig.nativeRuntimePackages?.length) {
-    if (!runDocker || !nativeDependencyInstallationRootPath) {
-      throw createPackagingError({
-        type: 'PACKAGING',
-        message: `The ${resourceType} runtime requires Docker-built native dependencies, but no Docker build action was configured.`
-      });
-    }
     const resolvedPackages = await Promise.all(
       buildConfig.nativeRuntimePackages.map(async (runtimePackage) => {
         const resolvedPackage = await resolveInstalledNodePackage({
@@ -633,21 +631,29 @@ export const createSsrWebArtifacts = async ({
             message: `Could not resolve native runtime package ${runtimePackage.name}${runtimePackage.resolveFromPackage ? ` from ${runtimePackage.resolveFromPackage}` : ''} for ${resourceType}.`
           });
         }
-        return {
-          ...resolvedPackage,
-          dependencyType: 'root' as const,
-          note: 'FRAMEWORK_NATIVE_RUNTIME'
-        };
+        return { ...resolvedPackage, note: 'FRAMEWORK_NATIVE_RUNTIME' };
       })
     );
-    await copyDockerInstalledModulesForLambda({
+    const plan = await planLambdaDependencies({
       dependencies: resolvedPackages,
-      installationRootPath: nativeDependencyInstallationRootPath,
-      distFolderPath: join(distFolderPath, 'server-function'),
+      productionDependencies: await getProductionDependencies({
+        projectRoot: (await findProjectRoot(buildConfig.workingDir)) ?? buildConfig.workingDir,
+        sourcePaths: [join(buildConfig.workingDir, 'package.json')]
+      }),
+      architecture: getLambdaArchitecture(dockerBuildOutputArchitecture)
+    });
+    if (plan.packagesToInstallForLambda.length > 0 && (!runDocker || !nativeDependencyInstallationRootPath)) {
+      throw createPackagingError({
+        type: 'PACKAGING',
+        message: `The ${resourceType} runtime requires Docker-built native dependencies, but no Docker build action was configured.`
+      });
+    }
+    await writeLambdaDependencies({
+      plan,
+      nodeModulesPath: join(distFolderPath, 'server-function', 'node_modules'),
+      installationRootPath: nativeDependencyInstallationRootPath ?? '',
       lambdaRuntimeVersion: 24,
-      packageManager: 'npm',
-      dockerBuildOutputArchitecture: dockerBuildOutputArchitecture ?? 'linux/amd64',
-      runDocker: (commands) => runDocker(commands)
+      runDocker: (commands) => runDocker!(commands)
     });
   }
   await createServerWrapper({

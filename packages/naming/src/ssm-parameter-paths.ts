@@ -76,3 +76,16 @@ export const getEc2RunnerGitTokenSsmParameterName = ({
 }) => {
   return `${getEc2RunnerSsmParameterPrefix({ region, runnerId })}/${invocationId}/git-token`;
 };
+
+/** Written by each NAT instance after it verified outbound internet; read by the failover handler. */
+export const getNatInstanceHeartbeatParameterName = ({
+  stackName,
+  region,
+  azIndex
+}: {
+  stackName: string;
+  region: string;
+  azIndex: number;
+}) => {
+  return `${getSsmParameterStoreStackPrefix({ stackName, region })}/nat-instance/${azIndex}/heartbeat`;
+};

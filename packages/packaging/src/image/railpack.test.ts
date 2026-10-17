@@ -1,47 +1,23 @@
-import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { describe, expect, test } from 'bun:test';
+import dockerIgnore from '@balena/dockerignore';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
-import type { BuildDockerImage, PackagingProgressLogger, RunRailpackPrepare } from '../runtime-contracts';
+import { join } from 'node:path';
 import {
   applyStacktapePlanPolicy,
   buildUsingRailpack,
+  excludeNonSourceDirectories,
   getBuildEnvironmentHash,
   getRailpackVariables,
+  pinPlanImages,
+  takesVersionFromVersionControl,
   type RailpackPlan
 } from './railpack';
 
-const temporaryDirectories: string[] = [];
-afterEach(async () => {
-  await Promise.all(temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })));
-  temporaryDirectories.length = 0;
-});
-
-const progressLogger: PackagingProgressLogger = {
-  eventContext: {},
-  startEvent: () => {},
-  updateEvent: () => {},
-  finishEvent: () => {}
-};
 const createPackagingError = ({ message, type }: { message: string; type: string }) =>
   Object.assign(new Error(message), { type });
 
-const FRONTEND = 'ghcr.io/railwayapp/railpack-frontend:v0.40.1';
-
-const createProject = async () => {
-  const root = await mkdtemp(join(tmpdir(), 'stacktape-railpack-'));
-  temporaryDirectories.push(root);
-  const source = join(root, 'api');
-  await mkdir(join(source, 'generated'), { recursive: true });
-  await writeFile(join(source, 'pyproject.toml'), '[project]\nname = "api"\n');
-  await writeFile(join(source, 'main.py'), 'print("hello")\n');
-  await writeFile(join(source, 'notes.log'), 'first\n');
-  await writeFile(join(source, 'generated', 'config.json'), '{"a":1}\n');
-  await writeFile(join(source, '.dockerignore'), '*.log\ngenerated\n');
-  return { root, source };
-};
-
-/** What `railpack prepare` writes for the project above: the plan carries the merged exclusions. */
+/** Representative planner output for the pure policy rules. */
 const preparedPlan = (overrides: Partial<RailpackPlan> = {}): RailpackPlan => ({
   steps: [{ name: 'install', commands: [{ cmd: 'uv sync' }] }],
   exclude: ['*.log', 'generated', '!generated/config.json'],
@@ -51,59 +27,6 @@ const preparedPlan = (overrides: Partial<RailpackPlan> = {}): RailpackPlan => ({
   },
   ...overrides
 });
-
-type Recorded = {
-  prepares: Parameters<RunRailpackPrepare>[0][];
-  builds: Parameters<BuildDockerImage>[0][];
-};
-
-const createActions = ({ plan = preparedPlan(), success = true }: { plan?: RailpackPlan; success?: boolean } = {}) => {
-  const recorded: Recorded = { prepares: [], builds: [] };
-  const runRailpackPrepare: RunRailpackPrepare = async (input) => {
-    recorded.prepares.push(input);
-    return {
-      plan,
-      info: {
-        railpackVersion: '0.40.1',
-        success,
-        detectedProviders: ['python'],
-        metadata: { pythonRuntime: 'fastapi' },
-        resolvedPackages: { python: { name: 'python', resolvedVersion: '3.13.15' } },
-        logs: success ? [] : [{ Level: 'error', Msg: 'No start command found' }]
-      }
-    };
-  };
-  const buildDockerImage: BuildDockerImage = async (input) => {
-    recorded.builds.push(input);
-    return { size: 151, id: 'sha256:image', created: 1, dockerOutput: '', duration: 1 };
-  };
-  return { recorded, runRailpackPrepare, buildDockerImage };
-};
-
-const build = async ({
-  root,
-  existingDigests = [],
-  actions,
-  ...props
-}: {
-  root: string;
-  existingDigests?: string[];
-  actions: ReturnType<typeof createActions>;
-  startCommand?: string;
-  buildEnvironment?: { name: string; value: string }[];
-}) =>
-  buildUsingRailpack({
-    name: 'api',
-    cwd: root,
-    sourceDirectoryPath: 'api',
-    progressLogger,
-    existingDigests,
-    railpackFrontendImage: FRONTEND,
-    createPackagingError,
-    runRailpackPrepare: actions.runRailpackPrepare,
-    buildDockerImage: actions.buildDockerImage,
-    ...props
-  });
 
 describe('railpack variables', () => {
   test('maps buildpack properties to railpack configuration and keeps build variables apart as secrets', () => {
@@ -155,21 +78,85 @@ describe('railpack variables', () => {
 });
 
 describe('plan policy', () => {
-  test('keeps only the build variables as secrets, never railpack configuration variables', () => {
-    const plan = preparedPlan({
-      secrets: ['RAILPACK_SKIP_MIGRATIONS', 'RAILPACK_START_CMD', 'VITE_API_URL'],
-      steps: [
-        { name: 'install', secrets: ['RAILPACK_START_CMD', 'VITE_API_URL'] },
-        { name: 'build', secrets: ['*'] }
-      ]
-    });
-    const policed = applyStacktapePlanPolicy({ plan, startCommand: 'npm start' });
-    expect(policed.secrets).toEqual(['VITE_API_URL']);
-    expect(policed.steps).toEqual([
-      { name: 'install', secrets: ['VITE_API_URL'] },
-      { name: 'build', secrets: ['*'] }
-    ]);
-    expect(plan.secrets).toHaveLength(3);
+  test('repairs exact authored quote wrappers and leaves other commands intact', () => {
+    const install = "printf '%s' 'install ok'";
+    const build = "printf '%s' 'build ok'";
+    const escapedInstall = `sh -c 'printf '"'"'%s'"'"' '"'"'install ok'"'"''`;
+    const escapedBuild = `sh -c 'printf '"'"'%s'"'"' '"'"'build ok'"'"''`;
+    const cases = [
+      {
+        label: 'authored install',
+        customName: install,
+        cmd: `sh -c '${install}'`,
+        installCommand: install,
+        expected: escapedInstall
+      },
+      {
+        label: 'authored build',
+        customName: build,
+        cmd: `sh -c '${build}'`,
+        buildCommand: build,
+        expected: escapedBuild
+      },
+      {
+        label: 'provider command',
+        customName: build,
+        cmd: `sh -c '${build}'`,
+        installCommand: install,
+        expected: `sh -c '${build}'`
+      },
+      {
+        label: 'different wrapper',
+        customName: install,
+        cmd: `bash -c '${install}'`,
+        installCommand: install,
+        expected: `bash -c '${install}'`
+      },
+      {
+        label: 'already escaped',
+        customName: install,
+        cmd: escapedInstall,
+        installCommand: install,
+        expected: escapedInstall
+      },
+      {
+        label: 'command without apostrophes',
+        customName: 'npm ci',
+        cmd: "sh -c 'npm ci'",
+        installCommand: 'npm ci',
+        expected: "sh -c 'npm ci'"
+      },
+      {
+        label: 'missing command metadata',
+        customName: undefined,
+        cmd: `sh -c '${install}'`,
+        installCommand: install,
+        expected: `sh -c '${install}'`
+      },
+      {
+        label: 'different command metadata',
+        customName: 'display label',
+        cmd: `sh -c '${install}'`,
+        installCommand: install,
+        expected: `sh -c '${install}'`
+      }
+    ];
+
+    for (const fixture of cases) {
+      const command = { cmd: fixture.cmd, customName: fixture.customName, keep: 'planner metadata' };
+      const plan = preparedPlan({ steps: [{ name: fixture.label, commands: [command] }] });
+      const original = structuredClone(plan);
+      const result = applyStacktapePlanPolicy({
+        plan,
+        startCommand: undefined,
+        installCommand: fixture.installCommand,
+        buildCommand: fixture.buildCommand
+      });
+      expect(result.steps).toEqual([{ name: fixture.label, commands: [{ ...command, cmd: fixture.expected }] }]);
+      expect(plan).toEqual(original);
+      if (fixture.cmd === fixture.expected) expect(result).toBe(plan);
+      else expect(result).not.toBe(plan);
+    }
   });
 
   test('removes the Django migration from a detected start command but keeps a configured one', () => {
@@ -189,114 +176,138 @@ describe('plan policy', () => {
   });
 });
 
-describe('railpack image build', () => {
-  test('plans through the runner, builds the plan with the pinned frontend and mounts build variables as secrets', async () => {
-    const { root } = await createProject();
-    const actions = createActions();
+/** The paths of a context that the plan's exclusions keep, as Docker selects them. */
+const included = (plan: RailpackPlan, paths: string[]) =>
+  dockerIgnore()
+    .add(plan.exclude ?? [])
+    .filter(paths);
 
-    const result = await build({
-      root,
-      actions,
-      buildEnvironment: [{ name: 'VITE_API_URL', value: 'https://api.example.com' }]
-    });
-
-    expect(result.outcome).toBe('bundled');
-    expect(result.imageName).toBe('api');
-    expect(actions.recorded.prepares).toHaveLength(1);
-    expect(actions.recorded.prepares[0]!.variables).toEqual({
-      RAILPACK_SKIP_MIGRATIONS: 'true',
-      VITE_API_URL: 'https://api.example.com'
-    });
-    const [dockerBuild] = actions.recorded.builds;
-    expect(dockerBuild!.buildArgs).toEqual({
-      BUILDKIT_SYNTAX: FRONTEND,
-      'secrets-hash': getBuildEnvironmentHash({ VITE_API_URL: 'https://api.example.com' }),
-      'cache-key': 'api'
-    });
-    expect(dockerBuild!.secrets).toEqual({ VITE_API_URL: 'https://api.example.com' });
-    expect(dockerBuild!.buildContextPath).toBe(join(root, 'api'));
-    // The plan is the "Dockerfile". It is written to the temporary directory: outside the context, so it never ends
-    // up in the image, and outside the customer's project, so a failed build leaves nothing behind there.
-    const planFilePath = resolve(dockerBuild!.buildContextPath, dockerBuild!.dockerfilePath!);
-    expect(dirname(planFilePath)).toBe(resolve(tmpdir()));
-    expect(basename(planFilePath)).toMatch(/^stp-image-.*\.Dockerfile$/);
+describe('image context', () => {
+  test('leaves version control, dependencies, caches and Stacktape output out of the image', () => {
+    const paths = [
+      'app.py',
+      'requirements.txt',
+      'templates/index.html',
+      '.git/HEAD',
+      '.stacktape/2026-10-16T00-00-00-000_x/build/out.zip',
+      'node_modules/express/index.js',
+      'web/node_modules/react/index.js',
+      '.venv/bin/python',
+      'pkg/__pycache__/mod.cpython-311.pyc',
+      '.hg/store',
+      'generated/data.bin',
+      'generated/config.json',
+      'server.log'
+    ];
+    expect(included(excludeNonSourceDirectories(preparedPlan()), paths)).toEqual([
+      'app.py',
+      'requirements.txt',
+      'templates/index.html',
+      'generated/config.json'
+    ]);
   });
 
-  test('reuses the image only while source, plan, frontend and build variable values are unchanged', async () => {
-    const { root, source } = await createProject();
-    const first = await build({ root, actions: createActions() });
-    expect(first.outcome).toBe('bundled');
-
-    const unchanged = await build({ root, actions: createActions(), existingDigests: [first.digest] });
-    expect(unchanged.outcome).toBe('skipped');
-    expect(unchanged.size).toBeNull();
-
-    // A build variable value is not in the plan; it must still invalidate the artifact.
-    const variableChanged = await build({
-      root,
-      actions: createActions(),
-      existingDigests: [first.digest],
-      buildEnvironment: [{ name: 'VITE_API_URL', value: 'https://other.example.com' }]
-    });
-    expect(variableChanged.outcome).toBe('bundled');
-    expect(variableChanged.digest).not.toBe(first.digest);
-
-    const planChanged = await build({
-      root,
-      actions: createActions({ plan: preparedPlan({ deploy: { startCommand: 'uvicorn main:app --port 9000' } }) }),
-      existingDigests: [first.digest]
-    });
-    expect(planChanged.digest).not.toBe(first.digest);
-
-    await writeFile(join(source, 'main.py'), 'print("changed")\n');
-    const sourceChanged = await build({ root, actions: createActions(), existingDigests: [first.digest] });
-    expect(sourceChanged.digest).not.toBe(first.digest);
+  test("lets the project's .dockerignore bring a directory back", () => {
+    const plan = excludeNonSourceDirectories(preparedPlan({ exclude: ['!node_modules/vendored'] }));
+    expect(included(plan, ['node_modules/express/index.js', 'node_modules/vendored/index.js', '.git/HEAD'])).toEqual([
+      'node_modules/vendored/index.js'
+    ]);
   });
+});
 
-  test('hashes exactly the files the plan selects, including negated exclusions', async () => {
-    const { root, source } = await createProject();
-    const first = await build({ root, actions: createActions() });
+/** A temporary project directory holding the given files. */
+const projectWith = async (files: Record<string, string>) => {
+  const directory = await mkdtemp(join(tmpdir(), 'stp-railpack-vcs-'));
+  await Promise.all(Object.entries(files).map(([name, contents]) => writeFile(join(directory, name), contents)));
+  return directory;
+};
 
-    // Excluded by the plan (.dockerignore): not part of the build, must not invalidate it.
-    await writeFile(join(source, 'notes.log'), 'second\n');
-    const ignoredChanged = await build({ root, actions: createActions(), existingDigests: [first.digest] });
-    expect(ignoredChanged.outcome).toBe('skipped');
-
-    // Under an excluded directory, but negated back in by the plan: part of the build, must invalidate it.
-    await writeFile(join(source, 'generated', 'config.json'), '{"a":2}\n');
-    const negatedChanged = await build({ root, actions: createActions(), existingDigests: [first.digest] });
-    expect(negatedChanged.outcome).toBe('bundled');
-    expect(negatedChanged.sourceFiles?.map(({ path }) => path)).toContain(join(source, 'generated', 'config.json'));
-    expect(negatedChanged.sourceFiles?.map(({ path }) => path)).not.toContain(join(source, 'notes.log'));
+describe('Python projects that take their version from version control', () => {
+  test.each([
+    ['hatch-vcs', { 'pyproject.toml': '[build-system]\nrequires = ["hatchling", "hatch-vcs"]\n' }, true],
+    ['hatch version source', { 'pyproject.toml': '[tool.hatch.version]\nsource = "vcs"\n' }, true],
+    ['setuptools-scm in pyproject', { 'pyproject.toml': '[tool.setuptools_scm]\n' }, true],
+    ['setuptools-scm in setup.cfg', { 'setup.cfg': '[options]\nsetup_requires = setuptools_scm\n' }, true],
+    [
+      'setuptools-scm in setup.py',
+      { 'setup.py': 'setup(use_scm_version=True, setup_requires=["setuptools-scm"])\n' },
+      true
+    ],
+    ['a static version', { 'pyproject.toml': '[project]\nname = "shop"\nversion = "1.0.0"\n' }, false],
+    ['no manifest', { 'requirements.txt': 'fastapi\n' }, false]
+  ])('%s', async (_label, files, keeps) => {
+    const directory = await projectWith(files);
+    try {
+      expect(await takesVersionFromVersionControl(directory)).toBe(keeps);
+      const plan = excludeNonSourceDirectories(preparedPlan(), { keepVersionControl: keeps });
+      expect(included(plan, ['.git/HEAD', '.stacktape/out.zip', 'app.py'])).toEqual(
+        keeps ? ['.git/HEAD', 'app.py'] : ['app.py']
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
+});
 
-  test('reports a failed detection with railpack diagnostics and never starts Docker', async () => {
-    const { root } = await createProject();
-    const actions = createActions({ success: false });
-
-    await expect(build({ root, actions })).rejects.toMatchObject({
-      type: 'RAILPACK',
-      message: expect.stringContaining('No start command found')
-    });
-    expect(actions.recorded.builds).toHaveLength(0);
-  });
-
-  test('fails before planning when the source directory does not exist', async () => {
-    const { root } = await createProject();
-    const actions = createActions();
-    await expect(
-      buildUsingRailpack({
-        name: 'api',
-        cwd: root,
-        sourceDirectoryPath: 'missing',
-        progressLogger,
+describe('building a Railpack plan', () => {
+  test('builds with the pinned frontend and asks for it to be kept local for the builder', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'stacktape-railpack-build-'));
+    const frontend = 'ghcr.io/railwayapp/railpack-frontend:v0.40.1@sha256:' + 'a'.repeat(64);
+    const builds: Record<string, unknown>[] = [];
+    try {
+      await writeFile(join(source, 'server.js'), 'console.log(1);\n');
+      await buildUsingRailpack({
+        name: 'web',
+        cwd: source,
         existingDigests: [],
-        railpackFrontendImage: FRONTEND,
-        createPackagingError,
-        runRailpackPrepare: actions.runRailpackPrepare,
-        buildDockerImage: actions.buildDockerImage
-      })
-    ).rejects.toThrow('does not exist');
-    expect(actions.recorded.prepares).toHaveLength(0);
+        dockerBuildOutputArchitecture: 'linux/arm64',
+        railpackFrontendImage: frontend,
+        progressLogger: {
+          startEvent: async () => {},
+          finishEvent: async () => {},
+          updateEvent: async () => {}
+        } as never,
+        createPackagingError: createPackagingError as never,
+        runRailpackPrepare: async () => ({
+          plan: preparedPlan(),
+          info: { success: true, detectedProviders: ['node'] }
+        }),
+        buildDockerImage: async (options) => {
+          builds.push(options as Record<string, unknown>);
+          return { size: 1, id: 'sha256:image', created: 0, dockerOutput: '', duration: 0 };
+        }
+      });
+    } finally {
+      await rm(source, { recursive: true, force: true });
+    }
+    expect(builds).toHaveLength(1);
+    expect(builds[0]).toMatchObject({ buildArgs: { BUILDKIT_SYNTAX: frontend }, builderImages: [frontend] });
   });
+});
+
+test('pins the images a plan names wherever a step or the deploy names them, and nothing else', () => {
+  const slim = 'public.ecr.aws/docker/library/python:3.11.14-slim';
+  const uv = 'ghcr.io/astral-sh/uv:0.12.21';
+  const plan = preparedPlan({
+    steps: [
+      { name: 'install', inputs: [{ image: slim }], commands: [{ image: uv, src: '/uv', dest: '/bin/uv' }] },
+      { name: 'build', inputs: [{ step: 'install' }, { image: 'example.invalid/other:1' }] }
+    ] as RailpackPlan['steps'],
+    deploy: { base: { image: slim }, startCommand: 'python app.py' } as RailpackPlan['deploy']
+  });
+  const pinned = pinPlanImages(plan, {
+    [slim]: `${slim}@sha256:${'1'.repeat(64)}`,
+    [uv]: `${uv}@sha256:${'2'.repeat(64)}`
+  });
+
+  expect(JSON.stringify(pinned)).not.toContain(`${slim}"`);
+  expect(JSON.stringify(pinned)).not.toContain(`${uv}"`);
+  expect(pinned.steps?.[0]).toMatchObject({
+    inputs: [{ image: `${slim}@sha256:${'1'.repeat(64)}` }],
+    commands: [{ image: `${uv}@sha256:${'2'.repeat(64)}`, src: '/uv', dest: '/bin/uv' }]
+  });
+  expect(pinned.steps?.[1]).toEqual(plan.steps![1]!);
+  expect((pinned.deploy as { base: unknown }).base).toEqual({ image: `${slim}@sha256:${'1'.repeat(64)}` });
+  // The input is left as it was: the digest identifies the unpinned plan.
+  expect(JSON.stringify(plan)).not.toContain('@sha256');
 });

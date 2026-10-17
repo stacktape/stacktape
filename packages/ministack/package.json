@@ -1,0 +1,24 @@
+{
+  "name": "@stacktape/ministack",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "The pinned MiniStack emulator fixture shared by CLI and Console tests: one disposable container per run on a loopback port, synthetic credentials, per-run account namespaces and verified cleanup.",
+  "type": "module",
+  "exports": {
+    "./fixture": "./src/fixture.ts"
+  },
+  "scripts": {
+    "test:fixture": "bun test src/fixture.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "3.1121.0",
+    "@aws-sdk/client-sts": "3.1121.0",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

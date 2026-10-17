@@ -2882,9 +2882,66 @@ export interface StackConfig {
    */
   stackInfoDirectory?: string;
   /**
-   * #### VPC configuration: reuse an existing VPC or configure NAT Gateways.
+   * #### VPC configuration: reuse an existing VPC.
    */
   vpc?: VpcSettings;
+  /**
+   * #### NAT: outbound internet for workloads in the private subnets.
+   *
+   * ---
+   *
+   * Who uses it:
+   * - container workloads with `usePrivateSubnetsWithNAT: true` (they cannot run without it, so setting that flag
+   *   requires `nat`);
+   * - Lambda functions with `joinDefaultVpc: true`, which have no internet access at all until `nat` is set;
+   * - AgentCore runtimes that connect to VPC-only resources.
+   *
+   * Pick `ec2` (one small instance, ~$7/month, no failover), `ha-ec2` (one instance per availability zone with
+   * automatic failover, ~$7/month per zone) or `gateway` (AWS-managed NAT Gateways, ~$32/month per zone plus
+   * $0.045 per GB). Switching between kinds keeps the VPC and subnets, but the public IPs change.
+   *
+   * With `vpc.reuseVpc`, the reused VPC's own NAT is used and this setting creates nothing; set it to any kind to
+   * place this stack's VPC functions in the reused VPC's private subnets.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   # stp-focus
+   *   nat: ha-ec2
+   *   # stp-end-focus
+   * resources:
+   *   api:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       joinDefaultVpc: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const api = new LambdaFunction({
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
+   *     joinDefaultVpc: true
+   *   });
+   *
+   *   return {
+   *     // stp-focus
+   *     stackConfig: { nat: 'ha-ec2' },
+   *     // stp-end-focus
+   *     resources: { api }
+   *   };
+   * });
+   * ```
+   */
+  nat?: NatConfig;
   /**
    * #### Stack-wide distributed tracing default.
    *
@@ -3115,26 +3172,28 @@ export interface VpcReuseConfig {
 
 export interface NatSettings {
   /**
-   * #### How many availability zones get a NAT Gateway (~$32/month each).
+   * #### Which kind of NAT the stack runs.
    *
    * ---
    *
-   * - **1**: Cheapest, but no redundancy if that AZ goes down.
-   * - **2**: Balanced cost and availability.
-   * - **3**: Highest availability.
+   * - **ec2**: one small EC2 instance (`t4g.nano` by default) managed by Stacktape. About $7/month, no per-GB
+   *   charge. If the instance dies, AWS replaces it, which takes about three minutes without outbound internet.
+   * - **ha-ec2**: one such instance per availability zone (two by default) with automatic failover. About $7/month
+   *   per zone. When an instance fails, Stacktape routes its zone through another zone's instance within about a
+   *   minute and routes back once the replacement is healthy; outbound calls from that zone fail during that minute
+   *   and open connections are reset.
+   * - **gateway**: AWS-managed NAT Gateways, one per availability zone. About $32/month per zone plus $0.045 per GB
+   *   processed. No instances, scales to 100 Gbps; the choice for high sustained throughput and strict uptime.
    *
-   * Each NAT Gateway gets a static Elastic IP that persists across deployments —
-   * useful for IP whitelisting with external services.
-   *
+   * The shorthand `nat: ha-ec2` is the same as `nat: { type: ha-ec2 }`.
    *
    * **Example (YAML):**
    *
    * ```yaml
    * stackConfig:
    *   # stp-focus
-   *   vpc:
-   *     nat:
-   *       availabilityZones: 1
+   *   nat:
+   *     type: ha-ec2
    *   # stp-end-focus
    * resources:
    *   worker:
@@ -3164,7 +3223,119 @@ export interface NatSettings {
    *
    *   return {
    *     // stp-focus
-   *     stackConfig: { vpc: { nat: { availabilityZones: 1 } } },
+   *     stackConfig: { nat: { type: 'ha-ec2' } },
+   *     // stp-end-focus
+   *     resources: { worker }
+   *   };
+   * });
+   * ```
+   */
+  type: 'ec2' | 'ha-ec2' | 'gateway';
+  /**
+   * #### EC2 instance size of the NAT instances (`ec2` and `ha-ec2` only).
+   *
+   * ---
+   *
+   * Must be an arm64 (Graviton) size, for example `t4g.nano`, `t4g.micro`, `t4g.small` or `c7gn.medium`.
+   * `t4g.nano` bursts to 5 Gbps and is enough for most applications; pick a larger size for sustained
+   * high throughput.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   # stp-focus
+   *   nat:
+   *     type: ha-ec2
+   *     instanceSize: t4g.small
+   *   # stp-end-focus
+   * resources:
+   *   worker:
+   *     type: worker-service
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *       usePrivateSubnetsWithNAT: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const worker = new WorkerService({
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
+   *     resources: { cpu: 0.25, memory: 512 },
+   *     usePrivateSubnetsWithNAT: true
+   *   });
+   *
+   *   return {
+   *     // stp-focus
+   *     stackConfig: { nat: { type: 'ha-ec2', instanceSize: 't4g.small' } },
+   *     // stp-end-focus
+   *     resources: { worker }
+   *   };
+   * });
+   * ```
+   *
+   * @default t4g.nano
+   */
+  instanceSize?: string;
+  /**
+   * #### How many availability zones get their own NAT (`ha-ec2` and `gateway` only).
+   *
+   * ---
+   *
+   * - **2**: Balanced cost and availability.
+   * - **3**: Highest availability.
+   *
+   * Each NAT gets a static Elastic IP that persists across deployments —
+   * useful for IP whitelisting with external services.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   # stp-focus
+   *   nat:
+   *     type: gateway
+   *     availabilityZones: 3
+   *   # stp-end-focus
+   * resources:
+   *   worker:
+   *     type: worker-service
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *       usePrivateSubnetsWithNAT: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const worker = new WorkerService({
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
+   *     resources: { cpu: 0.25, memory: 512 },
+   *     usePrivateSubnetsWithNAT: true
+   *   });
+   *
+   *   return {
+   *     // stp-focus
+   *     stackConfig: { nat: { type: 'gateway', availabilityZones: 3 } },
    *     // stp-end-focus
    *     resources: { worker }
    *   };
@@ -3173,9 +3344,13 @@ export interface NatSettings {
    *
    * @default 2
    */
-  availabilityZones?: 1 | 2 | 3;
+  availabilityZones?: 2 | 3;
 }
 
+/**
+ * #### NAT for the stack's private subnets: `ec2`, `ha-ec2` or `gateway`, or an object with more settings.
+ */
+export type NatConfig = 'ec2' | 'ha-ec2' | 'gateway' | NatSettings;
 
 export interface VpcSettings {
   /**
@@ -3190,16 +3365,6 @@ export interface VpcSettings {
    * > deployed stack can cause resources to be replaced and **data to be lost**.
    */
   reuseVpc?: VpcReuseConfig;
-
-  /**
-   * #### NAT Gateway configuration for private subnets.
-   *
-   * ---
-   *
-   * Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`.
-   * Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
-   */
-  nat?: NatSettings;
 }
 
 
@@ -4135,6 +4300,10 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *
    * The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
    *
+   * A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+   * up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+   * background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
+   *
    *
    * **Example (YAML):**
    *
@@ -4151,7 +4320,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *         cpu: 0.25
    *         memory: 512
    *       # stp-focus
-   *       stopTimeout: 30
+   *       stopTimeout: 60
    *       # stp-end-focus
    * ```
    *
@@ -4165,7 +4334,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
-   *     stopTimeout: 30
+   *     stopTimeout: 60
    *     // stp-end-focus
    *   });
    *
@@ -4173,7 +4342,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * });
    * ```
    *
-   * @default 2
+   * @default 30
    */
   stopTimeout?: number;
   /**
@@ -4292,21 +4461,22 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    */
   sideContainers?: ServiceHelperContainer[];
   /**
-   * #### Deploy in private subnets with a static outbound IP via NAT Gateway.
+   * #### Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
    *
    * ---
    *
-   * The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-   * giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+   * What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+   * NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
    *
-   * Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-   *
-   * **Adds cost:** NAT Gateway ~$32/month + data processing fees.
+   * Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+   * per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
    *
    *
    * **Example (YAML):**
    *
    * ```yaml
+   * stackConfig:
+   *   nat: ha-ec2
    * resources:
    *   api:
    *     type: web-service
@@ -4337,7 +4507,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     // stp-end-focus
    *   });
    *
-   *   return { resources: { api } };
+   *   return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
    * });
    * ```
    *

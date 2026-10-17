@@ -650,10 +650,10 @@
       "dependencies": []
     },
     "DebugAgentRoleArn": {
-      "dependencies": ["StpDebugAgentRole"]
+      "dependencies": []
     },
     "DevAgentRoleArn": {
-      "dependencies": ["StpDevAgentRole"]
+      "dependencies": []
     }
   }
 }

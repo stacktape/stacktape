@@ -1,0 +1,668 @@
+{
+  "schemaVersion": 1,
+  "packageManager": "bun",
+  "workspaceGlobs": ["frontend"],
+  "services": [
+    {
+      "name": "fastapiBackend",
+      "path": "backend",
+      "processType": "compose:backend",
+      "language": "python",
+      "framework": "fastapi",
+      "exposesHttp": true,
+      "port": 8000,
+      "longLivedConnections": "none",
+      "executionModel": "long-running",
+      "startCommand": "bash scripts/start.sh",
+      "buildRoot": ".",
+      "containerEntrypoint": "backend/app/main.py:app",
+      "functionTriggers": [],
+      "dockerfile": "backend/Dockerfile",
+      "healthCheckPath": "/api/v1/utils/health-check/",
+      "environmentVariables": [
+        {
+          "name": "ENVIRONMENT",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "safeLiteralValue": "production",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 63,
+              "quote": "ENVIRONMENT:"
+            }
+          ]
+        },
+        {
+          "name": "PROJECT_NAME",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            }
+          ]
+        },
+        {
+          "name": "STACK_NAME",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            }
+          ]
+        },
+        {
+          "name": "SMTP_TLS",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            }
+          ]
+        },
+        {
+          "name": "SMTP_SSL",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            }
+          ]
+        },
+        {
+          "name": "SMTP_PORT",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "safeLiteralValue": "587",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            }
+          ]
+        },
+        {
+          "name": "SECRET_KEY",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 65,
+              "quote": "SECRET_KEY:"
+            }
+          ]
+        },
+        {
+          "name": "POSTGRES_SERVER",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 72,
+              "quote": "POSTGRES_SERVER:"
+            },
+            {
+              "file": "render.yaml",
+              "line": 39,
+              "quote": "name: fastapi-db"
+            },
+            {
+              "file": "compose.yml",
+              "line": 4,
+              "quote": "image: postgres:18"
+            },
+            {
+              "file": ".env",
+              "line": 37,
+              "quote": "POSTGRES_DB="
+            },
+            {
+              "file": ".env",
+              "line": 38,
+              "quote": "POSTGRES_USER="
+            }
+          ]
+        },
+        {
+          "name": "POSTGRES_PORT",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 73,
+              "quote": "POSTGRES_PORT:"
+            },
+            {
+              "file": "render.yaml",
+              "line": 39,
+              "quote": "name: fastapi-db"
+            },
+            {
+              "file": "compose.yml",
+              "line": 4,
+              "quote": "image: postgres:18"
+            },
+            {
+              "file": ".env",
+              "line": 37,
+              "quote": "POSTGRES_DB="
+            },
+            {
+              "file": ".env",
+              "line": 38,
+              "quote": "POSTGRES_USER="
+            }
+          ]
+        },
+        {
+          "name": "POSTGRES_USER",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 19,
+              "quote": "POSTGRES_USER:"
+            },
+            {
+              "file": "render.yaml",
+              "line": 39,
+              "quote": "name: fastapi-db"
+            },
+            {
+              "file": "compose.yml",
+              "line": 4,
+              "quote": "image: postgres:18"
+            },
+            {
+              "file": ".env",
+              "line": 37,
+              "quote": "POSTGRES_DB="
+            },
+            {
+              "file": ".env",
+              "line": 38,
+              "quote": "POSTGRES_USER="
+            }
+          ]
+        },
+        {
+          "name": "POSTGRES_PASSWORD",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 18,
+              "quote": "POSTGRES_PASSWORD:"
+            },
+            {
+              "file": "render.yaml",
+              "line": 39,
+              "quote": "name: fastapi-db"
+            },
+            {
+              "file": "compose.yml",
+              "line": 4,
+              "quote": "image: postgres:18"
+            },
+            {
+              "file": ".env",
+              "line": 37,
+              "quote": "POSTGRES_DB="
+            },
+            {
+              "file": ".env",
+              "line": 38,
+              "quote": "POSTGRES_USER="
+            }
+          ]
+        },
+        {
+          "name": "POSTGRES_DB",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 20,
+              "quote": "POSTGRES_DB:"
+            },
+            {
+              "file": "render.yaml",
+              "line": 39,
+              "quote": "name: fastapi-db"
+            },
+            {
+              "file": "compose.yml",
+              "line": 4,
+              "quote": "image: postgres:18"
+            },
+            {
+              "file": ".env",
+              "line": 37,
+              "quote": "POSTGRES_DB="
+            },
+            {
+              "file": ".env",
+              "line": 38,
+              "quote": "POSTGRES_USER="
+            }
+          ]
+        },
+        {
+          "name": "FIRST_SUPERUSER",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 66,
+              "quote": "FIRST_SUPERUSER:"
+            }
+          ]
+        },
+        {
+          "name": "FIRST_SUPERUSER_PASSWORD",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 67,
+              "quote": "FIRST_SUPERUSER_PASSWORD:"
+            }
+          ]
+        },
+        {
+          "name": "FRONTEND_HOST",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 62,
+              "quote": "FRONTEND_HOST:"
+            }
+          ]
+        },
+        {
+          "name": "BACKEND_CORS_ORIGINS",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 64,
+              "quote": "BACKEND_CORS_ORIGINS:"
+            }
+          ]
+        },
+        {
+          "name": "SMTP_HOST",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 68,
+              "quote": "SMTP_HOST:"
+            }
+          ]
+        },
+        {
+          "name": "SMTP_USER",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 69,
+              "quote": "SMTP_USER:"
+            }
+          ]
+        },
+        {
+          "name": "SMTP_PASSWORD",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 70,
+              "quote": "SMTP_PASSWORD:"
+            }
+          ]
+        },
+        {
+          "name": "EMAILS_FROM_EMAIL",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 71,
+              "quote": "EMAILS_FROM_EMAIL:"
+            }
+          ]
+        },
+        {
+          "name": "SENTRY_DSN",
+          "role": "third-party-secret",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 23,
+              "quote": "name: fastapi-backend"
+            },
+            {
+              "file": "compose.yml",
+              "line": 77,
+              "quote": "SENTRY_DSN:"
+            }
+          ]
+        },
+        {
+          "name": "DOMAIN",
+          "role": "runtime-config",
+          "hasDeclaredValue": true,
+          "required": true,
+          "evidence": [
+            {
+              "file": "compose.yml",
+              "line": 61,
+              "quote": "DOMAIN:"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "file": "render.yaml",
+          "line": 23,
+          "quote": "name: fastapi-backend"
+        },
+        {
+          "field": "containerEntrypoint",
+          "file": "backend/app/main.py",
+          "line": 17,
+          "quote": "app = FastAPI("
+        },
+        {
+          "field": "dockerfile",
+          "file": "backend/Dockerfile",
+          "line": 1,
+          "quote": "FROM python:3.10"
+        },
+        {
+          "file": "compose.yml",
+          "line": 79,
+          "quote": "backend:"
+        }
+      ],
+      "source": "probe"
+    },
+    {
+      "name": "fastapiFrontend",
+      "path": "frontend",
+      "processType": "compose:frontend",
+      "language": "javascript",
+      "framework": "react",
+      "exposesHttp": false,
+      "longLivedConnections": "none",
+      "executionModel": "long-running",
+      "servesStaticAssets": {
+        "path": "frontend/dist"
+      },
+      "buildCommand": "bun install --frozen-lockfile && bun run --filter frontend build",
+      "buildRoot": ".",
+      "functionTriggers": [],
+      "dockerfile": "frontend/Dockerfile",
+      "environmentVariables": [
+        {
+          "name": "VITE_API_URL",
+          "role": "third-party-secret",
+          "hasDeclaredValue": false,
+          "required": true,
+          "evidence": [
+            {
+              "file": "render.yaml",
+              "line": 77,
+              "quote": "name: fastapi-frontend"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "file": "render.yaml",
+          "line": 77,
+          "quote": "name: fastapi-frontend"
+        },
+        {
+          "field": "buildCommand",
+          "file": "frontend/package.json",
+          "line": 8,
+          "quote": "\"build\":"
+        },
+        {
+          "file": "frontend/package.json",
+          "line": 7,
+          "quote": "\"vite\""
+        },
+        {
+          "field": "dockerfile",
+          "file": "frontend/Dockerfile",
+          "line": 2,
+          "quote": "FROM oven/bun:1 AS build-stage"
+        },
+        {
+          "file": "compose.yml",
+          "line": 139,
+          "quote": "frontend:"
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "mainDatabase",
+      "kind": "postgres",
+      "engineVersion": "18",
+      "extensions": [],
+      "consumedBy": ["fastapiBackend"],
+      "addressedBy": ["POSTGRES_SERVER", "POSTGRES_PORT", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"],
+      "hostingEvidence": "deployment-manifest",
+      "evidence": [
+        {
+          "file": "render.yaml",
+          "line": 39,
+          "quote": "name: fastapi-db"
+        },
+        {
+          "file": "compose.yml",
+          "line": 4,
+          "quote": "image: postgres:18"
+        },
+        {
+          "file": ".env",
+          "line": 37,
+          "quote": "POSTGRES_DB="
+        },
+        {
+          "file": ".env",
+          "line": 38,
+          "quote": "POSTGRES_USER="
+        },
+        {
+          "file": ".env",
+          "line": 39,
+          "quote": "POSTGRES_PASSWORD="
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "existingDeployments": [
+    {
+      "tool": "render",
+      "managesAws": false,
+      "evidence": [
+        {
+          "file": "render.yaml",
+          "line": 1,
+          "quote": "envVarGroups"
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "migrations": [
+    {
+      "serviceName": "fastapiBackend",
+      "tool": "alembic",
+      "command": "alembic upgrade head",
+      "runsAt": "ci",
+      "evidence": [
+        {
+          "file": "backend/scripts/prestart.sh",
+          "line": 10,
+          "quote": "alembic upgrade head"
+        }
+      ]
+    }
+  ],
+  "uncertainties": [
+    {
+      "id": "dockerfile-ownership:fastapiBackend",
+      "blocksDeploy": false,
+      "evidence": [
+        {
+          "file": "backend/Dockerfile",
+          "line": 1,
+          "quote": "FROM python:3.10"
+        }
+      ],
+      "source": "probe",
+      "kind": "dockerfile-ownership",
+      "serviceName": "fastapiBackend",
+      "dockerfilePath": "backend/Dockerfile",
+      "recommended": "stacktape-packaging"
+    }
+  ],
+  "notes": []
+}

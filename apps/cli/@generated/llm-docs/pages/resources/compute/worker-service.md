@@ -263,7 +263,7 @@ export default defineConfig(() => {
 
 ## Graceful shutdown
 
-The `stopTimeout` property controls how long ECS waits between sending `SIGTERM` and `SIGKILL` during container shutdown. The value must be 2–120 seconds. The default is 2 seconds.
+The `stopTimeout` property controls how long ECS waits between sending `SIGTERM` and `SIGKILL` during container shutdown. The value must be 2–120 seconds. The default is 30 seconds. A full deployment waits until the old workers have stopped. A [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments) (only code changed) finishes once the new workers have passed their `internalHealthCheck`, or, without one, once ECS counts them healthy, 40 seconds after they start running. It lets the old ones shut down in the background.
 
 
 Example (TypeScript):
@@ -275,7 +275,7 @@ export default defineConfig(() => {
   const worker = new WorkerService({
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
-    stopTimeout: 30
+    stopTimeout: 60
   });
 
   return { resources: { worker } };
@@ -283,7 +283,7 @@ export default defineConfig(() => {
 ```
 
 
-Increase `stopTimeout` for queue consumers that need time to finish processing the current message, flush telemetry, or release distributed locks after receiving `SIGTERM`. A 30-second timeout is a common choice for workers that process messages in under 20 seconds. Keep the timeout low (the default 2 seconds) for fast-failing workers where quick replacement is more important than graceful cleanup. Long shutdown windows slow container replacement and can delay deployments.
+The default 30 seconds suits workers that process a message in under about 20 seconds and stop taking new messages after receiving `SIGTERM`. Increase `stopTimeout` for queue consumers that need longer to finish the current message, flush telemetry, or release distributed locks. A worker that ignores `SIGTERM` keeps running for the whole timeout, so handle the signal and exit once the current work is done.
 
 ## Side containers
 
@@ -395,7 +395,7 @@ export default defineConfig(() => {
 ```
 
 
-**Cost:** NAT Gateway costs ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateway availability zones (1–3) in `stackConfig.vpc.nat.availabilityZones`.
+**Cost:** the flag requires `stackConfig.nat`. `ec2` is one Stacktape-managed NAT instance (~$7/month, no failover), `ha-ec2` one per availability zone with automatic failover (~$7/month per zone, no per-GB fee, about a minute of failed outbound calls when an instance dies), `gateway` NAT Gateways (~$32/month per zone plus data processing fees); see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 **When to enable:** Only when you need fixed outbound IPs for allowlisting with external APIs or payment providers, or when your security policy requires that containers never have public IPs.
 
@@ -461,7 +461,7 @@ ECS automatically replaces crashed containers (containers that exit unexpectedly
 
 ### Why is my worker killed mid-task during a deploy or scale-in?
 
-The default `stopTimeout` is only 2 seconds — ECS sends `SIGTERM`, waits that long, then forces `SIGKILL`. A queue consumer still processing a message can be killed before it finishes. Raise `stopTimeout` (max 120 seconds) to give the worker time to finish the current message, flush telemetry, and release distributed locks after receiving `SIGTERM`. See [graceful shutdown](#graceful-shutdown).
+ECS sends `SIGTERM`, waits `stopTimeout` (default 30 seconds), then forces `SIGKILL`. A queue consumer still processing a message when the timeout ends is killed before it finishes. Raise `stopTimeout` (max 120 seconds) to give the worker time to finish the current message, flush telemetry, and release distributed locks after receiving `SIGTERM`. See [graceful shutdown](#graceful-shutdown).
 
 ## API Reference
 
@@ -483,7 +483,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
-| `stopTimeout` | no | `number` | `2` |
+| `stopTimeout` | no | `number` | `30` |
 | `tracing` | no | `TracingOptions \| option-2` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
 | `volumeMounts` | no | `Array<ContainerEfsMount>` | - |

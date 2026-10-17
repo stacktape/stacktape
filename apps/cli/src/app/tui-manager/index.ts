@@ -722,15 +722,16 @@ class TuiManager {
     const { prettyStackTrace, errorType, errorTrackingId } = error.details;
     const isExpected = error instanceof CliError;
 
+    const lastEventType = operationSession.reporter.lastActivity?.eventType;
     const errorMessage =
       !IS_DEV && !isExpected
-        ? `An unexpected error occurred. Last captured event: ${operationSession.reporter.lastActivity?.eventType || '-'}.`
+        ? `An unexpected error occurred.${lastEventType ? ` Last captured event: ${lastEventType}.` : ''}`
         : error.message;
 
     const hints: string[] = isExpected ? [...error.hints] : [];
     if (errorTrackingId) {
       hints.push(
-        `This error has been anonymously reported to our error monitoring service with id ${errorTrackingId}.`
+        `This error was reported to Stacktape with ID ${errorTrackingId}. Include the ID when you contact us.`
       );
     }
     hints.push(`To get help, reach out to our team at support@stacktape.com`);

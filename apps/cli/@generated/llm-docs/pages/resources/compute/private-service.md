@@ -411,7 +411,7 @@ export default defineConfig(() => {
 By default, private service containers run in public subnets with direct internet access for outbound calls. Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outbound traffic routes through a NAT Gateway. This gives you a static outbound IP that external services can whitelist.
 
 
-> **Warning:** NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.
+> **Warning:** `usePrivateSubnetsWithNAT` requires `stackConfig.nat`: `ec2` or `ha-ec2` (Stacktape-managed NAT instances, about $7/month per zone) or `gateway` (NAT Gateways, about $32/month per zone plus data processing fees). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 
 Leave `usePrivateSubnetsWithNAT` unset for ordinary services that only need outbound internet access. Enable it when an external API, partner, or compliance rule requires a fixed egress IP for whitelisting.
@@ -479,7 +479,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
-| `stopTimeout` | no | `number` | `2` |
+| `stopTimeout` | no | `number` | `30` |
 | `tracing` | no | `TracingOptions \| option-2` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
 | `volumeMounts` | no | `Array<ContainerEfsMount>` | - |

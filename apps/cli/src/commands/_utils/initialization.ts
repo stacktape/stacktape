@@ -42,15 +42,22 @@ import type { ConfigResolverContext } from '@domain-services/config-manager/conf
 import type { ConfigManagerInitContext } from '@domain-services/config-manager/context';
 import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
 import type { StacktapeCliArgs } from '../../config/cli/types';
+import type { GlobalConfigResponse } from '@stacktape-api/api-key-protected';
 import { getConfigPath } from '@utils/file-loaders';
 import { startTiming, timeAsync } from '@utils/timings';
 import { finalizeTemplate, prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 
+// The account and the hash derived from it are read when used: `package` looks up the account of local credentials
+// only when something needs it (`globalStateManager.resolveLocalAwsAccount`).
 export const getStackContext = (): StackContext =>
   Object.freeze({
-    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    get accountId() {
+      return globalStateManager.targetAwsAccount.awsAccountId;
+    },
     command: globalStateManager.command,
-    globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+    get globallyUniqueStackHash() {
+      return globalStateManager.targetStack.globallyUniqueStackHash;
+    },
     invocationId: globalStateManager.invocationId,
     projectName: globalStateManager.targetStack.projectName,
     region: globalStateManager.region,
@@ -77,11 +84,17 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
     builtInDirectives: {
       runtime: {
         calculatedStackOverviewManager,
+        configManager,
         deployedStackOverviewManager,
         stackManager,
         templateManager
       },
-      accountId: stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId,
+      get accountId() {
+        return stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId;
+      },
+      ...(globalStateManager.localCredentialsProvider && {
+        ensureAwsAccount: globalStateManager.resolveLocalAwsAccount
+      }),
       additionalArgs: { ...(globalStateManager.additionalArgs || {}) },
       awsProfile: globalStateManager.awsProfileName,
       cliArgs: { ...args },
@@ -135,8 +148,15 @@ const loadLocalTargetStackContext = async () => {
   );
 };
 
-const loadLocalAwsContext = async () => {
-  const credentialsProvider = await globalStateManager.loadLocalAwsCredentials();
+/**
+ * Local AWS credentials without the Console. `package` passes `lookUpAccount: false`: it looks the account up only when
+ * something needs it. Commands that read the stack, such as `synth` and `validate`, look it up now.
+ */
+const loadLocalAwsContext = async ({ lookUpAccount }: { lookUpAccount: boolean }) => {
+  const credentialsProvider = await globalStateManager.prepareLocalAwsCredentials();
+  if (lookUpAccount) {
+    await globalStateManager.resolveLocalAwsAccount();
+  }
   const endSdkInit = startTiming('context:aws-sdk-init');
   awsSdkManager.init({
     credentials: credentialsProvider,
@@ -163,10 +183,20 @@ export const initializeControlPlaneOperation = async ({
 };
 
 export const initializePackageOperation = async () => {
-  await loadLocalAwsContext();
+  await loadLocalAwsContext({ lookUpAccount: false });
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
   await packagingManager.init();
+  // What a deployment installs before it packages, `package` has to install too: a framework build such as
+  // `astro build` runs the project's own installed tooling, and without this step a fresh checkout built whatever
+  // `npx` fetched instead of the pinned dependencies.
+  if (!isRemoteRunnerDeployInvocation() && configManager.hostNodeDependenciesRequired) {
+    await dependencyInstaller.install({
+      rootProjectDirPath: globalStateManager.workingDir,
+      progressLogger: operationReporter,
+      phase: 'INITIALIZE'
+    });
+  }
 
   return {
     args: captureCommandArgs(),
@@ -216,9 +246,15 @@ export const initializeStackOperationLifecycle = async ({
   });
   operationReporter.setPhase('INITIALIZE');
 
+  let globalConfig: GlobalConfigResponse | undefined;
   if (requiresControlPlane) {
     await loadUserCredentials();
-    await recordStackOperationStart();
+    const [, subscription, fetchedGlobalConfig] = await settleAllBeforeThrowing([
+      recordStackOperationStart(),
+      requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined,
+      loadGlobalConfig ? stacktapeTrpcApiManager.apiClient.globalConfig() : undefined
+    ]);
+    globalConfig = fetchedGlobalConfig;
 
     const userProvidedProjectName = globalStateManager.args.projectName;
     if (userProvidedProjectName) {
@@ -229,11 +265,8 @@ export const initializeStackOperationLifecycle = async ({
       });
     }
 
-    if (requiresSubscription) {
-      const { message, canDeploy } = await stacktapeTrpcApiManager.apiClient.canDeploy();
-      if (!canDeploy) {
-        throw stpErrors.e502({ message });
-      }
+    if (subscription && !subscription.canDeploy) {
+      throw stpErrors.e502({ message: subscription.message });
     }
     await loadTargetStackContext({ skipRawConfig: skipRawConfigForTarget });
     assertCommandPermissions({
@@ -245,14 +278,13 @@ export const initializeStackOperationLifecycle = async ({
       projects: globalStateManager.projects
     });
   } else {
-    await loadLocalAwsContext();
+    await loadLocalAwsContext({ lookUpAccount: true });
   }
   const stackContext = getStackContext();
   await beforeConfigInit?.(stackContext);
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
-
-  if (loadGlobalConfig && requiresControlPlane) {
-    await configManager.loadGlobalConfig();
+  if (globalConfig) {
+    configManager.applyGlobalConfig(globalConfig);
   }
 
   // Start the parent event for loading AWS metadata
@@ -269,7 +301,18 @@ export const initializeStackOperationLifecycle = async ({
       stackName: globalStateManager.targetStack.stackName,
       commandModifiesStack,
       commandRequiresDeployedStack,
-      parentEventType: 'LOAD_METADATA_FROM_AWS'
+      parentEventType: 'LOAD_METADATA_FROM_AWS',
+      whileLoadingResourceDetails: () =>
+        Promise.all([
+          templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+          deploymentArtifactManager.init({
+            packagingSource: packagingManager,
+            accountId: globalStateManager.targetAwsAccount.awsAccountId,
+            globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+            stackActionType: stackManager.stackActionType,
+            parentEventType: 'LOAD_METADATA_FROM_AWS'
+          })
+        ])
     }),
     ec2Manager.init({
       instanceTypes: configManager.allUsedEc2InstanceTypes,
@@ -303,7 +346,6 @@ export const initializeStackOperationLifecycle = async ({
     notificationManager.init({ consoleApiAccess: requiresControlPlane })
   ]);
   await Promise.all([
-    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources,
@@ -311,13 +353,6 @@ export const initializeStackOperationLifecycle = async ({
     }),
     calculatedStackOverviewManager.init({ context: stackContext }),
     cloudfrontManager.init(),
-    deploymentArtifactManager.init({
-      packagingSource: packagingManager,
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-      stackActionType: stackManager.stackActionType,
-      parentEventType: 'LOAD_METADATA_FROM_AWS'
-    }),
     packagingManager.init(),
     cloudformationRegistryManager.init()
   ]);

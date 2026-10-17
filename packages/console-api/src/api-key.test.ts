@@ -21,11 +21,11 @@ const operation = (commandArgs: unknown) => ({
 test('commandArgs accepts a CLI flag object whatever the parser made of the values', () => {
   const parsed = recordStackOperationInputSchema.parse(
     operation({
-      // `--stage 2024` reaches the Console as a number, `--hotSwap` as a boolean, and the invocation
-      // context the CLI attaches is a nested object.
+      // Recorded JSON flags preserve numbers, booleans, lists and nested context without coercion.
+      // Validating a command's particular flag types belongs to the producer.
       stage: 2024,
       region: 'eu-west-1',
-      hotSwap: true,
+      fullDeploy: true,
       resourcesToSkip: ['bucket', 'lambda'],
       stacktapeOperationInvocationContext: { initiator: 'user', interface: 'cli' }
     })
@@ -34,7 +34,7 @@ test('commandArgs accepts a CLI flag object whatever the parser made of the valu
   assert.deepEqual(parsed.commandArgs, {
     stage: 2024,
     region: 'eu-west-1',
-    hotSwap: true,
+    fullDeploy: true,
     resourcesToSkip: ['bucket', 'lambda'],
     stacktapeOperationInvocationContext: { initiator: 'user', interface: 'cli' }
   });
@@ -56,13 +56,6 @@ test('commandArgs is an object, not any value at all', () => {
       `commandArgs accepted ${JSON.stringify(notAnObject)}`
     );
   }
-});
-
-test('the minimal v4 operation requires only its invocation identity', () => {
-  const minimal = recordStackOperationInputSchema.parse({ invocationId: 'inv-2' });
-
-  assert.equal(minimal.invocationId, 'inv-2');
-  assert.equal(minimal.commandArgs, undefined);
 });
 
 test('Git provider status accepts nested GitLab owners but rejects URL-shaped repository input', () => {

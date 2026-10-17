@@ -11,7 +11,12 @@ import { publicApiClient, type StackPriceEstimationResponse } from '@stacktape-a
 import { deleteDirectoryContent } from '@utils/fs-utils';
 import { unzip } from '@utils/unzip';
 import color from 'picocolors';
-import { appendResourceRows, formatPrice, formatResourceType, getResourceCostLabel } from '../utils/output-formatting';
+import {
+  appendResourceRows,
+  formatResourceType,
+  getResourceCostLabel,
+  getStackCostLabel
+} from '../utils/output-formatting';
 import { printInitPreflight, promptConfigFormat } from '../utils/ui';
 import {
   createWriteStream,
@@ -248,8 +253,7 @@ const displayResult = ({
   });
 
   if (hasCosts && costEstimation.costs) {
-    const { flatMonthlyCost } = costEstimation.costs;
-    lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(flatMonthlyCost || 0)}/mo + pay-per-use costs`);
+    lines.push(`\n${color.dim('Estimated total costs:')} ${getStackCostLabel(costEstimation.costs)}`);
   }
 
   const projectName = projectToUse.starterProjectId;

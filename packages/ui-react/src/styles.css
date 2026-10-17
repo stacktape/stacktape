@@ -6,9 +6,15 @@
  * without an `!important` or a specificity contest. A consumer that cares where the layer sorts
  * declares the order itself (`@layer theme, base, stacktape-ui, components, utilities;`).
  *
+ * The statement below fixes the one ordering this package depends on: a host's element resets
+ * (`button { background: transparent }` and the like) belong in `base`, below these controls. It
+ * matches the order the Tailwind consumers declare, so it holds whichever stylesheet loads first.
+ *
  * Colours, radii, focus and timing come from `@stacktape/design-tokens`; the surface recipes —
  * gradients and shadows — belong to these controls and stay here.
  */
+@layer base, stacktape-ui;
+
 @import '@stacktape/design-tokens/css';
 
 /* The fill a neutral control wears. It is declared outside the layer and outside any class because
@@ -99,12 +105,37 @@
 
   /* Grid rather than wrapping flex. Both give equal columns, but a wrapping flex row lets the last
    * line stretch to fill: three options in a two-wide space produced two half-width cards above one
-   * full-width one, which reads as a hierarchy that is not there. `auto-fill` keeps the empty track,
-   * so a wrapped card stays the same width as its siblings. */
+   * full-width one, which reads as a hierarchy that is not there. In a grid a wrapped card keeps its
+   * siblings' width; `auto-fit` still lets two options share the row the way three do. */
   .stp-ui-selection-card-group--row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--stp-selection-card-basis, 200px), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(var(--stp-selection-card-basis, 200px), 1fr));
     align-items: stretch;
+  }
+
+  /* Side by side, a card is too narrow for a body and a meta column: a meta such as "Roughly doubles
+   * them" took its full width and squeezed the description to one word per line. In a row the card
+   * stacks instead: heading, then the recommendation flag, description, and the meta last, aligned
+   * across the row because it is pushed to the bottom. */
+  .stp-ui-selection-card-group--row .stp-ui-selection-card {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stp-ui-selection-card-group--row .stp-ui-selection-card__heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stp-ui-selection-card-group--row .stp-ui-selection-card__body {
+    width: 100%;
+  }
+
+  .stp-ui-selection-card-group--row .stp-ui-selection-card__meta {
+    margin-top: auto;
+    margin-left: 0;
+    padding-left: 0;
+    white-space: normal;
   }
 
   .stp-ui-selection-card-group--column {
@@ -125,20 +156,9 @@
     text-align: left;
     user-select: none;
     cursor: pointer;
-    /* The card itself moves; the fill and the ring are painted by ::before and follow it. Motion is
-     * what makes a press feel like a press — without it the ring simply appears somewhere else. */
-    transition:
-      transform var(--stp-motion-duration-base) var(--stp-motion-easing),
-      color var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .stp-ui-selection-card:hover:not(.stp-ui-selection-card--disabled) {
-    transform: translateY(-1px);
-  }
-
-  .stp-ui-selection-card:active:not(.stp-ui-selection-card--disabled) {
-    transform: translateY(0.5px);
-    transition-duration: var(--stp-motion-duration-fast, 90ms);
+    /* The card stays put under the pointer; hover and press only change its edge, like every other
+     * control here. */
+    transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
   /* Painted by ::before like every other control here, so a host reset on background cannot erase
@@ -156,12 +176,13 @@
     transition: box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
-  /* Hover lifts the card and brightens its edge. It deliberately does *not* borrow any part of the
-   * selected ring: a hover that looks like a selection makes every card look chosen as the pointer
-   * crosses the row, and the one that really is chosen stops standing out. */
+  /* Hover brightens the card's edge. It deliberately does *not* borrow any part of the selected
+   * ring: a hover that looks like a selection makes every card look chosen as the pointer crosses
+   * the row, and the one that really is chosen stops standing out. */
   .stp-ui-selection-card:hover:not(.stp-ui-selection-card--disabled)::before {
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.4),
+      0 2px 6px rgba(0, 0, 0, 0.35),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
 
@@ -184,7 +205,7 @@
 
   .stp-ui-selection-card--selected:hover:not(.stp-ui-selection-card--disabled)::before {
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.4),
+      0 3px 9px rgba(0, 0, 0, 0.38),
       inset 0 1px 0 rgba(255, 255, 255, 0.16),
       0 0 0 1px var(--stp-color-brand),
       0 0 0 4px color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
@@ -217,10 +238,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .stp-ui-selection-card,
-    .stp-ui-selection-card:hover:not(.stp-ui-selection-card--disabled),
-    .stp-ui-selection-card:active:not(.stp-ui-selection-card--disabled) {
-      transform: none;
+    .stp-ui-selection-card {
       transition: none;
     }
 
@@ -259,6 +277,7 @@
 
   .stp-ui-selection-card__body {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 4px;
     min-width: 0;
@@ -285,8 +304,6 @@
     color: var(--stp-color-brand);
     font-size: 0.72rem;
     font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
     white-space: nowrap;
   }
 
@@ -542,9 +559,16 @@
     align-items: stretch;
   }
 
+  /* A thin well around the tabs: the selected tab's surface carries the emphasis, not the frame. */
+  /* A segmented tab bar is one 35px control: 3px of well around 29px tabs. */
+  .stp-ui-tabs--segmented {
+    --stp-tab-height: 29px;
+  }
+
   .stp-ui-tabs--segmented .stp-ui-tabs__list,
   .stp-ui-tabs--editor .stp-ui-tabs__list {
-    padding: var(--stp-tabs-padding, 5.5px);
+    padding: var(--stp-tabs-padding, 3px);
+    gap: var(--stp-tabs-gap, 2px);
     border-radius: var(--stp-tabs-radius, 12px);
     background: var(--stp-tabs-background, rgba(0, 0, 0, 0.25));
     box-shadow: var(--stp-tabs-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05));
@@ -595,9 +619,7 @@
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
-    transition:
-      color var(--stp-motion-duration-fast) var(--stp-motion-easing),
-      transform var(--stp-motion-duration-fast) var(--stp-motion-easing);
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
   }
 
   .stp-ui-tabs--vertical .stp-ui-tab {
@@ -646,10 +668,6 @@
 
   .stp-ui-tab--active {
     color: var(--stp-tab-text-active, var(--stp-text-primary));
-  }
-
-  .stp-ui-tab:active:not(:disabled) {
-    transform: scale(0.97);
   }
 
   .stp-ui-tab:focus-visible {
@@ -708,11 +726,6 @@
 
   .stp-ui-badge--pill {
     border-radius: 999px;
-  }
-
-  .stp-ui-badge--caps {
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
   }
 
   .stp-ui-badge--solid {
@@ -1070,13 +1083,17 @@
     color: var(--stp-text-primary);
   }
 
+  /* Text fields and selects share one label recipe: same size, same line box, flush with the
+   * control's left edge and the same distance above it, so a row of mixed fields lines up. */
   .stp-ui-text-field__label {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 5px;
-    margin: 0 0 3px 6px;
+    min-height: 18px;
+    margin: 0 0 5px;
     font-size: 13px;
     font-weight: 700;
+    line-height: 18px;
   }
 
   .stp-ui-text-field__label-detail {
@@ -1099,6 +1116,11 @@
     transition:
       border-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
       box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  /* The same hover as the select; a focused field keeps its focus border under the pointer. */
+  .stp-ui-text-field__surface:hover:not(:focus-within) {
+    border-color: var(--stp-field-border-hover, var(--stp-border-strong));
   }
 
   .stp-ui-text-field__surface:focus-within {
@@ -1147,14 +1169,17 @@
     align-items: center;
   }
 
+  /* Help text and errors read as a sentence under the field, so they start where the field starts. */
   .stp-ui-text-field__message-slot {
     min-height: 20px;
-    text-align: right;
+    padding-top: 3px;
+    text-align: left;
   }
 
   .stp-ui-text-field__message {
-    margin-right: 6px;
+    display: block;
     font-size: 12.5px;
+    line-height: 1.4;
   }
 
   .stp-ui-text-field__message--error {
@@ -1177,9 +1202,10 @@
 
   .stp-ui-select__label-row {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: 8px;
+    min-height: 18px;
     margin-bottom: 5px;
   }
 
@@ -1188,9 +1214,9 @@
     align-items: center;
     gap: 5px;
     min-width: 0;
-    margin-left: 6px;
     font-size: 13px;
     font-weight: 700;
+    line-height: 18px;
   }
 
   .stp-ui-select__label-detail {
@@ -1225,13 +1251,26 @@
 
   .stp-ui-select__message-slot {
     min-height: 20px;
-    text-align: right;
+    padding-top: 3px;
+    text-align: left;
   }
 
   .stp-ui-select__message {
-    margin-right: 6px;
-    color: var(--stp-status-error);
+    display: block;
     font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  .stp-ui-select__message--error {
+    color: var(--stp-status-error);
+  }
+
+  .stp-ui-select__message--success {
+    color: var(--stp-status-success);
+  }
+
+  .stp-ui-select__message--neutral {
+    color: var(--stp-text-muted);
   }
 
   /* ── Dialog and tooltip ───────────────────────────────────────────────────────────────────── */
@@ -1255,11 +1294,17 @@
     backdrop-filter: blur(8px);
   }
 
+  /* A column: the body scrolls and the action row stays pinned under it, so a dialog taller than
+   * the window never hides its buttons below the fold. */
   .stp-ui-dialog {
     position: relative;
     z-index: 1;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     width: var(--stp-dialog-width, fit-content);
+    /* The body owns the inset; the browser's own 1em on <dialog> doubled it. */
+    padding: 0;
     max-width: calc(100vw - 48px);
     max-height: var(--stp-dialog-max-height, calc(100vh - 48px));
     overflow: hidden;
@@ -1285,19 +1330,33 @@
     outline: none;
   }
 
+  /* One inset on every side. The title, the fields and the action row all start 28px in. */
   .stp-ui-dialog__body {
     box-sizing: border-box;
+    flex: 1 1 auto;
     min-width: min(var(--stp-dialog-width, 650px), calc(100vw - 48px));
     max-width: 100%;
-    max-height: var(--stp-dialog-body-max-height, calc(100vh - 48px));
-    padding: 40px 35px 30px;
+    min-height: 0;
+    padding: var(--stp-dialog-padding, 28px);
     overflow: auto;
+    /* A shadow at the bottom edge while more content is below, so a scrolled body never looks as if
+     * it ends mid-sentence above the actions. The cover scrolls with the content and hides the
+     * shadow once the end is reached. */
+    background:
+      linear-gradient(transparent, var(--stp-dialog-background, var(--stp-surface-modal)) 70%) bottom / 100% 32px
+        no-repeat local,
+      radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.5), transparent) bottom / 100% 12px no-repeat scroll;
   }
 
+  .stp-ui-dialog__body:has(+ .stp-ui-dialog__actions) {
+    padding-bottom: 4px;
+  }
+
+  /* Centred on the title's line, the same distance from the right edge as the title is from the top. */
   .stp-ui-dialog__close {
     position: absolute;
-    top: 7px;
-    right: 7px;
+    top: 24px;
+    right: 22px;
     z-index: 1;
     display: flex;
     align-items: center;
@@ -1323,8 +1382,8 @@
   }
 
   .stp-ui-dialog__header {
-    margin-bottom: 30px;
-    padding-right: 34px;
+    margin-bottom: 22px;
+    padding-right: 40px;
   }
 
   .stp-ui-dialog__title,
@@ -1345,9 +1404,11 @@
 
   .stp-ui-dialog__actions {
     display: flex;
+    flex: none;
+    align-items: center;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 30px;
+    padding: 20px var(--stp-dialog-padding, 28px) var(--stp-dialog-padding, 28px);
   }
 
   .stp-ui-tooltip {
@@ -1392,9 +1453,8 @@
     color: var(--stp-text-primary);
     font: inherit;
     text-align: left;
-    box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.3),
-      inset 3px 0 0 rgb(var(--stp-alert-rgb) / 0.8);
+    /* The tinted border and the icon carry the tone; no accent bar. */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   .stp-ui-alert--action {

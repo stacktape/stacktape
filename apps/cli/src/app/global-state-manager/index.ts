@@ -53,6 +53,19 @@ import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-k
 import { selectAwsCredentialProfile } from './credential-source';
 import { getPersistedApiKey, withPersistedApiKey } from './api-key-storage';
 import { consumeRunnerCredentials } from './runner-credentials';
+import {
+  accountIdFromProfile,
+  createProfileCredentialsProvider,
+  detectLocalAwsSelectors,
+  ignoredProfileNotice,
+  loadProfileCredentials,
+  localAwsAccountUnresolved,
+  localAwsCredentialsUnavailable,
+  matchConnectedAwsAccount,
+  readAwsProfile,
+  resolveLocalAwsAccount,
+  type LocalAwsAccount
+} from './local-aws-account';
 
 const CREDENTIAL_REFRESH_LEAD_TIME_MS = 5 * 60 * 1000;
 const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 30 * 1000;
@@ -84,6 +97,10 @@ export class GlobalStateManager {
   connectedAwsAccounts?: GlobalStateConnectedAwsAccount[];
   localTargetAwsAccount?: GlobalStateConnectedAwsAccount;
   localCredentialsProvider?: AwsCredentialsProvider;
+  /** The connected account that `--profile`, `AWS_PROFILE` or environment keys point to, when no `--awsAccount` is given. */
+  awsAccountFromLocalCredentials?: { name: string; selectedBy: string };
+  #localAwsAccount?: Promise<{ account?: LocalAwsAccount; error?: unknown }>;
+  #localAwsAccountSelection?: Promise<void>;
   projects: GlobalStateProject[];
   permissions: string[] = [];
   isProjectScoped = false;
@@ -107,6 +124,9 @@ export class GlobalStateManager {
     this.credentialsRefreshTimeout = undefined;
     this.credentialRefreshGeneration += 1;
     this.credentialRefreshStopped = false;
+    this.awsAccountFromLocalCredentials = undefined;
+    this.#localAwsAccount = undefined;
+    this.#localAwsAccountSelection = undefined;
     this.operationStart = new Date();
     const { commands, args, config, additionalArgs } = opts;
     this.rawCommands = commands;
@@ -268,7 +288,13 @@ export class GlobalStateManager {
     if (this.localTargetAwsAccount) {
       return this.localTargetAwsAccount;
     }
-    const awsAccount = this.args.awsAccount || this.persistedState?.cliArgsDefaults.awsAccount;
+    if (this.localCredentialsProvider) {
+      throw new Error('The AWS account of the local credentials was read before resolveLocalAwsAccount looked it up.');
+    }
+    const awsAccount =
+      this.args.awsAccount ||
+      this.awsAccountFromLocalCredentials?.name ||
+      this.persistedState?.cliArgsDefaults.awsAccount;
     if (awsAccount) {
       const account = this.connectedAwsAccounts?.find(({ name }) => name === awsAccount);
       if (!account) {
@@ -319,27 +345,174 @@ export class GlobalStateManager {
       await stacktapeTrpcApiManager.init({ apiKey: this.apiKey });
       await this.loadUserDataFromTrpcApi();
     }
+    await this.selectAwsAccountFromLocalCredentials();
     await this.loadValidatedAwsCredentials();
   };
 
-  loadLocalAwsCredentials = async (): Promise<AwsCredentialsProvider> => {
-    await operationReporter.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
+  get localAwsSelectors() {
+    return detectLocalAwsSelectors({ requestedProfile: this.rawArgs?.profile, environment: process.env });
+  }
 
+  /** Starts finding the account of local AWS credentials, so its STS call can overlap the Console request. */
+  startLocalAwsAccountResolution = () => {
+    if (this.args.awsAccount || this.#localAwsAccount) return;
+    const environment = process.env;
+    const callerAccount = async (credentials: {
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+    }) => {
+      const { getAwsCredentialsIdentity } = await import('src/aws/identity');
+      const identity = await getAwsCredentialsIdentity({
+        credentials,
+        region: this.region || 'us-east-1',
+        getErrorHandler: () => (error) => {
+          throw error;
+        },
+        loggingPlugin: createAwsLoggingPlugin({ printer: tuiManager, isDebug: () => this.logLevel === 'debug' })
+      });
+      if (!identity.Account) throw new Error('AWS STS returned no account ID');
+      return identity.Account;
+    };
+    this.#localAwsAccount = resolveLocalAwsAccount({
+      selectors: this.localAwsSelectors,
+      sources: {
+        readProfile: (profile) => readAwsProfile(profile, environment),
+        profileCallerAccount: async (profile) => {
+          const { assumedRoleIdentityPlugin } = await import('src/aws/identity');
+          return callerAccount(
+            await loadProfileCredentials({
+              profile,
+              environment,
+              region: this.region,
+              clientPlugins: [assumedRoleIdentityPlugin]
+            })
+          );
+        },
+        // The keys themselves, not a provider chain: nothing else can stand in for them when they are rejected.
+        environmentCallerAccount: () => {
+          if (!environment.AWS_SECRET_ACCESS_KEY) throw new Error('AWS_SECRET_ACCESS_KEY is not set');
+          return callerAccount({
+            accessKeyId: environment.AWS_ACCESS_KEY_ID!,
+            secretAccessKey: environment.AWS_SECRET_ACCESS_KEY,
+            sessionToken: environment.AWS_SESSION_TOKEN
+          });
+        }
+      }
+    }).then(
+      (account) => ({ account }),
+      (error) => ({ error })
+    );
+  };
+
+  /**
+   * Without `--awsAccount`, local AWS credentials choose the connected account, ahead of the saved default. With it,
+   * a selected profile that will not supply the credentials gets one line saying so. Runs once, after the connected
+   * accounts are loaded.
+   */
+  selectAwsAccountFromLocalCredentials = () => {
+    this.#localAwsAccountSelection ??= (async () => {
+      if (this.args.awsAccount) {
+        const notice = ignoredProfileNotice({ selectors: this.localAwsSelectors, account: this.targetAwsAccount });
+        if (notice) tuiManager.info(notice);
+        return;
+      }
+      this.startLocalAwsAccountResolution();
+      const { account, error } = await this.#localAwsAccount!;
+      if (error) throw error;
+      if (!account) return;
+      const connected = matchConnectedAwsAccount({
+        localAccount: account,
+        connectedAwsAccounts: this.connectedAwsAccounts,
+        organizationName: this.organizationData.name
+      });
+      this.awsAccountFromLocalCredentials = { name: connected.name, selectedBy: account.selector.label };
+    })();
+    return this.#localAwsAccountSelection;
+  };
+
+  /**
+   * Local AWS credentials for `package`, which builds artifacts on this machine and usually never calls AWS. Nothing is
+   * requested here: the provider runs when an AWS client first signs a request, and the account is looked up by
+   * `resolveLocalAwsAccount` only when something needs it. A profile that names its account (an assumed role, SSO or
+   * web identity) supplies it without a request, and then only that profile supplies the credentials: the default chain
+   * would fall through to container, instance or environment credentials of another account when the profile fails.
+   */
+  prepareLocalAwsCredentials = async (): Promise<AwsCredentialsProvider> => {
     const selectedProfile = selectAwsCredentialProfile({
       requestedProfile: this.rawArgs.profile,
       environmentProfile: process.env.AWS_PROFILE,
       persistedProfile: this.persistedState?.cliArgsDefaults.profile,
       environment: process.env
     });
-    // Imported on use, like every AWS SDK module here, so commands that never use AWS do not evaluate the SDK at
-    // startup.
-    const [{ defaultProvider }, { getAwsCredentialsIdentity }] = await Promise.all([
-      import('@aws-sdk/credential-provider-node'),
-      import('src/aws/identity')
-    ]);
-    const credentialsProvider = defaultProvider(selectedProfile ? { profile: selectedProfile } : {});
-    const credentials = await timeAsync('credentials:provider-chain', () => credentialsProvider());
-    const identity = await getAwsCredentialsIdentity({
+    const accountId = selectedProfile
+      ? accountIdFromProfile(await readAwsProfile(selectedProfile, process.env))
+      : undefined;
+    // Imported on use, like every AWS SDK module here, so commands that never use AWS do not evaluate the SDK.
+    const loadProvider = async (): Promise<AwsCredentialsProvider> => {
+      const { assumedRoleIdentityPlugin } = await import('src/aws/identity');
+      if (selectedProfile && accountId) {
+        return createProfileCredentialsProvider({
+          profile: selectedProfile,
+          region: this.region,
+          clientPlugins: [assumedRoleIdentityPlugin]
+        });
+      }
+      const { defaultProvider } = await import('@aws-sdk/credential-provider-node');
+      return defaultProvider({
+        ...(selectedProfile ? { profile: selectedProfile } : {}),
+        clientPlugins: [assumedRoleIdentityPlugin]
+      });
+    };
+    let provider: Promise<AwsCredentialsProvider> | undefined;
+    const credentialsProvider: AwsCredentialsProvider = async () => {
+      provider ??= loadProvider();
+      try {
+        return await (
+          await provider
+        )();
+      } catch (cause) {
+        throw localAwsCredentialsUnavailable({ profile: selectedProfile, cause });
+      }
+    };
+    this.localCredentialsProvider = credentialsProvider;
+    this.#localCredentialProfile = selectedProfile;
+    if (accountId) {
+      this.localTargetAwsAccount = this.#localTargetAccount(accountId);
+    }
+    return credentialsProvider;
+  };
+
+  /**
+   * The account of the local credentials prepared by `prepareLocalAwsCredentials`, looked up with STS the first time
+   * something needs it. Does nothing when the account is already known.
+   */
+  resolveLocalAwsAccount = async () => {
+    if (this.localTargetAwsAccount || !this.localCredentialsProvider) return;
+    this.#localAwsAccountLookup ??= this.#lookUpLocalAwsAccount();
+    return this.#localAwsAccountLookup;
+  };
+
+  #localCredentialProfile?: string;
+  #localAwsAccountLookup?: Promise<void>;
+
+  #localTargetAccount = (awsAccountId: string): GlobalStateConnectedAwsAccount => ({
+    id: `local:${awsAccountId}`,
+    organizationId: 'local',
+    awsAccountId,
+    connectionMode: 'BASIC',
+    name: this.#localCredentialProfile || 'local credential chain',
+    state: 'ACTIVE',
+    primaryRegions: [this.region],
+    defaultRegion: this.region
+  });
+
+  #lookUpLocalAwsAccount = async () => {
+    await operationReporter.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
+    const { getAwsCredentialsIdentity } = await import('src/aws/identity');
+    const profile = this.#localCredentialProfile;
+    const credentials = await timeAsync('credentials:provider-chain', async () => this.localCredentialsProvider());
+    const { account, arn } = await getAwsCredentialsIdentity({
       credentials,
       region: this.region,
       getErrorHandler: createAwsErrorHandler({
@@ -347,38 +520,23 @@ export class GlobalStateManager {
         profile: () => this.awsProfileName
       }),
       loggingPlugin: createAwsLoggingPlugin({ printer: tuiManager, isDebug: () => this.logLevel === 'debug' })
-    });
-    if (!identity.Account || !identity.Arn) {
-      throw new Error('AWS STS returned an incomplete caller identity.');
-    }
-
-    this.localCredentialsProvider = credentialsProvider;
-    this.credentials = {
-      ...credentials,
-      source: 'providerChain',
-      identity: {
-        account: identity.Account,
-        arn: identity.Arn
+    }).then(
+      ({ Account, Arn }) => {
+        if (!Account || !Arn) throw new Error('AWS STS returned an incomplete caller identity.');
+        return { account: Account, arn: Arn };
+      },
+      (cause) => {
+        throw localAwsAccountUnresolved({ profile, cause });
       }
-    };
-    this.localTargetAwsAccount = {
-      id: `local:${identity.Account}`,
-      organizationId: 'local',
-      awsAccountId: identity.Account,
-      connectionMode: 'BASIC',
-      name: selectedProfile || 'local credential chain',
-      state: 'ACTIVE',
-      primaryRegions: [this.region],
-      defaultRegion: this.region
-    };
-
+    );
+    this.credentials = { ...credentials, source: 'providerChain', identity: { account, arn } };
+    this.localTargetAwsAccount = this.#localTargetAccount(account);
     await operationReporter.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
-      finalMessage: selectedProfile
-        ? `AWS credentials loaded (profile ${selectedProfile})`
+      finalMessage: profile
+        ? `AWS credentials loaded (profile ${profile})`
         : 'AWS credentials loaded (standard AWS credential chain)'
     });
-    return credentialsProvider;
   };
 
   loadUserDataFromTrpcApi = async () => {
@@ -490,22 +648,28 @@ export class GlobalStateManager {
 
     this.credentials = validatedCredentials;
 
-    // if credentials have expiration set refresh timeout
+    // Expiring credentials are refreshed shortly before they expire. Scheduling reads AWS's clock over HTTP, which the
+    // command does not wait for: the credentials are valid for far longer than that takes.
     if (this.credentials.expiration) {
-      await this.scheduleCredentialRefresh(this.credentials.expiration);
+      void this.scheduleCredentialRefresh(this.credentials.expiration);
     }
     // The finished line must stand alone in the record — name the subject, not
     // just the source ("Loaded from Stacktape API" reads as a mystery later).
     const loadedFrom = {
-      envVar: 'environment variables',
-      credentialsFile: 'credentials file',
-      providerChain: 'AWS credential provider chain',
+      envVar: 'from environment variables',
+      credentialsFile: 'from credentials file',
+      providerChain: 'from AWS credential provider chain',
       api: 'via Stacktape',
-      assumeRole: 'assumed role'
+      assumeRole: 'from assumed role'
     }[this.credentials.source];
+    // Names the target before anything changes, so a wrong account is visible in the first lines of every run.
+    const { name, awsAccountId } = this.targetAwsAccount;
+    const selectedBy = this.awsAccountFromLocalCredentials?.selectedBy;
     await operationReporter.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
-      finalMessage: `AWS credentials loaded (${loadedFrom})`
+      finalMessage: `AWS credentials loaded ${loadedFrom} for account ${name} (${awsAccountId})${
+        selectedBy ? `, selected by ${selectedBy}` : ''
+      }`
     });
     return this.credentials;
   };
@@ -611,15 +775,16 @@ export class GlobalStateManager {
 
     const stage = await this.#resolveStage();
     const stackName = `${projectName}-${stage}`;
+    const { region } = this;
+    const accountId = () => this.targetAwsAccount.awsAccountId;
     this.targetStack = {
       projectName,
       stackName,
       stage,
-      globallyUniqueStackHash: getGloballyUniqueStackHash({
-        region: this.region,
-        accountId: this.targetAwsAccount.awsAccountId,
-        stackName
-      })
+      // Read only when used: the account of local credentials is looked up only when something needs it.
+      get globallyUniqueStackHash() {
+        return getGloballyUniqueStackHash({ region, accountId: accountId(), stackName });
+      }
     };
   };
 

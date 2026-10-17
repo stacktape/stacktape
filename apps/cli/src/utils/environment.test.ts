@@ -4,17 +4,8 @@ import { getAugmentedEnvironment, shipsSourceMapsInPackage } from './environment
 const nodeOptionsOf = (environment: { name: string; value: string | number | boolean }[]) =>
   environment.find(({ name }) => name === 'NODE_OPTIONS')?.value;
 
+// A build that ships maps on Node 22+ is proved by the config-loading scenario's NODE_OPTIONS.
 describe('--enable-source-maps follows the source maps', () => {
-  test('a JS/TS Lambda whose build ships maps gets the flag', () => {
-    const environment = getAugmentedEnvironment({
-      workloadType: 'function',
-      packagingType: 'js-bundle',
-      entryfilePath: 'src/handler.ts',
-      nodeVersion: 24
-    });
-    expect(String(nodeOptionsOf(environment))).toContain('--enable-source-maps');
-  });
-
   test('a build that keeps maps out of the package does not set a flag that would read them', () => {
     const environment = getAugmentedEnvironment({
       workloadType: 'function',
@@ -42,16 +33,26 @@ describe('--enable-source-maps follows the source maps', () => {
 });
 
 describe('when a build ships source maps', () => {
-  test('by default it does', () => {
-    expect(shipsSourceMapsInPackage(undefined)).toBe(true);
-    expect(shipsSourceMapsInPackage({})).toBe(true);
+  test('a Lambda ZIP keeps them in the deployment bucket unless the configuration keeps them in the package', () => {
+    expect(shipsSourceMapsInPackage(undefined, 'lambda')).toBe(false);
+    expect(shipsSourceMapsInPackage({ outputSourceMapsTo: './maps' }, 'lambda')).toBe(false);
+    expect(shipsSourceMapsInPackage({ keepSourceMapsInPackage: true }, 'lambda')).toBe(true);
+    expect(shipsSourceMapsInPackage({ keepSourceMapsInPackage: true, outputSourceMapsTo: './maps' }, 'lambda')).toBe(
+      true
+    );
+  });
+
+  test('an image ships them by default', () => {
+    expect(shipsSourceMapsInPackage(undefined, 'container')).toBe(true);
+    expect(shipsSourceMapsInPackage({}, 'container')).toBe(true);
+    expect(shipsSourceMapsInPackage({ outputSourceMapsTo: './maps' }, 'container')).toBe(false);
   });
 
   test.each([
-    ['disableSourceMaps', { disableSourceMaps: true }],
-    ['outputSourceMapsTo', { outputSourceMapsTo: './maps' }],
-    ['emitTsDecoratorMetadata', { emitTsDecoratorMetadata: true }]
-  ])('%s keeps them out of the package', (_option, config) => {
-    expect(shipsSourceMapsInPackage(config)).toBe(false);
+    ['disableSourceMaps', { disableSourceMaps: true, keepSourceMapsInPackage: true }],
+    ['emitTsDecoratorMetadata', { emitTsDecoratorMetadata: true, keepSourceMapsInPackage: true }]
+  ])('%s leaves no map to read', (_option, config) => {
+    expect(shipsSourceMapsInPackage(config, 'lambda')).toBe(false);
+    expect(shipsSourceMapsInPackage(config, 'container')).toBe(false);
   });
 });

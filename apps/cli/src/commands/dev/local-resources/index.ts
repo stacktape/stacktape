@@ -7,7 +7,7 @@ import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { localStatePaths } from 'src/config/local-state-paths';
-import { createCleanupHook } from '../cleanup-utils';
+import { createCleanupHook, getDevContainerName } from '../cleanup-utils';
 import { clearReservedPorts } from './container-helpers';
 import { startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
@@ -69,10 +69,12 @@ const getDataDir = (resourceName: string) => {
   });
 };
 
-const getLocalContainerName = (resourceName: string) => {
-  const { stage } = globalStateManager;
-  return `stp-${stage}-${resourceName}`;
-};
+const getLocalContainerName = (resourceName: string) =>
+  getDevContainerName({
+    projectName: globalStateManager.targetStack.projectName,
+    stage: globalStateManager.stage,
+    name: resourceName
+  });
 
 const mapEngineToLocalType = (engineType: string): LocalResourceType | null => {
   if (

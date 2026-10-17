@@ -14,12 +14,14 @@
  *   Docker, its function ZIPs and its shared layer, zipped as a deployment zips it, hold the same entries as with Docker
  *   ready, and each function runs in the Lambda Node.js image with the layer at /opt (see `lambda-runtime.ts`). A single
  *   function, and a group with `--disableLayerOptimization`, is packaged per function.
- * - A split group whose shared analysis finds a native dependency asks only `docker info`, and without Docker fails
- *   before any artifact, naming the dependency and its function.
+ * - A split group whose shared analysis finds a native dependency that has to be installed again for Lambda (it was
+ *   never built) asks only `docker info`, and without Docker fails before any artifact, naming the dependency and its
+ *   function.
  * - A job that needs Docker prepares only the platform it builds for, once, however many jobs ask: a host-native build
  *   never installs emulation, and a missing platform leads to one refused binfmt request for that platform only, with
  *   the pinned helper. Other jobs are still packaged.
  * - The registry cache builder and ECR login are prepared only for a build that uses the cache, and before it runs.
+ *   Only a CI job uses the cache; on a developer machine an existing stack's image builds with the local builder.
  * - A job that needs Docker still fails with `DOCKER_NOT_RUNNING` or `DOCKER_NOT_INSTALLED`.
  * - Across a series of deployments against one image registry, each image job's registry cache tag survives while the
  *   job exists, so later builds import it. Old image versions and replaced cache images are still deleted, and a
@@ -31,15 +33,16 @@
  *   upload, with a message naming each size.
  *
  * One scenario uses the real Docker daemon, host-native only: a guard forwards `info`, `buildx inspect`, an amd64
- * `build` tagged with this run's own prefix and `image inspect` of that tag, and refuses everything else. The image
- * is built `FROM scratch`, so nothing is pulled; the daemon's image events confirm it. The image is removed at the end
- * and its removal verified.
+ * `build` tagged with this run's own prefix and `image inspect` of that tag or of the image ID the build reported, and
+ * refuses everything else. The image is built `FROM scratch`, so nothing is pulled; the daemon's image events confirm
+ * it. The image is removed at the end and its removal verified.
  *
  *   pnpm --filter @stacktape/cli run test:docker-preparation -- [--out <dir>] [--skip-real-docker]
  *
  * Needs the Lambda Node.js image and `unzip` for the runtime checks. Contacts no AWS service or registry. `--out` must
  * be new or empty; projects, logs and the report stay there, apart from the large scenarios' data and build output.
  */
+import { startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import type { LambdaFunction } from '@stacktape/config/functions';
 import type { WorkerService } from '@stacktape/config/worker-services';
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
@@ -66,6 +69,7 @@ import {
 
 const CLI_ROOT = resolve(import.meta.dir, '..', '..');
 const REPO_ROOT = resolve(CLI_ROOT, '..', '..');
+let ministack: MiniStack;
 const WORKER = join(import.meta.dir, 'docker-preparation-worker.ts');
 
 /** The binfmt installer, pinned by the digest of its multi-platform image index (verified read-only, 2026-09-24). */
@@ -101,6 +105,8 @@ type Scenario = {
   /** The project's files beside the common ones; `native` adds an installed package with a native build. */
   files: Record<string, string>;
   native?: boolean;
+  /** Runs the worker as a CI job (`CI=true`). Without it, the worker runs as on a developer machine (`CI=false`). */
+  ci?: boolean;
   disableLayerOptimization?: boolean;
   /** Zip the shared layers as a deployment does, so they can be compared, measured and run. */
   zipSharedLayers?: boolean;
@@ -258,11 +264,27 @@ if [ "$daemon" = stuck ]; then
 fi
 
 platform=
+iidfile=
+load=no
 previous=
 for argument in "$@"; do
   [ "$previous" = --platform ] && platform=$argument
+  [ "$previous" = --iidfile ] && iidfile=$argument
+  [ "$argument" = --load ] && load=yes
   previous=$argument
 done
+# A build with --load puts a new image into the image store and writes its ID to --iidfile. The image the build's tag
+# named before is a different image. Without --load the image stays in the builder, as with a docker-container builder.
+loaded_image() {
+  [ "$load" = yes ] || return 0
+  until mkdir "$state/images.lock" 2>/dev/null; do sleep 0.05; done
+  images=$(($(cat "$state/images" 2>/dev/null || echo 0) + 1))
+  echo "$images" > "$state/images"
+  rmdir "$state/images.lock"
+  image_id=$(printf 'sha256:1d%062d' "$images")
+  [ -z "$iidfile" ] || printf '%s' "$image_id" > "$iidfile"
+  printf ' %s' "$image_id"
+}
 # A build for a platform the builder does not report fails when its first step runs.
 require_platform() {
   [ -z "$platform" ] && return 0
@@ -339,13 +361,13 @@ case "$1" in
         fi
         cache_to=$(registry_ref --cache-to "$@")
         [ -z "$cache_to" ] || publish "$(printf '%s' "$cache_to" | sed 's/.*://')"
-        record answered 0 "image built with the registry cache ($cache)" "$@"
+        record answered 0 "image built with the registry cache ($cache)$(loaded_image)" "$@"
         exit 0 ;;
     esac
     refuse 1 'builder change' "$@" ;;
   build)
     require_platform "$@"
-    record answered 0 'image built' "$@"
+    record answered 0 "image built$(loaded_image)" "$@"
     exit 0 ;;
   image)
     case "$2" in
@@ -361,7 +383,9 @@ case "$1" in
         exit $? ;;
       inspect)
         record answered 0 'image details' "$@"
-        echo '[{"Id":"sha256:5eed000000000000000000000000000000000000000000000000000000000000","Size":1048576,"Created":"2026-09-24T00:00:00Z"}]'
+        # An ID names that image; a tag names an older image than any this run built.
+        case "$3" in sha256:*) id=$3 ;; *) id=sha256:5eed000000000000000000000000000000000000000000000000000000000000 ;; esac
+        echo "[{\"Id\":\"$id\",\"Size\":1048576,\"Created\":\"2026-09-24T00:00:00Z\"}]"
         exit 0 ;;
     esac
     refuse 1 'image change' "$@" ;;
@@ -433,7 +457,7 @@ case "$1" in
     previous=
     for argument in "$@"; do
       case "$previous" in --platform) platform=$argument ;; -t) tag=$argument ;; esac
-      case "$argument" in --builder* | --push | --output* | -o | --cache-from* | --cache-to* | --load | --pull*) unsafe=$argument ;; esac
+      case "$argument" in --builder* | --push | --output* | -o | --cache-from* | --cache-to* | --pull*) unsafe=$argument ;; esac
       previous=$argument
     done
     if [ "$platform" = linux/amd64 ] && [ -z "$unsafe" ]; then
@@ -442,7 +466,8 @@ case "$1" in
     refuse 1 'a build this scenario does not own' "$@" ;;
   image)
     if [ "$2" = inspect ] && [ "$#" -eq 3 ]; then
-      case "$3" in "$prefix"*) forward "$@" ;; esac
+      # An image ID names one image; the build reports the ID of the image it built.
+      case "$3" in "$prefix"* | sha256:*) forward "$@" ;; esac
     fi
     refuse 1 'an image this scenario does not own' "$@" ;;
   run) refuse 125 'container' "$@" ;;
@@ -571,7 +596,9 @@ const runWorker = async ({
   stateDirectory,
   logPath,
   request,
-  deadlineMs
+  deadlineMs,
+  awsEnvironment,
+  ci
 }: {
   name: string;
   label: string;
@@ -582,6 +609,8 @@ const runWorker = async ({
   logPath: string;
   request: DockerPreparationRequest;
   deadlineMs: number;
+  awsEnvironment: Record<string, string>;
+  ci: boolean;
 }): Promise<WorkerRun> => {
   await writeFile(logPath, '');
   const requestPath = join(directory, `${label}request.json`);
@@ -595,8 +624,11 @@ const runWorker = async ({
     cwd: project,
     env: {
       // An owned home keeps the user's Stacktape state out of reach; Bun's transpiler cache would fill it on every run.
+      ...awsEnvironment,
       HOME: home,
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+      // Image builds use the registry cache only in CI.
+      CI: ci ? 'true' : 'false',
       PATH: dockerDirectory,
       STP_INVOCATION_ID: label ? `docker-preparation-${label.slice(0, -1)}` : 'docker-preparation',
       STP_TIMINGS_FILE: timingsPath
@@ -691,6 +723,9 @@ const runScenario = async (scenario: Scenario, outDirectory: string): Promise<Sc
   }
   if (dockerScript) await file(join(dockerDirectory, 'docker'), dockerScript, 0o755);
 
+  // CloudFormation-created buckets live in MiniStack's default account; isolate these scenarios by stack/bucket name.
+  const stackHash = `dp${randomBytes(4).toString('hex')}`;
+  const awsEnvironment = scenario.command === 'deploy' ? ministack.childEnvironment() : {};
   const runs: WorkerRun[] = [];
   for (const [index, deployment] of (scenario.deployments ?? [undefined]).entries()) {
     const label = deployment ? `deployment-${index + 1}.` : '';
@@ -699,6 +734,7 @@ const runScenario = async (scenario: Scenario, outDirectory: string): Promise<Sc
     }
     const request: DockerPreparationRequest = {
       command: scenario.command,
+      ...(scenario.command === 'deploy' && { localAwsEndpoint: ministack.endpoint, stackHash }),
       resources: deployment?.resources ?? scenario.resources,
       resultPath: join(directory, `${label}result.json`),
       ...(scenario.disableLayerOptimization && { disableLayerOptimization: true }),
@@ -721,6 +757,8 @@ const runScenario = async (scenario: Scenario, outDirectory: string): Promise<Sc
         stateDirectory,
         logPath,
         request,
+        awsEnvironment,
+        ci: scenario.ci ?? false,
         deadlineMs: scenario.deadlineMs ?? DEFAULT_DEADLINE_MS
       })
     );
@@ -755,6 +793,24 @@ const expectOperations = (run: ScenarioRun, expected: string[]) =>
     JSON.stringify(operations(run)) === JSON.stringify(expected),
     `Docker was asked ${JSON.stringify(operations(run))}, expected ${JSON.stringify(expected)}.`
   );
+
+/**
+ * Every image a deployment pushes is one its own build loaded: `docker tag` names the image ID the build wrote to its
+ * `--iidfile`. The stand-in's tags still name older images, as when a builder did not load the new one or another
+ * project's build moved the tag.
+ */
+const expectBuiltImagesPushed = (deployment: WorkerRun, label: string) => {
+  const built = new Set(
+    deployment.dockerOperations.flatMap(({ operation, reason }) =>
+      operation === 'build' || operation === 'buildx build' ? (reason.match(/sha256:1d\d{62}/g) ?? []) : []
+    )
+  );
+  const tagged = deployment.dockerOperations.filter(({ operation }) => operation === 'tag').map(({ args }) => args[1]);
+  expect(tagged.length > 0, `${label} tagged no image.`);
+  for (const source of tagged) {
+    expect(built.has(source ?? ''), `${label} tagged ${source}, not an image its build loaded (${[...built]}).`);
+  }
+};
 
 const expectPackaged = (run: ScenarioRun, jobNames: string[]) => {
   expect(!run.timedOut, `The run did not finish before its deadline (${run.wallMs} ms).`);
@@ -1202,6 +1258,7 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
     {
       name: 'registry cache used by an image build',
       command: 'deploy',
+      ci: true,
       docker: {
         kind: 'stand-in',
         state: { daemon: 'running', platforms: ALL_PLATFORMS, cacheBuilderExists: true }
@@ -1223,6 +1280,29 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
       }
     },
     {
+      name: 'image build on a developer machine',
+      command: 'deploy',
+      docker: {
+        kind: 'stand-in',
+        state: { daemon: 'running', platforms: ALL_PLATFORMS, cacheBuilderExists: true }
+      },
+      resources: { local: workerService('x86_64'), single: lambda('./src/single.ts') },
+      files: { 'src/single.ts': HANDLER, ...IMAGE_FILES },
+      check: (run) => {
+        expectPackaged(run, ['local-service-container', 'single']);
+        expectOperations(run, ['buildx inspect', 'build', 'image inspect']);
+        const build = run.dockerOperations[1]!;
+        expect(
+          !build.args.includes('stacktape-builder') &&
+            !build.args.some((arg) => arg.startsWith('--cache')) &&
+            build.platform === 'linux/amd64',
+          `The image was not built with the local builder alone: ${build.args}.`
+        );
+        expect(run.result!.ecrAuthorizations === 0, `ECR authorization ran ${run.result!.ecrAuthorizations} times.`);
+        return 'amd64 build with the local builder and its cache: no registry cache, builder check or ECR login';
+      }
+    },
+    {
       name: 'registry cache unused',
       command: 'deploy',
       docker: {
@@ -1240,6 +1320,7 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
     {
       name: REGISTRY_CACHE_SERIES,
       command: 'deploy',
+      ci: true,
       docker: { kind: 'stand-in', state: { daemon: 'running', platforms: HOST_PLATFORMS, cacheBuilderExists: true } },
       resources: { web: workerService('x86_64'), worker: workerService('x86_64') },
       files: IMAGE_FILES,
@@ -1260,8 +1341,39 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
           );
           const pushes = deployment.dockerOperations.filter(({ operation }) => operation === 'push').length;
           expect(pushes === (index < 3 ? 2 : 0), `Deployment ${index + 1} pushed ${pushes} images.`);
+          if (pushes) expectBuiltImagesPushed(deployment, `Deployment ${index + 1}`);
         });
-        return 'four deployments; the first three rebuilt and pushed both images, the fourth reused web';
+        return 'four deployments; the first three rebuilt and pushed both images by their build IDs, the fourth reused web';
+      }
+    },
+    {
+      name: 'deployments on a developer machine',
+      command: 'deploy',
+      docker: { kind: 'stand-in', state: { daemon: 'running', platforms: HOST_PLATFORMS, cacheBuilderExists: true } },
+      resources: { web: workerService('x86_64'), worker: workerService('x86_64') },
+      files: IMAGE_FILES,
+      deployments: [
+        { files: { 'image/hello.txt': 'deployment 1\n' } },
+        { files: { 'image/hello.txt': 'deployment 2\n' } }
+      ],
+      check: (run) => {
+        const deployments = run.deployments ?? [];
+        expect(deployments.length === 2, `${deployments.length} deployments ran.`);
+        deployments.forEach((deployment, index) => {
+          expect(
+            deployment.exitCode === 0 && deployment.result?.outcome === 'packaged',
+            `Deployment ${index + 1} failed: ${deployment.result?.error?.message ?? 'no result'}`
+          );
+          const operations = deployment.dockerOperations.map(({ operation }) => operation);
+          expect(
+            !operations.some((operation) => operation.startsWith('buildx build') || operation === 'buildx ls'),
+            `Deployment ${index + 1} used the registry cache builder: ${operations}.`
+          );
+          const pushes = operations.filter((operation) => operation === 'push').length;
+          expect(pushes === 2, `Deployment ${index + 1} pushed ${pushes} images.`);
+          expectBuiltImagesPushed(deployment, `Deployment ${index + 1}`);
+        });
+        return 'two deployments with the local builder; each pushed both images by the IDs their builds reported';
       }
     },
     {
@@ -1350,6 +1462,10 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
             (message.match(/\d+\.\d\dMB/g) ?? []).length >= 3,
           `The message does not name the function, its size, each Stacktape layer's size and the total: ${message}`
         );
+        // The fixture has a 215 MiB function asset and one 40 MiB shared string; generated code adds less than 1 MiB.
+        // Checking these independently catches a constant total or decimal-MB conversion in error formatting.
+        const sizes = (message.match(/\d+\.\d\dMB/g) ?? []).map((value) => Math.floor(Number.parseFloat(value)));
+        expect(isDeepStrictEqual(sizes, [215, 40, 40, 255]), `The reported sizes do not match the fixture: ${message}`);
         const uploaded = run.result!.deployment?.uploadedKeys ?? [];
         expect(uploaded.length === 0, `Uploaded before failing: ${uploaded}.`);
         return message;
@@ -1507,136 +1623,150 @@ const main = async () => {
     };
   }
 
-  const scenarios = createScenarios({ realDocker: realDocker?.qualified ? realDocker.path : null });
-  const runs: ScenarioRun[] = [];
-  let realCleanup: Awaited<ReturnType<typeof cleanUpRealImage>> | null = null;
-  for (const scenario of scenarios) {
-    const since = new Date(Date.now() - 1000).toISOString();
-    const run = await runScenario(scenario, outDirectory);
-    runs.push(run);
-    await check(scenario.name, () => scenario.check(run));
-    if (scenario.docker.kind === 'real') {
-      const { realDocker: realDockerExecutable, imagePrefix } = scenario.docker;
-      realCleanup = await cleanUpRealImage({ realDocker: realDockerExecutable, run, imagePrefix, since });
-      const cleanup = realCleanup;
-      await check('real Docker: the owned image is removed and nothing was pulled', () => {
-        expect(cleanup.imagesBeforeRemoval.length === 1, `Owned images: ${cleanup.imagesBeforeRemoval}.`);
-        expect(
-          cleanup.removed.every(({ exitCode }) => exitCode === 0) && cleanup.remaining.length === 0,
-          `Removal failed or left ${cleanup.remaining}.`
-        );
-        expect(cleanup.eventsExitCode === 0, 'The daemon events could not be read.');
-        expect(!cleanup.imageEvents.some((event) => event.startsWith('pull')), `Image events: ${cleanup.imageEvents}.`);
-        return `${cleanup.imagesBeforeRemoval[0]}; events ${JSON.stringify(cleanup.imageEvents)}`;
+  ministack = await startMiniStack({ label: 'docker-preparation' });
+  const releaseSignals = stopMiniStackOnSignals(ministack);
+  try {
+    const scenarios = createScenarios({ realDocker: realDocker?.qualified ? realDocker.path : null });
+    const runs: ScenarioRun[] = [];
+    let realCleanup: Awaited<ReturnType<typeof cleanUpRealImage>> | null = null;
+    for (const scenario of scenarios) {
+      const since = new Date(Date.now() - 1000).toISOString();
+      const run = await runScenario(scenario, outDirectory);
+      runs.push(run);
+      await check(scenario.name, () => scenario.check(run));
+      if (scenario.docker.kind === 'real') {
+        const { realDocker: realDockerExecutable, imagePrefix } = scenario.docker;
+        realCleanup = await cleanUpRealImage({ realDocker: realDockerExecutable, run, imagePrefix, since });
+        const cleanup = realCleanup;
+        await check('real Docker: the owned image is removed and nothing was pulled', () => {
+          expect(cleanup.imagesBeforeRemoval.length === 1, `Owned images: ${cleanup.imagesBeforeRemoval}.`);
+          expect(
+            cleanup.removed.every(({ exitCode }) => exitCode === 0) && cleanup.remaining.length === 0,
+            `Removal failed or left ${cleanup.remaining}.`
+          );
+          expect(cleanup.eventsExitCode === 0, 'The daemon events could not be read.');
+          expect(
+            !cleanup.imageEvents.some((event) => event.startsWith('pull')),
+            `Image events: ${cleanup.imageEvents}.`
+          );
+          return `${cleanup.imagesBeforeRemoval[0]}; events ${JSON.stringify(cleanup.imageEvents)}`;
+        });
+      }
+      await check(`${scenario.name}: no stand-in process outlived the run`, () => {
+        expect(run.leftoverProcesses.length === 0, `Killed leftovers: ${run.leftoverProcesses}.`);
       });
+      for (const path of scenario.removeAfterChecks ?? []) {
+        await rm(join(run.directory, 'project', path), { recursive: true, force: true });
+      }
     }
-    await check(`${scenario.name}: no stand-in process outlived the run`, () => {
-      expect(run.leftoverProcesses.length === 0, `Killed leftovers: ${run.leftoverProcesses}.`);
-    });
-    for (const path of scenario.removeAfterChecks ?? []) {
-      await rm(join(run.directory, 'project', path), { recursive: true, force: true });
-    }
-  }
 
-  const deployments = runs.find(({ name }) => name === REGISTRY_CACHE_SERIES)?.deployments ?? [];
-  // Each job's cache tag, as the CLI's own first build named it in `--cache-to`.
-  const cacheTags = new Map(
-    (deployments[0] ? imageBuilds(deployments[0]) : []).map(({ args }) => [
-      valueAfter(args, '-t')!,
-      tagOf(valueAfter(args, '--cache-to') ?? '')
-    ])
-  );
-  await check('registry cache: each job keeps its cache tag through every deployment while the job exists', () => {
-    expect(deployments.length === 4 && cacheTags.size === 2, `Cache tags ${[...cacheTags.values()]}.`);
-    deployments.forEach((deployment, index) => {
-      for (const { jobName } of deployment.result?.jobs ?? []) {
+    const deployments = runs.find(({ name }) => name === REGISTRY_CACHE_SERIES)?.deployments ?? [];
+    // Each job's cache tag, as the CLI's own first build named it in `--cache-to`.
+    const cacheTags = new Map(
+      (deployments[0] ? imageBuilds(deployments[0]) : []).map(({ args }) => [
+        valueAfter(args, '-t')!,
+        tagOf(valueAfter(args, '--cache-to') ?? '')
+      ])
+    );
+    await check('registry cache: each job keeps its cache tag through every deployment while the job exists', () => {
+      expect(deployments.length === 4 && cacheTags.size === 2, `Cache tags ${[...cacheTags.values()]}.`);
+      deployments.forEach((deployment, index) => {
+        for (const { jobName } of deployment.result?.jobs ?? []) {
+          expect(
+            registryTags(deployment).has(cacheTags.get(jobName)!),
+            `Deployment ${index + 1} left no ${cacheTags.get(jobName)}; the registry holds ${registryAfter(deployment)}.`
+          );
+        }
+      });
+      return [...cacheTags.values()].join(', ');
+    });
+    await check('registry cache: deployments 2 and 3 build from the cache', () => {
+      for (const index of [1, 2]) {
+        for (const { reason } of imageBuilds(deployments[index]!)) {
+          expect(reason.includes('(found)'), `Deployment ${index + 1}: ${reason}.`);
+        }
+      }
+    });
+    await check('registry cache: older image versions and replaced caches are still deleted', () => {
+      const third = deployments[2]!;
+      for (const job of cacheTags.keys()) {
+        const versions = [...registryTags(third)]
+          .filter((tag) => tag.startsWith(`${job}--`))
+          .map((tag) => tag.split('--')[2])
+          .toSorted();
+        expect(JSON.stringify(versions) === '["v000003","v000004"]', `After deployment 3, ${job} keeps ${versions}.`);
+      }
+      const replacedBefore = registryAfter(deployments[1]!).filter((line) => line.startsWith('- '));
+      expect(replacedBefore.length > 0, 'Deployment 2 replaced no cache image.');
+      const remaining = replacedBefore.filter((line) => registryAfter(third).includes(line));
+      expect(remaining.length === 0, `Replaced cache images outlived deployment 3: ${remaining}.`);
+      return 'two versions per job after deployment 3; images replaced in deployment 2 deleted by deployment 3';
+    });
+    await check("registry cache: a removed job's cache tag is deleted by the next deployment", () => {
+      const last = deployments[3]!;
+      const remainingJobs = (last.result?.jobs ?? []).map(({ jobName }) => jobName);
+      for (const [job, tag] of cacheTags) {
         expect(
-          registryTags(deployment).has(cacheTags.get(jobName)!),
-          `Deployment ${index + 1} left no ${cacheTags.get(jobName)}; the registry holds ${registryAfter(deployment)}.`
+          registryTags(last).has(tag) === remainingJobs.includes(job),
+          `After deployment 4, ${tag} is ${registryTags(last).has(tag) ? 'present' : 'missing'}; jobs ${remainingJobs}.`
         );
       }
+      return `jobs after deployment 4: ${remainingJobs}`;
     });
-    return [...cacheTags.values()].join(', ');
-  });
-  await check('registry cache: deployments 2 and 3 build from the cache', () => {
-    for (const index of [1, 2]) {
-      for (const { reason } of imageBuilds(deployments[index]!)) {
-        expect(reason.endsWith('(found)'), `Deployment ${index + 1}: ${reason}.`);
+
+    const readySplit = runs.find(({ name }) => name === SPLIT_READY_WITH_LAYERS);
+    const absentSplit = runs.find(({ name }) => name === SPLIT_ABSENT_WITH_LAYERS);
+    let splitComparison: Awaited<ReturnType<typeof compareSplitArtifacts>> | null = null;
+    await check(
+      'Docker not installed: the same split function and layer ZIPs, and each function runs in Lambda',
+      async () => {
+        expect(
+          readySplit?.result?.outcome === 'packaged' && absentSplit?.result?.outcome === 'packaged',
+          'A split scenario did not package.'
+        );
+        ensureLambdaImage();
+        splitComparison = await compareSplitArtifacts(readySplit!, absentSplit!);
+        const { ready, absent, invocations } = splitComparison;
+        return `upload ${absent.uploadBytes} bytes (Docker ready ${ready.uploadBytes}); ${Object.values(invocations).join(' ')}`;
       }
-    }
-  });
-  await check('registry cache: older image versions and replaced caches are still deleted', () => {
-    const third = deployments[2]!;
-    for (const job of cacheTags.keys()) {
-      const versions = [...registryTags(third)]
-        .filter((tag) => tag.startsWith(`${job}--`))
-        .map((tag) => tag.split('--')[2])
-        .toSorted();
-      expect(JSON.stringify(versions) === '["v000003","v000004"]', `After deployment 3, ${job} keeps ${versions}.`);
-    }
-    const replacedBefore = registryAfter(deployments[1]!).filter((line) => line.startsWith('- '));
-    expect(replacedBefore.length > 0, 'Deployment 2 replaced no cache image.');
-    const remaining = replacedBefore.filter((line) => registryAfter(third).includes(line));
-    expect(remaining.length === 0, `Replaced cache images outlived deployment 3: ${remaining}.`);
-    return 'two versions per job after deployment 3; images replaced in deployment 2 deleted by deployment 3';
-  });
-  await check("registry cache: a removed job's cache tag is deleted by the next deployment", () => {
-    const last = deployments[3]!;
-    const remainingJobs = (last.result?.jobs ?? []).map(({ jobName }) => jobName);
-    for (const [job, tag] of cacheTags) {
-      expect(
-        registryTags(last).has(tag) === remainingJobs.includes(job),
-        `After deployment 4, ${tag} is ${registryTags(last).has(tag) ? 'present' : 'missing'}; jobs ${remainingJobs}.`
-      );
-    }
-    return `jobs after deployment 4: ${remainingJobs}`;
-  });
+    );
 
-  const readySplit = runs.find(({ name }) => name === SPLIT_READY_WITH_LAYERS);
-  const absentSplit = runs.find(({ name }) => name === SPLIT_ABSENT_WITH_LAYERS);
-  let splitComparison: Awaited<ReturnType<typeof compareSplitArtifacts>> | null = null;
-  await check(
-    'Docker not installed: the same split function and layer ZIPs, and each function runs in Lambda',
-    async () => {
-      expect(
-        readySplit?.result?.outcome === 'packaged' && absentSplit?.result?.outcome === 'packaged',
-        'A split scenario did not package.'
-      );
-      ensureLambdaImage();
-      splitComparison = await compareSplitArtifacts(readySplit!, absentSplit!);
-      const { ready, absent, invocations } = splitComparison;
-      return `upload ${absent.uploadBytes} bytes (Docker ready ${ready.uploadBytes}); ${Object.values(invocations).join(' ')}`;
-    }
-  );
+    const sourceCheck = source.check();
+    await check('the source did not change during the run', () => {
+      expect(sourceCheck === 'unchanged', `Source check: ${sourceCheck}.`);
+    });
 
-  const sourceCheck = source.check();
-  await check('the source did not change during the run', () => {
-    expect(sourceCheck === 'unchanged', `Source check: ${sourceCheck}.`);
-  });
-
-  const failed = results.filter(({ ok }) => !ok);
-  const report = {
-    kind: 'stacktape-docker-preparation-acceptance',
-    schemaVersion: 1,
-    createdAt: new Date().toISOString(),
-    source: { before: source.before, after: source.after, check: sourceCheck },
-    host: getHostEnvironment(),
-    loadAverage: getLoadAverage(),
-    worker: { command: [process.execPath, '--preload', 'scripts/test-preload.ts', relative(CLI_ROOT, WORKER)] },
-    pinnedBinfmtImage: PINNED_BINFMT_IMAGE,
-    realDocker: realDocker
-      ? { ...realDocker, cleanup: realCleanup }
-      : { qualified: false, reason: args['skip-real-docker'] ? 'skipped by --skip-real-docker' : 'no docker on PATH' },
-    scenarios: runs,
-    splitComparison,
-    results
-  };
-  await writeFile(join(outDirectory, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
-  console.info(
-    `\n${results.length - failed.length} of ${results.length} checks passed. Report: ${join(outDirectory, 'report.json')}`
-  );
-  if (!realDocker?.qualified) console.info('Not qualified here: the real Docker scenario (see the report).');
-  if (failed.length > 0) process.exitCode = 1;
+    const failed = results.filter(({ ok }) => !ok);
+    const report = {
+      kind: 'stacktape-docker-preparation-acceptance',
+      schemaVersion: 1,
+      createdAt: new Date().toISOString(),
+      source: { before: source.before, after: source.after, check: sourceCheck },
+      host: getHostEnvironment(),
+      loadAverage: getLoadAverage(),
+      worker: { command: [process.execPath, '--preload', 'scripts/test-preload.ts', relative(CLI_ROOT, WORKER)] },
+      ministackImage: ministack.image,
+      pinnedBinfmtImage: PINNED_BINFMT_IMAGE,
+      realDocker: realDocker
+        ? { ...realDocker, cleanup: realCleanup }
+        : {
+            qualified: false,
+            reason: args['skip-real-docker'] ? 'skipped by --skip-real-docker' : 'no docker on PATH'
+          },
+      scenarios: runs,
+      splitComparison,
+      results
+    };
+    await writeFile(join(outDirectory, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+    console.info(
+      `\n${results.length - failed.length} of ${results.length} checks passed. Report: ${join(outDirectory, 'report.json')}`
+    );
+    if (!realDocker?.qualified) console.info('Not qualified here: the real Docker scenario (see the report).');
+    if (failed.length > 0) process.exitCode = 1;
+  } finally {
+    releaseSignals();
+    await ministack.stop();
+  }
 };
 
 if (import.meta.main) {

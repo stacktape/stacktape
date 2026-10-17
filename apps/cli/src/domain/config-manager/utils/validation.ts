@@ -14,6 +14,7 @@ import type { StpWebService } from '@domain-services/config-manager/resolved-typ
 import type { StackContext } from '@domain-services/stack-context';
 import { join } from 'node:path';
 import {
+  isJsEntryFileExtension,
   lambdaRuntimesForFileExtension,
   linksMap,
   supportedAwsCdkConstructExtensions,
@@ -21,7 +22,9 @@ import {
 } from '@config';
 import { isDirAccessible, isFileAccessible } from '@utils/fs-utils';
 import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@utils/misc';
+import { GUARDRAIL_TITLES } from '@stacktape/console-api/guardrails';
 import { CliError } from '@utils/errors';
+import { isGravitonInstanceSize } from './nat';
 import { parseUserCodeFilepath } from '@utils/file-loaders';
 import type { ConfigManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
@@ -130,7 +133,7 @@ const validatePackagingProps = ({
         hints: issue
       });
     }
-    const isJsEntryFile = ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(extension);
+    const isJsEntryFile = isJsEntryFileExtension(extension);
     if (packaging.type === 'js-bundle' && !isJsEntryFile) {
       throw new CliError({
         category: 'PACKAGING_CONFIG',
@@ -307,11 +310,13 @@ const validateResourceNames = ({ configManager }: { configManager: ConfigManager
   });
 };
 
-const guardrailViolation = (code: string, message: string) =>
+/** Names the guardrail first: the developer must know an organization policy, not a config error, stopped them. */
+const guardrailViolation = (type: GuardrailDefinition['type'], code: string, message: string) =>
   new CliError({
     category: 'GUARDRAIL',
     code,
-    message
+    message: `Blocked by the organization guardrail "${GUARDRAIL_TITLES[type]}". ${message}`,
+    hints: 'Change the configuration, or ask an organization admin to change the guardrail in the Stacktape Console.'
   });
 
 export const validateGuardrails = ({
@@ -331,6 +336,7 @@ export const validateGuardrails = ({
         const { allowedStages } = guardrail.properties;
         if (allowedStages?.length && !allowedStages.includes(stackContext.stage)) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_STAGE_RESTRICTED',
             `Stage \`${stackContext.stage}\` is not allowed. Allowed stages: ${allowedStages.map((stage) => `\`${stage}\``).join(', ')}.`
           );
@@ -341,6 +347,7 @@ export const validateGuardrails = ({
         const { allowedRegions } = guardrail.properties;
         if (allowedRegions?.length && !allowedRegions.includes(stackContext.region)) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_REGION_RESTRICTED',
             `Region \`${stackContext.region}\` is not allowed. Allowed regions: ${allowedRegions.map((region) => `\`${region}\``).join(', ')}.`
           );
@@ -351,6 +358,7 @@ export const validateGuardrails = ({
         const { blockedCommands } = guardrail.properties;
         if (blockedCommands?.length && blockedCommands.includes(stackContext.command)) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_COMMAND_BLOCKED',
             `Command \`${stackContext.command}\` is blocked. Blocked commands: ${blockedCommands.map((command) => `\`${command}\``).join(', ')}.`
           );
@@ -364,6 +372,7 @@ export const validateGuardrails = ({
         for (const resource of configManager.allConfigResources) {
           if (blockedResourceTypes.includes(resource.type)) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_RESOURCE_TYPE_BLOCKED',
               `Resource \`${resource.name}\` uses blocked type \`${resource.type}\`. Blocked resource types: ${blockedResourceTypes.map((type) => `\`${type}\``).join(', ')}.`
             );
@@ -378,6 +387,7 @@ export const validateGuardrails = ({
           const accessibilityMode = (db as StpRelationalDatabase).accessibility?.accessibilityMode || 'internet';
           if (!vpcOnlyModes.includes(accessibilityMode)) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_DATABASE_VPC_REQUIRED',
               `Database \`${db.name}\` uses accessibility mode \`${accessibilityMode}\`. It must use \`vpc\` or \`scoping-workloads-in-vpc\`.`
             );
@@ -385,6 +395,7 @@ export const validateGuardrails = ({
         }
         for (const db of configManager.dsqlDatabases) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_DSQL_VPC_ACCESS_UNAVAILABLE',
             `Aurora DSQL database \`${db.name}\` uses the public service endpoint. This Stacktape version cannot configure the PrivateLink endpoint required by \`require-vpc-databases\`.`
           );
@@ -393,6 +404,7 @@ export const validateGuardrails = ({
           const accessibilityMode = (os as StpOpenSearchDomain).accessibility?.accessibilityMode || 'internet';
           if (!vpcOnlyModes.includes(accessibilityMode)) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_OPENSEARCH_VPC_REQUIRED',
               `OpenSearch domain \`${os.name}\` uses accessibility mode \`${accessibilityMode}\`. It must use \`vpc\` or \`scoping-workloads-in-vpc\`.`
             );
@@ -405,6 +417,7 @@ export const validateGuardrails = ({
         for (const db of configManager.databases) {
           if (!(db as StpRelationalDatabase).deletionProtection) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_DATABASE_DELETION_PROTECTION_REQUIRED',
               `Database \`${db.name}\` must enable \`deletionProtection\`.`
             );
@@ -413,6 +426,7 @@ export const validateGuardrails = ({
         for (const db of configManager.dsqlDatabases) {
           if (!db.deletionProtection) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_DATABASE_DELETION_PROTECTION_REQUIRED',
               `Database \`${db.name}\` must enable \`deletionProtection\`.`
             );
@@ -425,6 +439,7 @@ export const validateGuardrails = ({
         for (const queue of configManager.sqsQueues) {
           if (!(queue as StpSqsQueue).redrivePolicy) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_SQS_DEAD_LETTER_QUEUE_REQUIRED',
               `SQS queue \`${queue.name}\` must configure a \`redrivePolicy\` with a dead-letter queue.`
             );
@@ -441,6 +456,7 @@ export const validateGuardrails = ({
           const memory = (fn as StpLambdaFunction).memory || 1024;
           if (memory > maxMemoryMB) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_FUNCTION_MEMORY_EXCEEDED',
               `Function \`${fn.name}\` uses \`${memory} MB\`, exceeding the \`${maxMemoryMB} MB\` limit.`
             );
@@ -457,6 +473,7 @@ export const validateGuardrails = ({
           const timeout = (fn as StpLambdaFunction).timeout || 20;
           if (timeout > maxTimeoutSeconds) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_FUNCTION_TIMEOUT_EXCEEDED',
               `Function \`${fn.name}\` uses a \`${timeout}s\` timeout, exceeding the \`${maxTimeoutSeconds}s\` limit.`
             );
@@ -471,12 +488,14 @@ export const validateGuardrails = ({
           const resources = (workload as StpContainerWorkload).resources;
           if (maxCpu && resources?.cpu && resources.cpu > maxCpu) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_CONTAINER_CPU_EXCEEDED',
               `Container workload \`${workload.name}\` uses \`${resources.cpu} vCPU\`, exceeding the \`${maxCpu} vCPU\` limit.`
             );
           }
           if (maxMemoryMB && resources?.memory && resources.memory > maxMemoryMB) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_CONTAINER_MEMORY_EXCEEDED',
               `Container workload \`${workload.name}\` uses \`${resources.memory} MB\`, exceeding the \`${maxMemoryMB} MB\` limit.`
             );
@@ -492,6 +511,7 @@ export const validateGuardrails = ({
           const engineType = (db as StpRelationalDatabase).engine?.type;
           if (engineType && !allowedEngines.includes(engineType)) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_DATABASE_ENGINE_RESTRICTED',
               `Database \`${db.name}\` uses disallowed engine \`${engineType}\`. Allowed engines: ${allowedEngines.map((engine) => `\`${engine}\``).join(', ')}.`
             );
@@ -509,12 +529,14 @@ export const validateGuardrails = ({
           for (const size of instanceSizes) {
             if (allowedInstanceSizes?.length && !allowedInstanceSizes.includes(size)) {
               throw guardrailViolation(
+                guardrail.type,
                 'GUARDRAIL_DATABASE_INSTANCE_SIZE_NOT_ALLOWED',
                 `Database \`${db.name}\` uses instance size \`${size}\`. Allowed sizes: ${allowedInstanceSizes.map((instanceSize) => `\`${instanceSize}\``).join(', ')}.`
               );
             }
             if (blockedInstanceSizes?.includes(size)) {
               throw guardrailViolation(
+                guardrail.type,
                 'GUARDRAIL_DATABASE_INSTANCE_SIZE_BLOCKED',
                 `Database \`${db.name}\` uses blocked instance size \`${size}\`. Blocked sizes: ${blockedInstanceSizes.map((instanceSize) => `\`${instanceSize}\``).join(', ')}.`
               );
@@ -533,6 +555,7 @@ export const validateGuardrails = ({
         for (const alb of configurableLoadBalancers) {
           if (!(alb as StpApplicationLoadBalancer).useFirewall) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_WAF_REQUIRED',
               `Application load balancer \`${alb.name}\` must enable \`useFirewall\`.`
             );
@@ -544,6 +567,7 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         if (!configManager.deploymentConfig.terminationProtection) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_STACK_TERMINATION_PROTECTION_REQUIRED',
             'This stack must set `deploymentConfig.terminationProtection` to `true`.'
           );
@@ -554,6 +578,7 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         for (const db of configManager.dsqlDatabases) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_DSQL_BACKUP_UNVERIFIABLE',
             `Aurora DSQL database \`${db.name}\` has no Stacktape-managed backup policy. This Stacktape version cannot verify an external AWS Backup plan required by \`require-data-backups\`.`
           );
@@ -561,6 +586,7 @@ export const validateGuardrails = ({
         for (const db of configManager.databases) {
           if ((db as StpRelationalDatabase).automatedBackupRetentionDays === 0) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_DATABASE_BACKUP_REQUIRED',
               `Database \`${db.name}\` disables automated backups. Set \`automatedBackupRetentionDays\` to at least \`1\`.`
             );
@@ -569,6 +595,7 @@ export const validateGuardrails = ({
         for (const table of configManager.dynamoDbTables) {
           if (!table.enablePointInTimeRecovery) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_DYNAMODB_BACKUP_REQUIRED',
               `DynamoDB table \`${table.name}\` must set \`enablePointInTimeRecovery\` to \`true\`.`
             );
@@ -577,6 +604,7 @@ export const validateGuardrails = ({
         for (const filesystem of configManager.efsFilesystems) {
           if (!filesystem.backupEnabled) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_EFS_BACKUP_REQUIRED',
               `EFS filesystem \`${filesystem.name}\` must set \`backupEnabled\` to \`true\`.`
             );
@@ -594,6 +622,7 @@ export const validateGuardrails = ({
         for (const workload of configurableContainerWorkloads) {
           if (workload.scaling.minInstances < 2) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_MULTIPLE_CONTAINER_INSTANCES_REQUIRED',
               `Container workload \`${workload.name}\` must configure \`scaling.minInstances\` to at least \`2\` (currently \`${workload.scaling.minInstances}\`).`
             );
@@ -606,6 +635,7 @@ export const validateGuardrails = ({
         for (const ws of configManager.webServices) {
           if (!(ws as StpWebService).customDomains?.length) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_CUSTOM_DOMAIN_REQUIRED',
               `Web service \`${ws.name}\` must configure a custom domain.`
             );
@@ -614,6 +644,7 @@ export const validateGuardrails = ({
         for (const hb of configManager.hostingBuckets) {
           if (!(hb as StpHostingBucket).customDomains?.length) {
             throw guardrailViolation(
+              guardrail.type,
               'GUARDRAIL_CUSTOM_DOMAIN_REQUIRED',
               `Hosting bucket \`${hb.name}\` must configure a custom domain.`
             );
@@ -628,6 +659,7 @@ export const validateGuardrails = ({
         const resourceCount = configManager.allConfigResources.length;
         if (resourceCount > maxResources) {
           throw guardrailViolation(
+            guardrail.type,
             'GUARDRAIL_RESOURCE_COUNT_EXCEEDED',
             `Stack has \`${resourceCount}\` resources, exceeding the limit of \`${maxResources}\`.`
           );
@@ -707,6 +739,32 @@ const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManage
   }
 };
 
+const validateNatConfig = ({ configManager }: { configManager: ConfigManager }) => {
+  const nat = configManager.config?.stackConfig?.nat;
+  const required = configManager.resourcesRequiringNat;
+  if (!nat) {
+    // A reused VPC brings its owner's NAT; this stack creates none and cannot ask for one. Only commands that build
+    // the template are blocked: logs, info, delete and the rest keep working on a stack that still has to add it.
+    const buildsTemplate = ['deploy', 'package', 'synth', 'diff', 'validate'].includes(
+      configManager.deploymentContext.command
+    );
+    if (required.length && !configManager.reuseVpcConfig && buildsTemplate) {
+      throw configErrors.natRequired({ resourceNames: required.map(({ name }) => name) });
+    }
+    return;
+  }
+  if (typeof nat === 'string') return;
+  if (nat.instanceSize && nat.type === 'gateway') {
+    throw configErrors.natInstanceSizeRequiresInstanceType(null);
+  }
+  if (nat.instanceSize && !isGravitonInstanceSize(nat.instanceSize)) {
+    throw configErrors.natInstanceSizeNotArm({ instanceSize: nat.instanceSize });
+  }
+  if (nat.availabilityZones && nat.type === 'ec2') {
+    throw configErrors.natAvailabilityZonesWithSingleInstance(null);
+  }
+};
+
 // these are only static validations that can be ran after the initial resolving of the config
 // however there are some validations that can only be performed after domain services are initialized
 // for example validating domain usability etc - those validation are mostly executed as a part of resource resolvers
@@ -720,6 +778,7 @@ export const runInitialValidations = ({
   validateResourceNameUniqueness({ configManager });
   validateResourceNames({ configManager });
   validateReuseVpcConfig({ configManager });
+  validateNatConfig({ configManager });
   // validateProviders();
   validateBastionReferences({ configManager });
   validateKafkaConsumerGroupUniqueness({ configManager });

@@ -290,6 +290,8 @@ Deployment fails with an error if Stacktape cannot fetch the named secret, with 
 > **Warning:** The secret's `VersionId` is baked into the CloudFormation template at deploy time. If you update a secret in AWS Secrets Manager after deployment, the running stack continues using the old version until you redeploy. This means secret rotation requires a redeployment to take effect.
 
 
+When the CLI resolves `$Secret()` locally, including in `stacktape dev` and scripts, it reads the current secret value (`AWSCURRENT`), just as `$SsmParam()` reads the current parameter value. A prior deployment does not pin local directive resolution. See [Secrets](/configuration/secrets#how-secret-resolution-works) for the distinction between local directives and deployed database credentials.
+
 For JSON-formatted secrets, use dot notation to extract a single top-level key — `$Secret('secret-name.key')` splits on the first `.` to determine the secret name and the JSON key:
 
 

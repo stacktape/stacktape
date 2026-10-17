@@ -1,5 +1,6 @@
 import type { DeploymentPhase } from '@application-services/operation-manager';
 import { PHASE_NAMES } from '../progress/types';
+import { stripAnsi } from '../format/text';
 
 class PlainEmitter {
   private lastPhase: string | null = null;
@@ -19,7 +20,7 @@ class PlainEmitter {
   }
 
   emitOutputLine(line: string) {
-    console.info(`  └  ${line}`);
+    console.info(`  └  ${stripAnsi(line)}`);
   }
 
   emitLog({ level, message }: { level: 'info' | 'warn' | 'error'; message: string }) {

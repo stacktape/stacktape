@@ -1,6 +1,6 @@
 # rollback
 
-The `stacktape rollback` command reverts a deployed stack to a previous deployment version. It downloads the CloudFormation template from a previous version and deploys it. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
+The `stacktape rollback` command reverts a deployed stack to a previous release. It downloads the CloudFormation template from that release and deploys it. Every deployment that changed something is a release, including fast deployments that updated code without CloudFormation. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
 
 ## When to use
 
@@ -48,7 +48,9 @@ Specifies the exact deployment version to roll back to, for example `v000003`. V
 
 ### `--rollbackSteps`
 
-Number of versions to step back from the current version. Defaults to `1` (the immediately previous deployment). For example, if the current version is `v000008`, `--rollbackSteps 3` targets `v000005`. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
+Number of stored releases to step back from the current one. Defaults to `1` (the previous release). For example, if the current release is `v000008` and all older releases are still stored, `--rollbackSteps 3` targets `v000005`. Releases removed by `previousVersionsToKeep` are skipped. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
+
+Targeting the current release re-applies it. Use this when a fast deployment failed partway and left some functions or services on other code.
 
 ### `--listVersions`
 
@@ -64,11 +66,11 @@ Stacktape stores CloudFormation templates and deployment artifacts for each depl
 
 
 ## Flow
-1. **Version resolution**: The target version is determined from --targetVersion, or calculated by subtracting --rollbackSteps from the current version.
+1. **Version resolution**: The target version is --targetVersion, or the release --rollbackSteps steps back among the stored releases.
 2. **Artifact verification**: Stacktape verifies that artifacts for the target version are available in the deployment bucket before proceeding.
 3. **Safety check**: The command reads rollback safety metadata from the deployed stack, when present, and prints warnings for directives, TypeScript transforms, custom directives, or after:deploy hooks.
-4. **Template preparation**: The old CloudFormation template is downloaded, its version output is updated to a new version number, and re-uploaded.
-5. **Deployment**: CloudFormation applies the uploaded rollback template. Artifacts such as Lambda zips and container images are reused, so workloads are not rebuilt. Stacktape still prepares and uploads a rollback CloudFormation template for the new deployment version.
+4. **Template preparation**: The old CloudFormation template is downloaded and stored as a new release. The function code and container images it uses are copied under the new release, so CloudFormation updates every function and container service to the restored code, including those a fast deployment changed.
+5. **Deployment**: CloudFormation applies the rollback template. Lambda zips and container images are reused, not rebuilt. Every container service runs a rolling deployment, even one whose code did not change.
 6. **Bucket content restoration**: If the stack includes static hosting with bucket-synced content, Stacktape attempts to restore the bucket contents from a version manifest.
 
 
@@ -103,14 +105,14 @@ If the stack includes static hosting with bucket-synced content, Stacktape attem
 | --- | --- | --- | --- | --- |
 | `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts). | - |
+| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--listVersions (-lv)` | no | `boolean` | List Versions — Lists available deployment versions that can be rolled back to, then exits without performing a rollback. | - |
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--rollbackSteps (-rbs)` | no | `number` | Rollback Steps — Number of versions to rollback. Defaults to `1` (previous version). For example, `--rollbackSteps 2` rolls back two versions. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |

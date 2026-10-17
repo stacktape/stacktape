@@ -13,13 +13,16 @@ import type {
   LambdaSplitOutput,
   SplitBundleResult
 } from './types';
-import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
+import type { ResolvedPackageDependency } from '../runtime-contracts';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
-import { IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
+import { IGNORED_MODULES } from '../es/config';
+import { createPackageAnalysisCache, getProductionDependencies } from '../es/installed-packages';
+import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
 import {
@@ -31,12 +34,23 @@ import {
   packageEntryConditions,
   resolveWithRequireCondition
 } from '../es/bundler-helpers';
-import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../es/bun-plugins';
-import { classifyBeforeResolution, classifyResolvedModule, getModuleName } from '../es/import-classification';
+import {
+  createBunFfiShimPlugin,
+  createNativeNodeModulesPlugin,
+  createPrismaLambdaClientPlugin
+} from '../es/bun-plugins';
+import {
+  classifyBeforeResolution,
+  classifyResolvedModule,
+  getClassifiedSpecifier,
+  getModuleName,
+  isNodeBuiltinImport
+} from '../es/import-classification';
 import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
+import { normalizeSplitBuildIdentity } from '../es/artifact-identity';
 import { resolvePrisma } from '../bundlers/es/utils';
-import { getLambdaAssetReferenceEdits } from '../artifact/lambda-assets';
+import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
 
@@ -66,8 +80,10 @@ export const buildSplitBundle = async ({
   bundleAwsSdk = false,
   isLambda = true,
   nodeTarget,
+  architecture = 'x64',
   installDependencies,
-  createPackagingError
+  createPackagingError,
+  packageAnalysisCache = createPackageAnalysisCache()
 }: BuildSplitBundleOptions): Promise<SplitBundleResult> => {
   const startedAt = performance.now();
 
@@ -104,6 +120,7 @@ export const buildSplitBundle = async ({
     shouldIgnoreAllDeps,
     aliases,
     tracker,
+    packageAnalysisCache,
     createPackagingError
   });
 
@@ -117,6 +134,9 @@ export const buildSplitBundle = async ({
   const { lambdaOutputs, chunkUsageMap } = await processLambdaOutputsWithMetafile({
     entrypoints,
     cwd,
+    projectRoot: monorepoRoot || cwd,
+    architecture,
+    packageAnalysisCache,
     metafile,
     tracker,
     assetFiles,
@@ -151,7 +171,7 @@ export const buildSplitBundle = async ({
 /** Dependency tracking state during bundling (source files now from metafile) */
 type DependencyTracker = {
   resolvedModulesByImporter: Map<string, Set<string>>;
-  dependenciesByImporter: Map<string, PackageJsonDepsInfo[]>;
+  dependenciesByImporter: Map<string, ResolvedPackageDependency[]>;
   externalModules: Array<{ name: string; note: string }>;
 };
 
@@ -168,12 +188,26 @@ const trackResolvedModule = (tracker: DependencyTracker, importer: string, modul
   tracker.resolvedModulesByImporter.set(importerKey, resolvedModules);
 };
 
-const trackDependencies = (tracker: DependencyTracker, importer: string, dependencies: PackageJsonDepsInfo[]) => {
+const trackDependencies = (tracker: DependencyTracker, importer: string, dependencies: ResolvedPackageDependency[]) => {
   if (dependencies.length === 0) return;
   const importerKey = canonicalizeEntrypointPath(importer);
   const trackedDependencies = tracker.dependenciesByImporter.get(importerKey) ?? [];
   trackedDependencies.push(...dependencies);
   tracker.dependenciesByImporter.set(importerKey, trackedDependencies);
+};
+
+type AnalyzePluginOptions = {
+  cwd: string;
+  monorepoRoot: string | null;
+  excludeDependencies: string[];
+  dependenciesToExcludeFromBundle: string[];
+  bundleAwsSdk: boolean;
+  isLambda: boolean | undefined;
+  nodeTarget: number | string | undefined;
+  shouldIgnoreAllDeps: boolean;
+  aliases: Record<string, string>;
+  tracker: DependencyTracker;
+  packageAnalysisCache: PackageAnalysisCache;
 };
 
 /** Execute Bun.build with all plugins and configuration, returns build result and metafile */
@@ -195,28 +229,20 @@ const executeBunBuild = async ({
   shouldIgnoreAllDeps,
   aliases,
   tracker,
+  packageAnalysisCache,
   createPackagingError
-}: {
+}: AnalyzePluginOptions & {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   sharedOutdir: string;
-  cwd: string;
-  monorepoRoot: string | null;
   tsConfigPath?: string | undefined;
   minify: boolean;
   minifyIdentifiers: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
-  excludeDependencies: string[];
-  dependenciesToExcludeFromBundle: string[];
-  bundleAwsSdk: boolean;
-  isLambda: boolean | undefined;
-  nodeTarget: number | string | undefined;
-  shouldIgnoreAllDeps: boolean;
-  aliases: Record<string, string>;
-  tracker: DependencyTracker;
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
-  buildResult: Awaited<ReturnType<typeof Bun.build>>;
+  /** The emitted files after identity normalization: their final paths, kinds and sizes. */
+  buildResult: { outputs: { path: string; kind: string; size: number }[] };
   metafile: BuildMetafile;
   /** `performance.now()` around the `Bun.build` call, so the caller can time it apart from setup and rewriting. */
   bunBuildStartedAt: number;
@@ -232,7 +258,8 @@ const executeBunBuild = async ({
     nodeTarget,
     shouldIgnoreAllDeps,
     aliases,
-    tracker
+    tracker,
+    packageAnalysisCache
   });
 
   const nativeModulesPlugin = createNativeNodeModulesPlugin();
@@ -268,6 +295,7 @@ const executeBunBuild = async ({
         bunFfiShimPlugin,
         analyzePlugin,
         nativeModulesPlugin,
+        createPrismaLambdaClientPlugin(),
         createWindowsPathNormalizationPlugin({ cwd, monorepoRoot })
       ],
       root: buildRoot,
@@ -301,29 +329,32 @@ const executeBunBuild = async ({
     });
   }
 
-  /*
-   * Point asset references at `/var/task`, and make each output's map match its file: moved with those edits, and with
-   * `sources` relative to the map's own folder, which every later copy rebases from. Bun 1.4.1 writes a split map's
-   * `sources` relative to the outdir instead. `synthetic-lambda-source-map-e2e` checks both.
-   */
+  // Point asset references at `/var/task`, shifting each output's source map with the edits before normalization.
   const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
-  await Promise.all(
-    result.outputs
-      .filter(({ path }) => path.endsWith('.js'))
-      .map(({ path }) =>
-        writeEditedJavaScript({
-          from: path,
-          to: path,
-          edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
-          sourcesDirectory: sharedOutdir,
-          packaged: false
-        })
-      )
+  await rewriteLambdaAssetReferences(
+    result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    assetFiles
   );
 
+  // Chunk names, debug IDs and map sources must not depend on the build directory (`es/artifact-identity`). Renamed
+  // chunks are carried into the outputs and the metafile every later step reads.
+  const renames = await normalizeSplitBuildIdentity({
+    javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    projectRoot: monorepoRoot || cwd,
+    sourcesResolveFrom: sharedOutdir
+  });
+  const renamed = (text: string) => text.replace(/chunk-[a-z0-9]{8}/g, (name) => renames.get(name) ?? name);
+  const outputs = await Promise.all(
+    result.outputs.map(async ({ path, kind }) => {
+      const finalPath = renamed(path);
+      return { path: finalPath, kind, size: (await stat(finalPath)).size };
+    })
+  );
+  const metafile = JSON.parse(renamed(JSON.stringify(result.metafile))) as BuildMetafile;
+
   return {
-    buildResult: result,
-    metafile: result.metafile as BuildMetafile,
+    buildResult: { outputs },
+    metafile,
     bunBuildStartedAt,
     bunBuildFinishedAt
   };
@@ -348,19 +379,9 @@ const createAnalyzePlugin = ({
   nodeTarget,
   shouldIgnoreAllDeps,
   aliases,
-  tracker
-}: {
-  cwd: string;
-  monorepoRoot: string | null;
-  excludeDependencies: string[];
-  dependenciesToExcludeFromBundle: string[];
-  bundleAwsSdk: boolean;
-  isLambda: boolean | undefined;
-  nodeTarget: number | string | undefined;
-  shouldIgnoreAllDeps: boolean;
-  aliases: Record<string, string>;
-  tracker: DependencyTracker;
-}): BunPlugin => {
+  tracker,
+  packageAnalysisCache
+}: AnalyzePluginOptions): BunPlugin => {
   // Create module resolver with loose resolution (mimics esbuild behavior)
   const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
 
@@ -377,9 +398,10 @@ const createAnalyzePlugin = ({
 
       // Analyze and handle external dependencies
       build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-        if (!isBareImportSpecifier(args.path)) return undefined;
+        const specifier = await getClassifiedSpecifier(args);
+        if (specifier === undefined) return undefined;
 
-        const moduleName = getModuleName(args.path);
+        const moduleName = getModuleName(specifier);
         trackResolvedModule(tracker, args.importer, moduleName);
 
         const preResolution = classifyBeforeResolution({
@@ -388,10 +410,10 @@ const createAnalyzePlugin = ({
           isLambda,
           moduleName,
           nodeTarget,
-          specifier: args.path
+          specifier
         });
         if (preResolution.outcome === 'runtime-provided') {
-          return { path: args.path, external: true };
+          return { path: specifier, external: true };
         }
         if (preResolution.outcome !== 'continue') {
           return undefined;
@@ -408,28 +430,14 @@ const createAnalyzePlugin = ({
           moduleName,
           shouldIgnoreAllDeps,
           importer: args.importer,
-          importKind: args.kind
+          importKind: args.kind,
+          cache: packageAnalysisCache
         });
-        trackDependencies(tracker, args.importer, verdict.dependenciesToInstallInDocker);
+        trackDependencies(tracker, args.importer, verdict.externalDependencies);
 
         if (verdict.outcome === 'external') {
           markExternal(moduleName, verdict.note);
-          /*
-           * `verdict.alsoExternal` — the externalized package's own dependency tree — is
-           * deliberately not applied here, and this is the one place the two bundlers decide
-           * differently on purpose.
-           *
-           * The per-Lambda bundler externalizes those names too: its artifact has a single
-           * installed tree, so whichever module reaches one finds it there. A split build serves
-           * many Lambdas from one pass, and a native package is installed only into the layer of
-           * the Lambdas that import it. Externalizing its dependency tree globally would leave a
-           * Lambda that imports only the pure-JS dependency, and never the native package,
-           * resolving it at runtime from a layer it does not have.
-           *
-           * The cost is a second copy of those modules inside the bundle. Removing it needs
-           * per-importer externalization, which this build does not do yet.
-           */
-          return { path: args.path, external: true };
+          return { path: specifier, external: true };
         }
 
         return undefined;
@@ -550,8 +558,8 @@ const createWindowsPathNormalizationPlugin = ({
     };
     build.onResolve({ filter: /^[^./]/ }, (args) => {
       if (isAbsolute(args.path) || args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
+      if (isNodeBuiltinImport(args.path)) return undefined;
       const moduleName = getModuleName(args.path);
-      if (NODE_BUILTIN_MODULES.includes(moduleName)) return undefined;
       return (
         normalize(args.path, args.importer, args.resolveDir, args.kind) ??
         resolveEntryManually(args.path, moduleName, args.importer, args.kind)
@@ -717,7 +725,7 @@ const collectOutputInputPaths = ({
 const getTrackedDependenciesForInputs = (
   tracker: DependencyTracker,
   inputPaths: Set<string>
-): PackageJsonDepsInfo[] => {
+): ResolvedPackageDependency[] => {
   const dependencies = Array.from(inputPaths).flatMap(
     (inputPath) => tracker.dependenciesByImporter.get(canonicalizeEntrypointPath(inputPath)) ?? []
   );
@@ -767,6 +775,9 @@ const createAssetAttribution = async (assetFiles: string[], javascriptFiles: str
 const processLambdaOutputsWithMetafile = async ({
   entrypoints,
   cwd,
+  projectRoot,
+  architecture,
+  packageAnalysisCache,
   metafile,
   tracker,
   assetFiles,
@@ -776,6 +787,10 @@ const processLambdaOutputsWithMetafile = async ({
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   cwd: string;
+  /** The project the functions belong to, whose manifests say what it depends on in production. */
+  projectRoot: string;
+  architecture: 'x64' | 'arm64';
+  packageAnalysisCache: PackageAnalysisCache;
   metafile: BuildMetafile;
   tracker: DependencyTracker;
   assetFiles: string[];
@@ -868,10 +883,19 @@ const processLambdaOutputsWithMetafile = async ({
           // Split output is a Lambda package, and Lambda runs on Amazon Linux with glibc.
           isAlpine: false,
           isLambda: true,
+          architecture,
           createPackagingError: (details) => createPackagingError(details)
         });
       }
 
+      const sourceFiles = Array.from(inputPaths)
+        .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
+        .map((path) => ({ path }));
+      const productionDependencies = await getProductionDependencies({
+        projectRoot,
+        sourcePaths: sourceFiles.map(({ path }) => canonicalizeEntrypointPath(path)),
+        cache: packageAnalysisCache
+      });
       lambdaOutputs.set(entrypoint.name, {
         name: entrypoint.name,
         entryFile: join(entrypoint.distFolderPath, 'index.js'),
@@ -880,10 +904,11 @@ const processLambdaOutputsWithMetafile = async ({
           ...Array.from(absoluteChunkPaths, (path) => join(entrypoint.distFolderPath, 'chunks', basename(path))),
           ...lambdaAssetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
         ],
-        sourceFiles: Array.from(inputPaths)
-          .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
-          .map((path) => ({ path })),
-        dependenciesToInstallInDocker: getTrackedDependenciesForInputs(tracker, inputPaths),
+        sourceFiles,
+        externalDependencies: getTrackedDependenciesForInputs(tracker, inputPaths).filter(
+          (dependency) => !dependency.optionalPeer || productionDependencies.has(dependency.name)
+        ),
+        productionDependencies: [...productionDependencies].toSorted(),
         resolvedModules: getTrackedModulesForInputs(tracker, inputPaths)
       });
     })

@@ -2,6 +2,9 @@
  * Type definitions for the split bundler module.
  */
 
+import type { PackageAnalysisCache } from '../es/installed-packages';
+import type { ResolvedPackageDependency } from '../runtime-contracts';
+
 /** Bun.build metafile input entry */
 export type MetafileInput = {
   bytes: number;
@@ -55,20 +58,12 @@ export type LambdaSplitOutput = {
   files: string[];
   /** Source files that were bundled for this lambda */
   sourceFiles: { path: string }[];
-  /** Dependencies that need Docker installation */
-  dependenciesToInstallInDocker: SplitBundleDependency[];
+  /** Packages the bundle leaves out, which the function's dependency layer provides. */
+  externalDependencies: ResolvedPackageDependency[];
+  /** What a production install of the project contains for this function's code (`getProductionDependencies`). */
+  productionDependencies: string[];
   /** All resolved npm modules */
   resolvedModules: string[];
-};
-
-/** Module info for dependencies that need special handling */
-export type SplitBundleDependency = {
-  name: string;
-  version: string;
-  note?: string | undefined;
-  hasBinary?: boolean | undefined;
-  peerDependencies?: SplitBundleDependency[] | undefined;
-  optionalPeerDependencies?: SplitBundleDependency[] | undefined;
 };
 
 /**
@@ -160,6 +155,8 @@ export type LayerArtifact = {
   sizeBytes: number;
   /** Content-based hash of the final publishable layer tree. */
   contentHash: string;
+  /** The chunks' source maps, kept outside the layer (`takeSourceMapsOutOfPackage`). */
+  sourceMapsPath?: string | undefined;
 };
 
 export type PackagingErrorDetails = {
@@ -192,8 +189,12 @@ export type BuildSplitBundleOptions = {
   isLambda?: boolean | undefined;
   /** Node major version the artifacts run on: `24`, `'24'` or `'nodejs24.x'`. */
   nodeTarget?: number | string | undefined;
+  /** The CPU every function of the build runs on; it selects the Prisma query engine each one carries. */
+  architecture?: 'x64' | 'arm64' | undefined;
   /** Application action run before Bun resolves the entrypoints. */
   installDependencies: () => Promise<void>;
   /** Preserves the application's typed PACKAGING error contract without importing application code. */
   createPackagingError: (details: PackagingErrorDetails) => Error;
+  /** The build's cache when other functions are packaged beside this split build; a new one otherwise. */
+  packageAnalysisCache?: PackageAnalysisCache | undefined;
 };

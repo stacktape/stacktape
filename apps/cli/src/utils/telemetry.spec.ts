@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join, resolve } from 'node:path';
 
-test('command completion sends argument keys without values, while opt-out sends nothing', async () => {
+const collector = (status = 200) => {
   const requests: { body: string; pathname: string }[] = [];
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -15,57 +15,62 @@ test('command completion sends argument keys without values, while opt-out sends
             : bytes.toString(),
         pathname: new URL(request.url).pathname
       });
-      return Response.json({ status: 1 });
+      return Response.json({ status: status === 200 ? 1 : 0 }, { status });
     }
   });
 
-  const runCompletion = async (disableTelemetry: '0' | '1') => {
+  const run = async (mode: 'completion' | 'init' | 'exception', disabled = false) => {
     const child = Bun.spawn(
       [
         process.execPath,
+        '--no-env-file',
         '--preload',
         join(import.meta.dir, '../../scripts/test-preload.ts'),
-        join(import.meta.dir, 'telemetry-completion.fixture.ts')
+        mode === 'init'
+          ? join(import.meta.dir, '../init/telemetry-init.fixture.ts')
+          : join(import.meta.dir, 'telemetry-completion.fixture.ts'),
+        mode
       ],
       {
         cwd: resolve(import.meta.dir, '../..'),
         env: {
-          ...process.env,
+          PATH: process.env.PATH,
           POSTHOG_PROJECT_TOKEN: 'phc_synthetic_test',
           POSTHOG_HOST: `http://127.0.0.1:${server.port}`,
           POSTHOG_ENVIRONMENT: 'test',
-          STP_DISABLE_TELEMETRY: disableTelemetry
+          STP_DISABLE_TELEMETRY: disabled ? '1' : '0'
         },
-        stdout: 'ignore',
+        stdout: 'pipe',
         stderr: 'pipe'
       }
     );
-    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const stdout = new Response(child.stdout).text();
+    const stderr = new Response(child.stderr).text();
+    const timeout = setTimeout(() => child.kill(), 5000);
     try {
-      const exitCode = await Promise.race([
-        child.exited,
-        new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => {
-            child.kill();
-            reject(new Error('Telemetry fixture timed out'));
-          }, 5000);
-        })
-      ]);
-      expect(exitCode).toBe(0);
-      expect(await new Response(child.stderr).text()).toBe('');
+      expect(await child.exited).toBe(0);
+      expect(await stderr).toBe('');
+      return (await stdout).trim();
     } finally {
       clearTimeout(timeout);
       if (child.exitCode === null) child.kill();
+      await child.exited;
     }
   };
+  return { requests, run, stop: () => server.stop(true) };
+};
 
+test('command completion sends argument keys without values, while opt-out sends nothing', async () => {
+  const { requests, run, stop } = collector();
   try {
-    await runCompletion('0');
+    expect(await run('completion')).toBe('command-completed');
     expect(requests).toHaveLength(1);
-    expect(requests[0]?.pathname).toBe('/batch/');
+    expect(requests[0]!.pathname).toBe('/batch/');
     const event = JSON.parse(requests[0]!.body).batch[0];
     expect(event.event).toBe('cli_command_completed');
     expect(event.properties).toMatchObject({
+      app: 'cli',
+      environment: 'test',
       command: 'version',
       outcome: 'success',
       args_keys: ['apiKey', 'projectName', 'stage']
@@ -77,63 +82,95 @@ test('command completion sends argument keys without values, while opt-out sends
     ]) {
       expect(requests[0]!.body).not.toContain(value);
     }
-
     requests.length = 0;
-    await runCompletion('1');
-    await Bun.sleep(200);
+    expect(await run('completion', true)).toBe('command-completed');
     expect(requests).toHaveLength(0);
   } finally {
-    server.stop(true);
+    stop();
   }
 });
 
-test('unexpected CLI errors use the PostHog exception envelope and the shared privacy boundary', async () => {
-  let resolveRequest!: (request: { body: string; url: URL }) => void;
-  const receivedRequest = new Promise<{ body: string; url: URL }>((resolve) => {
-    resolveRequest = resolve;
-  });
-  const server = Bun.serve({
-    port: 0,
-    async fetch(request) {
-      const bytes = Buffer.from(await request.arrayBuffer());
-      const body =
-        request.headers.get('content-encoding') === 'gzip'
-          ? Buffer.from(Bun.gunzipSync(bytes)).toString()
-          : bytes.toString();
-      resolveRequest({ body, url: new URL(request.url) });
-      return Response.json({ status: 1 });
-    }
-  });
-
-  process.env.STP_POSTHOG_PROJECT_TOKEN = 'phc_test';
-  process.env.STP_POSTHOG_HOST = `http://127.0.0.1:${server.port}`;
-  process.env.STP_POSTHOG_ENVIRONMENT = 'test';
-
+test('unexpected CLI errors send a useful exception envelope without user or credential values', async () => {
+  const { requests, run, stop } = collector();
   try {
-    const { reportErrorToPostHog } = await import('./telemetry');
-    const errorTrackingId = await reportErrorToPostHog({
-      error: new Error('Failed for user@example.com in account 123456789012 with token=secret-value'),
-      mechanism: 'command_handler'
+    expect(JSON.parse(await run('exception')).id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.pathname).toBe('/batch/');
+    const event = JSON.parse(requests[0]!.body).batch[0];
+    expect(event.event).toBe('$exception');
+    expect(event.properties).toMatchObject({ app: 'cli', environment: 'test', mechanism: 'command_handler' });
+    expect(event.properties.$exception_list[0].value).toBe(
+      'Failed for [redacted:email]@example.com in account [REDACTED_AWS_ACCOUNT_ID] with token=[REDACTED] at /home/[user]/app'
+    );
+    expect(event.properties).toMatchObject({
+      error_tracking_id: JSON.parse(requests[0]!.body).batch[0].properties.error_tracking_id,
+      platform: process.platform,
+      arch: process.arch,
+      runtime_version: `bun ${process.versions.bun}`
     });
-    const request = await Promise.race([
-      receivedRequest,
-      Bun.sleep(2000).then(() => {
-        throw new Error('Timed out waiting for the PostHog test request');
-      })
-    ]);
-
-    expect(errorTrackingId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(request.url.pathname).toBe('/batch/');
-    expect(request.body).toContain('$exception');
-    expect(request.body).toContain('"app":"cli"');
-    expect(request.body).toContain('"environment":"test"');
-    expect(request.body).not.toContain('user@example.com');
-    expect(request.body).not.toContain('123456789012');
-    expect(request.body).not.toContain('secret-value');
+    for (const value of ['user@example.com', '123456789012', 'secret-value', 'synthetic-user']) {
+      expect(requests[0]!.body).not.toContain(value);
+    }
   } finally {
-    server.stop(true);
-    delete process.env.STP_POSTHOG_PROJECT_TOKEN;
-    delete process.env.STP_POSTHOG_HOST;
-    delete process.env.STP_POSTHOG_ENVIRONMENT;
+    stop();
+  }
+});
+
+test('init sends categories and measured outcomes without repository content, and respects opt-out', async () => {
+  const { requests, run, stop } = collector();
+  try {
+    expect(await run('init')).toBe('init-completed');
+    expect(requests).toHaveLength(1);
+    const event = JSON.parse(requests[0]!.body).batch[0];
+    expect(event.event).toBe('init_completed');
+    expect(event.properties).toMatchObject({
+      app: 'cli',
+      environment: 'test',
+      verification: 'inconclusive',
+      verification_passed_services: 1,
+      verification_skipped_services: 1,
+      analysis_duration_ms: 1200,
+      deploy_duration_ms: 3400,
+      mode: 'custom',
+      capacity: 'performance',
+      preferences_changed: 1,
+      frameworks: ['express'],
+      resource_types: ['web-service'],
+      service_count: 1
+    });
+    for (const value of [
+      'customer-project-name',
+      'customer-service-name',
+      '/private/repository',
+      'private result text',
+      'customerResourceName',
+      'private-worker-name',
+      'privateWorkerResource'
+    ]) {
+      expect(requests[0]!.body).not.toContain(value);
+    }
+    requests.length = 0;
+    expect(await run('init', true)).toBe('init-completed');
+    expect(requests).toHaveLength(0);
+  } finally {
+    stop();
+  }
+});
+
+test('rejected analytics does not fail command completion, init or error reporting', async () => {
+  // A permanent provider rejection exercises SDK failure without retry delays.
+  const { requests, run, stop } = collector(400);
+  try {
+    expect(await run('completion')).toBe('command-completed');
+    expect(await run('init')).toBe('init-completed');
+    // The SDK returns after attempting delivery; a tracking ID does not promise ingestion succeeded.
+    expect(JSON.parse(await run('exception')).id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(requests.map(({ body }) => JSON.parse(body).batch[0].event)).toEqual([
+      'cli_command_completed',
+      'init_completed',
+      '$exception'
+    ]);
+  } finally {
+    stop();
   }
 });

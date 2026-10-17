@@ -1,3 +1,4 @@
+import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -11,6 +12,13 @@ import { resolveOperationNotificationEventType, type NotificationMessageType } f
  * command): the Console opens a stack-unhealthy incident for these.
  */
 const FAILURE_EVENT_TYPES = new Set(['DEPLOY_FAILED', 'DELETE_FAILED', 'ROLLBACK_FAILED']);
+
+type ReportedEvent = {
+  type: string;
+  title: string;
+  severity?: string;
+  details?: Record<string, unknown>;
+};
 
 type ProgressMessage = {
   text: string;
@@ -87,57 +95,76 @@ class NotificationManager {
     }
   };
 
-  reportEvent = async ({
-    type,
-    title,
-    severity = 'INFO',
-    details
-  }: {
-    type: string;
-    title: string;
-    severity?: string;
-    details?: Record<string, unknown>;
-  }) => {
-    if (!this.#hasConsoleApiAccess) return;
-    try {
-      const stackStatus = FAILURE_EVENT_TYPES.has(type) ? await this.#fetchStackStatus() : undefined;
-      await withTimeout({
-        promise: stacktapeTrpcApiManager.apiClient.reportEvent({
-          type,
-          severity,
-          project: globalStateManager.targetStack?.projectName,
-          stage: globalStateManager.targetStack?.stage,
-          region: globalStateManager.region,
-          title,
-          details,
-          invocationId: globalStateManager.invocationId,
-          ...this.#releaseContext,
-          ...(stackStatus ? { stackStatus } : {})
-        }),
-        timeoutMs: 10000
-      });
-    } catch (err) {
-      // Console reporting is best-effort telemetry — say so, and keep the raw
-      // cause to one line instead of dumping a full nested error wall.
-      const cause = String((err as Error)?.message ?? err)
-        .split('\n')[0]
-        .slice(0, 200);
-      tuiManager.warn(`Couldn't record this event in the Stacktape Console (the command is not affected): ${cause}`);
+  /** The last event sent or being sent. Each event waits for it, so the Console receives events in reporting order. */
+  #previousEvent: Promise<void> = Promise.resolve();
+
+  reportEvent = (event: ReportedEvent) => this.#queueEvent(event);
+
+  sendDeploymentNotification = async ({ message }: { message: ProgressMessage }) => {
+    const event = this.#toDeploymentEvent(message);
+    if (event) {
+      await this.#queueEvent(event);
     }
   };
 
-  sendDeploymentNotification = async ({ message }: { message: ProgressMessage }) => {
-    if (!this.#hasConsoleApiAccess) return;
+  /**
+   * Sends a deployment notification without waiting for it, so the deployment continues meanwhile. Every later event
+   * is sent after it.
+   */
+  queueDeploymentNotification = ({ message }: { message: ProgressMessage }): void => {
+    const event = this.#toDeploymentEvent(message);
+    if (event) {
+      void this.#queueEvent(event);
+    }
+  };
 
+  waitForQueuedEvents = () => this.#previousEvent;
+
+  #toDeploymentEvent = (message: ProgressMessage): ReportedEvent | null => {
     const eventType = this.#resolveEventType(message);
-    if (!eventType) return;
-
-    await this.reportEvent({
+    if (!eventType) return null;
+    return {
       type: eventType,
       title: message.text,
       severity: severityFromMessageType(message.type),
       details: message.details
-    });
+    };
+  };
+
+  /** Never rejects: Console reporting is best-effort. */
+  #queueEvent = ({ type, title, severity = 'INFO', details }: ReportedEvent): Promise<void> => {
+    if (!this.#hasConsoleApiAccess) return Promise.resolve();
+    // The release context is read when the event is reported, not when it is sent.
+    const releaseContext = { ...this.#releaseContext };
+    const send = async () => {
+      try {
+        const stackStatus = FAILURE_EVENT_TYPES.has(type) ? await this.#fetchStackStatus() : undefined;
+        await withTimeout({
+          promise: stacktapeTrpcApiManager.apiClient.reportEvent({
+            type,
+            severity,
+            project: globalStateManager.targetStack?.projectName,
+            stage: globalStateManager.targetStack?.stage,
+            region: globalStateManager.region,
+            title,
+            details,
+            invocationId: globalStateManager.invocationId,
+            ...releaseContext,
+            ...(stackStatus ? { stackStatus } : {})
+          }),
+          timeoutMs: 10000
+        });
+      } catch (err) {
+        // Console reporting is best-effort telemetry — say so, and keep the raw
+        // cause to one line instead of dumping a full nested error wall.
+        const cause = String((err as Error)?.message ?? err)
+          .split('\n')[0]
+          .slice(0, 200);
+        tuiManager.warn(`Couldn't record this event in the Stacktape Console (the command is not affected): ${cause}`);
+      }
+    };
+    this.#previousEvent = this.#previousEvent.then(send);
+    return this.#previousEvent;
   };
 
   reportError = async (errorStack: string) => {
@@ -155,7 +182,7 @@ class NotificationManager {
       type: eventType,
       title: text,
       severity: 'ERROR',
-      details: { error: errorStack.slice(0, 1000) }
+      details: { error: scrubSensitiveText(errorStack).slice(0, 1000) }
     });
   };
 

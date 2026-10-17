@@ -376,7 +376,10 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
         awsAccount: z.string().optional().describe('Connected Stacktape AWS account name'),
         configPath: z.string().optional().describe('Stacktape config path relative to currentWorkingDirectory'),
         currentWorkingDirectory: z.string().optional().describe('Working directory for resolving config and app files'),
-        hotSwap: z.boolean().optional().describe('Whether to request hotswap deployment when supported'),
+        fullDeploy: z
+          .boolean()
+          .optional()
+          .describe('Deploy every change through CloudFormation instead of updating changed code directly'),
         resourceName: z.string().optional().describe('Stacktape resource name for diagnostics commands'),
         scriptName: z.string().optional().describe('Stacktape deployment script name for script:run commands'),
         secretName: z.string().optional().describe('Stacktape secret name for secret commands'),
@@ -401,7 +404,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
         awsAccount,
         configPath,
         currentWorkingDirectory,
-        hotSwap,
+        fullDeploy,
         resourceName,
         scriptName,
         secretName,
@@ -466,7 +469,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
               awsAccount,
               configPath,
               currentWorkingDirectory,
-              hotSwap,
+              fullDeploy,
               resourceName,
               scriptName,
               secretName,

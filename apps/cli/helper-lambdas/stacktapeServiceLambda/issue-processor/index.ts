@@ -609,7 +609,37 @@ const extractResourceNameFromLogGroup = (logGroup: string): string => {
   return parts[parts.length - 1] || logGroup;
 };
 
-const reportToConsoleApi = async (groups: ErrorGroup[], logGroup: string) => {
+/**
+ * When the Lambda execution environment that wrote `logStream` started: the timestamp of the stream's first event
+ * (`INIT_START`, or `START` for an environment restored from a snapshot). Lambda gives every execution environment its
+ * own stream, and an environment runs the code that was current when it started, so the Console uses this time to
+ * pick the source maps of that code. Container logs and unreadable streams have none.
+ */
+const getEnvironmentStartedAt = async (logGroup: string, logStream: string): Promise<number | undefined> => {
+  if (!logGroup.startsWith('/aws/lambda/') || !logStream) return undefined;
+  try {
+    const { events } = await cwLogsClient.send(
+      new GetLogEventsCommand({ logGroupName: logGroup, logStreamName: logStream, startFromHead: true, limit: 1 })
+    );
+    return events?.[0]?.timestamp;
+  } catch (err) {
+    console.info(`Failed to read when the execution environment started: ${err}`);
+    return undefined;
+  }
+};
+
+/**
+ * The function version an execution environment runs, from its Lambda log stream name
+ * (`2026/10/15/[$LATEST]3d35…` or `2026/10/15/[5]3d35…`).
+ */
+const getExecutedVersion = (logGroup: string, logStream: string) =>
+  logGroup.startsWith('/aws/lambda/') ? /^\d{4}\/\d{2}\/\d{2}\/\[([^\]]+)\]/.exec(logStream)?.[1] : undefined;
+
+const reportToConsoleApi = async (
+  groups: ErrorGroup[],
+  logGroup: string,
+  environment: { startedAt: number | undefined; executedVersion: string | undefined }
+) => {
   const apiUrl = process.env.STACKTAPE_TRPC_API_ENDPOINT;
   const region = process.env.AWS_REGION;
   const project = process.env.PROJECT_NAME;
@@ -636,7 +666,9 @@ const reportToConsoleApi = async (groups: ErrorGroup[], logGroup: string) => {
           stage,
           region,
           rawLog: error.rawLog,
-          occurrenceWeight: toOccurrenceWeight(occurrences)
+          occurrenceWeight: toOccurrenceWeight(occurrences),
+          ...(environment.startedAt && { environmentStartedAt: environment.startedAt }),
+          ...(environment.executedVersion && { executedVersion: environment.executedVersion })
         });
       } catch (err) {
         console.info(`Failed to report issue event: ${err}`);
@@ -796,13 +828,17 @@ export default async (event: CloudWatchLogsEvent) => {
     }
   }
 
-  await reportToConsoleApi(groups, decodedData.logGroup);
+  await reportToConsoleApi(groups, decodedData.logGroup, {
+    startedAt: await getEnvironmentStartedAt(decodedData.logGroup, decodedData.logStream),
+    executedVersion: getExecutedVersion(decodedData.logGroup, decodedData.logStream)
+  });
 };
 
 /** The API accepts a bounded weight; a larger storm is reported at the bound rather than dropped by validation. */
 const toOccurrenceWeight = (occurrences: number): number => Math.min(occurrences, MAX_ISSUE_OCCURRENCE_WEIGHT);
 
 export const __issueProcessorTestUtils = {
+  getExecutedVersion,
   extractErrorMessage,
   extractRelevantContextLines,
   groupErrorsByFingerprint,

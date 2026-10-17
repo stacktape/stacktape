@@ -1,3 +1,5 @@
+import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
+
 const SENSITIVE_ASSIGNMENT =
   /\b(password|passwd|secret|token|authorization|api[_-]?key|access[_-]?key|private[_-]?key)\b(\s*[=:]\s*|\s+)((?:Bearer\s+)?[^\s,;]+)/gi;
 const BEARER_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
@@ -5,7 +7,6 @@ const AWS_ACCESS_KEY_ID = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const URL_CREDENTIALS = /(https?:\/\/)[^/@\s:]+:[^/@\s]+@/gi;
 const URL_CONNECTION_CALLBACK_VALUE = /([?&](?:code|state|bitbucketPairingState|redirectTo)=)[^&#\s]*/gi;
 const PRIVATE_KEY = /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g;
-const EMAIL_ADDRESS = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const AWS_ACCOUNT_ID = /\b\d{12}\b/g;
 const SENSITIVE_PROPERTY_KEY =
   /(?:password|passwd|secret|token|authorization|api[_-]?key|access[_-]?key|private[_-]?key|cookie)/i;
@@ -19,10 +20,12 @@ export const redactTelemetryText = (value: string) =>
     .replace(BEARER_TOKEN, 'Bearer [REDACTED]')
     .replace(AWS_ACCESS_KEY_ID, '[REDACTED_AWS_ACCESS_KEY_ID]');
 
+/**
+ * Error text gets the same masking as Stacktape Issues events (emails, IP addresses, card numbers, user home paths and
+ * more token formats), plus AWS account IDs, which identify a customer in nearly every AWS error message.
+ */
 export const redactErrorTelemetryText = (value: string) =>
-  redactTelemetryText(value)
-    .replace(EMAIL_ADDRESS, '[REDACTED_EMAIL]')
-    .replace(AWS_ACCOUNT_ID, '[REDACTED_AWS_ACCOUNT_ID]');
+  scrubSensitiveText(redactTelemetryText(value)).replace(AWS_ACCOUNT_ID, '[REDACTED_AWS_ACCOUNT_ID]');
 
 const sanitizeValue = (value: unknown, redactText: (value: string) => string, seen: WeakSet<object>): unknown => {
   if (typeof value === 'string') return redactText(value);

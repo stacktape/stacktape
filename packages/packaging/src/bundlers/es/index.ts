@@ -2,37 +2,52 @@ import { packagingMessages } from '../../runtime-contracts';
 import type { CreatePackagingError, EsBuildActions, StpBuildpackInput } from '../../runtime-contracts';
 import type { BunPlugin } from 'bun';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '../constants';
+import { createPackageAnalysisCache, getProductionDependencies } from '../../es/installed-packages';
+import type { PackageAnalysisCache } from '../../es/installed-packages';
 import { findProjectRoot } from '../../es/project-root';
 import { outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
 import { FILES_TO_INCLUDE_IN_DIGEST, IGNORED_MODULES } from '../../es/config';
-import { copyDockerInstalledModulesForLambda } from '../../es/native-dependencies';
-import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../../es/bun-plugins';
+import {
+  getLambdaArchitecture,
+  getLambdaDependencyIdentity,
+  planLambdaDependencies,
+  writeLambdaDependencies
+} from '../../es/native-dependencies';
+import {
+  createBunFfiShimPlugin,
+  createNativeNodeModulesPlugin,
+  createPrismaLambdaClientPlugin,
+  isBareImportSpecifier
+} from '../../es/bun-plugins';
 import { getBunMinifyConfig } from '../../es/minify';
-import { writePackagedSourceMap } from '../../es/packaged-source-map';
+import { takeSourceMapsOutOfPackage, writePackagedSourceMap } from '../../es/packaged-source-map';
 import { writeEditedJavaScript } from '../../es/source-map-edits';
+import { normalizeBundleIdentity } from '../../es/artifact-identity';
 import {
   classifyBeforeResolution,
   classifyResolvedModule,
+  getClassifiedSpecifier,
   getModuleName as getModuleNameFromPath,
   isNodeBuiltinImport
 } from '../../es/import-classification';
 import {
-  getAllJsDependenciesFromMultipleFiles,
+  getDependenciesOfIncludedFiles,
   getLambdaRuntimeFromNodeTarget,
   getLockFileData,
-  resolveDifferentSourceMapLocation,
+  saveSourceMapCopy,
   resolvePrisma
 } from './utils';
 import {
   createModuleResolver,
   getDefaultExportEdit,
+  CJS_PATH_BANNER,
   ESM_SOURCE_MAP_BANNER,
   filterDuplicates,
-  getInfoFromPackageJson,
   getTsconfigAliases,
   isRequireImportKind,
   packageEntryConditions,
@@ -40,31 +55,23 @@ import {
 } from '../../es/bundler-helpers';
 import type { JsBundleOptions, ResolvedPackageDependency } from '../../runtime-contracts';
 import { getFirstExistingPath, getHashFromMultipleFiles, getMatchingFilesByGlob } from '../../fs/files';
-import { createDockerDependencyPlan } from './docker-dependency-plan';
-import {
-  copyExplicitlyIncludedFiles,
-  removeExplicitlyExcludedFiles as removeArtifactFiles
-} from '../../artifact/file-selection';
+import { copyExplicitlyIncludedFiles, removeExplicitlyExcludedFiles } from '../../artifact/file-selection';
 import {
   LAMBDA_ARCHIVE_FORMAT,
   listArchiveEntries,
   UnsupportedArchiveEntryError
 } from '../../artifact/archive-entries';
 import { getArchiveInventoryChecksum, getDirectoryChecksum } from '../../artifact/hashing';
-import { getLambdaAssetReferenceEdits } from '../../artifact/lambda-assets';
+import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
 
-/** Kept on the established ES bundler surface while file-selection ownership lives in the artifact layer. */
-export const removeExplicitlyExcludedFiles: typeof removeArtifactFiles = (options) => removeArtifactFiles(options);
-
-const dedupeDependenciesByName = <T extends { name: string }>(dependencies: T[]): T[] => {
-  const seen = new Set<string>();
-  return dependencies.filter(({ name }) => {
-    if (seen.has(name)) {
-      return false;
-    }
-    seen.add(name);
-    return true;
-  });
+/** One entry per name, in the order first seen. A package needed outright wins over the same one as an optional peer. */
+const dedupeDependenciesByName = <T extends ResolvedPackageDependency>(dependencies: T[]): T[] => {
+  const byName = new Map<string, T>();
+  for (const dependency of dependencies) {
+    const existing = byName.get(dependency.name);
+    if (!existing || (existing.optionalPeer && !dependency.optionalPeer)) byName.set(dependency.name, dependency);
+  }
+  return [...byName.values()];
 };
 
 export const buildEsCode = async ({
@@ -93,7 +100,8 @@ export const buildEsCode = async ({
   metafile,
   isLambda,
   createPackagingError,
-  sourceMapInstallPath
+  sourceMapInstallPath,
+  packageAnalysisCache = createPackageAnalysisCache()
 }: {
   sourcePath?: string | undefined;
   sourcePaths?: string[] | undefined;
@@ -126,10 +134,12 @@ export const buildEsCode = async ({
   isLambda?: boolean | undefined;
   createPackagingError: CreatePackagingError;
   sourceMapInstallPath?: string | undefined;
+  /** The build's cache when other functions are packaged in the same build; a new one otherwise. */
+  packageAnalysisCache?: PackageAnalysisCache | undefined;
 }): Promise<{
-  dependenciesToInstallInDocker: ResolvedPackageDependency[];
+  /** Packages the bundle leaves out that the artifact has to carry. */
+  externalDependencies: ResolvedPackageDependency[];
   externalModules: { name: string; note: string }[];
-  dynamicallyImportedModules: string[];
   sourceFiles: { path: string }[];
   allModules: string[];
 }> => {
@@ -203,8 +213,8 @@ export const buildEsCode = async ({
     return undefined;
   };
 
-  const runBuild = async ({ dynamicallyImportedModules = [] }: { dynamicallyImportedModules?: string[] }) => {
-    const allDependenciesToInstallInDocker: ResolvedPackageDependency[] = [];
+  const runBuild = async () => {
+    const externalDependencies: ResolvedPackageDependency[] = [];
     const externalModules: { name: string; note: string }[] = [];
     const allModules: string[] = [];
     // Note: Source file tracking moved to metafile.inputs (more accurate, no plugin overhead)
@@ -217,9 +227,10 @@ export const buildEsCode = async ({
         build.onResolve(
           { filter: /^[^.]/ },
           async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-            if (!isBareImportSpecifier(args.path)) return undefined;
+            const specifier = await getClassifiedSpecifier(args);
+            if (specifier === undefined) return undefined;
 
-            const moduleName = getModuleNameFromPath(args.path);
+            const moduleName = getModuleNameFromPath(specifier);
             allModules.push(moduleName);
 
             if (args.path === sourcePath) {
@@ -228,7 +239,7 @@ export const buildEsCode = async ({
 
             // Already marked as external
             if (externalModules.find((m) => m.name === moduleName)) {
-              return { path: args.path, external: true };
+              return { path: specifier, external: true };
             }
 
             const preResolution = classifyBeforeResolution({
@@ -237,13 +248,13 @@ export const buildEsCode = async ({
               isLambda,
               moduleName,
               nodeTarget,
-              specifier: args.path
+              specifier
             });
             if (preResolution.outcome === 'builtin') {
               return undefined;
             }
             if (preResolution.outcome === 'runtime-provided') {
-              return { path: args.path, external: true };
+              return { path: specifier, external: true };
             }
 
             if (preResolution.outcome === 'alias') {
@@ -298,24 +309,6 @@ export const buildEsCode = async ({
               return undefined;
             }
 
-            // A module reached only through a runtime `import()` is never in the bundle graph, so it
-            // has to be installed alongside it. This is the one step the split bundler has no use
-            // for: split bundling refuses a config that could produce one.
-            if (dynamicallyImportedModules.includes(moduleName)) {
-              if (modulePath) {
-                const packageInfo = await getInfoFromPackageJson({
-                  directoryPath: modulePath,
-                  parentModule: null,
-                  dependencyType: 'root'
-                });
-                if (packageInfo) {
-                  allDependenciesToInstallInDocker.push({ ...packageInfo, note: 'DYNAMIC_IMPORT' });
-                }
-              }
-              externalModules.push({ name: moduleName, note: 'DYNAMIC_IMPORT' });
-              return { path: args.path, external: true };
-            }
-
             const verdict = await classifyResolvedModule({
               dependenciesToExcludeFromBundle,
               excludeDependencies: excludeDependencies || [],
@@ -324,16 +317,14 @@ export const buildEsCode = async ({
               moduleName,
               shouldIgnoreAllDeps,
               importer: args.importer,
-              importKind: args.kind
+              importKind: args.kind,
+              cache: packageAnalysisCache
             });
-            allDependenciesToInstallInDocker.push(...verdict.dependenciesToInstallInDocker);
+            externalDependencies.push(...verdict.externalDependencies);
 
             if (verdict.outcome === 'external') {
               externalModules.push({ name: moduleName, note: verdict.note });
-              for (const dep of verdict.alsoExternal) {
-                externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
-              }
-              return { path: args.path, external: true };
+              return { path: specifier, external: true };
             }
 
             if (!modulePath) {
@@ -360,9 +351,10 @@ export const buildEsCode = async ({
       setup(build) {
         // A bare workspace import is resolved to a forward-slash real path above, but relative imports inside that
         // package otherwise fall back to Bun's Windows resolver. Bun 1.3.14 then panics while formatting the
-        // backslash path for source maps. Keep the complete workspace module graph normalized.
+        // backslash path for source maps. Keep the complete workspace module graph normalized. A subpath import
+        // (`#name`) also names a file inside the importing package.
         if (process.platform === 'win32') {
-          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)\.\.?[\\/]/ }, (args) => {
+          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)(?:\.\.?[\\/]|#)/ }, (args) => {
             if (!args.importer) return undefined;
             return resolvePackageImport(args);
           });
@@ -473,6 +465,8 @@ export const buildEsCode = async ({
       stpAnalyzeDepsPlugin,
       looseResolvePlugin,
       createNativeNodeModulesPlugin(),
+      // An image keeps Prisma's engine beside its bundle: `stacktape dev` runs the bundle from another directory.
+      ...(isLambda ? [createPrismaLambdaClientPlugin()] : []),
       ...(decoratorMetadataPlugin ? [decoratorMetadataPlugin] : []),
       ...(plugins || [])
     ];
@@ -494,22 +488,23 @@ export const buildEsCode = async ({
     }
 
     // Build with Bun
-    // For ESM: We use define to replace __dirname/__filename with our custom variables
-    // because Bun injects hardcoded build-time paths which won't work in production.
-    // Our banner then defines these variables properly using import.meta.url.
-    const esmDefines =
-      outputModuleFormat === 'esm'
-        ? {
-            __dirname: '__stp_dirname',
-            __filename: '__stp_filename'
-          }
-        : {};
+    // Bun replaces `__dirname` and `__filename` with the build host's paths in both output formats, so a bundle
+    // deployed elsewhere would read directories that only existed where it was built. Both identifiers are
+    // redirected to variables that a banner defines at runtime: from `import.meta.url` in an ES module, and from the
+    // `__dirname` and `__filename` Node.js itself provides to a CommonJS module.
+    const pathDefines = {
+      __dirname: '__stp_dirname',
+      __filename: '__stp_filename'
+    };
 
     // Get banner content to prepend
     const banner = await getSourceMapBanner({ sourceMapBannerType, outputModuleFormat, sourceMapInstallPath });
     const shouldInjectBanner =
       (outputModuleFormat === 'cjs' && sourceMapBannerType !== 'disabled') ||
       (outputModuleFormat === 'esm' && sourceMapBannerType === 'pre-compiled');
+    const bannerJs = [outputModuleFormat === 'cjs' ? CJS_PATH_BANNER : '', shouldInjectBanner ? banner.js : '']
+      .filter(Boolean)
+      .join('\n');
 
     // Use monorepo root for module resolution if available
     // Convert to Unix paths for Bun compatibility on Windows
@@ -531,12 +526,12 @@ export const buildEsCode = async ({
         // Keep it runtime-configurable; production images provide their own production default.
         define: {
           'process.env.NODE_ENV': 'process.env.NODE_ENV',
-          ...esmDefines,
+          ...pathDefines,
           ...define
         },
         plugins: allBunPlugins,
         root: buildRoot,
-        ...(shouldInjectBanner && banner.js ? { banner: banner.js } : {}),
+        ...(bannerJs ? { banner: bannerJs } : {}),
         ...(tsConfigPathForBuild ? { tsconfig: tsConfigPathForBuild } : {}),
         metafile: true,
         ...(virtualFiles && { files: virtualFiles })
@@ -571,18 +566,9 @@ export const buildEsCode = async ({
     if (isLambda) {
       const assetFiles = buildResult.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
       if (assetFiles.length > 0) {
-        await Promise.all(
-          buildResult.outputs
-            .filter(({ path }) => path.endsWith('.js'))
-            // The file's map moves with its edited references (`es/source-map-edits`).
-            .map(({ path }) =>
-              writeEditedJavaScript({
-                from: path,
-                to: path,
-                edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
-                packaged: false
-              })
-            )
+        await rewriteLambdaAssetReferences(
+          buildResult.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+          assetFiles
         );
       }
     }
@@ -688,31 +674,34 @@ export const buildEsCode = async ({
       await writeJson(join(dirname(distPath), metafile), buildMetafile);
     }
 
+    // The bundle's debug ID and its map's sources must not depend on the build directory (`es/artifact-identity`).
+    await Promise.all(
+      (distPath
+        ? [distPath]
+        : buildResult.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path)
+      ).map((javascriptPath) =>
+        normalizeBundleIdentity({
+          javascriptPath,
+          projectRoot: monorepoRoot || cwd,
+          sourcesResolveFrom: outdir ?? dirname(javascriptPath)
+        })
+      )
+    );
+
     return {
-      dependenciesToInstallInDocker: dedupeDependenciesByName(allDependenciesToInstallInDocker),
+      externalDependencies: dedupeDependenciesByName(externalDependencies),
       externalModules,
-      dynamicallyImportedModules,
       sourceFiles,
       allModules
     };
   };
 
-  return runBuild({}).catch(async (error) => {
+  return runBuild().catch(async (error) => {
     const printableSrcPath = sourcePath
       ? transformToUnixPath(getRelativePath(sourcePath))
       : rawCode
         ? '<raw code>'
         : '<unknown>';
-
-    // Handle dynamic import errors by retrying with those modules externalized
-    if (error.message?.includes('Could not resolve')) {
-      const dynamicImportMatch = error.message.match(/Could not resolve "([^"]+)"/g);
-      if (dynamicImportMatch) {
-        const failedModules = dynamicImportMatch.map((m: string) => m.replace(/Could not resolve "|"/g, ''));
-        return runBuild({ dynamicallyImportedModules: failedModules });
-      }
-    }
-
     throw createPackagingError({
       type: 'BUILD_CODE',
       message: `Failed to build code at ./${printableSrcPath}\n${error.message || error}`,
@@ -721,6 +710,11 @@ export const buildEsCode = async ({
     });
   });
 };
+
+const describeDependencies = (dependencies: { name: string; version: string; note?: string | undefined }[]) =>
+  dependencies.length
+    ? dependencies.map(({ name, version, note }) => `${name}@${version}${note ? ` (${note})` : ''}`).join('\n')
+    : 'none';
 
 export const createEsBundle = async ({
   name,
@@ -731,12 +725,12 @@ export const createEsBundle = async ({
   additionalDigestInput,
   existingDigests,
   progressLogger,
-  invocationId,
   excludeDependencies = [],
   includeFiles = [],
   excludeFiles = [],
   dependenciesToExcludeFromBundle,
   outputSourceMapsTo,
+  keepSourceMapsInPackage,
   emitTsDecoratorMetadata,
   tsConfigPath,
   minify,
@@ -747,7 +741,7 @@ export const createEsBundle = async ({
   debug,
   sourceMaps,
   sourceMapBannerType,
-  installNonStaticallyBuiltDepsInDocker,
+  packageExternalDependencies,
   dependenciesToExcludeFromDeploymentPackage,
   isLambda,
   requiresGlibcBinaries,
@@ -759,14 +753,19 @@ export const createEsBundle = async ({
   nativeDependencyInstallationRootPath,
   runDocker,
   sourceMapInstallPath,
-  lambdaZip
+  lambdaZip,
+  packageAnalysisCache = createPackageAnalysisCache()
 }: StpBuildpackInput &
   EsBuildActions &
   JsBundleOptions & {
     minify: boolean;
     nodeTarget: string;
     bundleTarget?: 'node' | 'bun' | undefined;
-    installNonStaticallyBuiltDepsInDocker: boolean;
+    /**
+     * Whether the artifact carries the packages the bundle leaves out in its own `node_modules`, as a Lambda ZIP does.
+     * An image installs them in its Dockerfile instead.
+     */
+    packageExternalDependencies: boolean;
     sourceMaps?: 'inline' | 'external' | 'disabled' | undefined;
     sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled' | undefined;
     isLambda?: boolean | undefined;
@@ -774,9 +773,13 @@ export const createEsBundle = async ({
   }) => {
   // The entry file's own package (`backend/package.json` beside `backend/src/index.js`) is what the bundle resolves
   // against; the installer walks up from there to a workspace root when there is one.
-  await installDependencies({ rootProjectDirPath: dirname(resolve(cwd, entryfilePath)), progressLogger });
+  const entrypointDirectory = dirname(resolve(cwd, entryfilePath));
+  await installDependencies({ rootProjectDirPath: entrypointDirectory, progressLogger });
 
   const distIndexFilePath = join(distFolderPath, 'index.js');
+  // A Lambda ZIP keeps its maps outside the package unless the configuration keeps them in (see
+  // `takeSourceMapsOutOfPackage`). Nothing then reads a map at runtime.
+  const mapsLeavePackage = Boolean(lambdaZip && !keepSourceMapsInPackage);
 
   const hasSharedLayerExternals = externals.length > 0;
   const buildDescription = hasSharedLayerExternals
@@ -784,40 +787,53 @@ export const createEsBundle = async ({
     : 'Building code';
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: buildDescription });
 
-  // Look for lockfile in monorepo root first, then cwd
-  const monorepoRoot = await findProjectRoot(cwd);
-  const lockFileDir = monorepoRoot || cwd;
-  const { packageManager } = await getLockFileData(lockFileDir);
-  const { dependenciesToInstallInDocker, dynamicallyImportedModules, sourceFiles, allModules, externalModules } =
-    await buildEsCode({
-      minify,
-      sourcePath: entryfilePath,
-      distPath: distIndexFilePath,
-      // TypeScript expands decorators before Bun sees the module. Bun does not compose the transform's source map,
-      // so emitting its map would produce incorrect stack-trace line numbers. Prefer no map over a misleading one.
-      sourceMaps: emitTsDecoratorMetadata ? 'disabled' : sourceMaps || 'external',
-      sourceMapBannerType: sourceMapBannerType || 'pre-compiled',
-      externals,
-      dependenciesToExcludeFromBundle,
-      emitTsDecoratorMetadata,
-      excludeDependencies,
-      tsConfigPath,
-      cwd,
-      minifyIdentifiers,
-      bundleAwsSdk,
-      nodeTarget,
-      bundleTarget,
-      isLambda,
-      outputModuleFormat,
-      createPackagingError,
-      sourceMapInstallPath
-    });
-  // A Lambda ZIP ships its map without `sourcesContent`. It is stripped before the digest, so the identity describes
-  // what is packaged. `outputSourceMapsTo` still receives the full map and ships none, so that map is left whole.
+  // The lockfile of the project the entry file belongs to, which need not be the configuration's directory.
+  const projectRoot = (await findProjectRoot(entrypointDirectory)) || cwd;
+  const { packageManager, lockfilePath } = await getLockFileData(projectRoot);
+  const {
+    externalDependencies: bundleExternalDependencies,
+    sourceFiles,
+    allModules,
+    externalModules
+  } = await buildEsCode({
+    minify,
+    sourcePath: entryfilePath,
+    distPath: distIndexFilePath,
+    // TypeScript expands decorators before Bun sees the module. Bun does not compose the transform's source map,
+    // so emitting its map would produce incorrect stack-trace line numbers. Prefer no map over a misleading one.
+    sourceMaps: emitTsDecoratorMetadata ? 'disabled' : sourceMaps || 'external',
+    // The CommonJS banner installs `source-map-support`, which only reads maps beside the code. The ESM banner is the
+    // `require`/`__dirname` shim, which every ESM bundle needs.
+    sourceMapBannerType:
+      sourceMapBannerType || (mapsLeavePackage && outputModuleFormat !== 'esm' ? 'disabled' : 'pre-compiled'),
+    externals,
+    dependenciesToExcludeFromBundle,
+    emitTsDecoratorMetadata,
+    excludeDependencies,
+    tsConfigPath,
+    cwd,
+    minifyIdentifiers,
+    bundleAwsSdk,
+    nodeTarget,
+    bundleTarget,
+    isLambda,
+    outputModuleFormat,
+    createPackagingError,
+    sourceMapInstallPath,
+    packageAnalysisCache
+  });
+  // `outputSourceMapsTo` receives the complete map. A Lambda ZIP's map then loses `sourcesContent` before the digest,
+  // so the identity describes what is deployed, and leaves the package unless the configuration keeps it there.
   const packagedSourceMapPath = join(distFolderPath, 'index.js.map');
-  if (lambdaZip && !outputSourceMapsTo && existsSync(packagedSourceMapPath)) {
+  if (outputSourceMapsTo && existsSync(packagedSourceMapPath)) {
+    await saveSourceMapCopy({ outputSourceMapsTo, distFolderPath, workingDir: cwd, name });
+  }
+  if (lambdaZip && existsSync(packagedSourceMapPath)) {
     await writePackagedSourceMap({ from: packagedSourceMapPath, to: packagedSourceMapPath });
   }
+  const sourceMapsOutsidePackage = mapsLeavePackage
+    ? await takeSourceMapsOutOfPackage({ packagePath: distFolderPath, runtimeRoot: '/var/task', directories: [''] })
+    : undefined;
 
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
@@ -836,7 +852,7 @@ export const createEsBundle = async ({
     .map(({ path }) => ({ path: isAbsolute(path) ? path : join(cwd, path) }));
 
   const absoluteExplicitlyIncludedFiles = explicitlyIncludedFiles.map((f) => join(cwd, f));
-  const [explicitlyIncludedFilesDigest, dependenciesFromExplicitlyIncludedFiles] = await Promise.all([
+  const [explicitlyIncludedFilesDigest, dependenciesOfIncludedFiles] = await Promise.all([
     getHashFromMultipleFiles({
       files: absoluteExplicitlyIncludedFiles.map((path, index) => ({
         path,
@@ -846,30 +862,41 @@ export const createEsBundle = async ({
       // way `chmod +x` changes what runs. An image without included files records nothing and keeps its digest.
       recordExecutableBits: lambdaZip || absoluteExplicitlyIncludedFiles.length > 0
     }),
-    getAllJsDependenciesFromMultipleFiles({
-      absoluteFilePaths: absoluteExplicitlyIncludedFiles,
-      workingDir: cwd,
-      distFolderPath
-    })
+    getDependenciesOfIncludedFiles({ absoluteFilePaths: absoluteExplicitlyIncludedFiles })
   ]);
 
-  const dockerDependencyPlan = createDockerDependencyPlan({
-    bundledDependencies: dependenciesToInstallInDocker,
-    explicitlyIncludedDependencies: dependenciesFromExplicitlyIncludedFiles,
-    dependenciesToExcludeFromDeploymentPackage,
-    packageManager,
-    createPackagingError
+  // What a production install of the project gives the packages and workspace packages this code comes from.
+  const productionDependencies = await getProductionDependencies({
+    projectRoot,
+    sourcePaths: absoluteWorkloadSourceFiles.map(({ path }) => path),
+    cache: packageAnalysisCache
   });
-  const allDependenciesToInstallInDocker = dockerDependencyPlan?.dependencies ?? [];
+  const externalDependencies = dedupeDependenciesByName([
+    ...bundleExternalDependencies,
+    ...dependenciesOfIncludedFiles
+  ]).filter(
+    (dependency) =>
+      (!dependency.optionalPeer || productionDependencies.has(dependency.name)) &&
+      !dependenciesToExcludeFromDeploymentPackage?.includes('*') &&
+      !dependenciesToExcludeFromDeploymentPackage?.includes(dependency.name)
+  );
+  const dependencyPlan =
+    packageExternalDependencies && externalDependencies.length > 0
+      ? await planLambdaDependencies({
+          dependencies: externalDependencies,
+          productionDependencies,
+          architecture: getLambdaArchitecture(dockerBuildOutputArchitecture),
+          excludedNames: [...excludeDependencies, ...(dependenciesToExcludeFromDeploymentPackage ?? [])],
+          withoutSourceMaps: mapsLeavePackage,
+          cache: packageAnalysisCache
+        })
+      : null;
 
   if (debug) {
     console.info(
       `[DEBUG] [Resource ${name}].
--> Dependencies installed in docker: ${
-        allDependenciesToInstallInDocker.length
-          ? allDependenciesToInstallInDocker.map((dep) => `${dep.name}@${dep.version} (note: ${dep.note})`).join('\n')
-          : 'none'
-      }
+-> External dependencies: ${describeDependencies(externalDependencies)}
+-> Installed again in the Lambda build image: ${describeDependencies(dependencyPlan?.packagesToInstallForLambda ?? [])}
 -> External modules: ${externalModules.length ? externalModules.map((dep) => `${dep.name} (note: ${dep.note})`).join('\n') : 'none'}`
     );
   }
@@ -883,13 +910,19 @@ export const createEsBundle = async ({
     });
     const explicitlyIncludedFilesDigestHex = explicitlyIncludedFilesDigest.digest('hex');
     digest = await getBundleDigest({
-      externalDependencies: dependenciesToInstallInDocker.map((dep) => ({ name: dep.name, version: dep.version })),
+      externalDependencies: dependencyPlan
+        ? await getLambdaDependencyIdentity(dependencyPlan)
+        : externalDependencies.map((dependency) => `${dependency.name}@${dependency.version}`),
+      projectRoot,
+      lockfilePath,
       cwd,
       distFolderPath,
       additionalDigestInput: [
         additionalDigestInput,
         explicitlyIncludedFilesDigestHex,
-        dockerBuildOutputArchitecture
+        dockerBuildOutputArchitecture,
+        // Maps kept outside the package are still part of the artifact: a map-only change is a new deployment.
+        sourceMapsOutsidePackage ? `source-maps:${sourceMapsOutsidePackage.sha256}` : ''
       ].join(''),
       lambdaZip,
       createPackagingError
@@ -904,7 +937,6 @@ export const createEsBundle = async ({
         outcome: 'skipped' as const,
         distFolderPath,
         distIndexFilePath,
-        dynamicallyImportedModules,
         sourceFiles: absoluteWorkloadSourceFiles,
         languageSpecificBundleOutput: { es: {} },
         resolvedModules: allModules
@@ -915,15 +947,10 @@ export const createEsBundle = async ({
 
   await progressLogger.startEvent({
     eventType: 'RESOLVE_DEPENDENCIES',
-    description: 'Resolving dependencies'
+    description: dependencyPlan?.packagesToInstallForLambda.length
+      ? `Installing ${dependencyPlan.packagesToInstallForLambda.map((dependency) => dependency.name).join(', ')} for Lambda`
+      : 'Resolving dependencies'
   });
-
-  const copyProps = {
-    distFolderPath,
-    workingDir: cwd,
-    bundledItemName: name,
-    invocationId
-  };
 
   const hasPrisma = allModules.find((m) => m.startsWith('@prisma/'));
   await Promise.all([
@@ -935,22 +962,20 @@ export const createEsBundle = async ({
         workloadName: name,
         isAlpine: !requiresGlibcBinaries,
         isLambda,
+        architecture: dockerBuildOutputArchitecture ? getLambdaArchitecture(dockerBuildOutputArchitecture) : undefined,
         createPackagingError
       }),
-    installNonStaticallyBuiltDepsInDocker &&
-      dockerDependencyPlan &&
-      copyDockerInstalledModulesForLambda({
-        ...copyProps,
-        dependencies: allDependenciesToInstallInDocker,
+    dependencyPlan &&
+      writeLambdaDependencies({
+        plan: dependencyPlan,
+        nodeModulesPath: join(distFolderPath, 'node_modules'),
         installationRootPath: nativeDependencyInstallationRootPath,
-        packageManager: dockerDependencyPlan.packageManager,
         lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(nodeTarget),
-        dockerBuildOutputArchitecture,
         runDocker
       }),
     copyExplicitlyIncludedFiles({ cwd, explicitlyIncludedFiles, outputDirectory: distFolderPath }),
-    outputSourceMapsTo &&
-      resolveDifferentSourceMapLocation({ outputSourceMapsTo, distFolderPath, workingDir: cwd, name })
+    // An image with `outputSourceMapsTo` ships no map; the saved copy is the only one.
+    outputSourceMapsTo && !lambdaZip && rm(packagedSourceMapPath, { force: true })
   ]);
   await removeExplicitlyExcludedFiles({ createPackagingError, excludeFiles, outputDirectory: distFolderPath });
   await progressLogger.finishEvent({ eventType: 'RESOLVE_DEPENDENCIES' });
@@ -962,13 +987,10 @@ export const createEsBundle = async ({
     outcome: 'bundled' as const,
     sourceFiles: absoluteWorkloadSourceFiles,
     languageSpecificBundleOutput: {
-      es: {
-        dependenciesToInstallInDocker: allDependenciesToInstallInDocker,
-        packageManager,
-        dynamicallyImportedModules
-      }
+      es: { externalDependencies, packageManager, productionDependencies: [...productionDependencies].toSorted() }
     },
-    resolvedModules: allModules
+    resolvedModules: allModules,
+    sourceMapsPath: sourceMapsOutsidePackage?.path
   };
 };
 
@@ -992,6 +1014,8 @@ const getLambdaBundleChecksum = async ({
 const getBundleDigest = async ({
   distFolderPath,
   cwd,
+  projectRoot,
+  lockfilePath,
   externalDependencies,
   additionalDigestInput,
   lambdaZip,
@@ -999,7 +1023,11 @@ const getBundleDigest = async ({
 }: {
   distFolderPath: string;
   cwd: string;
-  externalDependencies: { name: string; version: string }[];
+  /** The entry file's project, whose lockfile and `patches/` describe the installed packages the artifact copies. */
+  projectRoot: string;
+  lockfilePath: string | null;
+  /** `name@version` of every package copied beside the bundle. */
+  externalDependencies: string[];
   additionalDigestInput: string;
   createPackagingError: CreatePackagingError;
   /**
@@ -1009,11 +1037,19 @@ const getBundleDigest = async ({
    */
   lambdaZip?: boolean | undefined;
 }) => {
-  const filesToIncludeInDigest = FILES_TO_INCLUDE_IN_DIGEST.map((filePath) => ({
-    path: join(cwd, filePath),
-    identity: filePath
-  }));
-  const hash = await getHashFromMultipleFiles({ files: filesToIncludeInDigest });
+  // A patched package keeps its version, so only the patch files (patch-package, or the patches pnpm, Yarn and Bun
+  // record in the lockfile) tell the cache that a copied package changed.
+  const patchFiles =
+    externalDependencies.length > 0
+      ? await getMatchingFilesByGlob({ globPattern: 'patches/**', cwd: projectRoot })
+      : [];
+  const hash = await getHashFromMultipleFiles({
+    files: [
+      ...FILES_TO_INCLUDE_IN_DIGEST.map((filePath) => ({ path: join(cwd, filePath), identity: filePath })),
+      ...(lockfilePath ? [{ path: lockfilePath, identity: 'entrypoint-project-lockfile' }] : []),
+      ...patchFiles.toSorted().map((filePath) => ({ path: join(projectRoot, filePath), identity: filePath }))
+    ]
+  });
   // A Lambda ZIP holds what the archive policy lists; an image build context keeps Docker's semantics (host modes, any
   // link), which that inventory does not describe, so it keeps the earlier checksum.
   hash.update(

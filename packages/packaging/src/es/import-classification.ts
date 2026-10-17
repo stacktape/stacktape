@@ -12,10 +12,21 @@
  * `findModulePath` between them, and inserts whatever extra steps it needs (workspace packages and
  * dynamically imported modules in the per-Lambda bundler) without reordering the shared ones.
  */
+import { existsSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
-import type { PackageJsonDepsInfo } from './bundler-helpers';
-import { determineIfAlias, getInfoFromPackageJson, isRequireImportKind } from './bundler-helpers';
-import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER } from './config';
+import { dirname, isAbsolute, join } from 'node:path';
+import type { ResolvedPackageDependency } from '../runtime-contracts';
+import { isBareImportSpecifier } from './bun-plugins';
+import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
+import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE } from './config';
+import {
+  findInstalledPackage,
+  isOptionalPeer,
+  readPackageManifest,
+  type PackageAnalysisCache
+} from './installed-packages';
+import { getNativeReason } from './native-packages';
+import { readsOwnFilesAtRunTime } from './self-reading-packages';
 
 /** The package a specifier belongs to: `lodash/merge` is `lodash`, `@scope/pkg/sub` is `@scope/pkg`. */
 export const getModuleName = (importPath: string): string => {
@@ -27,13 +38,89 @@ export const getModuleName = (importPath: string): string => {
 
 export const isNodeBuiltinImport = (specifier: string): boolean => isBuiltin(specifier);
 
-/** Every name in a dependency's transitive `dependencies` tree. */
-const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<string>): Set<string> => {
-  for (const dep of depsInfo.dependencies) {
-    depsList.add(dep.name);
-    getExternalDeps(dep, depsList);
+/** The directory of the `package.json` that owns `directory`, as Node.js finds a module's package scope. */
+const findPackageScope = (directory: string): string | undefined => {
+  for (let current = directory; ; current = dirname(current)) {
+    if (existsSync(join(current, 'package.json'))) return current;
+    if (dirname(current) === current) return undefined;
   }
-  return depsList;
+};
+
+/** The entry of an `imports` map that matches `specifier`, with the text a `*` pattern captured. */
+const matchImportsEntry = (
+  imports: Record<string, unknown>,
+  specifier: string
+): { target: unknown; captured?: string } | undefined => {
+  if (!specifier.includes('*') && Object.hasOwn(imports, specifier)) return { target: imports[specifier] };
+  // Node.js prefers the pattern with the longest text before the `*`, then the longest pattern.
+  let best: { key: string; base: string; captured: string } | undefined;
+  for (const key of Object.keys(imports)) {
+    const star = key.indexOf('*');
+    if (star === -1 || star !== key.lastIndexOf('*')) continue;
+    const base = key.slice(0, star);
+    const trailer = key.slice(star + 1);
+    if (specifier === base || specifier.length < key.length) continue;
+    if (!specifier.startsWith(base) || !specifier.endsWith(trailer)) continue;
+    if (
+      best &&
+      (base.length < best.base.length || (base.length === best.base.length && key.length <= best.key.length))
+    ) {
+      continue;
+    }
+    best = { key, base, captured: specifier.slice(base.length, specifier.length - trailer.length) };
+  }
+  return best && { target: imports[best.key], captured: best.captured };
+};
+
+/** The string a target selects under the build's conditions: the first matching key wins, as in Node.js. */
+const selectImportsTarget = (target: unknown, conditions: Set<string>): string | undefined => {
+  if (typeof target === 'string') return target;
+  if (Array.isArray(target)) {
+    for (const candidate of target) {
+      const selected = selectImportsTarget(candidate, conditions);
+      if (selected !== undefined) return selected;
+    }
+    return undefined;
+  }
+  if (typeof target !== 'object' || target === null) return undefined;
+  for (const [condition, value] of Object.entries(target)) {
+    if (!conditions.has(condition)) continue;
+    const selected = selectImportsTarget(value, conditions);
+    if (selected !== undefined) return selected;
+  }
+  return undefined;
+};
+
+/**
+ * The package specifier the dependency rules classify an import by, or `undefined` when the import names no package.
+ *
+ * A subpath import (`#name`) is defined by the importing package's `imports` map. When the map points it at a
+ * package, as `"#native": "fixture-native"` does, it is an import of that package and the rules decide about that
+ * package: Bun's resolver would otherwise follow the map without asking the plugins, and bundle a native or excluded
+ * package. A package left out of the bundle is then imported by its own name, because the artifact keeps no `imports`
+ * map. A subpath import of a file in the package, as Prisma's `#main-entry-point` is, names no package and is bundled.
+ */
+export const getClassifiedSpecifier = async ({
+  path: specifier,
+  importer,
+  kind
+}: {
+  /** The import's specifier, as Bun's `onResolve` arguments name it. */
+  path: string;
+  importer: string | undefined;
+  kind: Bun.ImportKind | undefined;
+}): Promise<string | undefined> => {
+  if (!specifier.startsWith('#')) return isBareImportSpecifier(specifier) ? specifier : undefined;
+  const packageScope = importer && isAbsolute(importer) ? findPackageScope(dirname(importer)) : undefined;
+  if (!packageScope) return undefined;
+  const { imports } = await readPackageManifest(packageScope).catch(() => ({ imports: undefined }));
+  if (typeof imports !== 'object' || imports === null || Array.isArray(imports)) return undefined;
+  const entry = matchImportsEntry(imports as Record<string, unknown>, specifier);
+  const conditions = new Set(['node', isRequireImportKind(kind) ? 'require' : 'import', 'default']);
+  const target = entry && selectImportsTarget(entry.target, conditions);
+  if (target === undefined) return undefined;
+  const packageSpecifier = entry?.captured === undefined ? target : target.replaceAll('*', entry.captured);
+  return isBareImportSpecifier(packageSpecifier) ? packageSpecifier : undefined;
 };
 
 /**
@@ -86,58 +173,93 @@ export const isRuntimeProvidedLambdaModule = ({
 };
 
 /**
- * What a dependency needs beyond bundling: a native binary has to be installed on the target
- * platform instead, and so does anything the user or Stacktape excluded from the bundle. Peer
- * dependencies come along only when they carry a binary of their own — a pure-JS peer such as `zod`
- * bundles safely.
- *
- * Unreadable package metadata is not fatal: the import falls through to the bundler, which reports
- * a resolution failure with the context a packaging error here would lack.
+ * The installed package required as `name` from `path`, or `null` when its manifest cannot be read. The name is the
+ * one it is required by, which an npm alias makes different from its manifest's.
  */
-export const analyzeDependency = async ({
+const describeInstalledPackage = async ({
+  name,
+  path,
+  note
+}: {
+  name: string;
+  path: string;
+  note: string;
+}): Promise<ResolvedPackageDependency | null> => {
+  try {
+    const { version } = await readPackageManifest(path);
+    return version ? { name, version, path, note } : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Why a package stays out of the bundle, or `undefined` when it is bundled. */
+const getExclusionNote = async ({
   dependency,
-  dependenciesToExcludeFromBundle
+  dependenciesToExcludeFromBundle,
+  cache
 }: {
   dependency: { path: string; name: string };
   dependenciesToExcludeFromBundle: string[];
-}): Promise<{
-  dependenciesToInstallInDocker: PackageJsonDepsInfo[];
-  allExternalDeps: string[];
-}> => {
-  const packageInfo = await getInfoFromPackageJson({
-    directoryPath: dependency.path,
-    parentModule: null,
-    dependencyType: 'root'
-  });
-  if (!packageInfo) {
-    return { dependenciesToInstallInDocker: [], allExternalDeps: [] };
+  cache: PackageAnalysisCache;
+}): Promise<string | undefined> => {
+  const nativeReason = await getNativeReason(dependency.path, cache);
+  if (nativeReason) return `native: ${nativeReason}`;
+  if (dependenciesToExcludeFromBundle.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_USER';
+  if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) return 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE';
+  if (await readsOwnFilesAtRunTime(dependency.path, cache)) return 'reads its own files at run time';
+  return undefined;
+};
+
+/**
+ * The packages a dependency needs installed beside the bundle: itself when it is native or excluded from the bundle,
+ * and its installed peer dependencies that are native. A bundled package can reach a peer through a `require()` the
+ * bundler cannot follow, so a native peer is installed even when nothing imports it directly. A pure-JavaScript peer
+ * such as `zod` bundles safely. An optional peer is marked `optionalPeer`: the bundler keeps it only when the project
+ * depends on it in production, as Sequelize projects do with their database driver.
+ *
+ * Unreadable package metadata is not fatal: the import falls through to the bundler, which reports a resolution
+ * failure with the context a packaging error here would lack.
+ */
+const analyzeDependency = async ({
+  dependency,
+  dependenciesToExcludeFromBundle,
+  cache
+}: {
+  dependency: { path: string; name: string };
+  dependenciesToExcludeFromBundle: string[];
+  cache: PackageAnalysisCache;
+}): Promise<ResolvedPackageDependency[]> => {
+  const manifest = await readPackageManifest(dependency.path).catch(() => null);
+  if (!manifest) return [];
+
+  const externalDependencies: ResolvedPackageDependency[] = [];
+  const note = await getExclusionNote({ dependency, dependenciesToExcludeFromBundle, cache });
+  if (note) {
+    const installedPackage = await describeInstalledPackage({ name: dependency.name, path: dependency.path, note });
+    if (installedPackage) externalDependencies.push(installedPackage);
   }
 
-  const allExternalDeps = Array.from(getExternalDeps(packageInfo, new Set<string>()));
-  const dependenciesToInstallInDocker: PackageJsonDepsInfo[] = [];
-
-  if (packageInfo.hasBinary) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'HAS_BINARY' });
-  } else if (dependenciesToExcludeFromBundle.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_USER' });
-  } else if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE' });
-  }
-
-  packageInfo.optionalPeerDependencies
-    ?.filter((dep) => !IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER.includes(dep.name))
-    .filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'OPTIONAL_PEER_DEPENDENCY' });
-    });
-
-  packageInfo.peerDependencies
-    ?.filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
-    });
-
-  return { dependenciesToInstallInDocker, allExternalDeps };
+  const peerNames = new Set([
+    ...Object.keys(manifest.peerDependencies ?? {}),
+    ...Object.keys(manifest.peerDependenciesMeta ?? {})
+  ]);
+  const nativePeers = await Promise.all(
+    [...peerNames].map(async (peerName) => {
+      const peerPath = await findInstalledPackage({ name: peerName, fromDirectory: dependency.path });
+      const nativeReason = peerPath && (await getNativeReason(peerPath, cache));
+      if (!nativeReason) return null;
+      const peer = await describeInstalledPackage({
+        name: peerName,
+        path: peerPath,
+        note: `native peer of ${dependency.name}: ${nativeReason}`
+      });
+      if (peer && isOptionalPeer(manifest, peerName)) peer.optionalPeer = true;
+      return peer;
+    })
+  );
+  for (const peer of nativePeers) if (peer) externalDependencies.push(peer);
+  return externalDependencies;
 };
 
 /** What the shared rules decide about a bare import before anyone has located it on disk. */
@@ -177,20 +299,16 @@ export const classifyBeforeResolution = ({
 /**
  * What the shared rules decide once the module's directory is known.
  *
- * `dependenciesToInstallInDocker` is reported either way: a bundled module can still carry a peer
- * dependency with a native binary, which has to be installed even though the module itself is
- * bundled.
+ * `externalDependencies` is reported either way: a bundled module can still carry a native peer dependency, which has
+ * to be installed even though the module itself is bundled. A module left out of the bundle for any reason does not
+ * take its own dependencies out with it: the module resolves them from where it is installed, and a bundled importer of
+ * the same package keeps its own copy, which may be another version.
  */
-export type ResolvedModuleVerdict = { dependenciesToInstallInDocker: PackageJsonDepsInfo[] } & (
+export type ResolvedModuleVerdict = { externalDependencies: ResolvedPackageDependency[] } & (
   | {
       outcome: 'external';
       /** Why it left the bundle, recorded against the module for later reporting. */
       note: string;
-      /**
-       * Names that must be external too, because an externalized package resolves them from its own
-       * installed tree. Bundling them as well would ship a second copy.
-       */
-      alsoExternal: string[];
     }
   /** Nothing keeps it out of the bundle. */
   | { outcome: 'bundle' }
@@ -204,7 +322,8 @@ export const classifyResolvedModule = async ({
   moduleName,
   shouldIgnoreAllDeps,
   importer,
-  importKind
+  importKind,
+  cache
 }: {
   dependenciesToExcludeFromBundle: string[];
   excludeDependencies: string[];
@@ -216,32 +335,24 @@ export const classifyResolvedModule = async ({
   /** The file doing the import and how, when the bundler knows them. */
   importer?: string | undefined;
   importKind?: Bun.ImportKind | undefined;
+  /** The build's cache (`createPackageAnalysisCache`). */
+  cache: PackageAnalysisCache;
 }): Promise<ResolvedModuleVerdict> => {
-  const readPackageInfo = async (note: string): Promise<PackageJsonDepsInfo[]> => {
-    if (!modulePath) return [];
-    const packageInfo = await getInfoFromPackageJson({
-      directoryPath: modulePath,
-      parentModule: null,
-      dependencyType: 'root'
-    }).catch(() => null);
-    return packageInfo ? [{ ...packageInfo, note }] : [];
-  };
+  // `excludeDependencies` and the ignored modules leave the deployment package altogether.
+  if (ignoredModules.includes(moduleName) || excludeDependencies.includes(moduleName)) {
+    return { outcome: 'external', note: 'EXCLUDED', externalDependencies: [] };
+  }
 
   if (shouldIgnoreAllDeps && modulePath) {
+    const installedPackage = await describeInstalledPackage({
+      name: moduleName,
+      path: modulePath,
+      note: 'WILDCARD_EXTERNALIZED'
+    });
     return {
       outcome: 'external',
       note: 'WILDCARD_EXTERNALIZED',
-      dependenciesToInstallInDocker: await readPackageInfo('WILDCARD_EXTERNALIZED'),
-      alsoExternal: []
-    };
-  }
-
-  if (ignoredModules.includes(moduleName) || excludeDependencies.includes(moduleName)) {
-    return {
-      outcome: 'external',
-      note: 'IGNORED',
-      dependenciesToInstallInDocker: await readPackageInfo('IGNORED'),
-      alsoExternal: []
+      externalDependencies: installedPackage ? [installedPackage] : []
     };
   }
 
@@ -252,27 +363,18 @@ export const classifyResolvedModule = async ({
     // project's own code gets no such leniency: a missing import there is a real error.
     const fromDependency = importer !== undefined && /[\\/]node_modules[\\/]/.test(importer);
     if (fromDependency && (isRequireImportKind(importKind) || importKind === 'dynamic-import')) {
-      return {
-        outcome: 'external',
-        note: 'OPTIONAL_NOT_INSTALLED',
-        dependenciesToInstallInDocker: [],
-        alsoExternal: []
-      };
+      return { outcome: 'external', note: 'OPTIONAL_NOT_INSTALLED', externalDependencies: [] };
     }
-    return { outcome: 'bundle', dependenciesToInstallInDocker: [] };
+    return { outcome: 'bundle', externalDependencies: [] };
   }
 
-  const { allExternalDeps, dependenciesToInstallInDocker } = await analyzeDependency({
+  const externalDependencies = await analyzeDependency({
     dependenciesToExcludeFromBundle,
-    dependency: { name: moduleName, path: modulePath }
+    dependency: { name: moduleName, path: modulePath },
+    cache
   });
-
-  return dependenciesToInstallInDocker.some((dep) => dep.name === moduleName)
-    ? {
-        outcome: 'external',
-        note: 'INSTALLED_IN_DOCKER',
-        dependenciesToInstallInDocker,
-        alsoExternal: allExternalDeps
-      }
-    : { outcome: 'bundle', dependenciesToInstallInDocker };
+  const self = externalDependencies.find((dependency) => dependency.path === modulePath);
+  return self
+    ? { outcome: 'external', note: self.note ?? 'EXTERNAL', externalDependencies }
+    : { outcome: 'bundle', externalDependencies };
 };

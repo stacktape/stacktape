@@ -11,7 +11,7 @@ import {
   AWS_READ_ONLY_OPERATIONS,
   getReadOnlyAwsOperations,
   isReadOnlyAwsCommand
-} from '../../domain/debug-services/aws-read-only-operations';
+} from '@stacktape/aws-read-only/operations';
 import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 
 export type CliCommandSafety = 'readOnly' | 'diagnostic' | 'local' | 'mutating' | 'destructive' | 'interactive';
@@ -91,8 +91,8 @@ const ARG_ALIASES: Record<string, string> = {
   docker_args: 'dockerArgs',
   end_time: 'endTime',
   fresh_db: 'freshDb',
-  hot_swap: 'hotSwap',
-  hs: 'hotSwap',
+  full_deploy: 'fullDeploy',
+  fd: 'fullDeploy',
   local_tunneling_port: 'localTunnelingPort',
   log_level: 'logLevel',
   no_cache: 'noCache',

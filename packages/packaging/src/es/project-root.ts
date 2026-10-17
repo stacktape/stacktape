@@ -1,35 +1,21 @@
 import { dirname, join, resolve } from 'node:path';
 import { pathExists, readFile, stat } from 'fs-extra';
 
-async function isGitRoot(dir: string): Promise<boolean> {
+/**
+ * Whether `dir` is the top of a Git repository that is a project of its own: a clone or a worktree. A submodule is
+ * not, because its superproject's workspace can include its packages (this repository's private Console is one).
+ */
+async function isRepositoryBoundary(dir: string): Promise<boolean> {
   const gitPath = join(dir, '.git');
-
-  if (!(await pathExists(gitPath))) {
-    return false;
-  }
-
   try {
     const stats = await stat(gitPath);
-
-    // If .git is a directory, this is the git root
-    if (stats.isDirectory()) {
-      return true;
-    }
-
-    // If .git is a file, it might be a git submodule or worktree
-    // Read the file to get the actual git directory location
-    if (stats.isFile()) {
-      const content = await readFile(gitPath, 'utf8');
-      // Git submodules/worktrees have format: "gitdir: <path>"
-      if (content.startsWith('gitdir:')) {
-        return true;
-      }
-    }
+    if (stats.isDirectory()) return true;
+    // Worktrees and submodules have a `.git` file naming their Git directory; a submodule's lives under `modules/`.
+    const content = await readFile(gitPath, 'utf8');
+    return content.startsWith('gitdir:') && !/[\\/]modules[\\/]/.test(content);
   } catch {
     return false;
   }
-
-  return false;
 }
 
 async function isMonorepoRoot(dir: string): Promise<boolean> {
@@ -63,48 +49,35 @@ async function isMonorepoRoot(dir: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Whether `dir` is where `findProjectRoot` stops climbing: a workspace root or the top of a Git clone or worktree.
+ * Nothing above it belongs to the project.
+ */
+export const isProjectBoundary = async (dir: string): Promise<boolean> =>
+  (await isMonorepoRoot(dir)) || (await isRepositoryBoundary(dir));
+
+/**
+ * The root of the JavaScript project `startDir` belongs to: the nearest workspace root above it, otherwise its nearest
+ * `package.json`. The search stops at the top of a Git clone or worktree, so a project checked out inside another
+ * workspace (a benchmark clone, a nested worktree) never takes that workspace's lockfile or `node_modules`.
+ */
 export async function findProjectRoot(
   startDir: string = process.cwd(),
   logDebug: (message: string) => void = () => {}
 ): Promise<string | null> {
-  // look for monorepo root indicator by traversing up
+  let nearestPackage: string | null = null;
   let dir = resolve(startDir);
-  while (dir !== dirname(dir)) {
+  while (true) {
     // oxlint-disable-next-line no-await-in-loop -- Root discovery must stop at the nearest matching ancestor.
-    if (await isMonorepoRoot(dir)) {
-      return dir;
-    }
-    dir = dirname(dir);
+    if (await isMonorepoRoot(dir)) return dir;
+    // oxlint-disable-next-line no-await-in-loop -- see above.
+    if (!nearestPackage && (await pathExists(join(dir, 'package.json')))) nearestPackage = dir;
+    // oxlint-disable-next-line no-await-in-loop -- see above.
+    if (await isRepositoryBoundary(dir)) return nearestPackage ?? dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
-  if (logDebug) {
-    logDebug('No repository root found by monorepo indicators.');
-  }
-
-  // look for the nearest package.json
-  dir = resolve(startDir);
-  while (dir !== dirname(dir)) {
-    // oxlint-disable-next-line no-await-in-loop -- Root discovery must stop at the nearest matching ancestor.
-    if (await pathExists(join(dir, 'package.json'))) {
-      return dir;
-    }
-    dir = dirname(dir);
-  }
-  if (logDebug) {
-    logDebug('No repository root found by package.json.');
-  }
-
-  // look for git repository root by traversing up
-  dir = resolve(startDir);
-  while (dir !== dirname(dir)) {
-    // oxlint-disable-next-line no-await-in-loop -- Root discovery must stop at the nearest matching ancestor.
-    if (await isGitRoot(dir)) {
-      return dir;
-    }
-    dir = dirname(dir);
-  }
-  if (logDebug) {
-    logDebug('No repository root found by git repository root.');
-  }
-
-  return null;
+  if (!nearestPackage) logDebug('No project root found by workspace, package.json or Git repository.');
+  return nearestPackage;
 }

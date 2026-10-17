@@ -18,7 +18,14 @@ export const SMOKE_CASE_IDS = [
 
 export type AwsQualificationScenario = {
   id: string;
-  runner: 'packaging' | 'init' | 'alias-publication';
+  runner:
+    | 'packaging'
+    | 'init'
+    | 'alias-publication'
+    | 'nat-instance'
+    | 'nat-switch'
+    | 'dev-mode'
+    | 'container-fast-deploy';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -44,6 +51,52 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['lambda', 'codedeploy-alias', 'version-publication', 'environment-update', 'no-op-update', 'cleanup'],
     reason:
       'A configuration-only change must publish a version the alias serves, and an unchanged redeploy must publish none.'
+  },
+  {
+    id: 'nat-instance-failover',
+    runner: 'nat-instance',
+    policy: 'periodic',
+    costClass: 'low',
+    coverage: ['vpc', 'nat-instance', 'lambda-vpc-egress', 'failover', 'rolling-update', 'no-op-update', 'cleanup'],
+    reason:
+      "NAT instances must forward a VPC function's traffic, fail over to the other zone when one dies, come back, and survive a rolling replacement."
+  },
+  {
+    id: 'nat-kind-switch',
+    runner: 'nat-switch',
+    policy: 'periodic',
+    costClass: 'low',
+    coverage: ['vpc', 'nat-gateway', 'nat-instance', 'nat-kind-switch', 'probe-failover', 'cleanup'],
+    reason:
+      'Switching an existing stack between NAT gateways, two instances and one instance must keep the VPC and subnets, and a broken instance must be rerouted around and replaced.'
+  },
+  {
+    id: 'container-fast-deploy-serving',
+    runner: 'container-fast-deploy',
+    policy: 'periodic',
+    costClass: 'low',
+    coverage: ['container', 'web-service', 'load-balancer', 'http-api-gateway', 'fast-deploy', 'timing', 'cleanup'],
+    reason:
+      'A code-only container deploy must finish once the new release serves through the load balancer and API Gateway, without failed requests, and report how long each phase took.'
+  },
+  {
+    id: 'dev-mode-local-loop',
+    runner: 'dev-mode',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: [
+      'dev',
+      'dev-stack',
+      'local-container',
+      'local-postgres',
+      'local-redis',
+      'dev-server',
+      'agent-mode',
+      'pty',
+      'cleanup'
+    ],
+    reason:
+      'dev starts, rebuilds and stops a container, a local database and a dev server against a real dev stack, leaving nothing running.'
   },
   {
     id: 'init-static-site',

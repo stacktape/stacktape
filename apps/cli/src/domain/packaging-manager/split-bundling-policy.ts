@@ -73,6 +73,7 @@ const getCompatibilityKey = ({
     nodeVersion,
     tsConfigPath: esConfig?.tsConfigPath ?? 'tsconfig.json',
     disableSourceMaps: esConfig?.disableSourceMaps ?? false,
+    keepSourceMapsInPackage: esConfig?.keepSourceMapsInPackage ?? false,
     minify: esConfig?.minify ?? true,
     minifyIdentifiers: esConfig?.minifyIdentifiers ?? false,
     bundleAwsSdk: esConfig?.bundleAwsSdk ?? false,
@@ -125,12 +126,3 @@ export const selectSplitBundlingGroup = <Candidate extends SplitBundlingCandidat
 
   return { split: chosenKey === undefined ? [] : (groups.get(chosenKey) ?? []), perFunction };
 };
-
-/** Native split-bundle dependencies can only be materialized while Docker is available. */
-export const canBuildSplitNativeDependencies = ({
-  dependencyCount,
-  dockerIsRunning
-}: {
-  dependencyCount: number;
-  dockerIsRunning: boolean;
-}): boolean => dependencyCount === 0 || dockerIsRunning;

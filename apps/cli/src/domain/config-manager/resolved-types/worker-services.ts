@@ -1,7 +1,4 @@
-import type {
-  ContainerWorkloadReferencableParam,
-  StpContainerWorkload
-} from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { WorkerService } from '@stacktape/config/worker-services';
 
 export type StpWorkerService = WorkerService['properties'] & {
@@ -13,4 +10,3 @@ export type StpWorkerService = WorkerService['properties'] & {
     containerWorkload: StpContainerWorkload;
   };
 };
-export type WorkerServiceReferencableParams = ContainerWorkloadReferencableParam;

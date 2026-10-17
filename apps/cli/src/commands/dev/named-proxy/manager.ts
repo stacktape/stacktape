@@ -1,3 +1,4 @@
+import type { Socket } from 'node:net';
 import type { ProxyServer } from './proxy';
 import { mkdirp, readFile } from 'fs-extra';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -22,13 +23,15 @@ const state: {
   startupPromise: Promise<{ proxyPort: number; tlsEnabled: boolean }> | null;
   routes: Map<string, RouteMapping>;
   resourceToHostname: Map<string, string>;
+  sockets: Set<Socket>;
 } = {
   server: null,
   proxyPort: null,
   tlsEnabled: false,
   startupPromise: null,
   routes: new Map(),
-  resourceToHostname: new Map()
+  resourceToHostname: new Map(),
+  sockets: new Set()
 };
 
 const getStagePortOffset = (): number => {
@@ -142,6 +145,11 @@ const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: bo
         : {})
     });
 
+    server.on('connection', (socket) => {
+      state.sockets.add(socket);
+      socket.once('close', () => state.sockets.delete(socket));
+    });
+
     await new Promise<void>((resolve, reject) => {
       const onError = (err: NodeJS.ErrnoException) => reject(err);
       server.once('error', onError);
@@ -203,8 +211,8 @@ export const stopNamedProxy = async (): Promise<void> => {
 
   await new Promise<void>((resolve) => {
     state.server?.close(() => resolve());
-    // Fallback: resolve after short delay if connections linger
-    setTimeout(resolve, 1000);
+    for (const socket of state.sockets) socket.destroy();
+    state.sockets.clear();
   });
   state.server = null;
   state.proxyPort = null;

@@ -1,5 +1,4 @@
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
-import type { CdnReferenceableParam } from '@domain-services/config-manager/resolved-types/cdn';
 import type { ApplicationLoadBalancer } from '@stacktape/config/application-load-balancers';
 import type { Convex } from '@stacktape/config/convex';
 import type {
@@ -50,11 +49,6 @@ export type LambdaTargetDetails = {
   lambdaEndpointArn: Intrinsic | string;
   loadBalancerName: string;
 };
-export type ApplicationLoadBalancerReferenceableParam =
-  | 'domain'
-  | 'customDomains'
-  | `port${number}`
-  | CdnReferenceableParam;
 export type ApplicationLoadBalancerOutputs = {
   integrations: {
     urls: (string | Intrinsic)[];

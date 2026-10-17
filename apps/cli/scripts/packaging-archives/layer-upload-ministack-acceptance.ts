@@ -1,18 +1,25 @@
 /**
- * Opt-in local AWS integration pilot for artifact uploads. The existing layer-upload acceptance covers packaging,
- * cache and retention in more depth; this lane checks the same deploy path through real S3 SDK requests.
+ * Artifact upload scenario through real packaging, template finalization, S3 and CloudFormation on shared MiniStack.
+ * Changed, unchanged and reverted builds exercise ZIP bytes, extraction, reuse and real retention deletion.
  *
  * Run with `pnpm --filter @stacktape/cli run test:layer-upload:ministack` with Docker available.
- * The script owns a disposable MiniStack container on a loopback port, uses dummy credentials, and stops it in finally.
- * It writes a source-bound report and leaves the fixture and logs in an ignored output directory.
+ * The shared MiniStack fixture owns the disposable container on a loopback port with synthetic credentials and stops
+ * it in finally. The script writes a source-bound report and leaves the fixture and logs in an ignored output directory.
  */
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
-import { chmod, readFile, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
-import { CreateBucketCommand, GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { createHash } from 'node:crypto';
+import { chmod, lstat, readdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
+import { join, relative, resolve } from 'node:path';
+import {
+  CreateBucketCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3';
+import { MINISTACK_IMAGE, startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { extractZip } from './lambda-runtime';
 import yargsParser from 'yargs-parser';
 import { claimOutputDirectory, createSourceTracker, describeSourceIdentity } from '../perf/measurement-context';
 import type { DeployArtifactsRequest, DeployArtifactsResult } from './deploy-artifacts-worker';
@@ -21,7 +28,6 @@ import { NATIVE_TOOL, type SplitProjectFixture, writeSplitProjectFixture } from 
 const CLI_ROOT = resolve(import.meta.dir, '..', '..');
 const REPO_ROOT = resolve(CLI_ROOT, '..', '..');
 const WORKER = join(import.meta.dir, 'deploy-artifacts-worker.ts');
-const IMAGE = 'ministackorg/ministack:1.5.17@sha256:11d7308bfc75029d55625b9525e84a2401431ed1ff2148c6311800ff5009ae9c';
 const REGION = 'eu-west-1';
 const BUCKET = awsResourceNames.deploymentBucket('acceptx1');
 const RETENTION_HASH = 'retentx1';
@@ -32,26 +38,20 @@ const MISSING_BUCKET = awsResourceNames.deploymentBucket('missingx1');
 const WORKER_TIMEOUT_MS = 120_000;
 const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
 
-const docker = (args: string[]) =>
-  Bun.spawnSync(['docker', ...args], { stdout: 'pipe', stderr: 'pipe', timeout: 120_000 });
-
-const waitForHealth = async (endpoint: string, container: string) => {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const state = docker(['inspect', '--format', '{{.State.Running}}', container]);
-    if (state.exitCode !== 0 || state.stdout.toString().trim() !== 'true') {
-      throw new Error('MiniStack exited before becoming ready');
-    }
-    try {
-      const response = await fetch(`${endpoint}/_ministack/health`, { signal: AbortSignal.timeout(500) });
-      if (response.ok) return;
-    } catch {
-      // The listener is still starting.
-    }
-    await delay(100);
-  }
-  throw new Error('MiniStack did not become healthy within 30 seconds');
-};
+const describeTree = async (root: string) =>
+  (
+    await Promise.all(
+      (
+        await readdir(root, { recursive: true, withFileTypes: true })
+      ).map(async (entry) => {
+        const path = join(entry.parentPath, entry.name);
+        const name = relative(root, path);
+        if (entry.isSymbolicLink()) return `${name} link ${await readlink(path)}`;
+        if (entry.isDirectory()) return `${name} directory`;
+        return `${name} file ${(await lstat(path)).mode & 0o777} ${sha256(await readFile(path))}`;
+      })
+    )
+  ).toSorted();
 
 const main = async () => {
   const args = yargsParser(process.argv.slice(2), { string: ['out'] });
@@ -65,10 +65,8 @@ const main = async () => {
     excludePaths: [out]
   });
   assert.ok(source.before.available, `Cannot identify source: ${source.before.reason}`);
-  const container = `stacktape-ministack-upload-${randomUUID().slice(0, 12)}`;
   const report: Record<string, unknown> = {
     sourceBefore: source.before,
-    image: IMAGE,
     region: REGION,
     bucket: BUCKET,
     retentionBucket: RETENTION_BUCKET,
@@ -78,27 +76,18 @@ const main = async () => {
   };
   const scenarios = report.scenarios as Array<Record<string, unknown>>;
   let failure: unknown;
-  let started = false;
+  let ministack: MiniStack | undefined;
+  let releaseSignals = () => {};
   try {
-    const run = docker(['run', '--detach', '--rm', '--name', container, '--publish', '127.0.0.1::4566', IMAGE]);
-    assert.equal(run.exitCode, 0, `MiniStack container failed to start: ${run.stderr.toString()}`);
-    started = true;
-    const portResult = docker(['port', container, '4566/tcp']);
-    assert.equal(portResult.exitCode, 0, portResult.stderr.toString());
-    const port = portResult.stdout.toString().match(/127\.0\.0\.1:(\d+)/)?.[1];
-    assert.ok(port, 'MiniStack did not publish a loopback port');
-    const endpoint = `http://127.0.0.1:${port}`;
+    ministack = await startMiniStack({ label: 'layer-upload', region: REGION });
+    releaseSignals = stopMiniStackOnSignals(ministack);
+    const { endpoint } = ministack;
+    report.image = ministack.image;
+    report.imageId = ministack.imageId;
     report.endpoint = endpoint;
-    const image = docker(['image', 'inspect', IMAGE, '--format', '{{.Id}}']);
-    assert.equal(image.exitCode, 0, image.stderr.toString());
-    report.imageId = image.stdout.toString().trim();
-    await waitForHealth(endpoint, container);
-    const client = new S3Client({
-      endpoint,
-      region: REGION,
-      forcePathStyle: true,
-      credentials: { accessKeyId: 'test', secretAccessKey: 'test' }
-    });
+    report.fixtureStartupMs = ministack.startupMs;
+    // The workers below get the same account through `childEnvironment`, so they see these buckets.
+    const client = new S3Client(ministack.clientConfig());
     try {
       await client.send(
         new CreateBucketCommand({ Bucket: BUCKET, CreateBucketConfiguration: { LocationConstraint: REGION } })
@@ -109,6 +98,10 @@ const main = async () => {
       await client.send(
         new CreateBucketCommand({ Bucket: FAILURE_BUCKET, CreateBucketConfiguration: { LocationConstraint: REGION } })
       );
+      // A hand-placed root object once crashed the next deployment. It must survive artifact loading and retention.
+      const note = Buffer.from('customer-owned deployment note');
+      await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: 'notes.txt', Body: note }));
+      await client.send(new PutObjectCommand({ Bucket: RETENTION_BUCKET, Key: 'probe-state', Body: note }));
       const fixture = await writeSplitProjectFixture(join(out, 'fixture'));
       const rejectedRequest: DeployArtifactsRequest = {
         localAwsEndpoint: 'https://s3.amazonaws.com',
@@ -126,7 +119,7 @@ const main = async () => {
       ];
       const rejected = Bun.spawnSync(rejectedCommand, {
         cwd: fixture.project,
-        env: { HOME: process.env.HOME ?? '', PATH: fixture.dockerDirectory, AWS_EC2_METADATA_DISABLED: 'true' },
+        env: { HOME: process.env.HOME ?? '', PATH: fixture.dockerDirectory, ...ministack.childEnvironment() },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: WORKER_TIMEOUT_MS
@@ -154,11 +147,13 @@ const main = async () => {
           projectFixture = fixture,
           stackHash,
           previousVersionsToKeep,
+          noCache,
           deleteObsoleteArtifacts
         }: {
           projectFixture?: SplitProjectFixture;
           stackHash?: string;
           previousVersionsToKeep?: number;
+          noCache?: boolean;
           deleteObsoleteArtifacts?: boolean;
         } = {}
       ) => {
@@ -168,7 +163,8 @@ const main = async () => {
           resultPath: join(out, `${label}.result.json`),
           ...(stackHash ? { stackHash } : {}),
           ...(previousVersionsToKeep === undefined ? {} : { previousVersionsToKeep }),
-          ...(deleteObsoleteArtifacts ? { deleteObsoleteArtifacts } : {})
+          ...(deleteObsoleteArtifacts ? { deleteObsoleteArtifacts } : {}),
+          ...(noCache ? { noCache } : {})
         };
         const requestPath = join(out, `${label}.request.json`);
         await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`);
@@ -188,7 +184,7 @@ const main = async () => {
             STP_FAKE_DOCKER_INSTALL: projectFixture.dockerInstall,
             STP_FAKE_DOCKER_LOG: join(out, `${label}.docker.log`),
             STP_INVOCATION_ID: label,
-            AWS_EC2_METADATA_DISABLED: 'true'
+            ...ministack!.childEnvironment()
           },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -213,6 +209,26 @@ const main = async () => {
         const { layerPath, s3Key } = layer(deployment, number);
         const archiveHash = sha256(await readFile(`${layerPath}.zip`));
         assert.equal(await storedHash(s3Key, bucket), archiveHash, `S3 stored the wrong ZIP for ${s3Key}`);
+      };
+      const assertLayerExtracts = async (deployment: DeployArtifactsResult, number: number) => {
+        const { layerPath } = layer(deployment, number);
+        const extracted = await extractZip(`${layerPath}.zip`);
+        try {
+          assert.deepEqual(
+            await describeTree(extracted),
+            await describeTree(layerPath),
+            'Layer ZIP changed its contents or modes'
+          );
+        } finally {
+          await rm(extracted, { recursive: true, force: true });
+        }
+      };
+      const assertNotZipped = async (deployment: DeployArtifactsResult, number: number) => {
+        assert.equal(
+          await Bun.file(`${layer(deployment, number).layerPath}.zip`).exists(),
+          false,
+          'Cached layer was zipped'
+        );
       };
       const assertStoredFunctionZips = async (deployment: DeployArtifactsResult, bucket = BUCKET) => {
         for (const { jobName, digest, skipped } of deployment.jobs) {
@@ -245,6 +261,7 @@ const main = async () => {
       for (const number of [0, 1]) {
         assert.ok(seed.uploadedKeys.includes(layer(seed, number).s3Key));
         await assertStoredZip(seed, number);
+        await assertLayerExtracts(seed, number);
       }
       await assertStoredFunctionZips(seed);
       await assertTemplateProtected(seed);
@@ -262,6 +279,8 @@ const main = async () => {
       assert.ok(mixed.uploadedKeys.includes(layer(mixed, 0).s3Key));
       assert.ok(!mixed.uploadedKeys.includes(layer(mixed, 1).s3Key));
       await assertStoredZip(mixed, 0);
+      await assertLayerExtracts(mixed, 0);
+      await assertNotZipped(mixed, 1);
       await assertStoredFunctionZips(mixed);
       assert.equal(await storedHash(layer(mixed, 1).s3Key), await storedHash(layer(seed, 1).s3Key));
       await assertTemplateProtected(mixed);
@@ -274,6 +293,7 @@ const main = async () => {
       };
 
       const unchanged = await run('03-unchanged', mixed.version);
+      for (const number of [0, 1]) await assertNotZipped(unchanged, number);
       assert.deepEqual(
         unchanged.uploadedKeys.toSorted(),
         [`cf-template/${unchanged.version}.yml`, `stp-template/${unchanged.version}.yml`],
@@ -325,6 +345,11 @@ const main = async () => {
       const retainedKeys = await listKeys(RETENTION_BUCKET);
       assert.ok(retainedKeys.includes(keyA), 'Retention removed the object named by the current template');
       assert.equal(await storedHash(keyA, RETENTION_BUCKET), aHash, 'The reused A object changed');
+      assert.equal(
+        await storedHash('probe-state', RETENTION_BUCKET),
+        sha256(note),
+        'Retention touched a non-artifact object'
+      );
       assert.ok(
         !retainedKeys.includes(`cf-template/${buildA.version}.yml`),
         'Retention did not delete an old template'
@@ -336,15 +361,52 @@ const main = async () => {
         storedObjects: retainedKeys.length
       };
 
+      // A newly uploaded function must survive even when the keep window is zero.
+      await writeFile(plainHandler, plainSource.replace("function: 'plain'", "function: 'plain-c'"));
+      const buildC = await run('07-retention-new-upload', buildAAgain.version, {
+        ...retentionOptions,
+        deleteObsoleteArtifacts: true
+      });
+      const keyC = buildC.functions.plain?.s3Key;
+      assert.ok(keyC && keyC !== keyA && keyC !== keyB, 'C did not produce a new function ZIP');
+      assert.ok(buildC.uploadedKeys.includes(keyC), 'C did not upload its changed function');
+      assert.ok(!buildC.retentionProtectedKeys.includes(keyC), 'C was reused instead of uploaded');
+      assert.ok((await listKeys(RETENTION_BUCKET)).includes(keyC), 'Retention deleted the just-uploaded function');
+      await assertStoredFunctionZips(buildC, RETENTION_BUCKET);
+      await assertTemplateProtected(buildC, RETENTION_BUCKET);
+      assert.ok(
+        !(await listKeys(RETENTION_BUCKET)).includes(`cf-template/${buildAAgain.version}.yml`),
+        'The new-upload deletion run did not remove the obsolete template'
+      );
+      scenarios.at(-1)!.assertions = { freshFunctionUploaded: true, uploadedObjectSurvivedDeletion: true };
+
+      // A failed attempt can leave this version's objects in the next retry's initial listing.
+      const retryC = await run('08-retention-upload-retry', buildAAgain.version, {
+        ...retentionOptions,
+        noCache: true,
+        deleteObsoleteArtifacts: true
+      });
+      assert.equal(retryC.version, buildC.version, 'The retry advanced the deployment version');
+      assert.equal(retryC.functions.plain?.s3Key, keyC, 'The retry did not replace the pre-existing C object');
+      assert.ok(retryC.uploadedKeys.includes(keyC), 'The no-cache retry did not upload C');
+      assert.ok(!retryC.retentionProtectedKeys.includes(keyC), 'C was recorded as reused in the retry');
+      assert.ok(
+        (await listKeys(RETENTION_BUCKET)).includes(keyC),
+        'Retention deleted the just-uploaded retry function'
+      );
+      await assertStoredFunctionZips(retryC, RETENTION_BUCKET);
+      await assertTemplateProtected(retryC, RETENTION_BUCKET);
+      scenarios.at(-1)!.assertions = { existingVersionUploadedAgain: true, uploadedObjectSurvivedDeletion: true };
+
       const failureFixture = await writeSplitProjectFixture(join(out, 'failure-fixture'));
       const failedRequest: DeployArtifactsRequest = {
         localAwsEndpoint: endpoint,
         stackHash: FAILURE_HASH,
         failLayerUploadToBucket: MISSING_BUCKET,
         lastVersion: 'v000000',
-        resultPath: join(out, '07-failed-layer-upload.result.json')
+        resultPath: join(out, '09-failed-layer-upload.result.json')
       };
-      const failedRequestPath = join(out, '07-failed-layer-upload.request.json');
+      const failedRequestPath = join(out, '09-failed-layer-upload.request.json');
       await writeFile(failedRequestPath, `${JSON.stringify(failedRequest, null, 2)}\n`);
       const failedCommand = [
         process.execPath,
@@ -359,17 +421,17 @@ const main = async () => {
           HOME: process.env.HOME ?? '',
           PATH: failureFixture.dockerDirectory,
           STP_FAKE_DOCKER_INSTALL: failureFixture.dockerInstall,
-          STP_FAKE_DOCKER_LOG: join(out, '07-failed-layer-upload.docker.log'),
-          STP_INVOCATION_ID: '07-failed-layer-upload',
-          AWS_EC2_METADATA_DISABLED: 'true'
+          STP_FAKE_DOCKER_LOG: join(out, '09-failed-layer-upload.docker.log'),
+          STP_INVOCATION_ID: '09-failed-layer-upload',
+          ...ministack.childEnvironment()
         },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: WORKER_TIMEOUT_MS
       });
       const failedOutput = `${failed.stdout.toString()}${failed.stderr.toString()}`;
-      await writeFile(join(out, '07-failed-layer-upload.output.log'), failedOutput);
-      scenarios.push({ label: '07-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
+      await writeFile(join(out, '09-failed-layer-upload.output.log'), failedOutput);
+      scenarios.push({ label: '09-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
       assert.equal(failed.signalCode, undefined, 'The failed upload worker timed out or was signaled');
       assert.notEqual(failed.exitCode, 0, 'The failed S3 layer upload reported success');
       assert.match(failedOutput, /NoSuchBucket|not exist|404/i, 'The failure did not come from the missing S3 bucket');
@@ -383,16 +445,21 @@ const main = async () => {
     failure = error;
     report.failure = error instanceof Error ? (error.stack ?? error.message) : String(error);
   } finally {
-    if (started) {
-      const logs = docker(['logs', container]);
-      await writeFile(join(out, 'ministack.log'), `${logs.stdout.toString()}${logs.stderr.toString()}`);
-      const stop = docker(['rm', '--force', container]);
-      const inspect = docker(['inspect', container]);
-      report.cleanup =
-        stop.exitCode === 0 && inspect.exitCode !== 0
-          ? 'MiniStack container removed; in-memory AWS state discarded'
-          : `MiniStack cleanup failed: ${stop.stderr.toString()} ${inspect.stdout.toString()}`;
-      if (stop.exitCode !== 0 || inspect.exitCode === 0) failure ??= new Error(String(report.cleanup));
+    releaseSignals();
+    if (ministack) {
+      try {
+        await writeFile(join(out, 'ministack.log'), ministack.logs());
+      } catch (error) {
+        report.logError = String(error);
+      } finally {
+        try {
+          await ministack.stop();
+          report.cleanup = 'MiniStack container and volumes removed; in-memory AWS state discarded';
+        } catch (error) {
+          report.cleanup = `MiniStack cleanup failed: ${String(error)}`;
+          failure ??= error;
+        }
+      }
     } else {
       report.cleanup = 'No container started';
     }
@@ -402,7 +469,7 @@ const main = async () => {
   }
   assert.equal(report.sourceCheck, 'unchanged', 'Source changed during the acceptance');
   if (failure) throw failure;
-  console.info(`MiniStack layer upload passed against ${IMAGE}; ${describeSourceIdentity(source.before)}`);
+  console.info(`MiniStack layer upload passed against ${MINISTACK_IMAGE}; ${describeSourceIdentity(source.before)}`);
   console.info(`Evidence: ${join(out, 'report.json')}`);
 };
 

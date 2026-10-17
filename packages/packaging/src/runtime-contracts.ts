@@ -1,4 +1,6 @@
+import type { PackageAnalysisCache } from './es/installed-packages';
 import type {
+  JsBundleLambdaPackagingProps,
   JsBundleSharedProps,
   SupportedDotnetVersion,
   SupportedJavaVersion,
@@ -22,7 +24,8 @@ export type JsBundleOptions = Pick<
   | 'minify'
   | 'minifyIdentifiers'
   | 'bundleAwsSdk'
->;
+> &
+  Pick<JsBundleLambdaPackagingProps, 'keepSourceMapsInPackage'>;
 
 const JS_BUNDLE_OPTION_KEYS = [
   'tsConfigPath',
@@ -35,7 +38,8 @@ const JS_BUNDLE_OPTION_KEYS = [
   'outputSourceMapsTo',
   'minify',
   'minifyIdentifiers',
-  'bundleAwsSdk'
+  'bundleAwsSdk',
+  'keepSourceMapsInPackage'
 ] as const satisfies readonly (keyof JsBundleOptions)[];
 
 /** The bundling options present in an input, for hashing them as one artifact identity input. */
@@ -130,6 +134,16 @@ export type BuildDockerImage = (input: {
    * value never appears on the Docker command line and is never written into an image layer.
    */
   secrets?: Record<string, string> | undefined;
+  /**
+   * The public images a Dockerfile Stacktape generated starts from, which the CLI may keep in the local image store.
+   * Unset for a customer's own Dockerfile.
+   */
+  baseImages?: string[] | undefined;
+  /**
+   * Images the build runs on the builder's own platform rather than the target's, such as a BuildKit frontend. The CLI
+   * keeps them in the local image store like `baseImages`.
+   */
+  builderImages?: string[] | undefined;
 }) => Promise<{
   size: number;
   id: string;
@@ -154,7 +168,8 @@ export type ArchiveItem = (input: {
   executablePatterns?: string[] | undefined;
   compressionLevel?: number | undefined;
   store?: boolean | undefined;
-  useNativeZip?: boolean | undefined;
+  /** Write a directory ZIP with the CLI's parallel writer at the deployment level, as Lambda artifacts are written. */
+  parallelZip?: boolean | undefined;
 }) => Promise<string>;
 
 export type InstallDependencies = (input: {
@@ -168,6 +183,16 @@ export type InstallDependencies = (input: {
  * variables; the runner hands them over through the planner's environment, never on its command line, because build
  * variable values are secrets. `config` is an inline railpack.json that replaces the directory's own.
  */
+/**
+ * The reference a build should use for a public base image the caller keeps in the local image store: the same image
+ * pinned to its local digest, so a BuildKit frontend can use it without asking the registry what the tag points to.
+ * Returns the reference unchanged when the image is not local.
+ */
+export type PinLocalBaseImage = (input: {
+  reference: string;
+  platform: DockerBuildOutputArchitecture | undefined;
+}) => Promise<string>;
+
 export type RunRailpackPrepare = (input: {
   sourceDirectoryPath: string;
   variables: Record<string, string>;
@@ -198,6 +223,8 @@ export type EsBuildActions = LanguageBuildActions & {
   installDependencies: InstallDependencies;
   nativeDependencyInstallationRootPath: string;
   sourceMapInstallPath?: string | undefined;
+  /** Shared by every function of one build, so the project's production install is worked out once. */
+  packageAnalysisCache?: PackageAnalysisCache | undefined;
 };
 
 export type StpBuildpackInput = {
@@ -228,27 +255,27 @@ export type StpBuildpackInput = {
   lambdaZip?: boolean | undefined;
 };
 
-/**
- * A package resolved while analysing an ECMAScript dependency graph.
- *
- * This is deliberately distinct from the split bundler's dependency contract:
- * callers of the regular bundler also use the resolved path and dependency
- * relationship when deciding what Docker must install.
- */
+/** A package the bundle leaves out and the artifact gets installed instead. */
 export type ResolvedPackageDependency = {
   name: string;
-  path: string;
   version: string;
-  parentModulePath?: string | undefined;
-  dependencyType: 'root' | 'standard' | 'optional-peer' | 'peer';
+  /** The real directory of the installed package. */
+  path: string;
+  /** Why it is not bundled. */
   note?: string | undefined;
+  /**
+   * Set when the bundle needs it only as an optional peer of a bundled package. A production install has it only when
+   * the project depends on it in production, so the artifact gets it only then.
+   */
+  optionalPeer?: boolean | undefined;
 };
 
 export type LanguageSpecificBundleOutput = {
   es?: {
-    dependenciesToInstallInDocker?: ResolvedPackageDependency[] | undefined;
+    externalDependencies?: ResolvedPackageDependency[] | undefined;
     packageManager?: SupportedEsPackageManager | undefined;
-    dynamicallyImportedModules?: string[] | undefined;
+    /** What a production install of the project gives this code (`getProductionDependencies`). */
+    productionDependencies?: string[] | undefined;
   };
   py?: {
     packageManager: 'uv';
@@ -298,6 +325,11 @@ export type PackagingOutput = {
   size: number | null | undefined;
   zippedSize?: number | undefined;
   imageName?: string | undefined;
+  /**
+   * The ID of the image a build produced, as Docker reported it for this build. A deployment tags and pushes this
+   * image, not whatever `imageName` names by then.
+   */
+  imageId?: string | undefined;
   digest: string;
   outcome: 'skipped' | 'bundled';
   sourceFiles?: { path: string }[] | undefined;
@@ -307,4 +339,9 @@ export type PackagingOutput = {
   jobName: string;
   /** All npm modules resolved during bundling (for Lambda functions). */
   resolvedModules?: string[] | undefined;
+  /**
+   * A Lambda ZIP's source maps, kept outside the package (`takeSourceMapsOutOfPackage`). The deployment stores them
+   * in the stack's deployment bucket for the Console. Unset when the build has no map or keeps it in the package.
+   */
+  sourceMapsPath?: string | undefined;
 };

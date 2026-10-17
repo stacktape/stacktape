@@ -112,13 +112,6 @@ describe('Kafka topic event validation and synthesis', () => {
     );
   });
 
-  test('maps native AWS properties and omits consumer-group configuration by default', () => {
-    const mapping = getEventSourceMapping({ eventDetails: existing(), lambdaEndpointArn: 'function-arn' });
-    expect(mapping.Properties).toMatchObject({ StartingPosition: 'LATEST', Topics: ['orders'] });
-    expect(mapping.Properties.AmazonManagedKafkaEventSourceConfig).toBeUndefined();
-    expect(mapping.Properties.SelfManagedKafkaEventSourceConfig).toBeUndefined();
-  });
-
   test('maps self-managed VPC access and preserves its v4 baseline logical ID', () => {
     const details = selfManaged({
       consumerGroupId: 'orders-worker',

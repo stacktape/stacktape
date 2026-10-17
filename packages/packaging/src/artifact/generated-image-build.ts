@@ -1,7 +1,23 @@
 import type { BuildDockerImage } from '../runtime-contracts';
 import { dirname, relative } from 'node:path';
 import { remove } from 'fs-extra';
-import { createTemporaryBuildFile } from '../fs/temporary-file';
+import { createPrivateBuildFile } from '../fs/temporary-file';
+
+/**
+ * The images a Dockerfile starts its stages from, without references to its own earlier stages and `scratch`. Only for
+ * Dockerfiles Stacktape writes: it reads plain `FROM image [AS name]` lines and does not expand build arguments.
+ */
+export const getDockerfileBaseImages = (dockerfileContents: string): string[] => {
+  const stages = new Set<string>(['scratch']);
+  const images = new Set<string>();
+  for (const [, image, stage] of dockerfileContents.matchAll(
+    /^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?/gim
+  )) {
+    if (image && !stages.has(image.toLowerCase())) images.add(image);
+    if (stage) stages.add(stage.toLowerCase());
+  }
+  return [...images];
+};
 
 /**
  * Builds an image from a generated Dockerfile without placing that Dockerfile in the image context.
@@ -26,11 +42,11 @@ export const buildGeneratedDockerImage = async ({
    */
   buildFileDirectoryPath?: string | undefined;
 }) => {
-  const { filePath } = await createTemporaryBuildFile({
+  const { directoryPath, filePath } = await createPrivateBuildFile({
     contents: dockerfileContents,
-    directoryPath: buildFileDirectoryPath ?? dirname(buildContextPath),
+    parentDirectoryPath: buildFileDirectoryPath ?? dirname(buildContextPath),
     prefix: 'stp-image-',
-    suffix: '.Dockerfile'
+    fileName: 'Dockerfile'
   });
   let buildResult:
     | { succeeded: true; value: Awaited<ReturnType<BuildDockerImage>> }
@@ -41,14 +57,16 @@ export const buildGeneratedDockerImage = async ({
       value: await buildDockerImage({
         ...buildOptions,
         buildContextPath,
-        dockerfilePath: relative(buildContextPath, filePath)
+        dockerfilePath: relative(buildContextPath, filePath),
+        // A Railpack plan is JSON, not a Dockerfile: its caller names the images the plan starts from.
+        baseImages: buildOptions.baseImages ?? getDockerfileBaseImages(dockerfileContents)
       })
     };
   } catch (error) {
     buildResult = { succeeded: false, error };
   }
   try {
-    await remove(filePath);
+    await remove(directoryPath);
   } catch (cleanupError) {
     if (buildResult.succeeded) {
       throw cleanupError;

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 
-const dependency = (name: string, version: string) => ({ name, version, hasBinary: true });
+const dependency = (name: string, version: string) => ({ name, version, path: `/node_modules/${name}` });
 
 describe('split Lambda native dependency layers', () => {
   test('isolates divergent nested dependency versions while sharing compatible requirements', () => {

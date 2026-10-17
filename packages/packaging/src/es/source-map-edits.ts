@@ -3,33 +3,26 @@
  *
  * Packaging rewrites some of what Bun emits (chunk specifiers, asset paths, a default export) and moves files into
  * function and layer folders. Bun's maps describe each file as Bun wrote it, where Bun wrote it. Minified output is
- * essentially one line, so an edit that changes a specifier's length moves every later column on that line, and a
- * moved map resolves its relative `sources` from the wrong folder: a stack trace then names the wrong column, line or
- * file. Each such edit goes through here instead. The map's segments move with the text they describe, and its
- * `sources` are re-expressed relative to the folder the map is written to.
+ * essentially one line, so an edit that changes a specifier's length moves every later column on that line: a stack
+ * trace then names the wrong column. Each such edit goes through here instead, and the map's segments move with the
+ * text they describe. A map's `sources` are relative to the project root (`es/artifact-identity`) and travel
+ * unchanged with every copy.
  */
 import type { SourceMapSegment } from '@jridgewell/sourcemap-codec';
 import { decode, encode } from '@jridgewell/sourcemap-codec';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, relative, resolve } from 'node:path';
 import { withoutSourcesContent } from './packaged-source-map';
 
 /** Replaces `code.slice(start, end)` with `text`. An edit neither spans nor inserts a line break. */
 export type TextEdit = { start: number; end: number; text: string };
 
-/** A map as read from disk. A map without `mappings` or `sources` has nothing to move or rebase, and is kept. */
+/** A map as read from disk. A map without `mappings` has nothing to move, and is kept. */
 type SourceMapJson = {
   sources?: (string | null)[] | undefined;
-  sourceRoot?: string | undefined;
   mappings?: string | undefined;
   [key: string]: unknown;
 };
-
-/** A source that is a URL (`webpack://`, `bun:`, …) names no file to rebase. */
-const URL_SCHEME = /^[a-z][a-z\d+.-]*:\/?/i;
-
-const toPosix = (path: string) => path.replace(/\\/g, '/');
 
 const sortEdits = (code: string, edits: TextEdit[]) => {
   const sorted = edits.toSorted((left, right) => left.start - right.start);
@@ -108,41 +101,20 @@ const shiftSourceMap = <Map extends SourceMapJson>(map: Map, code: string, edits
 };
 
 /**
- * `map` as written in `toDirectory`: each relative source, resolved from `fromDirectory` and `sourceRoot`, is
- * expressed relative to `toDirectory`, the folder the source-map format resolves it from. URL sources and absent
- * ones are kept.
- */
-const rebaseSources = <Map extends SourceMapJson>(map: Map, fromDirectory: string, toDirectory: string): Map => {
-  const { sources } = map;
-  if (!Array.isArray(sources) || (fromDirectory === toDirectory && !map.sourceRoot)) return map;
-  const { sourceRoot, ...rest } = map;
-  return {
-    ...rest,
-    sources: sources.map((source) =>
-      source === null || URL_SCHEME.test(source)
-        ? source
-        : toPosix(relative(toDirectory, resolve(fromDirectory, sourceRoot ?? '', source)))
-    )
-  } as unknown as Map;
-};
-
-/**
- * Writes the JavaScript at `from` to `to` with `edits` applied, and its map, if it has one, to `<to>.map`: shifted
- * to the edited code and rebased from `sourcesDirectory` (the folder its sources are relative to: `from`'s own unless
- * said otherwise) to `to`'s folder. A `packaged` map omits `sourcesContent`. Returns the edited code.
+ * Writes the JavaScript at `from` to `to` with `edits` applied, and its map, if it has one, to `<to>.map`, shifted to
+ * the edited code. The map's `sources` are kept: they are relative to the project root (`es/artifact-identity`), not
+ * to the map's folder, so a copy needs no rebase. A `packaged` map omits `sourcesContent`. Returns the edited code.
  */
 export const writeEditedJavaScript = async ({
   from,
   to,
   edits,
-  sourcesDirectory = dirname(from),
   packaged
 }: {
   from: string;
   to: string;
   /** The edits, or how to compute them from the code. */
   edits: TextEdit[] | ((code: string) => TextEdit[]);
-  sourcesDirectory?: string;
   packaged: boolean;
 }): Promise<string> => {
   const code = await readFile(from, 'utf8');
@@ -152,12 +124,8 @@ export const writeEditedJavaScript = async ({
     await writeFile(to, output);
   }
   const mapPath = `${from}.map`;
-  if ((from !== to || textEdits.length > 0 || sourcesDirectory !== dirname(to) || packaged) && existsSync(mapPath)) {
-    const map = rebaseSources(
-      shiftSourceMap(JSON.parse(await readFile(mapPath, 'utf8')) as SourceMapJson, code, textEdits),
-      sourcesDirectory,
-      dirname(to)
-    );
+  if ((from !== to || textEdits.length > 0 || packaged) && existsSync(mapPath)) {
+    const map = shiftSourceMap(JSON.parse(await readFile(mapPath, 'utf8')) as SourceMapJson, code, textEdits);
     await writeFile(`${to}.map`, JSON.stringify(packaged ? withoutSourcesContent(map) : map));
   }
   return output;

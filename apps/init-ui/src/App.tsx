@@ -32,6 +32,14 @@ export function App() {
   const [connectionState, setConnectionState] = useState<'connected' | 'reconnecting'>('connected');
   const [busy, setBusy] = useState<string | undefined>();
   const [startedAt, setStartedAt] = useState<number>(() => Date.now());
+  /** The saved review, opened again from its summary line. */
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const deploymentStatus = state?.deployment?.status;
+
+  // A deploy that starts puts the review back to its one line, so the progress is what is on screen.
+  useEffect(() => {
+    if (deploymentStatus === 'running') setReviewOpen(false);
+  }, [deploymentStatus]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -42,7 +50,11 @@ export function App() {
         setState(connected.state);
         unsubscribe = connected.subscribe(setState, setConnectionState);
       } catch (error: unknown) {
-        setFailure(error instanceof SessionError ? error.message : 'Could not reach the Stacktape CLI.');
+        setFailure(
+          error instanceof SessionError
+            ? error.message
+            : 'This page could not reach stacktape init. If you stopped it, run stacktape init in your project again.'
+        );
       }
     })();
     return () => unsubscribe?.();
@@ -52,7 +64,8 @@ export function App() {
     return (
       <main className="wizard-shell">
         <p className="wizard-step-label">Session ended</p>
-        <h1 className="wizard-title">{failure}</h1>
+        <h1 className="wizard-title">This wizard is no longer running</h1>
+        <p className="wizard-lede">{failure}</p>
       </main>
     );
   }
@@ -70,6 +83,7 @@ export function App() {
   const isActive = (id: string) => steps.find((step) => step.id === id)?.status === 'active';
   const isReached = (id: string) => steps.find((step) => step.id === id)?.status !== 'todo';
   const lede = ledeFor(state);
+  const deploying = deploymentStatus === 'running' || deploymentStatus === 'repairing';
 
   const run = async (label: string, action: () => Promise<unknown>, whenItFails: string) => {
     setBusy(label);
@@ -91,43 +105,48 @@ export function App() {
         {lede !== '' && <p className="wizard-lede">{lede}</p>}
       </header>
 
-      {actionFailure !== undefined && (
-        <Alert className="mb-6" tone="danger" title="That action did not finish">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="m-0">{actionFailure} Everything already shown below is still here.</p>
-            <Button onClick={() => setActionFailure(undefined)} variant="plain">
-              Dismiss
-            </Button>
-          </div>
-        </Alert>
-      )}
-
-      {connectionState === 'reconnecting' && (
-        <Alert className="mb-6" tone="info" title="Connection interrupted — retrying">
-          Everything already shown is preserved. Keep the CLI running; this page will reconnect automatically.
-        </Alert>
-      )}
-
       <div className="wizard-page">
-        <GuideRail steps={steps} />
+        <GuideRail openedIds={reviewOpen ? ['review'] : []} steps={steps} />
 
         <div className="wizard-flow">
+          {actionFailure !== undefined && (
+            <Alert className="mb-6" tone="danger" title="That action did not finish">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="m-0">{actionFailure} Everything already shown below is still here.</p>
+                <Button onClick={() => setActionFailure(undefined)} variant="plain">
+                  Dismiss
+                </Button>
+              </div>
+            </Alert>
+          )}
+
+          {connectionState === 'reconnecting' && (
+            <Alert className="mb-6" tone="warning" title="Lost the connection to stacktape init">
+              If <span className="wizard-code">stacktape init</span> is still running in your terminal, this page
+              reconnects by itself. If you stopped it, run it again: a file you already saved stays in your project.
+            </Alert>
+          )}
+
           <Section
             eyebrow="Start"
             id="start"
             isActive={isActive('start')}
             isMuted={!isActive('start')}
-            {...(isActive('start') ? { title: 'What happens next' } : {})}
+            {...(isActive('start')
+              ? { title: 'What happens next' }
+              : { summary: <StartStep isBusy={false} isDone onStart={() => {}} state={state} /> })}
           >
-            <StartStep
-              isBusy={busy === 'start'}
-              isDone={!isActive('start')}
-              onStart={(agentId, modelId) => {
-                setStartedAt(Date.now());
-                void run('start', () => session.start(agentId, modelId), 'That analysis could not be started.');
-              }}
-              state={state}
-            />
+            {isActive('start') && (
+              <StartStep
+                isBusy={busy === 'start'}
+                isDone={false}
+                onStart={(agentId, modelId) => {
+                  setStartedAt(Date.now());
+                  void run('start', () => session.start(agentId, modelId), 'That analysis could not be started.');
+                }}
+                state={state}
+              />
+            )}
           </Section>
 
           {isReached('read') && (
@@ -136,11 +155,13 @@ export function App() {
               id="read"
               isActive={isActive('read')}
               isMuted={!isActive('read')}
-              {...(isActive('read') ? { title: 'Reading your project' } : {})}
+              {...(isActive('read')
+                ? { title: 'Reading your project' }
+                : { summary: <ScanStep isDone startedAt={startedAt} state={state} /> })}
             >
-              {state.phase === 'failed' ? (
+              {!isActive('read') ? undefined : state.phase === 'failed' ? (
                 <div className="flex flex-col gap-4">
-                  <Alert tone="danger" title="Reading your project did not finish">
+                  <Alert tone="danger" title="What stopped it">
                     {state.error ?? 'The agent stopped before it produced anything.'} Nothing was changed, and nothing
                     you picked is lost.
                   </Alert>
@@ -178,7 +199,7 @@ export function App() {
                   </div>
                 </div>
               ) : (
-                <ScanStep isDone={!isActive('read')} startedAt={startedAt} state={state} />
+                <ScanStep isDone={false} startedAt={startedAt} state={state} />
               )}
             </Section>
           )}
@@ -188,11 +209,20 @@ export function App() {
               eyebrow="Review"
               id="review"
               isActive={isActive('review')}
+              isExpanded={reviewOpen}
               isMuted={!isActive('review')}
-              {...(isActive('review') ? { title: 'Your app on AWS' } : {})}
+              onToggle={() => setReviewOpen(!reviewOpen)}
+              hideLabel="Hide the review"
+              toggleLabel="Show the review"
+              {...(isActive('review')
+                ? nothingFound(state)
+                  ? {}
+                  : { title: 'What Stacktape will create' }
+                : { summary: <ReviewSummary state={state} /> })}
             >
               <ReviewStep
                 busy={busy}
+                lock={deploying ? 'deploying' : connectionState === 'reconnecting' ? 'disconnected' : undefined}
                 onChangeDecision={(id, value) =>
                   void run(id, () => session.answer(id, value), 'That change could not be applied.')
                 }
@@ -210,7 +240,7 @@ export function App() {
           )}
 
           {isReached('deploy') && (
-            <Section eyebrow="Deploy" id="deploy" isActive={isActive('deploy')}>
+            <Section eyebrow="Deploy" id="deploy" isActive={isActive('deploy')} scrollKey={deploymentStatus ?? 'ready'}>
               <DeployStep
                 isBusy={
                   busy === 'deploy' ||
@@ -224,6 +254,10 @@ export function App() {
                 onDeploy={(stage, region, expected) =>
                   void run('deploy', () => session.deploy(stage, region, expected), 'The deploy could not be started.')
                 }
+                onRegionChange={(region) => {
+                  // A price is a convenience: a failed request leaves the old one out of the sentence, nothing else.
+                  session.setPriceRegion(region).catch(() => {});
+                }}
                 onDismissVerification={() =>
                   void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
                 }
@@ -250,13 +284,30 @@ export function App() {
   );
 }
 
+/** The saved review in one line: what was written and what it holds. */
+function ReviewSummary({ state }: { state: WizardState }) {
+  const count = Object.keys(state.composition?.resources ?? {}).length;
+  const price = state.composition?.price?.monthly;
+  return (
+    <p className="wizard-recap">
+      Saved <strong>{state.configFile?.filename ?? 'the configuration'}</strong> with{' '}
+      {count === 1 ? 'one resource' : `${count} resources`}
+      {price === undefined ? '' : `, about ${price}`}.
+    </p>
+  );
+}
+
+/** The analysis finished and found nothing to run, so there is no configuration to show. */
+const nothingFound = (state: WizardState): boolean => Object.keys(state.composition?.resources ?? {}).length === 0;
+
 const headingFor = (state: WizardState): string => {
   if (state.deployment?.status === 'running') return 'Deploying';
   if (state.deployment?.status === 'repairing') return 'Fixing what went wrong';
   if (state.deployment?.status === 'succeeded') return 'It’s live';
   if (state.deployment?.status === 'failed') return 'The deploy stopped';
-  if (state.phase === 'failed') return 'That did not finish';
+  if (state.phase === 'failed') return 'Reading your project did not finish';
   if (state.configFile !== undefined) return 'Ready to deploy';
+  if (state.phase === 'reviewing' && nothingFound(state)) return 'Found nothing to deploy';
   if (state.phase === 'reviewing') return 'Here’s your app on AWS';
   if (state.phase === 'analysing') return 'Reading your project';
   return 'Put this project on AWS';
@@ -264,10 +315,10 @@ const headingFor = (state: WizardState): string => {
 
 const ledeFor = (state: WizardState): string => {
   if (state.phase === 'ready') {
-    return 'We read your code on this machine, work out the AWS setup it needs, and hand you one file. Nothing runs and nothing is billed unless you press Deploy.';
+    return 'We read your code on this machine, work out the AWS setup it needs, and hand you one file. Nothing is created on AWS and nothing is billed until you press Deploy.';
   }
-  if (state.phase === 'reviewing' && state.configFile === undefined) {
-    return 'Everything below came from your own code. Look at it, change anything — the file and the price follow.';
+  if (state.phase === 'reviewing' && state.configFile === undefined && !nothingFound(state)) {
+    return 'Everything below came from your own code. Change any choice below and the file and the price follow.';
   }
   return '';
 };

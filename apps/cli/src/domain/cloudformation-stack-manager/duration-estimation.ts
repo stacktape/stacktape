@@ -252,6 +252,9 @@ const resourceTypeEstimateSeconds: {
   'AWS::Batch::JobQueue': ({ action }) => applyActionMultiplier({ baseSeconds: 60, action }),
   'AWS::Batch::JobDefinition': ({ action }) => applyActionMultiplier({ baseSeconds: 60, action }),
   'AWS::EC2::NatGateway': ({ action }) => applyActionMultiplier({ baseSeconds: 180, action, deleteMultiplier: 0.4 }),
+  'AWS::EC2::NetworkInterface': ({ action }) => applyActionMultiplier({ baseSeconds: 20, action }),
+  'AWS::AutoScaling::LifecycleHook': ({ action }) => applyActionMultiplier({ baseSeconds: 15, action }),
+  'AWS::SSM::Parameter': ({ action }) => applyActionMultiplier({ baseSeconds: 15, action }),
   'AWS::EC2::VPCEndpoint': ({ action }) => applyActionMultiplier({ baseSeconds: 120, action, deleteMultiplier: 0.4 }),
   'AWS::ElasticLoadBalancingV2::LoadBalancer': ({ resourceProps, action }) => {
     const type = resourceProps?.Type;

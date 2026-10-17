@@ -2,6 +2,7 @@ import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getPlatform } from '@utils/bin-executable';
+import { isWindowsPlatform } from '@utils/platform';
 import stripAnsi from 'strip-ansi';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
@@ -45,7 +46,7 @@ const verifyCliSmoke = async () => {
     // Every command loads the helper-Lambda artifacts that sit next to the executable, so the binary on its own
     // is not a runnable installation. Assembling them here is what makes this a check of the release layout.
     await packageHelperLambdas({ distFolderPath: binaryFolderPath });
-    const binaryPath = join(binaryFolderPath, platform === 'win' ? 'stacktape.exe' : 'stacktape');
+    const binaryPath = join(binaryFolderPath, isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape');
 
     expectOutputToContain({
       args: ['--version'],
@@ -132,7 +133,7 @@ const verifyCliSmoke = async () => {
     );
 
     // Bun provides pseudo-terminals on POSIX hosts only.
-    if (platform === 'win') {
+    if (isWindowsPlatform(platform)) {
       console.info('Skipped the interactive launcher check, which needs a POSIX terminal.');
     } else {
       await verifyInteractiveLauncher({ binaryPath, home: fixtureHome });

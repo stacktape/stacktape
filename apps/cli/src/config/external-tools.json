@@ -43,8 +43,16 @@
         "executable": "railpack.exe",
         "sha256": "a9b6c9dbbca51f3de6bb630094a56bf07f0b3c4671f3f72b6e629beca23a344a",
         "bytes": 9039641
+      },
+      "win-arm": {
+        "url": "https://github.com/railwayapp/railpack/releases/download/v0.40.1/railpack-v0.40.1-arm64-pc-windows-msvc.zip",
+        "archive": "zip",
+        "executable": "railpack.exe",
+        "sha256": "95b35a4aa0d41d092277eaf8b6bff58b54956ae50a17f7ac7daa5270434c57c0",
+        "bytes": 8028218
       }
-    }
+    },
+    "image": "ghcr.io/railwayapp/railpack-frontend:v0.40.1@sha256:f1973377693af30c9b37a92c97c661c07b277ccdc6be909213c74c771f8d2d6d"
   },
   "session-manager-plugin": {
     "version": "1.2.707.0",

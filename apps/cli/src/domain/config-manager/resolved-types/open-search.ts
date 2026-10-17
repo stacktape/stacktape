@@ -6,4 +6,3 @@ export type StpOpenSearchDomain = OpenSearchDomain['properties'] & {
   configParentResourceType: OpenSearchDomain['type'];
   nameChain: string[];
 };
-export type OpenSearchDomainReferencableParams = 'arn' | 'domainEndpoint';

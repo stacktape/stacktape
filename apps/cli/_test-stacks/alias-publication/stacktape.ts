@@ -11,6 +11,10 @@ import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from '@stacktap
 export default defineConfig(() => {
   const canaryOwner = process.env.STP_AWS_ALIAS_CANARY_OWNER ?? 'local';
   const canaryValue = process.env.STP_AWS_ALIAS_CANARY_VALUE ?? 'base';
+  // With STP_AWS_ALIAS_CANARY_BREAK=1 the canary adds a queue CloudFormation accepts at validation and rejects when it
+  // creates it (the visibility timeout exceeds the service maximum), so the update fails and CloudFormation rolls it
+  // back. The canary then checks that the previous version is still what the alias serves.
+  const breakUpdate = process.env.STP_AWS_ALIAS_CANARY_BREAK === '1';
   const greeter = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/greeter.ts' }),
     environment: { CANARY_VALUE: canaryValue },
@@ -21,6 +25,13 @@ export default defineConfig(() => {
 
   return {
     resources: { greeter },
-    stackConfig: { tags: [{ name: 'stacktape-canary-owner', value: canaryOwner }] }
+    stackConfig: { tags: [{ name: 'stacktape-canary-owner', value: canaryOwner }] },
+    ...(breakUpdate
+      ? {
+          cloudformationResources: {
+            canaryBrokenQueue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 999999 } }
+          }
+        }
+      : {})
   };
 });

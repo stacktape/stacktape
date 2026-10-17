@@ -489,9 +489,13 @@ Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait after SIGTERM before SIGKILL (2-120).
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -506,7 +510,7 @@ resources:
             type: js-bundle
             properties:
               entryfilePath: src/server.ts
-          stopTimeout: 30
+          stopTimeout: 60
       resources:
         cpu: 0.5
         memory: 1024
@@ -523,7 +527,7 @@ export default defineConfig(() => {
       {
         name: 'api',
         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
-        stopTimeout: 30
+        stopTimeout: 60
       }
     ],
     resources: { cpu: 0.5, memory: 1024 }

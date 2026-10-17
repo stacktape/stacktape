@@ -4,8 +4,9 @@ This is the reusable publishing procedure. Track v4-specific launch actions in
 [V4 launch readiness](../apps/console/documents/releases/v4-readiness.md) (private), and product priorities in the
 [owner's checklist](../apps/console/documents/releases/v4-product-checklist.md). Publication does not deploy Console.
 
-`.github/workflows/release.yml` is the only release path. It always builds and verifies the same six platform archives,
-checksum manifest, and npm tarball. The explicit channel changes only the public pointers:
+`.github/workflows/release.yml` is the only release path. It always builds and verifies the same seven platform archives
+(Linux x64 and arm64, Alpine x64, macOS x64 and arm64, Windows x64 and arm64), checksum manifest, and npm tarball. The
+explicit channel changes only the public pointers:
 
 | Channel   | Version example   | npm tag   | GitHub release | Installer endpoint                       |
 | --------- | ----------------- | --------- | -------------- | ---------------------------------------- |
@@ -14,6 +15,164 @@ checksum manifest, and npm tarball. The explicit channel changes only the public
 
 Both top-level release commands dispatch the workflow from `main`, and stable releases are accepted only from `main`.
 Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
+
+## Qualify a release candidate
+
+Run this sequence from a checkout of the candidate's exact public revision and recorded Console revision, before
+publication. Use the six archives, `SHA256SUMS` and npm tarball assembled for that candidate; do not substitute
+artifacts from another build. Record both Git SHAs, artifact hashes, tool versions and the lane results in the release
+record. A missing prerequisite or failed lane blocks qualification. Publication still requires the owner's
+authorization.
+
+The local/service lanes below run sequentially. Docker, PostgreSQL, MiniStack and the pinned corpus need their normal
+prerequisites ([packaging](../apps/cli/scripts/packaging-archives/README.md), [Console](testing/console.md),
+[corpus](project-qualification.md)). The corpus executes reviewed project code on this host. Split its full run with
+`--shard=1/N` through `--shard=N/N` when necessary; every shard must pass on the same revision. Run each command
+separately when a session has a foreground time limit.
+
+```bash
+set -euo pipefail
+# Supply absolute paths and the exact immutable version outside this block.
+: "${RC_DIRECTORY:?candidate archives, SHA256SUMS and npm tarball directory}"
+: "${RC_VERSION:?exact release candidate version}"
+pnpm install --frozen-lockfile
+pnpm check:integrated
+
+# Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
+pnpm --filter @stacktape/cli test:release-native -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
+
+for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --secrets --cli-console --incident-journey --alerts --uptime --git-deploy --insights --billing --isolated-browser; do
+  if [ -n "$suite" ]; then
+    pnpm --filter @stacktape/console-api-app test:db "$suite"
+  else
+    pnpm --filter @stacktape/console-api-app test:db
+  fi
+done
+pnpm --filter @stacktape/console-api-app test:runner:scripts
+pnpm --filter @stacktape/console-api-app test:runner:cache
+pnpm --filter @stacktape/ui-react test:e2e
+pnpm --filter @stacktape/bitbucket-forge-app test:e2e
+pnpm test:console:browser:offline
+pnpm --filter @stacktape/console-ui test:e2e:sessions
+
+for lane in test:archive-build:e2e test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
+  test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do
+  pnpm --filter @stacktape/packaging run "$lane"
+done
+for lane in test:lambda-archives test:asset-replacer test:docker-preparation \
+  test:layer-upload:ministack test:fresh-install test:external-tools test:node-lambda test:ssr-web \
+  test:helper-lambda-runtime test:operations:db; do
+  pnpm --filter @stacktape/cli run "$lane"
+done
+pnpm --filter @stacktape/cli qualify:starters
+pnpm --filter @stacktape/cli test:config-loading
+pnpm --filter @stacktape/cli test:data-safety
+pnpm --filter @stacktape/cli test:synthesis-families:cfn-lint
+pnpm --filter @stacktape/cli test:cli-process
+pnpm --filter @stacktape/cli test:operations
+pnpm --filter @stacktape/cli test:mcp-executable
+pnpm --filter vscode-stacktape test:host
+pnpm --filter @stacktape/docs test:build-contracts
+pnpm --filter @stacktape/cli test:init:real-project-corpus -- --all
+pnpm --filter @stacktape/cli test:init:synthetic-project-corpus
+pnpm --filter @stacktape/cli test:init:synthetic-project-corpus:native
+pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code
+pnpm qualify:projects -- --lanes=runtime
+```
+
+The extension host lane requires `STP_VSCODE_EXECUTABLE` and the host prerequisites in the
+[extension README](../apps/vscode-extension/README.md). Build CLI dev artifacts before the database sequence with
+`pnpm --filter @stacktape/cli build:dev-artifacts`.
+
+The [slice registry](../scripts/workspace/test-registry.ts) is the lane inventory; qualify its `pr` and `change` lanes
+before the candidate's selected external contracts. CI keeps static checks and runs only the fast `pr` test subset. To
+exercise MCP against the exact extracted binary instead of rebuilding it, run
+`pnpm --filter @stacktape/cli exec bun scripts/test-mcp-executable.ts --candidate-binary=/absolute/path/to/stacktape`
+(use `stacktape.exe` on Windows). This keeps the candidate's sibling payloads in place and isolates its state and HTTP
+fixture.
+
+The release workflow installs the assembled candidate on Linux x64/ARM64, macOS x64/ARM64 and Windows x64 before
+publication. Its existing Alpine container smoke executes the musl candidate and both pinned tools. None of these native
+jobs rebuilds the candidate. For local qualification, `test:release-native` requires `--candidate-dir` and `--version`,
+or `STP_RELEASE_CANDIDATE_DIR` and `STP_RELEASE_CANDIDATE_VERSION`; it downloads the pinned vendor tools only in this
+explicit release lane. Routine `test:release-artifact` builds locally and needs the npm registry for the launcher’s
+runtime dependencies. Its subsequent launcher invocations forbid downloads. `test:release-downloads` runs full shell
+installers and the npm launcher with local downloads; `test:installers:windows` requires PowerShell on PATH and runs the
+complete Windows integrity/upgrade scenario.
+
+Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
+`test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager
+plugin. Qualify Windows-host packaging on Windows and execute its archives in the Linux runtime. A cross-build on one
+host does not qualify another target. Authenticated hosted-login/provider browser acceptance remains a separately
+reserved shared-dev run; these local lanes do not claim to cover hosted identity or provider installation.
+
+Then run the live canaries sequentially in the disposable `stacktape-e2e` account (`597581086285`), following the
+[live AWS guards](testing/live-aws.md) and [recovery procedure](../apps/cli/scripts/real-aws/README.md). Inject
+credentials into the environment without recording them. Set all required guard variables from that procedure, including
+explicit account, profile, region, owner and disposable-account acknowledgement. Verify STS before mutation. Use the
+extracted candidate binary for packaging/init; the alias canary currently uses the source CLI at this revision. The
+runner qualifier needs a reserved Console operator identity in account `977946299200` to assume the supplied receiving
+account connection; its test stacks belong to `597581086285`. The CLI canaries use the `stacktape-e2e` AWS profile
+directly and must never target `stacktape-dev`.
+
+```bash
+set -euo pipefail
+: "${RC_BINARY:?absolute extracted candidate binary path}"
+: "${RC_VERSION:?exact release candidate version}"
+: "${RC_RUN_ID:?unique lowercase run identifier, at most 20 characters}"
+[[ "$RC_RUN_ID" =~ ^[a-z0-9][a-z0-9-]{0,19}$ ]]
+mkdir -p .stacktape
+scenario_number=0
+: "${STP_CONSOLE_DEV_RESERVATION:?task-owned reservation for runner qualification}"
+: "${RC_RUNNER_AMI:?AMI built with the same candidate CLI version}"
+: "${RC_ACCOUNT_CONNECTION_ID:?Console connection to receiving account 597581086285}"
+: "${RC_CONSOLE_OPERATOR_PROFILE:?Console operator profile for account 977946299200}"
+: "${RC_AWS_REGION:?explicit qualification region}"
+export AWS_PROFILE="$RC_CONSOLE_OPERATOR_PROFILE"
+pnpm console:dev:reservation check
+for mode in --image-smoke --live --slots --performance --resume --startup-recovery; do
+  pnpm --filter @stacktape/console-api-app test:runner:aws "$mode" \
+    --ami "$RC_RUNNER_AMI" --account 597581086285 --connection "$RC_ACCOUNT_CONNECTION_ID" \
+    --region "$RC_AWS_REGION" --expected-cli-version "$RC_VERSION"
+done
+pnpm console:dev:reservation release
+export AWS_PROFILE=stacktape-e2e
+export STP_AWS_CANARY_EXPECTED_ACCOUNT_ID=597581086285
+export STP_AWS_CANARY_CREDENTIAL_MODE=profile
+export STP_AWS_CANARY_PROFILE=stacktape-e2e
+export STP_AWS_ALIAS_CANARY_EXPECTED_ACCOUNT_ID=597581086285
+export STP_AWS_ALIAS_CANARY_PROFILE=stacktape-e2e
+export STP_AWS_CANARY_REGION="$RC_AWS_REGION"
+export STP_AWS_ALIAS_CANARY_REGION="$RC_AWS_REGION"
+: "${STP_INIT_CANARY_AWS_ACCOUNT:?connected Stacktape account name for 597581086285}"
+export STP_AWS_CANARY_CLI_PATH="$RC_BINARY"
+export STP_AWS_CANARY_EXPECTED_CLI_VERSION="$RC_VERSION"
+for scenario in lambda-packaging-update init-static-site init-node-container init-python-container init-postgres-migration; do
+  scenario_number=$((scenario_number + 1))
+  export STP_AWS_CANARY_PROJECT_NAME="v4canary-${RC_RUN_ID}-${scenario_number}"
+  export STP_AWS_CANARY_STATE_FILE="$(pwd)/.stacktape/${STP_AWS_CANARY_PROJECT_NAME}.json"
+  pnpm test:aws --aws-scenario="$scenario"
+  # The runner verifies deletion. Recover any incomplete cleanup before proceeding.
+done
+export STP_AWS_ALIAS_CANARY_PROJECT_NAME="v4aliascanary-${RC_RUN_ID}"
+export STP_AWS_ALIAS_CANARY_STATE_FILE="$(pwd)/.stacktape/${STP_AWS_ALIAS_CANARY_PROJECT_NAME}.json"
+pnpm test:aws --aws-scenario=lambda-alias-configuration-update
+```
+
+Keep the canary reports and verified-cleanup results with the release record. Never resume from a cached live result.
+Also qualify local development with `pnpm test:aws --aws-scenario=dev-mode-local-loop`, using its separate
+`STP_AWS_DEV_CANARY_*` guards and recovery state from the
+[dev-mode canary procedure](../apps/cli/scripts/real-aws/README.md#dev-mode-canary).
+
+Before publishing the v4 CLI, run `pnpm --filter @stacktape/cli test:config-loading:ministack` on the candidate. Its
+rotation scenario must show local `$Secret()` and `$SsmParam()` directives reading current values while deployed
+connection strings still use their pinned secret version. The resolver is owned by
+`apps/cli/src/domain/config-manager/built-in-directives.ts`; deployed connection-string resolution is owned by
+`apps/cli/src/utils/stack-info-map-sensitive-values.ts`. After upgrading, restart existing `stacktape dev` sessions to
+use the new resolver. This CLI publication requires no stack or database migration.
+
+When a new database feature flag or heavy lane is added, add it to this sequence and to
+`scripts/workspace/test-plan.ts`.
 
 ## Normal use
 
@@ -65,18 +224,22 @@ or choosing another immutable version.
 
 ## Authentication boundaries
 
-The workflow uses no long-lived publishing secret:
+The workflow uses no long-lived publishing secret. Its one long-lived credential uploads error-tracking source maps
+(below) and cannot publish anything:
 
 - `release-publish` grants the npm/GitHub publication job GitHub OIDC. npm trusts only `release.yml` in this
   environment.
 - `release-installers` grants a separate job GitHub OIDC access to the AWS role
   `arn:aws:iam::977946299200:role/stacktape-github-release-installers`.
-- The AWS role may upload only the seven known installer paths in the production and preview buckets, read them back for
-  checksum verification, and create/read invalidations for the two corresponding CloudFront distributions. It cannot
-  list buckets, write another object path, invalidate another distribution, or deploy infrastructure.
+- The AWS role may upload only the known installer paths (`PUBLISHED_INSTALL_ASSET_FILES` in
+  `apps/cli/scripts/publish-install-scripts.ts`) in the production and preview buckets, read them back for checksum
+  verification, and create/read invalidations for the two corresponding CloudFront distributions. It cannot list
+  buckets, write another object path, invalidate another distribution, or deploy infrastructure. The role's inline
+  policy `PublishStacktapeInstallers` is maintained by hand: add a path to it in both buckets before a release first
+  publishes a new installer, or that release fails after npm publication.
 
-`publish-install-scripts.ts` replaces the release version in the seven canonical sources, uploads exact bytes with
-SHA-256 checksums and preserved cache/content headers, checks S3's stored checksums, invalidates only those seven CDN
+`publish-install-scripts.ts` replaces the release version in the eight canonical sources, uploads exact bytes with
+SHA-256 checksums and preserved cache/content headers, checks S3's stored checksums, invalidates only those eight CDN
 paths, waits for completion, and verifies every public response byte-for-byte.
 
 ## Configuration
@@ -100,6 +263,25 @@ npm permits only one trusted publisher per package. If `npm trust list stacktape
 replace it with `npm trust revoke stacktape --id <existing-id>`, then run the `npm trust github` command above.
 
 Do not add `NPM_TOKEN`, AWS access keys, or `STACKTAPE_API_KEY` to the workflow.
+
+### Error-tracking source maps
+
+Stable executables report unexpected errors to PostHog (`apps/cli/src/utils/telemetry.ts`) but do not ship their source
+map. The build writes each platform's code and map with a per-build chunk ID that the executable registers at runtime
+(`writeErrorTrackingSourceMap` in `apps/cli/scripts/release/build-cli-sources.ts`). The
+`upload-error-tracking-source-maps` job uploads them with `posthog-cli`, so PostHog shows TypeScript files and lines.
+Publication does not wait for that job; if it fails, that release's stack traces point into the bundle until its maps
+are uploaded from the run's artifacts, which are kept for one day.
+
+The GitHub environment `error-tracking` must allow only `main` and hold:
+
+- secret `POSTHOG_CLI_API_KEY`: a PostHog personal API key limited to the production project with the scopes
+  `error_tracking:write` and `organization:read`, and nothing else;
+- variable `POSTHOG_CLI_PROJECT_ID`: the production project's numeric ID (Project settings in PostHog).
+
+To check a release, trigger an unexpected error with the released binary (for example, make `~/.stacktape` a file and
+run `stacktape defaults:list`) and find its printed error ID in PostHog error tracking. The stack frames should name
+`.ts` files under `src/`.
 
 ## Other mutable publications
 

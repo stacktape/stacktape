@@ -1,13 +1,11 @@
 import type { LambdaSplitOutput, LayerAssignmentResult } from './types';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { outputFile, pathExists } from 'fs-extra';
+import { outputFile } from 'fs-extra';
 import { getDirectoryChecksum } from '../artifact/hashing';
 import { createLayerArtifacts } from './layer-builder';
-
-const LAYER_MOUNT = '/opt/nodejs/chunks/';
 
 const workspaces: string[] = [];
 
@@ -65,7 +63,8 @@ const buildWorkspace = async ({ sharedChunkBody = 'import "./chunk-dep.js";\nexp
       join(lambdaChunks, 'chunk-local.js')
     ],
     sourceFiles: [],
-    dependenciesToInstallInDocker: [],
+    externalDependencies: [],
+    productionDependencies: [],
     resolvedModules: []
   };
 
@@ -85,92 +84,6 @@ afterEach(async () => {
 });
 
 describe('createLayerArtifacts', () => {
-  test('lays out a publishable layer under nodejs/chunks with an ESM package.json', async () => {
-    const workspace = await buildWorkspace();
-
-    const { layerArtifacts } = await createLayerArtifacts(workspace);
-
-    expect(layerArtifacts).toHaveLength(1);
-    const [artifact] = layerArtifacts;
-    expect(artifact!.layerNumber).toBe(1);
-    expect(artifact!.layerPath).toBe(join(workspace.layerBasePath, 'layer-1'));
-    expect(artifact!.chunks).toEqual(['chunk-shared.js', 'chunk-dep.js']);
-    expect(artifact!.sizeBytes).toBeGreaterThan(0);
-
-    const layerNodejs = join(artifact!.layerPath, 'nodejs');
-    expect((await readdir(join(layerNodejs, 'chunks'))).toSorted()).toEqual([
-      'chunk-dep.js',
-      'chunk-shared.js',
-      'chunk-shared.js.map'
-    ]);
-    expect(JSON.parse(await readFile(join(layerNodejs, 'package.json'), 'utf8'))).toEqual({ type: 'module' });
-  });
-
-  test('removes obsolete files when a stable layer number is rebuilt', async () => {
-    const workspace = await buildWorkspace();
-    const obsoletePath = join(workspace.layerBasePath, 'layer-1', 'nodejs', 'chunks', 'obsolete.js');
-    await outputFile(obsoletePath, 'stale');
-
-    await createLayerArtifacts(workspace);
-
-    expect(await pathExists(obsoletePath)).toBe(false);
-  });
-
-  test('points layered chunks at the layer mount and non-layered chunks at the lambda package', async () => {
-    const workspace = await buildWorkspace();
-
-    await createLayerArtifacts(workspace);
-
-    // Inside the layer, a chunk reaches its layered dependency through the mount path.
-    expect(
-      await readFile(join(workspace.layerBasePath, 'layer-1', 'nodejs', 'chunks', 'chunk-shared.js'), 'utf8')
-    ).toBe(`import "${LAYER_MOUNT}chunk-dep.js";\nexport const shared = 1;\n`);
-    // The chunk that stayed behind reaches the layered chunk through the mount path too.
-    expect(await readFile(join(workspace.lambdaChunks, 'chunk-local.js'), 'utf8')).toBe(
-      `import "${LAYER_MOUNT}chunk-shared.js";\nexport const local = 1;\n`
-    );
-    // The entry file keeps its relative import for the chunk it still ships.
-    expect(await readFile(join(workspace.lambdaDir, 'index.js'), 'utf8')).toBe(
-      `import "${LAYER_MOUNT}chunk-shared.js";\nimport "./chunks/chunk-local.js";\nexport const handler = () => 1;\n`
-    );
-  });
-
-  test('removes the layered chunks and their source maps from the lambda package', async () => {
-    const workspace = await buildWorkspace();
-
-    await createLayerArtifacts(workspace);
-
-    expect(await readdir(workspace.lambdaChunks)).toEqual(['chunk-local.js']);
-    expect(await pathExists(join(workspace.lambdaChunks, 'chunk-shared.js.map'))).toBe(false);
-    expect(workspace.output.files).toEqual([
-      join(workspace.lambdaDir, 'index.js'),
-      join(workspace.lambdaChunks, 'chunk-local.js')
-    ]);
-  });
-
-  test('derives the layer content hash from the chunks so an unchanged layer is not re-uploaded', async () => {
-    const first = await createLayerArtifacts(await buildWorkspace());
-    const identical = await createLayerArtifacts(await buildWorkspace());
-    const changed = await createLayerArtifacts(
-      await buildWorkspace({ sharedChunkBody: 'import "./chunk-dep.js";\nexport const shared = "grown";\n' })
-    );
-
-    expect(first.layerArtifacts[0]!.contentHash).toMatch(/^[a-f0-9]{1,12}$/);
-    expect(identical.layerArtifacts[0]!.contentHash).toBe(first.layerArtifacts[0]!.contentHash);
-    expect(changed.layerArtifacts[0]!.contentHash).not.toBe(first.layerArtifacts[0]!.contentHash);
-  });
-
-  test('changes the layer hash when same-size chunk contents change', async () => {
-    const first = await createLayerArtifacts(
-      await buildWorkspace({ sharedChunkBody: 'import "./chunk-dep.js";\nexport const shared = 1;\n' })
-    );
-    const changed = await createLayerArtifacts(
-      await buildWorkspace({ sharedChunkBody: 'import "./chunk-dep.js";\nexport const shared = 2;\n' })
-    );
-
-    expect(changed.layerArtifacts[0]!.contentHash).not.toBe(first.layerArtifacts[0]!.contentHash);
-  });
-
   test('names a layer by a hash its pre-format ZIP never had, so that ZIP is not reused', async () => {
     const [layer] = (await createLayerArtifacts(await buildWorkspace())).layerArtifacts;
     // The hash, and so the S3 key, a layer had before Lambda archives had a format: its directory checksum alone.

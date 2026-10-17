@@ -40,4 +40,3 @@ export interface ECSBlueGreenService {
   };
   DependsOn: string[];
 }
-export type ContainerWorkloadReferencableParam = 'logGroupArn';

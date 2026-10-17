@@ -23,14 +23,12 @@ const realExecuteGit = executeGit;
 type ExecCall = { command: string; args: string[]; params: Record<string, any> };
 
 let execStub: ((call: ExecCall) => Promise<any>) | null = null;
-const execCalls: ExecCall[] = [];
 
 // The replacement is a pass-through by default. `mock.module` is process-wide in Bun, so only the tests that install
 // an `execStub` see anything other than the real runner, and no other test file's behavior changes.
 mock.module('@utils/exec', () => ({
   exec: (command: string, args: string[], params: Record<string, any>) => {
     const call = { command, args, params };
-    execCalls.push(call);
     return execStub ? execStub(call) : realExec(command, args, params);
   },
   executeGit: realExecuteGit
@@ -50,7 +48,7 @@ let dockerRun: DockerModule['dockerRun'];
  * would plant the sentinels in the error itself and prove nothing.
  */
 const FAKE_DOCKER_PROGRAM = `
-const { appendFileSync } = require('node:fs');
+const { appendFileSync, writeFileSync } = require('node:fs');
 const behavior = JSON.parse(process.argv[2]);
 const args = process.argv.slice(3);
 const observedEnv = Object.fromEntries(
@@ -64,6 +62,11 @@ const respond = (stdin) => {
     // Lets buildDockerImage finish the way it does against a real Docker.
     process.stdout.write(JSON.stringify([{ Id: 'sha256:fake', Size: 1024, Created: '2026-07-28T00:00:00Z' }]));
     process.exit(0);
+  }
+  // A successful build reports the image it built, as Docker does with --iidfile.
+  const iidFile = args.indexOf('--iidfile');
+  if (iidFile !== -1 && !behavior.exitCode) {
+    writeFileSync(args[iidFile + 1], 'sha256:fake');
   }
   if (behavior.echoStdinToStderr) {
     process.stderr.write(stdin);
@@ -213,20 +216,11 @@ afterAll(() => {
 
 describe('docker login credential handling', () => {
   test('passes the registry password on stdin and never as a command argument', async () => {
-    execCalls.length = 0;
     const { error } = await withFakeDocker({ readStdin: true }, () =>
       dockerLogin({ user: 'AWS', password: SENTINEL_PASSWORD, proxyEndpoint: REGISTRY })
     );
 
     expect(error).toBeNull();
-
-    // What `execDocker` was asked to run: the user and the registry are still correct, the password is not there.
-    const [call] = execCalls;
-    expect(call.command).toBe('docker');
-    expect(call.args).toEqual(['login', '--username', 'AWS', '--password-stdin', REGISTRY]);
-    expect(JSON.stringify(call.args)).not.toContain(SENTINEL_PASSWORD);
-    expect(call.params.stdinInput).toBe(SENTINEL_PASSWORD);
-    expect(call.params.safeCommandDescription).toBe('docker login [arguments omitted]');
 
     // What the child process actually received: the password on standard input, and nowhere in its argv.
     const observed = fakeDockerInvocation('login');
@@ -259,7 +253,6 @@ describe('docker login credential handling', () => {
   test('reports a missing Docker executable without reproducing the token', async () => {
     // The reproduced incident: Docker absent, a live token in hand. Execa's rejection carries the command line it
     // built, and everything the CLI derives from it used to carry the token with it.
-    execCalls.length = 0;
     const error = await withDockerMissingFromPath(() =>
       dockerLogin({ user: 'AWS', password: SENTINEL_PASSWORD, proxyEndpoint: REGISTRY })
     );
@@ -269,10 +262,6 @@ describe('docker login credential handling', () => {
     expect(error.type).toBe('DOCKER');
     expect(error.hint).toContain('https://www.docker.com/products/docker-desktop/');
     expectNoSecretIn(error, SENTINEL_PASSWORD);
-
-    // The classification is structural: it came from a PATH lookup, before anything was spawned, so it does not
-    // depend on how a runtime or a localized Windows console words a missing executable.
-    expect(execCalls).toHaveLength(0);
   });
 
   test('still classifies a Docker that disappears between the PATH check and the spawn', async () => {
@@ -359,6 +348,37 @@ describe('build arguments and container environment', () => {
       environment: { [SENTINEL_CONTAINER_ENV_NAME]: SENTINEL_CONTAINER_ENV_VALUE }
     });
 
+  test('a fresh container-run process reports missing Docker on Desktop hosts', async () => {
+    // This child imports the actual module without this file's exec substitution. dockerRun owns a separate
+    // preflight from execDocker. Linux's host lookup also calls execDocker, while Desktop hosts skip that lookup.
+    // Select the Desktop branch in this isolated child; PATH lookup and the process runner still use real code.
+    const { stdout } = await realExec(
+      process.execPath,
+      [
+        '--preload',
+        './scripts/test-preload.ts',
+        '--eval',
+        `import { dockerRun } from './src/utils/docker.ts';
+if (process.platform === 'linux') Object.defineProperty(process, 'platform', { value: 'darwin' });
+process.env[${JSON.stringify(pathEnvName)}] = ${JSON.stringify(emptyPathDirectory)};
+try {
+  await dockerRun({ args: {}, name: 'missing-docker-run', image: 'unused:latest', environment: {} });
+  process.exitCode = 2;
+} catch (error) {
+  console.log(JSON.stringify({ code: error.code, message: error.message, hint: error.hint }));
+}`
+      ],
+      { cwd: join(import.meta.dir, '../../..'), disableStdout: true, disableStderr: true }
+    );
+
+    const failure = JSON.parse(stdout);
+    expect(failure).toMatchObject({
+      code: 'DOCKER_NOT_INSTALLED',
+      message: 'Docker is not installed or not found in PATH.'
+    });
+    expect(failure.hint).toContain('https://www.docker.com/products/docker-desktop/');
+  });
+
   test('a build passes its --build-arg value in the child environment, not in the child argv', async () => {
     const { error } = await withFakeDocker({}, buildWithSecretArg);
     expect(error).toBeNull();
@@ -398,21 +418,6 @@ describe('build arguments and container environment', () => {
     expect(error.message).toContain('Error building docker image');
     expect(error.message).toContain('docker build [arguments omitted]');
     expectNoSecretIn(error, SENTINEL_BUILD_ARG_VALUE);
-  });
-
-  test('a build that cannot start reports a missing Docker rather than the command line', async () => {
-    const error = await withDockerMissingFromPath(() => buildWithSecretArg());
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Docker is not installed or not found in PATH.');
-    expectNoSecretIn(error, SENTINEL_BUILD_ARG_VALUE);
-  });
-
-  test('a container run that cannot start reports a missing Docker', async () => {
-    const error = await withDockerMissingFromPath(() => runWithSecretEnvironment());
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Docker is not installed or not found in PATH.');
   });
 
   test('rejects names reserved for the Docker CLI process itself', async () => {

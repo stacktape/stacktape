@@ -1,4 +1,4 @@
-import type { SplitBundleDependency } from '@stacktape/packaging/split-bundler/types';
+import type { ResolvedPackageDependency as SplitBundleDependency } from '@stacktape/packaging/runtime-contracts';
 
 export type NativeDependencyLayerGroup = {
   dependencies: SplitBundleDependency[];

@@ -31,8 +31,12 @@ export type PackageWorkloadOutput = {
   /** Carried through from `PackagingOutput`; `null` and `undefined` both reach event data. */
   size: number | null | undefined;
   artifactPath?: string;
+  /** The ID of the container image this build produced; the upload tags and pushes exactly this image. */
+  imageId?: string;
   /** All npm modules resolved during bundling (for Lambda functions) */
   resolvedModules?: string[];
+  /** A Lambda ZIP's source maps, kept outside the package for the deployment bucket. */
+  sourceMapsPath?: string;
 };
 
 export type HelperLambdaPackaging = {

@@ -10,29 +10,74 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { domainManager } from '@domain-services/domain-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
+import { assertLocalAwsEndpoint, type MiniStackClientConfig } from '@stacktape/ministack/fixture';
 import type { StackContext } from '@domain-services/stack-context';
 import type { CompiledStacktapeConfig } from '@stacktape/config-authoring';
+import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
+
+/**
+ * The stack identity a fixture synthesizes under. Physical names and the globally unique stack hash derive from it, so
+ * a test that compares against a template produced elsewhere (for example by the v3 CLI) must pass the same identity.
+ */
+export type SynthesisIdentity = {
+  accountId: string;
+  region: AWSRegion;
+  projectName: string;
+  stage: string;
+};
+
+export const defaultSynthesisIdentity: SynthesisIdentity = {
+  accountId: '123456789999',
+  region: 'eu-west-1',
+  projectName: 'characterization',
+  stage: 'baseline'
+};
 
 export const synthesizeFixture = async ({
   compiledConfig,
+  configPath,
   workingDir,
   synthesisContext,
   beforeFinalize,
   command = 'synth',
-  remoteResources
+  remoteResources,
+  identity: identityOverride,
+  localAws
 }: {
-  compiledConfig: CompiledStacktapeConfig;
+  /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
+  compiledConfig?: CompiledStacktapeConfig;
+  /** A YAML or TypeScript config file loaded through the real config resolver. Mutually exclusive with `compiledConfig`. */
+  configPath?: string;
   workingDir: string;
   synthesisContext?: Partial<StackContext>;
   beforeFinalize?: () => void;
   command?: 'dev' | 'synth';
   remoteResources?: string[];
+  identity?: Partial<SynthesisIdentity>;
+  /** Explicit synthetic clients for runtime directives; every other network request stays forbidden. */
+  localAws?: MiniStackClientConfig;
 }) => {
+  if (!compiledConfig === !configPath) {
+    throw new Error('synthesizeFixture needs exactly one of compiledConfig or configPath.');
+  }
+  const identity = { ...defaultSynthesisIdentity, ...identityOverride };
+  const stackName = `${identity.projectName}-${identity.stage}`;
+  // The historical hash formula; the characterization default keeps the fixed placeholder hash older fixtures expect.
+  const globallyUniqueStackHash = identityOverride
+    ? getGloballyUniqueStackHash({ region: identity.region, stackName, accountId: identity.accountId })
+    : 'xxxxxxxx';
+  if (localAws) {
+    assertLocalAwsEndpoint(localAws.endpoint);
+    awsSdkManager.init({ ...localAws, region: identity.region, plugins: [] });
+  }
   return withCredentiallessSynthesisBoundary(async () => {
     calculatedStackOverviewManager.reset();
     configManager.reset();
@@ -50,14 +95,16 @@ export const synthesizeFixture = async ({
     globalStateManager.operationStart = new Date();
     globalStateManager.rawCommands = [command];
     globalStateManager.rawArgs = {
-      stage: 'baseline',
-      region: 'eu-west-1',
-      projectName: 'characterization',
+      stage: identity.stage,
+      region: identity.region,
+      projectName: identity.projectName,
       currentWorkingDirectory: workingDir,
+      ...(configPath ? { configPath } : {}),
       ...(remoteResources ? { remoteResources } : {})
     };
     globalStateManager.additionalArgs = {};
-    globalStateManager.presetConfig = compiledConfig.config;
+    globalStateManager.configPath = configPath ?? null;
+    globalStateManager.presetConfig = compiledConfig?.config;
     globalStateManager.persistedState = {
       systemId: 'characterization-system',
       cliArgsDefaults: {},
@@ -76,20 +123,20 @@ export const synthesizeFixture = async ({
     globalStateManager.localTargetAwsAccount = {
       id: 'characterization-account',
       organizationId: 'characterization-organization',
-      awsAccountId: '123456789999',
+      awsAccountId: identity.accountId,
       connectionMode: 'BASIC',
       name: 'characterization',
       state: 'ACTIVE',
-      primaryRegions: ['eu-west-1'],
-      defaultRegion: 'eu-west-1'
+      primaryRegions: [identity.region],
+      defaultRegion: identity.region
     };
     resetDomainServiceInitialization();
     globalStateManager.isInitialized = true;
     globalStateManager.targetStack = {
-      stackName: 'characterization-baseline',
-      globallyUniqueStackHash: 'xxxxxxxx',
-      stage: 'baseline',
-      projectName: 'characterization',
+      stackName,
+      globallyUniqueStackHash,
+      stage: identity.stage,
+      projectName: identity.projectName,
       projectId: 'characterization-project'
     };
     const stackContext: StackContext = {
@@ -105,18 +152,32 @@ export const synthesizeFixture = async ({
       ...synthesisContext
     };
     await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
-    configManager.transforms = compiledConfig.transforms ?? {};
-    configManager.finalTransform = compiledConfig.finalTransform;
+    if (compiledConfig) {
+      configManager.transforms = compiledConfig.transforms ?? {};
+      configManager.finalTransform = compiledConfig.finalTransform;
+    }
     await ec2Manager.init({
       instanceTypes: configManager.allUsedEc2InstanceTypes,
       openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
     });
 
+    if (identityOverride) {
+      // Default domains derive from the stack identity. Without this the domain manager stays in its placeholder
+      // mode and every default domain name reads `project-stage-xxxxxxxx`, which would look like a replacement
+      // against a template produced by a real invocation.
+      await domainManager.init({
+        stackName: stackContext.stackName,
+        domains: [],
+        loadDefaultDomainsFromControlPlane: false
+      });
+    }
+
     deploymentArtifactManager.setPackagingSource(packagingManager);
-    deploymentArtifactManager.deploymentBucketName = 'stp-deployment-bucket-xxxxxxxx';
-    deploymentArtifactManager.repositoryName = 'xxxxxxxx-stp-container-repository';
-    deploymentArtifactManager.repositoryUrl =
-      '123456789999.dkr.ecr.eu-west-1.amazonaws.com/xxxxxxxx-stp-container-repository';
+    deploymentArtifactManager.deploymentBucketName = awsResourceNames.deploymentBucket(globallyUniqueStackHash);
+    deploymentArtifactManager.repositoryName = identityOverride
+      ? awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash)
+      : 'xxxxxxxx-stp-container-repository';
+    deploymentArtifactManager.repositoryUrl = `${identity.accountId}.dkr.ecr.${identity.region}.amazonaws.com/${deploymentArtifactManager.repositoryName}`;
 
     await stackManager.init({
       stackName: globalStateManager.targetStack.stackName,
@@ -134,7 +195,7 @@ export const synthesizeFixture = async ({
     beforeFinalize?.();
     await finalizeTemplate();
     return templateManager.getTemplate();
-  });
+  }, localAws?.endpoint);
 };
 
 const protectedAwsEnvironment = [
@@ -147,7 +208,11 @@ const protectedAwsEnvironment = [
   'AWS_EC2_METADATA_DISABLED'
 ] as const;
 
-export const withCredentiallessSynthesisBoundary = async <Result>(operation: () => Promise<Result>) => {
+export const withCredentiallessSynthesisBoundary = async <Result>(
+  operation: () => Promise<Result>,
+  localAwsEndpoint?: string
+) => {
+  if (localAwsEndpoint) assertLocalAwsEndpoint(localAwsEndpoint);
   if (!awsSdkManager.isInitialized) {
     awsSdkManager.init({
       credentials: { accessKeyId: 'characterization-forbidden', secretAccessKey: 'characterization-forbidden' },
@@ -165,6 +230,8 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   const originalHttpsGet = https.get;
   const originalGetStackDetails = cloudFormation.getDetails;
   const originalGetStackResources = cloudFormation.getResources;
+  const openSearch = awsSdkManager.openSearch;
+  const originalGetInstanceTypeLimits = openSearch.getInstanceTypeLimits;
 
   process.env.AWS_ACCESS_KEY_ID = 'characterization-forbidden';
   process.env.AWS_SECRET_ACCESS_KEY = 'characterization-forbidden';
@@ -174,8 +241,11 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   process.env.AWS_CONFIG_FILE = '__stacktape_characterization_missing_config__';
   process.env.AWS_EC2_METADATA_DISABLED = 'true';
   globalThis.fetch = Object.assign(
-    async (input: Parameters<typeof fetch>[0]) => {
+    async (input: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
       const destination = input instanceof Request ? input.url : String(input);
+      if (localAwsEndpoint && new URL(destination).origin === localAwsEndpoint) {
+        return originalFetch(input, { ...options, redirect: 'error' });
+      }
       throw new Error(`Unclassified network request during credential-free synthesis: ${destination}`);
     },
     {
@@ -194,6 +264,17 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   https.get = rejectNodeRequest as typeof https.get;
   cloudFormation.getDetails = async () => null;
   cloudFormation.getResources = async () => [];
+  // OpenSearch instance limits are looked up live during initialization; synthesis only needs to know that EBS gp3
+  // storage is available, which every current-generation instance type supports.
+  openSearch.getInstanceTypeLimits = async () => ({
+    $metadata: {},
+    LimitsByRole: {
+      data: {
+        StorageTypes: [{ StorageTypeName: 'ebs', StorageSubTypeName: 'gp3' }],
+        InstanceLimits: { InstanceCountLimits: { MinimumInstanceCount: 1, MaximumInstanceCount: 80 } }
+      }
+    }
+  });
 
   try {
     return await operation();
@@ -205,6 +286,7 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
     https.get = originalHttpsGet;
     cloudFormation.getDetails = originalGetStackDetails;
     cloudFormation.getResources = originalGetStackResources;
+    openSearch.getInstanceTypeLimits = originalGetInstanceTypeLimits;
     for (const name of protectedAwsEnvironment) {
       const value = originalEnvironment[name];
       if (value === undefined) {

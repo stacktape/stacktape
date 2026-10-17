@@ -3,8 +3,8 @@ import { createServer } from 'node:http';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
-import { AWS_READ_ONLY_OPERATIONS } from '@domain-services/debug-services/aws-read-only-operations';
-import { executeAwsSdkCommand } from '@domain-services/debug-services/aws-sdk-executor';
+import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
+import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,

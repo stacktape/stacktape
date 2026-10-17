@@ -6,10 +6,3 @@ export type StpRedisCluster = RedisCluster['properties'] & {
   configParentResourceType: RedisCluster['type'];
   nameChain: string[];
 };
-export type RedisClusterReferencableParam =
-  | 'host'
-  | 'readerHost'
-  | 'port'
-  | 'readerPort'
-  | 'connectionString'
-  | 'sharding';

@@ -9,11 +9,12 @@ boundary for a change and record sufficient evidence.
 
 ## Setup and checks
 
-Install Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0, and Bun 1.4.1. Docker is needed only for
-packaging tests, isolated Console database tests, and local database emulation. The private `apps/console` submodule is
-optional for public work. Run `pnpm test:doctor` to find a missing or mismatched prerequisite before a long check. When
-the Console doctor reports a missing Prisma client, run `pnpm --filter @stacktape/console-api-app generate`; the
-generated client is intentionally ignored.
+Install Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0, and Bun 1.4.1. Docker is needed for container
+and native-dependency packaging (including Next.js image optimization), packaging tests, isolated Console database
+tests, and local database emulation. The private `apps/console` submodule is optional for public work. Run
+`pnpm test:doctor` to find a missing or mismatched prerequisite before a long check. When the Console doctor reports a
+missing Prisma client, run `pnpm --filter @stacktape/console-api-app generate`; the generated client is intentionally
+ignored.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -64,6 +65,13 @@ and AWS account, reads the current non-secret database and Cognito identifiers f
 for an SSM tunnel to the shared dev database, and then starts the local API and UI. It closes the tunnel with the dev
 process. The small `console-app-devlocal` support stack is refreshed only when its resolved configuration changes, so
 IAM changes are applied without making ordinary warm starts redeploy.
+
+The Console dev server includes a feedback tool for reviewing the running UI. Press the key left of 1 (`Backquote`)
+outside a text field, drag a box or click an element, type a note and press Enter. The dev server writes a screenshot
+and `item.json` (route, viewport, box, selector, React components with source lines) to the main checkout's ignored
+`.stacktape/feedback/inbox/`; `.stacktape/feedback/README.md` there describes how agents process the inbox. The tool and
+its Vite plugin exist only in `vite serve`, and `pnpm --filter @stacktape/console-ui test:bundle` proves that production
+builds exclude them.
 
 Console deployments also use the source-built workspace CLI:
 
@@ -125,8 +133,9 @@ The full local-state ownership map lives in `apps/cli/src/config/local-state-pat
 
 ## Local packaging and synthesis
 
-These commands exercise the source-built CLI. They resolve AWS identity and metadata because account and region affect
-stable names, but they do not use the Stacktape Console.
+These commands exercise the source-built CLI without the Stacktape Console. `synth` and `validate` resolve the AWS
+account because account and region affect stable names. `package` loads credentials and looks up the account only when
+the configuration needs them, for example for a `$Secret` or `$AwsAccountId` directive.
 
 ```sh
 pnpm dev:cli package --configPath <config> --stage dev --region eu-west-1 --profile <profile>
@@ -137,6 +146,20 @@ pnpm dev:cli validate --withPackage --configPath <config> --stage dev --region e
 `pnpm dev:cli dev ...` runs selected workloads locally and may emulate databases or Redis in Docker. Add
 `--remoteResources` only when you intentionally want a local workload to use deployed resources. Agent mode exposes a
 loopback control API; `dev:stop` closes it and can clean containers left by a crashed session.
+
+For deployment tests against a local AWS emulator, set `AWS_ENDPOINT_URL` to its loopback HTTP(S) URL and use synthetic
+credentials. `AWS_ENDPOINT_URL_S3` takes precedence for CloudFormation template URLs, which use path-style bucket
+addressing with an endpoint override. Without overrides, AWS template URLs keep their existing format.
+
+Emulators without billing support can opt into `STP_SKIP_COST_DISCOVERY=1`. This skips budget and cost-tag discovery
+only when the global endpoint and all configured service overrides are loopback (`localhost`, `127.0.0.0/8`, or `::1`)
+and `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS` is not true. Other targets reject the opt-in. Stacks that require private
+CloudFormation types still discover their registry packages and registered versions.
+
+To package helpers for a runtime without an AWS SDK, run
+`pnpm --filter @stacktape/cli exec bun scripts/package-helper-lambdas.ts --dev --bundle-aws-sdk`. Normal helper and
+release packaging leave SDK imports external. Rebuild with `pnpm --filter @stacktape/cli build:dev-artifacts` after
+emulator testing to restore normal development artifacts.
 
 ## Worktrees and Console
 

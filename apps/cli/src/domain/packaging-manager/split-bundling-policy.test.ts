@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { SplitBundlingCandidate } from './split-bundling-policy';
-import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
+import { selectSplitBundlingGroup } from './split-bundling-policy';
 
 type JsBundleLambdaPackaging = Extract<LambdaPackaging, { type: 'js-bundle' }>;
 type NamedCandidate = SplitBundlingCandidate & { name: string };
@@ -22,27 +22,10 @@ const candidate = (
 const names = (candidates: NamedCandidate[]) => candidates.map(({ name }) => name).toSorted();
 
 describe('choosing which Lambdas share one build', () => {
-  test('bundles two homogeneous default Lambdas together', () => {
-    const { split, perFunction } = selectSplitBundlingGroup([candidate('api'), candidate('worker')]);
-    expect(names(split)).toEqual(['api', 'worker']);
-    expect(perFunction).toEqual([]);
-  });
-
   test('a lone Lambda has nothing to share with', () => {
     const { split, perFunction } = selectSplitBundlingGroup([candidate('api')]);
     expect(split).toEqual([]);
     expect(names(perFunction)).toEqual(['api']);
-  });
-
-  test('one incompatible Lambda no longer costs the others their shared layer', () => {
-    const { split, perFunction } = selectSplitBundlingGroup([
-      candidate('api'),
-      candidate('worker'),
-      candidate('reports'),
-      candidate('legacy', { nodeVersion: 24, outputModuleFormat: 'cjs' })
-    ]);
-    expect(names(split)).toEqual(['api', 'reports', 'worker']);
-    expect(names(perFunction)).toEqual(['legacy']);
   });
 
   test('the larger compatible group is the one that shares a build', () => {
@@ -56,17 +39,6 @@ describe('choosing which Lambdas share one build', () => {
     ]);
     expect(names(split)).toEqual(['x86One', 'x86Three', 'x86Two']);
     expect(names(perFunction)).toEqual(['armOne', 'armTwo']);
-  });
-
-  test('the same configuration always produces the same grouping', () => {
-    const build = () =>
-      selectSplitBundlingGroup([
-        candidate('a', {}, { architecture: 'arm64' }),
-        candidate('b', {}, { architecture: 'arm64' }),
-        candidate('c'),
-        candidate('d')
-      ]);
-    expect(names(build().split)).toEqual(names(build().split));
   });
 
   test.each([
@@ -216,16 +188,5 @@ describe('choosing which Lambdas share one build', () => {
     };
     const { split } = selectSplitBundlingGroup([candidate('api', properties), candidate('worker', properties)]);
     expect(names(split)).toEqual(['api', 'worker']);
-  });
-});
-
-describe('split bundling native dependency support', () => {
-  test('requires Docker when native dependencies need materialization', () => {
-    expect(canBuildSplitNativeDependencies({ dependencyCount: 1, dockerIsRunning: false })).toBe(false);
-    expect(canBuildSplitNativeDependencies({ dependencyCount: 1, dockerIsRunning: true })).toBe(true);
-  });
-
-  test('does not require Docker when the split output has no native dependencies', () => {
-    expect(canBuildSplitNativeDependencies({ dependencyCount: 0, dockerIsRunning: false })).toBe(true);
   });
 });

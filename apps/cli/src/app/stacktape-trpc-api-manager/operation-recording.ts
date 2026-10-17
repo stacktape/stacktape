@@ -1,8 +1,11 @@
+import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
+import stripAnsi from 'strip-ansi';
 import { stacktapeTrpcApiManager } from './index';
 import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
 import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
 import type { SecurityInventoryPointer } from '@stacktape/console-api/security';
 import { SECURITY_RULE_CATALOG_VERSION } from '@stacktape/console-api/security';
+import type { SourceMapManifest } from '@stacktape/console-api/source-maps';
 import { gitInfoManager } from '../../utils/git-info-manager';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
@@ -63,7 +66,12 @@ export const recordStackOperationEnd = async ({
     success,
     interrupted,
     ...(issuesEnabled === undefined ? {} : { issuesEnabled }),
-    description: error ? `${error}` : interrupted ? 'Operation was interrupted' : undefined,
+    // The Console shows this to people: the message only, without the error category or terminal colours.
+    description: error
+      ? scrubSensitiveText(stripAnsi(error.message || `${error}`))
+      : interrupted
+        ? 'Operation was interrupted'
+        : undefined,
     commandArgs: withStacktapeOperationInvocationContext(
       commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
     ),
@@ -75,6 +83,18 @@ export const recordStackOperationEnd = async ({
     stacktapeVersion: getStacktapeVersion()
   });
 };
+
+/**
+ * Records which source maps in the deployment bucket describe the functions this operation deploys. Each call replaces
+ * the previous manifest of the operation.
+ */
+export const recordSourceMapManifest = async (sourceMaps: SourceMapManifest) =>
+  stacktapeTrpcApiManager.apiClient.recordStackOperation({
+    invocationId: globalStateManager.invocationId,
+    command: globalStateManager.command,
+    inProgress: true,
+    sourceMaps
+  });
 
 /**
  * Reports the security posture evaluated for this deployment. The Console binds the report to the recorded

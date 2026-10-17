@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
-import { dirExists, getPathRelativeTo, isDirAccessible, isFileAccessible } from './files';
+import { join } from 'node:path';
+import { dirExists, isDirAccessible, isFileAccessible } from './files';
 
 const temporaryDirectories: string[] = [];
 const fileSymlinkTest = process.platform === 'win32' ? test.skip : test;
@@ -13,13 +13,6 @@ afterEach(async () => {
 });
 
 describe('packaging filesystem semantics', () => {
-  test('resolves a file path relative to the caller-supplied root', () => {
-    const root = join('workspace', 'project');
-    const filePath = join(root, 'generated', 'client', 'query_compiler_bg.wasm');
-
-    expect(getPathRelativeTo(filePath, root)).toBe(relative(root, filePath));
-  });
-
   test('does not classify a directory link as its target directory', async () => {
     const root = await mkdtemp(join(tmpdir(), 'stacktape-packaging-files-'));
     temporaryDirectories.push(root);

@@ -1,4 +1,5 @@
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { GlobalConfigResponse } from '@stacktape-api/api-key-protected';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
 import type { EnrichedBjContainerProps, EnrichedCwContainerProps } from '@domain-services/packaging-manager/types';
@@ -79,6 +80,7 @@ import {
   getStacktapeServiceLambdaAlarmNotificationInducedStatements,
   getStacktapeServiceLambdaCustomResourceInducedStatements,
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
+  getStacktapeServiceLambdaNatFailoverStatements,
   getStacktapeServiceLambdaEcsRedeployInducedStatements,
   getStacktapeServiceLambdaEnvironment,
   getStacktapeServiceLambdaIssueDetectionStatements,
@@ -115,6 +117,8 @@ import type {
 } from '@stacktape/config/events';
 import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
 import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/config/shared';
+import { DEFAULT_NAT_INSTANCE_SIZE } from './utils/nat';
+import { resolveConnectToList } from './utils/resource-references';
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 import { configErrors } from './errors';
 import type { StackContext } from '@domain-services/stack-context';
@@ -165,7 +169,10 @@ export class ConfigManager {
   }
 
   setStackContext = (stackContext: StackContext) => {
-    this.#stackContext = Object.freeze({ ...stackContext });
+    // Copies accessors as accessors: `package` reads the account and the stack hash only when something needs them.
+    this.#stackContext = Object.freeze(
+      Object.defineProperties({} as StackContext, Object.getOwnPropertyDescriptors(stackContext))
+    );
   };
 
   private get helperLambdaDetails(): HelperLambdaDetails {
@@ -316,7 +323,11 @@ export class ConfigManager {
     });
 
   loadGlobalConfig = async () => {
-    const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
+    this.applyGlobalConfig(await stacktapeTrpcApiManager.apiClient.globalConfig());
+  };
+
+  /** Applies the organization's alarms, deployment notifications and guardrails. Needs the stack context from `init`. */
+  applyGlobalConfig = (globalConfig: GlobalConfigResponse) => {
     // The Console wire format still calls channels `notificationTargets` and attaches full console
     // channels. Config-language alarms use `notificationChannels`; console-attached channels become
     // `console-channel` references resolved by the Console at delivery time, so channel credentials
@@ -1067,6 +1078,7 @@ export class ConfigManager {
         loadBalancing,
         deployment,
         useFirewall,
+        port,
         configParentResourceType: _configParentResourceType,
         nameChain,
         stopTimeout,
@@ -1110,7 +1122,7 @@ export class ConfigManager {
                 packaging,
                 environment: (environment || [])
                   .concat([
-                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: 3000 }]),
+                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: port ?? 3000 }]),
                     { name: 'HOST', value: '0.0.0.0' }
                   ])
                   .concat(deployment ? [{ name: 'DEPLOYMENT_TEST_PORT', value: DEFAULT_TEST_LISTENER_PORT }] : []),
@@ -1133,7 +1145,7 @@ export class ConfigManager {
                         type: 'application-load-balancer',
                         properties: {
                           priority: 3,
-                          containerPort: 3000,
+                          containerPort: port ?? 3000,
                           loadBalancerName: `${[...nameChain, loadBalancerIdentifier].join('.')}`,
                           listenerPort: 443,
                           paths: ['*']
@@ -1151,7 +1163,7 @@ export class ConfigManager {
                       : {
                           type: 'http-api-gateway',
                           properties: {
-                            containerPort: 3000,
+                            containerPort: port ?? 3000,
                             httpApiGatewayName: `${[...nameChain, httpApiGatewayIdentifier].join('.')}`,
                             method: '*',
                             path: '/{proxy+}'
@@ -2221,8 +2233,73 @@ export class ConfigManager {
     ];
   }
 
+  /**
+   * `stackConfig.nat` with defaults applied. `ec2` is one instance in one zone, `ha-ec2` one instance per zone with
+   * failover, `gateway` managed NAT Gateways. `configured` tells whether the user set it at all: that alone moves VPC
+   * functions into the private subnets (see `natConsumers`).
+   */
+  get natSettings(): {
+    configured: boolean;
+    type: 'ec2' | 'ha-ec2' | 'gateway';
+    kind: 'instance' | 'gateway';
+    availabilityZones: 1 | 2 | 3;
+    instanceSize: string;
+  } {
+    const nat = this.stackConfig?.nat;
+    const settings = typeof nat === 'string' ? { type: nat } : nat;
+    const type = settings?.type ?? 'gateway';
+    return {
+      configured: Boolean(nat),
+      type,
+      kind: type === 'gateway' ? 'gateway' : 'instance',
+      availabilityZones: type === 'ec2' ? 1 : (settings?.availabilityZones ?? 2),
+      instanceSize: settings?.instanceSize ?? DEFAULT_NAT_INSTANCE_SIZE
+    };
+  }
+
+  /**
+   * VPC functions that get outbound internet through NAT. A function in the VPC has no internet in the public
+   * subnets, so once the user asks for NAT, every VPC function is placed in the private subnets.
+   */
+  get vpcLambdasUsingNat() {
+    if (!this.natSettings.configured) return [];
+    return this.vpcLambdas;
+  }
+
+  /** Functions that join the VPC; without `stackConfig.nat` they have no outbound internet access. */
+  get vpcLambdas() {
+    return [...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions, ...this.allSsrWebLambdaFunctions].filter(
+      ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
+    );
+  }
+
+  /**
+   * AgentCore runtimes that connect to a VPC-only resource run in VPC mode, which AWS only offers in private subnets
+   * with NAT. They need `stackConfig.nat` like a container with `usePrivateSubnetsWithNAT`.
+   */
+  get agentCoreRuntimesInVpc() {
+    return this.agentCoreRuntimes.filter((runtime) => {
+      const { accessToResourcesPotentiallyRequiringSecurityGroupCreation } = resolveConnectToList({
+        activeConfig: this,
+        stpResourceNameOfReferencer: runtime.name,
+        stpResourceTypeOfReferencer: runtime.type,
+        connectTo: runtime.connectTo
+      });
+      return accessToResourcesPotentiallyRequiringSecurityGroupCreation.length > 0;
+    });
+  }
+
+  /** Resources that cannot run without NAT: they are what makes `stackConfig.nat` mandatory. */
+  get resourcesRequiringNat() {
+    return [
+      ...this.allContainerWorkloads.filter(({ usePrivateSubnetsWithNAT }) => usePrivateSubnetsWithNAT),
+      ...this.agentCoreRuntimesInVpc
+    ];
+  }
+
+  /** Resources placed in the private subnets; their presence is what creates the private subnets and the NAT. */
   get allResourcesRequiringPrivateSubnets() {
-    return this.allContainerWorkloads.filter(({ usePrivateSubnetsWithNAT }) => usePrivateSubnetsWithNAT);
+    return [...this.resourcesRequiringNat, ...this.vpcLambdasUsingNat];
   }
 
   /**
@@ -2277,6 +2354,8 @@ export class ConfigManager {
 
   get stacktapeServiceLambdaProps(): StpHelperLambdaFunction {
     const artifactName = 'stacktapeServiceLambda';
+    const environment = () => this.#stacktapeServiceLambdaEnvironment;
+    const iamRoleStatements = () => this.#stacktapeServiceLambdaStatements;
     const helperLambdaData = this.helperLambdaDetails[artifactName];
     return {
       name: artifactName,
@@ -2293,42 +2372,57 @@ export class ConfigManager {
       artifactPath: helperLambdaData.artifactPath,
       configParentResourceType: 'custom-resource-definition',
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, artifactName],
-      environment: getStacktapeServiceLambdaEnvironment({
-        projectName: this.stackContext.projectName,
-        globallyUniqueStackHash: this.globallyUniqueStackHash,
-        stackName: this.stackContext.stackName,
-        stage: this.stackContext.stage
-      }),
-      iamRoleStatements: [
-        ...getStacktapeServiceLambdaCustomResourceInducedStatements({
-          activeConfig: this,
-          stackContext: this.stackContext
-        }),
-        ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
-        ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
-          activeConfig: this,
-          stackName: this.stackContext.stackName
-        }),
-        ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
-        ...getStacktapeServiceLambdaIssueDetectionStatements({
-          issueDetectionEnabled: this.isIssueDetectionEnabled
-        }),
-        ...getStacktapeServiceLambdaUptimeMonitoringStatements({
-          uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
-          accountId: this.stackContext.accountId,
-          deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash),
-          region: this.stackContext.region
-        }),
-        ...getStacktapeServiceLambdaTracingStatements({
-          // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so
-          // the service lambda must not carry the unused account-level permissions there either.
-          tracingEnabled:
-            (this.instrumentedLambdaFunctions.length > 0 || this.instrumentedContainerWorkloads.length > 0) &&
-            this.deploymentContext.command !== 'dev',
-          region: this.stackContext.region
-        })
-      ]
+      // Environment and permissions are built when read. Validation lists this function only for its name and events,
+      // and `package` may not have looked up the AWS account they name.
+      get environment() {
+        return environment();
+      },
+      get iamRoleStatements() {
+        return iamRoleStatements();
+      }
     };
+  }
+
+  get #stacktapeServiceLambdaEnvironment() {
+    return getStacktapeServiceLambdaEnvironment({
+      projectName: this.stackContext.projectName,
+      globallyUniqueStackHash: this.globallyUniqueStackHash,
+      stackName: this.stackContext.stackName,
+      stage: this.stackContext.stage
+    });
+  }
+
+  get #stacktapeServiceLambdaStatements() {
+    return [
+      ...getStacktapeServiceLambdaCustomResourceInducedStatements({
+        activeConfig: this,
+        stackContext: this.stackContext
+      }),
+      ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
+      ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
+        activeConfig: this,
+        stackName: this.stackContext.stackName
+      }),
+      ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
+      ...getStacktapeServiceLambdaNatFailoverStatements({ activeConfig: this, stackContext: this.stackContext }),
+      ...getStacktapeServiceLambdaIssueDetectionStatements({
+        issueDetectionEnabled: this.isIssueDetectionEnabled
+      }),
+      ...getStacktapeServiceLambdaUptimeMonitoringStatements({
+        uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
+        accountId: this.stackContext.accountId,
+        deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash),
+        region: this.stackContext.region
+      }),
+      ...getStacktapeServiceLambdaTracingStatements({
+        // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so
+        // the service lambda must not carry the unused account-level permissions there either.
+        tracingEnabled:
+          (this.instrumentedLambdaFunctions.length > 0 || this.instrumentedContainerWorkloads.length > 0) &&
+          this.deploymentContext.command !== 'dev',
+        region: this.stackContext.region
+      })
+    ];
   }
 
   get stacktapeOriginRequestLambdaProps(): StpHelperEdgeLambdaFunction {

@@ -130,7 +130,7 @@ return { resources: { site } };
 
 Increase `memory` when SSR routes do meaningful server-side work, because Lambda CPU scales with memory and the source notes that `1,769` MB corresponds to `1` vCPU. Lowering `timeout` can fail slow requests earlier; leave it at the default `30` seconds when routes may need the full allowed execution window.
 
-Set `joinDefaultVpc` only when the SSR function must connect to VPC resources such as databases or Redis. Joining the VPC removes direct internet access from the function, so keep the default for public APIs, third-party HTTP calls, and sites that only need public outbound traffic. If the SSR function needs both VPC resources and outbound internet, configure NAT gateways via `stackConfig.vpc.nat`.
+Set `joinDefaultVpc` only when the SSR function must connect to VPC resources such as databases or Redis. Joining the VPC removes direct internet access from the function, so keep the default for public APIs, third-party HTTP calls, and sites that only need public outbound traffic. If the SSR function needs both VPC resources and outbound internet, set `stackConfig.nat` (see [VPC and networking](/configuration/connecting-resources#vpc-and-networking)).
 
 ## Custom domains
 
@@ -214,7 +214,7 @@ export default defineConfig(() => {
 const site = new AstroWeb({
 // [!code focus-start]
 connectTo: ['mediaBucket'],
-environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
+environment: { PUBLIC_SITE_NAME: 'Docs Portal' }
 // [!code focus-end]
 });
 
@@ -226,7 +226,7 @@ return { resources: { mediaBucket, site } };
 
 With the `mediaBucket` resource name shown above, the Astro SSR function receives `STP_MEDIA_BUCKET_NAME` and `STP_MEDIA_BUCKET_ARN` as environment variables. Use `environment` for application settings and directives such as `$Secret()` or `$ResourceParam()`, and use `iamRoleStatements` only for AWS permissions not covered by `connectTo`.
 
-When connecting to VPC resources such as relational databases or Redis, enable `serverLambda.joinDefaultVpc` on the Astro resource so the SSR function can reach those resources over the private network. Note that joining the VPC removes direct internet access from the function — if the SSR function also needs outbound internet, configure NAT gateways via `stackConfig.vpc.nat`.
+When connecting to VPC resources such as relational databases or Redis, enable `serverLambda.joinDefaultVpc` on the Astro resource so the SSR function can reach those resources over the private network. Note that joining the VPC removes direct internet access from the function — if the SSR function also needs outbound internet, set `stackConfig.nat` (see [VPC and networking](/configuration/connecting-resources#vpc-and-networking)).
 
 ## Dev mode
 
@@ -285,7 +285,7 @@ Add the database resource name to `connectTo` on the Astro resource and enable `
 
 ### Why can't my Astro SSR function reach the internet after connecting to a database?
 
-Enabling `serverLambda.joinDefaultVpc` (required to reach VPC resources like databases or Redis) removes the function's direct internet access. If the SSR routes also make outbound HTTP calls to third-party APIs, configure NAT gateways via `stackConfig.vpc.nat`. Leave `joinDefaultVpc` off for sites that only need public outbound traffic.
+Enabling `serverLambda.joinDefaultVpc` (required to reach VPC resources like databases or Redis) removes the function's direct internet access. If the SSR routes also make outbound HTTP calls to third-party APIs, set `stackConfig.nat` (see [VPC and networking](/configuration/connecting-resources#vpc-and-networking)). Leave `joinDefaultVpc` off for sites that only need public outbound traffic.
 
 ### How much does an Astro SSR app cost on AWS?
 

@@ -18,18 +18,18 @@ Add focused tests for rules with many meaningful inputs or a compatibility promi
 Do not add a test for every function or repeat one assertion at every layer. Check what an existing test catches before
 deleting it.
 
-| What changed                                                           | Test at this boundary                                                                                                                                                                         |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Naming, pricing, parsing, redaction or another pure rule               | Table-driven inputs with independently known results. Preserve replacement-sensitive names and hashes.                                                                                        |
-| Types, schemas, generated data or public exports                       | Compile a real consumer; exercise validation; run the owner's `generate:check`. Type-only changes need no deployment.                                                                         |
-| Config inference, authoring or synthesis                               | A representative project or config through the real pipeline; assert resources, references and permissions; `cfn-lint`. Check that updates do not destroy or replace stateful resources.      |
-| CLI command or local process                                           | Spawn the current CLI; verify exit status and the resulting files, output or operation. Include cancellation when relevant.                                                                   |
-| Packaging, helper Lambda or installer                                  | Build the actual artifact and execute it in its target runtime; run the affected corpus projects. [Packaging procedures](../apps/cli/scripts/packaging-archives/README.md).                   |
-| API, database or background workflow                                   | Real router and services with disposable PostgreSQL; observe committed state, denial, transactions and retries. [Console lanes](testing/console.md).                                          |
-| Browser interaction                                                    | Playwright against the real component or application. Use the real API when the change crosses it; verify persistence after reload. [Browser tests](testing/e2e.md#browser-tests).            |
-| AWS SDK interaction                                                    | The real SDK against pinned MiniStack for the operations used; assert effects, not just successful responses. [S3 lane](../apps/cli/scripts/packaging-archives/README.md#ministack-s3-pilot). |
-| AWS permissions, deployment lifecycle, networking or provider delivery | A guarded scenario against the real service; emulation cannot establish these. [Live AWS](testing/live-aws.md).                                                                               |
-| Documentation or presentation                                          | Validate links and build output; inspect changed interactions or layout in a browser when needed.                                                                                             |
+| What changed                                                           | Test at this boundary                                                                                                                                                                    |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Naming, pricing, parsing, redaction or another pure rule               | Table-driven inputs with independently known results. Preserve replacement-sensitive names and hashes.                                                                                   |
+| Types, schemas, generated data or public exports                       | Compile a real consumer; exercise validation; run the owner's `generate:check`. Type-only changes need no deployment.                                                                    |
+| Config inference, authoring or synthesis                               | A representative project or config through the real pipeline; assert resources, references and permissions; `cfn-lint`. Check that updates do not destroy or replace stateful resources. |
+| CLI command or local process                                           | Spawn the current CLI; verify exit status and the resulting files, output or operation. Include cancellation when relevant.                                                              |
+| Packaging, helper Lambda or installer                                  | Build the actual artifact and execute it in its target runtime; run the affected corpus projects. [Packaging procedures](../apps/cli/scripts/packaging-archives/README.md).              |
+| API, database or background workflow                                   | Real router and services with disposable PostgreSQL; observe committed state, denial, transactions and retries. [Console lanes](testing/console.md).                                     |
+| Browser interaction                                                    | Playwright against the real component or application. Use the real API when the change crosses it; verify persistence after reload. [Browser tests](testing/e2e.md#browser-tests).       |
+| AWS SDK interaction                                                    | The real SDK against pinned MiniStack for the operations used; assert effects, not just successful responses. [MiniStack fixture and deploy loop](testing/e2e.md#helpers-that-exist).    |
+| AWS permissions, deployment lifecycle, networking or provider delivery | A guarded scenario against the real service; emulation cannot establish these. [Live AWS](testing/live-aws.md).                                                                          |
+| Documentation or presentation                                          | Validate links and build output; inspect changed interactions or layout in a browser when needed.                                                                                        |
 
 Tests may cross packages; put the scenario with the application or capability that owns the outcome. A browser test with
 a substituted API proves browser behavior, not the API. Substitute only external dependencies, at explicit boundaries.
@@ -38,10 +38,19 @@ implementation.
 
 ## Run efficiently
 
-- Run `pnpm test:plan` (or `-- --since=<ref>`) and run the lanes it suggests. It matches paths; check what each lane
-  covers. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
+- Run `pnpm test:plan` (or `-- --since=<ref>`) and run the relevant lanes it suggests. Each command reports owning slice
+  IDs, level, tier and prerequisites. The [code registry](../scripts/workspace/test-registry.ts) owns promises, paths,
+  lanes and exact test ownership. Selection also follows direct Console suite imports. Missing private lanes are
+  labelled in public clones. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
+- Public and integrated CI run `pnpm check:static` for instructions, docs, secrets, formatting, lint, workspace rules,
+  generation, types, architecture, dead code and duplicates, then `pnpm test:ci` for the registry's fast, offline `pr`
+  tests. Public Linux CI also validates synthesized templates with `cfn-lint`. Console rules run when initialized. Full
+  suites, application builds, package-install qualification and browsers remain local/release work. `pnpm test:tools`
+  checks ownership and rejects missing scripts, database flags and Playwright projects. Add new tests to their slice's
+  exact `tests` list, or explicitly classify harness/policy tests as tooling.
 - Heavy lanes (packaging, corpus, Console database and browser, MiniStack) are not in per-PR CI. When `test:plan`
-  selects one for your change, you run it. All of them run before each release.
+  selects a `change` lane for your slice, you run it. Candidate qualification also runs those lanes and the registry's
+  `release` lanes. Journey tags group pre-release E2E work; slices own everyday selection.
 - Extend an existing scenario and its helpers before writing new setup code.
   [Existing helpers](testing/e2e.md#helpers-that-exist).
 - Run `pnpm check:public`, or `pnpm check:integrated` with Console initialized, before handoff.
@@ -51,9 +60,10 @@ implementation.
 ## Console
 
 The [isolated Console application](testing/e2e.md#isolated-console-application) runs the real UI, API and disposable
-PostgreSQL with no credentials; prefer it when it covers the change. Other API and UI journeys use `pnpm dev:console`;
-UI-only work can use `pnpm dev:console:ui` when deployed dev supports its unchanged contract. The source CLI defaults to
-deployed dev even when a local API is running; select
+PostgreSQL with no credentials; prefer it when it covers the change. Page behavior that synthetic API responses can
+drive runs in the [offline browser lane](testing/e2e.md#browser-tests). Other API and UI journeys use
+`pnpm dev:console`; UI-only work can use `pnpm dev:console:ui` when deployed dev supports its unchanged contract. The
+source CLI defaults to deployed dev even when a local API is running; select
 [the intended API explicitly](testing/console.md#prove-the-changed-revision).
 
 [Localhost login](testing/console.md#localhost-login) uses the existing dev test identities and the SSM-backed
@@ -70,3 +80,7 @@ Normal tests must fail closed against live AWS. Development Console deployments,
 and explicitly named disposable stacks are already authorized. Follow the [live procedure](testing/live-aws.md) for
 account verification, ownership, cost and cleanup, including recovery after interruption. Production deployment,
 migration, publishing and credential rotation require explicit authorization. Never record secret values.
+
+Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
+assembled support-template `cfn-lint`. Install `cfn-lint==1.57.2` before running `pnpm test:ci` with Console present; CI
+installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.

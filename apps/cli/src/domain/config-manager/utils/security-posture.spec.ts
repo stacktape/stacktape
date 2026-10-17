@@ -1,6 +1,7 @@
 import type { StackContext } from '@domain-services/stack-context';
 import { describe, expect, test } from 'bun:test';
-import type { ConfigManager } from '../index';
+import { ConfigManager } from '../index';
+import type { StacktapeConfig } from '@stacktape/config';
 import { assessSecurityPosture, detectSecretLikeValue, summarizeSecurityFindings } from './security-posture';
 
 const stackContext: StackContext = {
@@ -15,179 +16,316 @@ const stackContext: StackContext = {
   workingDir: '/project'
 };
 
-const emptyConfigManager = {
-  agentCoreRuntimes: [],
-  allApplicationLoadBalancers: [],
-  allContainerWorkloads: [],
-  applicationLoadBalancers: [],
-  astroWebs: [],
-  batchJobs: [],
-  buckets: [],
-  customResourceDefinitions: [],
-  databases: [],
-  deploymentConfig: {},
-  deploymentScripts: [],
-  dsqlDatabases: [],
-  dynamoDbTables: [],
-  edgeLambdaFunctions: [],
-  efsFilesystems: [],
-  functions: [],
-  hostingBuckets: [],
-  httpApiGateways: [],
-  nextjsWebs: [],
-  nuxtWebs: [],
-  openSearchDomains: [],
-  remixWebs: [],
-  solidstartWebs: [],
-  sqsQueues: [],
-  stackConfig: {},
-  sveltekitWebs: [],
-  tanstackWebs: [],
-  webServices: []
-};
-
-/** Evaluates a development stage by default, so stage-independent rules are tested without production noise. */
+/** Use authored resources and the actual normalization getters. */
 const assess = (
-  overrides: Partial<typeof emptyConfigManager> & Record<string, unknown> = {},
-  { rawConfig = { resources: {} }, stage = 'dev' }: { rawConfig?: unknown; stage?: string } = {}
-) =>
-  assessSecurityPosture({
-    configManager: { ...emptyConfigManager, ...overrides } as unknown as ConfigManager,
-    rawConfig: rawConfig as never,
-    stackContext: { ...stackContext, stage }
+  resources: NonNullable<StacktapeConfig['resources']> = {},
+  {
+    rawConfig,
+    stage = 'dev',
+    config = {}
+  }: { rawConfig?: StacktapeConfig; stage?: string; config?: Omit<StacktapeConfig, 'resources'> } = {}
+) => {
+  const manager = new ConfigManager();
+  const context = { ...stackContext, stage };
+  manager.setStackContext(context);
+  manager.config = { ...config, resources };
+  return assessSecurityPosture({
+    configManager: manager,
+    rawConfig: rawConfig ?? manager.config,
+    stackContext: context
   });
+};
 
 const ruleIds = (assessment: ReturnType<typeof assess>) => assessment.findings.map(({ ruleId }) => ruleId);
 
-describe('security posture rules', () => {
-  test('a database left on the default accessibility is reachable from the internet; a VPC database is not', () => {
-    const unsafe = assess({ databases: [{ name: 'orders' }] });
-    expect(ruleIds(unsafe)).toEqual(['database-reachable-from-internet']);
-    expect(unsafe.findings[0]).toMatchObject({
-      severity: 'HIGH',
-      resourceName: 'orders',
-      resourceType: 'relational-database',
-      fingerprint: 'database-reachable-from-internet:orders'
-    });
-
-    const safe = assess({
-      databases: [{ name: 'orders', accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' } }]
-    });
-    expect(safe.findings).toEqual([]);
-  });
-
-  test('production-only rules stay quiet on a development stage and fire on production', () => {
-    const overrides = {
-      databases: [{ name: 'orders', accessibility: { accessibilityMode: 'vpc' } }],
-      dynamoDbTables: [{ name: 'sessions' }],
-      allContainerWorkloads: [{ name: 'api', scaling: { minInstances: 1 } }]
-    };
-    const development = assess(overrides);
-    expect(ruleIds(development)).toEqual([]);
-    expect(development.isProduction).toBe(false);
-
-    const production = assess(overrides, { stage: 'production' });
-    expect(production.isProduction).toBe(true);
+describe('security posture through authored configuration', () => {
+  test('defaults expose production risks; private data and explicit development stages change the assessment', () => {
+    const resources = {
+      orders: {
+        type: 'relational-database',
+        properties: {
+          credentials: { masterUserPassword: "$Secret('password')" },
+          automatedBackupRetentionDays: 0,
+          engine: {
+            type: 'postgres',
+            properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.medium' } }
+          }
+        }
+      },
+      jobs: { type: 'sqs-queue' },
+      events: { type: 'sqs-queue', properties: { redrivePolicy: { targetSqsQueueName: 'jobs', maxReceiveCount: 3 } } },
+      sessions: {
+        type: 'dynamo-db-table',
+        properties: { primaryKey: { partitionKey: { name: 'id', type: 'string' } } }
+      },
+      files: { type: 'efs-filesystem' },
+      uploads: { type: 'bucket', properties: { accessibility: { accessibilityMode: 'public-read-write' } } },
+      assets: { type: 'bucket', properties: { accessibility: { accessibilityMode: 'public-read' } } },
+      internal: { type: 'application-load-balancer', properties: { interface: 'internal' } },
+      edge: { type: 'application-load-balancer' }
+    } satisfies NonNullable<StacktapeConfig['resources']>;
+    const production = assess(resources, { stage: 'production' });
     expect(ruleIds(production).toSorted()).toEqual([
-      'container-single-instance-in-production',
+      'bucket-publicly-accessible',
+      'bucket-publicly-accessible',
+      'database-backups-disabled',
+      'database-backups-disabled',
       'database-backups-disabled',
       'database-deletion-protection-disabled',
+      'database-reachable-from-internet',
+      'load-balancer-without-firewall',
+      'queue-without-dead-letter-queue',
       'stack-termination-protection-disabled'
     ]);
-    expect(
-      ruleIds(assess({ ...overrides, deploymentConfig: { terminationProtection: true } }, { stage: 'production' }))
-    ).not.toContain('stack-termination-protection-disabled');
-  });
-
-  test('an explicit stageType overrides what the stage name suggests', () => {
-    const overrides = { stackConfig: { stageType: 'production' }, dynamoDbTables: [{ name: 'sessions' }] };
-    expect(ruleIds(assess(overrides, { stage: 'client-a' }))).toContain('database-backups-disabled');
-    expect(
-      ruleIds(assess({ ...overrides, stackConfig: { stageType: 'non-production' } }, { stage: 'production' }))
-    ).toEqual([]);
-  });
-
-  test('internet-facing load balancers need a firewall; internal ones and the fixed Convex one do not', () => {
-    const assessment = assess({
-      allApplicationLoadBalancers: [
-        { name: 'public', configParentResourceType: 'application-load-balancer' },
-        { name: 'convex-internal', configParentResourceType: 'convex' },
-        { name: 'protected', useFirewall: 'apiFirewall', configParentResourceType: 'web-service' },
-        { name: 'private-service-lb', interface: 'internal', configParentResourceType: 'private-service' },
-        { name: 'internal', interface: 'internal', configParentResourceType: 'application-load-balancer' }
-      ]
-    });
-    expect(assessment.findings.map(({ resourceName }) => resourceName)).toEqual(['public']);
-  });
-
-  test('a writable public bucket ranks above a readable one', () => {
-    const assessment = assess({
-      buckets: [
-        { name: 'uploads', accessibility: { accessibilityMode: 'public-read-write' } },
-        { name: 'assets', accessibility: { accessibilityMode: 'public-read' } },
-        { name: 'private', accessibility: { accessibilityMode: 'private' } },
-        { name: 'default' }
-      ]
-    });
-    expect(assessment.findings.map(({ resourceName, severity }) => `${resourceName}:${severity}`)).toEqual([
-      'uploads:HIGH',
-      'assets:MEDIUM'
+    expect(production.exposure.map(({ resourceName }) => resourceName).toSorted()).toEqual([
+      'assets',
+      'edge',
+      'orders',
+      'uploads'
     ]);
-  });
-
-  test('IAM statements: any action is high, a whole service on any resource is medium, scoped statements pass', () => {
-    const assessment = assess({
-      functions: [
-        {
-          name: 'worker',
-          iamRoleStatements: [
-            { Effect: 'Allow', Action: ['*'], Resource: ['*'] },
-            { Effect: 'Allow', Action: ['s3:*'], Resource: ['*'] },
-            { Effect: 'Allow', Action: ['s3:*'], Resource: ['arn:aws:s3:::my-bucket/*'] },
-            { Effect: 'Allow', Action: ['s3:GetObject'], Resource: ['*'] },
-            { Effect: 'Deny', Action: ['*'], Resource: ['*'] }
-          ]
+    expect(production.findings.find(({ resourceName }) => resourceName === 'uploads')).toMatchObject({
+      ruleId: 'bucket-publicly-accessible',
+      severity: 'HIGH'
+    });
+    expect(production.findings.find(({ resourceName }) => resourceName === 'assets')).toMatchObject({
+      ruleId: 'bucket-publicly-accessible',
+      severity: 'MEDIUM'
+    });
+    expect(production.findings.find(({ ruleId }) => ruleId === 'database-reachable-from-internet')).toMatchObject({
+      resourceName: 'orders',
+      fingerprint: 'database-reachable-from-internet:orders'
+    });
+    expect(production.findings[0].severity).toBe('HIGH');
+    expect(production.findings.map(({ severity }) => severity)).toEqual([
+      'HIGH',
+      'HIGH',
+      'MEDIUM',
+      'MEDIUM',
+      'MEDIUM',
+      'MEDIUM',
+      'MEDIUM',
+      'MEDIUM',
+      'LOW',
+      'LOW'
+    ]);
+    expect(summarizeSecurityFindings(production.findings)).toBe('2 high, 6 medium, 2 low');
+    expect(summarizeSecurityFindings([])).toBe('no findings');
+    expect(production.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
+    const development = assess(resources, {
+      stage: 'production',
+      config: { stackConfig: { stageType: 'non-production' } }
+    });
+    expect(development.isProduction).toBe(false);
+    expect(ruleIds(development)).not.toContain('database-deletion-protection-disabled');
+    expect(ruleIds(development)).toContain('database-reachable-from-internet');
+    expect(development.findings.find(({ resourceName }) => resourceName === 'jobs')).toMatchObject({
+      ruleId: 'queue-without-dead-letter-queue',
+      fingerprint: 'queue-without-dead-letter-queue:jobs'
+    });
+    expect(development.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
+    const namedDevelopment = assess(resources);
+    expect(namedDevelopment.isProduction).toBe(false);
+    expect(namedDevelopment.findings.find(({ resourceName }) => resourceName === 'jobs')).toMatchObject({
+      ruleId: 'queue-without-dead-letter-queue',
+      fingerprint: 'queue-without-dead-letter-queue:jobs'
+    });
+    expect(namedDevelopment.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
+    const privateResources = {
+      ...resources,
+      orders: {
+        ...resources.orders,
+        properties: {
+          ...resources.orders.properties,
+          accessibility: { accessibilityMode: 'vpc' as const },
+          deletionProtection: true
         }
-      ]
-    });
-    expect(assessment.findings.map(({ ruleId }) => ruleId)).toEqual([
-      'iam-statement-allows-any-action',
-      'iam-statement-wildcard-service-on-any-resource'
-    ]);
-    for (const finding of assessment.findings) {
-      expect(finding.fingerprint).toMatch(new RegExp(`^${finding.ruleId}:worker:statement-[0-9a-f]{8}$`));
+      }
+    };
+    expect(ruleIds(assess(privateResources))).not.toContain('database-reachable-from-internet');
+    expect(assess(privateResources).exposure.find(({ resourceName }) => resourceName === 'orders')?.accessibility).toBe(
+      'vpc'
+    );
+    expect(assess({}, { stage: 'client-a', config: { stackConfig: { stageType: 'production' } } }).isProduction).toBe(
+      true
+    );
+    const iam = [
+      { Effect: 'Allow' as const, Action: ['*'], Resource: ['*'] },
+      { Effect: 'Allow' as const, Action: ['s3:*'], Resource: ['*'] },
+      { Effect: 'Allow' as const, Action: ['s3:*'], Resource: ['arn:aws:s3:::owned/*'] },
+      { Effect: 'Deny' as const, Action: ['*'], Resource: ['*'] }
+    ];
+    const roles = assess(
+      {
+        worker: {
+          type: 'function',
+          properties: {
+            packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } },
+            iamRoleStatements: iam
+          }
+        },
+        site: { type: 'nextjs-web', properties: { appDirectory: '.', iamRoleStatements: iam } },
+        migrate: {
+          type: 'deployment-script',
+          properties: {
+            trigger: 'after:deploy',
+            packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } },
+            iamRoleStatements: iam
+          }
+        },
+        seed: {
+          type: 'custom-resource-definition',
+          properties: {
+            packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } },
+            iamRoleStatements: iam
+          }
+        },
+        agent: {
+          type: 'agentcore-runtime',
+          properties: {
+            packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/agent:1' } },
+            iamRoleStatements: iam
+          }
+        },
+        api: {
+          type: 'web-service',
+          properties: {
+            packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/api:1' } },
+            resources: { cpu: 0.5, memory: 1024 },
+            scaling: { minInstances: 1 },
+            loadBalancing: { type: 'application-load-balancer' },
+            useFirewall: 'firewall'
+          }
+        },
+        gateway: { type: 'http-api-gateway' },
+        hosted: { type: 'hosting-bucket', properties: { uploadDirectoryPath: '.' } }
+      },
+      { stage: 'production' }
+    );
+    for (const name of ['worker', 'site', 'migrate', 'agent', 'seed']) {
+      expect(
+        roles.findings
+          .filter(({ resourceName }) => resourceName === name)
+          .map(({ ruleId, severity }) => [ruleId, severity])
+      ).toEqual([
+        ['iam-statement-allows-any-action', 'HIGH'],
+        ['iam-statement-wildcard-service-on-any-resource', 'MEDIUM']
+      ]);
     }
-    expect(new Set(assessment.findings.map(({ fingerprint }) => fingerprint)).size).toBe(2);
+    // The finding names the web service the developer wrote, not the container workload it generates.
+    expect(roles.findings.find(({ ruleId }) => ruleId === 'container-single-instance-in-production')).toMatchObject({
+      resourceName: 'api',
+      resourceType: 'web-service'
+    });
+    expect(roles.exposure.find(({ resourceName }) => resourceName === 'api')).toMatchObject({
+      protectedByFirewall: true
+    });
+    expect(roles.exposure.map(({ resourceName }) => resourceName)).toEqual(
+      expect.arrayContaining(['gateway', 'hosted'])
+    );
   });
-
+  test('Convex fixed topology avoids unactionable posture warnings while its public endpoint remains visible', () => {
+    const convex = assess(
+      { backend: { type: 'convex', properties: { appDirectory: './convex', deletionProtection: true } } },
+      { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
+    );
+    expect(convex.findings).toEqual([]);
+    // Without protection the finding names the Convex resource, which holds the setting.
+    const unprotected = assess(
+      { backend: { type: 'convex', properties: { appDirectory: './convex' } } },
+      { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
+    );
+    expect(unprotected.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'database-deletion-protection-disabled',
+        resourceName: 'backend',
+        resourceType: 'convex',
+        remediation: 'Set `deletionProtection: true` on `backend`.'
+      })
+    ]);
+    // Convex does not expose configurable WAF or replica controls. Its generated ALB still serves public traffic.
+    expect(
+      convex.exposure.filter(
+        ({ resourceType }) => resourceType === 'convex' || resourceType === 'application-load-balancer'
+      )
+    ).toEqual([
+      expect.objectContaining({ kind: 'public-endpoint', accessibility: 'internet', protectedByFirewall: false })
+    ]);
+  });
   test('a finding keeps its identity when an unrelated statement or container is inserted before it', () => {
-    const wildcard = { Effect: 'Allow', Action: ['s3:*'], Resource: ['*'] };
+    const wildcard = { Effect: 'Allow' as const, Action: ['s3:*'], Resource: ['*'] };
     const scoped = {
-      Effect: 'Allow',
+      Effect: 'Allow' as const,
       Action: ['sqs:SendMessage'],
       Resource: ['arn:aws:sqs:eu-west-1:123456789012:jobs']
     };
-    const before = assess({ functions: [{ name: 'worker', iamRoleStatements: [wildcard] }] });
-    const after = assess({ functions: [{ name: 'worker', iamRoleStatements: [scoped, wildcard] }] });
+    const before = assess({
+      worker: {
+        type: 'function',
+        properties: {
+          packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } },
+          iamRoleStatements: [wildcard]
+        }
+      }
+    });
+    const after = assess({
+      worker: {
+        type: 'function',
+        properties: {
+          packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } },
+          iamRoleStatements: [scoped, wildcard]
+        }
+      }
+    });
     expect(after.findings.map(({ fingerprint }) => fingerprint)).toEqual(
       before.findings.map(({ fingerprint }) => fingerprint)
     );
 
     // Writing the same condition with its keys in another order is the same statement.
-    const conditioned = (Condition: Record<string, unknown>) =>
-      assess({ functions: [{ name: 'worker', iamRoleStatements: [{ ...wildcard, Condition }] }] }).findings[0]
-        ?.fingerprint;
-    expect(
-      conditioned({ Bool: { 'aws:SecureTransport': 'true' }, StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] } })
-    ).toBe(
-      conditioned({ StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] }, Bool: { 'aws:SecureTransport': 'true' } })
-    );
+    const conditioned = (Condition: Record<string, Record<string, string | string[]>>) =>
+      assess({
+        worker: {
+          type: 'function',
+          properties: {
+            packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } },
+            iamRoleStatements: [{ ...wildcard, Condition }]
+          }
+        }
+      }).findings[0]?.fingerprint;
+    const originalOrder = conditioned({
+      Bool: { 'aws:SecureTransport': 'true' },
+      StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] }
+    });
+    const reordered = conditioned({
+      StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] },
+      Bool: { 'aws:SecureTransport': 'true' }
+    });
+    expect(originalOrder).toMatch(/^iam-statement-wildcard-service-on-any-resource:worker:statement-[0-9a-f]{8}$/);
+    expect(reordered).toBe(originalOrder);
 
     const secretValue = 'q8Zr2Lm9Xv4Kp7Ws1Tn6Yb3Hd5Fg0Jc';
-    const app = { name: 'app', environment: [{ name: 'CLIENT_SECRET', value: secretValue }] };
-    const proxy = { name: 'proxy', environment: [{ name: 'PORT', value: '8080' }] };
-    const rawConfig = (containers: unknown[]) => ({
-      resources: { api: { type: 'multi-container-workload', properties: { containers } } }
+    const app = {
+      name: 'app',
+      packaging: { type: 'prebuilt-image' as const, properties: { image: 'example.invalid/app:1' } },
+      environment: [{ name: 'CLIENT_SECRET', value: secretValue }]
+    };
+    const proxy = {
+      name: 'proxy',
+      packaging: { type: 'prebuilt-image' as const, properties: { image: 'example.invalid/proxy:1' } },
+      environment: [{ name: 'PORT', value: '8080' }]
+    };
+    const rawConfig = (containers: (typeof app)[]) => ({
+      resources: {
+        api: {
+          type: 'multi-container-workload' as const,
+          properties: {
+            resources: { cpu: 0.5 as const, memory: 1024 },
+            containers: containers.map((container) => ({
+              ...container,
+              packaging: { type: 'prebuilt-image' as const, properties: { image: 'example.invalid/app:1' } }
+            }))
+          }
+        }
+      }
     });
     const single = assess({}, { rawConfig: rawConfig([app]) });
     const shifted = assess({}, { rawConfig: rawConfig([proxy, app]) });
@@ -197,44 +335,6 @@ describe('security posture rules', () => {
     expect(shifted.findings.map(({ fingerprint }) => fingerprint)).toEqual(
       single.findings.map(({ fingerprint }) => fingerprint)
     );
-  });
-
-  test('IAM statements on rendered webs, deployment scripts and other role-bearing resources are checked too', () => {
-    const anyAction = [{ Effect: 'Allow', Action: ['*'], Resource: ['*'] }];
-    const assessment = assess({
-      nextjsWebs: [{ name: 'site', type: 'nextjs-web', iamRoleStatements: anyAction }],
-      deploymentScripts: [{ name: 'migrate', type: 'deployment-script', iamRoleStatements: anyAction }],
-      customResourceDefinitions: [{ name: 'seed', iamRoleStatements: anyAction }],
-      agentCoreRuntimes: [{ name: 'agent', iamRoleStatements: anyAction }]
-    });
-    const subjects = assessment.findings.map(({ resourceType, resourceName }) => `${resourceType}:${resourceName}`);
-    expect(subjects).toHaveLength(4);
-    expect(subjects).toEqual(
-      expect.arrayContaining([
-        'nextjs-web:site',
-        'deployment-script:migrate',
-        'custom-resource-definition:seed',
-        'agentcore-runtime:agent'
-      ])
-    );
-  });
-
-  test('queues without a redrive policy are reported on every stage', () => {
-    const assessment = assess({
-      sqsQueues: [{ name: 'jobs' }, { name: 'events', redrivePolicy: { targetSqsQueueName: 'dlq' } }]
-    });
-    expect(assessment.findings.map(({ resourceName }) => resourceName)).toEqual(['jobs']);
-  });
-
-  test('findings are ordered most severe first and summarized by severity', () => {
-    const assessment = assess(
-      { databases: [{ name: 'orders' }], sqsQueues: [{ name: 'jobs' }] },
-      { stage: 'production' }
-    );
-    // internet database (high), deletion protection (medium), termination protection and the queue (low)
-    expect(assessment.findings.map(({ severity }) => severity)).toEqual(['HIGH', 'MEDIUM', 'LOW', 'LOW']);
-    expect(summarizeSecurityFindings(assessment.findings)).toBe('1 high, 1 medium, 2 low');
-    expect(summarizeSecurityFindings([])).toBe('no findings');
   });
 });
 
@@ -287,15 +387,27 @@ describe('secret detection in raw configuration', () => {
             api: {
               type: 'multi-container-workload',
               properties: {
+                resources: { cpu: 0.5, memory: 1024 },
                 containers: [
-                  { name: 'app', environment: [{ name: 'CLIENT_SECRET', value: secretValue }] },
-                  { name: 'sidecar', environment: [{ name: 'DB_PASSWORD', value: "$Secret('db-password')" }] }
+                  {
+                    name: 'app',
+                    packaging: { type: 'prebuilt-image' as const, properties: { image: 'example.invalid/app:1' } },
+                    environment: [{ name: 'CLIENT_SECRET', value: secretValue }]
+                  },
+                  {
+                    name: 'sidecar',
+                    packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/sidecar:1' } },
+                    environment: [{ name: 'DB_PASSWORD', value: "$Secret('db-password')" }]
+                  }
                 ]
               }
             },
             web: {
               type: 'nextjs-web',
-              properties: { environment: { NEXT_PUBLIC_API_URL: 'https://api.example.com' } }
+              properties: {
+                appDirectory: '.',
+                environment: [{ name: 'NEXT_PUBLIC_API_URL', value: 'https://api.example.com' }]
+              }
             }
           }
         }
@@ -313,51 +425,5 @@ describe('secret detection in raw configuration', () => {
     });
     expect(finding?.remediation).toContain('`stacktape secret:set`');
     expect(JSON.stringify(finding)).not.toContain(secretValue);
-  });
-});
-
-describe('exposure inventory', () => {
-  test('an internal load balancer is not something the internet can reach', () => {
-    const assessment = assess({
-      applicationLoadBalancers: [{ name: 'edge' }, { name: 'internal-lb', interface: 'internal' }]
-    });
-    expect(assessment.exposure).toEqual([
-      {
-        kind: 'public-endpoint',
-        resourceName: 'edge',
-        resourceType: 'application-load-balancer',
-        accessibility: 'internet',
-        protectedByFirewall: false
-      }
-    ]);
-  });
-
-  test('lists what the internet can reach and whether a firewall stands in front', () => {
-    const assessment = assess({
-      webServices: [{ name: 'api', useFirewall: 'apiFirewall' }],
-      httpApiGateways: [{ name: 'gateway' }],
-      hostingBuckets: [{ name: 'site' }],
-      databases: [{ name: 'orders', accessibility: { accessibilityMode: 'vpc' } }],
-      buckets: [{ name: 'private' }, { name: 'assets', accessibility: { accessibilityMode: 'public-read' } }]
-    });
-    expect(assessment.exposure).toEqual([
-      {
-        kind: 'public-endpoint',
-        resourceName: 'api',
-        resourceType: 'web-service',
-        accessibility: 'internet',
-        protectedByFirewall: true
-      },
-      { kind: 'public-endpoint', resourceName: 'gateway', resourceType: 'http-api-gateway', accessibility: 'internet' },
-      {
-        kind: 'public-endpoint',
-        resourceName: 'site',
-        resourceType: 'hosting-bucket',
-        accessibility: 'internet',
-        protectedByFirewall: false
-      },
-      { kind: 'database', resourceName: 'orders', resourceType: 'relational-database', accessibility: 'vpc' },
-      { kind: 'bucket', resourceName: 'assets', resourceType: 'bucket', accessibility: 'public-read' }
-    ]);
   });
 });

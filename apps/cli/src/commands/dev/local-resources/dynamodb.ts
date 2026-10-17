@@ -2,6 +2,7 @@ import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { execDocker } from '@utils/docker';
+import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
@@ -191,6 +192,7 @@ export const startLocalDynamoDb = async (
     '-d',
     '--name',
     containerName,
+    ...getDevContainerOwnerArgs(),
     '-p',
     `${hostPort}:${defaultPort}`,
     '-v',

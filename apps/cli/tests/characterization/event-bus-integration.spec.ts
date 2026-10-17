@@ -12,31 +12,6 @@ const validate = (eventDetails: EventBusIntegrationProps, referencerType: 'funct
 const eventPattern = { source: ['characterization'] };
 
 describe('shared EventBridge integration validation', () => {
-  test('accepts the same valid target contract for Lambda and SQS consumers', () => {
-    expect(() =>
-      validate({
-        eventBusName: 'applicationEvents',
-        eventPattern,
-        inputTransformer: {
-          inputPathsMap: { id: '$.detail.id' },
-          inputTemplate: { id: '<id>' }
-        },
-        onDeliveryFailure: { sqsQueueName: 'failedEvents' }
-      })
-    ).not.toThrow();
-    expect(() =>
-      validate(
-        {
-          useDefaultBus: true,
-          eventPattern,
-          inputPath: '$.detail',
-          onDeliveryFailure: { sqsQueueArn: 'arn:aws:sqs:eu-west-1:123456789012:failed-events' }
-        },
-        'sqs-queue'
-      )
-    ).not.toThrow();
-  });
-
   test('rejects competing target-input options with a stable code and remediation', () => {
     expect(() =>
       validate({

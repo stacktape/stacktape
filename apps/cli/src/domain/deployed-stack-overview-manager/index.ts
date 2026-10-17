@@ -21,7 +21,6 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
-import { tagNames } from '@stacktape/naming/tag-names';
 import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
@@ -33,14 +32,17 @@ import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-va
 import { capitalCase } from 'change-case';
 import get from 'lodash/get';
 import { pRateLimit } from 'p-ratelimit';
-import { analyzeCustomResourceChange, analyzeLambdaFunctionChange, analyzeTaskDefinitionChange } from './hotswap-utils';
+import {
+  getTriggerOfUnchangedDeploymentScript,
+  isCodeOnlyFunctionChange,
+  isImageOnlyTaskDefinitionChange
+} from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
 
 @memoizeGetters
 class DeployedStackOverviewManager {
   #stackResources: EnrichedStackResourceInfo[] = [];
   stackInfoMap: StackInfoMap;
-  workloadsCurrentlyUsingHotSwapDeploy: string[] = [];
 
   init = async ({
     stackDetails,
@@ -54,7 +56,6 @@ class DeployedStackOverviewManager {
     this.#stackResources = stackResources;
     if (stackDetails?.stackOutput?.[outputNames.stackInfoMap()]) {
       this.stackInfoMap = await this.#getStackInfoMapOfDeployedStack({ stackDetails, budgetInfo });
-      this.workloadsCurrentlyUsingHotSwapDeploy = this.#getWorkloadsCurrentlyUsingHotSwapDeploy({ stackResources });
     }
   };
 
@@ -68,7 +69,6 @@ class DeployedStackOverviewManager {
     budgetInfo?: BudgetInfo;
   }) => {
     this.stackInfoMap = await this.#getStackInfoMapOfDeployedStack({ stackDetails, budgetInfo });
-    this.workloadsCurrentlyUsingHotSwapDeploy = this.#getWorkloadsCurrentlyUsingHotSwapDeploy({ stackResources });
     this.#stackResources = stackResources;
   };
 
@@ -247,120 +247,99 @@ class DeployedStackOverviewManager {
     return resolveSensitiveValues(stackInfoMap.resources);
   };
 
-  #getWorkloadsCurrentlyUsingHotSwapDeploy = ({ stackResources }: { stackResources: EnrichedStackResourceInfo[] }) => {
-    const workloads: string[] = [];
-    traverseResourcesInMap({
-      stackInfoMapResources: this.stackInfoMap.resources,
-      applyFn: ({ stpResourceName, resource }) => {
-        if (resource.resourceType === 'multi-container-workload') {
-          Object.entries(resource.cloudformationChildResources).forEach(([cfName, { cloudformationResourceType }]) => {
-            if (
-              cloudformationResourceType === 'AWS::ECS::Service' ||
-              cloudformationResourceType === 'Stacktape::ECSBlueGreenV1::Service'
-            ) {
-              const tags = stackResources.find(
-                ({ LogicalResourceId }) => LogicalResourceId === cfName
-              )?.ecsServiceTaskDefinitionTags;
-              if (tags?.find(({ key }) => key === tagNames.hotSwapDeploy())) {
-                workloads.push(stpResourceName);
-              }
-            }
-          });
-        }
-        if (resource.resourceType === 'function') {
-          Object.entries(resource.cloudformationChildResources).forEach(([cfName, { cloudformationResourceType }]) => {
-            if (cloudformationResourceType === 'AWS::Lambda::Function') {
-              const tags = stackResources.find(({ LogicalResourceId }) => LogicalResourceId === cfName)?.tags;
-              if (tags?.find(({ key }) => key === tagNames.hotSwapDeploy())) {
-                workloads.push(stpResourceName);
-              }
-            }
-          });
-        }
-      }
-    });
-    return workloads;
-  };
-
-  isWorkloadCurrentlyUsingHotSwapDeploy = (stpResourceName: string) =>
-    this.workloadsCurrentlyUsingHotSwapDeploy.includes(stpResourceName);
-
-  // checks old and new template diffs and determines whether hotswap can be executed
-  // this method should be called after the new Cloudformation template is fully resolved
-  // otherwise you might not get correct information about diffs
-  analyzeCloudformationTemplateDiff = ({ cfTemplateDiff }: { cfTemplateDiff: TemplateDiff }) => {
-    let isHotswapPossible = true;
-    const hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation: {
-      nameChain: string[];
-      stpResourceName: string;
-      resource: StackInfoMapResource;
-    }[] = [];
-    // if there are changes in these sections
+  /**
+   * Why this deployment cannot update the changed code directly, or `undefined` when it can. Call it after the new
+   * template is fully resolved, otherwise the diff is incomplete.
+   */
+  findReasonForFullDeployment = ({
+    cfTemplateDiff,
+    builtImageRepositoryUrl
+  }: {
+    cfTemplateDiff: TemplateDiff;
+    /** Images from this repository were built by Stacktape. */
+    builtImageRepositoryUrl: string;
+  }): string | undefined => {
+    for (const [section, difference] of Object.entries({
+      'the template description': cfTemplateDiff.description,
+      'the template transform': cfTemplateDiff.transform,
+      'the template format version': cfTemplateDiff.awsTemplateFormatVersion
+    })) {
+      if (difference?.isDifferent) return `${section} changed`;
+    }
     for (const sectionDiff of [
       cfTemplateDiff.conditions,
       cfTemplateDiff.mappings,
-      // cfTemplateDiff.metadata,
       cfTemplateDiff.outputs,
-      cfTemplateDiff.parameters
+      cfTemplateDiff.parameters,
+      cfTemplateDiff.metadata,
+      cfTemplateDiff.unknown
     ]) {
-      for (const [logicalId, change] of Object.entries(sectionDiff.changes)) {
-        if (logicalId !== outputNames.deploymentVersion()) {
-          tuiManager.debug(`Non hot-swappable change detected: ${logicalId}: ${JSON.stringify(change, null, 2)}`);
-          isHotswapPossible = false;
-        }
-      }
+      const changedName = Object.keys(sectionDiff?.changes ?? {}).find(
+        (logicalId) => logicalId !== outputNames.deploymentVersion()
+      );
+      if (changedName) return `${changedName} changed`;
     }
     for (const [cfLogicalName, change] of Object.entries(cfTemplateDiff.resources.changes)) {
-      const { isHotswappable, willUpdateCodeOfWorkload } = this.#analyzeResourceChange({ cfLogicalName, change });
-      if (willUpdateCodeOfWorkload) {
-        hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation.push(willUpdateCodeOfWorkload);
-      }
-      if (!isHotswappable) {
-        tuiManager.debug(`Non hot-swappable change detected: ${cfLogicalName}: ${JSON.stringify(change, null, 2)}`);
-        isHotswapPossible = false;
+      const reason = this.#getReasonForFullDeployment({ cfLogicalName, change, builtImageRepositoryUrl });
+      if (reason) {
+        tuiManager.debug(`Full deployment needed for ${cfLogicalName}: ${JSON.stringify(change, null, 2)}`);
+        return reason;
       }
     }
-    return { isHotswapPossible, hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation };
+    return undefined;
   };
 
-  #analyzeResourceChange = ({
+  /** Whether the new template differs from the deployed one in anything but the deployment version output. */
+  hasTemplateChanges = (cfTemplateDiff: TemplateDiff) =>
+    Object.keys(cfTemplateDiff.resources.changes).length > 0 ||
+    [
+      cfTemplateDiff.conditions,
+      cfTemplateDiff.mappings,
+      cfTemplateDiff.outputs,
+      cfTemplateDiff.parameters,
+      cfTemplateDiff.metadata,
+      cfTemplateDiff.unknown
+    ].some((section) => Object.keys(section?.changes ?? {}).some((name) => name !== outputNames.deploymentVersion())) ||
+    [cfTemplateDiff.description, cfTemplateDiff.transform, cfTemplateDiff.awsTemplateFormatVersion].some(
+      (difference) => difference?.isDifferent
+    );
+
+  #getReasonForFullDeployment = ({
     cfLogicalName,
-    change
+    change,
+    builtImageRepositoryUrl
   }: {
     cfLogicalName: string;
     change: ResourceDifference;
-  }): {
-    isHotswappable: boolean;
-    willUpdateCodeOfWorkload?: { nameChain: string[]; stpResourceName: string; resource: StackInfoMapResource };
-  } => {
-    if (change.isAddition || change.isRemoval) {
-      return { isHotswappable: false };
+    builtImageRepositoryUrl: string;
+  }): string | undefined => {
+    if (change.isAddition) return `${cfLogicalName} is new`;
+    if (change.isRemoval) return `${cfLogicalName} is removed`;
+    const changed = `${cfLogicalName} changed`;
+    if (change.resourceTypeChanged) return changed;
+    const isPartOf = (workloads: { resource: StackInfoMapResource }[]) =>
+      workloads.some(({ resource }) => cfLogicalName in resource.cloudformationChildResources);
+    switch (change.resourceType as KnownCloudFormationResourceType) {
+      case 'AWS::ECS::TaskDefinition':
+        return isPartOf(this.deployedWorkloadsWithEcsTaskDefinition) &&
+          isImageOnlyTaskDefinitionChange(change, (image) => image.startsWith(`${builtImageRepositoryUrl}:`))
+          ? undefined
+          : changed;
+      case 'AWS::Lambda::Function':
+        return isPartOf(this.deployedFunctions) && isCodeOnlyFunctionChange(change) ? undefined : changed;
+      case 'AWS::CloudFormation::CustomResource': {
+        const publishedFunction = (change.newValue?.Properties as Record<string, any> | undefined)?.publishLambdaVersion
+          ?.functionName?.Ref;
+        if (publishedFunction) return `${publishedFunction} is invoked through an alias`;
+        const scriptTrigger = getTriggerOfUnchangedDeploymentScript(change);
+        if (!scriptTrigger) return changed;
+        return scriptTrigger === 'after:deploy'
+          ? `deployment script ${cfLogicalName} runs after every deployment`
+          : undefined;
+      }
+      default:
+        return changed;
     }
-    if (change.resourceTypeChanged) {
-      return { isHotswappable: false };
-    }
-    if ((change.resourceType as KnownCloudFormationResourceType) === 'AWS::ECS::TaskDefinition') {
-      return analyzeTaskDefinitionChange({
-        change,
-        cfLogicalName,
-        deployedWorkloads: this.deployedWorkloadsWithEcsTaskDefinition
-      });
-    }
-    if ((change.resourceType as KnownCloudFormationResourceType) === 'AWS::Lambda::Function') {
-      return analyzeLambdaFunctionChange({
-        change,
-        cfLogicalName,
-        deployedWorkloads: this.deployedFunctions
-      });
-    }
-    // some of our CustomResources (namely deployment-scripts) use "forceUpdate" property.
-    // This property is different on each deploy and therefore always block hotswap.
-    if ((change.resourceType as KnownCloudFormationResourceType) === 'AWS::CloudFormation::CustomResource') {
-      return analyzeCustomResourceChange({
-        change
-      });
-    }
-    return { isHotswappable: false };
   };
 
   getStackMetadata = (propertyName: string): OutputValue | Date | undefined => {

@@ -15,8 +15,15 @@ export const getDeploymentBucketObjectType = (name: string): DeploymentBucketObj
   return 'user-lambda';
 };
 
+/**
+ * The artifact an object key names: `name/version-digest.ext` for a Lambda package, `name/version.ext` for a template.
+ * Anything else in the deployment bucket (an object someone placed there by hand) is not an artifact and is left alone.
+ */
 export const parseBucketObjectS3Key = (s3Key: string) => {
-  const [name, restString] = s3Key.split('/');
+  const [name, restString, ...deeper] = s3Key.split('/');
+  if (!name || !restString || deeper.length > 0) {
+    return undefined;
+  }
   if (restString.includes('-')) {
     // format: name/version-digest.ext
     const [version, fileName] = restString.split('-');

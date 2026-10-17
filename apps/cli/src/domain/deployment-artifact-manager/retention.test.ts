@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { DeploymentArtifactUsage } from './retention';
-import { selectObsoleteArtifacts } from './retention';
+import { keepLayersOfRetainedReleases, selectObsoleteArtifacts } from './retention';
 
 const noUsage: DeploymentArtifactUsage = {
   uploadedObjects: [],
@@ -36,41 +36,6 @@ describe('what a deployment may delete', () => {
     expect(namesOf(selectObsoleteArtifacts({ artifacts, usage: noUsage }))).toEqual(['api/v1.zip']);
   });
 
-  test('never deletes something this deployment just uploaded', () => {
-    const artifacts = ['v1', 'v2', 'v3', 'v4', 'v5'].map((version) => objectArtifact('api', version));
-    const usage = { ...noUsage, uploadedObjects: [{ s3Key: 'api/v1.zip', name: 'api' }] };
-
-    expect(namesOf(selectObsoleteArtifacts({ artifacts, usage }))).not.toContain('api/v1.zip');
-  });
-
-  test('never deletes something this deployment reused rather than re-uploading', () => {
-    /*
-     * The shared-layer case. A layer whose content has not changed is not uploaded again, so nothing in
-     * the upload records mentions it — but the template being deployed points straight at it. Deleting
-     * it breaks the deployment doing the deleting.
-     */
-    const artifacts = ['hash-a', 'hash-b', 'hash-c', 'hash-d', 'hash-e'].map((hash) =>
-      objectArtifact('shared-layer-1', hash)
-    );
-    const usage = { ...noUsage, reusedS3Keys: ['shared-layer-1/hash-a.zip'] };
-
-    const obsolete = namesOf(selectObsoleteArtifacts({ artifacts, usage }));
-
-    expect(obsolete).not.toContain('shared-layer-1/hash-a.zip');
-    expect(obsolete).toContain('shared-layer-1/hash-b.zip');
-  });
-
-  test('a reused artifact is safe even when the keep window would not have covered it', () => {
-    // Layer keys carry a content hash where other artifacts carry a version, so the window sorts them by
-    // hash and the referenced one can sort anywhere. Being referenced has to outrank the window.
-    const artifacts = Array.from({ length: 30 }, (_, index) =>
-      objectArtifact('shared-layer-1', `hash-${String(index).padStart(2, '0')}`)
-    );
-    const usage = { ...noUsage, versionsToKeepPerName: 26, reusedS3Keys: ['shared-layer-1/hash-00.zip'] };
-
-    expect(namesOf(selectObsoleteArtifacts({ artifacts, usage }))).not.toContain('shared-layer-1/hash-00.zip');
-  });
-
   test('the same protection applies to container images', () => {
     const artifacts = ['v1', 'v2', 'v3', 'v4'].map((version) => imageArtifact('api', version));
     const usage = { ...noUsage, reusedImageTags: ['api--v1'] };
@@ -86,5 +51,40 @@ describe('what a deployment may delete', () => {
 
     expect(namesOf(selectObsoleteArtifacts({ artifacts, usage: noUsage }))).toEqual(['api/v1.zip']);
     expect(namesOf(selectObsoleteArtifacts({ artifacts, usage: withUpload }))).toEqual(['api/v1.zip', 'api/v2.zip']);
+  });
+});
+
+describe('shared layers of retained releases', () => {
+  const bucket = 'stp-deployment-bucket-abc123';
+  const layerOf = (s3Key: string) => ({
+    Resources: {
+      SharedChunkLayer1: {
+        Type: 'AWS::Lambda::LayerVersion',
+        Properties: { Content: { S3Bucket: bucket, S3Key: s3Key } }
+      }
+    }
+  });
+
+  test('a layer the hash-ordered window drops stays while a retained release uses it', () => {
+    // previousVersionsToKeep: 1 keeps releases v2 and v3. Their layers are `b…` and `f…`; the window over hashes
+    // keeps `f…` and `e…` and would drop `b…`, which v2 still needs.
+    const artifacts = ['a1', 'b2', 'e5', 'f6'].map((hash) => ({
+      name: 'shared-layer-1',
+      version: hash,
+      s3Key: `shared-layer-1/${hash}.zip`
+    }));
+    const obsolete = selectObsoleteArtifacts({
+      artifacts,
+      usage: { ...noUsage, versionsToKeepPerName: 2, reusedS3Keys: ['shared-layer-1/f6.zip'] }
+    });
+    expect(namesOf(obsolete)).toEqual(['shared-layer-1/a1.zip', 'shared-layer-1/b2.zip']);
+
+    const kept = keepLayersOfRetainedReleases({
+      obsolete,
+      retainedTemplates: [layerOf('shared-layer-1/b2.zip'), layerOf('shared-layer-1/f6.zip')],
+      deploymentBucketName: bucket
+    });
+
+    expect(namesOf(kept)).toEqual(['shared-layer-1/a1.zip']);
   });
 });

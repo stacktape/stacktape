@@ -1,4 +1,4 @@
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import { join } from 'node:path';
 import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';
@@ -12,6 +12,7 @@ import { packageHelperLambdas } from './package-helper-lambdas';
 import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
+  copyBridgeFiles,
   copyConfigSchema,
   copyInitWizardBundle,
   copyMcpDocs,
@@ -50,7 +51,8 @@ export const buildDistPackage = async ({
   debug,
   keepUnarchived,
   distFolderPath = DIST_PACKAGE_FOLDER_PATH,
-  bytecodeDepth
+  bytecodeDepth,
+  errorTrackingSourceMapDirectory
 }: {
   platform: SupportedPlatform;
   version: string;
@@ -58,6 +60,7 @@ export const buildDistPackage = async ({
   keepUnarchived?: boolean;
   distFolderPath?: string;
   bytecodeDepth?: number | 'off';
+  errorTrackingSourceMapDirectory?: string;
 }) => {
   logInfo(`Building binary for platform: ${platform}, version: ${version}`);
 
@@ -68,12 +71,14 @@ export const buildDistPackage = async ({
     platform,
     debug,
     version,
-    bytecodeDepth
+    bytecodeDepth,
+    errorTrackingSourceMapDirectory
   });
 
   await Promise.all([
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
+    copyBridgeFiles({ distFolderPath: platformDistFolderPath }),
     copyInitWizardBundle({ distFolderPath: platformDistFolderPath }),
     copyMcpDocs({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
@@ -83,15 +88,15 @@ export const buildDistPackage = async ({
     generateLambdaTracingRuntime({ distFolderPath: platformDistFolderPath })
   ]);
 
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await recursivelyChmodPlusX(platformDistFolderPath);
   }
 
   const archivePath = await archiveItem({
     absoluteSourcePath: platformDistFolderPath,
-    format: platform === 'win' ? 'zip' : 'tgz',
+    format: isWindowsPlatform(platform) ? 'zip' : 'tgz',
     executablePatterns: EXECUTABLE_FILE_PATTERNS,
-    useNativeZip: platform === 'win' // Native zip for Windows archives
+    parallelZip: isWindowsPlatform(platform)
   });
 
   if (!keepUnarchived) {
@@ -113,5 +118,7 @@ if (import.meta.main) {
     throw new Error('Platform and version are required. Usage: --platform <platform> --version <version>');
   }
   const { debug, keepUnarchived } = getCliArgs();
-  buildDistPackage({ platform, version, debug, keepUnarchived });
+  // The release workflow uploads this directory to PostHog error tracking; it is not part of the archive.
+  const errorTrackingSourceMapDirectory = argv.errorTrackingSourceMapDirectory as string | undefined;
+  buildDistPackage({ platform, version, debug, keepUnarchived, errorTrackingSourceMapDirectory });
 }

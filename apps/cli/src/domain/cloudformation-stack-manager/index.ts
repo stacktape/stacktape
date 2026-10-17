@@ -11,7 +11,12 @@ import type {
   LoggableEventType,
   ProgressReporter as ProgressLogger
 } from '@application-services/operation-manager';
-import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import type {
+  Capability,
+  RollbackConfiguration,
+  StackEvent,
+  StackResourceSummary
+} from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { operationReporter } from '@application-services/operation-manager';
@@ -53,7 +58,8 @@ import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { getNextVersionString } from '@utils/versioning';
+import { getNextVersionString, getNumericVersion } from '@utils/versioning';
+import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
@@ -152,6 +158,8 @@ class StackManager {
    * a different stack between consent and UpdateStack.
    */
   #stackMutationTarget?: string;
+  #latestRecordedRelease: string | null = null;
+  #nextVersionAfterRefetch: string | null = null;
 
   // for polling ECS Service statuses during deploy
   #ecsDeploymentStatusPoller: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller } = {};
@@ -163,13 +171,19 @@ class StackManager {
     stackName,
     commandModifiesStack,
     commandRequiresDeployedStack,
-    parentEventType
+    parentEventType,
+    whileLoadingResourceDetails
   }: {
     stackName: string;
     commandModifiesStack: boolean;
     commandRequiresDeployedStack: boolean;
     /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
     parentEventType?: LoggableEventType;
+    /**
+     * Work that needs the stack's details and resource list but not the resources' details, such as function tags.
+     * It runs while those load.
+     */
+    whileLoadingResourceDetails?: () => Promise<unknown>;
   }) => {
     await operationReporter.startEvent({
       eventType: 'FETCH_STACK_DATA',
@@ -179,29 +193,42 @@ class StackManager {
     });
     this.#stackName = stackName;
     this.#stackMutationTarget = undefined;
+    this.#latestRecordedRelease = null;
+    this.#nextVersionAfterRefetch = null;
 
-    let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
+    // The resources are listed together with the details. A stack that first had to finish another operation is
+    // listed again once it has.
+    const [fetchedDetails, listedResources] = await Promise.allSettled([
+      awsSdkManager.cloudFormation.getDetails(stackName),
+      awsSdkManager.cloudFormation.getResources(stackName)
+    ]);
+    if (fetchedDetails.status === 'rejected') {
+      throw fetchedDetails.reason;
+    }
     const instanceId = parentEventType ? 'Stack data' : undefined;
-    ({ stackDetails } = await this.waitForStackToBeReadyForOperation({
-      stackDetails,
+    const { stackDetails } = await this.waitForStackToBeReadyForOperation({
+      stackDetails: fetchedDetails.value,
       commandModifiesStack,
       commandRequiresDeployedStack,
       progressLogger: operationReporter,
       eventContext: { parentEventType, instanceId }
-    }));
-
-    const stackResources = await awsSdkManager.cloudFormation
-      .getResources(stackName)
-      .then(this.#filterNonExistentResources)
-      .then(this.#getDetailOfSelectedResources);
+    });
+    const stackResources =
+      stackDetails === fetchedDetails.value && listedResources.status === 'fulfilled'
+        ? listedResources.value
+        : await awsSdkManager.cloudFormation.getResources(stackName);
 
     this.existingStackDetails = stackDetails;
-    // this.stackDriftInformation = stackDriftInformation;
-    this.existingStackResources = stackResources;
+    this.existingStackResources = this.#filterNonExistentResources(stackResources);
+    const [detailedResources] = await Promise.all([
+      this.#getDetailOfSelectedResources(this.existingStackResources),
+      whileLoadingResourceDetails?.()
+    ]);
+    this.existingStackResources = detailedResources;
 
     await operationReporter.finishEvent({
       eventType: 'FETCH_STACK_DATA',
-      data: { stackDetails, stackResources },
+      data: { stackDetails, stackResources: detailedResources },
       parentEventType,
       instanceId: parentEventType ? 'Stack data' : undefined
     });
@@ -211,16 +238,31 @@ class StackManager {
     this.#stackMutationTarget = stackId;
   };
 
+  /**
+   * Records the newest release found in the deployment bucket. Fast deployments create releases without updating
+   * CloudFormation, so the stack's deployment version output can be older than the release that is running.
+   */
+  setLatestRecordedRelease = (version: string | null) => {
+    this.#latestRecordedRelease = version;
+  };
+
+  /** The release this operation creates. It stays the same after the stack details are fetched again. */
   get nextVersion() {
-    return getNextVersionString(this.lastVersion);
+    return this.#nextVersionAfterRefetch ?? getNextVersionString(this.lastVersion);
   }
 
   get lastDeploymentStackOutput(): { [name: string]: string } {
     return this.existingStackDetails?.stackOutput || {};
   }
 
+  /** The release that runs now: the newer of CloudFormation's deployment version and the latest recorded release. */
   get lastVersion() {
-    return this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+    const deployedVersion = this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+    if (!this.#latestRecordedRelease) return deployedVersion;
+    if (!deployedVersion) return this.#latestRecordedRelease;
+    return getNumericVersion(this.#latestRecordedRelease) > getNumericVersion(deployedVersion)
+      ? this.#latestRecordedRelease
+      : deployedVersion;
   }
 
   get stackActionType(): StackActionType {
@@ -253,6 +295,8 @@ class StackManager {
   }
 
   refetchStackDetails = async (stackName: string) => {
+    // The refetched details carry the version this operation deployed; keep reporting it as this operation's release.
+    this.#nextVersionAfterRefetch ??= this.nextVersion;
     await operationReporter.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
     const [existingStackDetails, existingStackResources] = await Promise.all([
       awsSdkManager.cloudFormation.getDetails(stackName),
@@ -314,7 +358,8 @@ class StackManager {
       terminationProtection
     } = configManager.deploymentConfig;
     const stackPolicy = []; // configManager.guardrails?.cloudformationStackPolicies
-    const operationRequiresTags = this.stackActionType === 'create' || this.stackActionType === 'update';
+    // `dev` creates and updates the dev stack, which needs the same configured and Stacktape tags as a deployed stack.
+    const operationRequiresTags = ['create', 'update', 'dev'].includes(this.stackActionType);
     const rollbackAlarmArns = (triggerRollbackOnAlarms || [])
       .map((alarmNameOrArn) => {
         // if alarm is arn we use the arn
@@ -492,6 +537,35 @@ class StackManager {
     });
     await operationReporter.finishEvent({ eventType: 'CALCULATE_CHANGES', data: { changesToBeMade: res.changes } });
     return res;
+  };
+
+  /** Stack settings live outside the template, so a template diff misses them. Returns the first one that changed. */
+  findChangedStackSetting = (): string | undefined => {
+    const current = this.existingStackDetails;
+    if (!current) return undefined;
+    const desired = this.getStackParams();
+    const tags = (list: { Key?: string; Value?: string }[] = []) =>
+      list.map(({ Key, Value }) => `${Key}=${Value}`).toSorted();
+    if (!isEqual(tags(desired.Tags), tags(current.Tags))) return 'the stack tags changed';
+    if (!!desired.EnableTerminationProtection !== !!current.EnableTerminationProtection) {
+      return 'termination protection changed';
+    }
+    // UpdateStack keeps the notification targets and the role when the request omits them.
+    if (
+      desired.NotificationARNs &&
+      !isEqual(desired.NotificationARNs.toSorted(), (current.NotificationARNs ?? []).toSorted())
+    ) {
+      return 'the stack notification targets changed';
+    }
+    if (desired.RoleARN && desired.RoleARN !== current.RoleARN) return 'the CloudFormation role changed';
+    const rollbackSettings = ({ MonitoringTimeInMinutes = 0, RollbackTriggers = [] }: RollbackConfiguration = {}) => ({
+      MonitoringTimeInMinutes,
+      triggers: RollbackTriggers.map(({ Arn }) => Arn).toSorted()
+    });
+    if (!isEqual(rollbackSettings(desired.RollbackConfiguration), rollbackSettings(current.RollbackConfiguration))) {
+      return 'the rollback triggers changed';
+    }
+    return undefined;
   };
 
   getTags = (
@@ -750,6 +824,32 @@ class StackManager {
     let cleanupAfterSuccessfulUpdateInProgress = false;
 
     let fetchNumber = 0;
+    // Events are polled every second during updates, where a code change finishes in seconds.
+    const eventPollingIntervalMs = (cfStackAction === 'update' ? 1 : MONITORING_FREQUENCY_SECONDS) * 1000;
+    // The stack status is a fallback for missed completion events. DescribeStacks can take several seconds, so it runs
+    // beside event polling instead of holding up the next batch of events. It is requested only after this operation's
+    // start event was seen: an earlier request could still return the previous operation's final status.
+    let latestStackStatus: StackStatus | undefined;
+    let stackStatusRequestInFlight = false;
+    let failedStackStatusRequests = 0;
+    let stackStatusError: unknown;
+    const refreshStackStatus = () => {
+      if (stackStatusRequestInFlight || !lastStackActionTimestamp) return;
+      stackStatusRequestInFlight = true;
+      awsSdkManager.cloudFormation
+        .getDetails(stackId)
+        .then((stackDetails) => {
+          latestStackStatus = stackDetails?.StackStatus as StackStatus;
+          failedStackStatusRequests = 0;
+        })
+        .catch((err) => {
+          // A single failure is retried on a later poll; repeated failures stop the monitoring.
+          if (++failedStackStatusRequests >= 3) stackStatusError = err;
+        })
+        .finally(() => {
+          stackStatusRequestInFlight = false;
+        });
+    };
     let cancelRequested = false;
     let cancelBannerShown = false;
 
@@ -1075,48 +1175,34 @@ class StackManager {
         // as we are about to fetch and evaluate event batch
         eventBatchEvaluationInProgress = true;
         try {
+          if (stackStatusError) throw stackStatusError;
+          const stackStatus = latestStackStatus;
+          latestStackStatus = undefined;
           // we are only fetching for new events "fetchSince"
-          const [stackEvents, stackDetailsFromBatch] = await Promise.all([
-            awsSdkManager.cloudFormation.getEvents(stackId, fetchSince),
-            // Every fourth poll also asks for stack details; the other three contribute no details to this batch.
-            // `null` rather than `false` says that in a way the result type can carry — both are falsy, so the
-            // fallback below behaves exactly as before.
-            fetchNumber % 4 === 0 ? awsSdkManager.cloudFormation.getDetails(stackId) : null
-          ]).catch((err) => {
+          const stackEvents = await awsSdkManager.cloudFormation.getEvents(stackId, fetchSince).catch((err) => {
             // if there was an error when fetching stack events we cancel entire interval
             cleanupMonitoring();
             reject(err);
             throw err;
           });
+          // A quiet stack may have finished without us seeing the completion event, so check its status more often.
+          if (!stackEvents.length || fetchNumber % 4 === 0) refreshStackStatus();
           ++fetchNumber;
           // we are reversing to go from oldest to newest
           stackEvents.reverse();
-          // if there are no new events, check stack details as fallback to detect if operation completed
+          // if there are no new events, check stack status as fallback to detect if operation completed
           // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
           if (!stackEvents.length) {
             if (lastStackActionTimestamp) handleProgress();
-            const stackDetails = stackDetailsFromBatch || (await awsSdkManager.cloudFormation.getDetails(stackId));
-            if (
-              this.#stackStatusSignalsStackOperationSuccess({
-                stackStatus: stackDetails?.StackStatus as StackStatus,
-                cfStackAction
-              })
-            ) {
+            if (this.#stackStatusSignalsStackOperationSuccess({ stackStatus, cfStackAction })) {
               return afterStackOperationSuccess();
             }
-            if (
-              this.#stackStatusSignalsStackOperationFailure({
-                stackStatus: stackDetails?.StackStatus as StackStatus,
-                cfStackAction
-              })
-            ) {
+            if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
               return afterStackOperationFailure();
             }
             eventBatchEvaluationInProgress = false;
             return;
           }
-          // use stackDetails from batch for later fallback check
-          const stackDetails = stackDetailsFromBatch;
           if (!lastStackActionTimestamp) {
             // we are searching for event which denotes beginning of action that should take place (i.e CREATE_IN_PROGRESS UPDATE_IN_PROGRESS...)
             const lastStackEvent = stackEvents.find((stackEvent) => {
@@ -1231,22 +1317,12 @@ class StackManager {
             handledEvents.push(event.EventId);
           }
           handleProgress();
-          // additional checking for stack status from stack details
+          // additional checking for stack status
           // if we somehow missed a cloudformation event signaling stack operation end, then operation might be hanging
-          if (
-            this.#stackStatusSignalsStackOperationSuccess({
-              stackStatus: stackDetails?.StackStatus as StackStatus,
-              cfStackAction
-            })
-          ) {
+          if (this.#stackStatusSignalsStackOperationSuccess({ stackStatus, cfStackAction })) {
             return afterStackOperationSuccess();
           }
-          if (
-            this.#stackStatusSignalsStackOperationFailure({
-              stackStatus: stackDetails?.StackStatus as StackStatus,
-              cfStackAction
-            })
-          ) {
+          if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
             return afterStackOperationFailure();
           }
           const earlyFailureMessage = getEarlyStartupFailureMessage();
@@ -1275,7 +1351,7 @@ class StackManager {
           );
         }
         eventBatchEvaluationInProgress = false;
-      }, MONITORING_FREQUENCY_SECONDS * 1000);
+      }, eventPollingIntervalMs);
     });
     cleanupMonitoring();
     return { warningMessages };

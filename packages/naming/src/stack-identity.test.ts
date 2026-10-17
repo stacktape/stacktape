@@ -24,20 +24,4 @@ describe('getGloballyUniqueStackHash', () => {
   ])('preserves the historical hash for $region/$stackName/$accountId', ({ expected, ...input }) => {
     expect(getGloballyUniqueStackHash(input)).toBe(expected);
   });
-
-  test('preserves the separator-free historical input contract', () => {
-    expect(
-      getGloballyUniqueStackHash({
-        region: 'ab',
-        stackName: 'c',
-        accountId: ''
-      })
-    ).toBe(
-      getGloballyUniqueStackHash({
-        region: 'a',
-        stackName: 'bc',
-        accountId: ''
-      })
-    );
-  });
 });

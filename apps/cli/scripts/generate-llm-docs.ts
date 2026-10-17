@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdtemp, readdir as readDirectory, rename, rm } from 'node:fs/promises';
 import { ensureDir, readFile, readdir, writeFile } from 'fs-extra';
 import ts from 'typescript';
+import { REFERENCEABLE_PARAMS } from '@stacktape/config-authoring/resource-metadata';
 import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
 import { generateCommandSchemaInfo } from '../src/config/cli/utils';
 import { buildApiReferenceData, type ApiReferenceGeneratedDefinition } from './llm-docs/build-api-reference-data';
@@ -167,10 +168,6 @@ const RESOURCE_TYPE_BY_DOC_BASENAME: Record<string, string> = {
   'deployment-scripts': 'deployment-script',
   'aws-cdk-constructs': 'aws-cdk-construct',
   'custom-resources': 'custom-resource'
-};
-
-const REFERENCEABLE_PARAM_TYPE_BY_RESOURCE_TYPE: Record<string, string> = {
-  'agentcore-gateway': 'AgentCoreGatewayReferencableParam'
 };
 
 // `shared.ts` is the renamed `__helpers.d.ts` logical documentation source. Keep that human-facing category rather
@@ -410,7 +407,7 @@ const apiReferenceDefinitionToMarkdown = (definitionName: string): string => {
 
 const referenceableParamsToMarkdown = (resourceType: string): string => {
   const resource = (resources as any[]).find((item) => item.resourceType === resourceType);
-  const referenceableParams = resource?.referenceableParams || referenceableParamsFromTypeDeclaration(resourceType);
+  const referenceableParams = resource?.referenceableParams || referenceableParamsFromRegistry(resourceType);
   if (!referenceableParams) {
     throw new Error(`Referenceable params for "${resourceType}" were not found`);
   }
@@ -437,24 +434,12 @@ const referenceableParamsToMarkdown = (resourceType: string): string => {
   return `${lines.join('\n')}\n\n`;
 };
 
-const referenceableParamsFromTypeDeclaration = (resourceType: string): Record<string, string> | undefined => {
-  const typeName = REFERENCEABLE_PARAM_TYPE_BY_RESOURCE_TYPE[resourceType];
-  if (!typeName) return undefined;
-
-  const files = TYPE_SOURCE_DIRS.flatMap((directory) =>
-    existsSync(directory) ? ts.sys.readDirectory(directory, ['.ts', '.d.ts']) : []
-  ).sort(compareLlmDocPaths);
-  for (const file of files) {
-    const content = readFileSync(file, 'utf-8');
-    const escaped = typeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const match = content.match(new RegExp(`type\\s+${escaped}\\s*=\\s*([^;]+);`));
-    if (!match?.[1]) continue;
-    const params = [...match[1].matchAll(/'([^']+)'/g)].map((paramMatch) => paramMatch[1]);
-    if (params.length === 0) continue;
-    return Object.fromEntries(params.map((param) => [param, `Referenceable ${param} value.`]));
-  }
-
-  return undefined;
+/** Resources the documentation sources do not describe yet take their parameters from the registry. */
+const referenceableParamsFromRegistry = (resourceType: string): Record<string, string> | undefined => {
+  const params = (
+    REFERENCEABLE_PARAMS as Partial<Record<string, ReadonlyArray<{ name: string; description: string }>>>
+  )[resourceType];
+  return params && Object.fromEntries(params.map(({ name, description }) => [name, description]));
 };
 
 const parseJsLiteral = <T>(value: string): T | undefined => {

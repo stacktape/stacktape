@@ -155,6 +155,7 @@ export class AwsS3 {
     filePath,
     s3Key,
     contentType,
+    contentEncoding,
     bucketName,
     useS3Acceleration,
     metadata
@@ -163,6 +164,8 @@ export class AwsS3 {
     filePath: string;
     s3Key: string;
     contentType?: string;
+    /** `gzip` for a file stored compressed; readers decompress it. */
+    contentEncoding?: 'gzip';
     useS3Acceleration?: boolean;
     metadata?: Record<string, string>;
   }) => {
@@ -175,6 +178,7 @@ export class AwsS3 {
         Key: s3Key,
         Body: fsExtra.createReadStream(filePath),
         ...(contentType ? { ContentType: contentType } : {}),
+        ...(contentEncoding ? { ContentEncoding: contentEncoding } : {}),
         ...(metadata ? { Metadata: metadata } : {})
       },
       client: useS3Acceleration ? this.#createAcceleratedClient() : this.#createClient()
@@ -199,20 +203,46 @@ export class AwsS3 {
     return streamToString(response.Body as Readable);
   };
 
+  /** With `onlyIfMissing`, the write fails with `PreconditionFailed` when the key already exists. */
   putObject = async ({
     bucketName,
     s3Key,
     body,
-    contentType
+    contentType,
+    onlyIfMissing
   }: {
     bucketName: string;
     s3Key: string;
     body: string;
     contentType?: string;
+    onlyIfMissing?: boolean;
   }) => {
     const errorHandler = this.#getErrorHandler(`Failed to put object to bucket ${bucketName}. S3 key: ${s3Key}.`);
     return this.#createClient()
-      .send(new PutObjectCommand({ Bucket: bucketName, Key: s3Key, Body: body, ContentType: contentType }))
+      .send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: s3Key,
+          Body: body,
+          ContentType: contentType,
+          ...(onlyIfMissing ? { IfNoneMatch: '*' } : {})
+        })
+      )
+      .catch(errorHandler);
+  };
+
+  copyObject = async ({
+    bucketName,
+    sourceKey,
+    targetKey
+  }: {
+    bucketName: string;
+    sourceKey: string;
+    targetKey: string;
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to copy ${sourceKey} to ${targetKey} in bucket ${bucketName}.`);
+    return this.#createClient()
+      .send(new CopyObjectCommand({ Bucket: bucketName, CopySource: `${bucketName}/${sourceKey}`, Key: targetKey }))
       .catch(errorHandler);
   };
 

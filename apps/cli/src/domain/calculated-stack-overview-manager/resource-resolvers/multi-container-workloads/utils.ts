@@ -371,7 +371,7 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       packagingType,
       entryfilePath,
       nodeVersion,
-      sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+      sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'container')
     });
     if (workloadTracing) {
       const { environmentDefaults, environmentOverrides, warnings } = getContainerTracingEnvironment({
@@ -381,6 +381,7 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
           workload.configParentResourceType === 'multi-container-workload'
             ? `${workload.name}-${container.name}`
             : workload.name,
+        resourceName: workload.name,
         samplingRate: workloadTracing.samplingRate,
         userEnvironment: Object.fromEntries(
           (container.environment || []).map(({ name: varName, value }) => [varName, value])
@@ -434,7 +435,12 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       DockerLabels: Object.keys(secretVersionLabels).length ? secretVersionLabels : undefined,
       EntryPoint: entryPoint,
       Command: command,
-      StopTimeout: container.stopTimeout || 2,
+      // Stacktape's js-bundle images run no init process of their own. ECS starts one as PID 1: it passes the stop
+      // signal to the server and reaps orphaned processes.
+      ...(packagingType === 'js-bundle' && { LinuxParameters: { InitProcessEnabled: true } }),
+      StopTimeout:
+        container.stopTimeout ||
+        (workload.deployment ? BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS : DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS),
       LogConfiguration: isLoggingEnabled
         ? {
             LogDriver: 'awslogs',
@@ -611,8 +617,8 @@ export const getEcsEc2ForceDeleteAsgCustomResource = ({ workload }: { workload: 
       asgName: ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name))
     }
   });
-  // Ensure this custom resource is deleted BEFORE the capacity provider (so its Delete handler
-  // can remove scale-in protection early, reducing CloudFormation delete timeouts).
+  // Ensure this custom resource is deleted BEFORE the capacity provider, so its Delete handler removes
+  // scale-in protection before CloudFormation scales the Auto Scaling group in.
   resource.DependsOn = [cfLogicalNames.ecsCluster(workload.name), cfLogicalNames.ecsEc2CapacityProvider(workload.name)];
   return resource;
 };
@@ -629,7 +635,13 @@ export const getEcsDisableManagedTerminationProtectionCustomResource = ({
   });
   // Ensure this custom resource is deleted BEFORE the capacity provider, so its Delete handler
   // can disable managed termination protection while the capacity provider still exists.
-  resource.DependsOn = [cfLogicalNames.ecsEc2CapacityProvider(workload.name)];
+  // It is also deleted before the force-delete custom resource: while protection is enabled, ECS re-protects
+  // instances that still run tasks, so the instances are unprotected only after the service is gone and
+  // ECS has stopped managing their protection.
+  resource.DependsOn = [
+    cfLogicalNames.ecsEc2CapacityProvider(workload.name),
+    cfLogicalNames.ecsEc2ForceDeleteAutoscalingGroupCustomResource(workload.name)
+  ];
   return resource;
 };
 
@@ -870,6 +882,36 @@ const getFormattedListenerRulesLogicalNames = ({ workload }: { workload: StpCont
     });
 };
 
+// Time an app gets between SIGTERM and SIGKILL to finish in-flight work. An app that exits on SIGTERM does not
+// wait for it; one that ignores the signal holds up a CloudFormation deploy for the full window.
+const DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS = 30;
+// Blue/green (CodeDeploy) services keep their previous default; their rollout was not measured with a longer one.
+const BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS = 2;
+
+/**
+ * Whether a rolling deployment succeeds as soon as every new task is healthy (ECS early success). ECS then drains and
+ * stops the old tasks in the background. A hotswap deploy finishes at that point; CloudFormation still waits for
+ * the old tasks to stop.
+ *
+ * ECS can only tell that a task is ready from a health check. A load balancer target group always has one. Tasks that
+ * receive traffic through ECS service discovery (`http-api-gateway` registers them in Cloud Map, `service-connect` in
+ * Service Connect) count as healthy as soon as they are RUNNING, unless an essential container has a container health
+ * check. Early success would then report the deploy done before the app may be listening, so those deploys keep
+ * waiting for the old tasks to stop. Blue/green (CodeDeploy) services do not support the setting.
+ */
+export const usesEarlyDeploymentSuccess = (workload: StpContainerWorkload) => {
+  if (workload.deployment) {
+    return false;
+  }
+  const receivesTrafficThroughServiceDiscovery = workload.containers.some(({ events }) =>
+    (events || []).some(({ type }) => type === 'http-api-gateway' || type === 'service-connect')
+  );
+  const hasEssentialHealthCheck = workload.containers.some(
+    ({ internalHealthCheck, essential }) => internalHealthCheck && essential !== false
+  );
+  return !receivesTrafficThroughServiceDiscovery || hasEssentialHealthCheck;
+};
+
 export const getContainerWorkloadTargetGroup = ({
   targetDetails,
   definition
@@ -892,7 +934,15 @@ export const getContainerWorkloadTargetGroup = ({
     Protocol: targetDetails.targetProtocol,
     TargetType: definition.resources.instanceTypes ? 'instance' : 'ip',
     VpcId: vpcManager.getVpcId(),
-    TargetGroupAttributes: [{ Key: 'deregistration_delay.timeout_seconds', Value: '5' }]
+    // Lets requests in flight on an old task finish before ECS stops it. Measured on Fargate, a full deploy took no
+    // longer with 30 seconds than with 5: stopping a task takes about a minute after the drain either way. Blue/green
+    // services keep the short drain because their CodeDeploy rollout was not measured with a longer one.
+    TargetGroupAttributes: [
+      {
+        Key: 'deregistration_delay.timeout_seconds',
+        Value: definition.deployment ? '5' : '30'
+      }
+    ]
   });
 
 export const getAutoScalingTarget = (workloadName: string, workload: StpContainerWorkload) => {
@@ -993,6 +1043,10 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
             Rollback: true
           }
         : undefined,
+      EarlySuccessCriteria:
+        !blueGreen && usesEarlyDeploymentSuccess(workload)
+          ? { Enable: true, HealthyPercent: 100, SourceServiceRevisionCleanup: 'DEFERRED' }
+          : undefined,
       MaximumPercent: 200,
       MinimumHealthyPercent: 100
     },
@@ -1097,14 +1151,25 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
   if (workload.resources.instanceTypes) {
     const dependencies = [
       cfLogicalNames.ecsDisableManagedTerminationProtectionCustomResource(workload.name),
-      cfLogicalNames.ecsEc2CapacityProviderAssociation(workload.name),
-      cfLogicalNames.routeTableToSubnetAssociation(true, 0),
-      cfLogicalNames.routeTableToSubnetAssociation(true, 1)
+      cfLogicalNames.ecsEc2CapacityProviderAssociation(workload.name)
     ];
 
-    // If using private subnets, also depend on NAT routes so instances can reach ECS API during draining
-    if (workload.usePrivateSubnetsWithNAT) {
-      dependencies.push(cfLogicalNames.natRoute(0), cfLogicalNames.natRoute(1), cfLogicalNames.natRoute(2));
+    // While the service drains, ECS waits for each instance's agent to report its tasks stopped. Deleting the
+    // service first keeps every subnet's internet path (the IGW routes, and the NAT routes for private subnets)
+    // in place until then; otherwise the agent goes offline and the delete hangs until CloudFormation times out.
+    if (!configManager.reuseVpcConfig) {
+      [0, 1, 2].forEach((subnetIndex) => {
+        dependencies.push(
+          cfLogicalNames.internetGatewayRoute(subnetIndex),
+          cfLogicalNames.routeTableToSubnetAssociation(true, subnetIndex)
+        );
+        if (workload.usePrivateSubnetsWithNAT) {
+          dependencies.push(
+            cfLogicalNames.natRoute(subnetIndex),
+            cfLogicalNames.routeTableToSubnetAssociation(false, subnetIndex)
+          );
+        }
+      });
     }
 
     service.DependsOn = ((service.DependsOn as string[]) || []).concat(dependencies);

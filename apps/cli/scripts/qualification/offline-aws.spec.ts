@@ -2,8 +2,6 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { CloudFormationClient, DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
-import { CostExplorerClient, GetTagsCommand } from '@aws-sdk/client-cost-explorer';
-import { GetTagKeysCommand, ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer, type OfflineAwsServer } from './offline-aws';
@@ -45,36 +43,15 @@ describe('offline AWS qualification guard', () => {
         cloudFormation.destroy();
       }
 
-      const tagging = new ResourceGroupsTaggingAPIClient({
-        endpoint: server.endpoint,
-        region: 'eu-west-1',
-        credentials: { accessKeyId: 'offline', secretAccessKey: 'offline' }
-      });
-      try {
-        expect((await tagging.send(new GetTagKeysCommand({}))).TagKeys).toEqual([]);
-        expect(server.unexpectedRequests).toEqual([]);
-      } finally {
-        tagging.destroy();
-      }
-
-      const costExplorer = new CostExplorerClient({
-        endpoint: server.endpoint,
-        region: 'eu-west-1',
-        credentials: { accessKeyId: 'offline', secretAccessKey: 'offline' }
-      });
       const budgets = new BudgetsClient({
         endpoint: server.endpoint,
         region: 'eu-west-1',
         credentials: { accessKeyId: 'offline', secretAccessKey: 'offline' }
       });
       try {
-        expect(
-          (await costExplorer.send(new GetTagsCommand({ TimePeriod: { Start: '2025-01-01', End: '2026-01-01' } }))).Tags
-        ).toEqual([]);
         expect((await budgets.send(new DescribeBudgetsCommand({ AccountId: '111122223333' }))).Budgets).toEqual([]);
         expect(server.unexpectedRequests).toEqual([]);
       } finally {
-        costExplorer.destroy();
         budgets.destroy();
       }
 

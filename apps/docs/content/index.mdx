@@ -93,6 +93,16 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
       { label: 'pnpm (global)', lang: 'bash', code: `pnpm add -g stacktape` },
       { label: 'pnpm (local)', lang: 'bash', code: `pnpm add stacktape` }
     ]} />
+    Or install the standalone binary, which needs no Node.js. The tab for your system is selected for you.
+    <CodeBlock tabs={[
+      { label: 'macOS (Apple silicon)', lang: 'bash', code: `curl -L https://installs.stacktape.com/macos-arm.sh | sh` },
+      { label: 'macOS (Intel)', lang: 'bash', code: `curl -L https://installs.stacktape.com/macos.sh | sh` },
+      { label: 'Linux (x64)', lang: 'bash', code: `curl -L https://installs.stacktape.com/linux.sh | sh` },
+      { label: 'Linux (ARM64)', lang: 'bash', code: `curl -L https://installs.stacktape.com/linux-arm.sh | sh` },
+      { label: 'Alpine Linux', lang: 'bash', code: `curl -L https://installs.stacktape.com/alpine.sh | sh` },
+      { label: 'Windows (x64)', lang: 'bash', code: `iwr https://installs.stacktape.com/windows.ps1 -useb | iex` },
+      { label: 'Windows (ARM64)', lang: 'bash', code: `iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex` }
+    ]} />
   </Step>
   <Step title="Initialize a project">
     Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
@@ -111,6 +121,7 @@ That's it — your app is now running on AWS. 🎉
 Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer.
 
 <CodeBlock
+  configExample="complete"
   tabs={[
     { label: 'stacktape.ts (recommended)', lang: 'typescript', code: `import { defineConfig } from 'stacktape';
 
@@ -216,6 +227,7 @@ export default defineConfig(({ stage }) => {
 Then add a bastion resource, so you can perform management tasks through a secure tunnel:
 
 <CodeBlock
+  configExample="fragment"
   intellisense
   tabs={[{
     label: 'stacktape.ts',
@@ -242,6 +254,7 @@ const migrationScript = new LocalScriptWithBastionTunneling({
 Need more control? Override or transform any AWS resource:
 
 <CodeBlock
+  configExample="fragment"
   intellisense
   tabs={[{
     label: 'stacktape.ts',

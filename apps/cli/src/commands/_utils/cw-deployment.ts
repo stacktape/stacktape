@@ -24,13 +24,14 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { compareEcsTaskDefinitions } from '@domain-services/deployed-stack-overview-manager/hotswap-utils';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { applyResourceOverride } from '@domain-services/template-manager/resource-overrides';
+import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { EcsServiceDeploymentStatusPoller } from 'src/aws/ecs-deployment-monitoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { tagNames } from '@stacktape/naming/tag-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
-import { lowerCaseFirstCharacterOfEveryWord, serialize } from '@utils/misc';
+import { lowerCaseFirstCharacterOfEveryWord, lowerCaseFirstCharacterOfObjectKeys, serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloudformation';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -138,8 +139,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
           workloadName: workload.name,
           workloadType: workload.configParentResourceType,
           containerName: containerDef.Name as string
-        }),
-        hotSwapDeploy: true
+        })
       }).imageTagWithUrl;
     }
     // we also substitute log group name with actual name; containers without awslogs (disabled
@@ -205,7 +205,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     ...calculatedTaskDefinition.Properties,
     ExecutionRoleArn: currentTaskDefinition.executionRoleArn,
     TaskRoleArn: currentTaskDefinition.taskRoleArn,
-    Tags: stackManager.getTags([{ name: tagNames.hotSwapDeploy(), value: 'true' }])
+    Tags: stackManager.getTags()
   };
 
   const { needsUpdate: ecsTaskDefinitionNeedsUpdate } = compareEcsTaskDefinitions({
@@ -233,12 +233,15 @@ export const updateEcsService = async ({
   blueGreen,
   ecsTaskDefinition,
   ecsService
-}: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
+}: Awaited<ReturnType<typeof getECSHotswapInformation>>): Promise<{ finishedWhen?: RollingUpdateFinish }> => {
   const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
     instanceId: workload.name,
     label: workload.name
   });
+  // The deployment status poller ignores deployments that started before this time. Reading AWS's clock is a request
+  // of its own, so it runs while the task definition is registered.
+  const updateStartTime = ecsService.needsUpdate ? getAwsSynchronizedTime() : undefined;
   let { taskDefinitionArn } = ecsTaskDefinition.currentState;
   if (ecsTaskDefinition.needsUpdate) {
     await updateWorkloadLogger.startEvent({
@@ -261,6 +264,7 @@ export const updateEcsService = async ({
     });
     const clusterName = ecsServiceArn.split('/')[1];
     const { stackName } = globalStateManager.targetStack;
+    let finishedWhen: RollingUpdateFinish = 'rollout-completed';
     const statusPoller = new EcsServiceDeploymentStatusPoller({
       ecsServiceArn,
       pollerPrintName: workload.nameChain[0],
@@ -268,7 +272,7 @@ export const updateEcsService = async ({
       observability: awsSdkManager.observability,
       printer: awsSdkManager.printer,
       region: awsSdkManager.region,
-      inspectDeploymentsCreatedAfterDate: await getAwsSynchronizedTime()
+      inspectDeploymentsCreatedAfterDate: await updateStartTime!
     });
     try {
       if (blueGreen) {
@@ -323,8 +327,9 @@ export const updateEcsService = async ({
         });
         await awsSdkManager.ecs.waitForCodeDeployUpdate({ deploymentId });
       } else {
-        const serviceRegistriesFromTemplate = (getEcsService({ workload, blueGreen: false }) as any).Properties
-          ?.ServiceRegistries;
+        const { ServiceRegistries: serviceRegistriesFromTemplate, DeploymentConfiguration } = (
+          getEcsService({ workload, blueGreen: false }) as KnownCloudFormationResource<'AWS::ECS::Service'>
+        ).Properties;
 
         const updateServiceInput: UpdateServiceCommandInput = {
           service: ecsServiceArn,
@@ -336,40 +341,57 @@ export const updateEcsService = async ({
                 stackManager.existingStackResources
               )
             : undefined,
-          forceNewDeployment: true,
-          deploymentConfiguration: {
-            // if set to 0, it can be a bit faster but there is downtime during deployment
-            minimumHealthyPercent: 100,
-            deploymentCircuitBreaker: {
-              enable: true,
-              rollback: true
-            }
-          }
+          forceNewDeployment: true
         };
 
+        // The template's deployment configuration with the same overrides CloudFormation applies, so a hotswap rolls
+        // out exactly like a CloudFormation deploy, including early success. Overrides are written in CloudFormation
+        // casing, so they are applied before the conversion to the SDK's casing.
+        const templateProperties: Record<string, any> = { DeploymentConfiguration: serialize(DeploymentConfiguration) };
         // we have to take overrides from the upmost parent
         const { overrides } = configManager.findResourceInConfig({ nameChain: workload.nameChain[0] })
           .resource as StpResource & { overrides?: ResourceOverrides };
         if (overrides) {
           Object.entries(overrides).forEach(([cfLogicalName, resourceOverrides]) => {
             if (cfLogicalName === cfLogicalNames.ecsService(workload.name, blueGreen)) {
-              Object.entries(resourceOverrides).forEach(([pathToProp, value]) =>
-                set(updateServiceInput, lowerCaseFirstCharacterOfEveryWord(pathToProp), value)
-              );
+              Object.entries(resourceOverrides).forEach(([pathToProp, value]) => {
+                if (pathToProp.split('.')[0] === 'DeploymentConfiguration') {
+                  applyResourceOverride(templateProperties, pathToProp, value);
+                } else {
+                  set(updateServiceInput, lowerCaseFirstCharacterOfEveryWord(pathToProp), value);
+                }
+              });
             }
           });
         }
+        if (templateProperties.DeploymentConfiguration) {
+          updateServiceInput.deploymentConfiguration = lowerCaseFirstCharacterOfObjectKeys(
+            serialize(templateProperties.DeploymentConfiguration)
+          );
+        }
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
-        await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
-        await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn });
+        const { deploymentId } = await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
+        ({ finishedWhen } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn, deploymentId }));
       }
     } finally {
       statusPoller.stopPolling();
     }
     await updateWorkloadLogger.finishEvent({
       eventType: 'UPDATE_ECS_SERVICE',
-      finalMessage: 'Service updated (new version running)'
+      finalMessage: {
+        'rollout-completed': 'Service updated (new version running)',
+        // The load balancer and API Gateway start routing to the new containers within seconds; no AWS API shows when.
+        'new-targets-healthy':
+          'New version healthy and registered with the load balancer; traffic moves to it within seconds. Old containers drain in the background',
+        'new-instances-discoverable':
+          "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background",
+        'new-targets-healthy-and-instances-discoverable':
+          "New version healthy and registered with the load balancer and API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background",
+        'new-tasks-healthy': 'New version healthy; old containers drain in the background'
+      }[finishedWhen]
     });
+    return { finishedWhen };
   }
+  return {};
 };

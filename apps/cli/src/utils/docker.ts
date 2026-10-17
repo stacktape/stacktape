@@ -1,13 +1,15 @@
 import type { StdTransformer } from '@utils/streams';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { exec } from '@utils/exec';
 import { transformToUnixPath } from '@utils/fs-utils';
 import { getByteSize } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { validateEnvVariableValue } from '@utils/validation';
-import { checkExecutableInPath, getPlatform } from './bin-executable';
+import { checkExecutableInPath } from './bin-executable';
 
 const STACKTAPE_BUILDER_NAME = 'stacktape-builder';
 
@@ -228,9 +230,9 @@ const handleDockerError = (err: Error, message?: string) => {
       message: 'Docker is not running.',
       hints: [
         'Make sure Docker Desktop is running.',
-        getPlatform() === 'win'
+        process.platform === 'win32'
           ? 'If Docker is installed, start Docker Desktop.'
-          : getPlatform() === 'macos'
+          : process.platform === 'darwin'
             ? 'If Docker is installed, start Docker Desktop from Applications.'
             : 'If Docker is installed, run `sudo systemctl start docker`.',
         'To install Docker, visit https://www.docker.com/products/docker-desktop/.'
@@ -622,6 +624,63 @@ export const dockerLogin = async ({
   );
 };
 
+/**
+ * Whether the local image store holds the image for `platform` (any platform when unset). With the classic store a
+ * tag holds one platform, so a pull for another architecture replaces it. The containerd store answers `/` for a
+ * platform it lacks; a Docker without `inspect --platform` is asked for the image's own platform instead.
+ */
+export const isDockerImagePresent = async ({
+  reference,
+  platform
+}: {
+  reference: string;
+  platform: string | undefined;
+}): Promise<boolean> => {
+  const inspect = async (args: string[]) => {
+    const { stdout } = await execDocker(
+      ['image', 'inspect', ...args, '--format', '{{.Os}}/{{.Architecture}}', reference],
+      {
+        skipHandleError: true
+      }
+    );
+    return stdout.trim();
+  };
+  try {
+    if (!platform) return Boolean(await inspect([]));
+    const answer = await inspect(['--platform', platform]).catch(() => inspect([]));
+    return answer === platform;
+  } catch {
+    return false;
+  }
+};
+
+/** Pulls an image into the local image store, for one platform when `platform` is set. */
+/**
+ * A pulled image's `reference` pinned to the digest it was pulled by, read from the local image store:
+ * `name:tag@sha256:...`. Undefined when the image is not local.
+ */
+export const getLocalImageDigestReference = async (reference: string): Promise<string | undefined> => {
+  try {
+    const { stdout } = await execDocker(['image', 'inspect', '--format', '{{json .RepoDigests}}', reference], {
+      skipHandleError: true
+    });
+    const lastSlash = reference.lastIndexOf('/');
+    const tagSeparator = reference.indexOf(':', lastSlash + 1);
+    const repository = tagSeparator === -1 ? reference : reference.slice(0, tagSeparator);
+    const repoDigests = (JSON.parse(stdout.trim() || '[]') as string[] | null) ?? [];
+    const digest = repoDigests.find((entry) => entry.startsWith(`${repository}@sha256:`))?.split('@')[1];
+    return digest ? `${reference}@${digest}` : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const pullDockerImage = async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
+  await execDocker(['pull', '--quiet', ...(platform ? ['--platform', platform] : []), reference], {
+    skipHandleError: true
+  });
+};
+
 export const tagDockerImage = async (sourceImage: string, newTag: string) => {
   const { stderr } = await execDocker(['tag', sourceImage, newTag]);
   if (stderr) {
@@ -785,9 +844,18 @@ export const buildDockerImage = async ({
     });
   }
 
+  // The build writes the ID of the image it produced here. The tag alone can still name an older image: a builder
+  // that keeps its result in its own cache (a `docker-container` builder selected with `BUILDX_BUILDER`, say) leaves
+  // the tag where it was, and another build with the same tag can move it before this image is pushed.
+  const iidDirectory = await mkdtemp(join(tmpdir(), 'stp-image-id-'));
+  const iidFilePath = join(iidDirectory, 'id');
   const command = [
-    // Use buildx with docker-container builder when remote cache is enabled (required for cache export)
-    ...(useRemoteCache ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME, '--load'] : ['build']),
+    // The registry cache needs the docker-container builder. Every build loads its image into the local image store,
+    // whichever builder runs it.
+    ...(useRemoteCache ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME] : ['build']),
+    '--load',
+    '--iidfile',
+    iidFilePath,
     ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
     '-t',
     imageTag,
@@ -803,16 +871,35 @@ export const buildDockerImage = async ({
   ];
 
   let stderr: string | undefined;
+  let imageId = '';
   try {
     ({ stderr } = await execDocker(command, {
-      env: { ...secretsPassthrough.env, ...buildArgsPassthrough.env },
+      env: {
+        // With the containerd image store, a build also stores a provenance attestation, and the image becomes an
+        // index of two manifests. Nothing that runs the image reads it, and pushing it costs about 0.3 s per image.
+        BUILDX_NO_DEFAULT_ATTESTATIONS: '1',
+        ...secretsPassthrough.env,
+        ...buildArgsPassthrough.env
+      },
       // A failing install or build step can echo a secret; the rejection this call turns into a CliError must not.
       redactedValues: Object.values(secretsPassthrough.env)
     }));
+    imageId = (await readFile(iidFilePath, 'utf8').catch(() => '')).trim();
   } catch (err) {
     handleDockerError(err, `Error building docker image ${imageTag}:\n${err.message}`);
+  } finally {
+    await rm(iidDirectory, { recursive: true, force: true });
   }
-  const imageDetails = await getDockerImageDetails(imageTag);
+  if (!imageId) {
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_IMAGE_NOT_LOADED',
+      message: `Docker built image ${imageTag} but did not report it in the local image store.`,
+      hints:
+        'Use a Docker builder that can load images into the local image store, for example by unsetting BUILDX_BUILDER.'
+    });
+  }
+  const imageDetails = await getDockerImageDetails(imageId);
   // A successful build step can echo a secret too; the captured output travels into packaging details and logs.
   return {
     ...imageDetails,

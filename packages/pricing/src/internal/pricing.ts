@@ -5,6 +5,7 @@ import { camelCase } from 'change-case';
 import { createReadStream, remove } from 'fs-extra';
 import Downloader from 'nodejs-file-downloader';
 import type { StacktapeConfig } from '@stacktape/config';
+import { DEFAULT_NAT_INSTANCE_SIZE } from '@stacktape/config/nat';
 import type { RdsEngine } from '@stacktape/config/relational-databases';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 import {
@@ -12,7 +13,7 @@ import {
   type NormalizedRelationalDatabaseEngine
 } from '@stacktape/config/relational-database-engines';
 import type { AwsServiceCsvOfferCode, PricingInfo, RegionalPricingInfo } from '../catalog';
-import type { ResourcePricingInformation } from '../estimator';
+import type { ProductCostInformation, ResourcePricingInformation, StackPricingEstimate } from '../estimator';
 
 const chunkArray = <Item>(items: Item[], chunkSize: number): Item[][] => {
   return Array.from({ length: Math.ceil(items.length / chunkSize) }, (_, index) =>
@@ -142,6 +143,15 @@ const productsInfo = {
     })
   },
 
+  AmazonVPC: {
+    natGateway: () => {
+      return {
+        name: 'VPC-nat-gateway',
+        description: 'Price for a NAT Gateway (hourly; data processing of $0.045 per GB is charged on top)',
+        priceModel: 'flat'
+      };
+    }
+  },
   AmazonEC2: {
     publicIp: () => {
       return {
@@ -394,16 +404,16 @@ const productNameBuilders: {
           : undefined;
   },
   AmazonEFS: ({ storageClass, productFamily, operation, throughputClass }) => {
-    if (productFamily !== 'Storage' && storageClass === 'General Purpose') {
+    if (productFamily === 'Storage' && storageClass === 'General Purpose') {
       return productsInfo.AmazonEFS.storage().name;
     }
-    if (productFamily !== 'Storage' && storageClass === 'EFS Storage' && operation === 'Write') {
+    if (productFamily === 'Storage' && storageClass === 'EFS Storage' && operation === 'Write') {
       return productsInfo.AmazonEFS.elasticWrites().name;
     }
-    if (productFamily !== 'Storage' && storageClass === 'EFS Storage' && operation === 'Read') {
+    if (productFamily === 'Storage' && storageClass === 'EFS Storage' && operation === 'Read') {
       return productsInfo.AmazonEFS.elasticReads().name;
     }
-    if (productFamily !== 'Provisioned Throughput' && throughputClass === 'Provisioned') {
+    if (productFamily === 'Provisioned Throughput' && throughputClass === 'Provisioned') {
       return productsInfo.AmazonEFS.provisionedThroughput().name;
     }
     return undefined;
@@ -577,8 +587,8 @@ const productNameBuilders: {
                 ? productsInfo.AmazonDynamoDB.pitrStorage().name
                 : undefined;
   },
-  AmazonApiGateway: ({ description, productFamily }) => {
-    return description === 'HTTP API Requests' && productFamily === 'API Calls'
+  AmazonApiGateway: ({ description, productFamily, startingRange }) => {
+    return description === 'HTTP API Requests' && productFamily === 'API Calls' && Number(startingRange) === 0
       ? productsInfo.AmazonApiGateway.httpApiRequests().name
       : undefined;
   },
@@ -709,6 +719,7 @@ export const downloadSimplePricingInfo = async ({
 };
 
 const SERVICES_WITH_STATIC_PRICES: {
+  AmazonVPC: PricingInfo;
   AtlasMongo: PricingInfo;
   awswaf: PricingInfo;
   AWSEvents: PricingInfo;
@@ -743,7 +754,7 @@ const SERVICES_WITH_STATIC_PRICES: {
       [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '3.95' }
     },
     [productsInfo.AtlasMongo.cluster({ clusterTier: 'M80' }).name]: {
-      [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '7,30' }
+      [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '7.30' }
     },
     [productsInfo.AtlasMongo.cluster({ clusterTier: 'M140' }).name]: {
       [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '10.99' }
@@ -797,6 +808,13 @@ const SERVICES_WITH_STATIC_PRICES: {
     [productsInfo.AmazonEC2.publicIp().name]: {
       [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '0.005' }
     }
+  },
+  AmazonVPC: {
+    // The lowest common regional price; a few regions charge up to $0.065/hr. The AmazonVPC offer file is large and
+    // the rate rarely changes, so it is kept static like the public IPv4 charge.
+    [productsInfo.AmazonVPC.natGateway().name]: {
+      [ALL_REGIONS_MACRO]: { currency: 'USD', unit: 'hr', pricePerUnit: '0.045' }
+    }
   }
 };
 
@@ -815,20 +833,30 @@ const formatCostInfo = ({
   productInfo: ProductInfo & { multiplier?: number; upperThresholdMultiplier?: number };
   productPricingInfo: PricingInfo[string];
   region: string;
-}) => {
-  if (!productPricingInfo) {
+}): ProductCostInformation => {
+  const regionalProductPricingInfo = productPricingInfo?.[region] || productPricingInfo?.[ALL_REGIONS_MACRO];
+  const rate = Number(regionalProductPricingInfo?.pricePerUnit);
+  if (
+    !regionalProductPricingInfo ||
+    regionalProductPricingInfo.currency !== 'USD' ||
+    !regionalProductPricingInfo.pricePerUnit.trim() ||
+    !Number.isFinite(rate) ||
+    rate < 0 ||
+    !regionalProductPricingInfo.unit?.trim() ||
+    (productInfo.priceModel === 'flat' &&
+      !regionalProductPricingInfo.unit.toLowerCase().includes('mo') &&
+      !['hr', 'hrs', 'hour', 'hours'].includes(regionalProductPricingInfo.unit.toLowerCase()))
+  ) {
     console.error(`Unable to get pricing info for product: ${productInfo.name} (${productInfo.description})`);
     return {
       unsupportedProduct: true,
-      pricePerMonth: 0,
       ...productInfo
     };
   }
-  const regionalProductPricingInfo = productPricingInfo[region] || productPricingInfo[ALL_REGIONS_MACRO];
   return {
     pricePerUnit: Number(regionalProductPricingInfo.pricePerUnit),
     unit: regionalProductPricingInfo.unit,
-    adjustedPrice: Number(regionalProductPricingInfo.pricePerUnit) * (productInfo.multiplier || 1),
+    adjustedPrice: rate * (productInfo.multiplier ?? 1),
     // we are assuming all flat prices are in "per hour shape"
     pricePerMonth:
       productInfo.priceModel === 'flat' &&
@@ -851,21 +879,27 @@ const getProductsPricingInfoFromDynamoTable = async ({
   dynamoDbTableName: string;
 }) => {
   const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-  const response = await docClient.send(
-    new BatchGetCommand({
-      RequestItems: {
-        [dynamoDbTableName]: { Keys: Array.from(new Set(products)).map((productName) => ({ productName })) }
-      }
-    })
-  );
-  const items = response.Responses?.[dynamoDbTableName];
-  if (!items) {
-    throw new Error(`DynamoDB returned no pricing response for table "${dynamoDbTableName}".`);
+  let keys = Array.from(new Set(products)).map((productName) => ({ productName }));
+  const prices: PricingInfo = {};
+  for (let attempt = 0; keys.length && attempt < 4; attempt++) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- retry only the keys DynamoDB did not process
+    const response = await docClient.send(
+      new BatchGetCommand({ RequestItems: { [dynamoDbTableName]: { Keys: keys } } })
+    );
+    if (!response.Responses?.[dynamoDbTableName] && !response.UnprocessedKeys?.[dynamoDbTableName]) {
+      throw new Error(`DynamoDB returned no pricing response for table "${dynamoDbTableName}".`);
+    }
+    for (const item of response.Responses?.[dynamoDbTableName] ?? []) {
+      prices[item.productName] = item.prices;
+    }
+    keys = (response.UnprocessedKeys?.[dynamoDbTableName]?.Keys ?? []) as typeof keys;
+    if (keys.length && attempt < 3) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- bound throttling retries with exponential backoff
+      await new Promise((resolve) => setTimeout(resolve, 25 * 2 ** attempt));
+    }
   }
-  return items.reduce((obj, item) => {
-    obj[item.productName] = item.prices;
-    return obj;
-  }, {}) as PricingInfo;
+  // Unprocessed products remain absent and are reported as unsupported in the breakdown.
+  return prices;
 };
 
 const getCumulatedPriceInfoForProducts = async ({
@@ -898,6 +932,7 @@ const getCumulatedPriceInfoForProducts = async ({
     .reduce<number>((acc, pricePerMonth) => acc + Number(pricePerMonth), 0);
   return {
     totalMonthlyFlat,
+    incomplete: costBreakdown.some((product) => product.unsupportedProduct === true),
     costBreakdown
   };
 };
@@ -1844,28 +1879,91 @@ export const loadProductPricesIntoDynamoTable = async ({
   return Promise.all(
     chunkArray(Object.entries(prices), 25).map(async (chunk) => {
       try {
-        return await documentClient.send(
-          new BatchWriteCommand({
-            RequestItems: {
-              [dynamoDbTableName]: chunk.map(([productName, value]) => {
-                return {
-                  PutRequest: {
-                    Item: serialize({
-                      productName,
-                      prices: value
-                    })
-                  }
-                };
-              })
-            }
-          })
-        );
+        let requests = chunk.map(([productName, regionalPrices]) => ({
+          PutRequest: { Item: serialize({ productName, prices: regionalPrices }) }
+        }));
+        for (let attempt = 0; attempt < 4; attempt++) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- retry only writes DynamoDB did not process
+          const response = await documentClient.send(
+            new BatchWriteCommand({ RequestItems: { [dynamoDbTableName]: requests } })
+          );
+          requests = (response.UnprocessedItems?.[dynamoDbTableName] ?? []) as typeof requests;
+          if (!requests.length) return response;
+          if (attempt < 3) {
+            // oxlint-disable-next-line eslint/no-await-in-loop -- bound throttling retries with exponential backoff
+            await new Promise((resolve) => setTimeout(resolve, 25 * 2 ** attempt));
+          }
+        }
+        throw new Error(`DynamoDB did not write ${requests.length} pricing item(s) to "${dynamoDbTableName}".`);
       } catch (err) {
         console.info(chunk.map(([productName, value]) => `${productName}: ${JSON.stringify(value)}`).join('\n'));
         throw err;
       }
     })
   );
+};
+
+/** The breakdown key of the stack-level NAT entry; it is not a resource name, which cannot contain a space. */
+export const NAT_BREAKDOWN_KEY = 'vpc nat';
+
+/**
+ * NAT is a stack-level cost that exists when a container workload uses the private subnets or when `vpc.nat` is set
+ * and a function joins the VPC. Each zone costs one gateway (or one instance) plus its public IP.
+ */
+const getNatPricingInformation = async ({
+  stackConfig,
+  region,
+  dynamoDbTableName
+}: {
+  stackConfig: StacktapeConfig;
+  region: string;
+  dynamoDbTableName: string;
+}): Promise<ResourcePricingInformation | null> => {
+  // A reused VPC brings its owner's NAT; this stack pays nothing for it.
+  if (stackConfig.stackConfig?.vpc?.reuseVpc) return null;
+  const rawNat = stackConfig.stackConfig?.nat;
+  const nat = typeof rawNat === 'string' ? { type: rawNat } : rawNat;
+  const resources = Object.values(stackConfig.resources ?? {});
+  const containerUsesNat = resources.some(
+    (resource) =>
+      (resource as { properties?: { usePrivateSubnetsWithNAT?: boolean } }).properties?.usePrivateSubnetsWithNAT
+  );
+  const functionUsesNat =
+    Boolean(nat) &&
+    resources.some(
+      (resource) => (resource as { properties?: { joinDefaultVpc?: boolean } }).properties?.joinDefaultVpc
+    );
+  if (!containerUsesNat && !functionUsesNat) return null;
+  const type = nat?.type ?? 'gateway';
+  const zones = type === 'ec2' ? 1 : (nat?.availabilityZones ?? 2);
+  const perZone =
+    type === 'gateway'
+      ? productsInfo.AmazonVPC.natGateway()
+      : productsInfo.AmazonEC2.instance({
+          instanceType: nat?.instanceSize || DEFAULT_NAT_INSTANCE_SIZE,
+          operatingSystem: 'Linux'
+        });
+  const priceInfo = await getCumulatedPriceInfoForProducts({
+    dynamoDbTableName,
+    region,
+    products: [
+      { ...perZone, multiplier: zones },
+      { ...productsInfo.AmazonEC2.publicIp(), multiplier: zones }
+    ]
+  });
+  return {
+    priceInfo,
+    customComment:
+      type === 'gateway'
+        ? `${zones} NAT Gateway${zones > 1 ? 's' : ''} (one per availability zone). AWS also charges $0.045 per GB processed by the gateways.`
+        : type === 'ec2'
+          ? '1 NAT instance (no failover). Data transfer out of AWS is charged at the EC2 rate; there is no per-GB NAT processing charge.'
+          : `${zones} NAT instances (one per availability zone, automatic failover). Data transfer out of AWS is charged at the EC2 rate; there is no per-GB NAT processing charge.`,
+    relatedAwsPricingDocs:
+      type === 'gateway'
+        ? { 'AWS NAT Gateway pricing': 'https://aws.amazon.com/vpc/pricing/' }
+        : { 'AWS EC2 pricing': 'https://aws.amazon.com/ec2/pricing/on-demand/' }
+  };
 };
 
 export const getCumulatedPriceInfoForStack = async ({
@@ -1878,9 +1976,10 @@ export const getCumulatedPriceInfoForStack = async ({
   dynamoDbTableName: string;
 }) => {
   const resourcesBreakdown: { [resourceName: string]: ResourcePricingInformation } = {};
+  const unpricedResources: string[] = [];
   let flatMonthlyCost = 0;
-  await Promise.all(
-    Object.entries(stackConfig.resources).map(async ([resourceName, resourceConfig]) => {
+  await Promise.all([
+    ...Object.entries(stackConfig.resources).map(async ([resourceName, resourceConfig]) => {
       const priceBreakdown = await getPricingInformationForResource({
         resource: resourceConfig,
         region,
@@ -1892,13 +1991,32 @@ export const getCumulatedPriceInfoForStack = async ({
       if (priceBreakdown !== null) {
         resourcesBreakdown[resourceName] = priceBreakdown;
         flatMonthlyCost += priceBreakdown.priceInfo.totalMonthlyFlat;
+      } else {
+        unpricedResources.push(resourceName);
       }
-    })
-  );
+    }),
+    (async () => {
+      let failed = false;
+      const priceBreakdown = await getNatPricingInformation({ stackConfig, region, dynamoDbTableName }).catch((err) => {
+        console.error(err);
+        failed = true;
+        return null;
+      });
+      if (priceBreakdown !== null) {
+        resourcesBreakdown[NAT_BREAKDOWN_KEY] = priceBreakdown;
+        flatMonthlyCost += priceBreakdown.priceInfo.totalMonthlyFlat;
+      } else if (failed) {
+        unpricedResources.push(NAT_BREAKDOWN_KEY);
+      }
+    })()
+  ]);
   return {
     flatMonthlyCost,
+    incomplete:
+      unpricedResources.length > 0 || Object.values(resourcesBreakdown).some(({ priceInfo }) => priceInfo.incomplete),
+    unpricedResources: unpricedResources.toSorted(),
     resourcesBreakdown
-  };
+  } satisfies StackPricingEstimate;
 };
 
 export const refreshPricingTable = async ({

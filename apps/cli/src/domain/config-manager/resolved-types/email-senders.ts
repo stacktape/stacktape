@@ -6,10 +6,3 @@ export type StpEmailSender = EmailSender['properties'] & {
   configParentResourceType: EmailSender['type'];
   nameChain: string[];
 };
-
-export type EmailSenderReferencableParam =
-  | 'identity'
-  | 'identityArn'
-  | 'region'
-  | 'configurationSetName'
-  | 'feedbackTopicArn';

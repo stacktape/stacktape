@@ -2,11 +2,12 @@
 
 $ErrorActionPreference = 'Stop'
 
-# Colors
-$Green = "`e[32m"
-$Muted = "`e[2m"
-$Bold = "`e[1m"
-$Reset = "`e[0m"
+# Colors. Windows PowerShell 5.1, where `iwr | iex` usually runs, has no `e escape.
+$Escape = [char]27
+$Green = "$Escape[32m"
+$Muted = "$Escape[2m"
+$Bold = "$Escape[1m"
+$Reset = "$Escape[0m"
 
 function Write-ColorOutput {
     param(
@@ -34,7 +35,11 @@ $AltExecutableFilePath = "$BinDirPath\stp.exe"
 $EsbuildExecutableFilePath = "$BinDirPath\esbuild\exec.exe"
 $BridgeFilesFolderPath = "$BinDirPath\bridge-files"
 $ZipFilePath = "$BinDirPath\stacktape.zip"
-$ZipSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/windows.zip"
+# Install the build this machine's processor runs, whichever Windows installer was copied. The registry names the
+# operating system's architecture even when this PowerShell is an x64 process under ARM64 emulation.
+$MachineArchitecture = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').PROCESSOR_ARCHITECTURE
+$ArchiveName = if ($MachineArchitecture -eq 'ARM64') { 'windows-arm.zip' } else { 'windows.zip' }
+$ZipSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/$ArchiveName"
 $ChecksumsFilePath = "$BinDirPath\SHA256SUMS"
 $ChecksumsSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/SHA256SUMS"
 # SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
@@ -69,12 +74,12 @@ try {
 
 if ($ChecksumRequired) {
     $ChecksumEntry = Get-Content $ChecksumsFilePath | Where-Object {
-        $_ -match '^([a-fA-F0-9]{64})\s{2}windows\.zip$'
+        $_ -match "^([a-fA-F0-9]{64})\s{2}$([regex]::Escape($ArchiveName))$"
     }
     if (@($ChecksumEntry).Count -ne 1) {
         Remove-Item $ZipFilePath -ErrorAction SilentlyContinue
         Remove-Item $ChecksumsFilePath -ErrorAction SilentlyContinue
-        throw "Missing or duplicate checksum for windows.zip."
+        throw "Missing or duplicate checksum for $ArchiveName."
     }
     $ChecksumLine = @($ChecksumEntry)[0]
     $ExpectedChecksum = ([regex]::Match($ChecksumLine, '^([a-fA-F0-9]{64})')).Groups[1].Value
@@ -82,7 +87,7 @@ if ($ChecksumRequired) {
     if ($ActualChecksum -ne $ExpectedChecksum) {
         Remove-Item $ZipFilePath -ErrorAction SilentlyContinue
         Remove-Item $ChecksumsFilePath -ErrorAction SilentlyContinue
-        throw "Checksum verification failed for windows.zip. The downloaded archive was not installed."
+        throw "Checksum verification failed for $ArchiveName. The downloaded archive was not installed."
     }
     Remove-Item $ChecksumsFilePath
 }

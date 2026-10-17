@@ -238,10 +238,7 @@ import { defineConfig, SolidStartWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new SolidStartWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'PUBLIC_API_URL', value: 'https://api.example.com' }
-    ]
+    environment: { APP_ENV: 'production', PUBLIC_API_URL: 'https://api.example.com' }
   });
 
   return { resources: { web } };

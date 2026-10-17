@@ -9,6 +9,7 @@ import {
   type CycloneDxDocument,
   type InventoryPart,
   type InventorySummary,
+  inventoryContentDigest,
   mergeInventoryParts,
   parseCycloneDx,
   summarizeInventory
@@ -39,6 +40,8 @@ export type SecurityInventoryCarryOver = { workload: string; artifactDigest: str
 export type SecurityInventoryResult = {
   filePath: string;
   sha256: string;
+  /** Digest of the recorded packages alone; equal across deployments whose dependencies did not change. */
+  contentSha256: string;
   sizeBytes: number;
   specVersion: string;
   summary: InventorySummary;
@@ -195,6 +198,7 @@ export const buildSecurityInventory = async ({
   return {
     filePath,
     sha256: createHash('sha256').update(text).digest('hex'),
+    contentSha256: inventoryContentDigest(document),
     sizeBytes: Buffer.byteLength(text),
     specVersion: document.specVersion,
     summary: summarizeInventory(document),

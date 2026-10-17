@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "packageManager": "pnpm",
+  "workspaceGlobs": [],
+  "services": [
+    {
+      "name": "app",
+      "path": ".",
+      "language": "javascript",
+      "framework": "nextjs",
+      "exposesHttp": true,
+      "longLivedConnections": "none",
+      "executionModel": "long-running",
+      "buildCommand": "pnpm build",
+      "startCommand": "pnpm start",
+      "functionTriggers": [],
+      "environmentVariables": [
+        {
+          "name": "POSTGRES_URL",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "package.json",
+              "line": 29,
+              "quote": "\"postgres\""
+            },
+            {
+              "file": ".env.example",
+              "line": 3,
+              "quote": "POSTGRES_URL="
+            }
+          ]
+        },
+        {
+          "name": "AUTH_SECRET",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "lib/auth/session.ts",
+              "line": 6,
+              "quote": "process.env.AUTH_SECRET"
+            }
+          ]
+        },
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "lib/payments/stripe.ts",
+              "line": 10,
+              "quote": "process.env.STRIPE_SECRET_KEY"
+            }
+          ]
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/api/stripe/webhook/route.ts",
+              "line": 5,
+              "quote": "process.env.STRIPE_WEBHOOK_SECRET"
+            }
+          ]
+        },
+        {
+          "name": "BASE_URL",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "lib/payments/stripe.ts",
+              "line": 36,
+              "quote": "process.env.BASE_URL"
+            },
+            {
+              "file": "lib/payments/stripe.ts",
+              "line": 37,
+              "quote": "process.env.BASE_URL"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "field": "startCommand",
+          "file": "package.json",
+          "line": 6,
+          "quote": "\"start\":"
+        },
+        {
+          "field": "buildCommand",
+          "file": "package.json",
+          "line": 5,
+          "quote": "\"build\":"
+        },
+        {
+          "file": "package.json",
+          "line": 27,
+          "quote": "\"next\""
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "mainDatabase",
+      "kind": "postgres",
+      "extensions": [],
+      "consumedBy": ["app"],
+      "addressedBy": ["POSTGRES_URL"],
+      "evidence": [
+        {
+          "file": "package.json",
+          "line": 29,
+          "quote": "\"postgres\""
+        },
+        {
+          "file": ".env.example",
+          "line": 3,
+          "quote": "POSTGRES_URL="
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "existingDeployments": [],
+  "migrations": [
+    {
+      "serviceName": "app",
+      "tool": "drizzle",
+      "command": "npx drizzle-kit migrate",
+      "runsAt": "unknown",
+      "evidence": [
+        {
+          "file": "package.json",
+          "line": 23,
+          "quote": "\"drizzle-kit\""
+        }
+      ]
+    }
+  ],
+  "uncertainties": [],
+  "notes": []
+}

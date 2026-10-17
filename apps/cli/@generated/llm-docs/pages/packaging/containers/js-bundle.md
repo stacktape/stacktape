@@ -72,6 +72,13 @@ The `cpu` and `memory` values belong to the web service, not to packaging. See [
 3. The bundle and those dependencies are copied into an Alpine-based Node.js image.
 4. The image is pushed to a managed ECR repository.
 
+The image holds the runtime and your code, with nothing else installed:
+
+- **No init process in the image.** ECS and AWS Batch start one as PID 1 (`initProcessEnabled`). It passes the stop signal to your server and reaps orphaned processes. An AgentCore runtime cannot start one, so its image gets `tini`.
+- **curl only for health checks.** When the container's `internalHealthCheck` command calls `curl`, the image installs it. BusyBox `wget` is always available on Alpine.
+- **OpenSSL.** The Alpine image already has the OpenSSL 3 libraries that Prisma and other native packages load. When your code, or a package installed beside the bundle, uses Prisma, it also gets the `openssl` command, which Prisma 5 needs to choose its query engine. The glibc image (`requiresGlibcBinaries`) installs `openssl`. Install anything else, such as the `openssl` command for your own code, with `customDockerBuildCommands`.
+- **Prisma query engine.** Prisma's client is bundled, and the image gets only the query engine its platform loads. With Prisma 5 or 6, add that engine to `binaryTargets` in `schema.prisma`: `linux-musl-openssl-3.0.x` for the Alpine image, `debian-openssl-3.0.x` for the glibc, Bun and Deno images, and `linux-musl-arm64-openssl-3.0.x` or `linux-arm64-openssl-3.0.x` on arm64. Prisma 7 needs no engine.
+
 Artifacts are cached by a checksum of their inputs. When the code and dependencies have not changed, Stacktape does not build the image again.
 
 ## Bundling options
@@ -91,7 +98,7 @@ export default defineConfig(() => {
       nodeVersion: 22,
       outputModuleFormat: 'esm',
       emitTsDecoratorMetadata: true,
-      dependenciesToExcludeFromBundle: ['@prisma/client']
+      dependenciesToExcludeFromBundle: ['dd-trace']
     }),
     resources: {
       cpu: 0.25,
@@ -106,7 +113,7 @@ export default defineConfig(() => {
 ```
 
 
-`dependenciesToExcludeFromBundle: ['@prisma/client']` is an example. List the packages your application cannot bundle, or omit the property.
+`dependenciesToExcludeFromBundle: ['dd-trace']` is an example: an APM agent instruments other modules as they load from `node_modules`. List the packages your application cannot bundle, or omit the property. Native packages, packages that read their own files and Prisma's client work without it.
 
 ### Module format
 

@@ -4,8 +4,10 @@ import type { Directive } from '@domain-services/config-manager/directive-types'
 import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
 import type { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import type { stackManager } from '@domain-services/cloudformation-stack-manager';
+import type { configManager } from '@domain-services/config-manager';
 import type { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import type { templateManager } from '@domain-services/template-manager';
+import { getReferenceableParamNames, isReferenceableParam } from '@stacktape/config-authoring/resource-metadata';
 import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { serialize } from '@utils/misc';
@@ -24,11 +26,17 @@ import { configErrors } from './errors';
 export type BuiltInDirectiveContext = Readonly<{
   runtime: Readonly<{
     calculatedStackOverviewManager: Pick<typeof calculatedStackOverviewManager, 'getStpResource'>;
+    configManager: Pick<typeof configManager, 'findResourceInConfig'>;
     deployedStackOverviewManager: Pick<typeof deployedStackOverviewManager, 'getStpResource'>;
     stackManager: Pick<typeof stackManager, 'getExistingResourceDetails' | 'existingStackDetails'>;
     templateManager: Pick<typeof templateManager, 'template' | 'addFinalTemplateOverrideFn' | 'addStackOutput'>;
   }>;
   accountId: string;
+  /**
+   * Looks up the AWS account where a command does that only when something needs it (`package`). Directives that may
+   * read AWS or the account wait for it.
+   */
+  ensureAwsAccount?: () => Promise<void>;
   additionalArgs: Readonly<Record<string, string | boolean>>;
   awsProfile: string;
   cliArgs: Readonly<StacktapeArgs>;
@@ -39,10 +47,46 @@ export type BuiltInDirectiveContext = Readonly<{
   workingDir: string;
 }>;
 
+/** Directives that read only the configuration, local files and the invocation, never AWS or the AWS account. */
+const LOCAL_DIRECTIVES = new Set([
+  'File',
+  'FileRaw',
+  'CliArgs',
+  'Stage',
+  'Region',
+  'Profile',
+  'Format',
+  'Var',
+  'This',
+  'GitInfo'
+]);
+
+/** Looks up the AWS account before the directive runs, for commands that look it up only when needed. */
+const withAwsAccount = (directive: Directive, ensureAwsAccount: () => Promise<void>): Directive => {
+  const { resolveFunction, localResolveFunction } = directive;
+  return {
+    ...directive,
+    resolveFunction:
+      (resolver) =>
+      async (...args: unknown[]) => {
+        await ensureAwsAccount();
+        return resolveFunction(resolver)(...args);
+      },
+    ...(localResolveFunction && {
+      localResolveFunction:
+        (resolver) =>
+        async (...args: unknown[]) => {
+          await ensureAwsAccount();
+          return localResolveFunction(resolver)(...args);
+        }
+    })
+  };
+};
+
 export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Directive[] => {
-  const { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager } =
+  const { calculatedStackOverviewManager, configManager, deployedStackOverviewManager, stackManager, templateManager } =
     context.runtime;
-  return [
+  const directives: Directive[] = [
     {
       name: 'File',
       isRuntime: false,
@@ -165,37 +209,47 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         }
         return resource.referencableParams[property].value;
       },
+      // Reads the deployed stack. A parameter can be missing there because its resource is not deployed yet or because
+      // this deployment adds it, such as `customDomainUrl` of an API that gets its first custom domain; a name the
+      // resource type never exposes is a mistake in the configuration.
       localResolveFunction: () => (resourceReference: string, property: string) => {
-        const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });
-        const value = resource?.referencableParams?.[property]?.value;
-        const isLocalInvoke = context.command === 'dev';
-        if (!resource) {
+        const deployedResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });
+        const value = deployedResource?.referencableParams?.[property]?.value;
+        if (value !== undefined && value !== null) {
+          return value;
+        }
+        const configured = configManager.findResourceInConfig({ nameChain: resourceReference });
+        const resourceType = (configured.fullyResolved && configured.resource?.type) || deployedResource?.resourceType;
+        if (!resourceType) {
           throw configErrors.directiveResourceNotFound({
             resourceName: resourceReference,
             directiveType: '$ResourceParam'
           });
         }
-        if (resource.referencableParams?.[property] === undefined) {
+        if (!isReferenceableParam(resourceType, property)) {
           throw configErrors.directiveResourceParameterInvalid({
             resourceName: resourceReference,
             referencedParam: property,
-            referencableParams: Object.keys(resource.referencableParams || {}),
+            referencableParams: getReferenceableParamNames(resourceType),
             directiveType: '$ResourceParam'
           });
         }
-        if (value === undefined || value === null) {
-          if (isLocalInvoke && context.disableEmulation) {
-            return IDENTIFIER_FOR_MISSING_OUTPUT;
-          }
-          throw new CliError({
-            category: 'DIRECTIVE',
-            code: 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED',
-            message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`,
-            hints: isLocalInvoke ? getDisableEmulationHint() : undefined
+        if (!deployedResource) {
+          throw configErrors.directiveResourceNotDeployed({
+            resourceName: resourceReference,
+            directiveType: '$ResourceParam'
           });
         }
-
-        return value;
+        const isLocalInvoke = context.command === 'dev';
+        if (isLocalInvoke && context.disableEmulation) {
+          return IDENTIFIER_FOR_MISSING_OUTPUT;
+        }
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED',
+          message: `Resource \`${resourceReference}\` has no deployed value of \`${property}\` yet.`,
+          hints: isLocalInvoke ? getDisableEmulationHint() : undefined
+        });
       }
     },
     {
@@ -239,8 +293,10 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       },
       localResolveFunction: () => (resourceName: string, property: string) => {
         const isResourceDeployed = stackManager.getExistingResourceDetails(resourceName);
+        // The logical IDs of the resources Stacktape creates are known only once the template is built, so a name that
+        // is not deployed may be one of them.
         if (!isResourceDeployed) {
-          throw configErrors.directiveResourceNotFound({ resourceName, directiveType: '$CfResourceParam' });
+          throw configErrors.directiveResourceNotDeployed({ resourceName, directiveType: '$CfResourceParam' });
         }
         const outputName = getStackOutputName(resourceName, property);
         const output = stackManager.existingStackDetails?.stackOutput[outputName];
@@ -306,20 +362,34 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       },
       localResolveFunction: () => async (secretReference: string) => {
         const secretName = secretReference.split('.')[0];
-        const secretVersionId =
-          stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];
         try {
-          const { SecretString: secretValue } = await awsSdkManager.secrets.get({
-            secretId: secretName,
-            versionId: secretVersionId
-          });
+          const { SecretString: secretValue } = await awsSdkManager.secrets.get({ secretId: secretName });
           if (!secretValue) {
             throw new Error(`Secret "${secretName}" is not valid string secret.`);
           }
           const jsonKey = secretReference.split('.')[1];
-          const finalValue = jsonKey ? JSON.parse(secretValue)[jsonKey] : secretValue;
-          if (finalValue === undefined) {
-            throw new Error(`Secret "${secretName}" does not contain property "${jsonKey}"`);
+          let finalValue = secretValue;
+          if (jsonKey) {
+            let parsedSecret: unknown;
+            try {
+              parsedSecret = JSON.parse(secretValue);
+            } catch (error) {
+              // The parser quotes the token it stopped at, which is part of the secret value; only the cause keeps it.
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_INVALID',
+                message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+                cause: error
+              });
+            }
+            finalValue = (parsedSecret as Record<string, string>)?.[jsonKey];
+            if (finalValue === undefined) {
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+                message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretReference}')\`.`
+              });
+            }
           }
           return finalValue;
         } catch (error) {
@@ -327,7 +397,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
           throw new CliError({
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_SECRET_UNRESOLVED',
-            message: `Cannot resolve secret \`${secretName}\`.\n${String(error)}`,
+            message: `Cannot resolve secret \`${secretName}\`.`,
             cause: error
           });
         }
@@ -555,6 +625,12 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       }
     }
   ];
+  const { ensureAwsAccount } = context;
+  return ensureAwsAccount
+    ? directives.map((directive) =>
+        LOCAL_DIRECTIVES.has(directive.name) ? directive : withAwsAccount(directive, ensureAwsAccount)
+      )
+    : directives;
 };
 
 const getDisableEmulationHint = () =>

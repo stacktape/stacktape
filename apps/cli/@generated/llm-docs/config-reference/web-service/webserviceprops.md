@@ -38,6 +38,8 @@ type WebServiceProps = {
   loadBalancing?: WebServiceLoadBalancing;
   /** Logging configuration. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it. */
+  port?: number;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
   /** Sensitive environment variables fetched by the container runtime.
@@ -70,7 +72,7 @@ export default defineConfig(() => {
   tracing?: WebServiceTracing;
   /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */
   useFirewall?: string;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
+  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
   volumeMounts?: Array<ContainerEfsMount>;
@@ -958,6 +960,58 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `port`
+
+- Required: no
+- Type: `number`
+- Default: `3000`
+
+Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it.
+
+Set it when your app listens on a fixed port (for example `app.listen(8080)` or a Spring Boot default) instead
+of reading `PORT`. Not used with `network-load-balancer`, whose `ports[].containerPort` sets the container port.
+
+Changing it on a deployed service replaces the load balancer target group (or the API gateway integration),
+which briefly interrupts traffic during the update.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiService:
+    type: web-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/main.ts
+      port: 8080
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiService = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: 'src/main.ts'
+    }),
+    port: 8080,
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { apiService } };
+});
+```
+
 ## Property: `scaling`
 
 - Required: no
@@ -1050,11 +1104,15 @@ Can reach the main container via `localhost`.
 
 - Required: no
 - Type: `number`
-- Default: `2`
+- Default: `30`
 
 Seconds to wait for graceful shutdown before force-killing the container.
 
 The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
+
+A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
 
 ### Example 1 (yaml)
 
@@ -1070,7 +1128,7 @@ resources:
       resources:
         cpu: 0.25
         memory: 512
-      stopTimeout: 30
+      stopTimeout: 60
 ```
 
 ### Example 2 (typescript)
@@ -1082,7 +1140,7 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
-    stopTimeout: 30
+    stopTimeout: 60
   });
 
   return { resources: { api } };
@@ -1219,18 +1277,19 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Deploy in private subnets with a static outbound IP via NAT Gateway.
+Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
 
-The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
+What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
 
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees.
+Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
 
 ### Example 1 (yaml)
 
 ```yaml
+stackConfig:
+  nat: ha-ec2
 resources:
   api:
     type: web-service
@@ -1257,7 +1316,7 @@ export default defineConfig(() => {
     usePrivateSubnetsWithNAT: true
   });
 
-  return { resources: { api } };
+  return { stackConfig: { nat: 'ha-ec2' }, resources: { api } };
 });
 ```
 

@@ -1,5 +1,6 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { execDocker } from '@utils/docker';
+import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
@@ -35,6 +36,15 @@ const buildConnectionInfo = (host: string, port: number, password?: string) => {
   return { connectionString, referencableParams };
 };
 
+/**
+ * ElastiCache 7.1 has no open-source Redis release, so `redis:7.1` does not exist and dev mode failed to start for a
+ * config using it. Its closest compatible image is 7.2; the other supported engine versions have images of their own.
+ */
+const ELASTICACHE_ONLY_VERSIONS: Record<string, string> = { '7.1': '7.2' };
+
+export const getLocalRedisImageTag = (engineVersion: string): string =>
+  getImageTag(ELASTICACHE_ONLY_VERSIONS[engineVersion] ?? engineVersion, 'redis');
+
 export const startLocalRedis = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
@@ -61,13 +71,14 @@ export const startLocalRedis = async (
   }
 
   let actualPort = await findAvailablePort(port);
-  const imageTag = getImageTag(version, 'redis');
+  const imageTag = getLocalRedisImageTag(version);
 
   const buildDockerArgs = (hostPort: number) => [
     'run',
     '-d',
     '--name',
     containerName,
+    ...getDevContainerOwnerArgs(),
     '-p',
     `${hostPort}:${defaultPort}`,
     '-v',

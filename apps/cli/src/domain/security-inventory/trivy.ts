@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { getPlatform } from '@utils/bin-executable';
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import { unzip } from '@utils/unzip';
 import fsExtra from 'fs-extra';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -37,6 +37,14 @@ const LINUX_64: TrivyAsset = {
   binaryName: 'trivy'
 };
 
+/** Trivy publishes no Windows ARM64 build; Windows ARM64 runs this one under its x64 emulation. */
+const WINDOWS_64: TrivyAsset = {
+  fileName: `trivy_${TRIVY_VERSION}_windows-64bit.zip`,
+  sha256: '94c40e0696e4b907a74b7b2e1438d5d72ebaca83115817407f568a002d520842',
+  archive: 'zip',
+  binaryName: 'trivy.exe'
+};
+
 /** Checksums from `trivy_0.74.0_checksums.txt` of the v0.74.0 release (2026-08-14). Trivy's Linux builds are static. */
 const TRIVY_RELEASE: TrivyRelease = {
   version: TRIVY_VERSION,
@@ -62,12 +70,8 @@ const TRIVY_RELEASE: TrivyRelease = {
       archive: 'tar.gz',
       binaryName: 'trivy'
     },
-    win: {
-      fileName: `trivy_${TRIVY_VERSION}_windows-64bit.zip`,
-      sha256: '94c40e0696e4b907a74b7b2e1438d5d72ebaca83115817407f568a002d520842',
-      archive: 'zip',
-      binaryName: 'trivy.exe'
-    }
+    win: WINDOWS_64,
+    'win-arm': WINDOWS_64
   }
 };
 
@@ -132,7 +136,7 @@ export const ensureTrivyBinary = async ({
     if (!(await fsExtra.pathExists(extracted))) {
       throw new Error(`The Trivy archive ${asset.fileName} does not contain ${asset.binaryName}.`);
     }
-    if (platform !== 'win') await fsExtra.chmod(extracted, 0o755);
+    if (!isWindowsPlatform(platform)) await fsExtra.chmod(extracted, 0o755);
     await fsExtra.move(extracted, binaryPath, { overwrite: true });
     return { binaryPath, downloaded: true };
   } finally {

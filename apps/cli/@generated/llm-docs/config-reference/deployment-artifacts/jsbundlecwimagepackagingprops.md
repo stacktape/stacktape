@@ -16,7 +16,7 @@ type JsBundleCwImagePackagingProps = {
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
-  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
+  /** Skip generating source maps. */
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
 
@@ -37,7 +37,7 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
-  /** Save source maps to a local directory instead of uploading them to AWS. */
+  /** Also save complete source maps to a local directory. */
   outputSourceMapsTo?: string;
   /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
   requiresGlibcBinaries?: boolean;
@@ -220,8 +220,7 @@ resources:
        properties:
          entryfilePath: src/handlers/api.ts
          dependenciesToExcludeFromBundle:
-           - sharp
-           - "@prisma/client"
+           - dd-trace
      memory: 1024
 ```
 
@@ -236,7 +235,7 @@ export default defineConfig(() => {
      type: 'js-bundle',
      properties: {
        entryfilePath: 'src/handlers/api.ts',
-       dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+       dependenciesToExcludeFromBundle: ['dd-trace']
      }
    },
    memory: 1024
@@ -300,7 +299,10 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Skip generating source maps. Reduces package size but makes production errors harder to debug.
+Skip generating source maps.
+
+Without source maps, error locations in the Stacktape Console and in your logs point into the bundled code
+instead of your source files.
 
 ### Example 1 (yaml)
 
@@ -702,9 +704,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Save source maps to a local directory instead of uploading them to AWS.
+Also save complete source maps to a local directory.
 
-Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
+Useful for uploading to external error tracking (Sentry, Datadog, etc.). The saved maps include your original
+source code (`sourcesContent`); the maps Stacktape deploys never do. A Lambda function's maps still go to the
+stack's deployment bucket for the Stacktape Console. A container image ships without maps, so its logged stack
+traces point into the bundled code.
 
 ### Example 1 (yaml)
 

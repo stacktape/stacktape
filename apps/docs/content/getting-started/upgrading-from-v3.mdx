@@ -7,7 +7,27 @@ seoDescription: 'Changes to make when upgrading a Stacktape v3 configuration to 
 
 # Upgrading from v3
 
-Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page currently covers packaging.
+Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page covers packaging, removed resource parameters and what the first v4 deployment changes in an existing stack.
+
+## Deployed stacks
+
+Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis clusters, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
+
+The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag. Alarms configured for the whole organization in the Console are applied by v4 the same way v3 applied them.
+
+Container services without gradual deployments shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
+
+## Target AWS account
+
+v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected with Stacktape-managed access. They deployed to `--awsAccount`, the saved default, or the organization's only connected account. In v4, when `--awsAccount` is not set, `--profile`, `AWS_PROFILE` or AWS keys in the environment choose the connected account they belong to. If they belong to an account that is not connected, the command stops before changing anything.
+
+Check scripts and CI jobs that set an AWS profile or AWS keys for a different account than the one they deploy to. Pass `--awsAccount <name>` in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
+## Removed resource parameters
+
+The `MultiContainerWorkload` class no longer has a `logGroupArn` property, and `$ResourceParam('<workload>', 'logGroupArn')` is rejected. Stacktape never published this parameter, so a v3 configuration using it could not deploy.
+
+A multi-container workload has one log group per container. To reference one, use [`$CfResourceParam`](/configuration/directives) with the log group's CloudFormation logical ID: the workload name and the container name in PascalCase, followed by `LogGroup`. For the `app` container of a workload named `orders`, use `$CfResourceParam('OrdersAppLogGroup', 'Arn')`. A container with `logging.disabled` has no log group. Run [`stacktape synth`](/cli/synth) to check the logical IDs in the generated template.
 
 ## Packaging
 
@@ -183,6 +203,12 @@ resources:
         cpu: 0.25
         memory: 512
 ```
+
+The v4 image installs nothing beside the runtime by default. v3 images ran `tini` and shipped `curl` and `openssl`:
+
+- ECS and AWS Batch now start the init process (`initProcessEnabled`), so stop signals still reach your server.
+- `curl` is installed only when the container's `internalHealthCheck` command calls it. If a script in the image calls `curl`, or your code runs the `openssl` command, add it with `customDockerBuildCommands`, for example `apk add --no-cache curl`.
+- The OpenSSL libraries that Prisma loads are still in the image. When your code, or a package installed beside the bundle, uses Prisma, the Alpine image also gets the `openssl` command, which Prisma 5 needs to choose its query engine.
 
 See [JS Bundle for Containers](/packaging/containers/js-bundle).
 

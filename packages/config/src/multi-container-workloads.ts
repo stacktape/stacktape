@@ -294,16 +294,22 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    */
   enableRemoteSessions?: boolean;
   /**
-   * #### Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP.
+   * #### Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
    *
    * ---
    *
-   * Useful for IP whitelisting with third-party APIs. NAT Gateway costs ~$32/month per AZ + data processing fees.
+   * What you get: the container has no public IP, and all of its outbound internet traffic leaves through the stack's
+   * NAT with one static Elastic IP per availability zone (useful when a third party allowlists your IPs).
+   *
+   * Requires `stackConfig.nat` (`ec2`, `ha-ec2` or `gateway`); the cost depends on that choice, and `gateway` adds a
+   * per-GB processing fee on top. Workloads that only talk to AWS services and other stack resources do not need it.
    *
    *
    * **Example (YAML):**
    *
    * ```yaml
+   * stackConfig:
+   *   nat: ha-ec2
    * resources:
    *   app:
    *     type: multi-container-workload
@@ -337,7 +343,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *     usePrivateSubnetsWithNAT: true
    *     // stp-end-focus
    *   });
-   *   return { resources: { app } };
+   *   return { stackConfig: { nat: 'ha-ec2' }, resources: { app } };
    * });
    * ```
    *
@@ -1773,6 +1779,10 @@ export interface ContainerWorkloadContainerBase {
    *
    * ---
    *
+   * A full deploy waits until the old containers have stopped, so an app that ignores `SIGTERM` makes every deploy
+   * up to this much slower. Exit once in-flight work is done. A hot-swap deploy lets old containers stop in the
+   * background. Services with a gradual `deployment` (blue/green) default to 2 seconds.
+   *
    * **Example (YAML):**
    *
    * ```yaml
@@ -1787,7 +1797,7 @@ export interface ContainerWorkloadContainerBase {
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
-   *           stopTimeout: 30
+   *           stopTimeout: 60
    *           # stp-end-focus
    *       resources:
    *         cpu: 0.5
@@ -1806,7 +1816,7 @@ export interface ContainerWorkloadContainerBase {
    *         name: 'api',
    *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
-   *         stopTimeout: 30
+   *         stopTimeout: 60
    *         // stp-end-focus
    *       }
    *     ],
@@ -1816,7 +1826,7 @@ export interface ContainerWorkloadContainerBase {
    * });
    * ```
    *
-   * @default 2
+   * @default 30
    */
   stopTimeout?: number;
   /**

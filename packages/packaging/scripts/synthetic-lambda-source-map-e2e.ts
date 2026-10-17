@@ -1,28 +1,32 @@
 /**
- * Packaged Lambda source maps omit `sourcesContent` by default, and the deployed function still reports original file
- * and line.
+ * Lambda source maps stay outside the package by default, and they map the deployed function's stack frames to the
+ * original file and line without carrying the source.
  *
  * A TypeScript handler calls `validateOrder` in `lib/validate.ts`, which throws at a known line after validating with
  * a real bundled dependency (`zod`, copied from the workspace; nothing is installed). Through the production
  * `js-bundle` Lambda buildpack and the E2E ZIP adapter:
- * 1. default: every `.map` in the ZIP lacks `sourcesContent` and still names `lib/validate.ts`. The ZIP is extracted
- *    with `unzip` and invoked in the local Lambda Node.js 24 image with `NODE_OPTIONS=--enable-source-maps`, where the
- *    original sources do not exist; the caught error's stack must point at `lib/validate.ts:<line>`;
+ * 1. default: the ZIP has no `.map`; its map bundle (`takeSourceMapsOutOfPackage`) names `lib/validate.ts` without
+ *    `sourcesContent`. The ZIP is extracted with `unzip` and invoked in the local Lambda Node.js 24 image, where the
+ *    original sources do not exist; the caught error's frame, mapped through the bundle as the Console maps it, must
+ *    point at `lib/validate.ts:<line>`. With `keepSourceMapsInPackage`, the ZIP keeps its map without
+ *    `sourcesContent`, and Node itself maps the frame under `NODE_OPTIONS=--enable-source-maps`;
  * 2. an unchanged repeat offered that digest is skipped;
- * 3. `outputSourceMapsTo` still writes the full map, `sourcesContent` included, and ships none;
- * 4. `disableSourceMaps` ships no map;
+ * 3. `outputSourceMapsTo` also writes the full map, `sourcesContent` included, and the ZIP has none;
+ * 4. `disableSourceMaps` ships no map and no bundle;
  * 5. asset: `src/orders.ts`, which imports a file asset and throws after using it, is packaged alone the same way. Its
  *    reference to the asset is rewritten to `/var/task` on the minified line before the throw. Invoked in the Lambda
- *    image, its top frame must be the exact `src/orders.ts:<line>:<col>` of the `new Error(`, under the project path
- *    that the map's relative `sources` resolve to from `/var/task`;
- * 6. split: three functions go through `buildSplitBundle` and `createLayerArtifacts` inside the project, where the CLI
- *    builds them. No function or layer `.map` carries `sourcesContent`, and every packaged map's `sources` name the
- *    project's files from where the map is. Each function's ZIP and the layer ZIPs are extracted and invoked in the
- *    Lambda Node.js 24 image with the layers at /opt and `--enable-source-maps`. The top frame must be the exact
- *    `/src/<file>:<line>:<col>` of the `new Error(` in: the handler, after an asset import and rewritten chunk imports;
- *    a layered module; a layered chunk whose import of another layered chunk is rewritten; and a function-local,
- *    dynamically imported chunk whose import of a layered chunk is rewritten. A second build of the same fixture must
- *    produce the same function trees and layer hashes.
+ *    image, its top frame, mapped through the bundle, must be the exact `src/orders.ts:<line>:<col>` of the
+ *    `new Error(`: the map's `sources` are relative to the project root;
+ * 6. split: three functions go through `buildSplitBundle` and `createLayerArtifacts` inside the project, and their
+ *    maps leave the packages as the CLI takes them out. No function or layer keeps a `.map`, no bundled map carries
+ *    `sourcesContent`, and every bundled map's `sources` name the project's files relative to the project root (never
+ *    absolute, never `../`). Each function's ZIP and the layer ZIPs are extracted and invoked in the Lambda Node.js 24
+ *    image with the layers at /opt. The top frame, mapped through the function's and the layers' bundles, must be the
+ *    exact `src/<file>:<line>:<col>` of the `new Error(` in: the handler, after an asset import and rewritten chunk
+ *    imports (`/var/task`); a layered module and a layered chunk whose import of another layered chunk is rewritten
+ *    (`/opt/nodejs/chunks`); and a function-local, dynamically imported chunk whose import of a layered chunk is
+ *    rewritten (`/var/task/chunks`). A second build of the same fixture must produce the same function trees and layer
+ *    hashes.
  * The report records artifact and map bytes, and split function and layer identities, for comparing runs.
  *
  *   bun run scripts/synthetic-lambda-source-map-e2e.ts [--out <new or empty directory>] [--project <new directory>]
@@ -31,8 +35,10 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, posix, relative, resolve } from 'node:path';
+import { SourceMap } from 'node:module';
+import { join, relative, resolve } from 'node:path';
 import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
+import { readSourceMapBundle, type SourceMapBundle, takeSourceMapsOutOfPackage } from '../src/es/packaged-source-map';
 import type { JsBundleOptions } from '../src/runtime-contracts';
 import {
   archiveItem,
@@ -178,8 +184,13 @@ const SPLIT_SOURCES: Record<string, string> = {
 const throwSite = (file: string, marker: string) => {
   const lines = SPLIT_SOURCES[file]!.split('\n');
   const index = lines.findIndex((line) => line.includes(marker));
-  return `/${file}:${index + 1}:${lines[index]!.indexOf('Error(') + 1}`;
+  return `${file}:${index + 1}:${lines[index]!.indexOf('Error(') + 1}`;
 };
+/*
+ * A map's `sources` are relative to the project root (`es/artifact-identity`), whichever folder its code runs from:
+ * the function under `/var/task`, a layered chunk under `/opt/nodejs/chunks`, a function-local chunk under
+ * `/var/task/chunks`. The original file is named in every case; the build host never.
+ */
 const SPLIT_THROWS = [
   { label: 'the handler', name: 'orders', mode: 'handler', expected: throwSite('src/orders.ts', 'orders failed') },
   { label: 'a layered module', name: 'refunds', mode: 'limits', expected: throwSite('src/split/limits.ts', 'throw') },
@@ -228,11 +239,27 @@ const treeIdentity = async (root: string) => {
   return sha256(lines.toSorted().join('\n'));
 };
 
-/** One split build of the fixture in `directory`, with each function's tree identity and each layer's hash. */
+/**
+ * One split build of the fixture in `directory`, with each function's tree identity and each layer's hash. Layers keep
+ * their maps outside (`createLayerArtifacts`); the functions' maps are taken out after, as the CLI does.
+ */
 const buildSplit = async (directory: string) => {
   const { layerArtifacts } = await buildSplitProjectWithLayers({ project, names: SPLIT_FUNCTIONS, directory });
+  const functionSourceMaps = await Promise.all(
+    SPLIT_FUNCTIONS.map((name) =>
+      takeSourceMapsOutOfPackage({
+        packagePath: join(directory, 'functions', name),
+        runtimeRoot: '/var/task',
+        directories: ['', 'chunks']
+      })
+    )
+  );
   return {
     layerArtifacts,
+    sourceMapPaths: [
+      ...functionSourceMaps.flatMap((sourceMaps) => (sourceMaps ? [sourceMaps.path] : [])),
+      ...layerArtifacts.flatMap(({ sourceMapsPath }) => (sourceMapsPath ? [sourceMapsPath] : []))
+    ],
     identities: {
       functions: Object.fromEntries(
         await Promise.all(
@@ -250,6 +277,37 @@ const topFrameLocation = (stack: string | undefined) =>
     ?.split('\n')
     .find((line) => line.trimStart().startsWith('at '))
     ?.match(/\(?([^\s()]+:\d+:\d+)\)?$/)?.[1] ?? null;
+
+const readBundles = (paths: (string | undefined)[]) =>
+  Promise.all(paths.filter((path): path is string => Boolean(path)).map((path) => readSourceMapBundle(path)));
+
+/** Maps `<path>:<line>:<column>` through map bundles, as the Console maps a frame, to `<source>:<line>:<column>`. */
+const mapThroughBundles = (location: string | null, bundles: SourceMapBundle[]) => {
+  const [, path, line, column] = location?.match(/^(?:file:\/\/)?(.+):(\d+):(\d+)$/) ?? [];
+  const payload = path && bundles.map(({ files }) => files[path]).find(Boolean);
+  if (!payload) return null;
+  const entry = new SourceMap(payload as ConstructorParameters<typeof SourceMap>[0]).findEntry(
+    Number(line) - 1,
+    Number(column) - 1
+  );
+  return 'originalSource' in entry && entry.originalSource
+    ? `${entry.originalSource}:${entry.originalLine + 1}:${entry.originalColumn + 1}`
+    : null;
+};
+
+/** The bundles' maps, described as `mapsUnder` describes map files. */
+const mapsInBundles = (bundles: SourceMapBundle[]) =>
+  bundles.flatMap(({ files }) =>
+    Object.entries(files).map(([path, map]) => {
+      const { sources, sourcesContent } = map as { sources?: string[]; sourcesContent?: unknown[] };
+      return {
+        path,
+        bytes: JSON.stringify(map).length,
+        hasSourcesContent: Array.isArray(sourcesContent) && sourcesContent.some((content) => content != null),
+        sources: sources ?? []
+      };
+    })
+  );
 
 /** Every `.map` under `root`, with whether it carries `sourcesContent` and the sources it names. */
 const mapsUnder = async (root: string) => {
@@ -277,13 +335,16 @@ const extract = async (zipPath: string, label: string) => {
   return directory;
 };
 
-/** Invokes the extracted function in the local Lambda Node.js 24 image, with source maps enabled as the CLI sets them. */
-const invoke = (functionDirectory: string, event: unknown) =>
+/**
+ * Invokes the extracted function in the local Lambda Node.js 24 image. `--enable-source-maps` is set as the CLI sets it
+ * for a function that keeps its maps in the package.
+ */
+const invoke = (functionDirectory: string, event: unknown, { mapsInPackage = false } = {}) =>
   invokeInLambdaImage<{ label: string; message?: string; stack?: string }>({
     functionDirectory,
     event,
     containerLabel,
-    environment: { NODE_OPTIONS: '--enable-source-maps' }
+    environment: mapsInPackage ? { NODE_OPTIONS: '--enable-source-maps' } : {}
   });
 
 const packageFunction = (
@@ -327,32 +388,61 @@ try {
   if (built.outcome !== 'bundled' || !built.artifactPath)
     throw new Error(`Default packaging: ${JSON.stringify(built)}`);
   const extracted = await extract(built.artifactPath, 'default');
-  const maps = await mapsUnder(extracted);
+  const zipMaps = await mapsUnder(extracted);
+  const bundles = await readBundles([built.sourceMapsPath]);
+  const maps = mapsInBundles(bundles);
   const extractedFiles = (await readdir(extracted, { recursive: true })).toSorted();
   const invocation = await invoke(extracted, {});
   const frame = invocation.stack?.split('\n').find((line) => line.includes('validateOrder')) ?? null;
+  const mappedFrame = mapThroughBundles(topFrameLocation(frame ?? undefined), bundles);
   report.default = {
     digest: built.digest,
     zipBytes: (await stat(built.artifactPath)).size,
     jsBytes: (await stat(join(extracted, 'index.js'))).size,
+    sourceMapBytes: built.sourceMapsPath ? (await stat(built.sourceMapsPath)).size : null,
     maps,
     extractedFiles,
-    invocation
+    invocation,
+    mappedFrame
   };
   check(
-    'default: the packaged map names the original sources but carries no sourcesContent',
-    maps.length === 1 &&
+    'default: the ZIP has no map; its bundled map names the original sources but carries no sourcesContent',
+    zipMaps.length === 0 &&
+      maps.length === 1 &&
+      maps[0]!.path === '/var/task/index.js' &&
       maps.every(({ hasSourcesContent }) => !hasSourcesContent) &&
       maps[0]!.sources.some((source) => source.endsWith('src/lib/validate.ts')),
-    JSON.stringify(maps.map(({ path, bytes, hasSourcesContent }) => ({ path, bytes, hasSourcesContent })))
+    JSON.stringify({
+      zipMaps: zipMaps.length,
+      maps: maps.map(({ path, bytes, hasSourcesContent }) => ({ path, bytes, hasSourcesContent }))
+    })
   );
   check(
-    'default: the extracted function, without its sources, maps the thrown frame to lib/validate.ts',
+    'default: the extracted function, without its sources or maps, throws a frame the bundle maps to lib/validate.ts',
     !extractedFiles.some((file) => file.endsWith('.ts')) &&
       invocation.message === 'invalid order: 2 issue(s)' &&
       frame !== null &&
-      new RegExp(`src/lib/validate\\.ts:${THROW_LINE}:\\d+`).test(frame),
-    `${frame}; files ${extractedFiles.join(', ')}`
+      frame.includes('/var/task/index.js') &&
+      new RegExp(`^src/lib/validate\\.ts:${THROW_LINE}:\\d+$`).test(mappedFrame ?? ''),
+    `${frame} -> ${mappedFrame}; files ${extractedFiles.join(', ')}`
+  );
+
+  // 1b. Maps kept in the package, read by Node itself.
+  const kept = await packageFunction('kept', { keepSourceMapsInPackage: true });
+  if (kept.outcome !== 'bundled' || !kept.artifactPath) throw new Error(`Kept packaging: ${JSON.stringify(kept)}`);
+  const keptDirectory = await extract(kept.artifactPath, 'kept');
+  const keptMaps = await mapsUnder(keptDirectory);
+  const keptInvocation = await invoke(keptDirectory, {}, { mapsInPackage: true });
+  const keptFrame = keptInvocation.stack?.split('\n').find((line) => line.includes('validateOrder')) ?? null;
+  report.kept = { digest: kept.digest, zipBytes: (await stat(kept.artifactPath)).size, maps: keptMaps };
+  check(
+    'keepSourceMapsInPackage: the packaged map carries no sourcesContent, and Node maps the frame to lib/validate.ts',
+    kept.sourceMapsPath === undefined &&
+      keptMaps.length === 1 &&
+      keptMaps.every(({ hasSourcesContent }) => !hasSourcesContent) &&
+      keptFrame !== null &&
+      new RegExp(`src/lib/validate\\.ts:${THROW_LINE}:\\d+`).test(keptFrame),
+    `${keptFrame}; ${keptMaps.length} maps`
   );
 
   // 2. An unchanged repeat.
@@ -376,8 +466,11 @@ try {
     zipMaps: externalZipMaps
   };
   check(
-    'outputSourceMapsTo: the full map, sourcesContent included, is written outside, and the ZIP has none',
-    externalMaps.length === 1 && externalMaps[0]!.hasSourcesContent && externalZipMaps.length === 0,
+    'outputSourceMapsTo: the full map, sourcesContent included, is also written locally, and the ZIP has none',
+    externalMaps.length === 1 &&
+      externalMaps[0]!.hasSourcesContent &&
+      externalZipMaps.length === 0 &&
+      Boolean(external.sourceMapsPath),
     JSON.stringify({
       externalMaps: externalMaps.map(({ path, bytes, hasSourcesContent }) => ({ path, bytes, hasSourcesContent })),
       zipMaps: externalZipMaps.length
@@ -392,8 +485,8 @@ try {
     zipBytes: disabled.artifactPath ? (await stat(disabled.artifactPath)).size : null
   };
   check(
-    'disableSourceMaps: the ZIP has no map',
-    disabled.outcome === 'bundled' && disabledMaps.length === 0,
+    'disableSourceMaps: the ZIP has no map, and there is no bundle',
+    disabled.outcome === 'bundled' && disabledMaps.length === 0 && disabled.sourceMapsPath === undefined,
     `${disabledMaps.length} maps`
   );
 
@@ -403,13 +496,12 @@ try {
   const assetDirectory = await extract(asset.artifactPath, 'asset');
   const assetFiles = (await readdir(assetDirectory, { recursive: true })).toSorted();
   const assetThrown = await invoke(assetDirectory, { mode: 'handler' });
-  // The map names the project relative to the build folder; Node resolves that from /var/task, where the map is.
-  const assetProjectAtRuntime = posix.resolve(
-    '/var/task',
-    relative(join(out, 'build', 'functions', 'asset'), project).replaceAll('\\', '/')
+  // The map names the file relative to the project root.
+  const assetExpected = throwSite('src/orders.ts', 'orders failed');
+  const assetLocation = mapThroughBundles(
+    topFrameLocation(assetThrown.stack),
+    await readBundles([asset.sourceMapsPath])
   );
-  const assetExpected = `${assetProjectAtRuntime}${throwSite('src/orders.ts', 'orders failed')}`;
-  const assetLocation = topFrameLocation(assetThrown.stack);
   report.asset = {
     digest: asset.digest,
     files: assetFiles,
@@ -433,18 +525,14 @@ try {
     ...SPLIT_FUNCTIONS.map((name) => join(splitDirectory, 'functions', name)),
     ...split.layerArtifacts.map(({ layerPath }) => layerPath)
   ];
-  const packagedMaps = (
-    await Promise.all(
-      packagedRoots.map(async (root) =>
-        (await mapsUnder(root)).map((map) => Object.assign(map, { path: join(root, map.path) }))
-      )
-    )
-  ).flat();
+  const mapsLeftInPackages = (await Promise.all(packagedRoots.map((root) => mapsUnder(root)))).flat();
+  const splitBundles = await readBundles(split.sourceMapPaths);
+  const packagedMaps = mapsInBundles(splitBundles);
   const sharedMaps = await mapsUnder(join(splitDirectory, 'shared'));
   report.split = {
     identities: split.identities,
     packagedMaps: packagedMaps.map(({ path, bytes, hasSourcesContent, sources }) => ({
-      path: relative(project, path),
+      path,
       bytes,
       hasSourcesContent,
       sources
@@ -452,21 +540,23 @@ try {
     sharedMaps: sharedMaps.map(({ path, bytes, hasSourcesContent }) => ({ path, bytes, hasSourcesContent }))
   };
   check(
-    'split: no function or layer map carries sourcesContent, and the shared build keeps full maps',
-    packagedMaps.length > 0 &&
+    'split: no function or layer keeps a map, no bundled map carries sourcesContent, and the shared build keeps full maps',
+    mapsLeftInPackages.length === 0 &&
+      packagedMaps.length > 0 &&
       split.layerArtifacts.length > 0 &&
+      packagedMaps.some(({ path }) => path.startsWith('/opt/nodejs/chunks/')) &&
       packagedMaps.every(({ hasSourcesContent }) => !hasSourcesContent) &&
       sharedMaps.length > 0 &&
       sharedMaps.every(({ hasSourcesContent }) => hasSourcesContent),
-    `${packagedMaps.length} packaged maps (${split.layerArtifacts.length} layers), ${packagedMaps.filter(({ hasSourcesContent }) => hasSourcesContent).length} with sourcesContent; ${sharedMaps.length} shared maps`
+    `${mapsLeftInPackages.length} maps left in packages; ${packagedMaps.length} bundled maps (${split.layerArtifacts.length} layers), ${packagedMaps.filter(({ hasSourcesContent }) => hasSourcesContent).length} with sourcesContent; ${sharedMaps.length} shared maps`
   );
   const unresolved = packagedMaps.flatMap(({ path, sources }) =>
     sources
-      .filter((source) => !existsSync(resolve(dirname(path), source)))
-      .map((source) => `${relative(project, path)}: ${source}`)
+      .filter((source) => source.startsWith('/') || source.startsWith('../') || !existsSync(resolve(project, source)))
+      .map((source) => `${path}: ${source}`)
   );
   check(
-    "split: every packaged map's sources name the project's files from where the map is",
+    "split: every bundled map's sources name the project's files relative to the project root",
     unresolved.length === 0,
     unresolved.length === 0 ? `${packagedMaps.length} maps` : unresolved.slice(0, 6).join('; ')
   );
@@ -515,10 +605,9 @@ try {
       functionDirectory: functionDirectories[name]!,
       layerDirectory,
       event: { mode },
-      containerLabel,
-      environment: { NODE_OPTIONS: '--enable-source-maps' }
+      containerLabel
     });
-    const location = topFrameLocation(thrown.stack);
+    const location = mapThroughBundles(topFrameLocation(thrown.stack), splitBundles);
     frames[`${name}:${mode}`] = { expected, location, stack: thrown.stack ?? null, message: thrown.message };
     check(`split: a throw in ${label} maps to ${expected}`, location === expected, `${location ?? thrown.stack}`);
   }
@@ -531,6 +620,7 @@ try {
     'src/bundlers/es/index.ts',
     'src/split-bundler/bundler.ts',
     'src/split-bundler/layer-builder.ts',
+    'src/es/packaged-source-map.ts',
     'src/split-bundler/chunk-rewriter.ts',
     'src/es/source-map-edits.ts',
     'src/es/bundler-helpers.ts',
@@ -565,4 +655,4 @@ try {
   );
   console.log(`Report: ${join(out, 'report.json')}`);
 }
-if (results.some(({ ok }) => !ok) || results.length < 14) process.exitCode = 1;
+if (results.some(({ ok }) => !ok) || results.length < 15) process.exitCode = 1;

@@ -14,6 +14,9 @@
     "test": "bun test src",
     "typecheck": "tsc -p tsconfig.json"
   },
+  "dependencies": {
+    "@stacktape/console-api": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "bun-types": "^1.3.2",

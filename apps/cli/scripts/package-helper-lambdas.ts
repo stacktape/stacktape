@@ -40,7 +40,13 @@ const helperLambdas = {
   }
 };
 
-export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath: string }) => {
+export const packageHelperLambdas = async ({
+  distFolderPath,
+  bundleAwsSdk = false
+}: {
+  distFolderPath: string;
+  bundleAwsSdk?: boolean;
+}) => {
   logInfo('Packaging helper lambdas...');
   const packagingRunId = `helper-lambdas-install-${process.pid}-${Date.now().toString(36)}`;
 
@@ -62,7 +68,10 @@ export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath:
       tsConfigPath: localBuildTsConfigPath,
       nodeTarget: '22',
       minify: true,
+      // Stacktape's own functions are not covered by the Console's source-map lookup, so Node maps their stack traces.
+      keepSourceMapsInPackage: true,
       externals: ['aws-sdk'],
+      bundleAwsSdk,
       distFolderPath: join(lambdasDistFolderPath, name),
       progressLogger: {
         startEvent: () => {},
@@ -88,6 +97,7 @@ export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath:
 
 if (import.meta.main) {
   packageHelperLambdas({
-    distFolderPath: process.argv.includes('--dev') ? DEV_ARTIFACTS_FOLDER_PATH : CLI_BUILD_DIST_FOLDER_PATH
+    distFolderPath: process.argv.includes('--dev') ? DEV_ARTIFACTS_FOLDER_PATH : CLI_BUILD_DIST_FOLDER_PATH,
+    bundleAwsSdk: process.argv.includes('--bundle-aws-sdk')
   });
 }

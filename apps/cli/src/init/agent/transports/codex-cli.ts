@@ -17,6 +17,7 @@
 
 import { INIT_MCP_SERVER_NAME } from '../../mcp/session-server';
 import type { AgentEvent, TokenUsage } from '../transport';
+import { summariseArgs } from './claude-cli';
 
 const SYSTEM_PROMPT_DELIMITER = '=== TASK ===';
 
@@ -105,15 +106,16 @@ export const parseCodexStream = (lines: readonly string[]): CodexStreamResult =>
 
     const type = typeof event.type === 'string' ? event.type : '';
 
-    if (type.endsWith('tool_call') || type === 'item.tool_call') {
-      const name = typeof event.name === 'string' ? canonicalToolName(event.name) : 'tool';
-      events.push({ type: 'tool-call', name, summary: name });
-      continue;
-    }
-
-    if (type.includes('agent_message') || type === 'item.assistant_message') {
-      const text = typeof event.text === 'string' ? event.text : typeof event.message === 'string' ? event.message : '';
-      if (text !== '') events.push({ type: 'text', text });
+    // Codex wraps MCP calls and assistant text in completed items. Ignore the matching
+    // item.started records so the timeline shows each operation once.
+    if (type === 'item.completed' && isRecord(event.item)) {
+      const item = event.item;
+      if (item.type === 'mcp_tool_call' && typeof item.tool === 'string') {
+        const name = canonicalToolName(item.tool);
+        events.push({ type: 'tool-call', name, summary: summariseArgs(name, item.arguments) });
+      } else if (item.type === 'agent_message' && typeof item.text === 'string' && item.text !== '') {
+        events.push({ type: 'text', text: item.text });
+      }
       continue;
     }
 

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs-extra';
 import { dirname, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -33,7 +34,7 @@ const getLockDir = (): string => {
  * Get lock file path for a specific project+stage combination.
  * Format: .stacktape/dev-agents/{projectName}-{stage}.json
  */
-const getLockFilePath = (projectName?: string, stage?: string): string => {
+export const getLockFilePath = (projectName?: string, stage?: string): string => {
   // Use args directly since targetStack may not be initialized yet
   const project =
     projectName ?? globalStateManager.targetStack?.projectName ?? globalStateManager.args.projectName ?? 'unknown';
@@ -180,6 +181,23 @@ export const getAllRunningAgents = async (): Promise<AgentLockFile[]> => {
 export const stopRunningAgent = async (lockFile: AgentLockFile): Promise<boolean> => {
   const hasPid = lockFile.pid > 0;
   const deleteLock = () => deleteAgentLockFile(lockFile.projectName, lockFile.stage);
+  const forceStop = async (): Promise<boolean> => {
+    if (!isProcessRunning(lockFile.pid)) {
+      deleteLock();
+      return true;
+    }
+    // Discover watchers and tunnel processes before killing the parent, including detached process groups.
+    await new Promise<void>((resolve, reject) => {
+      killProcessTree(lockFile.pid, 'SIGKILL', (error) => (error ? reject(error) : resolve()));
+    });
+    const deadline = Date.now() + 3000;
+    while (isProcessRunning(lockFile.pid) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    if (isProcessRunning(lockFile.pid)) return false;
+    deleteLock();
+    return true;
+  };
 
   try {
     await fetch(`http://localhost:${lockFile.port}/stop`, {
@@ -198,12 +216,7 @@ export const stopRunningAgent = async (lockFile: AgentLockFile): Promise<boolean
         await new Promise((r) => setTimeout(r, 200));
       }
 
-      // Force kill if still running
-      try {
-        process.kill(lockFile.pid, 'SIGKILL');
-      } catch {
-        // Process might have exited
-      }
+      return await forceStop();
     } else {
       // No PID - just wait a bit for the stop request to take effect
       await new Promise((r) => setTimeout(r, 1000));
@@ -215,9 +228,7 @@ export const stopRunningAgent = async (lockFile: AgentLockFile): Promise<boolean
     // Try force kill if we have a PID
     if (hasPid) {
       try {
-        process.kill(lockFile.pid, 'SIGKILL');
-        deleteLock();
-        return true;
+        return await forceStop();
       } catch {
         return false;
       }

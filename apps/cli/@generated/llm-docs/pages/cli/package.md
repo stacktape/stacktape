@@ -62,7 +62,7 @@ stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--onlyWorkloads (-ow)` | no | `array` | Only Workloads — Package only the specified workloads. Provide a comma-separated list of workload names to package. Other workloads will be skipped. Example: `--onlyWorkloads myFunction,myContainer`. | - |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
@@ -88,9 +88,9 @@ Use `package` when you want to verify that your compute resources package correc
 
 No. The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code. This ensures the output accurately reflects your code at the time of the run.
 
-### Does `package` require AWS credentials even though it doesn't deploy?
+### Does `package` require AWS credentials?
 
-Yes. Even though `package` never touches your stack, it loads user credentials and target stack information during initialization, so valid credentials are required. Use `--profile` to specify an AWS profile or `--awsAccount` to use a connected AWS account. Use [`aws-profile:create`](/cli/aws-profile-create) to set up a profile if you haven't already.
+Only when your configuration reads something from AWS. `package` builds on your machine, so a typical project packages without AWS credentials and without any request to AWS. Credentials are loaded when packaging needs them: for a directive such as [`$Secret`](/configuration/directives), `$StackOutput` or `$AwsAccountId`, or for a web framework build whose environment references deployed resources. Stacktape then uses the profile selected with `--profile` or `AWS_PROFILE`, or the standard AWS credential chain.
 
 ### Can I package only specific workloads?
 

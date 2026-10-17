@@ -1,12 +1,11 @@
 /**
- * One backend's share of the Lambda archive acceptance, in its own process: the driver starts it with a PATH that
- * offers exactly the native tool under test (or none, or a failing one), because the archiver picks its tool once per
- * process. It writes the runtime fixture, archives it through the production archiver the way Lambda packaging does,
- * and prints what each call returned. Paths contain spaces and both kinds of quotes on purpose. It also archives a
- * compressible fixture by default, with an explicit level, and directly with archiver at levels 1, 6 and 9, so the
- * driver can tell which level each backend used.
+ * One backend's share of the Lambda archive acceptance, in its own process: `parallel` archives directories the way
+ * Lambda packaging does (`parallelZip`), `archiver` the way every other ZIP is written. It writes the runtime fixture,
+ * archives it and prints what each call returned. Paths contain spaces and both kinds of quotes on purpose. It also
+ * archives a compressible fixture by default and with explicit levels, so the driver can tell which level each backend
+ * used.
  *
- *   bun scripts/packaging-archives/archive-worker.ts <output directory>
+ *   bun scripts/packaging-archives/archive-worker.ts <output directory> <parallel|archiver>
  */
 import { chmod, copyFile, mkdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -99,19 +98,22 @@ export const writeLevelFixture = async (source: string) => {
 };
 
 const main = async () => {
-  const outputDirectory = process.argv[2];
-  if (!outputDirectory) throw new Error('Usage: archive-worker.ts <output directory>');
+  const [outputDirectory, backend] = process.argv.slice(2);
+  if (!outputDirectory || (backend !== 'parallel' && backend !== 'archiver')) {
+    throw new Error('Usage: archive-worker.ts <output directory> <parallel|archiver>');
+  }
+  const parallelZip = backend === 'parallel';
   const source = join(outputDirectory, `source dir 'single' "double"`);
   const destination = join(outputDirectory, 'archives with "quotes" and spaces');
   await writeRuntimeFixture(source);
 
-  // Lambda packaging archives directories with `useNativeZip`; the same destination is written twice, as a rebuild
-  // of the same function does, after a file was deleted from the source.
+  // The same destination is written twice, as a rebuild of the same function does, after a file was deleted from the
+  // source.
   const first = await createArchive({
     absoluteSourcePath: source,
     absoluteDestDirPath: destination,
     format: 'zip',
-    useNativeZip: true
+    parallelZip
   });
   // The second archive replaces the first at the same path; keep a copy to show what the first one held.
   await copyFile(first.path, join(outputDirectory, 'first archive copy.zip'));
@@ -120,31 +122,31 @@ const main = async () => {
     absoluteSourcePath: source,
     absoluteDestDirPath: destination,
     format: 'zip',
-    useNativeZip: true
+    parallelZip
   });
 
   // A custom runtime delivered as one file that the host never marked executable.
   const bootstrapPath = join(outputDirectory, 'single file', 'bootstrap');
   await file(bootstrapPath, BOOTSTRAP, 0o644);
-  const single = await createArchive({ absoluteSourcePath: bootstrapPath, format: 'zip', useNativeZip: true });
+  const single = await createArchive({ absoluteSourcePath: bootstrapPath, format: 'zip', parallelZip });
 
   const levelSource = join(outputDirectory, 'level source');
   await writeLevelFixture(levelSource);
-  const levelArchive = async (name: string, options: { useNativeZip: boolean; compressionLevel?: number }) => {
+  const levelArchive = async (name: string, compressionLevel?: number) => {
     const result = await createArchive({
       absoluteSourcePath: levelSource,
       absoluteDestDirPath: join(outputDirectory, 'level archives', name),
       format: 'zip',
-      ...options
+      parallelZip,
+      ...(compressionLevel !== undefined && { compressionLevel })
     });
     return { ...result, bytes: (await stat(result.path)).size };
   };
   const levels = {
-    byDefault: await levelArchive('default', { useNativeZip: true }),
-    override9: await levelArchive('override 9', { useNativeZip: true, compressionLevel: 9 }),
-    direct1: await levelArchive('archiver 1', { useNativeZip: false, compressionLevel: 1 }),
-    direct6: await levelArchive('archiver 6', { useNativeZip: false, compressionLevel: 6 }),
-    direct9: await levelArchive('archiver 9', { useNativeZip: false, compressionLevel: 9 })
+    byDefault: await levelArchive('default'),
+    level1: await levelArchive('level 1', 1),
+    level6: await levelArchive('level 6', 6),
+    level9: await levelArchive('level 9', 9)
   };
 
   console.log(JSON.stringify({ first, second, single, levels }));

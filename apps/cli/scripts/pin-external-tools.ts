@@ -1,10 +1,10 @@
 /**
  * Maintainer script: pins the upstream downloads of railpack and the Session Manager plugin, the trust anchor the
- * CLI's resolver (`src/utils/external-tools.ts`) checks every download against.
+ * CLI's resolver (`src/utils/external-tools.ts`) checks every download against, and Railpack's BuildKit frontend image.
  *
  * It downloads each platform's asset from its upstream release, compares railpack's with the SHA-256 in its release's
  * `checksums.txt`, extracts the executable with the resolver's own code to prove the recorded path, and writes
- * `src/config/external-tools.json` with each URL, size and SHA-256. Change a version below, run it, and review the diff:
+ * `src/config/external-tools.json` with each URL, size and SHA-256, and the frontend image's index digest. Change a version below, run it, and review the diff:
  *
  *   bun scripts/pin-external-tools.ts [--record <file>]
  *
@@ -19,10 +19,11 @@ import { join, resolve } from 'node:path';
 import { extractExecutable } from 'src/utils/external-tools';
 
 /**
- * The Railpack release. `RAILPACK_FRONTEND_IMAGE` in `src/config/railpack.ts` must name the same version: a plan the
- * binary writes is built by the frontend of the same release.
+ * The Railpack release. The binary writes a plan and the frontend image of the same release builds it, so both are
+ * pinned here: the frontend by the digest of its multi-platform index.
  */
 const RAILPACK_VERSION = '0.40.1';
+const RAILPACK_FRONTEND_REPOSITORY = 'railwayapp/railpack-frontend';
 const SESSION_MANAGER_PLUGIN_VERSION = '1.2.707.0';
 
 type Source = Omit<ExternalToolAsset, 'sha256' | 'bytes'>;
@@ -54,7 +55,8 @@ const SOURCES: Record<ExternalTool, { version: string; assets: Partial<Record<Su
       'linux-arm': railpack('arm64-unknown-linux-musl'),
       macos: railpack('x86_64-apple-darwin'),
       'macos-arm': railpack('arm64-apple-darwin'),
-      win: railpack('x86_64-pc-windows-msvc')
+      win: railpack('x86_64-pc-windows-msvc'),
+      'win-arm': railpack('arm64-pc-windows-msvc')
     }
   },
   'session-manager-plugin': {
@@ -66,12 +68,37 @@ const SOURCES: Record<ExternalTool, { version: string; assets: Partial<Record<Su
       'linux-arm': sessionManagerPlugin('ubuntu_arm64/session-manager-plugin.deb'),
       macos: sessionManagerPlugin('mac/sessionmanager-bundle.zip'),
       'macos-arm': sessionManagerPlugin('mac_arm64/sessionmanager-bundle.zip')
-      // Windows: AWS publishes only an installer, so the Windows archive keeps the bundled plugin.
+      // Windows: AWS publishes only an installer, so the Windows archives keep the bundled plugin.
     }
   }
 };
 
 const MANIFEST_PATH = resolve(import.meta.dir, '..', 'src', 'config', 'external-tools.json');
+
+/** `ghcr.io/<repository>:<tag>@<digest>`, the digest of the image index the tag points to now. */
+const pinGhcrImage = async (repository: string, tag: string) => {
+  const tokenResponse = await fetch(`https://ghcr.io/token?scope=repository:${repository}:pull`);
+  if (!tokenResponse.ok)
+    throw new Error(`ghcr.io refused a pull token for ${repository}: HTTP ${tokenResponse.status}.`);
+  const { token } = (await tokenResponse.json()) as { token: string };
+  const response = await fetch(`https://ghcr.io/v2/${repository}/manifests/${tag}`, {
+    method: 'HEAD',
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'
+    }
+  });
+  const digest = response.headers.get('docker-content-digest');
+  const mediaType = response.headers.get('content-type') ?? '';
+  if (!response.ok || !digest?.startsWith('sha256:')) {
+    throw new Error(`ghcr.io/${repository}:${tag} answered HTTP ${response.status} without a digest.`);
+  }
+  // Both architectures the CLI builds for must resolve through the pin.
+  if (!mediaType.includes('index') && !mediaType.includes('manifest.list')) {
+    throw new Error(`ghcr.io/${repository}:${tag} is ${mediaType}, not a multi-platform index.`);
+  }
+  return `ghcr.io/${repository}:${tag}@${digest}`;
+};
 
 const fetchBytes = async (url: string) => {
   const response = await fetch(url);
@@ -141,6 +168,9 @@ const main = async () => {
   } finally {
     await rm(work, { recursive: true, force: true });
   }
+  manifest.railpack.image = await pinGhcrImage(RAILPACK_FRONTEND_REPOSITORY, `v${RAILPACK_VERSION}`);
+  console.info(`railpack frontend: ${manifest.railpack.image}`);
+  record.push({ tool: 'railpack', image: manifest.railpack.image });
   await writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
   console.info(`Wrote ${MANIFEST_PATH}.`);
   if (recordPath) {

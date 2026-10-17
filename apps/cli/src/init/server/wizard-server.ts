@@ -128,6 +128,8 @@ export type WizardState = {
    * — being told afterwards that the file is not the one you expected is a bad way to find out.
    */
   existingConfig?: string;
+  /** The `--awsAccount` this run was started with; copyable commands name it. */
+  awsAccount?: string;
   /** How the project can be read, best first. Offered before anything runs. */
   agents?: WizardAgentOption[];
   /** What the user picked on the first screen. */
@@ -250,6 +252,8 @@ export type WizardServerHooks = {
    * then come back" ends with a button rather than with reloading the page and hoping.
    */
   onRecheck: () => Promise<WizardState> | WizardState;
+  /** Prices the configuration for the region picked on the Deploy step. Returns at once; the price follows. */
+  onPriceRegion?: (region: string) => Promise<WizardState> | WizardState;
   /**
    * Called for every step of signing in from the page: starting Google, submitting an email and
    * password, a code, an organization, or cancelling.
@@ -632,6 +636,24 @@ export const startWizardServer = async ({
         }
         try {
           json(response, 200, await hooks.onRecheck());
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/price-region' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { region?: unknown };
+          if (typeof body.region !== 'string' || !/^[a-z]{2}(?:-[a-z]+)+-\d$/.test(body.region)) {
+            json(response, 400, { error: 'That is not an AWS region.' });
+            return;
+          }
+          json(response, 200, hooks.onPriceRegion === undefined ? state : await hooks.onPriceRegion(body.region));
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
         }

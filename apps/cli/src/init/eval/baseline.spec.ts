@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { runEvalCase, summarise, type EvalCase, type EvalScore } from './harness';
+import { runEvalCase, type EvalCase } from './harness';
 
 const CASES: EvalCase[] = [
   {
@@ -286,12 +286,9 @@ const CASES: EvalCase[] = [
 ];
 
 describe('deterministic baseline', () => {
-  const scores: EvalScore[] = [];
-
   for (const evalCase of CASES) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
-      scores.push(score);
 
       if (!score.passed) {
         throw new Error(
@@ -301,10 +298,4 @@ describe('deterministic baseline', () => {
       expect(score.passed).toBe(true);
     });
   }
-
-  it('reports a summary', () => {
-    // Printed rather than asserted: the numbers are a trend to watch, not a threshold to game.
-    console.log(`\n  ${summarise(scores)}`);
-    expect(scores.length).toBeGreaterThan(0);
-  });
 });

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildEsCode } from './index';
@@ -16,12 +18,13 @@ describe('source-map banner selection', () => {
     const root = await mkdtemp(join(tmpdir(), 'stacktape-source-map-banner-'));
     temporaryDirectories.push(root);
     const cjsBannerPath = join(root, 'source-map-install.js');
-    const cjsOutput = join(root, 'cjs.js');
-    const esmOutput = join(root, 'esm.js');
+    const cjsOutput = join(root, 'cjs.cjs');
+    const esmOutput = join(root, 'esm.mjs');
     await writeFile(cjsBannerPath, 'globalThis.__stacktapeCjsBanner = true;');
 
     const common = {
-      rawCode: 'export const handler = () => 1;',
+      rawCode:
+        "export const handler = () => ({ banner: globalThis.__stacktapeCjsBanner === true, basename: require('node:path').basename('/runtime/value') });",
       externals: [],
       sourceMaps: 'external' as const,
       sourceMapBannerType: 'pre-compiled' as const,
@@ -41,10 +44,22 @@ describe('source-map banner selection', () => {
       sourceMapInstallPath: cjsBannerPath
     });
 
-    expect(await readFile(cjsOutput, 'utf8')).toContain('__stacktapeCjsBanner');
-    const esm = await readFile(esmOutput, 'utf8');
-    expect(esm).toContain('createRequire as __stp_createRequire');
-    expect(esm).not.toContain('__stacktapeCjsBanner');
+    for (const [output, banner] of [
+      [cjsOutput, true],
+      [esmOutput, false]
+    ] as const) {
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `const module = await import(${JSON.stringify(pathToFileURL(output).href)}); console.log(JSON.stringify((module.handler ?? module.default.handler)()));`
+        ],
+        { cwd: root, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, execution.stderr).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({ banner, basename: 'value' });
+    }
   });
 
   test('does not place an ESM package boundary beside an explicit mjs output', async () => {

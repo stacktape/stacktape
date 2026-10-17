@@ -33,7 +33,7 @@ const EXPRESS_ONLY = {
     dependencies: { express: '^5.0.0' }
   }),
   'package-lock.json': '{}',
-  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(3000);'
+  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(process.env.PORT);'
 };
 
 // Parsed through the schema so the fixture is exactly what a real submission delivers, defaults

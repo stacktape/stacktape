@@ -3,25 +3,13 @@
 ## TypeScript definition
 
 ```typescript
-import type { NatSettings, VpcReuseConfig } from 'stacktape';
+import type { VpcReuseConfig } from 'stacktape';
 
 type VpcSettings = {
-  /** NAT Gateway configuration for private subnets. */
-  nat?: NatSettings;
   /** Share a VPC with another Stacktape stack or use an existing VPC. */
   reuseVpc?: VpcReuseConfig;
 };
 ```
-
-## Property: `nat`
-
-- Required: no
-- Type: `NatSettings`
-
-NAT Gateway configuration for private subnets.
-
-Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`.
-Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
 
 ## Property: `reuseVpc`
 

@@ -1,0 +1,13 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+idna = ">=3.7"
+
+[dev-packages]
+pytest = "==8.3.5"
+
+[requires]
+python_version = "3.12"

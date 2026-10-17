@@ -2,8 +2,6 @@ import type { LoggableEventType, ProgressReporter as ProgressLogger } from '@app
 import type { HelperLambdaPackaging, PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { Subtype } from '@utils/type-helpers';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
-import type { StpEdgeLambdaFunction } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
-import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
 import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
@@ -11,25 +9,32 @@ import type { StpSolidStartWeb } from '@domain-services/config-manager/resolved-
 import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-types/sveltekit-web';
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import type { NativeBinaryLayerResult } from '@stacktape/packaging/es/native-dependencies';
-import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
+import type {
+  BuildDockerImage,
+  DockerBuildOutputArchitecture,
+  PackagingOutput
+} from '@stacktape/packaging/runtime-contracts';
 import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildLayerS3Key, getEcrCacheImageTag } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getJobName } from '@stacktape/naming/workload-names';
-import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
+import { buildNativeBinaryLayer, planLambdaDependencies } from '@stacktape/packaging/es/native-dependencies';
+import { createPackageAnalysisCache } from '@stacktape/packaging/es/installed-packages';
+import type { PackageAnalysisCache } from '@stacktape/packaging/es/installed-packages';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
-import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
+import { getLambdaRuntimeFromNodeTarget } from '@stacktape/packaging/bundlers/es/utils';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
 import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
@@ -59,11 +64,17 @@ import {
   execDocker,
   getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
+  getLocalImageDigestReference,
   installDockerPlatforms,
-  isDockerRunning
+  isDockerImagePresent,
+  isDockerRunning,
+  pullDockerImage
 } from '@utils/docker';
+import { keepBaseImagePulled } from '@utils/base-images';
+import { getImageRuntimeTools } from './image-runtime-tools';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
+import { CliError } from '@utils/errors';
 import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
 import { runRailpackPrepare } from '@domain-services/packaging-manager/railpack-command';
@@ -91,6 +102,7 @@ import type { EnvironmentVar } from '@stacktape/config/shared';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { getFileSizeBytes, getFolderSizeBytes } from '@stacktape/packaging/fs/files';
 import { getSplitFunctionDigest } from '@stacktape/packaging/split-bundler/function-digest';
+import { takeSourceMapsOutOfPackage } from '@stacktape/packaging/es/packaged-source-map';
 import {
   formatBytesAsMb,
   getLambdaCombinedUnzippedSizeBytes,
@@ -98,12 +110,11 @@ import {
   LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
+import { IDENTIFIER_FOR_MISSING_OUTPUT, isJsEntryFileExtension } from '@config';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
 import type { PackagingTarget } from './types';
 
-/** The entry-file extensions `js-bundle` packaging accepts. */
-const JS_ENTRY_EXTENSIONS: ReadonlySet<string> = new Set(['js', 'ts', 'jsx', 'mjs', 'tsx']);
-import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
+import { selectSplitBundlingGroup } from './split-bundling-policy';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 import {
   getDotnetBuildVersionForRuntime,
@@ -142,13 +153,78 @@ const getCacheRef = (jobName: string) => {
   return `${repositoryUrl}:${getEcrCacheImageTag(jobName)}`;
 };
 
+/** The platform Docker builds on natively: Docker Desktop and Linux engines run on the host's architecture. */
+const HOST_DOCKER_PLATFORM = process.arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
+
+/** Errors of a variable that reads a resource of this stack before that resource has the value deployed. */
+const NOT_DEPLOYED_YET_CODES = new Set(['DIRECTIVE_RESOURCE_NOT_DEPLOYED', 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED']);
+
+/**
+ * The environment a web build runs with. Each variable resolves on its own. A variable that reads a value of this
+ * stack that is not deployed yet is left out of the build with a warning: the build cannot have it. That happens on
+ * the first deployment, or when this deployment adds the value, such as the URL of a first custom domain. Any other
+ * error stops the build, named with its variable: building without a value the configuration asks for, such as a
+ * secret that cannot be read or a parameter name the resource does not have, produces a broken site.
+ */
+export const resolveWebBuildEnvironment = async ({
+  resourceName,
+  environment
+}: {
+  resourceName: string;
+  environment: EnvironmentVar[] | undefined;
+}): Promise<EnvironmentVar[]> => {
+  const leaveOut = (variable: EnvironmentVar, reason: string) => {
+    tuiManager.warn(`Building \`${resourceName}\` without environment variable \`${variable.name}\`: ${reason}`);
+    return undefined;
+  };
+  const resolved = await Promise.all(
+    (environment ?? []).map(async (variable) => {
+      let resolvedVariable: EnvironmentVar;
+      try {
+        resolvedVariable = (await resolveEnvironmentDirectives(variable)) as EnvironmentVar;
+      } catch (error) {
+        if (!(error instanceof CliError)) throw error;
+        if (NOT_DEPLOYED_YET_CODES.has(error.code)) {
+          return leaveOut(
+            variable,
+            globalStateManager.command === 'package' ? '`package` does not read the deployed stack.' : error.message
+          );
+        }
+        throw new CliError({
+          category: error.category,
+          code: error.code,
+          message: `Cannot resolve environment variable \`${variable.name}\` for the build of \`${resourceName}\`. ${error.message}`,
+          hints: error.hints,
+          cause: error
+        });
+      }
+      // A `$CfResourceParam` of a deployed resource whose output this deployment adds.
+      if (String(resolvedVariable.value).includes(IDENTIFIER_FOR_MISSING_OUTPUT)) {
+        return leaveOut(variable, 'the value it reads is added by this deployment.');
+      }
+      return resolvedVariable;
+    })
+  );
+  return resolved.filter((variable) => variable !== undefined);
+};
+
 const doesTargetStackExist = () => {
   return Boolean(stackManager.existingStackDetails && stackManager.existingStackResources.length);
 };
 
+/**
+ * The registry cache in ECR is for builders that start without the layers of the previous build: CI runners. Using it
+ * means a separate builder that reads no local base image, a base image lookup in its registry, and a cache import
+ * and export in ECR on every build, about 3 seconds even when nothing but the source changed. A developer machine
+ * keeps Docker's own build cache between deployments, so it builds with the local builder and pushes only the layers
+ * ECR does not have yet. The Console runner sets `CI` and keeps the registry cache builder's state between jobs.
+ */
 const shouldUseRemoteDockerCache = () => {
   return (
-    globalStateManager.command !== 'dev' && !globalStateManager.args.disableDockerRemoteCache && doesTargetStackExist()
+    ci.isCI &&
+    globalStateManager.command !== 'dev' &&
+    !globalStateManager.args.disableDockerRemoteCache &&
+    doesTargetStackExist()
   );
 };
 
@@ -163,6 +239,8 @@ export class PackagingManager {
     contentHash: string;
     /** S3 key computed during packaging, used for both template and upload */
     s3Key: string;
+    /** The chunks' source maps, kept outside the layer for the deployment bucket. */
+    sourceMapsPath?: string | undefined;
   }> = [];
 
   /** Native/external dependency layers (bcrypt, sharp, explicit externals, etc.) - separate from chunk layers. */
@@ -223,15 +301,31 @@ export class PackagingManager {
     }
   };
 
+  /** Keeps a base image of a generated Dockerfile in the local image store; see `keepBaseImagePulled`. */
+  #prepareBaseImage = ({ reference, platform }: { reference: string; platform: string | undefined }) =>
+    this.#prepareDockerOnce(`base image ${platform ?? 'native'} ${reference}`, () =>
+      timeAsync(
+        'docker:base-image',
+        async () =>
+          markTiming('docker:base-image-outcome', {
+            outcome: await keepBaseImagePulled({
+              reference,
+              platform,
+              pull: pullDockerImage,
+              isPresent: isDockerImagePresent
+            })
+          }),
+        { platform: platform ?? 'native' }
+      )
+    );
+
   #prepareRemoteDockerCache = () =>
     this.#prepareDockerOnce('remote cache', () =>
       timeAsync('docker:remote-cache', async () => {
-        await ensureBuildxBuilderForCache();
-        // Registry cache pulls and exports authenticate at build time, but the CLI's only other ECR
-        // login runs later, at artifact upload. Builds otherwise coast on the credential a previous
-        // deploy persisted, and ECR tokens expire after 12 hours — the first redeploy after an idle
-        // half-day then fails every cache export with 403 until the login is refreshed here.
-        await deploymentArtifactManager.loginToEcr();
+        // Registry cache pulls and exports authenticate at build time. Builds would otherwise coast on the credential
+        // a previous deploy persisted, and ECR tokens expire after 12 hours: the first redeploy after an idle
+        // half-day would fail every cache export with 403. The upload reuses this login.
+        await Promise.all([ensureBuildxBuilderForCache(), deploymentArtifactManager.loginToEcr()]);
       })
     );
 
@@ -242,20 +336,35 @@ export class PackagingManager {
    * runs in a container, that container is the host's own platform.
    */
   #dockerRunners = {
-    buildDockerImage: async (options: Parameters<typeof buildDockerImage>[0]) => {
-      if (options.dockerBuildOutputArchitecture) {
-        await this.#prepareDockerPlatform(options.dockerBuildOutputArchitecture);
-      }
-      if (options.cacheFromRef || options.cacheToRef) {
-        await this.#prepareRemoteDockerCache();
-      }
+    buildDockerImage: async ({ baseImages, builderImages, ...options }: Parameters<BuildDockerImage>[0]) => {
+      const usesRemoteCache = Boolean(options.cacheFromRef || options.cacheToRef);
+      await Promise.all(
+        [
+          options.dockerBuildOutputArchitecture && this.#prepareDockerPlatform(options.dockerBuildOutputArchitecture),
+          usesRemoteCache && this.#prepareRemoteDockerCache(),
+          // The registry-cache builder runs in its own container and never reads the local image store.
+          !usesRemoteCache &&
+            (baseImages ?? []).map((reference) =>
+              this.#prepareBaseImage({ reference, platform: options.dockerBuildOutputArchitecture })
+            ),
+          // A frontend runs on the builder's platform whatever the build targets.
+          !usesRemoteCache &&
+            (builderImages ?? []).map((reference) =>
+              this.#prepareBaseImage({ reference, platform: HOST_DOCKER_PLATFORM })
+            )
+        ].flat()
+      );
       return buildDockerImage(options);
     },
     runDocker: async (...[commands, options]: Parameters<typeof execDocker>) => {
       await this.#prepareRequestedDockerPlatform(commands);
       return execDocker(commands, options);
     },
-    runRailpackPrepare
+    runRailpackPrepare,
+    pinLocalBaseImage: async ({ reference, platform }: { reference: string; platform: string | undefined }) => {
+      await this.#prepareBaseImage({ reference, platform });
+      return (await getLocalImageDigestReference(reference)) ?? reference;
+    }
   };
 
   init = async () => {};
@@ -282,6 +391,23 @@ export class PackagingManager {
   getPackagingOutputForJob(jobName: string) {
     return this.#packagedJobs.find((job) => job.jobName === jobName) || null;
   }
+
+  /**
+   * Records what a command returns and reports for a packaged workload: its identity, size and artifact. A packaging
+   * result also carries every source file it traced and internal details; a Next.js or SSR build lists thousands of
+   * them, and returning those made the `package` command's agent output too large to be delivered at all.
+   */
+  #recordPackagedJob = (result: PackagingOutput) => {
+    this.#packagedJobs.push({
+      jobName: result.jobName,
+      digest: result.digest,
+      skipped: result.outcome === 'skipped',
+      size: result.size,
+      ...(result.artifactPath === undefined ? {} : { artifactPath: result.artifactPath }),
+      ...(result.imageId === undefined ? {} : { imageId: result.imageId }),
+      ...(result.resolvedModules === undefined ? {} : { resolvedModules: result.resolvedModules })
+    });
+  };
 
   /**
    * Check if a lambda uses shared layers.
@@ -336,8 +462,8 @@ export class PackagingManager {
    * they all use, instead of copied into every artifact.
    *
    * The ordinary Lambda buildpack remains the fallback for what the split path cannot serve. Docker
-   * is not asked here: pure JavaScript never needs it, and a native dependency found by the shared
-   * analysis makes the split build require Docker before any artifact is written.
+   * is not asked here: it is needed only for a native dependency whose installed files do not run on
+   * Lambda, and the split build then requires it before any artifact is written.
    */
   #partitionNodeLambdas<
     Candidate extends {
@@ -427,7 +553,7 @@ export class PackagingManager {
         archiveItem({
           absoluteSourcePath: layerPath,
           format: 'zip',
-          useNativeZip: true
+          parallelZip: true
         })
       )
     );
@@ -439,7 +565,8 @@ export class PackagingManager {
    */
   #packageNodeLambdasWithSplitBundling = async ({
     nodeLambdas,
-    commandCanUseCache
+    commandCanUseCache,
+    packageAnalysisCache
   }: {
     nodeLambdas: Array<{
       name: string;
@@ -449,6 +576,7 @@ export class PackagingManager {
       runtime?: LambdaRuntime;
     }>;
     commandCanUseCache: boolean;
+    packageAnalysisCache: PackageAnalysisCache;
   }): Promise<void> => {
     if (nodeLambdas.length === 0) return;
     this.#layerArtifacts = [];
@@ -534,6 +662,8 @@ export class PackagingManager {
     const tsConfigPath = explicitTsConfigPath ?? (existsSync(defaultTsConfigPath) ? defaultTsConfigPath : undefined);
 
     const endSplitBuild = startTiming('split:build', { functions: entrypoints.length });
+    // Every function in a split build has the same architecture.
+    const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
     const splitResult = await buildSplitBundle({
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
@@ -548,6 +678,8 @@ export class PackagingManager {
       dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
       isLambda: true,
       nodeTarget: nodeVersion,
+      architecture,
+      packageAnalysisCache,
       installDependencies: async () => {
         // Each entry file resolves against its own package; the installer joins repeated roots.
         for (const rootProjectDirPath of new Set(entrypoints.map(({ entryfilePath }) => dirname(entryfilePath)))) {
@@ -567,48 +699,46 @@ export class PackagingManager {
     });
     endSplitBuild({ ...splitResult.timings, sharedChunks: splitResult.sharedChunkCount });
 
-    // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer
-    // This is more efficient than copying to each lambda - upload once, use everywhere
-    const lambdasWithNativeDeps = Array.from(splitResult.lambdaOutputs.entries()).filter(
-      ([, output]) => output.dependenciesToInstallInDocker.length > 0
+    // Packages the bundle leaves out (native ones, and any the configuration excludes from it) go to a dependency
+    // layer: uploaded once, used by every function that needs it.
+    const lambdasWithExternalDependencies = Array.from(splitResult.lambdaOutputs.entries()).filter(
+      ([, output]) => output.externalDependencies.length > 0
     );
-
-    const dockerStillRunning = lambdasWithNativeDeps.length === 0 || (await isDockerRunning());
-    if (
-      !canBuildSplitNativeDependencies({
-        dependencyCount: lambdasWithNativeDeps.length,
-        dockerIsRunning: dockerStillRunning
-      })
-    ) {
-      const needs = lambdasWithNativeDeps.map(
-        ([lambdaName, output]) =>
-          `${lambdaName} (${output.dependenciesToInstallInDocker.map(({ name }) => name).join(', ')})`
-      );
-      throw createCliPackagingError({
-        type: 'PACKAGING',
-        message: `Docker is not running or not installed, and native dependencies need it: ${needs.join('; ')}.`,
-        hint: 'Start Docker, or install it from https://www.docker.com/products/docker-desktop/, and retry.'
-      });
-    }
-
-    if (lambdasWithNativeDeps.length > 0) {
-      const { packageManager } = await getLockFileData(globalStateManager.workingDir);
-      if (!packageManager) {
-        throw new Error(
-          'Failed to load dependency lockfile. You need to install your dependencies first. Supported package managers are npm and yarn.'
-        );
-      }
-
-      // Determine architecture from first lambda (all should be same in a split bundle)
-      const firstLambdaArch = nodeLambdas[0]?.architecture;
-      const dockerArch = firstLambdaArch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
-
+    if (lambdasWithExternalDependencies.length > 0) {
       const dependencyGroups = groupCompatibleNativeDependencies(
-        lambdasWithNativeDeps.map(([lambdaName, output]) => ({
+        lambdasWithExternalDependencies.map(([lambdaName, output]) => ({
           lambdaName,
-          dependencies: output.dependenciesToInstallInDocker
+          dependencies: output.externalDependencies
         }))
       );
+      const plans = await Promise.all(
+        dependencyGroups.map(({ dependencies, lambdaNames }) =>
+          planLambdaDependencies({
+            dependencies,
+            productionDependencies: new Set(
+              lambdaNames.flatMap((lambdaName) => splitResult.lambdaOutputs.get(lambdaName)!.productionDependencies)
+            ),
+            architecture,
+            excludedNames: sharedPackagingProperties.excludeDependencies,
+            // The group shares this setting; without it the functions run without `--enable-source-maps`.
+            withoutSourceMaps: !languageSpecificConfig.keepSourceMapsInPackage,
+            cache: packageAnalysisCache
+          })
+        )
+      );
+      const packagesToInstall = plans.flatMap(({ packagesToInstallForLambda }, groupIndex) =>
+        packagesToInstallForLambda.map(
+          ({ name }) => `${name} (used by ${dependencyGroups[groupIndex]!.lambdaNames.join(', ')})`
+        )
+      );
+      if (packagesToInstall.length > 0 && !(await isDockerRunning())) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `Docker is not running or not installed, and these native dependencies must be installed for Lambda in Docker: ${packagesToInstall.join('; ')}. Their installed files were built for another platform or compiled on this machine.`,
+          hint: 'Start Docker, or install it from https://www.docker.com/products/docker-desktop/, and retry. On Linux x64 or arm64 with glibc, a fresh install of the dependencies usually needs no Docker.'
+        });
+      }
+
       const endNativeLayers = startTiming('split:native-layers', { groups: dependencyGroups.length });
       const nativeLayers = await Promise.all(
         dependencyGroups.map(async ({ dependencies, lambdaNames }, groupIndex) => {
@@ -617,25 +747,17 @@ export class PackagingManager {
           const layerNumber = groupIndex === 0 ? 0 : 99 + groupIndex;
           const nativeLayer = await buildNativeBinaryLayer({
             dependencies,
+            plan: plans[groupIndex]!,
             installationRootPath: join(
               fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
               '_bin-install'
             ),
             layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
             lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
-            packageManager,
-            dockerBuildOutputArchitecture: dockerArch,
             usedByLambdas: lambdaNames,
             layerName: groupIndex === 0 ? 'layer-native' : `layer-native-${layerNumber}`,
             runDocker: this.#dockerRunners.runDocker
           });
-          if (!nativeLayer) {
-            throw createCliPackagingError({
-              type: 'PACKAGING',
-              message: 'Failed to create a native dependency layer for the split Lambda bundle.',
-              hint: 'Review the native dependency build output and retry the deployment.'
-            });
-          }
           return {
             ...nativeLayer,
             layerNumber,
@@ -688,13 +810,15 @@ export class PackagingManager {
       sizeBytes: number;
       contentHash: string;
       s3Key: string;
+      sourceMapsPath?: string | undefined;
     }> = [];
     if (layerAssignment.layeredChunks.length > 0) {
       const layerResult = await timeAsync('split:create-layer-artifacts', () =>
         createLayerArtifacts({
           lambdaOutputs: splitResult.lambdaOutputs,
           layerAssignment,
-          layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`
+          layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
+          keepSourceMapsInPackage: languageSpecificConfig.keepSourceMapsInPackage
         })
       );
 
@@ -771,7 +895,7 @@ export class PackagingManager {
       });
 
       // Calculate digest for caching - hash the bundled output file + layer info
-      const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName: name, commandCanUseCache });
+      const shouldUseCache = this.#canUseCache(commandCanUseCache);
       const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
 
       const layerNumbers = this.#lambdaLayerMap.get(name);
@@ -787,11 +911,20 @@ export class PackagingManager {
           message: `A native dependency layer was assigned to function ${name}, but its artifact is missing.`
         });
       }
-      // Every final package file (local chunks and source maps included), the layers its imports point into, and the
+      // The function's maps leave the package for the deployment bucket unless the configuration keeps them in.
+      const sourceMaps = languageSpecificConfig.keepSourceMapsInPackage
+        ? undefined
+        : await takeSourceMapsOutOfPackage({
+            packagePath: distFolderPath,
+            runtimeRoot: '/var/task',
+            directories: ['', 'chunks']
+          });
+      // Every final package file (local chunks included), its source maps, the layers its imports point into, and the
       // archive layout it is zipped with.
       const endDigest = startTiming('split:function-digest', { job: jobName });
       const digest = await getSplitFunctionDigest({
         distFolderPath,
+        sourceMapsSha256: sourceMaps?.sha256,
         chunkLayers: Array.from(layerNumbers ?? []).map((layerNumber) => ({
           layerNumber,
           contentHash: this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber)?.contentHash
@@ -825,7 +958,7 @@ export class PackagingManager {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `Function ${name} is ${formatBytesAsMb(functionSizeBytes)}MB unzipped and its Stacktape layers add ${formatBytesAsMb(combinedUnzippedSizeBytes - functionSizeBytes)}MB (${layerSizes.join(', ')}), ${formatBytesAsMb(combinedUnzippedSizeBytes)}MB in total. AWS Lambda allows 250MB for a function and all its layers together. Layers attached outside Stacktape are not counted here.`,
-          hint: 'Exclude unnecessary files or dependencies, reduce source maps, or disable shared-layer optimization for this deployment.'
+          hint: 'Exclude unnecessary files or dependencies, or disable shared-layer optimization for this deployment.'
         });
       }
 
@@ -853,7 +986,7 @@ export class PackagingManager {
       await archiveItem({
         absoluteSourcePath: distFolderPath,
         format: 'zip',
-        useNativeZip: true
+        parallelZip: true
       });
 
       const originalZipPath = `${distFolderPath}.zip`;
@@ -881,7 +1014,8 @@ export class PackagingManager {
         skipped: false,
         size: unzippedSizeMB,
         artifactPath: adjustedZipPath,
-        resolvedModules: lambdaOutput.resolvedModules
+        resolvedModules: lambdaOutput.resolvedModules,
+        ...(sourceMaps && { sourceMapsPath: sourceMaps.path })
       });
     });
 
@@ -901,6 +1035,9 @@ export class PackagingManager {
       description: 'Packaging workloads'
     });
 
+    // What the project's packages contain, worked out once for all functions of this build and again for the next one.
+    const packageAnalysisCache = createPackageAnalysisCache();
+
     // Helper to check if a workload should be packaged based on onlyWorkloads filter
     const shouldPackageWorkload = (workloadName: string): boolean => {
       if (!onlyWorkloads || onlyWorkloads.length === 0) return true;
@@ -914,7 +1051,7 @@ export class PackagingManager {
         if (!shouldPackageWorkload(name)) return false;
         const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
         // Exclude edge functions from split bundling - they don't support ESM with top-level await
-        return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
+        return isJsEntryFileExtension(ext) && type !== 'edge-lambda-function';
       })
       // Tracing is applied by the per-Lambda buildpack, which wraps the handler at the bundle entry.
       .map((lambda) => Object.assign({}, lambda, { tracingEnabled: tracedLambdaNames.has(lambda.name) }));
@@ -923,14 +1060,14 @@ export class PackagingManager {
     const edgeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type === 'edge-lambda-function';
+      return isJsEntryFileExtension(ext) && type === 'edge-lambda-function';
     });
 
     // Non-Node.js lambdas
     const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return !JS_ENTRY_EXTENSIONS.has(ext);
+      return !isJsEntryFileExtension(ext);
     });
 
     // In dev mode, skip container and hosting bucket builds (they run locally)
@@ -974,16 +1111,26 @@ export class PackagingManager {
       ? []
       : configManager.allContainersRequiringPackaging
           .filter(({ workloadName }) => shouldPackageWorkload(workloadName))
-          .map(({ jobName, packaging, workloadName, resources }) => {
-            return () =>
-              this.packageWorkload({
+          .map((container) => {
+            const { jobName, packaging, workloadName, resources } = container;
+            return () => {
+              // Asking Docker which platforms it builds for takes about 0.1 s and does not depend on the build, so it
+              // runs while the code is bundled. A failure here is reported, if it matters, by the build that needs it.
+              this.#prepareDockerOnce('supported platforms', getDockerBuildxSupportedPlatforms).catch(() => {});
+              return this.packageWorkload({
                 commandCanUseCache,
+                packageAnalysisCache,
                 jobName,
                 packaging,
                 workloadName,
                 target: 'container',
-                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
+                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
+                imageRuntimeTools: getImageRuntimeTools({
+                  healthCheckCommand:
+                    'internalHealthCheck' in container ? container.internalHealthCheck?.healthCheckCommand : undefined
+                })
               });
+            };
           });
 
     const agentCoreRuntimePackagingJobs = skipContainersAndHosting
@@ -994,12 +1141,14 @@ export class PackagingManager {
             return () =>
               this.packageWorkload({
                 commandCanUseCache,
+                packageAnalysisCache,
                 jobName,
                 packaging,
                 workloadName: name,
                 workloadType: 'agentcore-runtime',
                 target: 'container',
-                dockerBuildOutputArchitecture: 'linux/arm64'
+                dockerBuildOutputArchitecture: 'linux/arm64',
+                imageRuntimeTools: getImageRuntimeTools({ workloadType: 'agentcore-runtime' })
               });
           });
 
@@ -1052,6 +1201,7 @@ export class PackagingManager {
         return () =>
           this.packageWorkload({
             commandCanUseCache,
+            packageAnalysisCache,
             jobName: getJobName({ workloadName: name, workloadType: type }),
             workloadName: name,
             workloadType: type,
@@ -1086,7 +1236,11 @@ export class PackagingManager {
 
     if (splitBundledLambdas.length > 0) {
       packagingPromises.push(
-        this.#packageNodeLambdasWithSplitBundling({ nodeLambdas: splitBundledLambdas, commandCanUseCache })
+        this.#packageNodeLambdasWithSplitBundling({
+          nodeLambdas: splitBundledLambdas,
+          commandCanUseCache,
+          packageAnalysisCache
+        })
       );
     }
     if (individuallyBundledLambdas.length > 0) {
@@ -1095,6 +1249,7 @@ export class PackagingManager {
           individuallyBundledLambdas.map(({ name, type, packaging, architecture, runtime }) =>
             this.packageWorkload({
               commandCanUseCache,
+              packageAnalysisCache,
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
               workloadType: type,
@@ -1115,6 +1270,7 @@ export class PackagingManager {
           edgeLambdas.map(({ name, type, packaging, architecture, runtime }) =>
             this.packageWorkload({
               commandCanUseCache,
+              packageAnalysisCache,
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
               workloadType: type,
@@ -1150,106 +1306,7 @@ export class PackagingManager {
     return this.#packagedJobs;
   };
 
-  repackageSkippedPackagingJobsCurrentlyUsingHotSwapDeploy = async ({
-    ignoreWorkloads
-  }: {
-    ignoreWorkloads: string[];
-  }) => {
-    const lambdasToRepackage = configManager.allUserCodeLambdas.filter(
-      ({ name }) =>
-        deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(name) &&
-        this.getPackagingOutputForJob(name)?.skipped &&
-        !ignoreWorkloads.includes(name)
-    );
-    const containerWorkloadsToRepackage = configManager.allContainersRequiringPackaging.filter(
-      ({ workloadName, jobName }) =>
-        deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(workloadName) &&
-        this.getPackagingOutputForJob(jobName)?.skipped &&
-        !ignoreWorkloads.includes(workloadName)
-    );
-    const nextjsLambdasToRepackage = configManager.nextjsWebs
-      .map(({ _nestedResources }) => {
-        return Object.values(_nestedResources)
-          .filter(Boolean)
-          .filter(
-            ({ name }) =>
-              deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(name) &&
-              this.getPackagingOutputForJob(name)?.skipped &&
-              !ignoreWorkloads.includes(name)
-          );
-      })
-      .flat() as (StpLambdaFunction | StpEdgeLambdaFunction)[];
-
-    const requiresRepackaging =
-      lambdasToRepackage.length || containerWorkloadsToRepackage.length || nextjsLambdasToRepackage.length;
-
-    if (!requiresRepackaging) {
-      return;
-    }
-
-    await operationReporter.startEvent({
-      eventType: 'REPACKAGE_ARTIFACTS',
-      description: 'Rebuilding cached workloads for the full deployment'
-    });
-
-    await Promise.all([
-      ...[...lambdasToRepackage, ...nextjsLambdasToRepackage].map(({ name, type, packaging, architecture }) => {
-        const originalJobIndex = this.#packagedJobs.findIndex(({ jobName }) => jobName === name);
-        this.#packagedJobs.splice(originalJobIndex, 1);
-        return this.packageWorkload({
-          commandCanUseCache: false,
-          jobName: name,
-          workloadName: name,
-          workloadType: type,
-          target: 'lambda',
-          packaging,
-          parentEventType: 'REPACKAGE_ARTIFACTS',
-          dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
-        });
-      }),
-      ...containerWorkloadsToRepackage.map(async ({ jobName, packaging, workloadName, resources }) => {
-        const originalJobIndex = this.#packagedJobs.findIndex(
-          ({ jobName: processedJobName }) => jobName === processedJobName
-        );
-        this.#packagedJobs.splice(originalJobIndex, 1);
-        return this.packageWorkload({
-          commandCanUseCache: false,
-          jobName,
-          packaging,
-          workloadName,
-          target: 'container',
-          dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
-          parentEventType: 'REPACKAGE_ARTIFACTS'
-        });
-      })
-    ]);
-
-    await operationReporter.finishEvent({
-      eventType: 'REPACKAGE_ARTIFACTS',
-      finalMessage: 'Cached workloads rebuilt',
-      data: { packagedJobs: this.#packagedJobs }
-    });
-
-    return this.#packagedJobs;
-  };
-
-  #shouldWorkloadUseCache = ({
-    workloadName,
-    commandCanUseCache
-  }: {
-    workloadName: string;
-    commandCanUseCache: boolean;
-  }) => {
-    return (
-      commandCanUseCache &&
-      !globalStateManager.args.noCache &&
-      !(
-        deployedStackOverviewManager.isWorkloadCurrentlyUsingHotSwapDeploy(workloadName) &&
-        globalStateManager.command === 'deploy' &&
-        !globalStateManager.args.hotSwap
-      )
-    );
-  };
+  #canUseCache = (commandCanUseCache: boolean) => commandCanUseCache && !globalStateManager.args.noCache;
 
   packageNextjsWeb = async ({
     nextjsWebResource,
@@ -1263,10 +1320,10 @@ export class PackagingManager {
       instanceId: nextjsWebResource.name,
       label: nextjsWebResource.name
     });
-    let environment: EnvironmentVar[] = [];
-    try {
-      environment = (await resolveEnvironmentDirectives(nextjsWebResource.environment)) as EnvironmentVar[];
-    } catch {}
+    const environment = await resolveWebBuildEnvironment({
+      resourceName: nextjsWebResource.name,
+      environment: nextjsWebResource.environment
+    });
     const packagingOutputs = await createNextjsWebArtifacts({
       environmentVars: environment,
       resource: nextjsWebResource,
@@ -1276,10 +1333,7 @@ export class PackagingManager {
         stpResourceName: nextjsWebResource.name
       }),
       existingDigests: {
-        imageFunction: this.#shouldWorkloadUseCache({
-          workloadName: nextjsWebResource._nestedResources.imageFunction.name,
-          commandCanUseCache
-        })
+        imageFunction: this.#canUseCache(commandCanUseCache)
           ? deploymentArtifactManager.getExistingDigestsForJob(
               getJobName({
                 workloadName: nextjsWebResource._nestedResources.imageFunction.name,
@@ -1287,10 +1341,7 @@ export class PackagingManager {
               })
             )
           : [],
-        revalidationFunction: this.#shouldWorkloadUseCache({
-          workloadName: nextjsWebResource._nestedResources.revalidationFunction.name,
-          commandCanUseCache
-        })
+        revalidationFunction: this.#canUseCache(commandCanUseCache)
           ? deploymentArtifactManager.getExistingDigestsForJob(
               getJobName({
                 workloadName: nextjsWebResource._nestedResources.revalidationFunction.name,
@@ -1298,10 +1349,7 @@ export class PackagingManager {
               })
             )
           : [],
-        revalidationInsertFunction: this.#shouldWorkloadUseCache({
-          workloadName: nextjsWebResource._nestedResources.revalidationInsertFunction.name,
-          commandCanUseCache
-        })
+        revalidationInsertFunction: this.#canUseCache(commandCanUseCache)
           ? deploymentArtifactManager.getExistingDigestsForJob(
               getJobName({
                 workloadName: nextjsWebResource._nestedResources.revalidationInsertFunction.name,
@@ -1310,11 +1358,7 @@ export class PackagingManager {
             )
           : [],
         serverFunction:
-          nextjsWebResource._nestedResources.serverFunction &&
-          this.#shouldWorkloadUseCache({
-            workloadName: nextjsWebResource._nestedResources.serverFunction.name,
-            commandCanUseCache
-          })
+          nextjsWebResource._nestedResources.serverFunction && this.#canUseCache(commandCanUseCache)
             ? deploymentArtifactManager.getExistingDigestsForJob(
                 getJobName({
                   workloadName: nextjsWebResource._nestedResources.serverFunction.name,
@@ -1323,11 +1367,7 @@ export class PackagingManager {
               )
             : [],
         serverEdgeFunction:
-          nextjsWebResource._nestedResources.serverEdgeFunction &&
-          this.#shouldWorkloadUseCache({
-            workloadName: nextjsWebResource._nestedResources.serverEdgeFunction.name,
-            commandCanUseCache
-          })
+          nextjsWebResource._nestedResources.serverEdgeFunction && this.#canUseCache(commandCanUseCache)
             ? deploymentArtifactManager.getExistingDigestsForJob(
                 getJobName({
                   workloadName: nextjsWebResource._nestedResources.serverEdgeFunction.name,
@@ -1336,11 +1376,7 @@ export class PackagingManager {
               )
             : [],
         warmerFunction:
-          nextjsWebResource._nestedResources.warmerFunction &&
-          this.#shouldWorkloadUseCache({
-            workloadName: nextjsWebResource._nestedResources.warmerFunction.name,
-            commandCanUseCache
-          })
+          nextjsWebResource._nestedResources.warmerFunction && this.#canUseCache(commandCanUseCache)
             ? deploymentArtifactManager.getExistingDigestsForJob(
                 getJobName({
                   workloadName: nextjsWebResource._nestedResources.warmerFunction.name,
@@ -1355,9 +1391,14 @@ export class PackagingManager {
       archiveItem,
       createPackagingError: createCliPackagingError,
       executeProcess: exec,
-      loadModuleExport: loadPackagingModuleExport
+      loadModuleExport: loadPackagingModuleExport,
+      runDocker: this.#dockerRunners.runDocker,
+      nativeDependencyInstallationRootPath: join(
+        fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
+        '_bin-install'
+      )
     });
-    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+    packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
   packageSsrWeb = async ({
@@ -1370,10 +1411,10 @@ export class PackagingManager {
     commandCanUseCache: boolean;
   }) => {
     const frameworkConfig = SSR_WEB_FRAMEWORK_CONFIGS[resourceType];
-    let environment: EnvironmentVar[] = [];
-    try {
-      environment = (await resolveEnvironmentDirectives(resource.environment)) as EnvironmentVar[];
-    } catch {}
+    const environment = await resolveWebBuildEnvironment({
+      resourceName: resource.name,
+      environment: resource.environment
+    });
 
     const appDirectory = resource.appDirectory || '.';
     const workingDir = join(globalStateManager.workingDir, appDirectory);
@@ -1417,10 +1458,7 @@ export class PackagingManager {
             : undefined
       },
       environmentVars: environment,
-      existingDigests: this.#shouldWorkloadUseCache({
-        workloadName: resource._nestedResources.serverFunction.name,
-        commandCanUseCache
-      })
+      existingDigests: this.#canUseCache(commandCanUseCache)
         ? deploymentArtifactManager.getExistingDigestsForJob(
             getJobName({
               workloadName: resource._nestedResources.serverFunction.name,
@@ -1439,7 +1477,7 @@ export class PackagingManager {
       dockerBuildOutputArchitecture: 'linux/amd64'
     });
 
-    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+    packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
   packageWorkload = async ({
@@ -1453,7 +1491,9 @@ export class PackagingManager {
     parentEventType = 'PACKAGE_ARTIFACTS',
     devMode,
     customProgressLogger,
-    workloadType
+    workloadType,
+    imageRuntimeTools = { tini: true, curl: true },
+    packageAnalysisCache
   }: {
     workloadName: string;
     jobName: string;
@@ -1472,8 +1512,12 @@ export class PackagingManager {
     customProgressLogger?: ProgressLogger;
     /** Workload type - used to determine packaging behavior (e.g., edge functions don't support ESM) */
     workloadType?: string;
+    /** What a `js-bundle` image installs beside its runtime: tini where nothing else starts an init process. */
+    imageRuntimeTools?: { tini: boolean; curl: boolean };
+    /** The build's cache when the workload is packaged with others (`createPackageAnalysisCache`). */
+    packageAnalysisCache?: PackageAnalysisCache;
   }): Promise<PackagingOutput | undefined> => {
-    const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName, commandCanUseCache });
+    const shouldUseCache = this.#canUseCache(commandCanUseCache);
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
     const packagingType = packaging.type;
     const progressLogger =
@@ -1506,7 +1550,7 @@ export class PackagingManager {
 
     if (packagingType === 'dockerfile') {
       const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType === 'custom-artifact') {
@@ -1515,7 +1559,7 @@ export class PackagingManager {
         invocationId: globalStateManager.invocationId
       });
       const result = await buildUsingCustomArtifact({ ...sharedProps, ...packaging.properties, distFolderPath });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType === 'buildpack' && target === 'container') {
@@ -1523,9 +1567,10 @@ export class PackagingManager {
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
-        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
+        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare,
+        pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage
       });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType !== 'js-bundle' && packagingType !== 'buildpack') {
@@ -1545,12 +1590,12 @@ export class PackagingManager {
         props: getStableBuildpackDigestProps({ props, configured: { entryfilePath: configuredEntryfilePath } })
       });
     const record = (result: PackagingOutput) => {
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     };
 
     if (packagingType === 'js-bundle') {
-      if (!JS_ENTRY_EXTENSIONS.has(extension)) {
+      if (!isJsEntryFileExtension(extension)) {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `js-bundle packaging of ${workloadName} needs a JavaScript or TypeScript entry file, not \`.${extension}\`.`,
@@ -1584,6 +1629,7 @@ export class PackagingManager {
         const result = await buildJsBundleLambda({
           ...sharedProps,
           ...bundleProps,
+          packageAnalysisCache,
           sizeLimit: 250,
           debug: globalStateManager.isDebugMode,
           distFolderPath,
@@ -1600,11 +1646,13 @@ export class PackagingManager {
         await buildJsBundleImage({
           ...sharedProps,
           ...bundleProps,
+          packageAnalysisCache,
           requiresGlibcBinaries: properties.requiresGlibcBinaries,
           debug: globalStateManager.isDebugMode,
           distFolderPath,
           additionalDigestInput,
-          devMode
+          devMode,
+          runtimeTools: imageRuntimeTools
         })
       );
     }
@@ -1678,7 +1726,7 @@ export class PackagingManager {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `buildpack packaging of ${workloadName} does not support \`.${extension}\` entry files.`,
-          hint: JS_ENTRY_EXTENSIONS.has(extension)
+          hint: isJsEntryFileExtension(extension)
             ? 'Use js-bundle packaging for JavaScript and TypeScript.'
             : 'Supported: .py, .java, .go, .rb, .cs and .rs. Use custom-artifact packaging for other languages.'
         });

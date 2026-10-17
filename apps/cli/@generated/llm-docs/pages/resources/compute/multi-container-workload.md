@@ -150,7 +150,7 @@ export default defineConfig(() => {
 `essential: false` on the migration container means ECS will not restart the task when it exits. `condition: 'SUCCESS'` means the API container only starts if the migration exits with code 0 — otherwise the task fails and ECS retries from scratch.
 
 
-> **Info:** Use `stopTimeout` (default `2` seconds, max `120`) on containers that need extra time to flush connections or finish in-flight work before ECS sends SIGKILL after SIGTERM.
+> **Info:** `stopTimeout` (default `30` seconds, max `120`) is how long a container gets to flush connections and finish in-flight work after SIGTERM before ECS sends SIGKILL.
 
 
 ## Traffic
@@ -673,7 +673,7 @@ By default, workload containers run in public subnets with direct internet acces
 Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outbound traffic routes through a NAT Gateway, giving you a static outbound IP that external services can whitelist. This is useful when third-party payment gateways, data providers, or partner APIs require you to send traffic from a fixed IP address.
 
 
-> **Warning:** NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.
+> **Warning:** `usePrivateSubnetsWithNAT` requires `stackConfig.nat`: `ec2` or `ha-ec2` (Stacktape-managed NAT instances, about $7/month per zone) or `gateway` (NAT Gateways, about $32/month per zone plus data processing fees). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
 
 
 ## Logging

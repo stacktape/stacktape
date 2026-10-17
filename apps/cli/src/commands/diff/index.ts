@@ -126,7 +126,7 @@ export const commandDiff = async () => {
   config.validateGuardrails({ hasConfig: true });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
-  tui.info(`Issues: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
+  tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
@@ -146,12 +146,14 @@ export const commandDiff = async () => {
     cfTemplateDiff
   });
 
-  await deploymentArtifacts.uploadCloudFormationTemplate();
-  const templateUrl = deploymentArtifacts.cloudformationTemplateUrl;
-
-  await stack.validateTemplate({ templateUrl });
-
-  const { changes } = await stack.getChangeSet({ templateUrl, includePropertyValues: true });
+  const { templateUrl, deleteTemplate } = await deploymentArtifacts.uploadPreviewTemplate();
+  let changes: Awaited<ReturnType<typeof stack.getChangeSet>>['changes'];
+  try {
+    await stack.validateTemplate({ templateUrl });
+    ({ changes } = await stack.getChangeSet({ templateUrl, includePropertyValues: true }));
+  } finally {
+    await deleteTemplate();
+  }
   const resourceChanges = buildPreviewResourceChanges({
     calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
     deployedStackInfoMap: deployedStackOverview.stackInfoMap,

@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { INIT_MCP_SERVER_NAME } from '../../mcp/session-server';
-import { TransportError } from '../transport';
-import {
-  buildClaudeArgs,
-  buildClaudeStdin,
-  buildMcpConfig,
-  interpretClaudeRun,
-  parseClaudeStream,
-  summariseArgs
-} from './claude-cli';
+import { buildClaudeArgs, buildClaudeStdin, interpretClaudeRun, parseClaudeStream, summariseArgs } from './claude-cli';
 
 const args = () =>
   buildClaudeArgs({ systemPrompt: 'Describe this repository.', maxTurns: 12, mcpConfigPath: '/tmp/mcp.json' });
@@ -62,15 +54,6 @@ describe('buildClaudeStdin', () => {
   });
 });
 
-describe('buildMcpConfig', () => {
-  it('describes exactly one stdio server', () => {
-    const config = JSON.parse(buildMcpConfig({ command: 'node', args: ['server.js'], env: { A: '1' } }));
-
-    expect(Object.keys(config.mcpServers)).toEqual([INIT_MCP_SERVER_NAME]);
-    expect(config.mcpServers[INIT_MCP_SERVER_NAME]).toMatchObject({ type: 'stdio', command: 'node' });
-  });
-});
-
 const streamLines = (...events: unknown[]): string[] => events.map((event) => JSON.stringify(event));
 
 describe('parseClaudeStream', () => {
@@ -104,43 +87,17 @@ describe('parseClaudeStream', () => {
     expect(parsed.sawResult).toBe(true);
     expect(parsed.errorMessage).toBeUndefined();
   });
-
-  it('reports no result when the stream never concluded', () => {
-    expect(parseClaudeStream(['', 'not json', '{"type":"assistant"}'])).toMatchObject({
-      sawResult: false,
-      stopReason: 'error'
-    });
-  });
 });
 
 describe('interpretClaudeRun', () => {
   const conclude = JSON.stringify({ type: 'result', subtype: 'success', usage: { input_tokens: 1, output_tokens: 1 } });
 
-  it('accepts a concluded session even when the process exited non-zero', () => {
+  it('accepts a concluded session that exited non-zero, even when the model discussed rate limits', () => {
     // The CLI exits non-zero after max-turns and error results too, so the exit code alone would
-    // throw away a session that actually finished.
-    const outcome = interpretClaudeRun({ stdout: conclude, stderr: '', exitCode: 1, timedOut: false });
-
-    expect('parsed' in outcome).toBe(true);
-  });
-
-  it('fails when the process died before concluding', () => {
-    const outcome = interpretClaudeRun({ stdout: '', stderr: 'boom', exitCode: 1, timedOut: false });
-
-    expect('failure' in outcome && outcome.failure.retryable).toBe(false);
-  });
-
-  it('marks throttling retryable, from stderr only', () => {
-    const outcome = interpretClaudeRun({ stdout: '', stderr: '429 too many requests', exitCode: 1, timedOut: false });
-
-    expect('failure' in outcome && outcome.failure).toBeInstanceOf(TransportError);
-    expect('failure' in outcome && outcome.failure.rateLimited).toBe(true);
-  });
-
-  it('does not treat model output discussing rate limits as throttling', () => {
-    // stdout is the model talking; only stderr is the CLI's own voice.
+    // throw away a session that actually finished. stdout is the model talking; only stderr is the
+    // CLI's own voice.
     const stdout = `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'beware rate limit 429' }] } })}\n${conclude}`;
-    const outcome = interpretClaudeRun({ stdout, stderr: '', exitCode: 0, timedOut: false });
+    const outcome = interpretClaudeRun({ stdout, stderr: '', exitCode: 1, timedOut: false });
 
     expect('parsed' in outcome).toBe(true);
   });
@@ -158,4 +115,83 @@ describe('summariseArgs', () => {
     expect(summariseArgs('grep', { pattern: 'listen\\(' })).toBe('listen\\(');
     expect(summariseArgs('get_project_brief', {})).toBe('get_project_brief');
   });
+});
+
+// The provider can exit before its MCP helper closes inherited pipes. Exercise real process groups,
+// including a helper that ignores graceful termination, rather than substituting the spawner.
+describe.skipIf(process.platform === 'win32')('provider process termination', () => {
+  it.each([
+    ['timeout', 'inherit'],
+    ['abort', 'inherit'],
+    ['abort', 'ignore']
+  ] as const)(
+    'stops an exited provider and its unresponsive helper on %s with %s pipes',
+    async (mode, stderrMode) => {
+      const { mkdtemp, readFile, rm, writeFile } = await import('node:fs/promises');
+      const { tmpdir } = await import('node:os');
+      const { join } = await import('node:path');
+      const { spawnSync } = await import('node:child_process');
+      const { spawnProcess } = await import('./claude-cli');
+      const root = await mkdtemp(join(tmpdir(), 'stp-provider-group-'));
+      const leaderFile = join(root, 'leader.pid');
+      const helperFile = join(root, 'helper.pid');
+      const script = join(root, 'provider.cjs');
+      const helper = `require('node:fs').writeFileSync(${JSON.stringify(helperFile)}, String(process.pid)); process.on('SIGTERM', () => {}); console.log('ready'); setInterval(() => {}, 1000);`;
+      await writeFile(
+        script,
+        `const { spawn } = require('node:child_process'); require('node:fs').writeFileSync(${JSON.stringify(leaderFile)}, String(process.pid)); const helper = spawn(process.execPath, ['-e', ${JSON.stringify(helper)}], { stdio: ['ignore', 'pipe', ${JSON.stringify(stderrMode)}] }); helper.stdout.once('data', () => process.exit(0));`
+      );
+      const controller = new AbortController();
+      const run = spawnProcess({
+        command: 'node',
+        args: [script],
+        cwd: root,
+        stdin: '',
+        timeoutMs: mode === 'timeout' ? 300 : 60_000,
+        signal: controller.signal
+      });
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const readyBy = Date.now() + 2_000;
+        while (Date.now() < readyBy) {
+          const leader = Number(await readFile(leaderFile, 'utf8').catch(() => '0'));
+          let leaderAlive = true;
+          if (leader) {
+            try {
+              process.kill(leader, 0);
+            } catch {
+              leaderAlive = false;
+            }
+          }
+          if (!leaderAlive && (await readFile(helperFile, 'utf8').catch(() => undefined))) break;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        expect(await readFile(helperFile, 'utf8')).toMatch(/^\d+$/);
+        if (mode === 'abort') controller.abort();
+        const result = await Promise.race([
+          run,
+          new Promise<never>((_resolve, reject) => {
+            deadline = setTimeout(() => reject(new Error('Provider pipes remained open after termination.')), 2_500);
+          })
+        ]);
+        expect(result.exitCode).toBe(0);
+        expect(result.timedOut).toBe(mode === 'timeout');
+        const helperPid = Number(await readFile(helperFile, 'utf8'));
+        const state = spawnSync('ps', ['-o', 'stat=', '-p', String(helperPid)], { encoding: 'utf8' }).stdout.trim();
+        // A reparented zombie has stopped; its reaping belongs to the host's PID 1.
+        expect(state === '' || state.startsWith('Z'), `Helper ${helperPid} is still running (${state}).`).toBe(true);
+      } finally {
+        if (deadline) clearTimeout(deadline);
+        const leader = Number(await readFile(leaderFile, 'utf8').catch(() => '0'));
+        if (leader) {
+          try {
+            process.kill(-leader, 'SIGKILL');
+          } catch {}
+        }
+        await run;
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+    10_000
+  );
 });

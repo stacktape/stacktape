@@ -130,8 +130,10 @@ export class UnexpectedError extends Error {
     const message = [customMessage?.trimEnd(), originalError?.message].filter(Boolean).join('\n') || 'Unknown error';
     super(message, originalError ? { cause: originalError } : undefined);
     this.name = originalError?.name || 'UnexpectedError';
-    if (originalError?.stack) {
-      this.stack = originalError.stack;
+    if (originalError) {
+      // Without frames of its own, the wrapped error must not borrow this constructor's: every such error would then
+      // look thrown by the error handler and fall into one error-tracking issue.
+      this.stack = originalError.stack || `${this.name}: ${this.message}`;
     }
   }
 }

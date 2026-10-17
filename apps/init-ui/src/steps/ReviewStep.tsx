@@ -16,6 +16,8 @@ import { Spinner } from '@stacktape/ui-react/spinner';
 import type { WizardState } from '../session';
 import { DecisionRow } from '../components/DecisionRow';
 import { Evidence } from '../components/Evidence';
+import { gapsToList } from '../gaps';
+import { requiredSecretVariables } from '../required-secrets';
 
 /** Heavy on purpose, light on arrival: the diagram and its icon catalogue load after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
@@ -72,7 +74,7 @@ const PREFERENCE_COPY: {
         value: 'redundant',
         title: 'Stay online',
         description: 'Two copies of container apps and a standby SQL database in another location, when those exist.',
-        meta: 'Roughly doubles them'
+        meta: 'About twice the app and database cost'
       }
     ]
   },
@@ -96,21 +98,22 @@ const PREFERENCE_COPY: {
   },
   databaseAccess: {
     title: 'Who should be able to reach the SQL database?',
-    description: 'Private access is the safer boundary, but Lambda-backed apps lose direct access to public APIs.',
+    description:
+      'A database without a public address is safer. Some app types then need extra setup to reach other services.',
     options: [
       {
         value: 'private',
         title: 'Only this private network',
         description:
-          'No public address. Adds one small keyless jump box so local tools and generated migrations can tunnel in.',
-        meta: 'Adds one small instance'
+          'No public address. Adds one small server (a bastion) that your local tools and migrations connect through.',
+        meta: 'Adds a small server'
       },
       {
         value: 'public',
         title: 'Internet reachable',
         description:
-          'Anyone can attempt a connection, but the generated password is still required. Simplest for Lambda and SSR.',
-        meta: 'No jump box'
+          'Reachable from the internet, protected by a generated password. The simplest setup for serverless apps.',
+        meta: 'No extra server'
       }
     ]
   }
@@ -121,18 +124,23 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
   value,
   recommended,
   isBusy,
+  isLocked,
+  priceDeltas,
   onChange
 }: {
   preference: Key;
   value: DeploymentPreferences[Key];
   recommended: DeploymentPreferences[Key];
   isBusy: boolean;
+  isLocked: boolean;
+  /** What switching to each other option changes the monthly price by, once priced. */
+  priceDeltas: Record<string, string> | undefined;
   onChange: (change: DeploymentPreferenceChange) => void;
 }) {
   const copy = PREFERENCE_COPY[preference];
   const values = copy.options.map((option) => option.value);
   const choose = (next: string) => {
-    if (isBusy) return;
+    if (isBusy || isLocked) return;
     onChange({ key: preference, value: next as DeploymentPreferences[Key] } as DeploymentPreferenceChange);
   };
   return (
@@ -145,11 +153,17 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
         {copy.options.map((option) => (
           <SelectionCard
             description={option.description}
-            isDisabled={isBusy}
+            isDisabled={isBusy || (isLocked && option.value !== value)}
             isRecommended={option.value === recommended}
             isSelected={option.value === value}
             key={option.value}
-            meta={option.meta}
+            meta={
+              priceDeltas === undefined
+                ? option.meta
+                : option.value === value
+                  ? 'Current choice'
+                  : (priceDeltas[option.value] ?? option.meta)
+            }
             onSelect={choose}
             title={option.title}
             value={option.value}
@@ -182,6 +196,21 @@ export const deploymentPreferenceKeysFor = (types: Iterable<string>): Deployment
 const plainList = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
+/** Saving needs no account; says what deploying will need, without promising to fix what is already there. */
+const saveFootnote = (state: WizardState): string => {
+  const hasAws = state.awsIdentity?.available === true;
+  const signedIn = state.stacktapeAccount?.signedIn === true;
+  if (hasAws && signedIn)
+    return 'Saving needs no account. AWS credentials and a Stacktape sign-in for deploying are already set up.';
+  const missing = [
+    ...(state.awsIdentity !== undefined && !hasAws ? ['AWS credentials'] : []),
+    ...(state.stacktapeAccount !== undefined && !signedIn ? ['a Stacktape sign-in'] : [])
+  ];
+  return missing.length === 0
+    ? 'Saving needs no account.'
+    : `Saving needs no account. Deploying needs ${missing.join(' and ')}; the next step helps with that.`;
+};
+
 /** What the file will be called, given the format and whether the project already has one. */
 const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): string =>
   `stacktape${hasExisting ? '.generated' : ''}.${format === 'typescript' ? 'ts' : 'yml'}`;
@@ -193,6 +222,23 @@ const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): strin
  * has to survive being the only thing they read.
  */
 const TECHNOLOGY_LABELS: Readonly<Record<string, string>> = {
+  astro: 'Astro',
+  django: 'Django',
+  fiber: 'Fiber',
+  flask: 'Flask',
+  gin: 'Gin',
+  go: 'Go',
+  hono: 'Hono',
+  laravel: 'Laravel',
+  nuxt: 'Nuxt',
+  php: 'PHP',
+  python: 'Python',
+  rails: 'Rails',
+  ruby: 'Ruby',
+  rust: 'Rust',
+  sveltekit: 'SvelteKit',
+  vue: 'Vue',
+  fastify: 'Fastify',
   fastapi: 'FastAPI',
   nextjs: 'Next.js',
   nestjs: 'NestJS',
@@ -278,7 +324,10 @@ export const summarise = (state: WizardState): string => {
     search: 'a search index',
     email: 'email sending',
     kafka: 'an event stream',
-    sqlite: 'a SQLite database'
+    sqlite: 'a SQLite database',
+    amqp: 'a RabbitMQ broker',
+    nats: 'a NATS server',
+    topic: 'a notification topic'
   };
   const dependencyPhrases = dependencies.map((entry) => DEPENDENCY_PHRASES[entry.kind] ?? entry.kind);
   const list =
@@ -305,7 +354,8 @@ export function ReviewStep({
   onWrite,
   onChangeDecision,
   onChangePreference,
-  busy
+  busy,
+  lock
 }: {
   state: WizardState;
   onWrite: (format: 'yaml' | 'typescript') => void;
@@ -313,35 +363,69 @@ export function ReviewStep({
   onChangePreference: (change: DeploymentPreferenceChange) => void;
   /** Which action is in flight. Decisions use their own id, so only the row being changed spins. */
   busy: string | undefined;
+  /**
+   * Why the review can be read but not changed: a deploy is reading the saved file, or the page has
+   * lost the CLI that would apply a change.
+   */
+  lock?: 'deploying' | 'disconnected' | undefined;
 }) {
+  const isLocked = lock !== undefined;
   const [view, setView] = useState<ConfigEditorViewId>('diagram');
   const [format, setFormat] = useState<'yaml' | 'typescript'>('yaml');
   const [showAll, setShowAll] = useState(false);
 
   const resources = Object.entries(state.composition?.resources ?? {});
-  const gaps = state.composition?.gaps ?? [];
-  const decisions = state.facts?.decisions ?? [];
   const existingDeployments = state.facts?.existingDeployments ?? [];
-  const notable = decisions.filter((decision) => decision.notable);
-  const rest = decisions.filter((decision) => !decision.notable);
+  // The alert about another platform already says this; repeating it under "Before you deploy" made
+  // one fact look like two things to do.
+  const gaps = gapsToList(state.composition?.gaps ?? [], existingDeployments);
+  const secretVariables = requiredSecretVariables(state.composition?.resources ?? {});
+  const unsetSettings = state.composition?.unsetSettings ?? [];
+  const severalServices = new Set(unsetSettings.map((setting) => setting.resourceName)).size > 1;
+  const decisions = state.facts?.decisions ?? [];
+  // With nothing notable, a "Show 1 smaller one" link under an empty list hides the only content.
+  const notable = decisions.some((decision) => decision.notable)
+    ? decisions.filter((decision) => decision.notable)
+    : decisions;
+  const rest = decisions.filter((decision) => !notable.includes(decision));
   const price = state.composition?.price;
   const configText = state.composition?.configText;
   const filename = filenameFor(format, state.existingConfig !== undefined);
   const written = state.configFile !== undefined;
   const preferences = state.preferences;
   const recommendedPreferences = state.recommendedPreferences ?? preferences;
-  const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type));
+  const inertChoices = new Set(state.composition?.inertChoices ?? []);
+  const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type)).filter(
+    (key) => !inertChoices.has(key)
+  );
   const automaticAlarmCount = resources.reduce((count, [, resource]) => {
     const alarms = resource.properties.alarms;
     return count + (Array.isArray(alarms) ? alarms.length : 0);
   }, 0);
 
   if (resources.length === 0) {
+    const usedAgent = state.choice !== undefined && state.choice.agentId !== 'none';
     return (
-      <div className="wizard-panel p-5">
-        <p className="m-0 text-[var(--stp-text-muted)]">
-          We did not find anything to deploy — no server, no worker, no site. If that is wrong, the analysis missed it:
-          try again with a coding agent selected under Options, which reads more than the built-in scanner.
+      <div className="wizard-panel flex flex-col gap-2 p-5 text-[var(--stp-text-muted)]">
+        <p className="m-0">
+          No server, worker or website was found
+          {state.repositoryPath === undefined ? (
+            ''
+          ) : (
+            <>
+              {' '}
+              in <span className="wizard-code text-[var(--stp-text-primary)]">{state.repositoryPath}</span>
+            </>
+          )}
+          , so there is no configuration to save.
+        </p>
+        <p className="m-0">
+          If your app lives in a subdirectory, run <span className="wizard-code">stacktape init</span> there.
+          {usedAgent
+            ? ''
+            : (state.agents ?? []).some((agent) => agent.id !== 'none')
+              ? ' If it is here, run it again and choose a coding agent under Options: an agent reads source code, not only manifests and Dockerfiles.'
+              : ' If it is here, install a coding agent such as Claude Code or Codex and run it again: an agent reads source code, not only manifests and Dockerfiles.'}
         </p>
       </div>
     );
@@ -351,6 +435,13 @@ export function ReviewStep({
 
   return (
     <div className="flex flex-col gap-8">
+      {isLocked && (
+        <p className="wizard-locked-note">
+          {lock === 'disconnected'
+            ? 'This page lost its connection to stacktape init, so these choices are locked until it reconnects.'
+            : 'The deploy is using the saved file, so these choices are locked until it finishes.'}
+        </p>
+      )}
       <p className="wizard-summary">
         {summarise(state)}
         {price !== undefined && (
@@ -470,10 +561,17 @@ export function ReviewStep({
         </ConfigEditor>
       </div>
 
+      {price === undefined && state.composition?.priceUnavailable === true && (
+        <p className="wizard-total-cost">
+          The monthly price could not be estimated right now. Nothing else depends on it: the file and the deploy work
+          the same.
+        </p>
+      )}
       {price !== undefined && (
         <p className="wizard-total-cost">
-          <strong>{price.monthly}</strong> in fixed monthly costs, at AWS list prices for {price.region}. Traffic,
-          storage and requests add usage on top — this is the floor, not a bill.
+          <strong>{price.monthly}</strong>, at AWS list prices in{' '}
+          <span className="whitespace-nowrap">{price.region}</span>. The fixed part is what always-on resources cost;
+          traffic, storage and requests are billed by use on top.
         </p>
       )}
 
@@ -488,7 +586,9 @@ export function ReviewStep({
             {preferenceKeys.map((preference) => (
               <PreferenceCards
                 isBusy={busy === `preference-${preference}`}
+                isLocked={isLocked}
                 key={preference}
+                priceDeltas={price?.options?.[preference]}
                 onChange={onChangePreference}
                 preference={preference}
                 recommended={recommendedPreferences[preference]}
@@ -502,10 +602,9 @@ export function ReviewStep({
       {automaticAlarmCount > 0 && (
         <Alert tone="info" title="Monitoring is already included">
           {automaticAlarmCount === 1
-            ? 'One alarm watches for a sustained production problem.'
-            : `${automaticAlarmCount} alarms watch for sustained production problems.`}{' '}
-          They appear in Stacktape monitoring history without waking you for one noisy sample. Notification delivery can
-          be connected separately.
+            ? 'One alarm watches for a sustained production problem. It ignores a single noisy sample.'
+            : `${automaticAlarmCount} alarms watch for sustained production problems. They ignore a single noisy sample.`}{' '}
+          Alerts are listed in the Stacktape Console; connect a Slack or email channel there to get notified.
         </Alert>
       )}
 
@@ -513,13 +612,15 @@ export function ReviewStep({
         <section>
           <h3 className="wizard-section-heading">Decided for you</h3>
           <p className="wizard-lede mb-4">
-            Your code did not say, so we picked. Every one of these can be changed, and the file changes with it.
+            Your code did not say, so we picked.
+            {isLocked ? '' : ' Every one of these can be changed, and the file changes with it.'}
           </p>
           <div className="flex flex-col gap-2">
             {notable.map((decision) => (
               <DecisionRow
                 decision={decision}
                 isBusy={busy === decision.id}
+                isLocked={isLocked}
                 key={decision.id}
                 onChange={(value) => onChangeDecision(decision.id, value)}
               />
@@ -529,6 +630,7 @@ export function ReviewStep({
                 <DecisionRow
                   decision={decision}
                   isBusy={busy === decision.id}
+                  isLocked={isLocked}
                   key={decision.id}
                   onChange={(value) => onChangeDecision(decision.id, value)}
                 />
@@ -542,18 +644,77 @@ export function ReviewStep({
         </section>
       )}
 
-      {gaps.length > 0 && (
-        <section className="wizard-panel p-4">
-          <h3 className="m-0 mb-2 text-[0.95rem] font-semibold">Before you deploy</h3>
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[0.9rem] text-[var(--stp-text-muted)]">
-            {gaps.map((gap) => (
-              <li key={`${gap.subject}-${gap.message}`}>{gap.message}</li>
-            ))}
-          </ul>
+      {(secretVariables.length > 0 || unsetSettings.length > 0 || gaps.length > 0) && (
+        <section className="wizard-panel wizard-checklist">
+          <h3 className="m-0 text-[0.95rem] font-semibold">Before you deploy</h3>
+          {secretVariables.length > 0 && (
+            <div className="wizard-checklist-item">
+              <p className="wizard-checklist-title">
+                {secretVariables.length === 1
+                  ? 'One secret only you have'
+                  : `${secretVariables.length} secrets only you have`}
+              </p>
+              <p className="wizard-checklist-detail">
+                Your app reads {secretVariables.length === 1 ? 'it' : 'them'} from Stacktape secrets, so the values
+                never go in the file. Each secret has the variable's name in lowercase, and the Deploy step gives you
+                the command that creates it.
+              </p>
+              <p className="wizard-variable-list">
+                {secretVariables.map((name) => (
+                  <code className="wizard-code" key={name}>
+                    {name}
+                  </code>
+                ))}
+              </p>
+            </div>
+          )}
+          {unsetSettings.length > 0 && (
+            <div className="wizard-checklist-item">
+              <p className="wizard-checklist-title">
+                {unsetSettings.length === 1
+                  ? 'One setting nothing sets yet'
+                  : `${unsetSettings.length} settings nothing sets yet`}
+              </p>
+              <p className="wizard-checklist-detail">
+                Your code reads {unsetSettings.length === 1 ? 'this' : 'these'} with no fallback. If your app needs{' '}
+                {unsetSettings.length === 1 ? 'it' : 'one'} to start, add it under{' '}
+                <span className="wizard-code">environment</span> in{' '}
+                <span className="wizard-code">{written ? (state.configFile?.filename ?? filename) : filename}</span>{' '}
+                {written ? 'before deploying' : 'once it is saved'}.
+              </p>
+              <ul className="wizard-setting-list">
+                {unsetSettings.map((setting) => (
+                  <li key={`${setting.resourceName}-${setting.variableName}`}>
+                    <code className="wizard-code">{setting.variableName}</code>
+                    <span className="wizard-setting-where">
+                      {severalServices ? `${setting.resourceName}, ` : ''}
+                      {setting.evidence[0] === undefined
+                        ? 'read in your code'
+                        : `read in ${setting.evidence[0].file}:${setting.evidence[0].line}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {gaps.length > 0 && (
+            <div className="wizard-checklist-item">
+              <p className="wizard-checklist-title">
+                {gaps.length === 1 ? 'One more thing' : `${gaps.length} more things`}
+              </p>
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                {gaps.map((gap) => (
+                  <li className="wizard-checklist-detail" key={`${gap.subject}-${gap.message}`}>
+                    {gap.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
-      {written ? (
+      {isLocked ? null : written ? (
         <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">
           Saved <span className="wizard-code text-[var(--stp-text-primary)]">{state.configFile?.filename}</span> to your
           project.
@@ -580,13 +741,7 @@ export function ReviewStep({
             </span>
           </div>
           {(state.awsIdentity !== undefined || state.stacktapeAccount !== undefined) && (
-            <p className="m-0 text-[0.82rem] text-[var(--stp-text-subtle)]">
-              Saving needs no account. Deploying later needs AWS credentials
-              {state.awsIdentity === undefined ? '' : state.awsIdentity.available ? ' ✓' : ' — none found yet'} and a
-              Stacktape sign-in
-              {state.stacktapeAccount === undefined ? '' : state.stacktapeAccount.signedIn ? ' ✓' : ' — needed'}. The
-              next step sorts both out.
-            </p>
+            <p className="m-0 text-[0.82rem] text-[var(--stp-text-subtle)]">{saveFootnote(state)}</p>
           )}
         </div>
       )}

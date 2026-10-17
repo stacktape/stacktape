@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { GuardrailDefinition } from './guardrails.js';
 import type { RecordSecurityReportParams, RecordSecurityReportResponse } from './security.js';
+import { sourceMapManifestSchema } from './source-maps.js';
 
 /**
  * The Console API's API-key surface: procedures a Stacktape API key authorizes, scoped to the organization
@@ -28,7 +29,7 @@ export const recordStackOperationInputSchema = z.object({
   /**
    * The CLI's parsed command-line flags, forwarded as they were parsed and stored as JSON. The Console
    * reads `stage` out of it and keeps the rest verbatim, so the values stay unknown here: the CLI owns
-   * what a flag means, and its argument parser turns `--stage 2024` into a number as readily as a string.
+   * what a flag means. Stage names stay strings; other flags may contain arbitrary JSON values.
    */
   commandArgs: z.record(z.string(), z.unknown()).optional().nullable(),
   logStreamName: z.string().optional().nullable(),
@@ -39,7 +40,12 @@ export const recordStackOperationInputSchema = z.object({
   accountConnectionId: z.string().optional().nullable(),
   ciProvider: z.string().optional().nullable(),
   /** Whether this deployment wired Issues (runtime errors read from logs) for its stack; the Console shows coverage from it. */
-  issuesEnabled: z.boolean().optional().nullable()
+  issuesEnabled: z.boolean().optional().nullable(),
+  /**
+   * Which source maps in the stack's deployment bucket describe each function this operation deploys. Sent before the
+   * code switches and again with each function's `activeSince` once it has.
+   */
+  sourceMaps: sourceMapManifestSchema.optional().nullable()
 });
 
 export const createDeploymentTokenFromCliInputSchema = z.object({
@@ -65,7 +71,7 @@ export const ec2DeployFromCliInputSchema = z.object({
   gitCommit: z.string(),
   gitCommitMessage: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
-  hotSwap: z.boolean().optional()
+  fullDeploy: z.boolean().optional()
 });
 
 export const ec2DeployStatusFromCliInputSchema = z.object({
@@ -214,8 +220,36 @@ export const listIncidentsInputSchema = z.object({
 
 export const incidentActionInputSchema = z.object({ incidentId: z.string() });
 
-/** `stacktape ai:connect`: the member's own subscription token, as `claude setup-token` prints it. */
-export const connectClaudeSubscriptionInputSchema = z.object({ token: z.string().min(1).max(512) }).strict();
+/** The providers whose subscription a member can connect from the CLI, as `--aiProvider` names them. */
+export const aiSubscriptionProviderSchema = z.enum(['claude', 'codex', 'grok', 'opencode']);
+
+/**
+ * `stacktape ai:connect`: a member's own sign-in with one provider, as that provider's agent keeps it. Claude: the
+ * token `claude setup-token` prints. Codex: the ChatGPT tokens `codex login` writes, never an API key. Grok and
+ * OpenCode: the sign-in file `grok login` or `opencode auth login` writes.
+ */
+export const connectAiSubscriptionInputSchema = z.discriminatedUnion('provider', [
+  z.object({ provider: z.literal('claude'), token: z.string().min(1).max(512) }).strict(),
+  z
+    .object({
+      provider: z.literal('codex'),
+      tokens: z
+        .object({
+          id_token: z.string().min(1).max(16_384),
+          access_token: z.string().min(1).max(16_384),
+          refresh_token: z.string().min(1).max(4_096),
+          account_id: z.string().min(1).max(200)
+        })
+        .strict(),
+      lastRefresh: z.string().max(64).nullable()
+    })
+    .strict(),
+  z.object({ provider: z.literal('grok'), authFile: z.record(z.string().max(512), z.unknown()) }).strict(),
+  z.object({ provider: z.literal('opencode'), authFile: z.record(z.string().max(200), z.unknown()) }).strict()
+]);
+
+/** `stacktape ai:disconnect`: the provider whose sign-in to remove. */
+export const disconnectAiSubscriptionInputSchema = z.object({ provider: aiSubscriptionProviderSchema }).strict();
 
 /**
  * Deploy-time resolution of `slack-app` channels in the config: a channel name (with or without `#`) or ID in the
@@ -390,16 +424,13 @@ export type IncidentHandoffResponse = {
   markdown: string;
 };
 
-/**
- * A member's own Claude subscription token, as `claude setup-token` prints it, connected for the hosted incident
- * runs the member requests. `stacktape ai:connect` sends it; the API key's user is the member.
- */
-export type ConnectClaudeSubscriptionParams = {
-  token: string;
-};
+export type AiSubscriptionProvider = z.infer<typeof aiSubscriptionProviderSchema>;
+export type ConnectAiSubscriptionParams = z.input<typeof connectAiSubscriptionInputSchema>;
+export type DisconnectAiSubscriptionParams = z.input<typeof disconnectAiSubscriptionInputSchema>;
 
-/** What a member learns of their own connection: whether a token is configured, since when, and for whom. */
-export type ClaudeSubscriptionConnectionResponse = {
+/** What a member learns of their own connection with one provider: whether it is configured, since when, and for whom. */
+export type AiSubscriptionConnectionResponse = {
+  provider: AiSubscriptionProvider;
   configured: boolean;
   configuredAt: string | null;
   organization: { id: string; name: string };
@@ -766,10 +797,10 @@ export type ApiKeyTrpcClient = {
   reopenIssueFromCli: {
     mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
   };
-  connectClaudeSubscriptionFromCli: {
-    mutate: (args: ConnectClaudeSubscriptionParams) => Promise<ClaudeSubscriptionConnectionResponse>;
+  connectAiSubscriptionFromCli: {
+    mutate: (args: ConnectAiSubscriptionParams) => Promise<AiSubscriptionConnectionResponse>;
   };
-  disconnectClaudeSubscriptionFromCli: {
-    mutate: (args?: void) => Promise<ClaudeSubscriptionConnectionResponse>;
+  disconnectAiSubscriptionFromCli: {
+    mutate: (args: DisconnectAiSubscriptionParams) => Promise<AiSubscriptionConnectionResponse>;
   };
 };

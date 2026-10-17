@@ -24,7 +24,9 @@ The path to your Stacktape configuration file, relative to the current working d
 
 const profile = z.string().describe(`#### AWS Profile
 ---
-The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults:configure\`.`);
+The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults:configure\`.
+
+For commands that use a connected AWS account, \`--profile\` (or \`AWS_PROFILE\`) selects the connected account the profile belongs to, unless \`--awsAccount\` is set. The command fails if that account is not connected.`);
 
 const help = z.string().describe(`#### Show Help
 ---
@@ -32,7 +34,9 @@ If provided, the command will not execute and will instead print help informatio
 
 export const awsAccount = z.string().describe(`#### AWS Account
 ---
-The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).`);
+The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+
+Without it, the account is chosen by \`--profile\`, \`AWS_PROFILE\` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. \`--awsAccount\` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.`);
 
 export const projectName = z.string().describe(`#### Project Name
 ---
@@ -63,9 +67,9 @@ export const incidentStatus = z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVE
 ---
 Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
 
-export const aiProvider = z.enum(['claude']).describe(`#### AI Provider
+export const aiProvider = z.enum(['claude', 'codex', 'grok', 'opencode']).describe(`#### AI Provider
 ---
-The AI provider whose subscription to connect for hosted incident runs. Currently \`claude\` (a Claude subscription, through \`claude setup-token\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
+The AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: \`claude\` (a Claude subscription for Claude Code, through \`claude setup-token\`), \`codex\` (a ChatGPT plan for Codex, from \`codex login\`), \`grok\` (a Grok sign-in, from \`grok login\`) or \`opencode\` (what OpenCode is signed in to, from \`opencode auth login\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
 
 export const codingAgents = z.array(
   z.enum(['claude-code', 'codex', 'cursor', 'vscode', 'copilot', 'windsurf', 'opencode'])
@@ -104,7 +108,7 @@ If \`true\`, disables the use of cached artifacts and forces a fresh build of co
 
 export const disableDockerRemoteCache = z.boolean().describe(`#### Disable Docker Remote Cache
 ---
-Disables Docker layer caching using ECR as remote cache storage. By default, remote caching is enabled to speed up Docker builds by reusing layers. Set to \`true\` to disable remote caching.`);
+In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to \`true\` to build without the ECR cache in CI as well.`);
 
 export const disableAutoRollback = z.boolean().describe(`#### Disable Auto-Rollback
 ---
@@ -126,9 +130,9 @@ export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Val
 ---
 If \`true\`, includes sensitive values in the output of commands such as \`info:stack\`, \`deploy\`, and \`param:get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
 
-export const hotSwap = z.boolean().describe(`#### Hotswap
+export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---
-If \`true\`, attempts a faster deployment for code-only changes by updating \`functions\` and \`multi-container-workloads\` directly, without using CloudFormation. This is recommended only for development stacks. Hotswap will only be used if all stack changes are hot-swappable.`);
+If \`true\`, deploys every change through CloudFormation. By default, when only the code of \`functions\` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.`);
 
 export const disableLayerOptimization = z.boolean().describe(`#### Disable Layer Optimization
 ---
@@ -530,7 +534,7 @@ export const argAliases = {
   scriptName: 'scn',
   newVersion: 'nv',
   projectDirectory: 'pd',
-  hotSwap: 'hs',
+  fullDeploy: 'fd',
   apiKey: 'ak',
   awsAccount: 'aa',
   initializeProjectTo: 'ipt',
@@ -619,7 +623,7 @@ export const allCliArgsSchema = z.object({
   newVersion: newVersion.optional(),
   projectDirectory: projectDirectory.optional(),
   initializeProjectTo: initializeProjectTo.optional(),
-  hotSwap: hotSwap.optional(),
+  fullDeploy: fullDeploy.optional(),
   runner: deployRunner.optional(),
   disableLayerOptimization: disableLayerOptimization.optional(),
   apiKey: apiKey.optional(),

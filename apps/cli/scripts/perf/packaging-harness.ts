@@ -171,7 +171,7 @@ const summarizeArtifacts = (functions: FunctionArtifact[], layers: LayerArtifact
   };
 };
 
-/** Which tool wrote the measured archives: detection alone does not say, because a native attempt can fall back. */
+/** Which backend wrote the measured archives, as each archive reported it. */
 const summarizeArchives = (samples: Sample[]) => {
   const results = samples.map(({ result }) => result).filter((result) => result.archiveBackends);
   const backends: Record<string, number> = {};
@@ -180,11 +180,9 @@ const summarizeArchives = (samples: Sample[]) => {
       backends[backend] = (backends[backend] ?? 0) + count;
     }
   }
-  const nativeFailures = results.flatMap((result) => result.nativeFailures);
   return {
     format: results.find((result) => result.archiveFormat)?.archiveFormat ?? 'unknown',
-    backends,
-    nativeFailures: { count: nativeFailures.length, first: nativeFailures[0]?.message.split('\n')[0] ?? null }
+    backends
   };
 };
 
@@ -481,11 +479,11 @@ const renderReport = (report: Awaited<ReturnType<typeof createReport>>) => {
     '',
     `Bun ${report.environment.bun}; ${report.environment.cpuModel} × ${report.environment.logicalCpus}; ${report.environment.platform} ${report.environment.osRelease}. Fixture generator ${FIXTURE_GENERATOR_VERSION}; ${report.settings.samples} samples per state after one discarded warm-up; highest 1-minute load average during samples: ${report.maxLoadAverage}.`,
     '',
-    `Archives: format ${report.archives.format}, written with useNativeZip at level 1 by ${
+    `Archives: format ${report.archives.format}, written with parallelZip at its default level by ${
       Object.entries(report.archives.backends)
         .map(([backend, count]) => `${backend} × ${count}`)
         .join(', ') || 'nothing'
-    } in the measured samples, as each archive reported it; nothing asks for the native tool before packaging. Native attempts replaced by the fallback: ${report.archives.nativeFailures.count}${report.archives.nativeFailures.first ? ` (first: ${report.archives.nativeFailures.first})` : ''}.`,
+    } in the measured samples, as each archive reported it.`,
     '',
     'Times are milliseconds: median (min–max). “Changed vs cold build” counts artifacts whose digest differs from the first cold build.'
   ];

@@ -5,7 +5,7 @@
  * response proves that this handler ran *and* that the shared module was packaged and executed with it.
  */
 
-import { catalogIdentity, findStatus } from './status-catalog';
+import { catalogIdentity, findStatus, requireStatus } from './status-catalog';
 
 const HANDLER_NAME = 'retryAdvisor';
 
@@ -16,6 +16,8 @@ const json = (statusCode: number, payload: unknown) => ({
 });
 
 export const handler = async (event: { queryStringParameters?: Record<string, string | undefined> }) => {
+  // The canary's deliberate runtime error, thrown from the shared module.
+  if (event?.queryStringParameters?.fail) requireStatus(999);
   const requested = event?.queryStringParameters?.status ?? '503';
   const code = Number(requested);
 

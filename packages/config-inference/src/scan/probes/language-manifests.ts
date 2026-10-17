@@ -577,7 +577,9 @@ export const languageManifestProbe: Probe = {
                 ...(streamlitEntrypoint === undefined
                   ? {}
                   : {
-                      startCommand: `streamlit run ${streamlitEntrypoint} --server.address 0.0.0.0 --server.port 80`
+                      startCommand: `streamlit run ${streamlitEntrypoint} --server.address 0.0.0.0 --server.port 80`,
+                      // The command fixes the port, so the service must route there too.
+                      port: 80
                     }),
                 evidence: [cite(framework?.packages[0] ?? server ?? ''), streamlitCitation].filter(
                   (citation) => citation !== undefined

@@ -35,4 +35,3 @@ export type StpAtlasMongoGeneralTierClusterInstanceSize = Subtype<
   | 'M400_NVME'
   | 'M700 Low-CPU (R700)'
 >;
-export type MongoDbAtlasClusterReferencableParam = 'connectionString';

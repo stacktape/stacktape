@@ -11,10 +11,28 @@ import { getEventBusRuleLambdaPermission } from '../functions/events/utils';
 
 export const resolveStacktapeServiceLambda = () => {
   resolveFunction({ lambdaProps: configManager.stacktapeServiceLambdaProps });
+  const taggingInput = getScheduledTaggingInput();
+  // Lambda-only stacks have nothing to tag. An empty rule would still take about a minute to create.
+  if (
+    !taggingInput.tagHostedZoneAttributedToCloudMapNamespace.length &&
+    !taggingInput.tagNetworkInterfaceWithSecurityGroup.length
+  ) {
+    return;
+  }
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.customTaggingScheduleRule(),
     nameChain: configManager.stacktapeServiceLambdaProps.nameChain,
-    resource: getScheduledTaggingEventBridgeRule()
+    resource: cfnResource('AWS::Events::Rule', {
+      State: 'ENABLED',
+      ScheduleExpression: 'rate(2 hours)',
+      Targets: [
+        {
+          Input: transformIntoCloudformationSubstitutedString(taggingInput),
+          Arn: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+          Id: 'scheduledService'
+        }
+      ]
+    })
   });
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.customTaggingScheduleRulePermission(),
@@ -26,42 +44,23 @@ export const resolveStacktapeServiceLambda = () => {
   });
 };
 
-const getScheduledTaggingEventBridgeRule = () => {
-  const input: CustomTaggingScheduledRuleInput = {
-    tagHostedZoneAttributedToCloudMapNamespace: configManager.isServiceDiscoveryPrivateNamespaceRequired
-      ? [
-          {
-            attributionCfResourceLogicalName: cfLogicalNames.serviceDiscoveryPrivateNamespace(),
-            namespaceId: getAtt(cfLogicalNames.serviceDiscoveryPrivateNamespace(), 'Id')
-          }
-        ]
-      : [],
-    tagNetworkInterfaceWithSecurityGroup: [
-      ...filterResourcesForDevMode(configManager.databases, configManager.deploymentContext).map(({ name }) => {
-        return {
-          securityGroupId: ref(cfLogicalNames.dbSecurityGroup(name)),
-          attributionCfResourceLogicalName: cfLogicalNames.dbSubnetGroup(name)
-        };
-      }),
-      ...configManager.allApplicationLoadBalancers.map(({ name }) => {
-        return {
-          securityGroupId: ref(cfLogicalNames.loadBalancerSecurityGroup(name)),
-          attributionCfResourceLogicalName: cfLogicalNames.loadBalancer(name)
-        };
-      })
-    ]
-  };
-  return cfnResource('AWS::Events::Rule', {
-    State: 'ENABLED',
-    ScheduleExpression: 'rate(2 hours)',
-    // Description: eventDetails.description,
-    // Name: eventDetails.name,
-    Targets: [
-      {
-        Input: transformIntoCloudformationSubstitutedString(input),
-        Arn: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
-        Id: 'scheduledService'
-      }
-    ]
-  });
-};
+const getScheduledTaggingInput = (): CustomTaggingScheduledRuleInput => ({
+  tagHostedZoneAttributedToCloudMapNamespace: configManager.isServiceDiscoveryPrivateNamespaceRequired
+    ? [
+        {
+          attributionCfResourceLogicalName: cfLogicalNames.serviceDiscoveryPrivateNamespace(),
+          namespaceId: getAtt(cfLogicalNames.serviceDiscoveryPrivateNamespace(), 'Id')
+        }
+      ]
+    : [],
+  tagNetworkInterfaceWithSecurityGroup: [
+    ...filterResourcesForDevMode(configManager.databases, configManager.deploymentContext).map(({ name }) => ({
+      securityGroupId: ref(cfLogicalNames.dbSecurityGroup(name)),
+      attributionCfResourceLogicalName: cfLogicalNames.dbSubnetGroup(name)
+    })),
+    ...configManager.allApplicationLoadBalancers.map(({ name }) => ({
+      securityGroupId: ref(cfLogicalNames.loadBalancerSecurityGroup(name)),
+      attributionCfResourceLogicalName: cfLogicalNames.loadBalancer(name)
+    }))
+  ]
+});

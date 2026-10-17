@@ -420,6 +420,21 @@ export const awsResourceNames = {
   },
   // max 126 chars
   // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-as-group.html#cfn-autoscaling-autoscalinggroup-autoscalinggroupname
+  natInstanceAutoscalingGroup({ stackName, azIndex }: { stackName: string; azIndex: number }) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-nat-instance-${azIndex}-asg`,
+      lengthLimit: 126
+    });
+  },
+  // max 255 chars
+  natInstanceSecurityGroup(stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-nat-instance-sg`,
+      lengthLimit: 255
+    });
+  },
+  // max 126 chars
+  // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-as-group.html#cfn-autoscaling-autoscalinggroup-autoscalinggroupname
   bastionEc2AutoscalingGroup(stpResourceName: string, stackName: string) {
     return buildResourceName({
       proposedResourceName: `${stackName}-${stpResourceName}-asg`,

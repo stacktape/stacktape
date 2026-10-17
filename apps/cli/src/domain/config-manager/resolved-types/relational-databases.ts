@@ -7,21 +7,6 @@ export type StpRelationalDatabase = RelationalDatabase['properties'] & {
   configParentResourceType: RelationalDatabase['type'] | Convex['type'];
   nameChain: string[];
 };
-export type RelationalDatabaseReferencableParam =
-  | 'host'
-  | 'hosts'
-  | 'connectionString'
-  | 'jdbcConnectionString'
-  | 'port'
-  | 'dbName'
-  | 'readerHost'
-  | 'readerPort'
-  | 'readerConnectionString'
-  | 'readerJdbcConnectionString'
-  | 'readReplicaHosts'
-  | 'readReplicaConnectionStrings'
-  | 'readReplicaJdbcConnectionStrings'
-  | `readReplica${number}Port`;
 export type NormalizedSQLEngine = Exclude<
   StpRelationalDatabase['engine']['type'],
   | 'aurora-postgresql-serverless'

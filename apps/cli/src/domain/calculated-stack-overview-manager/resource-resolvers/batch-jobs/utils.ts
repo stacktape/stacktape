@@ -264,7 +264,7 @@ const getBatchJobDefinitionContainerProperties = ({
     packagingType,
     entryfilePath,
     nodeVersion,
-    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig, 'container')
   });
   const secrets = (workload.container.secrets || []).map(({ name: secretName, valueFrom }) => ({
     Name: secretName,
@@ -276,6 +276,8 @@ const getBatchJobDefinitionContainerProperties = ({
     Environment: getCfEnvironment(augmentedEnvironment),
     Secrets: secrets.length ? secrets : undefined,
     Image: getImageUrlForSingleTask(workload),
+    // Stacktape's js-bundle images run no init process of their own; Batch starts one as PID 1.
+    ...(packagingType === 'js-bundle' && { LinuxParameters: { InitProcessEnabled: true } }),
     // @todo set this cpu number properties consistently
     Vcpus: workload.resources.cpu,
     Memory: workload.resources.memory,
@@ -422,12 +424,18 @@ export const getBatchStateMachine = (
   region: AWSRegion,
   accountId: string
 ) => {
-  return cfnResource('AWS::StepFunctions::StateMachine', {
+  const stateMachine = cfnResource('AWS::StepFunctions::StateMachine', {
     StateMachineName: awsResourceNames.batchStateMachine(name, stackName),
     RoleArn: getAtt(cfLogicalNames.batchStateMachineExecutionRole(), 'Arn'),
     StateMachineType: 'STANDARD',
     DefinitionString: getBatchStateMachineDefinitionString(name, workload, stackName, region, accountId)
   });
+  // The ASL definition contains physical ARNs, so CloudFormation cannot infer these dependencies.
+  stateMachine.DependsOn = [
+    cfLogicalNames.batchJobDefinition(name),
+    cfLogicalNames.batchJobQueue(Boolean(workload.useSpotInstances), Boolean(workload.resources.gpu))
+  ];
+  return stateMachine;
 };
 
 export const getBachJobLogGroup = ({

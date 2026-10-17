@@ -10,17 +10,18 @@ import type {
   StpBuildpackInput
 } from '../runtime-contracts';
 import { pickJsBundleOptions } from '../runtime-contracts';
-import type { LanguageSpecificBundleOutput, PackagingOutput } from '../runtime-contracts';
+import type { LanguageSpecificBundleOutput, PackagingOutput, ResolvedPackageDependency } from '../runtime-contracts';
 
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
-import { buildEsDevDockerfile, buildEsDockerfile } from '../docker/dockerfiles';
+import { buildEsDevDockerfile, buildEsDockerfile, type EsImageRuntimeTools } from '../docker/dockerfiles';
 import { getFolder } from '../fs/files';
 import objectHash from 'object-hash';
 import { createEsBundle } from '../bundlers/es';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '../bundlers/constants';
 import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 import { getFolderSize } from '../fs/files';
+import { addRuntimeDependencies, type InstalledPackage, readPackageManifest } from '../es/installed-packages';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
 export const buildJsBundleImage = async ({
@@ -38,6 +39,7 @@ export const buildJsBundleImage = async ({
   cacheToRef,
   devMode,
   runtime = 'node',
+  runtimeTools,
   ...otherProps
 }: StpBuildpackInput &
   JsBundleOptions &
@@ -52,6 +54,8 @@ export const buildJsBundleImage = async ({
     devMode?: boolean | undefined;
     /** The image's JavaScript runtime. */
     runtime?: JsBundleImageRuntime | undefined;
+    /** What the production image installs beside the runtime; see `EsImageRuntimeTools`. Dev images keep all of it. */
+    runtimeTools: EsImageRuntimeTools;
   }): Promise<PackagingOutput> => {
   const nodeVersion = otherProps.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
@@ -60,13 +64,16 @@ export const buildJsBundleImage = async ({
     ...(otherProps.disableSourceMaps && { sourceMaps: 'disabled' }),
     bundleTarget: runtime === 'bun' ? 'bun' : 'node',
     externals: [],
-    installNonStaticallyBuiltDepsInDocker: false,
+    packageExternalDependencies: false,
+    // Bun and Deno run on Debian images; Node runs on Alpine unless the configuration asks for glibc.
+    requiresGlibcBinaries: requiresGlibcBinaries || runtime !== 'node',
     dockerBuildOutputArchitecture,
     name,
     progressLogger,
     additionalDigestInput: objectHash({
       bundleOptions: pickJsBundleOptions(otherProps),
       runtime,
+      runtimeTools,
       additionalDigestInput
     }),
     minify: devMode ? false : minify,
@@ -144,12 +151,20 @@ export const buildJsBundleImage = async ({
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
     nodeVersion,
     runtime,
+    runtimeTools: {
+      ...runtimeTools,
+      openssl: await usesPrisma({
+        bundledModules: bundlingOutput.resolvedModules ?? [],
+        installedPackages: languageSpecificBundleOutput.es?.externalDependencies ?? [],
+        productionDependencies: new Set(languageSpecificBundleOutput.es?.productionDependencies)
+      })
+    },
     buildContextPath
   });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
-  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+  const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
     dockerfileContents,
     buildDockerImage,
     imageTag: name,
@@ -167,12 +182,55 @@ export const buildJsBundleImage = async ({
   return {
     outcome,
     imageName: name,
+    imageId: id,
     size,
     digest,
     sourceFiles,
     details: { ...otherOutputProps, dockerOutput, duration, imageCreated: created },
     jobName: name
   };
+};
+
+const isPrismaModule = (name: string) => name === 'prisma' || name.startsWith('prisma/') || name.startsWith('@prisma/');
+
+/**
+ * Whether the image loads Prisma, whose client may need the `openssl` command; see `EsImageRuntimeTools`. Prisma can
+ * come from the bundle's imports or from any package the image installs, directly or through that package's own
+ * dependencies, such as an internal database package that ships a generated client. The installed packages are followed
+ * as they are installed on this machine, with the optional peers a production install of the project gives them. When
+ * that tree cannot be read, or a required dependency is not installed here, it is not known what the image installs,
+ * and it gets `openssl`.
+ */
+const usesPrisma = async ({
+  bundledModules,
+  installedPackages,
+  productionDependencies
+}: {
+  bundledModules: string[];
+  installedPackages: ResolvedPackageDependency[];
+  productionDependencies: ReadonlySet<string>;
+}) => {
+  if (bundledModules.some(isPrismaModule) || installedPackages.some(({ name }) => isPrismaModule(name))) return true;
+  const packages = new Map<string, InstalledPackage>();
+  try {
+    await addRuntimeDependencies({
+      packages,
+      start: installedPackages.map(({ path }) => path),
+      productionDependencies
+    });
+    const verdicts = await Promise.all(
+      [...packages.values()].map(async (installedPackage) => {
+        const required = Object.keys((await readPackageManifest(installedPackage.root)).dependencies ?? {});
+        return (
+          [installedPackage.name, ...installedPackage.dependencies.keys(), ...required].some(isPrismaModule) ||
+          required.some((name) => !installedPackage.dependencies.has(name))
+        );
+      })
+    );
+    return verdicts.includes(true);
+  } catch {
+    return true;
+  }
 };
 
 // Deduplicates concurrent builds of the same dev base image tag.
@@ -198,7 +256,7 @@ const buildDevBaseImage = async ({
   buildDockerImage: BuildDockerImage;
   checkDockerImageExists: CheckDockerImageExists;
 }): Promise<{ imageName: string; devBaseImageBuilt: boolean }> => {
-  const dependencies = languageSpecificBundleOutput.es?.dependenciesToInstallInDocker || [];
+  const dependencies = languageSpecificBundleOutput.es?.externalDependencies || [];
   const packageManager = languageSpecificBundleOutput.es?.packageManager ?? 'npm';
 
   // Create hash for dev base image caching based on deps + config. `layout` names the generated
@@ -332,6 +390,7 @@ const createEsDockerFile = async ({
   customDockerBuildCommands,
   nodeVersion,
   runtime,
+  runtimeTools,
   buildContextPath
 }: {
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
@@ -339,9 +398,10 @@ const createEsDockerFile = async ({
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
   runtime: JsBundleImageRuntime;
+  runtimeTools: EsImageRuntimeTools;
   buildContextPath: string;
 }) => {
-  const dependencies = languageSpecificBundleOutput.es?.dependenciesToInstallInDocker ?? [];
+  const dependencies = languageSpecificBundleOutput.es?.externalDependencies ?? [];
   const packageManager = languageSpecificBundleOutput.es?.packageManager ?? 'npm';
   return buildEsDockerfile({
     dependencies,
@@ -350,6 +410,7 @@ const createEsDockerFile = async ({
     customDockerBuildCommands,
     nodeVersion,
     runtime,
+    runtimeTools,
     // Only an npm, pnpm or Bun install of external dependencies can run without the source; others ignore the bundle.
     installBeforeSource:
       (packageManager === 'npm' || packageManager === 'pnpm' || packageManager === 'bun') && dependencies.length > 0
@@ -362,18 +423,14 @@ const normalizeLanguageSpecificBundleOutput = ({
   es
 }: {
   es: {
-    dependenciesToInstallInDocker?: NonNullable<LanguageSpecificBundleOutput['es']>['dependenciesToInstallInDocker'];
+    externalDependencies?: NonNullable<LanguageSpecificBundleOutput['es']>['externalDependencies'];
     packageManager?: NonNullable<LanguageSpecificBundleOutput['es']>['packageManager'] | null;
-    dynamicallyImportedModules?: NonNullable<LanguageSpecificBundleOutput['es']>['dynamicallyImportedModules'];
+    productionDependencies?: NonNullable<LanguageSpecificBundleOutput['es']>['productionDependencies'];
   };
 }): LanguageSpecificBundleOutput => ({
   es: {
-    ...(es.dependenciesToInstallInDocker !== undefined
-      ? { dependenciesToInstallInDocker: es.dependenciesToInstallInDocker }
-      : {}),
-    ...(es.dynamicallyImportedModules !== undefined
-      ? { dynamicallyImportedModules: es.dynamicallyImportedModules }
-      : {}),
-    ...(es.packageManager !== null && es.packageManager !== undefined ? { packageManager: es.packageManager } : {})
+    ...(es.externalDependencies !== undefined ? { externalDependencies: es.externalDependencies } : {}),
+    ...(es.packageManager !== null && es.packageManager !== undefined ? { packageManager: es.packageManager } : {}),
+    ...(es.productionDependencies !== undefined ? { productionDependencies: es.productionDependencies } : {})
   }
 });

@@ -54,6 +54,9 @@ const isMonitoredStackEvent = (event: StackEvent): event is MonitoredStackEvent 
   typeof event.LogicalResourceId === 'string' &&
   typeof event.ResourceStatus === 'string';
 
+/** The reasons CloudFormation gives when it fails a change set only because nothing would change. */
+const NO_CHANGE_REASONS = ["didn't contain changes", 'No updates are to be performed'];
+
 const findOldestUsableTimestamp = (events: StackEvent[]): Date | undefined => {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
@@ -195,7 +198,10 @@ export class AwsCloudFormationStacks {
       this.#createClient()
         .send(new ListStackResourcesCommand({ StackName: stackName, ...(nextToken ? { NextToken: nextToken } : {}) }))
         .catch((error) => {
-          if (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) {
+          if (
+            (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) ||
+            /^Stack \[.+\] does not exist$/.test(error.message)
+          ) {
             return {} as ListStackResourcesCommandOutput;
           }
           return handleError(error);
@@ -229,7 +235,10 @@ export class AwsCloudFormationStacks {
     const stackDescription = await this.#createClient(region)
       .send(new DescribeStacksCommand({ StackName: stackName }))
       .catch((error) => {
-        if (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) {
+        if (
+          (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) ||
+          /^Stack \[.+\] does not exist$/.test(error.message)
+        ) {
           return null;
         }
         return handleError(error);
@@ -263,6 +272,17 @@ export class AwsCloudFormationStacks {
       .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
       .catch(handleError);
     while (changeSet.Status !== 'CREATE_COMPLETE') {
+      if (changeSet.Status === 'FAILED') {
+        // CloudFormation fails a change set that contains no changes instead of completing it empty.
+        if (NO_CHANGE_REASONS.some((reason) => changeSet.StatusReason?.includes(reason))) {
+          return { changes: [], changeSetId: Id, stackId: StackId };
+        }
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'CLOUDFORMATION_CHANGE_SET_FAILED',
+          message: `CloudFormation could not calculate the changes: ${changeSet.StatusReason}`
+        });
+      }
       await wait(750);
       changeSet = await this.#createClient()
         .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))

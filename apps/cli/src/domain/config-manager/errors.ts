@@ -33,6 +33,21 @@ export const configErrors = {
       ]
     });
   },
+  /** A resource of this stack whose values a local resolution needs is not deployed yet; see web builds. */
+  directiveResourceNotDeployed({
+    directiveType,
+    resourceName
+  }: {
+    directiveType: '$ResourceParam' | '$CfResourceParam';
+    resourceName: string;
+  }): CliError {
+    return new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_RESOURCE_NOT_DEPLOYED',
+      message: `Resource ${inlineCode(resourceName)} referenced by ${inlineCode(directiveType)} is not deployed yet.`,
+      hints: `Deploy the stack, then run the command again.`
+    });
+  },
   directiveResourceParameterInvalid({
     directiveType,
     referencableParams,
@@ -589,6 +604,51 @@ export const configErrors = {
       )} configuration. Specify either ${inlineCode('vpcId')} or both ${inlineCode(
         'projectName'
       )} and ${inlineCode('stage')}, but not both methods.`
+    });
+  },
+  natRequired({ resourceNames }: { resourceNames: string[] }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_NAT_REQUIRED',
+      message: `${resourceNames.map((name) => inlineCode(name)).join(', ')} ${
+        resourceNames.length === 1 ? 'runs' : 'run'
+      } in the private subnets and cannot reach the internet without NAT. Set ${inlineCode('stackConfig.nat')} to one of: ${inlineCode(
+        'ec2'
+      )} (one small instance, ~$7/month, up to 3 minutes without outbound internet if it fails), ${inlineCode(
+        'ha-ec2'
+      )} (one instance per availability zone with automatic failover, ~$7/month per zone) or ${inlineCode(
+        'gateway'
+      )} (AWS NAT Gateways, ~$32/month per zone plus $0.045 per GB).`,
+      hints: 'Example: `stackConfig: { nat: ha-ec2 }`.'
+    });
+  },
+  natInstanceSizeRequiresInstanceType(_arg: null): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_NAT_INSTANCE_SIZE_REQUIRES_INSTANCE_TYPE',
+      message: `${inlineCode('stackConfig.nat.instanceSize')} only applies to NAT instances (${inlineCode(
+        'ec2'
+      )} and ${inlineCode('ha-ec2')}). Remove it to keep NAT Gateways, or change ${inlineCode('type')}.`
+    });
+  },
+  natAvailabilityZonesWithSingleInstance(_arg: null): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_NAT_AVAILABILITY_ZONES_WITH_SINGLE_INSTANCE',
+      message: `${inlineCode('stackConfig.nat.availabilityZones')} does not apply to ${inlineCode(
+        'ec2'
+      )}, which is always one instance in one zone. Use ${inlineCode('ha-ec2')} for one instance per zone with failover.`
+    });
+  },
+  natInstanceSizeNotArm({ instanceSize }: { instanceSize: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_NAT_INSTANCE_SIZE_NOT_ARM',
+      message: `${inlineCode('stackConfig.nat.instanceSize')} must be an arm64 (Graviton) size, got ${inlineCode(
+        instanceSize
+      )}. NAT instances run the arm64 Amazon Linux image; use a size such as ${inlineCode('t4g.nano')}, ${inlineCode(
+        't4g.small'
+      )} or ${inlineCode('c7gn.medium')}.`
     });
   },
   configDependencyMissing({ configPath, packageName }: { configPath: string; packageName: string }): CliError {

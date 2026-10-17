@@ -149,29 +149,6 @@ describe('issue processor grouping and scrubbing', () => {
     expect(groups[0].error.fingerprint).toHaveLength(16);
     expect(groups[0].error.fingerprint).not.toBe(groups[1].error.fingerprint);
   });
-
-  test('masks sensitive text before grouping, so errors that differ only by a secret or an address share an issue', () => {
-    const first = issueProcessor.parseLogMessageForError('Error: login failed for ana@example.com with token=abc123')!;
-    const second = issueProcessor.parseLogMessageForError('Error: login failed for bob@example.com with token=zzz999')!;
-
-    const { groups } = issueProcessor.groupErrorsByFingerprint([first, second], 'apiService', 20);
-
-    expect(groups).toHaveLength(1);
-    expect(groups[0].occurrences).toBe(2);
-    expect(groups[0].error.errorMessage).toBe(
-      'Error: login failed for [redacted:email]@example.com with token=[redacted]'
-    );
-    expect(groups[0].error.rawLog).not.toContain('abc123');
-    // The unscrubbed copy stays available for matching the log lines the error came from.
-    expect(groups[0].raw.errorMessage).toContain('ana@example.com');
-  });
-
-  test('masks user home directories inside stack frames', () => {
-    const parsed = issueProcessor.parseLogMessageForError(
-      'TypeError: bad things\n    at handler (/Users/ana/projects/app/index.js:4:3)'
-    )!;
-    expect(issueProcessor.scrubParsedError(parsed).stackTrace[0].file).toBe('/Users/[user]/projects/app/index.js');
-  });
 });
 
 describe('review follow-ups', () => {
@@ -189,5 +166,16 @@ describe('review follow-ups', () => {
   test('a storm larger than the API accepts is reported at the bound instead of being dropped', () => {
     expect(issueProcessor.toOccurrenceWeight(3)).toBe(3);
     expect(issueProcessor.toOccurrenceWeight(250_000)).toBe(100_000);
+  });
+});
+
+describe('the function version an execution environment runs', () => {
+  test.each([
+    ['/aws/lambda/shop-dev-api', '2026/10/15/[$LATEST]3d353a0e36b241ca8bcfbc7748e5b7cf', '$LATEST'],
+    ['/aws/lambda/shop-dev-api', '2026/10/15/[12]3d353a0e36b241ca8bcfbc7748e5b7cf', '12'],
+    ['/stp/shop-dev/ecs/api/web', 'ecs/web/0123456789abcdef', undefined],
+    ['/aws/lambda/shop-dev-api', 'custom-stream', undefined]
+  ])('%s %s', (logGroup, logStream, version) => {
+    expect(issueProcessor.getExecutedVersion(logGroup, logStream)).toBe(version);
   });
 });

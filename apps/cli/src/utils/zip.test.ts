@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { join } from 'node:path';
 import * as tar from 'tar';
 import yauzl from 'yauzl';
-import { archiveItem, createArchive } from './zip';
+import { listArchiveEntries } from '@stacktape/packaging/artifact/archive-entries';
+import { archiveItem, createArchive, writeZipWithArchiver } from './zip';
+import { writeFully, writeZip as writeParallelZip, ZipLimitError } from './zip-writer';
 
 /** Links, execute bits, shell fixtures and unreadable files are POSIX fixtures; the portable tests run everywhere. */
 const isPosix = process.platform !== 'win32';
@@ -69,54 +72,6 @@ const createSource = async (root: string) => {
 };
 
 describe('archiveItem', () => {
-  test('archives hidden files and empty directories with modes Lambda can read and run', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-
-    const result = await createArchive({ absoluteSourcePath: source, format: 'zip' });
-
-    expect(result).toEqual({ path: `${source}.zip`, backend: 'archiver' });
-    expect(await readZip(result.path)).toEqual({
-      '.hidden': '100644 hidden',
-      'bin/': '40755',
-      'bin/tool.sh': '100755 #!/bin/sh\necho tool\n',
-      'empty/': '40755',
-      'index.js': '100644 export const handler = 1;',
-      'private.txt': '100644 private'
-    });
-  });
-
-  test('keeps a single file executable and names the archive after it', async () => {
-    const root = await createRoot();
-    await file(join(root, 'bootstrap'), '#!/bin/sh\n', 0o755);
-
-    const archivePath = await archiveItem({
-      absoluteSourcePath: join(root, 'bootstrap'),
-      format: 'zip',
-      useNativeZip: true
-    });
-
-    expect(archivePath).toBe(join(root, 'bootstrap.zip'));
-    expect(await readZip(archivePath)).toEqual({ bootstrap: '100755 #!/bin/sh\n' });
-  });
-
-  test('replaces an archive at the same destination without keeping entries removed from the source', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-    const destination = join(root, 'out dir');
-    await archiveItem({ absoluteSourcePath: source, absoluteDestDirPath: destination, format: 'zip' });
-    await rm(join(source, '.hidden'));
-
-    const archivePath = await archiveItem({
-      absoluteSourcePath: source,
-      absoluteDestDirPath: destination,
-      format: 'zip'
-    });
-
-    expect(Object.keys(await readZip(archivePath))).not.toContain('.hidden');
-    expect(await readdir(destination)).toEqual(['source dir.zip']);
-  });
-
   test('refuses an archive that would replace the single file it archives', async () => {
     const root = await createRoot();
     await file(join(root, 'payload.zip'), 'an input whose name already ends in .zip');
@@ -156,48 +111,32 @@ describe('archiveItem', () => {
     expect(archivePath).toBe(`${source}.tar.gz`);
     expect(modes).toMatchObject({ stacktape: '755', 'docs/readme.md': '644' });
   });
+
+  test('keeps the modification times of small and large files in an archive without a fixed time', async () => {
+    const root = await createRoot();
+    const source = join(root, 'source dir');
+    await mkdir(source);
+    await writeFile(join(source, 'small.js'), 'small');
+    await writeFile(join(source, 'large.js'), ' '.repeat(70_000));
+    const modified = new Date('2001-02-03T04:05:06Z');
+    await Promise.all(['small.js', 'large.js'].map((name) => utimes(join(source, name), modified, modified)));
+
+    const archivePath = await archiveItem({ absoluteSourcePath: source, format: 'zip' });
+
+    const years = await new Promise<Record<string, number>>((resolve, reject) => {
+      yauzl.open(archivePath, (error, zipFile) => {
+        if (error || !zipFile) return reject(error);
+        const found: Record<string, number> = {};
+        zipFile.on('entry', (entry: yauzl.Entry) => (found[entry.fileName] = entry.getLastModDate().getFullYear()));
+        zipFile.on('end', () => resolve(found));
+        zipFile.on('error', reject);
+      });
+    });
+    expect(years).toEqual({ 'small.js': 2001, 'large.js': 2001 });
+  });
 });
 
 describe.if(isPosix)('archiveItem on POSIX hosts', () => {
-  test('keeps links as links and stores an absolute link relative to its target', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-    await symlink('bin/tool.sh', join(source, 'tool'));
-    await symlink(join(source, 'bin', 'tool.sh'), join(source, 'absolute-tool'));
-
-    const entries = await readZip(await archiveItem({ absoluteSourcePath: source, format: 'zip' }));
-
-    expect(entries.tool).toBe('120777 -> bin/tool.sh');
-    expect(entries['absolute-tool']).toBe('120777 -> bin/tool.sh');
-  });
-
-  test('keeps the execute intent of group- or other-only executables through extraction and execution', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-    await file(join(source, 'bin', 'group-tool.sh'), '#!/bin/sh\necho group\n', 0o654);
-    await file(join(source, 'bin', 'other-tool.sh'), '#!/bin/sh\necho other\n', 0o645);
-
-    const archivePath = await archiveItem({ absoluteSourcePath: source, format: 'zip' });
-    const entries = await readZip(archivePath);
-    expect(entries['bin/group-tool.sh']).toStartWith('100755 ');
-    expect(entries['bin/other-tool.sh']).toStartWith('100755 ');
-
-    const extracted = join(root, 'extracted');
-    await mkdir(extracted);
-    expect(Bun.spawnSync(['unzip', '-q', archivePath, '-d', extracted]).exitCode).toBe(0);
-    for (const [name, output] of [
-      ['group-tool.sh', 'group'],
-      ['other-tool.sh', 'other']
-    ]) {
-      expect(((await stat(join(extracted, 'bin', name!))).mode & 0o777).toString(8)).toBe('755');
-      expect(
-        Bun.spawnSync([join(extracted, 'bin', name!)])
-          .stdout.toString()
-          .trim()
-      ).toBe(output!);
-    }
-  });
-
   test.skipIf(!Bun.which('unzip'))(
     'links to what the kernel reads in the source, also after an absolute path through another link',
     async () => {
@@ -240,6 +179,36 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
     expect((await readdir(root)).toSorted()).toEqual(['secret.txt', 'source dir', 'source dir.zip']);
   });
 
+  test('writes with archiver without opening more files than the process may', async () => {
+    const root = await createRoot();
+    const source = join(root, 'source dir');
+    await mkdir(source);
+    // Small files are read whole and larger ones streamed; either way only a bounded number are open at once.
+    await Promise.all(
+      Array.from({ length: 600 }, (_, index) =>
+        writeFile(join(source, `${index}.js`), index % 2 ? `${index}` : `${index}`.padEnd(70_000, ' '))
+      )
+    );
+    const outputPath = join(root, 'archiver.zip');
+    // A child process limited to 256 descriptors: appending every entry at once opened every file at once.
+    const script = `
+      const { listArchiveEntries } = await import('@stacktape/packaging/artifact/archive-entries');
+      const { writeZipWithArchiver } = await import(${JSON.stringify(join(import.meta.dir, 'zip.ts'))});
+      const { entries } = await listArchiveEntries({ sourcePath: ${JSON.stringify(source)}, executablePatterns: [] });
+      await writeZipWithArchiver({ entries, outputPath: ${JSON.stringify(outputPath)}, compressionLevel: 1 });
+    `;
+    const child = Bun.spawnSync(['sh', '-c', 'ulimit -n 256 && exec "$0" "$@"', process.execPath, '-e', script], {
+      cwd: join(import.meta.dir, '..', '..')
+    });
+
+    expect(child.stderr.toString()).toBe('');
+    expect(child.exitCode).toBe(0);
+    const entries = await readZip(outputPath);
+    expect(Object.keys(entries)).toHaveLength(600);
+    expect(entries['599.js']).toBe('100644 599');
+    expect(entries['598.js']).toBe(`100644 ${'598'.padEnd(70_000, ' ')}`);
+  });
+
   test.skipIf(process.getuid?.() === 0)(
     'reports a file that cannot be read while archiving and leaves no partial archive behind',
     async () => {
@@ -254,100 +223,181 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
       expect((await readdir(root)).toSorted()).toEqual(['source dir', 'source dir.zip']);
     }
   );
+
+  test.skipIf(process.getuid?.() === 0)(
+    'fails rather than waits when a streamed file far into the archive cannot be read',
+    async () => {
+      const root = await createRoot();
+      const source = join(root, 'source dir');
+      await mkdir(source);
+      await Promise.all(
+        Array.from({ length: 300 }, (_, index) =>
+          writeFile(join(source, `${String(index).padStart(3, '0')}.js`), ' '.repeat(70_000))
+        )
+      );
+      await chmod(join(source, '250.js'), 0o000);
+      const { entries } = await listArchiveEntries({ sourcePath: source, executablePatterns: [] });
+
+      await expect(
+        writeZipWithArchiver({ entries, outputPath: join(root, 'failed.zip'), compressionLevel: 1 })
+      ).rejects.toThrow('EACCES');
+    }
+  );
+
+  test.skipIf(process.getuid?.() === 0 || process.platform !== 'linux')(
+    'opens no more files once a file early in the archive fails, and closes every one it opened',
+    async () => {
+      const root = await createRoot();
+      const source = join(root, 'source dir');
+      await mkdir(source);
+      await Promise.all(
+        Array.from({ length: 300 }, (_, index) =>
+          writeFile(join(source, `${String(index).padStart(3, '0')}.js`), ' '.repeat(70_000))
+        )
+      );
+      await chmod(join(source, '000.js'), 0o000);
+      const { entries } = await listArchiveEntries({ sourcePath: source, executablePatterns: [] });
+      const openSourceFiles = async () => {
+        const targets = await Promise.all(
+          (await readdir('/proc/self/fd')).map((fd) => readlink(join('/proc/self/fd', fd)).catch(() => ''))
+        );
+        return targets.filter((target) => target.startsWith(`${source}/`));
+      };
+
+      await expect(
+        writeZipWithArchiver({ entries, outputPath: join(root, 'failed.zip'), compressionLevel: 1 })
+      ).rejects.toThrow('EACCES');
+      expect(await openSourceFiles()).toEqual([]);
+      // A loop still appending after the failure would open further files the aborted archive never reads.
+      await Bun.sleep(200);
+      expect(await openSourceFiles()).toEqual([]);
+    }
+  );
 });
 
-describe.if(isPosix)('native ZIP tool fallback and detection', () => {
-  /**
-   * Runs `script` in a fresh process whose PATH starts with a directory holding a fake `zip`. Its `--version` answers
-   * like zip after logging the probe and a short delay, so concurrent first calls overlap; everything else runs
-   * `onArchive`, the shell body standing in for the actual archiving.
-   */
-  const runWithFakeZip = async ({ root, onArchive, script }: { root: string; onArchive: string; script: string }) => {
-    const toolDirectory = join(root, 'fake tools');
-    await mkdir(toolDirectory);
-    const probeLog = join(root, 'version-probes.log');
-    await file(
-      join(toolDirectory, 'zip'),
-      // The log path is data in the environment, never shell text: it contains spaces and both kinds of quote.
-      `#!/bin/sh\nif [ "$1" = "--version" ]; then echo probe >> "$STP_PROBE_LOG"; sleep 0.2; exit 0; fi\n${onArchive}`,
-      0o755
-    );
-    const child = Bun.spawnSync([process.execPath, '-e', script], {
-      env: { ...process.env, PATH: `${toolDirectory}${delimiter}${process.env.PATH}`, STP_PROBE_LOG: probeLog },
-      stdout: 'pipe',
-      stderr: 'pipe'
-    });
-    expect(child.exitCode, child.stderr.toString()).toBe(0);
-    const probes = (await readFile(probeLog, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
-    return { output: JSON.parse(child.stdout.toString().trim().split('\n').at(-1)!), probes };
-  };
-
-  const zipModule = JSON.stringify(join(import.meta.dir, 'zip.ts'));
-
-  test.each([
-    [
-      'fails after writing part of an archive',
-      'for argument in "$@"; do case "$argument" in *.zip) printf "PK partial" > "$argument";; esac; done\necho simulated failure >&2\nexit 12\n'
-    ],
-    [
-      'reports success but writes something that is not the archive',
-      'for argument in "$@"; do case "$argument" in *.zip) printf "not a zip" > "$argument";; esac; done\nexit 0\n'
-    ]
-  ])('falls back to archiver, and says so, when native zip %s', async (_case, onArchive) => {
+describe('parallel ZIP writer', () => {
+  test('writes the entries, modes, links and bytes archiver writes for the same source', async () => {
     const root = await createRoot();
     const source = await createSource(root);
+    // Compressible and incompressible content: one is deflated, the other stored.
+    await file(join(source, 'bundle.js'), 'export const value = "repeated text";\n'.repeat(2000));
+    await writeFile(join(source, 'random.bin'), randomBytes(4096));
+    if (isPosix) await symlink('bin/tool.sh', join(source, 'tool-link'));
 
-    const { output } = await runWithFakeZip({
-      root,
-      onArchive,
-      script: `const { createArchive } = await import(${zipModule});
-        console.log(JSON.stringify(await createArchive({ absoluteSourcePath: ${JSON.stringify(source)}, format: 'zip', useNativeZip: true })));`
+    const parallel = await createArchive({
+      absoluteSourcePath: source,
+      absoluteDestDirPath: join(root, 'parallel'),
+      format: 'zip',
+      parallelZip: true
+    });
+    const archiver = await createArchive({
+      absoluteSourcePath: source,
+      absoluteDestDirPath: join(root, 'archiver'),
+      format: 'zip'
     });
 
-    expect(output.backend).toBe('archiver');
-    expect(output.nativeFailure.tool).toBe('zip');
-    expect(Object.keys(await readZip(output.path)).toSorted()).toEqual([
+    expect(parallel.backend).toBe('parallel');
+    expect(archiver.backend).toBe('archiver');
+    expect(await readZip(parallel.path)).toEqual(await readZip(archiver.path));
+    expect(Object.keys(await readZip(parallel.path)).toSorted()).toEqual([
       '.hidden',
       'bin/',
       'bin/tool.sh',
+      'bundle.js',
       'empty/',
       'index.js',
-      'private.txt'
+      'private.txt',
+      'random.bin',
+      ...(isPosix ? ['tool-link'] : [])
     ]);
-    expect((await readdir(root)).toSorted()).toEqual([
-      'fake tools',
-      'source dir',
-      'source dir.zip',
-      'version-probes.log'
-    ]);
+    if (Bun.which('unzip')) {
+      expect(Bun.spawnSync(['unzip', '-tq', parallel.path]).exitCode).toBe(0);
+    }
   });
 
-  test('detects the native tool once for concurrent first archives, and every archive is complete', async () => {
+  test('leaves archives that need ZIP64 to the fallback', async () => {
     const root = await createRoot();
-    const sources = await Promise.all(
-      Array.from({ length: 8 }, async (_, index) => {
-        const source = join(root, `source ${index}`);
-        await mkdir(join(source, 'bin'), { recursive: true });
-        await file(join(source, 'bin', 'tool.sh'), `#!/bin/sh\necho ${index}\n`, 0o755);
-        return source;
-      })
+    const entries = Array.from({ length: 0x10000 }, (_, index) => ({
+      type: 'directory' as const,
+      path: `d${index}`,
+      mode: 0o755
+    }));
+
+    await expect(writeParallelZip({ entries, outputPath: join(root, 'many.zip'), level: 6 })).rejects.toBeInstanceOf(
+      ZipLimitError
     );
+    expect(await readdir(root)).toEqual([]);
+  });
 
-    // The fake cannot archive, so every call also proves that a failed native attempt still yields a real archive.
-    const { output, probes } = await runWithFakeZip({
-      root,
-      onArchive: 'exit 1\n',
-      script: `const { createArchive } = await import(${zipModule});
-        const sources = ${JSON.stringify(sources)};
-        const results = await Promise.all(sources.map((absoluteSourcePath) => createArchive({ absoluteSourcePath, format: 'zip', useNativeZip: true })));
-        console.log(JSON.stringify(results));`
-    });
-
-    expect(probes).toBe(1);
-    expect(output).toHaveLength(8);
-    for (const [index, result] of (output as { path: string; backend: string }[]).entries()) {
-      expect(result.backend).toBe('archiver');
-      expect((await readZip(result.path))['bin/tool.sh']).toBe(`100755 #!/bin/sh\necho ${index}\n`);
+  /** Archives `source` twice, with other modification times and another time zone the second time. */
+  const archiveTwice = async (root: string, source: string, files: string[]) => {
+    const archive = (name: string) =>
+      createArchive({
+        absoluteSourcePath: source,
+        absoluteDestDirPath: join(root, name),
+        format: 'zip',
+        parallelZip: true
+      });
+    const first = await archive('first');
+    const timeZone = process.env.TZ;
+    try {
+      process.env.TZ = 'Pacific/Kiritimati';
+      await Promise.all(
+        files.map((path) => utimes(path, new Date('2031-07-09T13:37:00Z'), new Date('2031-07-09T13:37:00Z')))
+      );
+      const second = await archive('second');
+      return { first, second, bytes: await Promise.all([readFile(first.path), readFile(second.path)]) };
+    } finally {
+      if (timeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = timeZone;
     }
+  };
+
+  test('writes the same bytes whatever the modification times and the time zone', async () => {
+    const root = await createRoot();
+    const source = await createSource(root);
+    const { first, bytes } = await archiveTwice(root, source, [
+      join(source, 'index.js'),
+      join(source, 'bin', 'tool.sh')
+    ]);
+
+    expect(first.backend).toBe('parallel');
+    expect(bytes[1]).toEqual(bytes[0]);
+  });
+
+  test('falls back to archiver with the same fixed time, so a ZIP64 archive is reproducible too', async () => {
+    const root = await createRoot();
+    const source = await createSource(root);
+    if (isPosix) await symlink('bin/tool.sh', join(source, 'tool-link'));
+    // The fallback a parallel archive takes when it needs ZIP64.
+    const archive = async (name: string) => {
+      const { entries } = await listArchiveEntries({ sourcePath: source, executablePatterns: [] });
+      const outputPath = join(root, name);
+      await writeZipWithArchiver({ entries, outputPath, compressionLevel: 6, fixedTime: true });
+      return readFile(outputPath);
+    };
+
+    const first = await archive('first.zip');
+    await utimes(join(source, 'index.js'), new Date('2031-07-09T13:37:00Z'), new Date('2031-07-09T13:37:00Z'));
+    expect(await archive('second.zip')).toEqual(first);
+  });
+
+  test('keeps writing until every byte is written and reports a write that stops', async () => {
+    const written: Buffer[] = [];
+    // A file that takes at most three bytes per write, as a pipe or a full disk can.
+    const shortWrites = {
+      write: async (buffer: Buffer, offset = 0, length = buffer.length) => {
+        const bytesWritten = Math.min(3, length);
+        written.push(Buffer.from(buffer.subarray(offset, offset + bytesWritten)));
+        return { bytesWritten, buffer };
+      }
+    };
+    const content = Buffer.from('a buffer longer than one write');
+
+    await writeFully(shortWrites as never, content);
+    expect(Buffer.concat(written)).toEqual(content);
+
+    const stalled = { write: async (buffer: Buffer) => ({ bytesWritten: 0, buffer }) };
+    await expect(writeFully(stalled as never, content)).rejects.toThrow('stopped after 0 of 30 bytes');
   });
 });

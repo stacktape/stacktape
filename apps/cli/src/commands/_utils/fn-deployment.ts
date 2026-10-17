@@ -7,6 +7,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
+import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
@@ -95,8 +96,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
 export const getLambdaFunctionHotswapInformation = ({ lambdaProps }: { lambdaProps: StpLambdaFunction }) => {
   const artifactInfo = deploymentArtifactManager.getLambdaS3UploadInfo({
     artifactName: lambdaProps.artifactName,
-    packaging: lambdaProps.packaging,
-    hotSwapDeploy: true
+    packaging: lambdaProps.packaging
   });
 
   const deployedLambdaDigest = stackManager.existingStackResources
@@ -145,28 +145,32 @@ export const updateFunctionCode = async ({
     });
   }
 
+  // The digest tag tells the next deployment which build the function runs. It says "updating" until the update is
+  // confirmed, so an update whose final tag write fails is never mistaken for the previous build.
+  await awsSdkManager.lambda.tagFunction({
+    lambdaArn: arns.lambdaFromFullName({
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      region: globalStateManager.region,
+      lambdaAwsName: lambdaResourceName
+    }),
+    tags: [{ key: tagNames.codeDigest(), value: 'updating' }]
+  });
   const { FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
     lambdaResourceName,
     artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
     artifactS3Key: s3Key
   });
 
-  await Promise.all([
-    awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName }).then(async () => {
-      // if lambda uses alias we must update it as well
-      if (aliasName) {
-        const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
-        return awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
-      }
-    }),
-    awsSdkManager.lambda.tagFunction({
-      lambdaArn: FunctionArn,
-      tags: [
-        { key: tagNames.hotSwapDeploy(), value: 'true' },
-        { key: tagNames.codeDigest(), value: digest }
-      ]
-    })
-  ]);
+  await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  if (aliasName) {
+    const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
+    await awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
+  }
+  // Written last: the next deployment skips a function whose digest tag already matches its code. Without the tag the
+  // next deployment updates the function again, so a failure here does not fail this one.
+  await awsSdkManager.lambda
+    .tagFunction({ lambdaArn: FunctionArn, tags: [{ key: tagNames.codeDigest(), value: digest }] })
+    .catch((error) => tuiManager.warn(`Could not tag ${workloadName} with its code digest: ${error}`));
 
   if (!devMode) {
     await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });

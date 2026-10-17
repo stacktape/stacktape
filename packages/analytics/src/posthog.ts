@@ -20,8 +20,7 @@ export const getPostHogEnvironment = ({
 }) => {
   if (explicitEnvironment) return explicitEnvironment;
   if (isDevelopment || !version || version === 'dev') return 'local';
-  if (version.includes('preview') || version.includes('alpha') || version.includes('beta') || version.includes('rc')) {
-    return 'preview';
-  }
+  // Any SemVer prerelease (`4.0.0-preview.7`, `4.0.0-bench.20080e60`) is kept out of production.
+  if (version.includes('-')) return 'preview';
   return 'production';
 };
