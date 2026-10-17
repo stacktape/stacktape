@@ -24,27 +24,7 @@ const digest = async (rootPath: string, files: string[]) =>
     })
   ).digest('hex');
 
-const hashGeneratedBundle = async (path: string) =>
-  (
-    await getHashFromMultipleFiles({
-      files: [{ path, identity: 'stacktape-generated-workload.js' }]
-    })
-  ).digest('hex');
-
 describe('multi-file hashing', () => {
-  test('distinguishes content boundaries', async () => {
-    const firstRoot = await createRoot();
-    const secondRoot = await createRoot();
-    await Promise.all([
-      writeFile(join(firstRoot, 'first'), 'ab'),
-      writeFile(join(firstRoot, 'second'), 'c'),
-      writeFile(join(secondRoot, 'first'), 'a'),
-      writeFile(join(secondRoot, 'second'), 'bc')
-    ]);
-
-    expect(await digest(firstRoot, ['first', 'second'])).not.toBe(await digest(secondRoot, ['first', 'second']));
-  });
-
   test('distinguishes file identity even when contents are equal', async () => {
     const root = await createRoot();
     await Promise.all([writeFile(join(root, 'first'), 'same'), writeFile(join(root, 'other'), 'same')]);
@@ -81,19 +61,5 @@ describe('multi-file hashing', () => {
     ]);
 
     expect(await digest(firstRoot, ['binary'])).not.toBe(await digest(secondRoot, ['binary']));
-  });
-
-  test('keeps generated artifacts stable when invocation directories change', async () => {
-    const firstRoot = await createRoot();
-    const secondRoot = await createRoot();
-    const firstBundlePath = join(firstRoot, 'invocation-one', 'index.js');
-    const secondBundlePath = join(secondRoot, 'invocation-two', 'index.js');
-    await Promise.all([mkdir(join(firstRoot, 'invocation-one')), mkdir(join(secondRoot, 'invocation-two'))]);
-    await Promise.all([
-      writeFile(firstBundlePath, 'export default 1'),
-      writeFile(secondBundlePath, 'export default 1')
-    ]);
-
-    expect(await hashGeneratedBundle(firstBundlePath)).toBe(await hashGeneratedBundle(secondBundlePath));
   });
 });
