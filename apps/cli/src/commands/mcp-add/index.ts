@@ -1,513 +1,219 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { isAgentMode } from '../_utils/agent-mode';
-import { copy, ensureDir, pathExists, readFile, writeFile } from 'fs-extra';
-import { dirname, join } from 'node:path';
+import {
+  CODING_AGENTS,
+  getCodingAgent,
+  type CodingAgent,
+  type CodingAgentId
+} from '@domain-services/coding-agent-setup/agents';
+import { resolveServerCommand } from '@domain-services/coding-agent-setup/server-command';
+import {
+  findConfiguredAgents,
+  removeCodingAgents,
+  setUpCodingAgents,
+  type AgentOutcome
+} from '@domain-services/coding-agent-setup/setup';
+import { CliError } from '@utils/errors';
 import { homedir } from 'node:os';
-import { existsSync, readFileSync } from 'node:fs';
+import { isAgentMode } from '../_utils/agent-mode';
 
-type ClientInstallerTarget = {
-  id: 'claude-code' | 'codex' | 'cursor' | 'vscode' | 'opencode' | 'windsurf';
-  label: string;
-  description: string;
-  kind: 'json' | 'toml';
-  rootKey?: string;
-  paths: string[];
-  serverConfig?: Record<string, unknown>;
+const tildify = (path: string) => {
+  const home = homedir();
+  return path.startsWith(home) ? `~${path.slice(home.length)}` : path;
 };
 
-type InstallStatus = 'created' | 'updated' | 'unchanged' | 'failed';
+const canPrompt = () => !isAgentMode() && !globalStateManager.args.autoConfirmOperation && tuiManager.isTTY;
 
-type InstallResult = {
-  client: string;
-  configPath: string;
-  status: InstallStatus;
-  backupPath?: string;
-  error?: string;
+const requestedAgents = (): CodingAgent[] | undefined => {
+  const requested = globalStateManager.args.codingAgents as CodingAgentId[] | undefined;
+  return requested && requested.length > 0 ? requested.map(getCodingAgent) : undefined;
 };
 
-const getMcpClientEnv = (clientName: string) => ({
-  STACKTAPE_MCP_CLIENT_NAME: clientName
-});
+const CHANGE_LABELS = {
+  created: 'added',
+  updated: 'updated',
+  unchanged: 'already set up',
+  removed: 'removed',
+  absent: 'not set up'
+} as const;
 
-const getAppDataPath = (): string => {
-  if (process.env.APPDATA) return process.env.APPDATA;
-  return join(homedir(), 'AppData', 'Roaming');
-};
-
-const getHomePath = (): string => {
-  if (process.env.USERPROFILE) return process.env.USERPROFILE;
-  return homedir();
-};
-
-const resolveLocalStacktapeCommand = (): string => {
-  const cwd = process.cwd();
-  const packageJsonPath = join(cwd, 'package.json');
-
-  if (!existsSync(packageJsonPath)) return 'stacktape';
-
-  try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-      optionalDependencies?: Record<string, string>;
-      peerDependencies?: Record<string, string>;
-    };
-
-    const hasStacktapeDependency =
-      Boolean(packageJson.dependencies?.stacktape) ||
-      Boolean(packageJson.devDependencies?.stacktape) ||
-      Boolean(packageJson.optionalDependencies?.stacktape) ||
-      Boolean(packageJson.peerDependencies?.stacktape);
-
-    if (hasStacktapeDependency) {
-      return 'node_modules/.bin/stacktape';
-    }
-  } catch {
-    return 'stacktape';
-  }
-
-  return 'stacktape';
-};
-
-const getTargets = ({ stacktapeCommand }: { stacktapeCommand: string }): ClientInstallerTarget[] => {
-  const home = getHomePath();
-  const appData = getAppDataPath();
-  const cwd = process.cwd();
-  const isWindows = process.platform === 'win32';
-
-  return [
-    {
-      id: 'claude-code',
-      label: 'Claude Code',
-      description: 'User MCP config (~/.claude.json)',
-      kind: 'json',
-      rootKey: 'mcpServers',
-      paths: [join(cwd, '.mcp.json'), join(home, '.claude.json')],
-      serverConfig: {
-        type: 'stdio',
-        command: stacktapeCommand,
-        args: ['mcp'],
-        env: getMcpClientEnv('claude-code')
-      }
-    },
-    {
-      id: 'codex',
-      label: 'OpenAI Codex',
-      description: 'Codex TOML config (~/.codex/config.toml)',
-      kind: 'toml',
-      paths: [join(cwd, '.codex', 'config.toml'), join(home, '.codex', 'config.toml')]
-    },
-    {
-      id: 'cursor',
-      label: 'Cursor',
-      description: 'Cursor MCP config (~/.cursor/mcp.json)',
-      kind: 'json',
-      rootKey: 'mcpServers',
-      paths: [join(cwd, '.cursor', 'mcp.json'), join(home, '.cursor', 'mcp.json')],
-      serverConfig: {
-        type: 'stdio',
-        command: stacktapeCommand,
-        args: ['mcp'],
-        env: getMcpClientEnv('cursor')
-      }
-    },
-    {
-      id: 'vscode',
-      label: 'VS Code / Copilot',
-      description: 'VS Code MCP config (User/mcp.json)',
-      kind: 'json',
-      rootKey: 'servers',
-      paths: [
-        join(cwd, '.vscode', 'mcp.json'),
-        isWindows
-          ? join(appData, 'Code', 'User', 'mcp.json')
-          : process.platform === 'darwin'
-            ? join(home, 'Library', 'Application Support', 'Code', 'User', 'mcp.json')
-            : join(home, '.config', 'Code', 'User', 'mcp.json')
-      ],
-      serverConfig: {
-        type: 'stdio',
-        command: stacktapeCommand,
-        args: ['mcp'],
-        env: getMcpClientEnv('vscode')
-      }
-    },
-    {
-      id: 'opencode',
-      label: 'OpenCode',
-      description: 'OpenCode config (JSON/JSONC)',
-      kind: 'json',
-      rootKey: 'mcp',
-      paths: isWindows
-        ? [
-            join(cwd, 'opencode.jsonc'),
-            join(cwd, '.opencode', 'config.json'),
-            join(appData, 'opencode', 'opencode.jsonc'),
-            join(appData, 'opencode', 'config.json')
-          ]
-        : [
-            join(cwd, 'opencode.jsonc'),
-            join(cwd, '.opencode', 'config.json'),
-            join(home, '.config', 'opencode', 'opencode.jsonc'),
-            join(home, '.config', 'opencode', 'config.json'),
-            join(home, '.opencode', 'config.json')
-          ],
-      serverConfig: {
-        type: 'local',
-        command: [stacktapeCommand, 'mcp'],
-        enabled: true,
-        env: getMcpClientEnv('opencode')
-      }
-    },
-    {
-      id: 'windsurf',
-      label: 'Windsurf',
-      description: 'Windsurf MCP config',
-      kind: 'json',
-      rootKey: 'mcpServers',
-      paths: [
-        join(cwd, '.codeium', 'windsurf', 'mcp_config.json'),
-        isWindows
-          ? join(home, '.codeium', 'windsurf', 'mcp_config.json')
-          : join(home, '.codeium', 'windsurf', 'mcp_config.json')
-      ],
-      serverConfig: {
-        command: stacktapeCommand,
-        args: ['mcp'],
-        env: getMcpClientEnv('windsurf')
-      }
-    }
-  ];
-};
-
-const resolveTargetPath = async ({ paths }: { paths: string[] }): Promise<string> => {
-  for (const candidatePath of paths) {
-    if (await pathExists(candidatePath)) return candidatePath;
-  }
-  return paths[0];
-};
-
-const detectTarget = async ({ paths }: { paths: string[] }): Promise<boolean> => {
-  for (const candidatePath of paths) {
-    if (await pathExists(candidatePath)) return true;
-  }
-  return false;
-};
-
-const createBackupPath = (filePath: string): string => {
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${filePath}.bak.${ts}`;
-};
-
-const sortObjectKeys = (input: Record<string, unknown>): Record<string, unknown> => {
-  return Object.keys(input)
-    .sort((a, b) => a.localeCompare(b))
-    .reduce(
-      (acc, key) => {
-        acc[key] = input[key];
-        return acc;
-      },
-      {} as Record<string, unknown>
-    );
-};
-
-const installJsonTarget = async ({
-  configPath,
-  rootKey,
-  serverConfig,
-  client
+const chooseAgents = async ({
+  message,
+  candidates,
+  preselected
 }: {
-  configPath: string;
-  rootKey: string;
-  serverConfig: Record<string, unknown>;
-  client: string;
-}): Promise<InstallResult> => {
+  message: string;
+  candidates: Array<{ agent: CodingAgent; note: string }>;
+  preselected: CodingAgentId[];
+}): Promise<CodingAgent[]> => {
+  tuiManager.start();
   try {
-    const exists = await pathExists(configPath);
-    const currentRaw = exists ? await readFile(configPath, 'utf-8') : '';
-
-    let currentConfig: Record<string, unknown> = {};
-    if (currentRaw.trim().length > 0) {
-      try {
-        currentConfig = Bun.JSON5.parse(currentRaw) as Record<string, unknown>;
-      } catch (error) {
-        return {
-          client,
-          configPath,
-          status: 'failed',
-          error: `Invalid JSON/JSONC in file: ${(error as Error).message}`
-        };
-      }
-    }
-
-    if (!currentConfig || typeof currentConfig !== 'object' || Array.isArray(currentConfig)) {
-      currentConfig = {};
-    }
-
-    const root = currentConfig[rootKey];
-    const rootObject: Record<string, unknown> =
-      root && typeof root === 'object' && !Array.isArray(root)
-        ? ({ ...(root as Record<string, unknown>) } as Record<string, unknown>)
-        : {};
-
-    rootObject.stacktape = serverConfig;
-    currentConfig[rootKey] = sortObjectKeys(rootObject);
-
-    const nextRaw = `${JSON.stringify(currentConfig, null, 2)}\n`;
-    if (exists && currentRaw.trim() === nextRaw.trim()) {
-      return {
-        client,
-        configPath,
-        status: 'unchanged'
-      };
-    }
-
-    let backupPath: string | undefined;
-    if (exists) {
-      backupPath = createBackupPath(configPath);
-      await copy(configPath, backupPath);
-    }
-
-    await ensureDir(dirname(configPath));
-    await writeFile(configPath, nextRaw, 'utf-8');
-
-    return {
-      client,
-      configPath,
-      status: exists ? 'updated' : 'created',
-      ...(backupPath ? { backupPath } : {})
-    };
-  } catch (error) {
-    return {
-      client,
-      configPath,
-      status: 'failed',
-      error: (error as Error).message
-    };
+    const chosen = await tuiManager.promptMultiSelect({
+      message,
+      options: candidates.map(({ agent, note }) => ({ value: agent.id, label: agent.label, description: note })),
+      defaultValues: preselected
+    });
+    return chosen.map((id) => getCodingAgent(id as CodingAgentId));
+  } finally {
+    await tuiManager.stop();
   }
 };
 
-const renderCodexBlock = ({ stacktapeCommand }: { stacktapeCommand: string }): string[] => {
-  return [
-    '[mcp_servers.stacktape]',
-    `command = ${JSON.stringify(stacktapeCommand)}`,
-    'args = ["mcp"]',
-    'enabled = true',
-    '',
-    '[mcp_servers.stacktape.env]',
-    `STACKTAPE_MCP_CLIENT_NAME = ${JSON.stringify('codex')}`
-  ];
-};
+type ProjectEntryOutcome = { label: string; location: string; removeCommand?: string };
 
-const installCodexTarget = async ({
-  configPath,
-  client,
-  stacktapeCommand
-}: {
-  configPath: string;
-  client: string;
-  stacktapeCommand: string;
-}): Promise<InstallResult> => {
-  try {
-    const exists = await pathExists(configPath);
-    const currentRaw = exists ? await readFile(configPath, 'utf-8') : '';
-    const blockLines = renderCodexBlock({ stacktapeCommand });
-
-    const lines = currentRaw.length > 0 ? currentRaw.split(/\r?\n/) : [];
-    const sectionHeader = '[mcp_servers.stacktape]';
-    const startIndex = lines.findIndex((line) => line.trim() === sectionHeader);
-
-    let nextLines: string[];
-    if (startIndex === -1) {
-      nextLines =
-        lines.length > 0
-          ? [...lines.filter((line, idx) => !(idx === lines.length - 1 && line === '')), '', ...blockLines]
-          : [...blockLines];
-    } else {
-      let endIndex = startIndex + 1;
-      while (endIndex < lines.length) {
-        const trimmed = lines[endIndex].trim();
-        if (trimmed.startsWith('[') && trimmed.endsWith(']') && !trimmed.startsWith('[mcp_servers.stacktape.')) {
-          break;
-        }
-        endIndex += 1;
-      }
-      nextLines = [...lines.slice(0, startIndex), ...blockLines, ...lines.slice(endIndex)];
-    }
-
-    const nextRaw = `${nextLines.join('\n').replace(/\n{3,}/g, '\n\n')}\n`;
-    if (exists && currentRaw.trim() === nextRaw.trim()) {
-      return {
-        client,
-        configPath,
-        status: 'unchanged'
-      };
-    }
-
-    let backupPath: string | undefined;
-    if (exists) {
-      backupPath = createBackupPath(configPath);
-      await copy(configPath, backupPath);
-    }
-
-    await ensureDir(dirname(configPath));
-    await writeFile(configPath, nextRaw, 'utf-8');
-
-    return {
-      client,
-      configPath,
-      status: exists ? 'updated' : 'created',
-      ...(backupPath ? { backupPath } : {})
+// One file can be read by several agents (a project `.mcp.json`); it is reported once.
+const groupByLocation = (entries: ProjectEntryOutcome[]) => {
+  const groups = new Map<string, { location: string; removeCommand?: string; names: string[] }>();
+  for (const entry of entries) {
+    const group = groups.get(entry.location) ?? {
+      location: entry.location,
+      removeCommand: entry.removeCommand,
+      names: []
     };
-  } catch (error) {
-    return {
-      client,
-      configPath,
-      status: 'failed',
-      error: (error as Error).message
-    };
+    group.names.push(entry.label);
+    groups.set(entry.location, group);
   }
+  return [...groups.values()].map(({ names, ...group }) => ({
+    ...group,
+    count: names.length,
+    labels: names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]
+  }));
 };
 
-const getDefaults = ({
-  detectedTargets,
-  allTargets
-}: {
-  detectedTargets: string[];
-  allTargets: string[];
-}): string[] => {
-  if (detectedTargets.length > 0) return detectedTargets;
-  return allTargets;
+const printOutcome = (outcome: AgentOutcome) => {
+  if (!outcome.ok) {
+    tuiManager.warn(`${outcome.label}: ${outcome.error}`);
+    if (outcome.manualSetup) tuiManager.info(`  To set it up by hand: ${outcome.manualSetup}`);
+    return;
+  }
+  const server = outcome.server!;
+  tuiManager.info(`${outcome.label}: ${CHANGE_LABELS[server.change]} (${tildify(server.location)})`);
+  if (server.backupPath) tuiManager.info(`  Previous file kept as ${tildify(server.backupPath)}`);
 };
 
 export const commandMcpAdd = async () => {
-  const agentMode = isAgentMode();
-  const autoConfirm = Boolean(globalStateManager.args.autoConfirmOperation);
+  const detected = new Map(CODING_AGENTS.map((agent) => [agent.id, agent.detect()]));
+  const installedAgents = CODING_AGENTS.filter((agent) => detected.get(agent.id));
 
-  const globalStacktapeCommand = 'stacktape';
-  const localStacktapeCommand = resolveLocalStacktapeCommand();
-  const targets = getTargets({ stacktapeCommand: globalStacktapeCommand });
-  const detectionMap = new Map<string, boolean>();
-
-  for (const target of targets) {
-    detectionMap.set(target.id, await detectTarget({ paths: target.paths }));
-  }
-
-  const detectedTargets = targets.filter((target) => detectionMap.get(target.id)).map((target) => target.id);
-  const allTargetIds = targets.map((target) => target.id);
-
-  let selectedTargetIds = getDefaults({ detectedTargets, allTargets: allTargetIds });
-
-  const canPrompt = !agentMode && !autoConfirm;
-  if (canPrompt) {
-    tuiManager.start();
-    try {
-      selectedTargetIds = await tuiManager.promptMultiSelect({
-        message: 'Select clients to install Stacktape MCP into:',
-        options: targets.map((target) => ({
-          value: target.id,
-          label: `${target.label}${detectionMap.get(target.id) ? ' (detected)' : ''}`,
-          description: `${target.description} -> ${target.paths[0]}`
-        })),
-        defaultValues: selectedTargetIds
-      });
-
-      if (selectedTargetIds.length === 0) {
-        tuiManager.warn('No clients selected. Nothing to do.');
-        return { result: { selectedClients: [], updated: 0, created: 0, unchanged: 0, failed: 0 } };
-      }
-
-      const confirmed = await tuiManager.promptConfirm({
-        message: `Install Stacktape MCP to ${selectedTargetIds.length} config(s)?`,
-        defaultValue: true
-      });
-      if (!confirmed) {
-        tuiManager.info('Cancelled by user.');
-        return {
-          result: {
-            selectedClients: selectedTargetIds,
-            updated: 0,
-            created: 0,
-            unchanged: 0,
-            failed: 0,
-            cancelled: true
-          }
-        };
-      }
-    } finally {
-      await tuiManager.stop();
+  let targets = requestedAgents();
+  if (!targets && canPrompt()) {
+    tuiManager.info(
+      'Stacktape adds its MCP server to the agents you pick, for your user only. ' +
+        'Agents can then deploy, read logs and metrics and look up Stacktape docs. They ask you before changing infrastructure.'
+    );
+    targets = await chooseAgents({
+      message: 'Which coding agents should use Stacktape?',
+      candidates: CODING_AGENTS.map((agent) => ({
+        agent,
+        note: detected.get(agent.id) ?? 'not found on this machine'
+      })),
+      preselected: installedAgents.map((agent) => agent.id)
+    });
+    if (targets.length === 0) {
+      tuiManager.info('No agent selected. Nothing was changed.');
+      return { result: { agents: [] } };
     }
   }
+  targets ||= installedAgents;
+  if (targets.length === 0) {
+    const server = resolveServerCommand();
+    throw new CliError({
+      category: 'CLI',
+      code: 'MCP_NO_CODING_AGENTS',
+      message: 'No coding agent was found on this machine, so nothing was set up.',
+      hints: [
+        `Name the agents to set up, for example: stacktape mcp:add --codingAgents ${CODING_AGENTS.map((agent) => agent.id).join(',')}`,
+        `Or add the server by hand, for example in Claude Code: ${getCodingAgent('claude-code')
+          .manualSetup(server)
+          .replace(/^Run: /, '')}`
+      ]
+    });
+  }
 
-  const chosenTargets = targets.filter((target) => selectedTargetIds.includes(target.id));
-  const results: InstallResult[] = [];
-  const cwd = process.cwd();
+  const result = await setUpCodingAgents({ agents: targets });
+  result.agents.forEach(printOutcome);
 
-  for (const target of chosenTargets) {
-    const configPath = await resolveTargetPath({ paths: target.paths });
-    const isLocalConfig = configPath.toLowerCase().startsWith(cwd.toLowerCase());
-    const effectiveStacktapeCommand = isLocalConfig ? localStacktapeCommand : globalStacktapeCommand;
-
-    if (target.kind === 'json') {
-      let effectiveServerConfig = target.serverConfig!;
-      if (effectiveStacktapeCommand !== globalStacktapeCommand) {
-        if (Array.isArray(effectiveServerConfig.command)) {
-          effectiveServerConfig = {
-            ...effectiveServerConfig,
-            command: [effectiveStacktapeCommand, ...(effectiveServerConfig.command as unknown[]).slice(1)]
-          };
-        } else if (typeof effectiveServerConfig.command === 'string') {
-          effectiveServerConfig = {
-            ...effectiveServerConfig,
-            command: effectiveStacktapeCommand
-          };
-        }
-      }
-
-      results.push(
-        await installJsonTarget({
-          configPath,
-          rootKey: target.rootKey!,
-          serverConfig: effectiveServerConfig,
-          client: target.label
-        })
-      );
-      continue;
-    }
-
-    results.push(
-      await installCodexTarget({ configPath, client: target.label, stacktapeCommand: effectiveStacktapeCommand })
+  const { connectionCheck, serverCommand } = result;
+  const commandLine = [serverCommand.command, ...serverCommand.args].join(' ');
+  if (connectionCheck?.ok) {
+    tuiManager.success(`\`${commandLine}\` starts and offers ${connectionCheck.toolCount} Stacktape tools.`);
+  } else if (connectionCheck) {
+    tuiManager.warn(`\`${commandLine}\` did not start as an MCP server: ${connectionCheck.reason}`);
+    if (connectionCheck.stderrTail) tuiManager.warn(connectionCheck.stderrTail);
+  }
+  if (serverCommand.caveat) tuiManager.warn(serverCommand.caveat);
+  for (const entry of groupByLocation(result.projectEntries)) {
+    tuiManager.warn(
+      `In this folder, ${entry.labels} ${entry.count > 1 ? 'use' : 'uses'} the Stacktape entry in ${tildify(entry.location)} instead of the one just set up. ` +
+        (entry.removeCommand
+          ? `Remove it with \`${entry.removeCommand}\`.`
+          : 'Remove it there unless your team relies on it.')
     );
   }
 
-  const created = results.filter((result) => result.status === 'created').length;
-  const updated = results.filter((result) => result.status === 'updated').length;
-  const unchanged = results.filter((result) => result.status === 'unchanged').length;
-  const failed = results.filter((result) => result.status === 'failed').length;
-
-  for (const result of results) {
-    if (result.status === 'failed') {
-      tuiManager.warn(`${result.client}: FAILED (${result.error})`);
-      continue;
-    }
-
-    const backupNote = result.backupPath ? ` (backup: ${result.backupPath})` : '';
-    tuiManager.info(`${result.client}: ${result.status.toUpperCase()} -> ${result.configPath}${backupNote}`);
+  const configured = result.agents.filter((outcome) => outcome.ok);
+  const failed = result.agents.length - configured.length;
+  const checkFailed = connectionCheck !== undefined && !connectionCheck.ok;
+  if (configured.length > 0 && !checkFailed) {
+    const reloads = [...new Set(configured.map((outcome) => getCodingAgent(outcome.agent).reloadHint))];
+    tuiManager.success(
+      `Ready. ${reloads.map((hint) => hint[0].toUpperCase() + hint.slice(1)).join('. ')}. ` +
+        'Then ask your agent: "Use Stacktape to show what this project deploys."'
+    );
+  }
+  if (failed > 0 || checkFailed) {
+    throw new CliError({
+      category: 'CLI',
+      code: checkFailed ? 'MCP_SERVER_CHECK_FAILED' : 'MCP_AGENT_SETUP_FAILED',
+      message:
+        failed > 0
+          ? `Stacktape could not be set up for ${failed} of ${result.agents.length} agents.`
+          : 'The agents are configured, but the Stacktape MCP server did not start with the configured command.',
+      hints: ['The details are printed above. Fix the cause and run `stacktape mcp:add` again; it is safe to repeat.']
+    });
   }
 
-  const message = `MCP install complete. created=${created}, updated=${updated}, unchanged=${unchanged}, failed=${failed}.`;
-  if (failed > 0) tuiManager.warn(message);
-  else tuiManager.success(message);
+  return { result };
+};
 
-  return {
-    result: {
-      selectedClients: chosenTargets.map((target) => target.id),
-      created,
-      updated,
-      unchanged,
-      failed,
-      results
-    }
-  };
+export const commandMcpRemove = async () => {
+  const configuredAgents = await findConfiguredAgents();
+
+  let targets = requestedAgents();
+  if (!targets && canPrompt() && configuredAgents.length > 0) {
+    targets = await chooseAgents({
+      message: 'Remove Stacktape from which coding agents?',
+      candidates: configuredAgents.map((agent) => ({ agent, note: 'Stacktape is set up' })),
+      preselected: configuredAgents.map((agent) => agent.id)
+    });
+  }
+  targets ||= configuredAgents;
+
+  const result = await removeCodingAgents({ agents: targets });
+  result.agents.forEach(printOutcome);
+  for (const entry of groupByLocation(result.projectEntries)) {
+    tuiManager.info(
+      entry.removeCommand
+        ? `${entry.labels} still has a Stacktape entry in ${entry.location}. Remove it with \`${entry.removeCommand}\`.`
+        : `${tildify(entry.location)} still has a Stacktape entry, read by ${entry.labels}. It is shared with your team, so it was left as is.`
+    );
+  }
+  if (result.agents.length === 0) {
+    tuiManager.info(
+      result.projectEntries.length > 0
+        ? 'No agent has a user-level Stacktape entry. Nothing was changed.'
+        : 'Stacktape is not set up in any coding agent. Nothing was changed.'
+    );
+  }
+
+  const failed = result.agents.filter((outcome) => !outcome.ok).length;
+  if (failed > 0) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'MCP_AGENT_REMOVE_FAILED',
+      message: `Stacktape could not be removed from ${failed} of ${result.agents.length} agents.`,
+      hints: ['The details are printed above.']
+    });
+  }
+  return { result };
 };

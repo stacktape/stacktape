@@ -40,9 +40,9 @@ When an MCP-compatible client starts the server, Stacktape registers the five to
 
 ## Client configuration
 
-The fastest way to configure your AI coding agent is to run [`stacktape mcp:add`](/cli/mcp-add), which detects supported clients and adds the MCP server entry automatically.
+Run [`stacktape mcp:add`](/cli/mcp-add) to connect your coding agents. It writes the right entry for each agent and checks that the server starts.
 
-To configure manually, add an entry like this to your client's MCP configuration:
+To configure a client by hand, point it at the command `stacktape` with the argument `mcp`, for example:
 
 ```json
 {
@@ -55,7 +55,9 @@ To configure manually, add an entry like this to your client's MCP configuration
 }
 ```
 
-[`stacktape mcp:add`](/cli/mcp-add) detects supported client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf) and adds or updates the `stacktape` server entry automatically, creating timestamped backups before modifying existing files. Prefer `mcp:add` over manual setup — it handles the correct file location for each client.
+[MCP server setup](/using-with-ai/mcp-server-setup#manual-setup) has the exact configuration for each agent.
+
+The server speaks the current MCP revision (`2026-07-28`) and the earlier 2025 revisions, so it also works with agents that still negotiate the older protocol.
 
 ## Examples
 
@@ -69,7 +71,7 @@ stacktape mcp --logLevel debug
 
 ### Which AI clients support MCP?
 
-`stacktape mcp:add` can detect Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf configuration files. The `mcp` command communicates over stdio using the MCP protocol, so any client that supports MCP stdio transport can use it. Run [`stacktape mcp:add`](/cli/mcp-add) to auto-detect and configure supported clients on your machine.
+[`stacktape mcp:add`](/cli/mcp-add) sets up Claude Code, Codex, Cursor, VS Code with GitHub Copilot, GitHub Copilot CLI, Windsurf and OpenCode. Any other client that can start a local stdio MCP server works too.
 
 ### Do I need an API key to use the MCP server?
 
@@ -87,6 +89,7 @@ No. The MCP-compatible client spawns the server automatically over stdio when it
 
 ## Related commands
 
-- [`mcp:add`](/cli/mcp-add) — Automatically installs MCP server configuration into supported AI coding clients.
+- [`mcp:add`](/cli/mcp-add) — Connects your coding agents to Stacktape.
+- [`mcp:remove`](/cli/mcp-remove) — Removes that setup again.
 - [`dev`](/cli/dev) — Starts local development mode (can also be controlled through the MCP `stacktape_dev` tool).
 - [`login`](/cli/login) — Configures the API key required for infrastructure operations through MCP.

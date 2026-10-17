@@ -66,6 +66,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [logout](/cli/logout) - source: apps/docs/content/cli/logout.mdx
 - [logs](/cli/logs) - source: apps/docs/content/cli/logs.mdx
 - [mcp:add](/cli/mcp-add) - source: apps/docs/content/cli/mcp-add.mdx
+- [mcp:remove](/cli/mcp-remove) - source: apps/docs/content/cli/mcp-remove.mdx
 - [mcp](/cli/mcp) - source: apps/docs/content/cli/mcp.mdx
 - [metrics](/cli/metrics) - source: apps/docs/content/cli/metrics.mdx
 - [org:create](/cli/org-create) - source: apps/docs/content/cli/org-create.mdx
@@ -224,7 +225,6 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) - source: apps/docs/content/stacktape-console/organizations-projects-and-stages.mdx
 - [Team and Access Control](/stacktape-console/team-and-access-control) - source: apps/docs/content/stacktape-console/team-and-access-control.mdx
 - [Agent Mode in Dev](/using-with-ai/agent-mode-in-dev) - source: apps/docs/content/using-with-ai/agent-mode-in-dev.mdx
-- [AI Coding Assistant Integrations](/using-with-ai/ai-coding-assistant-integrations) - source: apps/docs/content/using-with-ai/ai-coding-assistant-integrations.mdx
 - [MCP Server Setup](/using-with-ai/mcp-server-setup) - source: apps/docs/content/using-with-ai/mcp-server-setup.mdx
 - [Using Stacktape with AI](/using-with-ai/overview) - source: apps/docs/content/using-with-ai/overview.mdx
 

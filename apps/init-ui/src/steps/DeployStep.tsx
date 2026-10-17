@@ -5,6 +5,7 @@ import { Spinner } from '@stacktape/ui-react/spinner';
 import { buildDeployModel, type DeployEvent } from '../deploy-model';
 import { CopyableCommand } from '../components/CopyableCommand';
 import { DeployProgress } from '../components/DeployProgress';
+import { AgentSetupCard } from '../components/AgentSetupCard';
 import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
 import { SignInPanel } from '../components/SignInPanel';
@@ -45,6 +46,7 @@ export function DeployStep({
   state,
   onDeploy,
   onPipeline,
+  onConnectCodingAgent,
   onRecheck,
   onSignIn,
   onVerify,
@@ -58,6 +60,7 @@ export function DeployStep({
     expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string }
   ) => void;
   onPipeline: (stage: string, region: string) => void;
+  onConnectCodingAgent: () => void;
   /** Re-checks AWS credentials and the Stacktape sign-in, for after a terminal detour. */
   onRecheck: () => void;
   /** Takes one step of signing in to Stacktape from this page. Resolves with the state it led to. */
@@ -67,7 +70,7 @@ export function DeployStep({
   /** Sets a failed try-out aside: results stay visible, the deploy button comes back. */
   onDismissVerification: () => void;
   /** Which action is in flight, so only the button that was pressed shows a spinner. */
-  isBusy: 'deploy' | 'pipeline' | 'recheck' | 'verify' | undefined;
+  isBusy: 'deploy' | 'pipeline' | 'recheck' | 'verify' | 'coding-agent' | undefined;
 }) {
   const file = state.configFile;
   const identity = state.awsIdentity;
@@ -231,6 +234,13 @@ export function DeployStep({
               stage={deployment.stage}
               state={state}
             />
+            {state.codingAgentSetup !== undefined && (
+              <AgentSetupCard
+                isBusy={isBusy === 'coding-agent'}
+                onConnect={onConnectCodingAgent}
+                setup={state.codingAgentSetup}
+              />
+            )}
           </>
         )}
       </div>

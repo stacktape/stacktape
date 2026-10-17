@@ -201,6 +201,7 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
     unsupportedReason: 'Running an MCP server from inside MCP is unsupported.'
   },
   'mcp:add': { category: 'docs', safety: 'mutating' },
+  'mcp:remove': { category: 'docs', safety: 'mutating' },
   help: { category: 'utility', safety: 'readOnly' },
   version: { category: 'utility', safety: 'readOnly' },
   upgrade: { category: 'utility', safety: 'mutating' },

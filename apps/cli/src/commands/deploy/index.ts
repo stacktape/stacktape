@@ -31,6 +31,7 @@ import {
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
 import { initializeDeployOperation } from '../_utils/initialization';
+import { hintCodingAgentSetupAfterFirstDeploy } from '../_utils/coding-agent-hint';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { resolveSlackAppChannels } from '@domain-services/config-manager/utils/slack-app-channels';
@@ -485,6 +486,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
   if (isFirstDeployment) {
     lifecycle.addFinalAction(() => promptCiCdSetupAfterDeploy());
+    lifecycle.addFinalAction(() => hintCodingAgentSetupAfterFirstDeploy());
   }
 
   if (securityAssessment) {

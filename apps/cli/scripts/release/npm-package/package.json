@@ -47,5 +47,6 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "tar": "^7.4.3"
-  }
+  },
+  "mcpName": "io.github.stacktape/stacktape"
 }

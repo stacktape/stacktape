@@ -213,7 +213,13 @@ export function App() {
             <Section eyebrow="Deploy" id="deploy" isActive={isActive('deploy')}>
               <DeployStep
                 isBusy={
-                  busy === 'deploy' || busy === 'pipeline' || busy === 'recheck' || busy === 'verify' ? busy : undefined
+                  busy === 'deploy' ||
+                  busy === 'pipeline' ||
+                  busy === 'recheck' ||
+                  busy === 'verify' ||
+                  busy === 'coding-agent'
+                    ? busy
+                    : undefined
                 }
                 onDeploy={(stage, region, expected) =>
                   void run('deploy', () => session.deploy(stage, region, expected), 'The deploy could not be started.')
@@ -223,6 +229,13 @@ export function App() {
                 }
                 onPipeline={(stage, region) =>
                   void run('pipeline', () => session.pipeline(stage, region), 'The pipeline could not be written.')
+                }
+                onConnectCodingAgent={() =>
+                  void run(
+                    'coding-agent',
+                    () => session.connectCodingAgent(),
+                    'The coding agent could not be connected.'
+                  )
                 }
                 onRecheck={() => void run('recheck', () => session.recheck(), 'Could not re-check the sign-ins.')}
                 onSignIn={(request) => session.signIn(request)}

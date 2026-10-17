@@ -116,6 +116,7 @@ export const startWizardSession = async ({
   signIn,
   gitHost,
   writePipeline,
+  codingAgentSetup,
   mode: initialMode,
   preferences: initialPreferences,
   timeline = [],
@@ -230,6 +231,15 @@ export const startWizardSession = async ({
     stage: string;
     region: string;
   }) => Promise<NonNullable<WizardState['pipeline']>>;
+  /**
+   * Connects a coding agent to Stacktape (`stacktape mcp:add` for one agent). Absent in sessions that cannot change
+   * the user's agent configuration; the page then offers nothing.
+   */
+  codingAgentSetup?: {
+    /** The agent's name and the terminal command for the same change, or undefined for an agent it cannot set up. */
+    describe: (agentId: string) => { label: string; command: string } | undefined;
+    setUp: (agentId: string) => Promise<{ ok: boolean; detail: string }>;
+  };
   timeline?: Array<{ kind: string; label: string }>;
   /** Directory holding the built wizard bundle. */
   staticRoot?: string;
@@ -303,6 +313,12 @@ export const startWizardSession = async ({
   let deployTarget: WizardState['deployTarget'];
   let checkingDeployTarget = false;
   let pipeline: WizardState['pipeline'];
+  /** Setup progress for one agent; a different chosen agent starts from the offer again. */
+  let agentSetup: {
+    agentId?: string;
+    status: NonNullable<WizardState['codingAgentSetup']>['status'];
+    detail?: string;
+  } = { status: 'offered' };
   let mode: InfrastructureMode | undefined = initialMode;
   let verification: WizardVerification | undefined;
   const answers: Record<string, string> = {};
@@ -428,6 +444,22 @@ export const startWizardSession = async ({
     );
   };
 
+  const codingAgentSetupState = (): Pick<WizardState, 'codingAgentSetup'> => {
+    // Offered once there is something deployed for the agent to work with.
+    if (choice === undefined || deployment?.status !== 'succeeded') return {};
+    const described = codingAgentSetup?.describe(choice.agentId);
+    if (described === undefined) return {};
+    return {
+      codingAgentSetup: {
+        agentId: choice.agentId,
+        ...described,
+        ...(agentSetup.agentId === choice.agentId
+          ? { status: agentSetup.status, ...(agentSetup.detail === undefined ? {} : { detail: agentSetup.detail }) }
+          : { status: 'offered' as const })
+      }
+    };
+  };
+
   const buildState = (): WizardState => ({
     phase:
       failure !== undefined
@@ -459,6 +491,7 @@ export const startWizardSession = async ({
           recommendedPreferences: composition.recommendedPreferences
         }),
     ...(pipeline === undefined ? {} : { pipeline }),
+    ...codingAgentSetupState(),
     timeline,
     // Absent, rather than empty, while the mission runs: an empty facts object is indistinguishable
     // from "we looked and found nothing", which is a different and much more alarming answer.
@@ -893,6 +926,25 @@ export const startWizardSession = async ({
         };
 
         void runWithRepairs();
+      },
+      onCodingAgentSetup: async () => {
+        if (codingAgentSetup === undefined || choice === undefined) return;
+        if (deployment?.status !== 'succeeded') {
+          throw new Error('A coding agent is connected after the deploy has succeeded.');
+        }
+        const agentId = choice.agentId;
+        if (agentSetup.agentId === agentId && (agentSetup.status === 'running' || agentSetup.status === 'connected'))
+          return;
+        agentSetup = { agentId, status: 'running' };
+        publish(buildState());
+        void codingAgentSetup
+          .setUp(agentId)
+          .catch((error: unknown) => ({ ok: false, detail: error instanceof Error ? error.message : String(error) }))
+          .then(({ ok, detail }) => {
+            if (agentSetup.agentId !== agentId) return;
+            agentSetup = { agentId, status: ok ? 'connected' : 'failed', detail };
+            publish(buildState());
+          });
       },
       onPipeline: async ({ stage, region }) => {
         // The pipeline deploys a configuration, so there has to be one. Nothing to say otherwise.

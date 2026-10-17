@@ -69,27 +69,7 @@ afterEach(async () => {
   );
 });
 
-describe('modern-only Stacktape MCP server', () => {
-  test('rejects a client that does not negotiate the 2026 protocol', async () => {
-    const handler = createMcpHandler(
-      () =>
-        createMcpServer(async () => {
-          throw new Error('Docs index should not be loaded in this test.');
-        }),
-      { legacy: 'reject' }
-    );
-    const transport = new StreamableHTTPClientTransport(new URL('http://stacktape-mcp.test/mcp'), {
-      fetch: (input, init) => handler.fetch(new Request(input instanceof URL ? input.toString() : input, init))
-    });
-    const client = new Client({ name: 'stacktape-legacy-test', version: '1.0.0' }, { capabilities: {} });
-    try {
-      await expect(client.connect(transport)).rejects.toThrow();
-    } finally {
-      await client.close().catch(() => {});
-      await handler.close().catch(() => {});
-    }
-  });
-
+describe('Stacktape MCP server on the 2026 protocol', () => {
   test('discovers only the 2026 protocol and exposes deterministic structured tools', async () => {
     const client = await createTestClient({ runCli: ({ cwd }) => successfulRun(cwd || process.cwd()) });
     expect(client.getProtocolEra()).toBe('modern');

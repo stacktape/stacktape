@@ -8,12 +8,15 @@ The Stacktape MCP server gives AI coding assistants structured access to Stackta
 
 ## Quick start
 
-1. Confirm that the current Stacktape CLI is available: `stacktape --version`.
-2. From your project directory, run `stacktape mcp:add` and select your AI client.
-3. Restart the client or reload the workspace so it reads the new MCP configuration.
-4. Ask: “Use Stacktape tools to inspect this project and explain how it is deployed.”
+```bash
+stacktape mcp:add
+```
+
+[`mcp:add`](/cli/mcp-add) finds the coding agents on your machine and asks which ones to connect, with the installed ones preselected. For each agent you pick, it adds the Stacktape MCP server for your user, then starts the server once to check that it works. Start a new session (or reload the window) in your agent and ask: “Use Stacktape to show what this project deploys.”
 
 A working integration exposes `stacktape_incident`, `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. For an incident, the assistant starts with `stacktape_incident` and reads logs, metrics and other diagnostics through `stacktape_cli` directly. Mutating commands are planned with `action: "plan"` and run only after you approve them.
+
+To undo the setup, run [`stacktape mcp:remove`](/cli/mcp-remove).
 
 ## When to use
 
@@ -28,75 +31,82 @@ Use the MCP server when your AI coding assistant supports the [Model Context Pro
 
 Skip the MCP server if your AI client does not support the Model Context Protocol — use the [Stacktape CLI](/cli/deploy) directly or the [Stacktape Console](/stacktape-console/console-overview) instead. For long-running deployments, prefer the CLI when you want to watch the command directly in your own terminal. MCP command responses are consolidated and may be truncated. The MCP server runs CLI commands as subprocesses and returns a consolidated response; if an optional caller-specified timeout is exceeded, the subprocess is terminated and an error is returned.
 
-## Supported clients
+## Supported agents
 
-[`stacktape mcp:add`](/cli/mcp-add) detects and configures six MCP clients automatically:
+`mcp:add` sets up these agents. Every agent starts `stacktape mcp` itself, as a local process on your machine.
 
-| Client | Project config path | Global config path | Config key |
-|--------|--------------------|--------------------|------------|
-| Claude Code | `.mcp.json` | `~/.claude.json` | `mcpServers` |
-| Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` | `mcpServers` |
-| VS Code / Copilot | `.vscode/mcp.json` | Platform-specific `User/mcp.json` | `servers` |
-| Windsurf | `.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
-| OpenAI Codex | `.codex/config.toml` | `~/.codex/config.toml` | TOML section |
-| OpenCode | `opencode.jsonc` or `.opencode/config.json` | Platform-specific (see below) | `mcp` |
+| Agent | How `mcp:add` adds the server |
+|-------|-------------------------------|
+| Claude Code | `claude mcp add --scope user` |
+| Codex (CLI, IDE extension and app) | `codex mcp add`; edits `~/.codex/config.toml` when the `codex` command is missing |
+| Cursor | Edits `~/.cursor/mcp.json` |
+| VS Code (GitHub Copilot) | Edits the user `mcp.json` of your default profile |
+| GitHub Copilot CLI | Edits `~/.copilot/mcp-config.json` |
+| Windsurf (Devin Desktop) | Edits the existing `mcp_config.json`, or creates `~/.codeium/windsurf/mcp_config.json` |
+| OpenCode | Edits `~/.config/opencode/opencode.jsonc` or `opencode.json` |
 
-OpenCode global paths: on Windows, `%APPDATA%\opencode\opencode.jsonc` or `%APPDATA%\opencode\config.json`. On macOS/Linux, `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/config.json`, or `~/.opencode/config.json`.
-
-The MCP server uses stdio transport — every client launches `stacktape mcp` as a child process and communicates over stdin/stdout using JSON-RPC.
-
-
-> **Info:** Stacktape MCP requires the modern MCP `2026-07-28` protocol. It does not fall back to the older session-based protocol. If a configured client cannot discover the four Stacktape tools, update that client to a version with MCP `2026-07-28` support.
+An agent counts as installed when its command is on your PATH, or its app or settings folder exists. In a named VS Code profile, add the server from that profile with **MCP: Open User Configuration** (see [Manual setup](#manual-setup)). Any other MCP client that can start a local stdio server works too; see [Other MCP clients](#other-mcp-clients).
 
 
-> **Info:** Detection is based on whether a config file exists on disk, not whether the client application is installed. A freshly installed client that has never been opened (and therefore has no config file) will not show the `(detected)` label in the interactive prompt — but you can still select it, and `mcp:add` will create the project-level config file.
+> **Info:** The server speaks the current MCP revision (`2026-07-28`) and the earlier 2025 revisions (`2025-11-25`, `2025-06-18`, `2025-03-26`), so it works with agents that have not moved to the new protocol yet. The confirmation form for destructive commands works in both: on older revisions it arrives as a standard elicitation request.
 
 
-## Automatic setup
+## What `mcp:add` changes
 
-Run [`stacktape mcp:add`](/cli/mcp-add) from your project directory:
+- **User level only.** Entries go into your own agent configuration, never into the project, so nothing reaches your repository or your teammates. Claude Code and Codex are changed through their own `mcp add` commands; Claude Code's `~/.claude.json` is never edited directly.
+- **Edits in place.** In JSON and JSONC files, `mcp:add` changes only the `stacktape` entry. Your comments, other servers and formatting stay as they are, and the previous file is kept next to it as `<file>.bak.<timestamp>`. A file it cannot parse is left untouched and reported.
+- **The command it writes.** When `stacktape` is on your PATH, the entry runs `stacktape mcp`, so upgrades keep working. When you installed Stacktape with the install script, the entry uses the binary's full path (`~/.stacktape/bin/stacktape`), because agents started from the Dock or Start menu often do not see your shell's PATH. Otherwise it writes the running binary's full path and tells you to run `mcp:add` again if that file moves.
+- **A check at the end.** `mcp:add` starts the configured command, completes an MCP handshake and lists the tools. It reports a failure with the server's own error output.
 
-```bash
-stacktape mcp:add
-```
+Running `mcp:add` again is safe: entries that already match are reported as already set up and left untouched. If a project contains its own Stacktape entry (for example a committed `.mcp.json` from an older Stacktape), that agent uses the project entry inside that project, and `mcp:add` tells you where it is.
 
-The interactive prompt lists all six supported clients. Clients with an existing config file are labeled `(detected)` and pre-selected. Select the ones you want and confirm. `mcp:add` checks each client's known paths in order (project-level first, then global), writes to the first existing file, and creates the first project-level file when none exist. Existing config files are backed up with a `.bak.<timestamp>` suffix before modification.
-
-To skip the interactive prompt and install into all detected clients (or all six if none are detected), pass `--autoConfirmOperation`:
+### Non-interactive setup
 
 ```bash
+# Name the agents and skip the question
+stacktape mcp:add --codingAgents claude-code,cursor
+
+# Set up every installed agent (CI images, dotfiles, scripts)
 stacktape mcp:add --autoConfirmOperation
 ```
 
-When the project `package.json` lists `stacktape` in `dependencies`, `devDependencies`, `optionalDependencies`, or `peerDependencies`, `mcp:add` uses `node_modules/.bin/stacktape` for project-level configs and the global `stacktape` command for global configs. This pins the MCP server to your project's Stacktape version.
+With `--autoConfirmOperation` or `--agent`, `mcp:add` sets up every installed agent. When it finds none, it changes nothing and exits with an error that shows how to name the agents.
 
 ## Manual setup
 
-If you prefer to configure the MCP server by hand, point your client at `stacktape mcp` using stdio transport. The snippets below are minimal manual configs. `mcp:add` also writes `STACKTAPE_MCP_CLIENT_NAME`; add it manually only if you want client tracking to match installer output.
+To configure an agent by hand, point it at the `stacktape` command with the single argument `mcp`. Optionally set `STACKTAPE_MCP_CLIENT_NAME` to the agent's name, as `mcp:add` does; Stacktape uses it to label operations started from that agent.
 
 
 ### Tab: Claude Code
 
 
-Add to `.mcp.json` in your project root or `~/.claude.json` globally:
+```bash
+claude mcp add --scope user stacktape -- stacktape mcp
+```
 
-```json
-{
-  "mcpServers": {
-    "stacktape": {
-      "type": "stdio",
-      "command": "stacktape",
-      "args": ["mcp"]
-    }
-  }
-}
+Use `--scope project` instead to write a `.mcp.json` that your team commits and shares.
+
+
+### Tab: Codex
+
+
+```bash
+codex mcp add stacktape -- stacktape mcp
+```
+
+This writes the entry to `~/.codex/config.toml`, which the Codex CLI, IDE extension and app share:
+
+```toml
+[mcp_servers.stacktape]
+command = "stacktape"
+args = ["mcp"]
 ```
 
 
 ### Tab: Cursor
 
 
-Add to `.cursor/mcp.json` in your project root or `~/.cursor/mcp.json` globally:
+[Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=stacktape&config=eyJjb21tYW5kIjoic3RhY2t0YXBlIiwiYXJncyI6WyJtY3AiXX0=), or add this to `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one project):
 
 ```json
 {
@@ -111,10 +121,10 @@ Add to `.cursor/mcp.json` in your project root or `~/.cursor/mcp.json` globally:
 ```
 
 
-### Tab: VS Code / Copilot
+### Tab: VS Code
 
 
-Add to `.vscode/mcp.json` in your project root or your VS Code user-level `mcp.json`. Note that VS Code uses the `servers` key instead of `mcpServers`:
+[Add to VS Code](vscode:mcp/install?%7B%22name%22%3A%22stacktape%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22stacktape%22%2C%22args%22%3A%5B%22mcp%22%5D%7D), or run **MCP: Open User Configuration** and add the server. VS Code uses the `servers` key:
 
 ```json
 {
@@ -129,10 +139,18 @@ Add to `.vscode/mcp.json` in your project root or your VS Code user-level `mcp.j
 ```
 
 
+### Tab: Copilot CLI
+
+
+```bash
+copilot mcp add stacktape -- stacktape mcp
+```
+
+
 ### Tab: Windsurf
 
 
-Add to `.codeium/windsurf/mcp_config.json` in your project root or home directory:
+Add to `mcp_config.json` (open it from the MCP settings in Cascade):
 
 ```json
 {
@@ -146,23 +164,10 @@ Add to `.codeium/windsurf/mcp_config.json` in your project root or home director
 ```
 
 
-### Tab: OpenAI Codex
-
-
-Add to `.codex/config.toml` in your project root or `~/.codex/config.toml` globally:
-
-```toml
-[mcp_servers.stacktape]
-command = "stacktape"
-args = ["mcp"]
-enabled = true
-```
-
-
 ### Tab: OpenCode
 
 
-Add to `opencode.jsonc` or `.opencode/config.json` in your project root, or the platform-specific global path:
+Add to `~/.config/opencode/opencode.json` (all projects) or `opencode.json` in the project:
 
 ```json
 {
@@ -177,11 +182,16 @@ Add to `opencode.jsonc` or `.opencode/config.json` in your project root, or the 
 ```
 
 
-> **Info:** When you use `stacktape mcp:add`, the generated config also includes an `env` field with `STACKTAPE_MCP_CLIENT_NAME` set to the client identifier (e.g. `claude-code`, `cursor`, `vscode`). This is used for client tracking. Manual configurations can include the same field — for example, `"env": { "STACKTAPE_MCP_CLIENT_NAME": "claude-code" }` — but it is not required for the server to function.
+> **Tip:** If your project has `stacktape` as an npm dependency and you want the server pinned to that version, use `node_modules/.bin/stacktape` as the command in a project-level config.
 
 
-> **Tip:** If your project has `stacktape` as an npm dependency, replace `"stacktape"` with `"node_modules/.bin/stacktape"` in project-level configs. This pins the MCP server to your project's Stacktape version instead of using the global install.
+### Other MCP clients
 
+Any client that starts a local stdio server works: the command is `stacktape` and the arguments are `["mcp"]`. To call the tools from scripts or the command line, [mcporter](https://github.com/openclaw/mcporter) can register it with `mcporter config add stacktape --command stacktape --arg mcp`.
+
+### Moving from the hosted MCP server
+
+Stacktape 3 also offered a hosted MCP server, added to agents as a URL. Stacktape 4 replaces it with `stacktape mcp`, which runs locally with your own CLI login. Remove the old URL entry from your agent and run `stacktape mcp:add`.
 
 ## Available tools
 
@@ -314,10 +324,10 @@ The MCP server classifies every CLI command into a safety level and enforces per
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
 
-For destructive commands, the MCP server uses the modern protocol's multi-round input-required flow to prompt the user directly through their AI client's UI. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
+For destructive commands, the MCP server asks the user directly through their AI client's confirmation form: an input-required round trip on the `2026-07-28` revision, a standard elicitation request on the 2025 revisions. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 
 
-> **Warning:** `diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages. `aws:call` is the exception: it sends only [reviewed read-only AWS SDK operations](/cli/aws-call#safety-model), whatever the input.
+> **Warning:** Diagnostic commands run without a confirmation prompt because the MCP server accepts only read operations for them: read-only SQL statements (`SELECT`, `WITH`, `VALUES`, `SHOW`, `DESCRIBE`, `EXPLAIN`), the read operations of the Redis, DynamoDB and OpenSearch query commands, and [reviewed read-only AWS SDK operations](/cli/aws-call#safety-model) for `aws:call`. Anything else is refused. The data they return can still be sensitive, so think about what you let an assistant read from production.
 
 
 Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat. The MCP server also redacts known credential patterns (Stacktape API keys, GitHub tokens, Slack tokens, database connection strings with passwords) from all tool responses.
@@ -336,7 +346,7 @@ For CI environments, the MCP server's safety guidance tells assistants to ask us
 The MCP server starts when your AI client launches the `stacktape mcp` command as a child process using stdio transport. The startup sequence is:
 
 1. The client spawns `stacktape mcp` as a child process.
-2. The client discovers the modern `2026-07-28` server and its four tools (docs, project, CLI, and dev).
+2. The client and server agree on a protocol revision (`2026-07-28` or one of the 2025 revisions), and the client lists the five tools.
 3. The bundled documentation search index initializes asynchronously. If indexing fails, operational tools remain available and `stacktape_docs` reports the indexing error.
 4. The assistant sends MCP tool calls over stdin; the server executes them and returns structured JSON over stdout.
 
@@ -346,43 +356,38 @@ For docs queries, search runs against a local index. No network calls are made.
 
 ## Verifying the setup
 
-After running `stacktape mcp:add` or configuring manually, open your AI client and try a docs query:
+`mcp:add` already starts the server and lists its tools. To check that the agent itself connects:
 
-> "How do I deploy a Lambda function with Stacktape?"
+- **Claude Code:** `claude mcp get stacktape` shows `Status: ✔ Connected`.
+- **Codex:** `codex mcp list` lists `stacktape` as enabled.
+- **OpenCode:** `opencode mcp list` shows `✓ stacktape connected`.
+- **Cursor, VS Code and Windsurf:** the MCP section of the settings shows `stacktape` with its five tools.
 
-A working setup should make the `stacktape_docs` tool available to the assistant. If the assistant uses it, it should be able to return Stacktape documentation guidance for the query. If the tool is not available, check that your client's MCP config file points to a valid `stacktape` binary.
-
-You can also verify the binary directly:
-
-```bash
-stacktape --version
-```
-
-If the command is not found, install Stacktape globally or update it with [`stacktape upgrade`](/cli/upgrade).
+Then ask a question that needs the docs, for example “How do I deploy a Lambda function with Stacktape?”. The assistant should call `stacktape_docs`.
 
 ## Upgrading
 
-The MCP server ships with the Stacktape CLI binary. Updating the binary — via [`stacktape upgrade`](/cli/upgrade) or updating the npm package — means the next client launch uses the updated server. No separate MCP update step is needed.
+The MCP server ships inside the Stacktape CLI. After [`stacktape upgrade`](/cli/upgrade) or an npm update, the next session your agent starts uses the new server. No separate MCP update is needed.
 
-Re-run [`stacktape mcp:add`](/cli/mcp-add) only if you want to change which clients or config files are wired up.
+Run [`stacktape mcp:add`](/cli/mcp-add) again to add another agent, or after moving the CLI when `mcp:add` wrote its full path.
 
 ## Troubleshooting
 
-### Server fails to start
+### The agent shows no Stacktape tools
 
-Ensure `stacktape` is on your shell's PATH. If you installed Stacktape locally via npm, the global command may not exist. Either install globally (`npm install -g stacktape`) or use `node_modules/.bin/stacktape` in your MCP config. If the command exists but the MCP subcommand is missing, run [`stacktape upgrade`](/cli/upgrade) to get the latest version.
+Run `stacktape mcp:add` again: its final check starts the server with the exact configured command and prints the error if that fails. If the check passes but the agent still shows nothing, restart the agent. Agents started from the Dock or Start menu may not see your shell's PATH; install Stacktape with the install script, or put the full path to `stacktape` in the agent's config.
 
-### Config file parse errors
+### A config file cannot be parsed
 
-`mcp:add` parses JSON and JSONC (JSON with comments) using the JSON5 parser. If it reports a parse error, fix any syntax issues in the existing config file before retrying. Backups are saved with a `.bak.<timestamp>` suffix — restore from these if needed.
+`mcp:add` leaves a file it cannot parse untouched and names it. Fix the syntax error, or restore the most recent `.bak.<timestamp>` copy, and run `mcp:add` again.
 
 ### Operations require authentication
 
 Docs search, project scanning, and CLI metadata actions (`list`, `describe`, `plan`) work without authentication. `stacktape_cli` with `action: "run"` and `stacktape_dev` execute the underlying Stacktape CLI flow. If execution fails with an authentication error, run [`stacktape login`](/cli/login) in your terminal. Some commands also require a configured [AWS profile](/cli/aws-profile-create).
 
-### Client not detected
+### An agent is not listed as installed
 
-If `mcp:add` does not mark your client as `(detected)`, that client's config file does not exist yet at any of the known paths. Select it from the interactive prompt anyway — the installer creates a new project-level config file. Or configure manually using the [Manual setup](#manual-setup) examples.
+`mcp:add` looks for the agent's command on your PATH and for its app and settings folders. Pick the agent in the list anyway, or name it with `--codingAgents`, and `mcp:add` writes its configuration.
 
 ### Dev session not found
 
@@ -396,7 +401,7 @@ The MCP server spawns separate CLI subprocesses for each operation, so it does n
 
 ### Which AI assistants work with the Stacktape MCP server?
 
-[`stacktape mcp:add`](/cli/mcp-add) configures Claude Code, Cursor, VS Code with GitHub Copilot, Windsurf, OpenAI Codex, and OpenCode automatically. Any other MCP client that can launch a stdio server process should also work — point it at `stacktape mcp`. Automatic setup via `mcp:add` is only implemented for these six clients.
+[`stacktape mcp:add`](/cli/mcp-add) sets up Claude Code, Codex, Cursor, VS Code with GitHub Copilot, GitHub Copilot CLI, Windsurf and OpenCode. Any other MCP client that can start a local stdio server also works: point it at `stacktape mcp`.
 
 ### Does the MCP server store or transmit my credentials?
 
@@ -408,7 +413,7 @@ Docs search, project scanning, and CLI metadata operations (`list`, `describe`, 
 
 ### Is the MCP server safe for production workflows?
 
-The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation for the exact command and target when the client supports confirmation forms, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
+The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation for the exact command and target when the client supports confirmation forms, and interactive commands are rejected. Diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation because the server accepts only read operations for them. Treat MCP-initiated deployments with the same care as manual CLI deployments.
 
 ### What happens if a deployment times out through MCP?
 

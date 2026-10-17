@@ -116,7 +116,7 @@ export class GlobalStateManager {
     if (
       !runnerCredentials.apiKey &&
       runnerCredentials.githubActionsToken &&
-      !['version', 'help', 'login', 'logout', 'upgrade', 'mcp:add'].includes(this.command)
+      !['version', 'help', 'login', 'logout', 'upgrade', 'mcp:add', 'mcp:remove'].includes(this.command)
     ) {
       const client = new ApiKeyProtectedClient();
       await client.init({ apiKey: runnerCredentials.githubActionsToken });
