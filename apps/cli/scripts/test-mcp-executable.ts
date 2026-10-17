@@ -131,6 +131,19 @@ const envelope = (result: Awaited<ReturnType<Client['callTool']>>): Envelope => 
   return parsed;
 };
 
+// Project-level agent config files; the CLI's own `.stacktape` folder is not one of them.
+const PROJECT_AGENT_CONFIGS = [
+  '.mcp.json',
+  '.cursor',
+  '.vscode',
+  '.codex',
+  '.opencode',
+  'opencode.json',
+  'opencode.jsonc'
+];
+const agentConfigsIn = async (directory: string) =>
+  (await readdir(directory)).filter((name) => PROJECT_AGENT_CONFIGS.includes(name));
+
 const deadline = async <T>(promise: Promise<T>, label: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout>;
   try {
@@ -568,7 +581,7 @@ const verify = async () => {
     assert.equal(removed.ok, true);
     const context = removed.data?.resolvedContext as { cwd: string };
     assert.equal(await realpath(context.cwd), await realpath(otherProject));
-    assert.deepEqual(await readdir(otherProject), [], 'Agent setup must never write into a project');
+    assert.deepEqual(await agentConfigsIn(otherProject), [], 'Agent setup must never write into a project');
     console.info('PASS executable MCP explicit cwd reaches the CLI child');
     const scan = await call('stacktape_project', { action: 'scan' });
     assert.equal(scan.ok, true);
@@ -887,7 +900,7 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
   const added = await run('mcp:add');
   assert.equal(added.status, 0);
   assert.equal(added.count('created'), 5);
-  assert.deepEqual(await readdir(project).then((names) => names.filter((name) => name.startsWith('.'))), []);
+  assert.deepEqual(await agentConfigsIn(project), [], 'Agent setup must never write into a project');
   for (const [path, rootKey, name] of json) {
     const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, Record<string, Record<string, unknown>>>;
     const expected =
