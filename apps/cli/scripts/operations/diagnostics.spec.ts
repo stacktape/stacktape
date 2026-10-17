@@ -8,6 +8,7 @@ import { buildOperationsCli, createOperationsFixture, seedDeployedStack, targetA
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { toQueryXml } from './loopback-aws';
 import { ConsoleProcedureError } from './loopback-console';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 let cli: Awaited<ReturnType<typeof buildOperationsCli>>;
 beforeAll(async () => {
@@ -99,32 +100,80 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
       payload((await run(fixture, ['metrics', '--resourceName', 'api', '--metric', 'Invocations'])).events).datapoints
     ).toEqual([]);
 
-    fixture.aws.on('monitoring.DescribeAlarms', ({ input }) => ({
-      kind: 'json' as const,
-      body: {
-        MetricAlarms: [
-          {
-            AlarmName: `j9-operations-test-api-${input.NextToken ? 'errors' : 'zero'}`,
-            StateValue: 'ALARM',
-            MetricName: 'Errors',
-            Threshold: input.NextToken ? 3 : 0
-          }
-        ],
-        ...(!input.NextToken ? { NextToken: 'alarm-page-2' } : {})
+    // Real alarm names are `<stack>-<Trigger>For<Resource><index>`; the resource is found through the stack's alarm
+    // resources. The fake honors the prefix and state filters, and a sibling stage shares the stack-name prefix.
+    const alarmLogicalId = (name: string) => cfLogicalNames.cloudwatchAlarm(name);
+    await seedDeployedStack(fixture, {
+      api: {
+        ...lambda,
+        cloudformationChildResources: {
+          [alarmLogicalId('LambdaErrorRateForApi0')]: { cloudformationResourceType: 'AWS::CloudWatch::Alarm' },
+          [alarmLogicalId('LambdaDurationForApi1')]: { cloudformationResourceType: 'AWS::CloudWatch::Alarm' }
+        }
+      },
+      jobs: {
+        ...lambda,
+        resourceType: 'sqs-queue',
+        cloudformationChildResources: {
+          [alarmLogicalId('SqsQueueNotEmptyForJobs0')]: { cloudformationResourceType: 'AWS::CloudWatch::Alarm' }
+        }
       }
-    }));
+    });
+    fixture.aws.on('cloudformation.ListStackResources', () =>
+      xml('ListStackResources', {
+        StackResourceSummaries: ['LambdaErrorRateForApi0', 'LambdaDurationForApi1', 'SqsQueueNotEmptyForJobs0'].map(
+          (name) => ({
+            LogicalResourceId: alarmLogicalId(name),
+            PhysicalResourceId: `j9-operations-test-${name}`,
+            ResourceType: 'AWS::CloudWatch::Alarm',
+            ResourceStatus: 'CREATE_COMPLETE'
+          })
+        )
+      })
+    );
+    const storedAlarms = [
+      {
+        AlarmName: 'j9-operations-test-LambdaErrorRateForApi0',
+        StateValue: 'ALARM',
+        MetricName: 'Errors',
+        Threshold: 0
+      },
+      { AlarmName: 'j9-operations-test-LambdaDurationForApi1', StateValue: 'OK', MetricName: 'Duration', Threshold: 3 },
+      { AlarmName: 'j9-operations-test-SqsQueueNotEmptyForJobs0', StateValue: 'ALARM', MetricName: 'Messages' },
+      { AlarmName: 'j9-operations-test2-LambdaErrorRateForApi0', StateValue: 'ALARM', MetricName: 'Errors' }
+    ];
+    fixture.aws.on('monitoring.DescribeAlarms', ({ input }) => {
+      const matching = storedAlarms.filter(
+        ({ AlarmName, StateValue }) =>
+          AlarmName.startsWith(input.AlarmNamePrefix as string) &&
+          (!input.StateValue || StateValue === input.StateValue)
+      );
+      return {
+        kind: 'json' as const,
+        body: input.NextToken
+          ? { MetricAlarms: matching.slice(1) }
+          : { MetricAlarms: matching.slice(0, 1), ...(matching.length > 1 ? { NextToken: 'alarm-page-2' } : {}) }
+      };
+    });
     const alarms = payload((await run(fixture, ['alarms', '--resourceName', 'api'])).events).alarms as Array<
       Record<string, unknown>
     >;
-    expect(alarms.map(({ name, threshold }) => ({ name, threshold }))).toEqual([
-      { name: 'j9-operations-test-api-zero', threshold: '0' },
-      { name: 'j9-operations-test-api-errors', threshold: '3' }
+    expect(alarms.map(({ name, resource, threshold }) => ({ name, resource, threshold }))).toEqual([
+      { name: 'j9-operations-test-LambdaErrorRateForApi0', resource: 'api', threshold: '0' },
+      { name: 'j9-operations-test-LambdaDurationForApi1', resource: 'api', threshold: '3' }
+    ]);
+    const alarming = payload((await run(fixture, ['alarms', '--state', 'ALARM'])).events).alarms as Array<
+      Record<string, unknown>
+    >;
+    expect(alarming.map(({ name, resource }) => ({ name, resource }))).toEqual([
+      { name: 'j9-operations-test-LambdaErrorRateForApi0', resource: 'api' },
+      { name: 'j9-operations-test-SqsQueueNotEmptyForJobs0', resource: 'jobs' }
     ]);
     const table = await fixture.run(['alarms', '--resourceName', 'api', ...targetArgs, '--outputFormat', 'plain']);
     expect(table.exitCode).toBe(0);
     expect(table.stdout).toContain('2 alarm(s)');
-    expect(table.stdout).toContain('2 ALARM');
-    expect(table.stdout).toContain('Errors');
+    expect(table.stdout).toContain('1 ALARM');
+    expect(table.stdout).toContain('Duration');
     fixture.aws.on('monitoring.DescribeAlarms', () => ({ kind: 'json' as const, body: { MetricAlarms: [] } }));
     expect(payload((await run(fixture, ['alarms'])).events).alarms).toEqual([]);
   } finally {
@@ -146,26 +195,46 @@ test('logs read stored streams from the intended stack and expose readable plain
       }
     );
     await writeFile(join(fixture.directory, 'stacktape.yml'), '{"resources":{}}');
-    const now = Date.now() - 10_000;
-    for (const [logGroupName, logStreamName, message] of [
-      [group, 'first', 'ERROR: first failure'],
-      [group, 'second', '{"level":"warn","msg":"second warning"}'],
-      [`${group}-decoy`, 'outside', 'ERROR: never show this other resource']
-    ]) {
+    const now = Date.now();
+    for (const [logGroupName, logStreamName, logEvents] of [
+      [
+        group,
+        'first',
+        [
+          { timestamp: now - 45 * 60_000, message: 'stale: before the last 30 minutes' },
+          { timestamp: now - 20_000, message: 'ERROR: first failure' }
+        ]
+      ],
+      [group, 'second', [{ timestamp: now - 10_000, message: '{"level":"warn","msg":"second warning"}' }]],
+      [`${group}-decoy`, 'outside', [{ timestamp: now - 10_000, message: 'ERROR: never show this other resource' }]]
+    ] as const) {
       await logs.send(new CreateLogStreamCommand({ logGroupName, logStreamName }));
-      await logs.send(
-        new PutLogEventsCommand({ logGroupName, logStreamName, logEvents: [{ timestamp: now, message }] })
-      );
+      await logs.send(new PutLogEventsCommand({ logGroupName, logStreamName, logEvents: [...logEvents] }));
     }
-    const snapshot = payload((await run(fixture, ['logs', '--resourceName', 'api'])).events);
-    expect((snapshot.events as Array<{ message: string }>).map(({ message }) => message).sort()).toEqual([
+    const messages = async (args: string[]) =>
+      (
+        payload((await run(fixture, ['logs', '--resourceName', 'api', ...args])).events).events as Array<{
+          message: string;
+        }>
+      ).map(({ message }) => message);
+    expect(await messages([])).toEqual([
+      'stale: before the last 30 minutes',
+      'ERROR: first failure',
+      '{"level":"warn","msg":"second warning"}'
+    ]);
+    expect(await messages(['--startTime', '30m'])).toEqual([
+      'ERROR: first failure',
+      '{"level":"warn","msg":"second warning"}'
+    ]);
+    // A limit keeps the most recent events, in order.
+    expect(await messages(['--limit', '2'])).toEqual([
       'ERROR: first failure',
       '{"level":"warn","msg":"second warning"}'
     ]);
     const plain = await fixture.run(['logs', '--resourceName', 'api', ...targetArgs, '--outputFormat', 'plain']);
     expect(plain.exitCode, plain.stdout).toBe(0);
     expect(plain.stdout).toContain('ERROR: first failure');
-    expect(plain.stdout).toContain('2 event(s)');
+    expect(plain.stdout).toContain('3 event(s)');
     expect(plain.stdout).toContain('1 error(s)');
     expect(plain.stdout).toContain('1 warning(s)');
     expect(plain.stdout).not.toContain('never show');

@@ -15,30 +15,25 @@ beforeEach(() => {
 });
 
 describe('PromptSink non-interactive mode', () => {
-  test('answers with the default and logs the auto-answer', async () => {
-    const result = await sink.confirm({
-      config: { message: 'Proceed?', defaultValue: true },
-      isEnabled: false,
-      isTTY: false
-    });
-    expect(result).toBe(true);
-    expect(autoAnswerLogs).toHaveLength(1);
+  test('answers confirm and select prompts with their defaults and logs readable answers', async () => {
+    expect(
+      await sink.confirm({ config: { message: 'Proceed?', defaultValue: true }, isEnabled: false, isTTY: false })
+    ).toBe(true);
+    expect(
+      await sink.select({
+        config: {
+          message: 'Pick region',
+          options: [{ label: 'Ireland (eu-west-1)', value: 'eu-west-1' }],
+          defaultValue: 'eu-west-1'
+        },
+        isEnabled: false,
+        isTTY: false
+      })
+    ).toBe('eu-west-1');
+    expect(autoAnswerLogs).toHaveLength(2);
     expect(autoAnswerLogs[0]).toContain('Proceed?');
     expect(autoAnswerLogs[0]).toContain('yes');
-  });
-
-  test('select resolves the default value with its label in the log', async () => {
-    const result = await sink.select({
-      config: {
-        message: 'Pick region',
-        options: [{ label: 'Ireland (eu-west-1)', value: 'eu-west-1' }],
-        defaultValue: 'eu-west-1'
-      },
-      isEnabled: false,
-      isTTY: false
-    });
-    expect(result).toBe('eu-west-1');
-    expect(autoAnswerLogs[0]).toContain('Ireland (eu-west-1)');
+    expect(autoAnswerLogs[1]).toContain('Ireland (eu-west-1)');
   });
 });
 

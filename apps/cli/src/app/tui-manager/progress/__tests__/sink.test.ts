@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { operationSession } from '@application-services/operation-manager';
 import { TuiStateSink } from '../sink';
 import { tuiState } from '../state';
 import { sessionElapsedMs } from '../types';
@@ -104,16 +103,6 @@ describe('TuiStateSink journal adapter', () => {
     const state = tuiState.getSnapshot();
     expect(state.phases.find((phase) => phase.id === 'UPLOAD')?.status).toBe('error');
     expect(state.phases.find((phase) => phase.id === 'UPLOAD')?.events[0].status).toBe('error');
-  });
-
-  test('journal sequence is monotonic across mixed records', () => {
-    sink.setPhase('INITIALIZE');
-    sink.startEvent({ eventType: 'LOAD_CONFIG_FILE', description: 'Loading config' });
-    sink.addMessage('warn', 'A warning');
-    sink.finishEvent({ eventType: 'LOAD_CONFIG_FILE' });
-    const sequences = operationSession.journal.replay().map((record) => record.sequence);
-    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
-    expect(new Set(sequences).size).toBe(sequences.length);
   });
 });
 

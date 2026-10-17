@@ -309,7 +309,10 @@ export const runSsmShellScript = async ({
   cwd?: string;
   env: Record<string, any>;
 }) => {
-  const setEnvVarsCommands = Object.entries(env).map(([name, value]) => `export ${name}="${value}"`);
+  // Single quotes keep values literal: `$`, backquotes and double quotes in a password must reach the script unchanged.
+  const setEnvVarsCommands = Object.entries(env).map(
+    ([name, value]) => `export ${name}='${String(value).replaceAll("'", "'\\''")}'`
+  );
   const startShellScriptResponse = await awsSdkManager.systemsManager.startShellScript({
     instanceId,
     commands: [...setEnvVarsCommands, 'set -e', ...commands],
