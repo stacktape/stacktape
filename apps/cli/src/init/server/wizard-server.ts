@@ -173,6 +173,19 @@ export type WizardState = {
   };
   /** The deploy, once one has been asked for. */
   deployment?: WizardDeployment;
+  /**
+   * Connecting the coding agent picked on the Start step to Stacktape, offered once a deploy has succeeded. Absent
+   * when no coding agent was picked. It changes that agent's user-level configuration, outside the repository, so it
+   * happens only when the user clicks.
+   */
+  codingAgentSetup?: {
+    agentId: string;
+    label: string;
+    status: 'offered' | 'running' | 'connected' | 'failed';
+    /** The same change from a terminal. */
+    command: string;
+    detail?: string;
+  };
   /** Exact target observed with the credential/account resolver the deploy child will use. */
   deployTarget?:
     | DeployTargetObservation
@@ -248,6 +261,8 @@ export type WizardServerHooks = {
    * Publishes for itself, like `onDeploy`: Google answers minutes after the request that started it.
    */
   onSignIn: (action: WizardSignInAction) => Promise<void> | void;
+  /** Called when the user asks to connect their coding agent to Stacktape. Publishes for itself, like `onDeploy`. */
+  onCodingAgentSetup: () => Promise<void> | void;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -768,6 +783,22 @@ export const startWizardServer = async ({
             return;
           }
           await hooks.onPipeline({ stage: body.stage, region: body.region });
+          json(response, 200, state);
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      // Changes the coding agent's user-level configuration. No body: the agent is the one picked on the Start step,
+      // which the page names on the button.
+      if (url.pathname === '/api/coding-agent-setup' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          await hooks.onCodingAgentSetup();
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });

@@ -108,7 +108,7 @@ When invoked by an AI coding assistant (detected automatically), `logs` returns 
 
 Logs Insights queries (when using `--query`) return `{ logGroup, query, results }` instead.
 
-This makes debug commands work as data sources for [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) and the [Stacktape MCP server](/using-with-ai/mcp-server-setup).
+This makes debug commands work as data sources for coding agents through the [Stacktape MCP server](/using-with-ai/mcp-server-setup).
 
 ## Viewing metrics
 

@@ -108,10 +108,24 @@ const buildDestructiveCommandDigest = ({
     .update(JSON.stringify(canonicalizeForDigest({ command, args, cwd })))
     .digest('hex');
 
-const clientSupportsFormElicitation = (ctx: ServerContext): boolean => {
+type ElicitationCapabilities = { elicitation?: { form?: unknown; url?: unknown } } | undefined;
+
+// A 2026-07-28 client declares capabilities on every request; a 2025-era client declares them once in `initialize`,
+// and the SDK turns our input-required result into an `elicitation/create` request on that connection. Before the
+// form/URL split, `elicitation: {}` meant form elicitation.
+const clientSupportsFormElicitation = ({
+  ctx,
+  initializeCapabilities
+}: {
+  ctx: ServerContext;
+  initializeCapabilities?: ElicitationCapabilities;
+}): boolean => {
   const envelope = ctx.mcpReq.envelope as Record<string, unknown> | undefined;
-  const capabilities = envelope?.[CLIENT_CAPABILITIES_META_KEY] as { elicitation?: { form?: unknown } } | undefined;
-  return Boolean(capabilities?.elicitation?.form);
+  const envelopeCapabilities = envelope?.[CLIENT_CAPABILITIES_META_KEY] as ElicitationCapabilities;
+  if (envelopeCapabilities) return Boolean(envelopeCapabilities.elicitation?.form);
+  const elicitation = initializeCapabilities?.elicitation;
+  if (!elicitation) return false;
+  return Boolean(elicitation.form) || elicitation.url === undefined;
 };
 
 const sweepConsumedDestructiveConfirmations = (now: number) => {
@@ -148,11 +162,13 @@ const buildDestructiveConfirmationUnavailable = ({
 
 export const requestDestructiveExecutionConfirmation = async ({
   ctx,
+  initializeCapabilities,
   command,
   args,
   cwd
 }: {
   ctx: ServerContext;
+  initializeCapabilities?: ElicitationCapabilities;
   command: string;
   args: Record<string, unknown>;
   cwd: string;
@@ -163,7 +179,7 @@ export const requestDestructiveExecutionConfirmation = async ({
   const state = ctx.mcpReq.requestState<DestructiveConfirmationState>();
 
   if (!state) {
-    if (!clientSupportsFormElicitation(ctx)) {
+    if (!clientSupportsFormElicitation({ ctx, initializeCapabilities })) {
       return buildDestructiveConfirmationUnavailable({
         command,
         args,
@@ -182,14 +198,14 @@ export const requestDestructiveExecutionConfirmation = async ({
       requestState: await destructiveConfirmationCodec.mint(approvalState, ctx),
       inputRequests: {
         [DESTRUCTIVE_CONFIRMATION_INPUT_KEY]: inputRequired.elicit({
-          message: `Confirm high-risk Stacktape command: ${command}\n\nTarget: ${targetSummary}\n\nThis can delete data or irreversibly change infrastructure. Confirm only if you intend to execute this exact command now.`,
+          message: `Confirm high-risk Stacktape command: ${command}\n\nTarget: ${targetSummary}\nProject folder: ${cwd}\n\nThis can delete data or irreversibly change infrastructure. Confirm only if you intend to execute this exact command now.`,
           requestedSchema: {
             type: 'object',
             properties: {
               confirm: {
                 type: 'boolean',
                 title: 'Execute destructive command',
-                description: `I confirm that Stacktape should execute ${command} for: ${targetSummary}.`,
+                description: `I confirm that Stacktape should execute ${command} for: ${targetSummary}, from ${cwd}.`,
                 default: false
               }
             },

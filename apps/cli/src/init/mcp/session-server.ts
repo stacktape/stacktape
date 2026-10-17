@@ -24,7 +24,7 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { fromJsonSchema, McpServer } from '@modelcontextprotocol/server';
+import { fromJsonSchema, McpServer, SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/server';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
 import type { AgentSubmission } from '@stacktape/config-inference/facts/agent-submission';
 import { createInitTools, type InitToolContext } from '../tools';
@@ -93,7 +93,7 @@ export const createInitMcpServer = (
   const server = new McpServer(
     { name: INIT_MCP_SERVER_NAME, version: '1' },
     {
-      supportedProtocolVersions: [INIT_MCP_PROTOCOL_VERSION],
+      supportedProtocolVersions: [INIT_MCP_PROTOCOL_VERSION, ...SUPPORTED_PROTOCOL_VERSIONS],
       instructions:
         'These are the only tools available. Describe what this repository IS, citing a file and line for every ' +
         'claim, then call submit_facts. Anything you cannot establish from the repository goes in "unknowns" — ' +

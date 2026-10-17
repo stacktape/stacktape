@@ -45,6 +45,13 @@ Reuse these before writing new setup code. Rows marked **duplicate** are consoli
 | Init as a CLI process                    | [init harness](../../apps/cli/scripts/init-e2e/harness.ts)                                                                                             | Sandboxed project and HOME, offline package, image run with its task definition. `test:init:e2e`.                                                                                                     |
 | Recorded coding agent                    | [Claude Code stand-in](../../apps/cli/scripts/init-e2e/recorded-agent-cli.ts)                                                                          | `claude` on PATH that replays tool calls against the real init MCP server and logs every answer.                                                                                                      |
 
+The offline deploy loop covers EventBridge delivery on MiniStack 1.5.27, alongside the existing Lambda, bucket, queue,
+table, SNS and S3-notification families. Each family creates, updates, redeploys unchanged input and deletes its stack.
+HTTP API remains a known gap: the fixed Stage Ref lets its API mapping create, but `GatewayDefaultDomainCustomResource`
+fails with `TRPCClientError: fetch failed` because its Lambda cannot reach the harness's host-loopback Console endpoint
+from inside the emulator container. Container workloads remain a known gap because MiniStack lacks Application Auto
+Scaling ([upstream issue #2162](https://github.com/ministackorg/ministack/issues/2162)).
+
 ## Helpers worth building
 
 Build each with its first real consumer, and share it across owners when a second consumer needs the same thing. Put
@@ -102,7 +109,7 @@ concurrent runs independent, cleanup verified after a deliberate failure, and no
 `pnpm --filter @stacktape/cli test:operations:rules` runs the fast, offline rule and terminal-control tests.
 `test:operations` starts one shared MiniStack container, allocates isolated accounts and runs the built source CLI with
 loopback Console responses. CloudFormation, STS, S3, Lambda and log storage use MiniStack; the proxy supplies deliberate
-faults and operations the pinned emulator lacks. Session tests replace the native vendor transport: MiniStack 1.5.26
+faults and operations the pinned emulator lacks. Session tests replace the native vendor transport: MiniStack 1.5.27
 rejects SSM `StartSession` with `InvalidAction`, so these tests do not qualify live Session Manager or ECS networking.
 
 `pnpm --filter @stacktape/cli test:operations:db` runs the SQL, Redis, DynamoDB and OpenSearch command scenarios. It

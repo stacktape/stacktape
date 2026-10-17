@@ -65,9 +65,14 @@ const colors = {
 
 const isTTY = process.stdout.isTTY;
 
+// `stacktape mcp` speaks the MCP protocol on stdout, so the first run after an install or upgrade must keep the
+// launcher's own messages off that stream.
+const isMcpServer = process.argv[2] === 'mcp';
+const info = (message) => (isMcpServer ? console.error(message) : console.info(message));
+
 const printLogo = () => {
   const { dim, green, reset, bold } = colors;
-  console.info(`
+  info(`
 ${dim}     _____ _             _    _                    ${reset}
 ${dim}    / ____| |           | |  | |                   ${reset}
 ${green}   | (___ | |_ __ _  ___| | _| |_ __ _ _ __   ___  ${reset}
@@ -88,7 +93,7 @@ ${dim}For more information visit ${reset}https://docs.stacktape.com
 };
 
 const printProgress = (downloaded, total) => {
-  if (!isTTY) return;
+  if (!isTTY || isMcpServer) return;
 
   const width = 40;
   const percent = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
@@ -157,7 +162,7 @@ async function downloadFile(url, destPath, retries = 3) {
           response.pipe(fileStream);
           fileStream.on('finish', () => {
             fileStream.close();
-            if (isTTY) process.stdout.write('\n');
+            if (isTTY && !isMcpServer) process.stdout.write('\n');
             resolve();
           });
         };
@@ -170,7 +175,7 @@ async function downloadFile(url, destPath, retries = 3) {
       if (i === retries - 1) {
         throw error;
       }
-      console.info(`\n${colors.dim}Retrying download (${i + 1}/${retries})...${colors.reset}`);
+      info(`\n${colors.dim}Retrying download (${i + 1}/${retries})...${colors.reset}`);
     }
   }
 }
@@ -391,7 +396,7 @@ async function ensureBinary() {
   };
 
   const installBinary = async () => {
-    console.info(`${colors.dim}Installing Stacktape ${version} for ${platformKey}...${colors.reset}`);
+    info(`${colors.dim}Installing Stacktape ${version} for ${platformKey}...${colors.reset}`);
 
     mkdirSync(cacheDir, { recursive: true });
 
@@ -399,7 +404,7 @@ async function ensureBinary() {
     const archivePath = join(cacheDir, `.download-${Date.now()}-${platformInfo.fileName}`);
 
     try {
-      console.info(`${colors.dim}Downloading from GitHub releases...${colors.reset}`);
+      info(`${colors.dim}Downloading from GitHub releases...${colors.reset}`);
       await downloadFile(downloadUrl, archivePath);
       await verifyFileChecksum({
         filePath: archivePath,
@@ -407,7 +412,7 @@ async function ensureBinary() {
         manifestPath: join(__dirname, '..', RELEASE_CHECKSUMS_FILE_NAME)
       });
 
-      console.info(`${colors.dim}Extracting...${colors.reset}`);
+      info(`${colors.dim}Extracting...${colors.reset}`);
       await platformInfo.extract(archivePath, cacheDir);
 
       setExecutablePermissions(cacheDir);
@@ -458,7 +463,7 @@ async function ensureBinary() {
         lastError = error;
         cleanupExtractedCache();
         if (attempt < 2) {
-          console.info(`\n${colors.dim}Retrying installation (${attempt + 1}/2)...${colors.reset}`);
+          info(`\n${colors.dim}Retrying installation (${attempt + 1}/2)...${colors.reset}`);
         }
       }
     }

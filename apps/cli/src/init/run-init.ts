@@ -17,6 +17,8 @@ import { modelFlagFor, modelsFor } from './agent/models';
 import { getStacktapeVersion } from '@utils/versioning';
 import { detectRepository } from './cicd/detect-host';
 import { writePipeline } from './cicd/write-pipeline';
+import { CODING_AGENT_IDS, getCodingAgent, type CodingAgentId } from '@domain-services/coding-agent-setup/agents';
+import { setUpCodingAgents } from '@domain-services/coding-agent-setup/setup';
 import { resolveAwsIdentity } from './deploy/credentials';
 import { resolveStacktapeAccount } from './deploy/stacktape-account';
 import {
@@ -49,6 +51,8 @@ import {
 } from './write-config';
 
 type InitPresentation = 'browser' | 'terminal';
+
+const isCodingAgentId = (id: string): id is CodingAgentId => (CODING_AGENT_IDS as readonly string[]).includes(id);
 
 export type InitOptions = {
   repositoryRoot?: string;
@@ -489,6 +493,41 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             };
           }
         }),
+    codingAgentSetup: {
+      describe: (agentId) =>
+        isCodingAgentId(agentId)
+          ? { label: getCodingAgent(agentId).label, command: `stacktape mcp:add --codingAgents ${agentId}` }
+          : undefined,
+      setUp: async (agentId) => {
+        if (!isCodingAgentId(agentId)) return { ok: false, detail: 'This agent cannot be connected to Stacktape.' };
+        const agent = getCodingAgent(agentId);
+        const { agents, connectionCheck, projectEntries } = await setUpCodingAgents({
+          agents: [agent],
+          cwd: repositoryRoot
+        });
+        const [outcome] = agents;
+        if (!outcome.ok) return { ok: false, detail: `${outcome.error} To set it up by hand: ${outcome.manualSetup}` };
+        if (connectionCheck && !connectionCheck.ok) {
+          return { ok: false, detail: `The Stacktape MCP server did not start: ${connectionCheck.reason}` };
+        }
+        // Set up for the user, but this project's own entry still wins here: say what to remove, then try again.
+        const [override] = projectEntries;
+        if (override) {
+          return {
+            ok: false,
+            detail: override.removeCommand
+              ? `${agent.label} is set up, but in this project it still uses an older Stacktape entry. Remove it with \`${override.removeCommand}\` in this folder, then try again.`
+              : `${agent.label} is set up, but in this project it uses the Stacktape entry in ${override.location} instead. Remove that entry unless your team relies on it, then try again.`
+          };
+        }
+        say(`\nConnected ${agent.label} to Stacktape.`);
+        const reload = `${agent.reloadHint[0].toUpperCase()}${agent.reloadHint.slice(1)} to load it.`;
+        return {
+          ok: true,
+          detail: outcome.server?.change === 'unchanged' ? `It was already set up and works. ${reload}` : reload
+        };
+      }
+    },
     inspectDeployTarget: async ({ configFile, stage, region }) => {
       const controller = new AbortController();
       const finished = inspectDeployTarget({

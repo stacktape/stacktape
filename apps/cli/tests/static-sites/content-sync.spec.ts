@@ -275,6 +275,8 @@ test('each hosting content type stores the cache headers its framework expects',
   const files = [
     ...html,
     'static/app.js',
+    // Gatsby's `static/` holds hashed images and fonts too; only its folder rule makes them immutable, not `**/*.js`.
+    'static/logo.png',
     '_astro/app.js',
     '_app/app.js',
     '_nuxt/app.js',
@@ -286,13 +288,13 @@ test('each hosting content type stores the cache headers its framework expects',
   // HTML must be revalidated so a release shows up; hashed framework assets are safe to cache forever.
   const presets: { preset: SupportedHeaderPreset; immutable: string[]; revalidate: string[] }[] = [
     { preset: 'static-website', immutable: [], revalidate: files },
-    { preset: 'single-page-app', immutable: ['static/app.js'], revalidate: html },
+    { preset: 'single-page-app', immutable: ['static/app.js', 'static/logo.png'], revalidate: html },
     { preset: 'astro-static-website', immutable: ['_astro/app.js'], revalidate: html },
     { preset: 'sveltekit-static-website', immutable: ['_app/app.js'], revalidate: html },
     { preset: 'nuxt-static-website', immutable: ['_nuxt/app.js'], revalidate: html },
     {
       preset: 'gatsby-static-website',
-      immutable: ['static/app.js', '_astro/app.js', '_app/app.js', '_nuxt/app.js'],
+      immutable: ['static/app.js', 'static/logo.png', '_astro/app.js', '_app/app.js', '_nuxt/app.js'],
       revalidate: [...html, 'page-data/index.json', 'app-data.json', 'sw.js']
     }
   ];
@@ -646,7 +648,7 @@ test('deploys publish the configured directory, and configured bucket sync updat
 
 test('listing and batch deletion reach every object version and delete marker beyond the first page', async () => {
   const { client, s3, destroy } = createSyncScenario();
-  // MiniStack 1.5.26 accepts oversized batches. Inject AWS's documented rejection; valid requests still
+  // MiniStack 1.5.27 accepts oversized batches. Inject AWS's documented rejection; valid requests still
   // reach the emulator, and the assertion below observes that every stored version and marker was deleted.
   client.middlewareStack.add(
     (next, context) => async (args) => {

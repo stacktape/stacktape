@@ -255,6 +255,165 @@ describe('startWizardSession', () => {
       expect(runs).toBe(1);
     });
 
+    it('offers to connect the chosen coding agent after a successful deploy, and changes it only on the click', async () => {
+      const setUpFor: string[] = [];
+      session = await startWizardSession({
+        projectName: 'demo',
+        agents,
+        start: async () => resultFor(factsWith({})),
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => ({
+          schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+          status: 'absent' as const,
+          accountId: '123456789012',
+          stackName: 'demo-dev',
+          projectName: 'demo',
+          stage: 'dev',
+          region: 'eu-west-1',
+          configSha256: CONFIG_SHA256
+        }),
+        deploy: async () => ({ ok: true, code: 'OK', message: 'Deployed' }),
+        codingAgentSetup: {
+          describe: (agentId) =>
+            agentId === 'claude-code'
+              ? { label: 'Claude Code', command: 'stacktape mcp:add --codingAgents claude-code' }
+              : undefined,
+          setUp: async (agentId) => {
+            setUpFor.push(agentId);
+            return { ok: true, detail: 'Start a new Claude Code session to load it.' };
+          }
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const where = {
+        origin,
+        cookie: handshake.headers.get('set-cookie')?.split(';')[0] ?? '',
+        csrfToken: ((await handshake.json()) as { csrfToken: string }).csrfToken
+      };
+      const headers = {
+        Origin: origin,
+        Cookie: where.cookie,
+        'Content-Type': 'application/json',
+        'x-csrf-token': where.csrfToken
+      };
+      const current = () => session!.server.current();
+      const waitFor = async (condition: () => boolean) => {
+        for (let attempt = 0; attempt < 100 && !condition(); attempt += 1) {
+          await new Promise((settle) => setTimeout(settle, 20));
+        }
+      };
+      const connect = () => fetch(`${origin}/api/coding-agent-setup`, { method: 'POST', headers });
+
+      await post(where, { agentId: 'claude-code', modelId: 'default' });
+      await waitFor(() => current().phase === 'reviewing');
+      // Nothing is deployed yet: no offer, and a direct request changes nothing.
+      expect(current().codingAgentSetup).toBeUndefined();
+      expect((await connect()).status).toBe(400);
+      expect(setUpFor).toEqual([]);
+
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+      const deploy = () =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
+        });
+      await deploy();
+      await deploy();
+      await waitFor(() => current().deployment?.status === 'succeeded');
+      expect(current().codingAgentSetup).toMatchObject({ agentId: 'claude-code', status: 'offered' });
+      expect(setUpFor).toEqual([]);
+
+      const withoutCsrf = await fetch(`${origin}/api/coding-agent-setup`, {
+        method: 'POST',
+        headers: { Origin: origin, Cookie: where.cookie }
+      });
+      expect(withoutCsrf.status).toBe(403);
+      expect((await connect()).status).toBe(200);
+      await waitFor(() => current().codingAgentSetup?.status === 'connected');
+      expect(current().codingAgentSetup).toMatchObject({
+        status: 'connected',
+        detail: expect.stringContaining('Claude Code')
+      });
+
+      await connect();
+      expect(setUpFor).toEqual(['claude-code']);
+    });
+
+    it('offers the agent chosen on the retry, not the status of the first one', async () => {
+      let attempts = 0;
+      session = await startWizardSession({
+        projectName: 'demo',
+        agents: [...agents, { ...agents[0], id: 'codex', label: 'Codex' }],
+        start: async () => {
+          attempts += 1;
+          if (attempts === 1) throw new Error('The analysis failed.');
+          return resultFor(factsWith({}));
+        },
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => ({
+          schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+          status: 'absent' as const,
+          accountId: '123456789012',
+          stackName: 'demo-dev',
+          projectName: 'demo',
+          stage: 'dev',
+          region: 'eu-west-1',
+          configSha256: CONFIG_SHA256
+        }),
+        deploy: async () => ({ ok: true, code: 'OK', message: 'Deployed' }),
+        codingAgentSetup: {
+          describe: (agentId) => ({ label: agentId, command: `stacktape mcp:add --codingAgents ${agentId}` }),
+          setUp: async () => ({ ok: true, detail: 'Loaded.' })
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const where = {
+        origin,
+        cookie: handshake.headers.get('set-cookie')?.split(';')[0] ?? '',
+        csrfToken: ((await handshake.json()) as { csrfToken: string }).csrfToken
+      };
+      const headers = {
+        Origin: origin,
+        Cookie: where.cookie,
+        'Content-Type': 'application/json',
+        'x-csrf-token': where.csrfToken
+      };
+      const current = () => session!.server.current();
+      const waitFor = async (condition: () => boolean) => {
+        for (let attempt = 0; attempt < 100 && !condition(); attempt += 1) {
+          await new Promise((settle) => setTimeout(settle, 20));
+        }
+      };
+
+      await post(where, { agentId: 'claude-code', modelId: 'default' });
+      await waitFor(() => current().phase === 'failed');
+      await post(where, { agentId: 'codex', modelId: 'default' });
+      await waitFor(() => current().phase === 'reviewing');
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+      const deploy = () =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
+        });
+      await deploy();
+      await deploy();
+      await waitFor(() => current().deployment?.status === 'succeeded');
+
+      expect(current().codingAgentSetup).toMatchObject({ agentId: 'codex', status: 'offered' });
+    });
+
     it('writes the configuration the user is looking at, in the format they chose', async () => {
       const written: Array<{ format: string; resources: string[] }> = [];
       session = await startWizardSession({
