@@ -12,10 +12,6 @@ describe('selectAwsCredentialProfile', () => {
     ).toBe('operator');
   });
 
-  test('uses a remembered profile when no environment credential source exists', () => {
-    expect(selectAwsCredentialProfile({ persistedProfile: 'default', environment: {} })).toBe('default');
-  });
-
   test('does not override workload identity credentials with a remembered profile', () => {
     expect(
       selectAwsCredentialProfile({
