@@ -4477,7 +4477,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/hosting-buckets/**',
       'apps/cli/src/aws/s3-sync/**',
-      'apps/cli/src/aws/s3.ts'
+      'apps/cli/src/aws/s3.ts',
+      'apps/cli/src/aws/s3-upload-options.ts'
     ],
     tests: [
       'apps/cli/tests/static-sites/build.spec.ts',
