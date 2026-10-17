@@ -181,8 +181,9 @@ const serverFunctionTree = (label: string, values: Values, extraFiles: Tree['fil
     },
     'config/settings.json': { contents: `${JSON.stringify({ token: values.token })}\n` },
     '.next/.hidden-settings': { contents: `hidden-${label}\n` },
+    // A bundle repeats a build-time value wherever the code reads it, so one file holds the placeholder twice.
     '.next/server/app.page.runtime.prod.js': {
-      contents: `export const bucket = "${values.searchBucket}"; export const label = "${label}";\n`
+      contents: `export const bucket = "${values.searchBucket}"; export const label = "${label}"; export const url = "https://${values.searchBucket}/";\n`
     },
     'bin/tool': { contents: `#!/bin/sh\necho linked-tool-ran-${label}\n`, mode: 0o755 },
     // Selected by the replacement pattern, but without a placeholder: its bytes must not change.

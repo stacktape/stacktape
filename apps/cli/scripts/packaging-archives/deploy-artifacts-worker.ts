@@ -58,6 +58,8 @@ export type DeployArtifactsRequest = {
   deleteObsoleteArtifacts?: boolean;
   /** Route layer PUTs to an uncreated local bucket to test SDK upload failure. */
   failLayerUploadToBucket?: string;
+  /** Answer function ZIP PUTs with an injected access denial, an error no retry branch of the upload handles. */
+  denyFunctionUploads?: boolean;
 };
 
 export type DeployArtifactsResult = {
@@ -146,6 +148,9 @@ const main = async () => {
   const uploadFile = s3.uploadFile.bind(s3);
   s3.uploadFile = async (input) => {
     if (input.bucketName !== bucketName) throw new Error(`Unexpected bucket ${input.bucketName}.`);
+    if (request.denyFunctionUploads && input.contentType === 'application/zip') {
+      throw Object.assign(new Error(`AccessDenied: injected denial of ${input.s3Key}`), { name: 'AccessDenied' });
+    }
     const result = await uploadFile(
       request.failLayerUploadToBucket && input.s3Key.startsWith('shared-layer-')
         ? { ...input, bucketName: request.failLayerUploadToBucket }

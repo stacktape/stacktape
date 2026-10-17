@@ -2602,7 +2602,6 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/es/package-manager-install.test.ts',
       'packages/packaging/src/es/self-reading-packages.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
-      'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'packages/packaging/src/image/railpack.test.ts',
       'packages/packaging/src/image/railpack-python.test.ts',
@@ -4521,7 +4520,6 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
-      'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],
