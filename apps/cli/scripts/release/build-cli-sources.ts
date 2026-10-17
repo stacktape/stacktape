@@ -1,5 +1,6 @@
 import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import type { BunPlugin } from 'bun';
+import { randomUUID } from 'node:crypto';
 import { arch, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
@@ -24,6 +25,7 @@ import { createCliPackagingError } from '@domain-services/packaging-manager/erro
 import { localBuildTsConfigPath } from '@utils/misc';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import { createCloudFormationSpecBuildPlugin } from '@scripts/support/cloudformation-spec-loader';
+import { createFsExtraSingleCopyPlugin } from '@scripts/support/fs-extra-single-copy-plugin';
 import { archiveItem, extractTgzArchive } from '@utils/zip';
 import {
   chmod,
@@ -289,11 +291,14 @@ const createOpenTuiDebugStripPlugin = (): BunPlugin => ({
 export const getReleaseBundleOptions = ({
   debug,
   platform,
-  version
+  version,
+  errorTrackingChunkId
 }: {
   debug?: boolean;
   platform: SupportedPlatform;
   version?: string;
+  /** Identifies the executable's source map in PostHog (`writeErrorTrackingSourceMap`). */
+  errorTrackingChunkId?: string;
 }) => ({
   entrypoints: [join(process.cwd(), 'src', 'entrypoints', 'compiled-cli.ts')],
   // Preserve command-level dynamic imports as ESM chunks inside the executable instead of initializing every command.
@@ -307,10 +312,14 @@ export const getReleaseBundleOptions = ({
   plugins: [
     createStacktapeOpenTuiBuildPlugin(),
     createCloudFormationSpecBuildPlugin(),
+    createFsExtraSingleCopyPlugin(),
     ...(OPENTUI_DEBUG_STRIPPED_PLATFORMS.includes(platform) ? [createOpenTuiDebugStripPlugin()] : [])
   ],
   tsconfig: localBuildTsConfigPath,
-  define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') }
+  define: {
+    STACKTAPE_VERSION: JSON.stringify(version || 'dev'),
+    STACKTAPE_ERROR_TRACKING_CHUNK_ID: JSON.stringify(errorTrackingChunkId || '')
+  }
 });
 
 /**
@@ -335,12 +344,72 @@ const BYTECODE_PLATFORMS: SupportedPlatform[] = [
   'linux-arm'
 ];
 
+/**
+ * Writes the executable's code and source map for upload to PostHog error tracking, which then shows CLI exceptions with
+ * TypeScript files and lines. The map is never shipped (see `sourcemap` above), and Bun embeds it in any executable
+ * built with one, so a second build of the same code produces it. That build may only append its `debugId` comment;
+ * any other difference means the map does not describe the released code, and the release fails.
+ *
+ * Both builds define the same `errorTrackingChunkId`. The CLI registers it for its frames at runtime
+ * (`utils/telemetry.ts`), and it replaces Bun's own debug ID in the written pair, which `posthog-cli sourcemap upload`
+ * uses as the chunk ID.
+ */
+const writeErrorTrackingSourceMap = async ({
+  options,
+  compileTarget,
+  releasedCode,
+  chunkId,
+  directory
+}: {
+  options: ReturnType<typeof getReleaseBundleOptions>;
+  compileTarget: Bun.Build.CompileTarget;
+  releasedCode: string;
+  chunkId: string;
+  directory: string;
+}) => {
+  const workDirectory = await mkdtemp(join(tmpdir(), 'stacktape-error-tracking-map-'));
+  try {
+    const result = await Bun.build({
+      ...options,
+      sourcemap: 'external',
+      compile: {
+        target: compileTarget,
+        outfile: join(workDirectory, 'stacktape'),
+        autoloadTsconfig: true,
+        autoloadPackageJson: true
+      },
+      throw: false
+    });
+    const code = result.outputs.find(({ kind }) => kind === 'entry-point');
+    const sourceMap = result.outputs.find(({ kind }) => kind === 'sourcemap');
+    if (!result.success || !code || !sourceMap) {
+      throw new Error(`Failed to build the error-tracking source map:\n${result.logs.map(String).join('\n')}`);
+    }
+    const mappedCode = (await code.text()).replace(/\n\/\/# debugId=[0-9A-F]+\n$/, '');
+    if (mappedCode !== releasedCode) {
+      throw new Error('The error-tracking source map build produced different code than the release executable.');
+    }
+    const map = JSON.parse(await sourceMap.text());
+    map.debugId = chunkId;
+    await ensureDir(directory);
+    await outputFile(
+      join(directory, 'stacktape.js'),
+      `${mappedCode}\n//# debugId=${chunkId}\n//# sourceMappingURL=stacktape.js.map\n`
+    );
+    await outputFile(join(directory, 'stacktape.js.map'), JSON.stringify(map));
+    logSuccess(`Error-tracking source map written to ${directory}.`);
+  } finally {
+    await remove(workDirectory);
+  }
+};
+
 export const buildBinaryFile = async ({
   distFolderPath,
   debug,
   platform,
   version,
-  bytecodeDepth = !debug && BYTECODE_PLATFORMS.includes(platform) ? 1 : 'off'
+  bytecodeDepth = !debug && BYTECODE_PLATFORMS.includes(platform) ? 1 : 'off',
+  errorTrackingSourceMapDirectory
 }: {
   distFolderPath?: string;
   debug?: boolean;
@@ -348,6 +417,8 @@ export const buildBinaryFile = async ({
   version?: string;
   /** Overrides the platform's release bytecode, for `qualify-bytecode.ts` only. */
   bytecodeDepth?: number | 'off';
+  /** Where to write the executable's code and source map for PostHog (`writeErrorTrackingSourceMap`). */
+  errorTrackingSourceMapDirectory?: string;
 }) => {
   const binFolderName = BINARY_FOLDER_NAMES[platform];
   const outputFolderPath = join(distFolderPath, binFolderName);
@@ -365,10 +436,14 @@ export const buildBinaryFile = async ({
   const outputFileName = isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
 
-  const result = await Bun.build({
-    ...getReleaseBundleOptions({ debug, platform, version }),
+  const errorTrackingChunkId = errorTrackingSourceMapDirectory && !debug ? randomUUID() : undefined;
+  const options = {
+    ...getReleaseBundleOptions({ debug, platform, version, errorTrackingChunkId }),
     // Only the executable build: `getReleaseBundleOptions` also serves bundle analysis, which compiles nothing.
-    ...(bytecodeDepth !== 'off' && { bytecode: true, bytecodeDepth }),
+    ...(bytecodeDepth !== 'off' && { bytecode: true, bytecodeDepth })
+  };
+  const result = await Bun.build({
+    ...options,
     compile: {
       target: compileTarget,
       outfile: outputPath,
@@ -381,6 +456,16 @@ export const buildBinaryFile = async ({
   if (!result.success) {
     const errors = result.logs.map((log) => log.message || String(log)).join('\n');
     throw new Error(`Failed to build binary for platform ${platform}:\n${errors}`);
+  }
+
+  if (errorTrackingChunkId) {
+    await writeErrorTrackingSourceMap({
+      options,
+      compileTarget,
+      releasedCode: await result.outputs.find(({ kind }) => kind === 'entry-point')!.text(),
+      chunkId: errorTrackingChunkId,
+      directory: errorTrackingSourceMapDirectory!
+    });
   }
 
   if (!isWindowsPlatform(platform)) {

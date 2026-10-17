@@ -25,6 +25,8 @@ const main = async () => {
     () => import('@application-services/tui-manager/output/mode')
   );
   const { runCommand } = await timeAsync('startup:load-dispatcher', () => import('../index'));
+  const { addCallerStacksToFileErrors } = await import('@utils/file-error-stacks');
+  addCallerStacksToFileErrors();
 
   const endReadArguments = startTiming('startup:read-arguments');
   const { commands, options, additionalArgs } = getCliInput();

@@ -224,7 +224,8 @@ or choosing another immutable version.
 
 ## Authentication boundaries
 
-The workflow uses no long-lived publishing secret:
+The workflow uses no long-lived publishing secret. Its one long-lived credential uploads error-tracking source maps
+(below) and cannot publish anything:
 
 - `release-publish` grants the npm/GitHub publication job GitHub OIDC. npm trusts only `release.yml` in this
   environment.
@@ -262,6 +263,25 @@ npm permits only one trusted publisher per package. If `npm trust list stacktape
 replace it with `npm trust revoke stacktape --id <existing-id>`, then run the `npm trust github` command above.
 
 Do not add `NPM_TOKEN`, AWS access keys, or `STACKTAPE_API_KEY` to the workflow.
+
+### Error-tracking source maps
+
+Stable executables report unexpected errors to PostHog (`apps/cli/src/utils/telemetry.ts`) but do not ship their source
+map. The build writes each platform's code and map with a per-build chunk ID that the executable registers at runtime
+(`writeErrorTrackingSourceMap` in `apps/cli/scripts/release/build-cli-sources.ts`). The
+`upload-error-tracking-source-maps` job uploads them with `posthog-cli`, so PostHog shows TypeScript files and lines.
+Publication does not wait for that job; if it fails, that release's stack traces point into the bundle until its maps
+are uploaded from the run's artifacts, which are kept for one day.
+
+The GitHub environment `error-tracking` must allow only `main` and hold:
+
+- secret `POSTHOG_CLI_API_KEY`: a PostHog personal API key limited to the production project with the scopes
+  `error_tracking:write` and `organization:read`, and nothing else;
+- variable `POSTHOG_CLI_PROJECT_ID`: the production project's numeric ID (Project settings in PostHog).
+
+To check a release, trigger an unexpected error with the released binary (for example, make `~/.stacktape` a file and
+run `stacktape defaults:list`) and find its printed error ID in PostHog error tracking. The stack frames should name
+`.ts` files under `src/`.
 
 ## Other mutable publications
 

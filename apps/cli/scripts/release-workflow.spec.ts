@@ -114,6 +114,13 @@ describe('release publication policy', () => {
       'release-publish'
     );
     expect(isRecord(jobs['publish-installers']) && jobs['publish-installers'].environment).toBe('release-installers');
+    const jobsWithSecrets = Object.entries(jobs)
+      .filter(([, jobValue]) => JSON.stringify(jobValue).includes('secrets.'))
+      .map(([jobName]) => jobName);
+    expect(jobsWithSecrets).toEqual(['upload-error-tracking-source-maps']);
+    expect(
+      isRecord(jobs['upload-error-tracking-source-maps']) && jobs['upload-error-tracking-source-maps'].environment
+    ).toBe('error-tracking');
     for (const jobName of ['verify', 'build-binaries', 'assemble']) {
       expect(isRecord(jobs[jobName]) && jobs[jobName].permissions).toBeUndefined();
     }

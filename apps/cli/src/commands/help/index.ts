@@ -6,6 +6,7 @@ import { marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
 import { cliCommands } from '../../config/cli/commands';
 import { getCommandInfo } from '../../config/cli/utils';
+import { validateCommand } from '@utils/validator';
 
 marked.use(
   markedTerminal({
@@ -77,6 +78,7 @@ const getSortedCliArgs = (
 export const commandHelp = async () => {
   const command = globalStateManager.args.command as StacktapeCommand | undefined;
   if (command) {
+    validateCommand({ rawCommands: [command] });
     logUsage({ command });
     tuiManager.printLines([`\n${tuiManager.makeBold('Options:\n')}`]);
     const lines: string[] = [];

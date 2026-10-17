@@ -16,6 +16,10 @@ catalogs:
 importers:
 
   .:
+    dependencies:
+      '@stacktape/console-api':
+        specifier: workspace:*
+        version: link:../console-api
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
