@@ -372,7 +372,14 @@ export const updateEcsService = async ({
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
         const { deploymentId } = await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
-        ({ finishedWhen } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn, deploymentId }));
+        ({ finishedWhen } = await awsSdkManager.ecs.waitForRollingUpdate({
+          ecsServiceArn,
+          deploymentId,
+          allowUncheckedDiscovery:
+            workload.configParentResourceType === 'web-service' &&
+            workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
+            !workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+        }));
       }
     } finally {
       statusPoller.stopPolling();
@@ -384,8 +391,9 @@ export const updateEcsService = async ({
         // The load balancer and API Gateway start routing to the new containers within seconds; no AWS API shows when.
         'new-targets-healthy':
           'New version healthy and registered with the load balancer; traffic moves to it within seconds. Old containers drain in the background',
-        'new-instances-discoverable':
-          "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background",
+        'new-instances-discoverable': workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+          ? "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background"
+          : "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background",
         'new-targets-healthy-and-instances-discoverable':
           "New version healthy and registered with the load balancer and API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background",
         'new-tasks-healthy': 'New version healthy; old containers drain in the background'

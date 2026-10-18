@@ -176,20 +176,21 @@ const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish][]) =
   return hints;
 };
 
-describe('the hint after a fast deploy that waited for ECS to stop the old containers', () => {
+describe('the hint after a fast deploy without an application health check', () => {
   test('is printed once for web services behind an HTTP API without internalHealthCheck', async () => {
     const printed = await deploy([
-      [webService('api'), 'rollout-completed'],
+      [webService('api'), 'new-instances-discoverable'],
       [webService('admin'), 'rollout-completed'],
       [webService('web', { healthCheck: true }), 'new-instances-discoverable']
     ]);
 
     expect(printed).toEqual([
-      'The update of api, admin waited about 3 minutes for ECS to stop the old containers, although the new version ' +
-        'already served requests. Add internalHealthCheck to their containers so Stacktape finishes as soon as the new ' +
-        'version is healthy: https://docs.stacktape.com/resources/compute/web-service/#how-deploys-replace-containers'
+      'Application health is unchecked for api, admin. Add a one-line internalHealthCheck for failure detection ' +
+        'and automatic rollback: https://docs.stacktape.com/resources/compute/web-service/#health-checks'
     ]);
-    expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain('to its container');
+    expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain(
+      'Application health is unchecked for api.'
+    );
   });
 
   test.each<[string, StpContainerWorkload, RollingUpdateFinish]>([

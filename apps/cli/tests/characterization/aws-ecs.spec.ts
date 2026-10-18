@@ -111,6 +111,8 @@ const cloudMapWith = (
 const TASK_DEFINITION = 'arn:aws:ecs:eu-west-1:123456789999:task-definition/api:2';
 const newTask = (id: string, overrides: Partial<Task> = {}): Task => ({
   taskArn: `arn:aws:ecs:eu-west-1:123456789999:task/application/${id}`,
+  startedBy: 'ecs-svc/2',
+  taskDefinitionArn: TASK_DEFINITION,
   lastStatus: 'RUNNING',
   desiredStatus: 'RUNNING',
   healthStatus: 'UNKNOWN',
@@ -378,10 +380,60 @@ describe('which signals show that the new tasks of a rolling deployment serve', 
       expected: { verdict: 'waiting', reason: 'a new task has not passed its container health check' }
     },
     {
-      // A running task may still be initializing, and may crash before it ever listens.
-      name: 'through Cloud Map without a health check, nothing shows readiness and ECS decides',
+      name: 'unchecked Cloud Map discovery requires an explicit opt-in',
       plan: { deployment, service: throughCloudMap, containerDefinitions: withoutHealthCheck, tasks: [a, b] },
       expected: { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' }
+    },
+    {
+      name: 'an unchecked HTTP API waits for discovery of every RUNNING new task',
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, b],
+        allowUncheckedDiscovery: true
+      },
+      expected: {
+        verdict: 'check',
+        targets: [],
+        instances: [
+          { serviceId: 'srv-api', instanceId: 'a' },
+          { serviceId: 'srv-api', instanceId: 'b' }
+        ]
+      }
+    },
+    ...['PENDING', 'ACTIVATING', 'STOPPED'].map((lastStatus) => ({
+      name: `an unchecked HTTP API cannot count a ${lastStatus} task`,
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, newTask('b', { lastStatus })],
+        allowUncheckedDiscovery: true
+      },
+      expected: { verdict: 'waiting' as const, reason: '1 of 2 new tasks started' }
+    })),
+    {
+      name: 'an unchecked HTTP API cannot count a draining task',
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withoutHealthCheck,
+        tasks: [a, newTask('b', { desiredStatus: 'STOPPED' })],
+        allowUncheckedDiscovery: true
+      },
+      expected: { verdict: 'waiting', reason: '1 of 2 new tasks started' }
+    },
+    {
+      name: 'unchecked discovery does not bypass an essential container health check',
+      plan: {
+        deployment,
+        service: throughCloudMap,
+        containerDefinitions: withHealthCheck,
+        tasks: [a, b],
+        allowUncheckedDiscovery: true
+      },
+      expected: { verdict: 'waiting', reason: 'a new task has not passed its container health check' }
     },
     {
       name: 'a health check on a non-essential sidecar says nothing about the application',
@@ -718,33 +770,23 @@ describe('a rolling update that finishes once the new tasks serve', () => {
     );
   }, 30_000);
 
-  test('fails a task that runs for a minute and then crashes before it ever served', async () => {
-    // Behind an HTTP API without a container health check, the task registers in Cloud Map as soon as it runs. Having
-    // run for 40 seconds (when ECS counts such a task toward the healthy minimum) does not show that the application
-    // listens; this one initializes for a minute and exits, and the circuit breaker rolls the deployment back.
-    const throughCloudMap = {
-      ...describedService.services[0],
-      loadBalancers: [],
-      deploymentConfiguration: {}
-    };
-    const [primary, ...rest] = describedService.services[0]!.deployments;
-    let polls = 0;
-    // Each poll appears to come a minute after the previous one.
-    const realNow = performance.now;
-    let now = realNow.call(performance);
-    performance.now = () => (now += 60_000);
-    try {
+  test.each(['not-running', 'old-task', 'old-task-definition', 'stopped-during-allowance'])(
+    'an unchecked HTTP API fails a crashed new version (%s) while the old version remains discoverable',
+    async (scenario) => {
+      const service = { ...describedService.services[0], loadBalancers: [] };
+      const [primary, ...rest] = service.deployments;
+      let polls = 0;
+      const cloudMap = cloudMapWith(() => ['old', 'a']);
       const ecs = ecsWith({
         ecsSend: (async (command: unknown) => {
           if (command instanceof DescribeServicesCommand) {
             polls += 1;
-            const crashed = polls >= 4;
             return {
               services: [
                 {
-                  ...throughCloudMap,
+                  ...service,
                   deployments: [
-                    crashed
+                    polls >= 3
                       ? { ...primary, rolloutState: 'FAILED', rolloutStateReason: 'tasks failed to start' }
                       : primary,
                     ...rest
@@ -756,18 +798,109 @@ describe('a rolling update that finishes once the new tasks serve', () => {
           if (command instanceof DescribeTaskDefinitionCommand) {
             return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
           }
+          if (command instanceof DescribeTasksCommand) {
+            return {
+              tasks: [
+                scenario === 'old-task'
+                  ? newTask('old', { startedBy: 'ecs-svc/1' })
+                  : scenario === 'old-task-definition'
+                    ? newTask('a', { taskDefinitionArn: TASK_DEFINITION.replace(':2', ':1') })
+                    : newTask('a', {
+                        lastStatus: scenario === 'stopped-during-allowance' && polls === 1 ? 'RUNNING' : 'STOPPED'
+                      })
+              ]
+            };
+          }
           return ecsSend(command as never);
         }) as EcsSend,
-        serviceDiscoverySend: (async () => ({ Status: { a: 'HEALTHY' } })) as ServiceDiscoverySend
+        serviceDiscoverySend: cloudMap.send
       });
+      await expect(
+        ecs.waitForRollingUpdate({
+          ecsServiceArn: serviceArn,
+          deploymentId: 'ecs-svc/2',
+          allowUncheckedDiscovery: true
+        })
+      ).rejects.toThrow(`ECS service ${serviceArn} failed to update.`);
+      expect(polls).toBe(3);
+      expect(cloudMap.discoverReads.length).toBe(scenario === 'stopped-during-allowance' ? 1 : 0);
+    },
+    30_000
+  );
 
-      await expect(ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn })).rejects.toThrow(
-        `ECS service ${serviceArn} failed to update.`
-      );
-      expect(polls).toBe(4);
-    } finally {
-      performance.now = realNow;
-    }
+  test('unchecked discovery falls back to the rollout when discovery is denied, even if ECS reports early success', async () => {
+    const service = { ...describedService.services[0], loadBalancers: [] };
+    const [primary, ...rest] = service.deployments;
+    let polls = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          return {
+            services: [
+              {
+                ...service,
+                deployments: [{ ...primary, rolloutState: polls >= 3 ? 'COMPLETED' : 'IN_PROGRESS' }, ...rest]
+              }
+            ]
+          };
+        }
+        if (command instanceof DescribeTaskDefinitionCommand)
+          return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
+        return ecsSend(command as never);
+      }) as EcsSend,
+      serviceDiscoverySend: (async () => {
+        throw Object.assign(new Error('not allowed'), { name: 'AccessDeniedException' });
+      }) as ServiceDiscoverySend
+    });
+    expect(
+      await ecs.waitForRollingUpdate({
+        ecsServiceArn: serviceArn,
+        deploymentId: 'ecs-svc/2',
+        allowUncheckedDiscovery: true
+      })
+    ).toEqual({ finishedWhen: 'rollout-completed' });
+    expect(polls).toBe(3);
+  }, 30_000);
+
+  test('an unchecked HTTP API waits past registration until the new task is RUNNING and discovered', async () => {
+    const service = { ...describedService.services[0], loadBalancers: [] };
+    const [primary, ...rest] = service.deployments;
+    let polls = 0;
+    const cloudMap = cloudMapWith((read) => (read === 0 ? ['old'] : ['old', 'a']));
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          polls += 1;
+          return {
+            services: [
+              {
+                ...service,
+                deployments: [{ ...primary, rolloutState: polls >= 8 ? 'COMPLETED' : 'IN_PROGRESS' }, ...rest]
+              }
+            ]
+          };
+        }
+        if (command instanceof DescribeTaskDefinitionCommand)
+          return { taskDefinition: { containerDefinitions: [{ name: 'api', essential: true }] } };
+        if (command instanceof DescribeTasksCommand)
+          return { tasks: [newTask('a', { lastStatus: polls === 1 ? 'ACTIVATING' : 'RUNNING' })] };
+        return ecsSend(command as never);
+      }) as EcsSend,
+      serviceDiscoverySend: cloudMap.send
+    });
+    expect(
+      await ecs.waitForRollingUpdate({
+        ecsServiceArn: serviceArn,
+        deploymentId: 'ecs-svc/2',
+        allowUncheckedDiscovery: true
+      })
+    ).toEqual({ finishedWhen: 'new-instances-discoverable' });
+    expect(polls).toBe(4);
+    expect(cloudMap.discoverReads).toHaveLength(3);
+    expect(performance.now() - cloudMap.discoverReads[1]!).toBeGreaterThanOrEqual(
+      API_GATEWAY_ROUTING_ALLOWANCE_MS - 10
+    );
   }, 30_000);
 
   test('checks an EC2 bridge-network target once ECS reports its host port, a poll after the task', async () => {

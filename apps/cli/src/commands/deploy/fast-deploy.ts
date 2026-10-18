@@ -104,29 +104,23 @@ export const planFastDeploy = async ({
   return { plan: { functions, services, layers } };
 };
 
-/**
- * A hint for web services behind an HTTP API whose update waited for ECS to stop the old containers. Without an
- * `internalHealthCheck`, nothing shows when the new containers are ready, so the update finishes about 3 minutes after
- * API Gateway started sending them requests.
- */
+/** One hint per deploy for HTTP API web services whose application health was not checked. */
 export const rolloutWaitHint = (
   updates: { workload: StpContainerWorkload; finishedWhen?: RollingUpdateFinish }[]
 ): string | undefined => {
   const names = updates
     .filter(
       ({ workload, finishedWhen }) =>
-        finishedWhen === 'rollout-completed' &&
+        (finishedWhen === 'new-instances-discoverable' || finishedWhen === 'rollout-completed') &&
         workload.configParentResourceType === 'web-service' &&
         workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
-        !workload.containers.some(({ internalHealthCheck, essential }) => internalHealthCheck && essential !== false)
+        !workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
     )
     .map(({ workload }) => workload.nameChain[0]);
   if (!names.length) return undefined;
   return (
-    `The update of ${names.join(', ')} waited about 3 minutes for ECS to stop the old containers, although the new ` +
-    `version already served requests. Add internalHealthCheck to ${names.length === 1 ? 'its container' : 'their containers'} ` +
-    'so Stacktape finishes as soon as the new version is healthy: ' +
-    'https://docs.stacktape.com/resources/compute/web-service/#how-deploys-replace-containers'
+    `Application health is unchecked for ${names.join(', ')}. Add a one-line internalHealthCheck for failure detection ` +
+    'and automatic rollback: https://docs.stacktape.com/resources/compute/web-service/#health-checks'
   );
 };
 
