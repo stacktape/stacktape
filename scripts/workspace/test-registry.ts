@@ -396,6 +396,7 @@ export const lanes: readonly Lane[] = [
       'src/domain/shared-resource-stack-manager/index.spec.ts',
       'src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -413,6 +414,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -3933,6 +3935,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
     ],
     lanes: [

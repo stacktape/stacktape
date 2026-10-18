@@ -7,7 +7,9 @@ import { gunzipSync } from 'node:zlib';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
   DeleteFunctionCommand,
+  GetFunctionCommand,
   GetFunctionConfigurationCommand,
+  GetLayerVersionByArnCommand,
   InvokeCommand,
   LambdaClient,
   ListLayerVersionsCommand,
@@ -308,6 +310,55 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
   const layerLogicalId = 'StpSharedChunkLayer1LayerVersion';
   let deployed = false;
   const extracted: string[] = [];
+  const missingImports: string[] = [];
+  let observedUpdates = 0;
+  const archiveAt = async (location: string) => {
+    const url = new URL(location);
+    const local =
+      url.origin === 'http://localhost:4566' ? `${ministack.endpoint}${url.pathname}${url.search}` : location;
+    return new AdmZip(Buffer.from(await (await fetch(local)).arrayBuffer()));
+  };
+  // Observe the installed module graph after each successful API mutation, including the interval between updates.
+  // MiniStack cannot prove AWS's timing, but this would catch a code-first update before the final state hides it.
+  const proxy = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    async fetch(request) {
+      const url = new URL(request.url);
+      const body = await request.arrayBuffer();
+      const headers = new Headers(request.headers);
+      headers.set('host', new URL(ministack.endpoint).host);
+      const response = await fetch(`${ministack.endpoint}${url.pathname}${url.search}`, {
+        method: request.method,
+        headers,
+        ...(body.byteLength ? { body } : {})
+      });
+      const target = url.pathname.match(/\/functions\/([^/]+)\/(?:code|configuration)$/);
+      if (response.ok && request.method === 'PUT' && target) {
+        const current = await lambda.send(new GetFunctionCommand({ FunctionName: decodeURIComponent(target[1]!) }));
+        const code = await archiveAt(current.Code!.Location!);
+        const layers = await Promise.all(
+          (current.Configuration?.Layers ?? []).map(async ({ Arn }) =>
+            archiveAt((await lambda.send(new GetLayerVersionByArnCommand({ Arn }))).Content!.Location!)
+          )
+        );
+        const names = new Set(layers.flatMap((zip) => zip.getEntries().map(({ entryName }) => `/opt/${entryName}`)));
+        for (const zip of [code, ...layers])
+          for (const entry of zip.getEntries()) {
+            if (!entry.entryName.endsWith('.js')) continue;
+            for (const match of entry
+              .getData()
+              .toString()
+              .matchAll(/["'`](\/opt\/nodejs\/chunks\/chunk-[a-z0-9]+\.js)["'`]/g)) {
+              if (!names.has(match[1]!)) missingImports.push(`${entry.entryName}: ${match[1]}`);
+            }
+          }
+        observedUpdates++;
+      }
+      return response;
+    }
+  });
+  const throughProxy = { ...ministack, endpoint: proxy.url.origin };
   try {
     await writeProjectFiles(project, {
       'stacktape.yml': config,
@@ -405,8 +456,10 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
 
     // The shared code changes: the layer version is published directly and both functions get it with their code.
     await writeProjectFiles(project, { 'shared.ts': sharedSource('s2') });
-    const shared = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared' });
+    const shared = await runSourceCli({ project, step: 'update', ministack: throughProxy, logName: 'update-shared' });
     expect(shared.exitCode, shared.tail).toBe(0);
+    expect(observedUpdates).toBeGreaterThan(0);
+    expect(missingImports).toEqual([]);
     expect(shared.changeSummary).toBeUndefined();
     expect(await getStackTemplate(cloudFormation, project.stackName)).toBe(templateAfterCreate);
     expect(await deployedVersion()).toBe('v000001');
@@ -591,6 +644,7 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
         expect(left).toEqual([]);
       }
     } finally {
+      proxy.stop(true);
       await project.close();
       await ministack.stop();
       await Promise.all([out, ...extracted].map((path) => rm(path, { recursive: true, force: true })));

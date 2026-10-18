@@ -4,6 +4,7 @@ import {
   DeleteLayerVersionCommand,
   GetAliasCommand,
   GetFunctionCommand,
+  GetLayerVersionByArnCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
@@ -92,18 +93,31 @@ export class AwsLambda {
     return (Configuration?.Layers ?? []).flatMap(({ Arn }) => (Arn ? [Arn] : []));
   };
 
+  /** Download locations stay inside the deployment workflow; never include these signed URLs in diagnostics. */
+  getFunctionDeployment = async ({ lambdaResourceName }: { lambdaResourceName: string }) =>
+    this.#readFunctionStatus(() =>
+      this.#createClient().send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+    ).catch(this.#getErrorHandler(`Failed to read deployed code of function ${lambdaResourceName}.`));
+
+  getLayerVersion = async ({ arn }: { arn: string }) =>
+    this.#createClient()
+      .send(new GetLayerVersionByArnCommand({ Arn: arn }))
+      .catch(this.#getErrorHandler('Failed to read a deployed layer version.'));
+
   publishLayerVersion = async ({
     layerName,
     description,
     compatibleRuntimes,
     artifactBucketName,
-    artifactS3Key
+    artifactS3Key,
+    zipFile
   }: {
     layerName: string;
     description?: string;
     compatibleRuntimes?: string[];
-    artifactBucketName: string;
-    artifactS3Key: string;
+    artifactBucketName?: string;
+    artifactS3Key?: string;
+    zipFile?: Uint8Array;
   }) => {
     const errorHandler = this.#getErrorHandler(`Failed to publish a version of layer ${layerName}.`);
     return this.#createClient()
@@ -112,7 +126,7 @@ export class AwsLambda {
           LayerName: layerName,
           Description: description,
           CompatibleRuntimes: compatibleRuntimes as Runtime[] | undefined,
-          Content: { S3Bucket: artifactBucketName, S3Key: artifactS3Key }
+          Content: zipFile ? { ZipFile: zipFile } : { S3Bucket: artifactBucketName, S3Key: artifactS3Key }
         })
       )
       .catch(errorHandler);

@@ -179,6 +179,13 @@ platform. Clone or create a separate worktree on the WSL filesystem and install 
 
 ## Real AWS and releases
 
+Shared-code fast deployments prepare a temporary chunk layer containing the old function's reachable chunks and the new
+chunks. The CLI attaches it before changing code, then attaches the clean new layer. Interrupted updates keep their
+identities pending so the next deploy or rollback repairs them. Transition layers keep the normal 50 MB layer budget and
+the combined 250 MB function-plus-layers limit, including user layers. A transition that cannot fit fails before
+changing a function; use `--fullDeploy` for that release. CloudFormation itself updates configuration and code
+sequentially, so a full deployment does not promise uninterrupted invocations of `$LATEST`.
+
 Real deployments are explicit, costed validation. Use a unique project, spell out project and stage on every command,
 verify the exact account first, and delete the stack after success or failure. The guarded packaging and init canaries,
 including their required environment variables and recovery behavior, live in
