@@ -28,6 +28,7 @@ import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { randomBytes } from 'node:crypto';
 import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
@@ -154,7 +155,7 @@ const ownedStack = async (owned: Owned) => {
     );
   return stack;
 };
-const primaryTasks = async (owned: Owned, strict = false) => {
+const primaryTasks = async (owned: Owned, strict = false, expectedCount?: number) => {
   const resources = await cfn.send(
     new DescribeStackResourcesCommand({ StackName: owned.stackId ?? `${owned.name}-bench` })
   );
@@ -170,6 +171,15 @@ const primaryTasks = async (owned: Owned, strict = false) => {
     new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' })
   );
   const tasks = await ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] }));
+  if (expectedCount !== undefined)
+    assert(
+      described.services?.[0]?.desiredCount === expectedCount &&
+        primary.runningCount === expectedCount &&
+        tasks.tasks?.filter(
+          (task) => task.taskDefinitionArn === primary.taskDefinition && task.lastStatus === 'RUNNING'
+        ).length === expectedCount,
+      'The expected PRIMARY fleet is not running yet.'
+    );
   if (strict)
     assert(
       tasks.tasks?.every((task) => task.taskDefinitionArn === primary.taskDefinition),
@@ -183,6 +193,30 @@ const primaryTasks = async (owned: Owned, strict = false) => {
     cluster
   };
 };
+const waitForFleet = async (owned: Owned, count: number) => {
+  const deadline = performance.now() + 600000;
+  let lastError: unknown;
+  while (performance.now() < deadline) {
+    try {
+      return await primaryTasks(owned, true, count);
+    } catch (error) {
+      lastError = error;
+      await Bun.sleep(1000);
+    }
+  }
+  throw new Error(`PRIMARY fleet did not settle: ${lastError}`);
+};
+const retryEcsCleanup = async (request: () => Promise<unknown>) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request();
+    } catch (error) {
+      if (attempt >= 7 || !/Throttl|Rate exceeded/i.test(String(error))) throw error;
+      await Bun.sleep(1500 * (attempt + 1));
+    }
+  }
+};
+
 const cleanup = async (state: State, owned: Owned) => {
   if (owned.cleaned) return;
   await guard();
@@ -249,9 +283,13 @@ const cleanup = async (state: State, owned: Owned) => {
         (arn) => arn.split('/').at(-1)?.split(':')[0] === family
       );
       for (const arn of exact) {
-        if (status === 'ACTIVE') await ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn }));
-        const deleted = await ecs.send(new DeleteTaskDefinitionsCommand({ taskDefinitions: [arn] }));
-        assert(!deleted.failures?.length, 'Owned task-definition deletion failed.');
+        if (status === 'ACTIVE')
+          await retryEcsCleanup(() => ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn })));
+        await retryEcsCleanup(async () => {
+          const deleted = await ecs.send(new DeleteTaskDefinitionsCommand({ taskDefinitions: [arn] }));
+          assert(!deleted.failures?.length, 'Owned task-definition deletion failed.');
+        });
+        await Bun.sleep(1200);
       }
       nextToken = definitions.nextToken;
     } while (nextToken);
@@ -345,6 +383,7 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
     resources: {
       api: {
         type: 'web-service',
+        overrides: { [cfLogicalNames.ecsService('api', false)]: { DesiredCount: count } },
         properties: {
           port: 8080,
           packaging: {
@@ -411,7 +450,7 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   run.result = join(owned.directory, `${label}-cli-result.json`);
   const runFile = join(owned.directory, 'run.json');
   await save(runFile, run);
-  const before = await primaryTasks(owned, true);
+  const before = await waitForFleet(owned, run.count);
   const polls: Poll[] = [];
   let running = true;
   const start = performance.now();
@@ -497,16 +536,10 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   await save(join(owned.directory, `${label}.json`), result);
   console.log(JSON.stringify(result));
   if (failure) throw new Error(failure);
-  // Serialize image rollouts before the next control, retaining every edit in the timing distribution.
-  if (run.mode === 'image')
-    for (let i = 0; i < 240; i++) {
-      try {
-        await primaryTasks(owned, true);
-        break;
-      } catch {
-        await Bun.sleep(1000);
-      }
-    }
+  // A memory/eligibility fallback also replaces tasks; finish that ordinary rollout before the next timed edit.
+  if (run.mode === 'image' || (details && typeof details === 'object' && 'mode' in details && details.mode === 'image'))
+    await waitForFleet(owned, run.count);
+
   return result;
 };
 const main = async () => {
@@ -635,6 +668,18 @@ const main = async () => {
         await save(join(directory, 'state.json'), state);
         const url = await endpoint(owned);
         await business(url);
+        const initialFleet = await waitForFleet(owned, count);
+        const seenInitial = new Set<string>();
+        const routeDeadline = performance.now() + 120000;
+        while (initialFleet.ids.some((id) => !seenInitial.has(id))) {
+          assert(performance.now() < routeDeadline, 'Not every initial task is publicly routable.');
+          const response = await fetch(`${url}/version`, { signal: AbortSignal.timeout(4000) });
+          await response.text();
+          const id = response.headers.get('x-lab-task');
+          if (response.ok && id) seenInitial.add(id);
+          await Bun.sleep(20);
+        }
+
         const traffic: { atMs: number; status: number; task: string; error?: string }[] = [];
         const trafficController = new AbortController();
         const trafficLoop = (async () => {
