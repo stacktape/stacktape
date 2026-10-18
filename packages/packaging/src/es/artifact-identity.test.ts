@@ -16,7 +16,10 @@ describe('artifact identity', () => {
         };
         await Promise.all(Object.entries(sources).map(([name, code]) => writeFile(join(directory, name), code)));
         const names = await normalizeSplitBuildIdentity({
-          javascriptFiles: Object.keys(sources).map((name) => join(directory, name)),
+          javascriptFiles: (directory.endsWith('elsewhere')
+            ? Object.keys(sources).toReversed()
+            : Object.keys(sources)
+          ).map((name) => join(directory, name)),
           projectRoot: root,
           sourcesResolveFrom: directory,
           chunkKeys: new Map([
@@ -34,6 +37,33 @@ describe('artifact identity', () => {
       const second = await build(join(root, 'two'), 'new');
       expect(second.filter(([name]) => first.some(([old]) => old === name))).toEqual([]);
       expect(await build(join(root, 'elsewhere'), 'new')).toEqual(second);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  test('unrelated content edits keep disjoint chunks stable, including graphs with cycles', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stp-chunk-closures-'));
+    try {
+      const build = async (label: string, revision: string) => {
+        const directory = join(root, label);
+        await mkdir(directory);
+        const sources = {
+          'chunk-aaaaaaaa.js': 'import "./chunk-bbbbbbbb.js"; export const a = 1;',
+          'chunk-bbbbbbbb.js': `import "./chunk-aaaaaaaa.js"; export const b = "${revision}";`,
+          'chunk-cccccccc.js': 'export const independent = 3;'
+        };
+        await Promise.all(Object.entries(sources).map(([name, code]) => writeFile(join(directory, name), code)));
+        return normalizeSplitBuildIdentity({
+          javascriptFiles: Object.keys(sources).map((name) => join(directory, name)),
+          projectRoot: root,
+          sourcesResolveFrom: directory
+        });
+      };
+      const old = await build('old', 'one');
+      const next = await build('next', 'two');
+      expect(next.get('chunk-aaaaaaaa')).not.toBe(old.get('chunk-aaaaaaaa'));
+      expect(next.get('chunk-bbbbbbbb')).not.toBe(old.get('chunk-bbbbbbbb'));
+      expect(next.get('chunk-cccccccc')).toBe(old.get('chunk-cccccccc'));
     } finally {
       await rm(root, { recursive: true, force: true });
     }

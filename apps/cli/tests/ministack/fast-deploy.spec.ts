@@ -24,6 +24,10 @@ import { startMiniStack } from '@stacktape/ministack/fixture';
 // oxlint-disable-next-line import/no-unassigned-import
 import './offline-preload';
 import {
+  archiveFiles,
+  canUpdateSharedLayersFirst
+} from '@domain-services/deployment-artifact-manager/shared-layer-compatibility';
+import {
   createFamilyProject,
   describeStackResources,
   getStackTemplate,
@@ -319,6 +323,7 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
   let publicationSeen = false;
   let heldUploads = 0;
   let uploadTimeouts = 0;
+  let localPublications = 0;
   const archiveAt = async (location: string) => {
     const url = new URL(location);
     const local =
@@ -337,10 +342,17 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
       if (request.method === 'PUT' && url.pathname.endsWith('/configuration')) layerUpdates++;
       if (request.method === 'PUT' && /\/(?:first|second)\/v[^/]+\.zip$/.test(url.pathname)) functionUploads++;
       if (request.method === 'POST' && /\/layers\/[^/]+\/versions$/.test(url.pathname)) {
-        const content = (JSON.parse(new TextDecoder().decode(body)) as { Content?: { S3Key?: string } }).Content;
-        if (content?.S3Key) publicationSeen = true;
+        const content = (
+          JSON.parse(new TextDecoder().decode(body)) as { Content?: { S3Key?: string; ZipFile?: string } }
+        ).Content;
+        if (content?.S3Key || content?.ZipFile) publicationSeen = true;
+        if (content?.ZipFile) localPublications++;
       }
-      if (holdFunctionUploads && request.method === 'PUT' && /\/(?:first|second)\/v[^/]+\.zip$/.test(url.pathname)) {
+      if (
+        holdFunctionUploads &&
+        request.method === 'PUT' &&
+        /(?:\/(?:first|second)\/v[^/]+\.zip$|\/shared-layer-1\/|\/source-maps\/shared-layer-1\/)/.test(url.pathname)
+      ) {
         heldUploads++;
         for (let attempt = 0; attempt < 100; attempt++) {
           if (publicationSeen) break;
@@ -375,6 +387,17 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
               if (!names.has(match[1]!)) missingImports.push(`${entry.entryName}: ${match[1]}`);
             }
           }
+        const layerFiles = new Map(layers.flatMap((zip) => [...archiveFiles(zip, '/opt')]));
+        const functionFiles = archiveFiles(code, '/var/task');
+        if (
+          !canUpdateSharedLayersFirst({
+            oldFunction: functionFiles,
+            nextFunction: functionFiles,
+            oldLayers: layerFiles,
+            nextLayers: layerFiles
+          })
+        )
+          missingImports.push('Unresolved module binding after update');
         observedUpdates++;
       }
       return response;
@@ -674,10 +697,13 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(await state()).toEqual(afterDrift);
     expect((await releaseTemplates()).length).toBe(13);
 
-    // A mixed entry/shared edit falls back to graph/content names so both generations can coexist. Hold the function
-    // ZIP uploads until PublishLayerVersion starts: publication must depend only on the layer's object reaching S3.
+    // A compatible mixed edit keeps stable names and attaches the final layer before code. Publication from the
+    // local ZIP starts while function uploads are held.
     publicationSeen = false;
     holdFunctionUploads = true;
+    const mixedPublicationsBefore = localPublications;
+    const mixedCodeBefore = codeUpdates;
+    const mixedLayersBefore = layerUpdates;
     await writeProjectFiles(project, { 'shared.ts': sharedSource('s6'), 'first.ts': splitHandler('first', 'v3') });
     const mixed = await runSourceCli({
       project,
@@ -689,10 +715,39 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(heldUploads).toBeGreaterThan(0);
     expect(uploadTimeouts).toBe(0);
     expect(missingImports).toEqual([]);
+    expect(localPublications - mixedPublicationsBefore).toBe(1);
+    expect(codeUpdates - mixedCodeBefore).toBe(1);
+    expect(layerUpdates - mixedLayersBefore).toBe(2);
     const afterMixed = await state();
     expect(
       await runInRuntime({ prefix: 'first', code: afterMixed[0]!.code, identity: identityOf(afterMixed[0]!.tag) })
     ).toBe(`first-v3:s6:${sharedPayload.length}`);
+    const layersBeforeExport = layerUpdates;
+    const publicationsBeforeExport = localPublications;
+    await writeProjectFiles(project, {
+      'shared.ts': sharedSource('s7') + 'export const added = () => "new-export";\n',
+      'first.ts': splitHandler('first', 'v4')
+        .replace('revision, shared', 'revision, shared, added')
+        .replace('${revision}', '${added()}:${revision}'),
+      'second.ts': splitHandler('second', 'v2')
+        .replace('revision, shared', 'revision, shared, added')
+        .replace('${revision}', '${added()}:${revision}')
+    });
+    const addedExport = await runSourceCli({
+      project,
+      step: 'update',
+      ministack: throughProxy,
+      logName: 'mixed-new-export'
+    });
+    expect(addedExport.exitCode, addedExport.tail).toBe(0);
+    expect(layerUpdates - layersBeforeExport).toBe(4);
+    // One canonical version and one union bridge for both consumers.
+    expect(localPublications - publicationsBeforeExport).toBe(2);
+    expect(missingImports).toEqual([]);
+    const afterExport = await state();
+    expect(
+      await runInRuntime({ prefix: 'first', code: afterExport[0]!.code, identity: identityOf(afterExport[0]!.tag) })
+    ).toBe(`first-v4:new-export:s7:${sharedPayload.length}`);
   } finally {
     try {
       if (deployed) {

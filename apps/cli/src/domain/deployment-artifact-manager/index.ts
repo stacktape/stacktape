@@ -43,13 +43,15 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import { LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES } from '@stacktape/packaging/artifact/lambda-limits';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import {
   buildRepublishedLayerS3Key,
   formatSharedLayersTag,
   getDeployedSharedLayers,
+  getDeployedArtifactDigest,
   getSharedLayersOfFunctionInTemplate,
   getTagValue,
   needsLayerRepublish,
@@ -347,7 +349,16 @@ class DeploymentArtifactManager {
     const tags = stackManager.existingStackResources.find(
       ({ LogicalResourceId }) => LogicalResourceId === cfLogicalName
     )?.tags;
-    const runningDigest = getTagValue(tags, tagNames.artifactDigest()) ?? getTagValue(tags, tagNames.codeDigest());
+    const layers = getDeployedSharedLayers({
+      tags,
+      deployedTemplate: templateManager.oldTemplate,
+      functionLogicalName: cfLogicalName
+    });
+    const runningDigest = getDeployedArtifactDigest(
+      getTagValue(tags, tagNames.artifactDigest()),
+      getTagValue(tags, tagNames.codeDigest()),
+      [...layers].map(([layerNumber, identity]) => ({ layerNumber, identity }))
+    );
     return runningDigest !== undefined && runningDigest !== digest;
   };
 
@@ -718,7 +729,7 @@ class DeploymentArtifactManager {
     onSharedLayerUploaded
   }: {
     includeTemplates: boolean;
-    onSharedLayerUploaded?: (layerNumber: number) => void;
+    onSharedLayerUploaded?: (layerNumber: number, zipPath?: string) => void;
   }) => {
     const jobs: (() => Promise<any>)[] = [];
 
@@ -1090,7 +1101,9 @@ class DeploymentArtifactManager {
     return { jobName, imageTagWithUrl };
   };
 
-  uploadSharedLayer = async ({ onLayerUploaded }: { onLayerUploaded?: (layerNumber: number) => void } = {}) => {
+  uploadSharedLayer = async ({
+    onLayerUploaded
+  }: { onLayerUploaded?: (layerNumber: number, zipPath?: string) => void } = {}) => {
     // Skip if no pending layers
     const pendingLayer = this.packagingSource.getPendingSharedLayer();
     if (!pendingLayer) {
@@ -1142,28 +1155,31 @@ class DeploymentArtifactManager {
       // Zip only the layers that need uploading
       await this.packagingSource.publishSharedLayer(layersToUpload);
 
-      // Upload each layer to S3 using the S3 key computed during packaging
-      for (const layer of layersToUpload) {
-        if (layer.sourceMapsPath) {
-          await this.#uploadSourceMaps({ artifactS3Key: layer.s3Key, sourceMapsPath: layer.sourceMapsPath });
-        }
-        const zipPath = `${layer.layerPath}.zip`;
-        // Use the S3 key computed during packaging (ensures consistency with CF template)
-        const s3Key = layer.s3Key;
-
-        await awsSdkManager.s3.uploadFile({
-          s3Key,
-          filePath: zipPath,
-          bucketName: this.deploymentBucketName
-        });
-
-        this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
-        onLayerUploaded?.(layer.layerNumber);
-        this.successfullyCreatedObjects.push({
-          s3Key,
-          name: `shared-layer-${layer.layerNumber}`
-        });
-      }
+      const uploads = await Promise.allSettled(
+        layersToUpload.map(async (layer) => {
+          const zipPath = `${layer.layerPath}.zip`;
+          const s3Key = layer.s3Key;
+          // Publication can read this ZIP immediately; neither S3 nor source maps are on its critical path.
+          const directUpload = (await stat(zipPath)).size <= LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES;
+          if (directUpload) onLayerUploaded?.(layer.layerNumber, zipPath);
+          const results = await Promise.allSettled([
+            (async () => {
+              await awsSdkManager.s3.uploadFile({ s3Key, filePath: zipPath, bucketName: this.deploymentBucketName });
+              this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
+              // ZIP headers can push a near-budget incompressible layer over the inline limit. Publish those from S3.
+              if (!directUpload) onLayerUploaded?.(layer.layerNumber);
+              this.successfullyCreatedObjects.push({ s3Key, name: `shared-layer-${layer.layerNumber}` });
+            })(),
+            ...(layer.sourceMapsPath
+              ? [this.#uploadSourceMaps({ artifactS3Key: s3Key, sourceMapsPath: layer.sourceMapsPath })]
+              : [])
+          ]);
+          const failed = results.find((result) => result.status === 'rejected');
+          if (failed?.status === 'rejected') throw failed.reason;
+        })
+      );
+      const failed = uploads.find((result) => result.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
 
       await this.#copyRepublishedLayers();
       await uploadLogger.finishEvent({
