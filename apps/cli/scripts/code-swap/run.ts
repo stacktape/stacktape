@@ -528,6 +528,13 @@ const main = async () => {
       await cleanup(state, process.argv.includes('--recheck') ? { ...owned, cleaned: false } : owned);
     return;
   }
+  const selectionIndex = process.argv.indexOf('--configurations');
+  const selections =
+    selectionIndex < 0 ? ['512-1', '512-2', '1024-1', '1024-2'] : (process.argv[selectionIndex + 1] ?? '').split(',');
+  assert(
+    selections.length > 0 && selections.every((value) => ['512-1', '512-2', '1024-1', '1024-2'].includes(value)),
+    'Select known memory/task configurations.'
+  );
   const owner = randomBytes(8).toString('hex');
   state = {
     account: ACCOUNT,
@@ -549,6 +556,7 @@ const main = async () => {
   try {
     for (const memory of [512, 1024] as const)
       for (const count of [1, 2] as const) {
+        if (!selections.includes(`${memory}-${count}`)) continue;
         const name = `v4swap-${owner.slice(0, 8)}-${memory}-${count}`;
         const stackHash = getGloballyUniqueStackHash({
           stackName: `${name}-bench`,
