@@ -117,15 +117,18 @@ export const performFastDeploy = async ({
   });
   const serviceUpdates: Parameters<typeof rolloutWaitHint>[0] = [];
   const updatedLayerArns = new Map<string, string[]>();
+  const confirmFunctionTags: (() => Promise<unknown>)[] = [];
   const updates = [
     ...plan.functions.map((update) => ({
       name: update.workloadName,
       run: async () => {
-        const { updatedLayerArns: arns } = await updateFunctionCode({
+        const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,
+          deferFinalTags: recordRelease,
           ...(update.changedLayers.length ? { layerArns } : {})
         });
         if (arns) updatedLayerArns.set(update.lambdaResourceName, arns);
+        if (recordRelease) confirmFunctionTags.push(tagUpdatedFunction);
       }
     })),
     ...plan.services.map((update) => ({
@@ -136,6 +139,9 @@ export const performFastDeploy = async ({
   const results = await Promise.allSettled(updates.map(({ run }) => run()));
   const failed = updates.filter((_, index) => results[index].status === 'rejected');
   if (failed.length) {
+    // Preserve the identities of successful partial updates for source-map activation. A failed workload still
+    // forces the next deploy to retry, so confirming the others cannot hide a missing release.
+    await Promise.all(confirmFunctionTags.map((confirm) => confirm()));
     const updated = updates.filter((_, index) => results[index].status === 'fulfilled').map(({ name }) => name);
     const firstError = (results.find(({ status }) => status === 'rejected') as PromiseRejectedResult).reason;
     throw new ExpectedError(
@@ -145,12 +151,15 @@ export const performFastDeploy = async ({
         updated.length
           ? `${updated.join(', ')} already run${updated.length === 1 ? 's' : ''} the new code.`
           : 'No function or service was changed.',
-        'Fix the problem and deploy again. Workloads that already run the new code are skipped.'
+        'Fix the problem and deploy again to finish the release.'
       ]
     );
   }
   if (recordRelease) {
+    // Keep successful functions tagged "updating" until the release exists. If recording fails, the next deploy
+    // plans them again and retries the release instead of skipping the running but unrecorded code.
     await deploymentArtifacts.recordFastRelease();
+    await Promise.all(confirmFunctionTags.map((confirm) => confirm()));
     await deploymentArtifacts.deleteAllObsoleteArtifacts();
   }
   if (changedLayerNumbers.size) {

@@ -69,6 +69,9 @@ export const formatSharedLayersTag = (layers: SharedLayerContent[]): string =>
 /** The layers a function's tag records, or `undefined` when the function carries no such tag. */
 export const parseSharedLayersTag = (value: string | undefined): Map<number, string> | undefined => {
   if (value === undefined) return undefined;
+  // Every reader must restore unknown content, including full deployments and rollback, which would otherwise
+  // leave an unchanged CloudFormation layer reference alone.
+  if (value === 'updating') return new Map(SHARED_LAYER_NUMBERS.map((layerNumber) => [layerNumber, value]));
   const layers = new Map<number, string>();
   for (const entry of value.split('/').filter(Boolean)) {
     const [layerNumber, identity] = entry.split(':');

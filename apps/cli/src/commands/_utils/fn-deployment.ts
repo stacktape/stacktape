@@ -325,6 +325,7 @@ export const updateFunctionCode = async ({
   codeChanged = true,
   layers,
   layerArns,
+  deferFinalTags = false,
   devMode
 }: {
   workloadName: string;
@@ -338,6 +339,8 @@ export const updateFunctionCode = async ({
   layers?: { layerNumber: number; layerName: string; identity: string }[];
   /** The version of every shared layer by number. Given only when the function's layers change. */
   layerArns?: Map<number, string>;
+  /** Keep the update pending until the fast deployment has recorded its release. */
+  deferFinalTags?: boolean;
   devMode?: boolean;
 }) => {
   const updateWorkloadLogger = devMode
@@ -355,15 +358,18 @@ export const updateFunctionCode = async ({
     });
   }
 
-  // The digest tag tells the next deployment which build the function runs. It says "updating" until the update is
-  // confirmed, so an update whose final tag write fails is never mistaken for the previous build.
+  // Invalidate both identities before changing code or layers. A failed final tag write must never leave the
+  // function claiming to run the previous layer content.
   await awsSdkManager.lambda.tagFunction({
     lambdaArn: arns.lambdaFromFullName({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
       region: globalStateManager.region,
       lambdaAwsName: lambdaResourceName
     }),
-    tags: [{ key: tagNames.codeDigest(), value: 'updating' }]
+    tags: [
+      { key: tagNames.codeDigest(), value: 'updating' },
+      ...(layerArns && layers?.length ? [{ key: tagNames.sharedLayers(), value: 'updating' }] : [])
+    ]
   });
   let FunctionArn = arns.lambdaFromFullName({
     accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -399,19 +405,21 @@ export const updateFunctionCode = async ({
   }
   // Written last: the next deployment skips a function whose digest tag already matches its code. Without the tag the
   // next deployment updates the function again, so a failure here does not fail this one.
-  await awsSdkManager.lambda
-    .tagFunction({
-      lambdaArn: FunctionArn,
-      tags: [
-        { key: tagNames.codeDigest(), value: digest },
-        ...(layers?.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
-      ]
-    })
-    .catch((error) => tuiManager.warn(`Could not tag ${workloadName} with its code digest: ${error}`));
+  const tagUpdatedFunction = () =>
+    awsSdkManager.lambda
+      .tagFunction({
+        lambdaArn: FunctionArn,
+        tags: [
+          { key: tagNames.codeDigest(), value: digest },
+          ...(layers?.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
+        ]
+      })
+      .catch((error) => tuiManager.warn(`Could not tag ${workloadName} with its code digest: ${error}`));
+  if (!deferFinalTags) await tagUpdatedFunction();
 
   if (!devMode) {
     await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });
   }
 
-  return { FunctionArn, updatedLayerArns };
+  return { FunctionArn, updatedLayerArns, tagUpdatedFunction };
 };

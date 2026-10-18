@@ -597,3 +597,171 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     }
   }
 });
+
+// Fail only the external writes under review; every accepted AWS operation still goes through the real SDK and
+// MiniStack. Each restore starts from code whose layer update succeeded but whose final tags were never written.
+test('failed layer tags and release writes remain retryable through deploy, full deploy and rollback', async () => {
+  const out = await mkdtemp(join(tmpdir(), 'stp-fast-deploy-recovery-'));
+  const ministack = await startMiniStack({ label: 'fast-deploy-recovery' });
+  const cloudFormation = new CloudFormationClient(ministack.clientConfig());
+  const lambda = new LambdaClient(ministack.clientConfig());
+  const s3 = new S3Client(ministack.clientConfig());
+  const project = await createFamilyProject({ familyName: 'fast-deploy-recovery', out, ministack });
+  let fault: 'tags' | 'release' | undefined;
+  let rejected = 0;
+  const proxy = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    async fetch(request) {
+      const url = new URL(request.url);
+      const body = await request.arrayBuffer();
+      const finalTags =
+        request.method === 'POST' &&
+        url.pathname.includes('/tags/') &&
+        (JSON.parse(new TextDecoder().decode(body)) as { Tags?: Record<string, string> }).Tags?.['stp:code-digest'] !==
+          'updating';
+      const releaseWrite = request.method === 'PUT' && url.pathname.includes('/fast-release/');
+      if ((fault === 'tags' && finalTags) || (fault === 'release' && releaseWrite)) {
+        rejected++;
+        return new Response(JSON.stringify({ __type: 'AccessDeniedException', message: 'injected write failure' }), {
+          status: 403,
+          headers: { 'content-type': 'application/json', 'x-amzn-errortype': 'AccessDeniedException' }
+        });
+      }
+      const headers = new Headers(request.headers);
+      headers.set('host', new URL(ministack.endpoint).host);
+      return fetch(`${ministack.endpoint}${url.pathname}${url.search}`, {
+        method: request.method,
+        headers,
+        ...(body.byteLength ? { body } : {})
+      });
+    }
+  });
+  const throughProxy = { ...ministack, endpoint: proxy.url.origin };
+  let deployed = false;
+  try {
+    await writeProjectFiles(project, {
+      'stacktape.yml': {
+        resources: Object.fromEntries(
+          ['first', 'second'].map((name) => [
+            name,
+            {
+              type: 'function',
+              properties: { packaging: { type: 'js-bundle', properties: { entryfilePath: `${name}.ts` } } }
+            }
+          ])
+        )
+      },
+      'shared.ts': sharedSource('original'),
+      'first.ts': splitHandler('first', 'v1'),
+      'second.ts': splitHandler('second', 'v1')
+    });
+    const created = await runSourceCli({ project, step: 'create', ministack });
+    expect(created.exitCode, created.tail).toBe(0);
+    deployed = true;
+    const resources = (await describeStackResources(cloudFormation, project.stackName))!;
+    const functionNames = resources
+      .filter(({ LogicalResourceId }) => ['FirstFunction', 'SecondFunction'].includes(LogicalResourceId!))
+      .map(({ PhysicalResourceId }) => PhysicalResourceId!);
+    const bucket = resources.find(
+      ({ LogicalResourceId }) => LogicalResourceId === 'StpDeploymentBucket'
+    )!.PhysicalResourceId!;
+    const state = () =>
+      Promise.all(
+        functionNames.map(async (FunctionName) => {
+          const configuration = await lambda.send(new GetFunctionConfigurationCommand({ FunctionName }));
+          const { Tags } = await lambda.send(new ListTagsCommand({ Resource: configuration.FunctionArn! }));
+          return { layers: (configuration.Layers ?? []).map(({ Arn }) => Arn!), tags: Tags! };
+        })
+      );
+    const releaseKeys = async () =>
+      ((await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'fast-release/' }))).Contents ?? []).map(
+        ({ Key }) => Key!
+      );
+    const layerName = `${project.stackName}-shared-chunk-layer-1`;
+    const layerVersions = async () =>
+      ((await lambda.send(new ListLayerVersionsCommand({ LayerName: layerName }))).LayerVersions ?? []).map(
+        ({ LayerVersionArn }) => LayerVersionArn!
+      );
+    const originalTag = (await state())[0]!.tags['stp:shared-layers'];
+
+    for (const restore of ['deploy', 'fullDeploy', 'rollback'] as const) {
+      const before = await state();
+      await writeProjectFiles(project, { 'shared.ts': sharedSource(`changed-${restore}`) });
+      fault = 'tags';
+      rejected = 0;
+      const changed = await runSourceCli({
+        project,
+        step: 'update',
+        ministack: throughProxy,
+        logName: `fail-tags-${restore}`
+      });
+      expect(changed.exitCode, changed.tail).toBe(0);
+      expect(rejected).toBeGreaterThan(0);
+      fault = undefined;
+      const interrupted = await state();
+      expect(interrupted[0]!.layers).not.toEqual(before[0]!.layers);
+      expect(interrupted.map(({ tags }) => tags['stp:shared-layers'])).toEqual(['updating', 'updating']);
+      // Cleanup must keep the version the functions actually run despite their unknown tags.
+      expect(await layerVersions()).toContain(interrupted[0]!.layers[0]!);
+      await writeProjectFiles(project, { 'shared.ts': sharedSource('original') });
+      const restored = await runSourceCli({
+        project,
+        step: restore === 'rollback' ? 'rollback' : 'update',
+        ministack,
+        logName: `restore-${restore}`,
+        ...(restore === 'fullDeploy' ? { extraArgs: ['--fullDeploy'] } : {})
+      });
+      expect(restored.exitCode, restored.tail).toBe(0);
+      const after = await state();
+      expect(after.map(({ tags }) => tags['stp:shared-layers'])).toEqual([originalTag, originalTag]);
+      expect(after[0]!.layers).not.toEqual(interrupted[0]!.layers);
+      expect(await layerVersions()).not.toContain(interrupted[0]!.layers[0]!);
+    }
+
+    await writeProjectFiles(project, { 'shared.ts': sharedSource('unrecorded') });
+    const releasesBefore = await releaseKeys();
+    fault = 'release';
+    rejected = 0;
+    const failedRelease = await runSourceCli({
+      project,
+      step: 'update',
+      ministack: throughProxy,
+      logName: 'fail-release'
+    });
+    expect(failedRelease.exitCode, failedRelease.tail).not.toBe(0);
+    expect(rejected).toBeGreaterThan(0);
+    fault = undefined;
+    expect((await state()).map(({ tags }) => tags['stp:code-digest'])).toEqual(['updating', 'updating']);
+    expect(await releaseKeys()).toEqual(releasesBefore);
+    const retry = await runSourceCli({ project, step: 'update', ministack, logName: 'retry-release' });
+    expect(retry.exitCode, retry.tail).toBe(0);
+    expect((await releaseKeys()).length).toBe(releasesBefore.length + 1);
+    expect(
+      (await state()).every(
+        ({ tags }) => tags['stp:code-digest'] !== 'updating' && tags['stp:shared-layers'] !== 'updating'
+      )
+    ).toBe(true);
+    const converged = await state();
+    const unchanged = await runSourceCli({ project, step: 'unchanged', ministack });
+    expect(unchanged.exitCode, unchanged.tail).toBe(0);
+    expect(await state()).toEqual(converged);
+    expect((await releaseKeys()).length).toBe(releasesBefore.length + 1);
+  } finally {
+    fault = undefined;
+    try {
+      if (deployed) {
+        const deleted = await runSourceCli({ project, step: 'delete', ministack });
+        expect(deleted.exitCode, deleted.tail).toBe(0);
+      }
+    } finally {
+      proxy.stop(true);
+      cloudFormation.destroy();
+      lambda.destroy();
+      s3.destroy();
+      await project.close();
+      await ministack.stop();
+      await rm(out, { recursive: true, force: true });
+    }
+  }
+}, 600_000);

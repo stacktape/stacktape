@@ -28,16 +28,22 @@ mock.module('../_utils/fn-deployment', () => ({
   },
   updateFunctionCode: async ({
     workloadName,
-    layerArns
+    layerArns,
+    deferFinalTags
   }: {
     workloadName: string;
     layerArns?: Map<number, string>;
+    deferFinalTags?: boolean;
   }) => {
     steps.push({
       step: `function:${workloadName}`,
       ...(layerArns ? { layerArns: Object.fromEntries(layerArns) } : {})
     });
-    return { updatedLayerArns: layerArns ? [...layerArns.values()] : undefined };
+    const tagUpdatedFunction = async () => {
+      steps.push({ step: `tag:${workloadName}` });
+    };
+    if (!deferFinalTags) return { updatedLayerArns: layerArns ? [...layerArns.values()] : undefined };
+    return { updatedLayerArns: layerArns ? [...layerArns.values()] : undefined, tagUpdatedFunction };
   },
   deleteSupersededSharedLayerVersions: async ({ knownLayerArns }: { knownLayerArns: Map<string, string[]> }) => {
     steps.push({ step: `cleanup:${[...knownLayerArns.keys()].join(',')}` });
@@ -58,6 +64,29 @@ const lambda = (name: string, changedLayerNumbers: number[] = [], layerNumbers =
 const progress = { startEvent: async () => {}, finishEvent: async () => {} };
 
 describe('a fast deployment with shared layers', () => {
+  test('leaves functions pending when release recording fails, and records the retry before confirming tags', async () => {
+    steps.length = 0;
+    const plan = { functions: [lambda('api')], services: [], layers: [] } as FastDeployPlan;
+    let failRecording = true;
+    const deploymentArtifacts = {
+      recordFastRelease: async () => {
+        steps.push({ step: 'release' });
+        if (failRecording) throw new Error('release storage unavailable');
+      },
+      deleteAllObsoleteArtifacts: async () => {
+        steps.push({ step: 'retention' });
+      }
+    };
+    await expect(
+      performFastDeploy({ plan, recordRelease: true, progress, deploymentArtifacts } as never)
+    ).rejects.toThrow('release storage unavailable');
+    expect(steps.map(({ step }) => step)).toEqual(['layers:', 'function:api', 'release']);
+    failRecording = false;
+    steps.length = 0;
+    await performFastDeploy({ plan, recordRelease: true, progress, deploymentArtifacts } as never);
+    expect(steps.map(({ step }) => step)).toEqual(['layers:', 'function:api', 'release', 'tag:api', 'retention']);
+  });
+
   test('publishes the changed layers before any function and gives their versions to the functions that use them', async () => {
     steps.length = 0;
     const plan = {

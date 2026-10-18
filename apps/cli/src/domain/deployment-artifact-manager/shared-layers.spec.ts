@@ -164,6 +164,22 @@ describe('what a deployed function runs', () => {
     ]);
     expect(getSharedLayersOfTemplate({ Resources: {} })).toEqual([]);
   });
+
+  test('an interrupted layer update forces a restore even when the target matches CloudFormation', () => {
+    const deployed = getDeployedSharedLayers({
+      tags: [{ key: 'stp:shared-layers', value: 'updating' }],
+      deployedTemplate: template(),
+      functionLogicalName: 'ApiFunction'
+    });
+    expect(deployed.get(1)).toBe('updating');
+    expect(
+      needsLayerRepublish({
+        identity: 'bbbbbbbbbbbb',
+        cfnIdentity: 'bbbbbbbbbbbb',
+        deployedIdentities: [deployed.get(1)]
+      })
+    ).toBe(true);
+  });
 });
 
 describe('the layers a function is given', () => {
