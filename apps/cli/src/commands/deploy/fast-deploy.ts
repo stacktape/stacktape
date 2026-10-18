@@ -3,6 +3,7 @@ import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { tuiManager } from '@application-services/tui-manager';
 import type { ExpectedError as ExpectedErrorType } from '@utils/errors';
 import { CliError, ExpectedError } from '@utils/errors';
+import { hasApplicationHealthCheck } from '../_utils/container-health';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import {
   deleteSupersededSharedLayerVersions,
@@ -114,7 +115,7 @@ export const rolloutWaitHint = (
         (finishedWhen === 'new-instances-discoverable' || finishedWhen === 'rollout-completed') &&
         workload.configParentResourceType === 'web-service' &&
         workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
-        !workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+        !hasApplicationHealthCheck(workload.containers)
     )
     .map(({ workload }) => workload.nameChain[0]);
   if (!names.length) return undefined;

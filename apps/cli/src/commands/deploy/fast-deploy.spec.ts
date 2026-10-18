@@ -193,6 +193,18 @@ describe('the hint after a fast deploy without an application health check', () 
     );
   });
 
+  test('still warns when only a non-essential sidecar has a health check', async () => {
+    const workload = webService('api');
+    workload.containers.push({
+      name: 'telemetry',
+      essential: false,
+      internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
+    } as StpContainerWorkload['containers'][number]);
+    expect((await deploy([[workload, 'new-instances-discoverable']]))[0]).toContain(
+      'Application health is unchecked for api.'
+    );
+  });
+
   test.each<[string, StpContainerWorkload, RollingUpdateFinish]>([
     [
       'finished once API Gateway discovered the new version',
