@@ -53,6 +53,7 @@ import {
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
+import { deleteSupersededSharedLayerVersions, getSharedLayerHotswapInformation } from '../_utils/fn-deployment';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -278,7 +279,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     if (args.fullDeploy) {
       // Even a forced full deployment changes nothing when nothing changed.
       if (!reason && !deployedStackOverview.hasTemplateChanges(cfTemplateDiff)) {
-        fastDeployPlan = { functions: [], services: [] };
+        fastDeployPlan = { functions: [], services: [], layers: [] };
       }
     } else {
       const planning = reason ? { reason } : await planFastDeploy({ config });
@@ -426,6 +427,11 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       stackResources: stack.existingStackResources,
       budgetInfo: budget.getBudgetInfoForSpecifiedStack({ stackName: stackContext.stackName })
     });
+    // CloudFormation now owns every function's code and layers, whatever fast deployments changed before, so their
+    // tags say so and the layer versions fast deployments published are no longer run.
+    await deploymentArtifacts.repairFunctionTags(template.getTemplate());
+    const sharedLayers = getSharedLayerHotswapInformation();
+    if (sharedLayers.length) await deleteSupersededSharedLayerVersions({ layers: sharedLayers });
   }
 
   await deployConvexFunctions();

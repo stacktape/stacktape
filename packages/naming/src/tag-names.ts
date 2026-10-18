@@ -14,6 +14,10 @@ export const tagNames = {
   codeDigest() {
     return 'stp:code-digest';
   },
+  /** The shared chunk layers a function runs with, as `<layer number>:<content hash>` pairs separated by `/`. */
+  sharedLayers() {
+    return 'stp:shared-layers';
+  },
   autoscalingGroupName() {
     return 'stp:asg-name';
   },

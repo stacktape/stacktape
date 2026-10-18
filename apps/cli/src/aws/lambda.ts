@@ -1,16 +1,20 @@
 import { pRateLimit } from 'p-ratelimit';
-import type { LambdaClient } from '@aws-sdk/client-lambda';
+import type { LambdaClient, Runtime } from '@aws-sdk/client-lambda';
 import {
+  DeleteLayerVersionCommand,
   GetAliasCommand,
   GetFunctionCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
+  ListLayerVersionsCommand,
   ListTagsCommand,
+  PublishLayerVersionCommand,
   PublishVersionCommand,
   TagResourceCommand,
   UpdateAliasCommand,
-  UpdateFunctionCodeCommand
+  UpdateFunctionCodeCommand,
+  UpdateFunctionConfigurationCommand
 } from '@aws-sdk/client-lambda';
 import { fromUtf8, toUtf8 } from '@smithy/util-utf8';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -59,6 +63,84 @@ export class AwsLambda {
           S3Key: artifactS3Key
         })
       )
+      .catch(errorHandler);
+  };
+
+  /**
+   * Replaces the function's layers. Lambda refuses a configuration update while another update of the function is in
+   * progress, so wait for a preceding code update first.
+   */
+  updateFunctionLayers = async ({
+    lambdaResourceName,
+    layerArns
+  }: {
+    lambdaResourceName: string;
+    layerArns: string[];
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to update the layers of function ${lambdaResourceName}.`);
+    return this.#createClient()
+      .send(new UpdateFunctionConfigurationCommand({ FunctionName: lambdaResourceName, Layers: layerArns }))
+      .catch(errorHandler);
+  };
+
+  /** The layer ARNs the function runs with now. Shares the status read budget, as it reads with GetFunction. */
+  getFunctionLayerArns = async ({ lambdaResourceName }: { lambdaResourceName: string }): Promise<string[]> => {
+    const errorHandler = this.#getErrorHandler(`Failed to read the layers of function ${lambdaResourceName}.`);
+    const { Configuration } = await this.#readFunctionStatus(() =>
+      this.#createClient().send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+    ).catch(errorHandler);
+    return (Configuration?.Layers ?? []).flatMap(({ Arn }) => (Arn ? [Arn] : []));
+  };
+
+  publishLayerVersion = async ({
+    layerName,
+    description,
+    compatibleRuntimes,
+    artifactBucketName,
+    artifactS3Key
+  }: {
+    layerName: string;
+    description?: string;
+    compatibleRuntimes?: string[];
+    artifactBucketName: string;
+    artifactS3Key: string;
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to publish a version of layer ${layerName}.`);
+    return this.#createClient()
+      .send(
+        new PublishLayerVersionCommand({
+          LayerName: layerName,
+          Description: description,
+          CompatibleRuntimes: compatibleRuntimes as Runtime[] | undefined,
+          Content: { S3Bucket: artifactBucketName, S3Key: artifactS3Key }
+        })
+      )
+      .catch(errorHandler);
+  };
+
+  /** Every version of the layer, newest first. A layer that was never published has no versions. */
+  listLayerVersions = async ({ layerName }: { layerName: string }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to list the versions of layer ${layerName}.`);
+    const versions: { version: number; arn: string; description?: string }[] = [];
+    let marker: string | undefined;
+    do {
+      const page = await this.#createClient()
+        .send(new ListLayerVersionsCommand({ LayerName: layerName, Marker: marker }))
+        .catch(errorHandler);
+      for (const { Version, LayerVersionArn, Description } of page.LayerVersions ?? []) {
+        if (Version !== undefined && LayerVersionArn) {
+          versions.push({ version: Version, arn: LayerVersionArn, description: Description });
+        }
+      }
+      marker = page.NextMarker;
+    } while (marker);
+    return versions;
+  };
+
+  deleteLayerVersion = async ({ layerName, version }: { layerName: string; version: number }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to delete version ${version} of layer ${layerName}.`);
+    await this.#createClient()
+      .send(new DeleteLayerVersionCommand({ LayerName: layerName, VersionNumber: version }))
       .catch(errorHandler);
   };
 
