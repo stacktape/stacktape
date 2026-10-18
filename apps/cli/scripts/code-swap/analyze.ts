@@ -27,7 +27,7 @@ export const percentile = (values: number[], p: number) => {
     ? (sorted[Math.floor((sorted.length - 1) / 2)]! + sorted[Math.ceil((sorted.length - 1) / 2)]!) / 2
     : sorted[Math.ceil(p * sorted.length) - 1]!;
 };
-export const calibrateClock = (polls: Poll[]) => {
+export const calibrateClock = (polls: Poll[], minimumSpanMs = 30000) => {
   const samples = polls.filter((p) => Number.isFinite(p.awsMs) && p.awsMs > 0 && p.rttMs > 0 && p.rttMs < 200);
   if (samples.length < 100) throw new Error('Insufficient AWS clock samples.');
   const awsMean = samples.reduce((sum, p) => sum + p.awsMs, 0) / samples.length;
@@ -38,7 +38,7 @@ export const calibrateClock = (polls: Poll[]) => {
   const spanMs =
     samples.reduce((max, p) => Math.max(max, p.awsMs), -Infinity) -
     samples.reduce((min, p) => Math.min(min, p.awsMs), Infinity);
-  if (spanMs < 30000 || !Number.isFinite(rate) || rate < 0.8 || rate > 1.3)
+  if (spanMs < minimumSpanMs || !Number.isFinite(rate) || rate < 0.8 || rate > 1.3)
     throw new Error('Unqualified AWS clock calibration.');
   const offset = hostMean - rate * awsMean;
   const maxResidualMs = samples.reduce(
@@ -76,7 +76,8 @@ const main = async () => {
   const report: { configurations: unknown[]; go: boolean; clockSource: string } = {
     configurations: [],
     go: true,
-    clockSource: 'Fargate proxy Unix millisecond timestamps, regressed against client monotonic midpoint samples'
+    clockSource:
+      'Per-edit Fargate proxy Unix millisecond timestamps regressed against client monotonic midpoint samples; no run-wide constant clock-rate assumption'
   };
   for (const memory of [512, 1024])
     for (const tasks of [1, 2]) {
@@ -93,18 +94,38 @@ const main = async () => {
         if (name.endsWith('-polls.json'))
           polls.push(...(JSON.parse(await readFile(join(location, name), 'utf8')) as Poll[]));
       }
-      let clock: ReturnType<typeof calibrateClock> | undefined;
-      let clockError: string | undefined;
-      try {
-        clock = calibrateClock(polls);
-      } catch (error) {
-        clockError = String(error);
+      const clocks = new Map<string, ReturnType<typeof calibrateClock>>();
+      const clockErrors: { label: string; error: string }[] = [];
+      for (const result of results) {
+        try {
+          const editPolls: Poll[] = JSON.parse(await readFile(join(location, `${result.label}-polls.json`), 'utf8'));
+          clocks.set(result.label, calibrateClock(editPolls, 3000));
+        } catch (error) {
+          clockErrors.push({ label: result.label, error: String(error) });
+        }
       }
+      const calibrated = [...clocks.values()];
+      const clock = calibrated.length
+        ? {
+            method: 'per-edit AWS timestamp fits',
+            rate: percentile(
+              calibrated.map((c) => c.rate),
+              0.5
+            ),
+            minimumRate: Math.min(...calibrated.map((c) => c.rate)),
+            maximumRate: Math.max(...calibrated.map((c) => c.rate)),
+            maximumResidualMs: Math.max(...calibrated.map((c) => c.maxResidualMs)),
+            edits: [...clocks].map(([label, calibration]) => ({ label, ...calibration }))
+          }
+        : undefined;
       const modes = Object.fromEntries(
         ['swap', 'image'].map((mode) => {
           const selected = results.filter((r) => r.label.startsWith(mode + '-'));
           const samples = (key: 'firstMs' | 'allMs' | 'exitMs') =>
-            selected.flatMap((r) => (clock && r[key] !== undefined ? [r[key]! / clock.rate / 1000] : []));
+            selected.flatMap((r) => {
+              const calibration = clocks.get(r.label);
+              return calibration && r[key] !== undefined ? [r[key]! / calibration.rate / 1000] : [];
+            });
           return [
             mode,
             {
@@ -113,17 +134,18 @@ const main = async () => {
               all: distribution(samples('allMs')),
               exit: distribution(samples('exitMs')),
               oldExit: distribution(
-                selected.flatMap((r) =>
-                  clock && r.details?.completed?.length
+                selected.flatMap((r) => {
+                  const calibration = clocks.get(r.label);
+                  return calibration && r.details?.completed?.length
                     ? [
-                        (Math.max(...r.details.completed.map((s) => s.timings.oldReapedAtMs)) * clock.rate +
-                          clock.offset -
+                        (Math.max(...r.details.completed.map((s) => s.timings.oldReapedAtMs)) * calibration.rate +
+                          calibration.offset -
                           r.start) /
-                          clock.rate /
+                          calibration.rate /
                           1000
                       ]
-                    : []
-                )
+                    : [];
+                })
               ),
               failures: selected.filter((r) => r.failure).length,
               fallbacks: selected.filter((r) => r.details?.fallback).length,
@@ -147,6 +169,7 @@ const main = async () => {
         image = modes.image!;
       const go =
         !!clock &&
+        clockErrors.length === 0 &&
         passesServingGate(swap.first, image.first) &&
         passesServingGate(swap.all, image.all) &&
         swap.failures === 0 &&
@@ -173,7 +196,7 @@ const main = async () => {
         tasks,
         go,
         clock,
-        clockError,
+        clockErrors,
         ...modes,
         timedTraffic: {
           requests: polls.length,
