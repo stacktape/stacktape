@@ -43,7 +43,12 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
     });
     build.onLoad({ filter: /commands[\\/]deploy[\\/]index\.ts$/ }, async ({ path }) => {
       let contents = await readFile(path, 'utf8');
-      contents = `import { benchmarkComplete } from ${JSON.stringify(runtime)};\n` + contents;
+      contents = `import { benchmarkComplete, benchmarkBootstrapBucket } from ${JSON.stringify(runtime)};\n` + contents;
+      contents = replaceOnce(
+        contents,
+        'await stack.createResourcesForArtifacts();',
+        'await stack.createResourcesForArtifacts();\nawait benchmarkBootstrapBucket();'
+      );
       contents = replaceOnce(
         contents,
         'await notification.waitForQueuedEvents();',

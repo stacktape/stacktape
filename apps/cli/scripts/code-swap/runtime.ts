@@ -1,6 +1,6 @@
 // Source-only, unsigned/unfenced phase-1 experiment. This module is reachable only through build-cli.ts's plugin.
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DynamoDBClient, GetItemCommand, PutItemCommand, BatchGetItemCommand } from '@aws-sdk/client-dynamodb';
 import { ECSClient, DescribeServicesCommand, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
@@ -252,6 +252,39 @@ export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHots
     await put({ Phase: 'abort' });
     return false;
   }
+};
+export const benchmarkBootstrapBucket = async () => {
+  const { run, artifacts } = await clients();
+  const { awsSdkManager: aws } = await import('../../src/utils/aws-sdk-manager');
+  const file = join(dirname(run.result), 'bootstrap-upload-probe.json');
+  await writeFile(file, JSON.stringify({ owner: run.owner, purpose: 'code-swap benchmark bootstrap' }));
+  const started = performance.now();
+  let attempts = 0;
+  let passes = 0;
+  let lastError: unknown;
+  while (performance.now() - started < 300000) {
+    attempts++;
+    try {
+      await aws.s3.uploadFile({
+        filePath: file,
+        s3Key: 'code-swap/bootstrap-upload-probe.json',
+        bucketName: artifacts.deploymentBucketName,
+        useS3Acceleration: true,
+        contentType: 'application/json'
+      });
+      passes++;
+      if (passes >= 3) {
+        result.bootstrap = { attempts, clientElapsedMs: performance.now() - started };
+        return;
+      }
+    } catch (error) {
+      lastError = error;
+      passes = 0;
+      if (!/No AWSAccessKey|NoAWSAccessKey|TemporaryRedirect/i.test(String(error))) throw error;
+    }
+    await Bun.sleep(3000);
+  }
+  throw new Error(`Initial artifact upload did not become available: ${lastError}`);
 };
 export const benchmarkReleaseIdentity = () => ({ identity, mode: result.mode, fallback: result.fallback });
 export const benchmarkComplete = async () => {
