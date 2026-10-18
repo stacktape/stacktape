@@ -46,6 +46,7 @@ import {
   SqsQueue,
   SqsQueueEventBusIntegration,
   JsBundleImagePackaging,
+  PrebuiltImagePackaging,
   JsBundleLambdaPackaging,
   SyntheticTest,
   UptimeCheck,
@@ -967,6 +968,101 @@ describe('full synthesis contract', () => {
     expect(devTemplate.Resources[cfLogicalNames.syntheticCanary('homepageFlow')]).toBeUndefined();
   });
 
+  test('adds HTTP readiness for built and prebuilt web images while preserving task allocation and service identity', async () => {
+    const template = await synthesizeFixture({
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
+      compiledConfig: defineConfig(() => ({
+        resources: {
+          built: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new JsBundleImagePackaging({ entryfilePath: 'src/web.ts' })
+          }),
+          prebuilt: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new PrebuiltImagePackaging({ image: 'example.com/app:v1' }),
+            port: 8080
+          }),
+          path: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new PrebuiltImagePackaging({ image: 'example.com/app:v1' }),
+            loadBalancing: { type: 'http-api-gateway', properties: { healthcheckPath: '/health' } }
+          }),
+          custom: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new JsBundleImagePackaging({ entryfilePath: 'src/web.ts' }),
+            internalHealthCheck: { healthCheckCommand: ['CMD-SHELL', 'exit 0'] }
+          }),
+          alb: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new JsBundleImagePackaging({ entryfilePath: 'src/web.ts' }),
+            loadBalancing: { type: 'application-load-balancer' }
+          }),
+          nlb: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new JsBundleImagePackaging({ entryfilePath: 'src/web.ts' }),
+            loadBalancing: {
+              type: 'network-load-balancer',
+              properties: { ports: [{ port: 80, containerPort: 3000, protocol: 'TCP' }] }
+            }
+          })
+        }
+      }))({ stage: 'baseline', region: 'eu-west-1', command: 'synth', cliArgs: {}, awsProfile: '' })
+    });
+    for (const name of ['built', 'prebuilt', 'path', 'custom', 'alb', 'nlb']) {
+      const task = template.Resources[
+        cfLogicalNames.ecsTaskDefinition(name)
+      ] as KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
+      const containers = task.Properties
+        .ContainerDefinitions as import('@stacktape/cloudformation/resources/aws-ecs-taskdefinition').ContainerDefinition[];
+      const healthCheck = containers.find(({ Name }) => Name === 'stp-web-health-check');
+      expect(task.Properties.Cpu).toBe('256');
+      expect(task.Properties.Memory).toBe('512');
+      expect(template.Resources[cfLogicalNames.ecsService(name, false)].Type).toBe('AWS::ECS::Service');
+      if (['custom', 'alb', 'nlb'].includes(name)) {
+        expect(healthCheck).toBeUndefined();
+      } else {
+        expect(healthCheck).toMatchObject({
+          Essential: true,
+          Cpu: 0,
+          Memory: 16,
+          ReadonlyRootFilesystem: true,
+          HealthCheck: { Interval: 5 }
+        });
+        expect(healthCheck!.Environment).toContainEqual({
+          Name: 'STP_HEALTH_PORT',
+          Value: name === 'prebuilt' ? '8080' : '3000'
+        });
+        expect(healthCheck!.Environment).toContainEqual({
+          Name: 'STP_HEALTH_PATH',
+          Value: name === 'path' ? '/health' : '/'
+        });
+        expect(healthCheck!.Environment).toContainEqual({
+          Name: 'STP_HEALTH_STATUS',
+          Value: name === 'path' ? '[23]' : '[1-5]'
+        });
+        expect(containers[0].HealthCheck).toBeUndefined();
+      }
+    }
+  });
+
+  test.each(['health', '/bad path', '/health\r\nX-Test: injected'])(
+    'rejects an invalid HTTP health path %j',
+    async (healthcheckPath) => {
+      const compiledConfig = defineConfig(() => ({
+        resources: {
+          api: new WebService({
+            resources: { cpu: 0.25, memory: 512 },
+            packaging: new PrebuiltImagePackaging({ image: 'example.com/app:v1' }),
+            loadBalancing: { type: 'http-api-gateway', properties: { healthcheckPath } }
+          })
+        }
+      }))({ stage: 'baseline', region: 'eu-west-1', command: 'synth', cliArgs: {}, awsProfile: '' });
+      await expect(synthesizeFixture({ compiledConfig, workingDir: import.meta.dir })).rejects.toMatchObject({
+        code: 'CONFIG_WEB_SERVICE_HEALTH_CHECK_PATH_INVALID'
+      });
+    }
+  );
+
   test('synthesizes tracing: layers and env for functions, sidecar and IAM for containers', async () => {
     const template = await synthesizeDenseFixture({ includeTracing: true });
     const resources = template.Resources as Record<string, any>;
@@ -1015,6 +1111,16 @@ describe('full synthesis contract', () => {
     expect(collectorConfig).toContain('memory_limiter');
     // connectTo variables (which can carry database credentials) never reach the collector.
     expect(collector.Environment.map(({ Name }: any) => Name)).toEqual(['AOT_CONFIG_CONTENT']);
+    const httpCheck = taskDefinition.Properties.ContainerDefinitions.find(
+      ({ Name }: { Name: string }) => Name === 'stp-web-health-check'
+    );
+    expect(httpCheck.Environment.map(({ Name }: { Name: string }) => Name)).toEqual([
+      'STP_HEALTH_HOST',
+      'STP_HEALTH_PORT',
+      'STP_HEALTH_PATH',
+      'STP_HEALTH_STATUS'
+    ]);
+    expect(httpCheck.Secrets).toBeUndefined();
 
     const appContainer = taskDefinition.Properties.ContainerDefinitions.find(
       ({ Name }: any) => !Name.startsWith('stp-otel')

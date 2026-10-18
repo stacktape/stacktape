@@ -1,3 +1,4 @@
+import { getWebServiceHealthCheck } from './web-service-health-check';
 import type {
   ContainerDefinition,
   KeyValuePair,
@@ -119,7 +120,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         hints: 'Rename the container, or disable tracing for this workload.'
       });
     }
-    if (definition.containers.length + 1 > 10) {
+    if (definition.containers.length + getWebServiceHealthCheck(definition).length + 1 > 10) {
       throw new CliError({
         category: 'CONFIG_VALIDATION',
         code: 'CONFIG_TRACING_CONTAINER_LIMIT_EXCEEDED',
@@ -140,7 +141,11 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   if (isRegisteredInCloudMap) {
     const healthCheckedContainers = definition.containers.filter(({ internalHealthCheck }) => internalHealthCheck);
     const essentialHealthCheckedContainers = healthCheckedContainers.filter(({ essential }) => essential !== false);
-    if (healthCheckedContainers.length && !essentialHealthCheckedContainers.length) {
+    if (
+      healthCheckedContainers.length &&
+      !essentialHealthCheckedContainers.length &&
+      !getWebServiceHealthCheck(definition).length
+    ) {
       const names = healthCheckedContainers.map(({ name }) => `\`${name}\``).join(', ');
       throw new CliError({
         category: 'CONFIG_VALIDATION',
@@ -536,9 +541,8 @@ export const getTaskDefinitionTemplateOverrideFns = ({
       });
 
       (templateResourceProps.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
-        // The Stacktape-managed collector must not receive connectTo variables — they can carry
-        // database credentials. Exact match: user containers may legitimately use similar names.
-        if (containerDef.Name === OTEL_COLLECTOR_CONTAINER_NAME) {
+        // Only authored containers receive application variables. Infrastructure sidecars need no database credentials.
+        if (!resource.containers.some(({ name }) => name === containerDef.Name)) {
           return;
         }
         const currentVars = (containerDef.Environment || []) as KeyValuePair[];

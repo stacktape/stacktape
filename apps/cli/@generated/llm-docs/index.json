@@ -14705,6 +14705,52 @@
       ]
     },
     {
+      "id": "config-reference:WebServiceHttpApiGatewayLoadBalancing",
+      "title": "WebServiceHttpApiGatewayLoadBalancing API Reference",
+      "route": "/config-reference/web-service",
+      "sourcePath": "packages/config/src/web-services.ts",
+      "outputPath": "config-reference/web-service/webservicehttpapigatewayloadbalancing.md",
+      "docKind": "config-reference",
+      "resourceType": "web-service",
+      "definitionNames": [
+        "WebServiceHttpApiGatewayLoadBalancing"
+      ],
+      "tags": [
+        "config-reference",
+        "WebServiceHttpApiGatewayLoadBalancing",
+        "properties",
+        "web-service"
+      ],
+      "chunks": [
+        "config-reference:WebServiceHttpApiGatewayLoadBalancing#webservicehttpapigatewayloadbalancing-api-reference",
+        "config-reference:WebServiceHttpApiGatewayLoadBalancing#typescript-definition",
+        "config-reference:WebServiceHttpApiGatewayLoadBalancing#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:WebServiceHttpApiGatewayLoadBalancingProps",
+      "title": "WebServiceHttpApiGatewayLoadBalancingProps API Reference",
+      "route": "/config-reference/web-service",
+      "sourcePath": "packages/config/src/web-services.ts",
+      "outputPath": "config-reference/web-service/webservicehttpapigatewayloadbalancingprops.md",
+      "docKind": "config-reference",
+      "resourceType": "web-service",
+      "definitionNames": [
+        "WebServiceHttpApiGatewayLoadBalancingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "WebServiceHttpApiGatewayLoadBalancingProps",
+        "healthcheckPath",
+        "web-service"
+      ],
+      "chunks": [
+        "config-reference:WebServiceHttpApiGatewayLoadBalancingProps#webservicehttpapigatewayloadbalancingprops-api-reference",
+        "config-reference:WebServiceHttpApiGatewayLoadBalancingProps#typescript-definition",
+        "config-reference:WebServiceHttpApiGatewayLoadBalancingProps#property-healthcheckpath"
+      ]
+    },
+    {
       "id": "config-reference:WebServiceNlbLoadBalancing",
       "title": "WebServiceNlbLoadBalancing API Reference",
       "route": "/config-reference/web-service",

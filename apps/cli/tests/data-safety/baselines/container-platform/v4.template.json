@@ -1754,6 +1754,51 @@
               }
             },
             "DependsOn": []
+          },
+          {
+            "Name": "stp-web-health-check",
+            "Image": "public.ecr.aws/docker/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+            "Essential": true,
+            "Cpu": 0,
+            "Memory": 16,
+            "User": "65534:65534",
+            "ReadonlyRootFilesystem": true,
+            "LinuxParameters": {
+              "Capabilities": {
+                "Drop": ["ALL"]
+              }
+            },
+            "EntryPoint": ["/bin/sleep"],
+            "Command": ["2147483647"],
+            "StopTimeout": 2,
+            "Environment": [
+              {
+                "Name": "STP_HEALTH_HOST",
+                "Value": "127.0.0.1"
+              },
+              {
+                "Name": "STP_HEALTH_PORT",
+                "Value": "3000"
+              },
+              {
+                "Name": "STP_HEALTH_PATH",
+                "Value": "/"
+              },
+              {
+                "Name": "STP_HEALTH_STATUS",
+                "Value": "[1-5]"
+              }
+            ],
+            "HealthCheck": {
+              "Command": [
+                "CMD-SHELL",
+                "printf 'GET %s HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' \"$STP_HEALTH_PATH\" | nc -w 2 \"$STP_HEALTH_HOST\" \"$STP_HEALTH_PORT\" | { IFS= read -r status; printf '%s\\n' \"$status\" | grep -Eq \"^HTTP/1\\.[01] ${STP_HEALTH_STATUS}[0-9][0-9] \"; }"
+              ],
+              "Interval": 5,
+              "Timeout": 4,
+              "Retries": 3,
+              "StartPeriod": 60
+            }
           }
         ],
         "RuntimePlatform": {

@@ -175,37 +175,9 @@ const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish][]) =
   return hints;
 };
 
-describe('the hint after a fast deploy that waited for ECS to stop the old containers', () => {
-  test('is printed once for web services behind an HTTP API without internalHealthCheck', async () => {
-    const printed = await deploy([
-      [webService('api'), 'rollout-completed'],
-      [webService('admin'), 'rollout-completed'],
-      [webService('web', { healthCheck: true }), 'new-instances-discoverable']
-    ]);
-
-    expect(printed).toEqual([
-      'The update of api, admin waited about 3 minutes for ECS to stop the old containers, although the new version ' +
-        'already served requests. Add internalHealthCheck to their containers so Stacktape finishes as soon as the new ' +
-        'version is healthy: https://docs.stacktape.com/resources/compute/web-service/#how-deploys-replace-containers'
-    ]);
-    expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain('to its container');
-  });
-
-  test.each<[string, StpContainerWorkload, RollingUpdateFinish]>([
-    [
-      'finished once API Gateway discovered the new version',
-      webService('api', { healthCheck: true }),
-      'new-instances-discoverable'
-    ],
-    // With a health check, only a missing permission makes the update wait; the hint would not help.
-    ['has an internalHealthCheck', webService('api', { healthCheck: true }), 'rollout-completed'],
-    ['is behind a load balancer', webService('api', { ingress: 'application-load-balancer' }), 'rollout-completed'],
-    [
-      'is not a web service',
-      { ...webService('worker'), configParentResourceType: 'worker-service' } as StpContainerWorkload,
-      'rollout-completed'
-    ]
-  ])('is not printed for a service that %s', async (_, workload, finishedWhen) => {
-    expect(await deploy([[workload, finishedWhen]])).toEqual([]);
+describe('HTTP API readiness after a fast deploy', () => {
+  test('does not recommend internalHealthCheck when the default HTTP check already proves readiness', async () => {
+    expect(await deploy([[webService('api'), 'new-instances-discoverable']])).toEqual([]);
+    expect(await deploy([[webService('api'), 'rollout-completed']])).toEqual([]);
   });
 });

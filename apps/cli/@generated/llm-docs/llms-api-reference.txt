@@ -78364,6 +78364,65 @@ export default defineConfig(() => {
 
 ---
 
+# WebServiceHttpApiGatewayLoadBalancing API Reference
+
+Source: `packages/config/src/web-services.ts`
+Route: `/config-reference/web-service`
+
+Resource type: `web-service`
+
+## TypeScript definition
+
+```typescript
+import type { WebServiceHttpApiGatewayLoadBalancingProps } from 'stacktape';
+
+type WebServiceHttpApiGatewayLoadBalancing = {
+  properties?: WebServiceHttpApiGatewayLoadBalancingProps;
+};
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `WebServiceHttpApiGatewayLoadBalancingProps`
+
+---
+
+# WebServiceHttpApiGatewayLoadBalancingProps API Reference
+
+Source: `packages/config/src/web-services.ts`
+Route: `/config-reference/web-service`
+
+Resource type: `web-service`
+
+## TypeScript definition
+
+```typescript
+type WebServiceHttpApiGatewayLoadBalancingProps = {
+  /** HTTP path used to check whether the application is ready.
+
+Without a path, Stacktape requests `/` on the container's port and accepts any HTTP response, including 404 or 500.
+Set a path such as `/health` to require a 200–399 response instead. Redirects are not followed.
+The check runs in a small side container, so your image needs no health-check tools.
+An explicit `internalHealthCheck` on the application takes precedence. */
+  healthcheckPath?: string;
+};
+```
+
+## Property: `healthcheckPath`
+
+- Required: no
+- Type: `string`
+
+HTTP path used to check whether the application is ready.
+
+Without a path, Stacktape requests `/` on the container's port and accepts any HTTP response, including 404 or 500.
+Set a path such as `/health` to require a 200–399 response instead. Redirects are not followed.
+The check runs in a small side container, so your image needs no health-check tools.
+An explicit `internalHealthCheck` on the application takes precedence.
+
+---
+
 # WebServiceNlbLoadBalancing API Reference
 
 Source: `packages/config/src/web-services.ts`
@@ -79823,7 +79882,7 @@ More cost-effective above ~500k requests/day. AWS Free Tier eligible.
 Requires explicit `ports` configuration. Does not support CDN, top-level firewall, or gradual deployments.
 
 Choices:
-- `http-api-gateway` (`WebServiceHttpApiGatewayLoadBalancing`)
+- `http-api-gateway` (`WebServiceHttpApiGatewayLoadBalancing`). Properties: `healthcheckPath?: string`.
 - `application-load-balancer` (`WebServiceAlbLoadBalancing`). Properties: `healthcheckPath?: string`, `healthcheckInterval?: number`, `healthcheckTimeout?: number`.
 - `network-load-balancer` (`WebServiceNlbLoadBalancing`). Properties: `healthcheckPath?: string`, `healthcheckInterval?: number`, `healthcheckTimeout?: number`, `healthCheckProtocol?: string: "HTTP" | "TCP"`, `healthCheckPort?: number`, `ports: Array<WebServiceNlbLoadBalancingPort>`.
 

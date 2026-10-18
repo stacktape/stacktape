@@ -1,6 +1,3 @@
-import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
-import type { RollingUpdateFinish } from 'src/aws/ecs';
-import { tuiManager } from '@application-services/tui-manager';
 import type { ExpectedError as ExpectedErrorType } from '@utils/errors';
 import { ExpectedError } from '@utils/errors';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
@@ -65,32 +62,6 @@ export const planFastDeploy = async ({
 };
 
 /**
- * A hint for web services behind an HTTP API whose update waited for ECS to stop the old containers. Without an
- * `internalHealthCheck`, nothing shows when the new containers are ready, so the update finishes about 3 minutes after
- * API Gateway started sending them requests.
- */
-export const rolloutWaitHint = (
-  updates: { workload: StpContainerWorkload; finishedWhen?: RollingUpdateFinish }[]
-): string | undefined => {
-  const names = updates
-    .filter(
-      ({ workload, finishedWhen }) =>
-        finishedWhen === 'rollout-completed' &&
-        workload.configParentResourceType === 'web-service' &&
-        workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
-        !workload.containers.some(({ internalHealthCheck, essential }) => internalHealthCheck && essential !== false)
-    )
-    .map(({ workload }) => workload.nameChain[0]);
-  if (!names.length) return undefined;
-  return (
-    `The update of ${names.join(', ')} waited about 3 minutes for ECS to stop the old containers, although the new ` +
-    `version already served requests. Add internalHealthCheck to ${names.length === 1 ? 'its container' : 'their containers'} ` +
-    'so Stacktape finishes as soon as the new version is healthy: ' +
-    'https://docs.stacktape.com/resources/compute/web-service/#how-deploys-replace-containers'
-  );
-};
-
-/**
  * Updates every planned function and service directly, then records the deployment as a release. Every update runs to
  * completion before a failure is reported, so the error names exactly which workloads run the new code.
  */
@@ -115,7 +86,6 @@ export const performFastDeploy = async ({
       'Fix the problem and deploy again.'
     ]);
   });
-  const serviceUpdates: Parameters<typeof rolloutWaitHint>[0] = [];
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
   const updates = [
@@ -133,7 +103,9 @@ export const performFastDeploy = async ({
     })),
     ...plan.services.map((update) => ({
       name: update.workload.name,
-      run: async () => serviceUpdates.push({ workload: update.workload, ...(await updateEcsService(update)) })
+      run: async () => {
+        await updateEcsService(update);
+      }
     }))
   ];
   const results = await Promise.allSettled(updates.map(({ run }) => run()));
@@ -171,6 +143,4 @@ export const performFastDeploy = async ({
       ? `Updated ${workloadCount} workload${workloadCount === 1 ? '' : 's'}`
       : 'No code changes (nothing to update)'
   });
-  const hint = rolloutWaitHint(serviceUpdates);
-  if (hint) tuiManager.hint(hint);
 };

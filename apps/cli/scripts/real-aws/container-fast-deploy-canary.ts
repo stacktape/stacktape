@@ -3,7 +3,7 @@
  * UpdateService directly instead of updating the CloudFormation stack.
  *
  * It deploys `_test-stacks/container-fast-deploy` (a tiny Node.js web service behind an application load balancer and
- * the same service behind an HTTP API Gateway with a container health check) through the source-built CLI, then, for
+ * the same service behind an HTTP API Gateway with the default HTTP readiness check) through the source-built CLI, then, for
  * every measurement, changes only the release string in the server source and deploys again. While the deploy runs it
  * polls ECS, the target group, Cloud Map and both public URLs, and it reports one timeline per service: image build
  * and push, task definition registration, UpdateService, the new task's PROVISIONING → PENDING → RUNNING (image pull
