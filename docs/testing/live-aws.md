@@ -109,6 +109,20 @@ ten-second baseline precedes the initial business checks. Those checks and every
 exact assertions without retries; their responses are drained and saved separately, including bounded failure bodies, so
 a gateway error cannot appear only as “Wrong receipt”. Baseline waiting is outside every timed edit.
 
+The benchmark build minifies and splits commands into separate modules, so invoking deploy does not parse unrelated
+commands. Both swap edits and image controls use that same build. Its transport experiment uses shared HTTP/HTTPS
+keep-alive agents for service clients, profile role assumption and Console JSON requests. It retains the 30-second
+whole-response deadline and caller cancellation. This measured transport is installed only by the benchmark build
+plugin; the ordinary CLI retains its native fetch transport, including credential-provider calls. Do not promote the
+experiment into ordinary builds without qualifying long-lived commands and their streaming operations.
+
+Each `aws-http` trace row records the SDK invocation/attempt (including retries), socket assignment, DNS completion, TCP
+connection, TLS handshake, response headers and drained-body completion. Marks are cumulative host-monotonic intervals,
+not wall time. Reused sockets have no new DNS/TCP/TLS work. `timing-details.json` converts these through each edit's AWS
+fit and keeps every transport attempt, including Console calls, without headers, paths, bodies or credentials. It labels
+every swap above ten seconds as a tail. Response wait means request-sent to response-headers; it includes the network
+and service wait and cannot by itself identify an AWS service bottleneck. Preserve raw marks alongside that attribution.
+
 The benchmark image keeps its supervisor in a reusable layer ahead of the application layer. Each owned run has its own
 local Docker tag, so independent configurations can run concurrently without overwriting another run's image. Normal
 release/dev builds contain neither the activation hooks nor these diagnostics.

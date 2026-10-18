@@ -37,6 +37,18 @@ type Trace = {
   status?: string | number;
   service?: string;
   target?: string;
+  id?: number;
+  invocation?: string;
+  attempt?: string;
+  error?: string;
+  reused?: number;
+  socketMs?: number;
+  dnsMs?: number;
+  connectMs?: number;
+  tlsMs?: number;
+  sentMs?: number;
+  firstByteMs?: number;
+  totalMs?: number;
 };
 const json = async <T>(path: string, fallback: T): Promise<T> => {
   try {
@@ -145,22 +157,39 @@ export const diagnoseConfiguration = async (location: string, results: Edit[], c
         prepareDetectedAfterProposal: proposal === undefined ? undefined : (Number(t.detectedAtMs) - proposal) / 1000,
         preparedToCommit: commit === undefined ? undefined : (commit - Number(t.preparedAtMs)) / 1000
       })) ?? [];
-    const slowRequests = traces
-      .filter(
-        (t) =>
-          t.phase === 'aws-http' &&
-          t.startedHostMs !== undefined &&
-          clock &&
-          (t.hostMs - t.startedHostMs) / clock.rate > 1000
-      )
-      .map((t) => ({
-        service: t.service,
-        target: t.target,
-        status: t.status,
-        startAwsMs:
-          result.hostClockOffsetMs === undefined ? undefined : toAws(t.startedHostMs! - result.hostClockOffsetMs),
-        seconds: (t.hostMs - t.startedHostMs!) / clock!.rate / 1000
-      }));
+    // Transport marks are cumulative host-clock intervals. Divide by this edit's measured clock rate,
+    // and keep setup, dispatch-to-headers and body collection separate. Reused sockets do no DNS/TCP/TLS work.
+    const networkRequests = traces
+      .filter((t) => t.phase === 'aws-http' && t.startedHostMs !== undefined && clock)
+      .map((t) => {
+        const seconds = (value: number | undefined) => (value === undefined ? undefined : value / clock!.rate / 1000);
+        const difference = (end: number | undefined, begin: number | undefined) =>
+          end === undefined || begin === undefined ? undefined : seconds(Math.max(0, end - begin));
+        return {
+          service: t.service,
+          target: t.target,
+          status: t.status,
+          error: t.error,
+          id: t.id,
+          invocation: t.invocation,
+          attempt: t.attempt,
+          reused: t.reused,
+          startAwsMs:
+            result.hostClockOffsetMs === undefined ? undefined : toAws(t.startedHostMs! - result.hostClockOffsetMs),
+          seconds: (t.hostMs - t.startedHostMs!) / clock!.rate / 1000,
+          transportSeconds: {
+            socket: seconds(t.socketMs),
+            dns: t.reused ? 0 : difference(t.dnsMs, t.socketMs),
+            connect: t.reused ? 0 : difference(t.connectMs, t.dnsMs ?? t.socketMs),
+            tls: t.reused ? 0 : difference(t.tlsMs, t.connectMs),
+            firstByte: seconds(t.firstByteMs),
+            responseWait: difference(t.firstByteMs, t.sentMs),
+            body: difference(t.totalMs, t.firstByteMs),
+            total: seconds(t.totalMs)
+          }
+        };
+      });
+    const slowRequests = networkRequests.filter((t) => t.seconds > 1);
     const cliTimings = await json<{
       clockAnchors?: { init?: { monotonicNs: string; performanceMs: number } };
       spans?: { name: string; start: number; end: number | null; detail?: Record<string, unknown> }[];
@@ -177,6 +206,28 @@ export const diagnoseConfiguration = async (location: string, results: Edit[], c
             ? toAws(Number(anchor.monotonicNs) / 1e6 + s.start - anchor.performanceMs - result.hostClockOffsetMs)
             : undefined
       }));
+    // SDK middleware names JSON/queryless operations (notably S3) without exposing request paths or bodies.
+    if (anchor && result.hostClockOffsetMs !== undefined && clock) {
+      for (const transport of networkRequests) {
+        if (transport.startAwsMs === undefined) continue;
+        const containing = (cliTimings.spans ?? [])
+          .filter((s) => s.end !== null && (s.name === 'aws:request' || s.name === 'console:request'))
+          .map((s) => ({
+            operation: s.detail?.operation ?? s.detail?.procedure,
+            start: toAws(Number(anchor.monotonicNs) / 1e6 + s.start - anchor.performanceMs - result.hostClockOffsetMs!),
+            duration: (s.end! - s.start) / clock.rate
+          }))
+          .filter(
+            (s) =>
+              typeof s.operation === 'string' &&
+              s.start !== undefined &&
+              s.start <= transport.startAwsMs! + 2 &&
+              s.start + s.duration >= transport.startAwsMs! + transport.seconds * 1000 - 2
+          )
+          .toSorted((a, b) => a.duration - b.duration)[0];
+        if (containing) transport.target = String(containing.operation);
+      }
+    }
     const polls = [
       ...(await json<Sample[]>(join(location, `${result.label}-polls.json`), [])),
       ...(await json<Sample[]>(join(location, `${result.label}-business.json`), []))
@@ -228,6 +279,7 @@ export const diagnoseConfiguration = async (location: string, results: Edit[], c
       spans,
       overlappingWork,
       supervisor,
+      networkRequests,
       slowRequests,
       slowCliSpans
     };
@@ -309,7 +361,7 @@ export const diagnoseConfiguration = async (location: string, results: Edit[], c
   );
   return {
     timingSeconds: Object.fromEntries(Object.entries(phases).map(([key, value]) => [key, quantiles(value)])),
-    tails: edits.filter((e) => e.label.startsWith('swap-') && e.allSeconds !== undefined && e.allSeconds > 12),
+    tails: edits.filter((e) => e.label.startsWith('swap-') && e.allSeconds !== undefined && e.allSeconds > 10),
     requestErrors: {
       total: errors.length,
       duringSwaps: swapErrors.length,

@@ -24,26 +24,16 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
         ),
       loader: 'ts'
     }));
-    build.onLoad({ filter: /aws[\\/]fetch-handler\.ts$/ }, async ({ path }) => {
-      let contents =
-        `import { trace, hostClockMs } from ${JSON.stringify(tracing)};\n` + (await readFile(path, 'utf8'));
-      contents = replaceOnce(
-        contents,
-        'const timeoutMs =',
-        'const traceStart = hostClockMs();\nlet traceStatus: number | undefined;\nconst timeoutMs ='
-      );
-      contents = replaceOnce(
-        contents,
-        'const body = result.response.body;',
-        'traceStatus = result.response.statusCode;\nconst body = result.response.body;'
-      );
-      contents = replaceOnce(
-        contents,
-        'clearTimeout(timer);',
-        "trace('aws-http', { service: request.hostname, target: request.headers['x-amz-target'], startedHostMs: traceStart, status: traceStatus });\nclearTimeout(timer);"
-      );
-      return { contents, loader: 'ts' };
-    });
+    build.onLoad({ filter: /aws[\\/]fetch-handler\.ts$/ }, async () => ({
+      contents: `export { createMeasuredHandler as createFetchHandler } from ${JSON.stringify(resolve('scripts/code-swap/transport.ts'))};`,
+      loader: 'ts'
+    }));
+    build.onLoad({ filter: /stacktape-api[\\/]client\.ts$/ }, async ({ path }) => ({
+      contents:
+        `import { measuredConsoleFetch } from ${JSON.stringify(resolve('scripts/code-swap/transport.ts'))};\n` +
+        replaceOnce(await readFile(path, 'utf8'), 'return await fetch(url,', 'return await measuredConsoleFetch(url,'),
+      loader: 'ts'
+    }));
     build.onLoad(
       { filter: /packages[\\/]packaging[\\/]src[\\/]buildpacks[\\/]js-bundle-image\.ts$/ },
       async ({ path }) => {
@@ -105,24 +95,27 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
     });
   }
 });
-const main = async () => {
-  const output = resolve(process.argv[2] ?? '.stacktape/code-swap-cli');
+export const buildBenchmarkCli = async (outputDirectory: string) => {
+  const output = resolve(outputDirectory);
   await mkdir(output, { recursive: true });
   const result = await Bun.build({
     entrypoints: ['scripts/code-swap/entrypoint.ts'],
     outdir: output,
     target: 'bun',
-    minify: false,
+    minify: true,
+    splitting: true,
     plugins: [benchmarkBuildPlugin(), createStacktapeOpenTuiBuildPlugin()],
     external: ['follow-redirects', '@opentui/core-*', 'web-tree-sitter', 'web-tree-sitter/*'],
     tsconfig: 'tsconfig.json',
     define: { STACKTAPE_VERSION: JSON.stringify(packageJson.version) }
   });
   if (!result.success) throw new Error(result.logs.map(({ message }) => message).join('\n'));
-  console.log(result.outputs[0]!.path);
+  return result.outputs;
 };
 if (import.meta.main)
-  main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  });
+  buildBenchmarkCli(process.argv[2] ?? '.stacktape/code-swap-cli')
+    .then(() => console.log(resolve(process.argv[2] ?? '.stacktape/code-swap-cli', 'entrypoint.js')))
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });

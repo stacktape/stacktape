@@ -155,7 +155,34 @@ test('diagnostics map shared monotonic traces through AWS fits and retain reques
       { phase: 'event', eventType: 'BUILD_CODE', status: 'completed', hostMs: at(2.1) },
       { phase: 'event', eventType: 'UPLOAD_IMAGE', status: 'completed', hostMs: at(4) },
       { phase: 'signal:prepare', hostMs: at(2.2) },
-      { phase: 'signal:commit', hostMs: at(4.5) }
+      { phase: 'signal:commit', hostMs: at(4.5) },
+      {
+        phase: 'aws-http',
+        hostMs: at(2),
+        startedHostMs: at(1.5),
+        service: 'sts.example',
+        target: 'GetCallerIdentity',
+        socketMs: 11,
+        dnsMs: 33,
+        connectMs: 66,
+        tlsMs: 110,
+        sentMs: 132,
+        firstByteMs: 440,
+        totalMs: 550,
+        attempt: 'attempt=2; max=3',
+        reused: 0
+      },
+      {
+        phase: 'aws-http',
+        hostMs: at(3),
+        startedHostMs: at(2),
+        service: 'sts.example',
+        socketMs: 1,
+        sentMs: 22,
+        firstByteMs: 1089,
+        totalMs: 1100,
+        reused: 1
+      }
     ];
     await writeFile(join(directory, `${label}-trace.jsonl`), events.map((e) => JSON.stringify(e)).join('\n'));
     const failed = {
@@ -204,6 +231,16 @@ test('diagnostics map shared monotonic traces through AWS fits and retain reques
     expect(report.timingSeconds.startup!.p50).toBeCloseTo(1, 4);
     expect(report.timingSeconds.precommit!.p50).toBeCloseTo(0.5, 4);
     expect(report.timingSeconds.commitToSwitch!.p50).toBeCloseTo(0.1, 4);
+    const timings = JSON.parse(await readFile(join(directory, 'timing-details.json'), 'utf8'));
+    const transport = timings[0].networkRequests;
+    expect(transport[0].attempt).toBe('attempt=2; max=3');
+    expect(transport[0].transportSeconds.dns).toBeCloseTo(0.02, 6);
+    expect(transport[0].transportSeconds.connect).toBeCloseTo(0.03, 6);
+    expect(transport[0].transportSeconds.tls).toBeCloseTo(0.04, 6);
+    expect(transport[0].transportSeconds.responseWait).toBeCloseTo(0.28, 6);
+    expect(transport[0].transportSeconds.total).toBeCloseTo(0.5, 6);
+    expect(transport[1].transportSeconds.dns).toBe(0);
+    expect(transport[1].transportSeconds.tls).toBe(0);
     expect(report.requestErrors.total).toBe(2);
     expect(report.requestErrors.duringSwaps).toBe(1);
     expect(report.requestErrors.gatewayMatched).toBe(1);

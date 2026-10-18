@@ -36,11 +36,16 @@ export const lanes: readonly Lane[] = [
       'bun',
       'test',
       'scripts/code-swap/build-cli.spec.ts',
-      'scripts/code-swap/analyze.spec.ts'
+      'scripts/code-swap/analyze.spec.ts',
+      'scripts/code-swap/transport.spec.ts'
     ],
     level: 'process',
     tier: 'pr',
-    tests: ['apps/cli/scripts/code-swap/build-cli.spec.ts', 'apps/cli/scripts/code-swap/analyze.spec.ts'],
+    tests: [
+      'apps/cli/scripts/code-swap/build-cli.spec.ts',
+      'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/transport.spec.ts'
+    ],
     requires: [],
     release: 'every-candidate',
     proves: 'The ordinary CLI build cannot activate the unsigned benchmark path.'
@@ -3494,6 +3499,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/supervisor/archive_test.go',
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/transport.spec.ts',
       'apps/cli/scripts/code-swap/run.ts'
     ],
     lanes: ['code-swap-artifacts', 'code-swap-supervisor', 'code-swap-build-boundary', 'code-swap-live-benchmark']
