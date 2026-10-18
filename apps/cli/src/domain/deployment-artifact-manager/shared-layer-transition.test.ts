@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import AdmZip from 'adm-zip';
-import { buildSharedLayerTransitions, unzippedSize } from './shared-layer-transition';
+import { buildSharedLayerTransitions, unzippedSize, unionSharedLayerTransitions } from './shared-layer-transition';
 
 const zip = (files: Record<string, string>) => {
   const archive = new AdmZip();
@@ -74,4 +74,41 @@ test('the layer budget and aggregate Lambda limit include transition overhead an
     })
   ).toThrow('250 MB limit');
   expect(unzippedSize(entry)).toBeGreaterThan(0);
+});
+
+test('one union bridge contains every old reachable closure and respects each consumer size budget', () => {
+  const first = build();
+  const second = build(
+    zip({ 'index.js': 'import "/opt/nodejs/chunks/chunk-second.js";' }),
+    zip({ 'nodejs/chunks/chunk-second.js': 'export const second = 1;' })
+  );
+  const union = unionSharedLayerTransitions([
+    { bridges: [first], combinedSize: 100 },
+    { bridges: [second], combinedSize: 100 }
+  ])!;
+  const names = new AdmZip(union.get(1)!.zip).getEntries().map(({ entryName }) => entryName);
+  expect(names).toContain('nodejs/chunks/chunk-old.js');
+  expect(names).toContain('nodejs/chunks/chunk-second.js');
+  expect(names).not.toContain('nodejs/chunks/chunk-abandoned.js');
+  expect(unionSharedLayerTransitions([{ bridges: [first], combinedSize: 250 * 1024 * 1024 }])).toBeUndefined();
+});
+
+test('an oversized union falls back for its own layer while another layer still shares one bridge', () => {
+  const large = 'x'.repeat(26 * 1024 * 1024);
+  const first = build(
+    zip({ 'index.js': 'import "/opt/nodejs/chunks/chunk-one.js";' }),
+    zip({ 'nodejs/chunks/chunk-one.js': large })
+  );
+  const second = build(
+    zip({ 'index.js': 'import "/opt/nodejs/chunks/chunk-two.js";' }),
+    zip({ 'nodejs/chunks/chunk-two.js': large })
+  );
+  const small = { ...build(), layerNumber: 2 };
+  const union = unionSharedLayerTransitions([
+    { bridges: [first], combinedSize: 100 },
+    { bridges: [second], combinedSize: 100 },
+    { bridges: [small], combinedSize: 100 }
+  ])!;
+  expect(union.has(1)).toBe(false);
+  expect(union.has(2)).toBe(true);
 });

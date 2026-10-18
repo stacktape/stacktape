@@ -1,3 +1,4 @@
+import { getDeployedArtifactDigest } from './shared-layers';
 import { describe, expect, test } from 'bun:test';
 import {
   buildRepublishedLayerS3Key,
@@ -260,4 +261,13 @@ describe('layer versions a fast deployment publishes', () => {
     ).toEqual([layerArn(name, 2), layerArn(name, 4)]);
     expect(selectSupersededLayerVersions({ versions: versions.slice(0, 1), arnsInUse: [] })).toEqual([]);
   });
+});
+
+test('artifact tags require a consistent runtime digest, including downgrade and interrupted updates', () => {
+  const layers = [{ layerNumber: 1, identity: 'layer' }];
+  expect(getDeployedArtifactDigest('artifact', getFunctionCodeDigest('artifact', layers), layers)).toBe('artifact');
+  expect(getDeployedArtifactDigest('artifact', 'updating', layers)).toBe('artifact');
+  expect(getDeployedArtifactDigest('artifact', 'old-cli-code-digest', layers)).toBe('old-cli-code-digest');
+  expect(getDeployedArtifactDigest('artifact', undefined, layers)).toBeUndefined();
+  expect(getDeployedArtifactDigest(undefined, 'legacy', layers)).toBe('legacy');
 });

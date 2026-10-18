@@ -416,17 +416,31 @@ export class AwsEcs {
         return false;
       }
       try {
-        const { taskArns = [] } = await ecsClient.send(
-          new ListTasksCommand({ cluster: ecsClusterName, startedBy: deployment.id, maxResults: 100 })
+        const taskArns: string[] = [];
+        let nextToken: string | undefined;
+        do {
+          const page = await ecsClient.send(
+            new ListTasksCommand({ cluster: ecsClusterName, startedBy: deployment.id, maxResults: 100, nextToken })
+          );
+          taskArns.push(...(page.taskArns ?? []));
+          nextToken = page.nextToken;
+        } while (nextToken);
+        const describedTasks: Task[] = [];
+        for (const batch of chunkArray(taskArns, 100)) {
+          const { tasks = [], failures = [] } = await ecsClient.send(
+            new DescribeTasksCommand({ cluster: ecsClusterName, tasks: batch })
+          );
+          const describedArns = new Set(tasks.map(({ taskArn }) => taskArn));
+          if (failures.length || batch.some((arn) => !describedArns.has(arn))) {
+            ready = undefined;
+            return false;
+          }
+          describedTasks.push(...tasks);
+        }
+        const tasks = describedTasks.filter(
+          ({ startedBy, taskDefinitionArn }) =>
+            startedBy === deployment.id && taskDefinitionArn === deployment.taskDefinition
         );
-        const tasks = taskArns.length
-          ? (
-              (await ecsClient.send(new DescribeTasksCommand({ cluster: ecsClusterName, tasks: taskArns }))).tasks ?? []
-            ).filter(
-              ({ startedBy, taskDefinitionArn }) =>
-                startedBy === deployment.id && taskDefinitionArn === deployment.taskDefinition
-            )
-          : [];
         let containerDefinitions = containerDefinitionsByTaskDefinition.get(deployment.taskDefinition);
         if (!containerDefinitions) {
           const { taskDefinition } = await ecsClient.send(

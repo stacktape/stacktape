@@ -166,7 +166,7 @@ export const normalizeSplitBuildIdentity = async ({
   );
   // A chunk's imports are part of its content. Masking them without including the graph gave two different module
   // graphs the same filenames, making a two-generation Lambda layer impossible. Name the graph without Bun's
-  // path-salted hashes, then include its identity in each chunk name. Cycles need no recursive hash/fixed point.
+  // path-salted hashes. Hash each chunk's reachable graph so unrelated edits do not rename it; visited nodes bound cycles.
   const keys = new Map(
     [...codes]
       .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
@@ -177,14 +177,30 @@ export const normalizeSplitBuildIdentity = async ({
   );
   const canonical = (code: string) =>
     code.replace(DEBUG_ID_COMMENT, '').replace(CHUNK_NAME, (name) => keys.get(name) ?? name);
-  const graph = sha256(
-    JSON.stringify(
-      [...codes]
-        .filter(([path]) => keys.has(basename(path, '.js')))
-        .map(([, code]) => canonical(code))
-        .toSorted()
-    )
+  const chunks = new Map(
+    [...codes].filter(([path]) => keys.has(basename(path, '.js'))).map(([path, code]) => [basename(path, '.js'), code])
   );
+  const graphIdentity = (root: string) => {
+    const reachable = new Set<string>();
+    const pending = [root];
+    while (pending.length) {
+      const name = pending.pop()!;
+      if (reachable.has(name)) continue;
+      reachable.add(name);
+      for (const match of chunks.get(name)!.matchAll(CHUNK_NAME)) if (chunks.has(match[0])) pending.push(match[0]);
+    }
+    return sha256(
+      JSON.stringify(
+        [...reachable]
+          .map((name) => [keys.get(name)!, canonical(chunks.get(name)!)] as const)
+          .toSorted(([leftKey, leftCode], [rightKey, rightCode]) => {
+            const left = leftKey === rightKey ? leftCode : leftKey;
+            const right = leftKey === rightKey ? rightCode : rightKey;
+            return left < right ? -1 : left > right ? 1 : 0;
+          })
+      )
+    );
+  };
   const renames = new Map<string, string>();
   const inputSets = [...keys.keys()].map((name) => chunkKeys.get(name));
   const stable =
@@ -196,7 +212,7 @@ export const normalizeSplitBuildIdentity = async ({
     const name = basename(path, '.js');
     if (!/^chunk-[a-z0-9]{8}$/.test(name)) continue;
     const inputSet = chunkKeys.get(name);
-    const identity = stable ? `inputs:${inputSet}` : `${graph}\0${keys.get(name)}\0${canonical(code)}`;
+    const identity = stable ? `inputs:${inputSet}` : `${graphIdentity(name)}\0${keys.get(name)}\0${canonical(code)}`;
     const next = `chunk-${sha256(identity).slice(0, 8)}`;
     if (targets.has(next)) throw new Error('Two split chunks have the same normalized filename.');
     targets.add(next);

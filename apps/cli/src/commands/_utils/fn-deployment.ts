@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { startTiming } from '@utils/timings';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { operationReporter } from '@application-services/operation-manager';
@@ -17,6 +19,7 @@ import {
   formatSharedLayersTag,
   getDeployedSharedLayers,
   getFunctionCodeDigest,
+  getDeployedArtifactDigest,
   getTagValue,
   parseFastDeploymentLayerVersion,
   replaceSharedLayerArns,
@@ -177,14 +180,18 @@ export const getLambdaFunctionHotswapInformation = ({
   const deployedResource = stackManager.existingStackResources.find(
     ({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName
   );
-  const deployedLambdaDigest =
-    getTagValue(deployedResource?.tags, tagNames.artifactDigest()) ??
-    getTagValue(deployedResource?.tags, tagNames.codeDigest());
   const deployedLayers = getDeployedSharedLayers({
     tags: deployedResource?.tags,
     deployedTemplate: templateManager.oldTemplate,
     functionLogicalName: lambdaProps.cfLogicalName
   });
+  const artifactDigest = getTagValue(deployedResource?.tags, tagNames.artifactDigest());
+  const codeDigest = getTagValue(deployedResource?.tags, tagNames.codeDigest());
+  const deployedLambdaDigest = getDeployedArtifactDigest(
+    artifactDigest,
+    codeDigest,
+    [...deployedLayers].map(([layerNumber, identity]) => ({ layerNumber, identity }))
+  );
   const layers = packagingManager
     .getLayerNumbersForLambda(lambdaProps.name)
     .flatMap((layerNumber) => sharedLayers.filter((layer) => layer.layerNumber === layerNumber));
@@ -237,7 +244,10 @@ export const findLambdaOutsideFastPathUsingLayers = ({
  */
 export const resolveSharedLayerVersions = async (
   layers: SharedLayerHotswapInformation[],
-  { parentEventType = 'HOTSWAP_UPDATE' }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS' } = {}
+  {
+    parentEventType = 'HOTSWAP_UPDATE',
+    zipPath
+  }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS'; zipPath?: string } = {}
 ): Promise<Map<number, string>> => {
   const arns = new Map<number, string>();
   await Promise.all(
@@ -259,13 +269,19 @@ export const resolveSharedLayerVersions = async (
         label: `shared layer ${layer.layerNumber}`
       });
       await logger.startEvent({ eventType: 'PUBLISH_LAYER_VERSION', description: 'Publishing layer version' });
+      const endPublish = startTiming('fast-deploy:publish-layer', {
+        layer: layer.layerNumber,
+        local: Boolean(zipPath)
+      });
       const { LayerVersionArn } = await awsSdkManager.lambda.publishLayerVersion({
         layerName: layer.layerName,
         description: describeFastDeploymentLayerVersion(layer.description, layer.identity),
         compatibleRuntimes: layer.compatibleRuntimes,
-        artifactBucketName: deploymentArtifactManager.deploymentBucketName,
-        artifactS3Key: layer.s3Key
+        ...(zipPath
+          ? { zipFile: await readFile(zipPath) }
+          : { artifactBucketName: deploymentArtifactManager.deploymentBucketName, artifactS3Key: layer.s3Key })
       });
+      endPublish();
       await logger.finishEvent({ eventType: 'PUBLISH_LAYER_VERSION' });
       arns.set(layer.layerNumber, LayerVersionArn);
     })
@@ -330,6 +346,7 @@ export const updateFunctionCode = async ({
   layers,
   layerArns,
   transitionalLayerArns,
+  layerFirst = false,
   deferFinalTags = false,
   devMode
 }: {
@@ -346,6 +363,8 @@ export const updateFunctionCode = async ({
   layerArns?: Map<number, string>;
   /** A two-generation bridge prepared from the deployed code's imports. Attach it before changing code. */
   transitionalLayerArns?: string[];
+  /** Both crossed module graphs were checked against the actual deployed archives. */
+  layerFirst?: boolean;
   /** Keep the update pending until the fast deployment has recorded its release. */
   deferFinalTags?: boolean;
   devMode?: boolean;
@@ -384,20 +403,8 @@ export const updateFunctionCode = async ({
     region: globalStateManager.region,
     lambdaAwsName: lambdaResourceName
   });
-  if (codeChanged && layerArns && layers?.length && !transitionalLayerArns) {
+  if (codeChanged && layerArns && layers?.length && !transitionalLayerArns && !layerFirst) {
     throw new Error('A code and shared-layer update requires a safe transitional layer.');
-  }
-  if (transitionalLayerArns) {
-    await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: transitionalLayerArns });
-    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
-  }
-  if (codeChanged) {
-    ({ FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
-      lambdaResourceName,
-      artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
-      artifactS3Key: s3Key
-    }));
-    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
   }
   // Both code generations load with the bridge. Once the new code is active, drop the old chunks by attaching the
   // canonical layer. Release templates always name that clean artifact, never the temporary union.
@@ -412,9 +419,32 @@ export const updateFunctionCode = async ({
           return arn ? [{ layerName, arn }] : [];
         })
       );
+  }
+  const endUpdate = startTiming('fast-deploy:update-function', {
+    workload: workloadName,
+    codeChanged,
+    layerFirst,
+    bridge: Boolean(transitionalLayerArns)
+  });
+  const attachFinalLayers = async () => {
+    if (!updatedLayerArns) return;
     await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: updatedLayerArns });
     await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  };
+  if (layerFirst) await attachFinalLayers();
+  if (transitionalLayerArns) {
+    await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: transitionalLayerArns });
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
   }
+  if (codeChanged) {
+    ({ FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
+      lambdaResourceName,
+      artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
+      artifactS3Key: s3Key
+    }));
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  }
+  if (!layerFirst) await attachFinalLayers();
   if (aliasName) {
     const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
     await awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
@@ -438,5 +468,6 @@ export const updateFunctionCode = async ({
     await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });
   }
 
+  endUpdate();
   return { FunctionArn, updatedLayerArns, tagUpdatedFunction };
 };

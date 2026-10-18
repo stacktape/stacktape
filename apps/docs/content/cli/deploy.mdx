@@ -37,6 +37,10 @@ When only the code of functions or container services changed, `stacktape deploy
 
 Code that several functions share is packaged into a Lambda layer. A change to it is a code change too: Stacktape publishes the new layer version itself and gives every function that uses it the new version together with its own code, so a change to shared code deploys as fast as a change to one function.
 
+When both a handler and its shared code change, Stacktape attaches the new layer before switching the handler if the old handler can use it. This includes adding a helper and using it in the new handler. When compatibility cannot be proved, Stacktape temporarily keeps both generations available. A failed code update can leave the old handler on the new layer; deploying again completes the update.
+
+The compatibility check protects the forward deployment. CloudFormation updates code and layers separately during a rollback, so rolling back across an edit that added a used export can briefly fail invocations if the old layer is restored before the new handler is replaced. Stacktape prints a note during the fast deployment when it detects this risk. See [rollback safety](/cli/rollback#safety-warnings).
+
 A deployment uses CloudFormation when:
 
 - the stack is new, or the template changes anything other than function code or container images built by Stacktape (configuration, environment variables, permissions, resources, external images),
