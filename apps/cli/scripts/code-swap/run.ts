@@ -18,6 +18,7 @@ import {
   ListTasksCommand,
   ListTaskDefinitionsCommand,
   DescribeClustersCommand,
+  DeleteTaskDefinitionsCommand,
   DeregisterTaskDefinitionCommand
 } from '@aws-sdk/client-ecs';
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
@@ -239,16 +240,28 @@ const cleanup = async (state: State, owned: Owned) => {
       if (!missing(error)) throw error;
     }
   }
-  // ECS retains inactive revision metadata. Deregister every owned active revision, including direct image updates.
-  let nextToken: string | undefined;
-  do {
-    const definitions = await ecs.send(
-      new ListTaskDefinitionsCommand({ familyPrefix: `${owned.name}-bench`, status: 'ACTIVE', nextToken })
-    );
-    for (const arn of definitions.taskDefinitionArns ?? [])
-      await ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn }));
-    nextToken = definitions.nextToken;
-  } while (nextToken);
+  const family = awsResourceNames.ecsTaskDefinitionFamily('api', `${owned.name}-bench`);
+  for (const status of ['ACTIVE', 'INACTIVE'] as const) {
+    let nextToken: string | undefined;
+    do {
+      const definitions = await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status, nextToken }));
+      const exact = (definitions.taskDefinitionArns ?? []).filter(
+        (arn) => arn.split('/').at(-1)?.split(':')[0] === family
+      );
+      for (const arn of exact) {
+        if (status === 'ACTIVE') await ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn }));
+        const deleted = await ecs.send(new DeleteTaskDefinitionsCommand({ taskDefinitions: [arn] }));
+        assert(!deleted.failures?.length, 'Owned task-definition deletion failed.');
+      }
+      nextToken = definitions.nextToken;
+    } while (nextToken);
+  }
+  assert(
+    !(
+      await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status: 'ACTIVE' }))
+    ).taskDefinitionArns?.some((arn) => arn.split('/').at(-1)?.split(':')[0] === family),
+    'Owned task definitions still active.'
+  );
   for (let i = 0; i < 180; i++) {
     const remaining = await getStack(owned);
     if (!remaining) break;
@@ -511,7 +524,8 @@ const main = async () => {
       state.account === ACCOUNT && state.region === REGION && state.profile === PROFILE,
       'Recovery target mismatch.'
     );
-    for (const owned of state.resources) await cleanup(state, owned);
+    for (const owned of state.resources)
+      await cleanup(state, process.argv.includes('--recheck') ? { ...owned, cleaned: false } : owned);
     return;
   }
   const owner = randomBytes(8).toString('hex');
