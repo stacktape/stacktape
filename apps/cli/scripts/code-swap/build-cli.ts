@@ -13,22 +13,25 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
   name: 'owned-code-swap-benchmark',
   setup(build) {
     const runtime = resolve('scripts/code-swap/runtime.ts');
-    build.onLoad({ filter: /packages\/packaging\/src\/buildpacks\/js-bundle-image\.ts$/ }, async ({ path }) => {
-      let contents = await readFile(path, 'utf8');
-      contents = `import { benchmarkImage } from ${JSON.stringify(runtime)};\n` + contents;
-      contents = replaceOnce(
-        contents,
-        'const dockerfileContents = await createEsDockerFile(',
-        'let dockerfileContents = await createEsDockerFile('
-      );
-      contents = replaceOnce(
-        contents,
-        "await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });",
-        "dockerfileContents = await benchmarkImage({ dockerfileContents, buildContextPath, runtime, nodeVersion, nodeTarget, minify, dockerBuildOutputArchitecture, languageSpecificBundleOutput });\nawait progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });"
-      );
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /commands\/_utils\/cw-deployment\.ts$/ }, async ({ path }) => {
+    build.onLoad(
+      { filter: /packages[\\/]packaging[\\/]src[\\/]buildpacks[\\/]js-bundle-image\.ts$/ },
+      async ({ path }) => {
+        let contents = await readFile(path, 'utf8');
+        contents = `import { benchmarkImage } from ${JSON.stringify(runtime)};\n` + contents;
+        contents = replaceOnce(
+          contents,
+          'const dockerfileContents = await createEsDockerFile(',
+          'let dockerfileContents = await createEsDockerFile('
+        );
+        contents = replaceOnce(
+          contents,
+          "await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });",
+          "dockerfileContents = await benchmarkImage({ dockerfileContents, buildContextPath, runtime, nodeVersion, nodeTarget, minify, dockerBuildOutputArchitecture, languageSpecificBundleOutput });\nawait progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });"
+        );
+        return { contents, loader: 'ts' };
+      }
+    );
+    build.onLoad({ filter: /commands[\\/]_utils[\\/]cw-deployment\.ts$/ }, async ({ path }) => {
       let contents = await readFile(path, 'utf8');
       contents = `import { benchmarkSwap } from ${JSON.stringify(runtime)};\n` + contents;
       contents = replaceOnce(
@@ -38,7 +41,7 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
       );
       return { contents, loader: 'ts' };
     });
-    build.onLoad({ filter: /commands\/deploy\/index\.ts$/ }, async ({ path }) => {
+    build.onLoad({ filter: /commands[\\/]deploy[\\/]index\.ts$/ }, async ({ path }) => {
       let contents = await readFile(path, 'utf8');
       contents = `import { benchmarkComplete } from ${JSON.stringify(runtime)};\n` + contents;
       contents = replaceOnce(
@@ -48,7 +51,7 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
       );
       return { contents, loader: 'ts' };
     });
-    build.onLoad({ filter: /deployment-artifact-manager\/index\.ts$/ }, async ({ path }) => {
+    build.onLoad({ filter: /deployment-artifact-manager[\\/]index\.ts$/ }, async ({ path }) => {
       let contents = await readFile(path, 'utf8');
       contents = `import { benchmarkReleaseIdentity } from ${JSON.stringify(runtime)};\n` + contents;
       contents = replaceOnce(
