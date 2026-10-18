@@ -828,6 +828,76 @@ describe('a rolling update that finishes once the new tasks serve', () => {
     30_000
   );
 
+  test.each(['failure', 'missing', 'throws'] as const)(
+    'retries a %s task description even when the described subset meets desiredCount',
+    async (scenario) => {
+      let reads = 0;
+      const extra = newTask('extra', { startedBy: 'ecs-svc/2', healthStatus: 'HEALTHY' });
+      const cloudMap = cloudMapWith(() => ['a', 'extra']);
+      const ecs = ecsWith({
+        ecsSend: (async (command: unknown) => {
+          if (command instanceof DescribeServicesCommand) {
+            return { services: [{ ...describedService.services[0], loadBalancers: [] }] };
+          }
+          if (command instanceof ListTasksCommand) return { taskArns: [task.taskArn, extra.taskArn] };
+          if (command instanceof DescribeTasksCommand) {
+            reads += 1;
+            if (reads === 1) {
+              if (scenario === 'throws') throw new Error('temporary ECS failure');
+              return {
+                tasks: [task],
+                ...(scenario === 'failure' && { failures: [{ arn: extra.taskArn, reason: 'MISSING' }] })
+              };
+            }
+            return { tasks: [task, extra] };
+          }
+          return ecsSend(command as never);
+        }) as EcsSend,
+        serviceDiscoverySend: cloudMap.send
+      });
+      expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn, deploymentId: 'ecs-svc/2' })).toEqual({
+        finishedWhen: 'new-instances-discoverable'
+      });
+      expect(reads).toBe(3);
+      expect(cloudMap.discoverReads).toHaveLength(2);
+    },
+    30_000
+  );
+
+  test('discovers all 205 tasks across list pages and describe batches before finishing', async () => {
+    const tasks = Array.from({ length: 205 }, (_, i) =>
+      newTask(`task-${i}`, { startedBy: 'ecs-svc/2', healthStatus: 'HEALTHY' })
+    );
+    const cloudMap = cloudMapWith(() => tasks.map(({ taskArn }) => taskArn!.split('/').at(-1)!));
+    const batches: number[] = [];
+    const ecs = ecsWith({
+      ecsSend: (async (command: unknown) => {
+        if (command instanceof DescribeServicesCommand) {
+          return { services: [{ ...describedService.services[0], desiredCount: 205, loadBalancers: [] }] };
+        }
+        if (command instanceof ListTasksCommand) {
+          const offset = Number(command.input.nextToken ?? 0);
+          return {
+            taskArns: tasks.slice(offset, offset + 100).map(({ taskArn }) => taskArn),
+            ...(offset + 100 < tasks.length && { nextToken: String(offset + 100) })
+          };
+        }
+        if (command instanceof DescribeTasksCommand) {
+          expect(command.input.tasks!.length).toBeLessThanOrEqual(100);
+          batches.push(command.input.tasks!.length);
+          return { tasks: tasks.filter(({ taskArn }) => command.input.tasks!.includes(taskArn!)) };
+        }
+        return ecsSend(command as never);
+      }) as EcsSend,
+      serviceDiscoverySend: cloudMap.send
+    });
+    expect(await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn, deploymentId: 'ecs-svc/2' })).toEqual({
+      finishedWhen: 'new-instances-discoverable'
+    });
+    expect(batches).toEqual([100, 100, 5, 100, 100, 5]);
+    expect(cloudMap.discoverReads).toHaveLength(2);
+  }, 30_000);
+
   test('unchecked discovery falls back to the rollout when discovery is denied, even if ECS reports early success', async () => {
     const service = { ...describedService.services[0], loadBalancers: [] };
     const [primary, ...rest] = service.deployments;
