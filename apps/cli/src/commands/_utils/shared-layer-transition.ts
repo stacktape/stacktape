@@ -28,6 +28,7 @@ export const prepareSharedLayerTransitions = async (
   layers: SharedLayerHotswapInformation[]
 ): Promise<Map<string, { layerArns?: string[]; layerFirst?: boolean }>> => {
   const downloads = new Map<string, Promise<AdmZip>>();
+  const nextZips = new Map<number, Promise<AdmZip>>();
   const publications = new Map<string, Promise<string>>();
   let activeDownloads = 0;
   const waiting: (() => void)[] = [];
@@ -53,6 +54,18 @@ export const prepareSharedLayerTransitions = async (
         })()
       );
     return downloads.get(key)!;
+  };
+  const nextLayerZip = (layerNumber: number) => {
+    if (!nextZips.has(layerNumber))
+      nextZips.set(
+        layerNumber,
+        (async () => {
+          const artifact = packagingManager.getLayerArtifacts().find((layer) => layer.layerNumber === layerNumber)!;
+          if (!existsSync(`${artifact.layerPath}.zip`)) await packagingManager.publishSharedLayer([artifact]);
+          return new AdmZip(await readFile(`${artifact.layerPath}.zip`));
+        })()
+      );
+    return nextZips.get(layerNumber)!;
   };
   const endPreparation = startTiming('fast-deploy:prepare-layers');
   const compatible = createSharedLayerCompatibilityCheck();
@@ -81,11 +94,11 @@ export const prepareSharedLayerTransitions = async (
       layers.find((layer) => layer.layerNumber === layerNumber)!
     );
     const nextLayers = await Promise.all(
-      changed.map(async ({ layerNumber, layerName }) => {
-        const artifact = packagingManager.getLayerArtifacts().find((layer) => layer.layerNumber === layerNumber)!;
-        if (!existsSync(`${artifact.layerPath}.zip`)) await packagingManager.publishSharedLayer([artifact]);
-        return { layerNumber, layerName, zip: new AdmZip(await readFile(`${artifact.layerPath}.zip`)) };
-      })
+      changed.map(async ({ layerNumber, layerName }) => ({
+        layerNumber,
+        layerName,
+        zip: await nextLayerZip(layerNumber)
+      }))
     );
     const nextZip = new AdmZip(
       fn.artifactInfo.artifactPath

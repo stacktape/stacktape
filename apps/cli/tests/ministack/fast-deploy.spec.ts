@@ -748,6 +748,26 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(
       await runInRuntime({ prefix: 'first', code: afterExport[0]!.code, identity: identityOf(afterExport[0]!.tag) })
     ).toBe(`first-v4:new-export:s7:${sharedPayload.length}`);
+
+    // Returning to retained content reuses its S3 object. Concurrent consumers must prepare its local ZIP only once.
+    await writeProjectFiles(project, {
+      'shared.ts': sharedSource('s6'),
+      'first.ts': splitHandler('first', 'v3'),
+      'second.ts': splitHandler('second', 'v1')
+    });
+    const cached = await runSourceCli({
+      project,
+      step: 'update',
+      ministack: throughProxy,
+      logName: 'mixed-cached-layer'
+    });
+    expect(cached.exitCode, cached.tail).toBe(0);
+    expect(missingImports).toEqual([]);
+    const afterCached = await state();
+    expect(afterCached.map(({ code }) => code)).toEqual(afterMixed.map(({ code }) => code));
+    expect(
+      await runInRuntime({ prefix: 'first', code: afterCached[0]!.code, identity: identityOf(afterCached[0]!.tag) })
+    ).toBe(`first-v3:s6:${sharedPayload.length}`);
   } finally {
     try {
       if (deployed) {
