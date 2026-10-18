@@ -88,19 +88,27 @@ import type { JsBundleLambdaPackagingProps } from '@stacktape/config/deployment-
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
-import { formatSharedLayersTag, sharedLayerIdentity } from '@domain-services/deployment-artifact-manager/shared-layers';
+import {
+  formatSharedLayersTag,
+  getFunctionCodeDigest,
+  sharedLayerIdentity
+} from '@domain-services/deployment-artifact-manager/shared-layers';
 
 /**
  * The shared layers tag of a function that uses shared chunk layers: which content each layer had when the function was
  * deployed. A fast deployment reads it to tell whether the function needs a new layer version, and writes it after a
  * direct update, as it does with the code digest tag.
  */
-const getSharedLayersTag = (lambdaName: string) => {
+const getFunctionIdentityTags = (lambdaName: string, digest: string, includeArtifactTag: boolean) => {
   const layers = packagingManager.getLayerNumbersForLambda(lambdaName).flatMap((layerNumber) => {
     const layer = packagingManager.getLayerArtifact(layerNumber);
     return layer ? [{ layerNumber, identity: sharedLayerIdentity(layer.s3Key) }] : [];
   });
-  return layers.length ? [{ name: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [];
+  return [
+    { name: tagNames.codeDigest(), value: getFunctionCodeDigest(digest, layers) },
+    ...(includeArtifactTag ? [{ name: tagNames.artifactDigest(), value: digest }] : []),
+    ...(layers.length ? [{ name: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
+  ];
 };
 
 export const resolveFunctions = async () => {
@@ -619,8 +627,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
 
     functionProperties.Tags = stackManager.getTags([
       ...(tags || []),
-      { name: tagNames.codeDigest(), value: digest },
-      ...getSharedLayersTag(name),
+      ...getFunctionIdentityTags(name, digest, packaging.type !== 'helper-lambda'),
       { name: tagNames.cfAttributionLogicalName(), value: cfLogicalName }
     ]);
   });
@@ -657,8 +664,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     };
 
     functionProperties.Tags = stackManager.getTags([
-      { name: tagNames.codeDigest(), value: digest },
-      ...getSharedLayersTag(name)
+      ...getFunctionIdentityTags(name, digest, packaging.type !== 'helper-lambda')
     ]);
   });
   if (configParentResourceType !== 'batch-job') {

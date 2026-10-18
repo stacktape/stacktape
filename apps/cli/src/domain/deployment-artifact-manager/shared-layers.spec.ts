@@ -5,6 +5,7 @@ import {
   needsLayerRepublish,
   formatSharedLayersTag,
   getDeployedSharedLayers,
+  getFunctionCodeDigest,
   getSharedLayersOfFunctionInTemplate,
   getSharedLayersOfTemplate,
   parseFastDeploymentLayerVersion,
@@ -17,6 +18,13 @@ import {
 } from './shared-layers';
 
 const layerArn = (name: string, version: number) => `arn:aws:lambda:eu-west-1:123456789012:layer:${name}:${version}`;
+
+test('runtime identity changes with a layer even when the function ZIP is unchanged', () => {
+  expect(getFunctionCodeDigest('same-zip', [{ layerNumber: 1, identity: 'old' }])).not.toBe(
+    getFunctionCodeDigest('same-zip', [{ layerNumber: 1, identity: 'new' }])
+  );
+  expect(getFunctionCodeDigest('same-zip')).toBe('same-zip');
+});
 
 /** A template with two functions: `api` uses chunk layer 1 and a user layer, `worker` uses layers 0 and 1. */
 const template = (layerKeys: Record<number, string> = { 0: 'aaaaaaaaaaaa', 1: 'bbbbbbbbbbbb' }) => ({

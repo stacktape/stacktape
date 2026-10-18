@@ -33,9 +33,7 @@ describe('split function digest', () => {
     const distFolderPath = await createFunctionPackage();
     const digest = () =>
       getSplitFunctionDigest({
-        distFolderPath,
-        chunkLayers: [{ layerNumber: 1, contentHash: 'aaaaaaaaaaaa' }],
-        nativeLayer: null
+        distFolderPath
       });
 
     const base = await digest();
@@ -54,9 +52,7 @@ describe('split function digest', () => {
 
     expect(
       await getSplitFunctionDigest({
-        distFolderPath,
-        chunkLayers: [{ layerNumber: 1, contentHash: 'aaaaaaaaaaaa' }],
-        nativeLayer: null
+        distFolderPath
       })
     ).not.toBe(previousFormula);
   });

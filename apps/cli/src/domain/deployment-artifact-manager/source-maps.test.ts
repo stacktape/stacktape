@@ -60,6 +60,40 @@ describe('which stored maps describe each deployed function', () => {
     expect(sourceMapKeyForArtifact('cf-template/v000003.yml')).toBeUndefined();
     expect(sourceMapKeyForArtifact('stacktapeServiceLambda/v000001-h.zip')).toBeUndefined();
   });
+
+  test('layer-only releases reuse the function map object but identify different running module graphs', () => {
+    const release = (digest: string, layerHash: string) =>
+      ({
+        Resources: {
+          ApiFunction: {
+            ...lambda('api', 'api/v000001-samezip.zip', [{ 'Fn::GetAtt': ['Chunks', 'LayerVersionArn'] }]),
+            Properties: {
+              ...lambda('api', 'api/v000001-samezip.zip', [{ 'Fn::GetAtt': ['Chunks', 'LayerVersionArn'] }]).Properties,
+              Tags: [{ Key: 'stp:code-digest', Value: digest }]
+            }
+          },
+          Chunks: layer(`shared-layer-1/${layerHash}.zip`)
+        }
+      }) as unknown as CloudFormationTemplate;
+    const storedKeys = new Set([
+      'source-maps/api/samezip.json',
+      'source-maps/shared-layer-1/old.json',
+      'source-maps/shared-layer-1/new.json'
+    ]);
+    const first = getSourceMapManifest({
+      template: release('runtime-old', 'old'),
+      deploymentBucketName: bucket,
+      storedKeys
+    }).functions[0]!;
+    const second = getSourceMapManifest({
+      template: release('runtime-new', 'new'),
+      deploymentBucketName: bucket,
+      storedKeys
+    }).functions[0]!;
+    expect(first.digest).not.toBe(second.digest);
+    expect(first.sourceMapKeys[0]).toBe(second.sourceMapKeys[0]);
+    expect(first.sourceMapKeys[1]).not.toBe(second.sourceMapKeys[1]);
+  });
 });
 
 describe('which stored maps a deployment deletes', () => {

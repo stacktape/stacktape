@@ -344,10 +344,10 @@ class DeploymentArtifactManager {
     const lambda = configManager.allLambdasToUpload.find((candidate) => candidate.artifactName === artifactName);
     const cfLogicalName = lambda && 'cfLogicalName' in lambda ? lambda.cfLogicalName : undefined;
     if (!cfLogicalName) return false;
-    const runningDigest = getTagValue(
-      stackManager.existingStackResources.find(({ LogicalResourceId }) => LogicalResourceId === cfLogicalName)?.tags,
-      tagNames.codeDigest()
-    );
+    const tags = stackManager.existingStackResources.find(
+      ({ LogicalResourceId }) => LogicalResourceId === cfLogicalName
+    )?.tags;
+    const runningDigest = getTagValue(tags, tagNames.artifactDigest()) ?? getTagValue(tags, tagNames.codeDigest());
     return runningDigest !== undefined && runningDigest !== digest;
   };
 
@@ -713,7 +713,13 @@ class DeploymentArtifactManager {
   };
 
   /** A fast deployment uploads its templates only after it succeeded, in `recordFastRelease`. */
-  uploadAllArtifacts = async ({ includeTemplates }: { includeTemplates: boolean }) => {
+  uploadAllArtifacts = async ({
+    includeTemplates,
+    onSharedLayerUploaded
+  }: {
+    includeTemplates: boolean;
+    onSharedLayerUploaded?: (layerNumber: number) => void;
+  }) => {
     const jobs: (() => Promise<any>)[] = [];
 
     if (includeTemplates) {
@@ -756,7 +762,8 @@ class DeploymentArtifactManager {
 
     // Publish shared Lambda layer if one was built
     if (this.packagingSource.getPendingSharedLayer()) {
-      jobs.push(() => this.uploadSharedLayer());
+      // Make layer objects available first, so version publication can overlap the remaining uploads.
+      jobs.unshift(() => this.uploadSharedLayer({ onLayerUploaded: onSharedLayerUploaded }));
     }
 
     if (jobs.length) {
@@ -1083,7 +1090,7 @@ class DeploymentArtifactManager {
     return { jobName, imageTagWithUrl };
   };
 
-  uploadSharedLayer = async () => {
+  uploadSharedLayer = async ({ onLayerUploaded }: { onLayerUploaded?: (layerNumber: number) => void } = {}) => {
     // Skip if no pending layers
     const pendingLayer = this.packagingSource.getPendingSharedLayer();
     if (!pendingLayer) {
@@ -1112,6 +1119,7 @@ class DeploymentArtifactManager {
     for (const layer of cachedLayers) {
       this.uploadedLayerS3Keys.set(layer.layerNumber, layer.s3Key);
       this.previouslyUploadedS3KeysUsedInDeployment.push(layer.s3Key);
+      onLayerUploaded?.(layer.layerNumber);
     }
 
     // If all layers are cached, skip upload entirely
@@ -1150,6 +1158,7 @@ class DeploymentArtifactManager {
         });
 
         this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
+        onLayerUploaded?.(layer.layerNumber);
         this.successfullyCreatedObjects.push({
           s3Key,
           name: `shared-layer-${layer.layerNumber}`
@@ -1274,7 +1283,15 @@ class DeploymentArtifactManager {
           const layers = [...getSharedLayersOfFunctionInTemplate(template, logicalId)].map(
             ([layerNumber, identity]) => ({ layerNumber, identity })
           );
-          this.#restoredFunctionDigests.push({ logicalId, digest, layers });
+          const artifactDigest =
+            (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
+              ({ Key }) => Key === tagNames.artifactDigest()
+            )?.Value ??
+            (typeof properties.Code.S3Key === 'string'
+              ? parseBucketObjectS3Key(properties.Code.S3Key)?.digest
+              : undefined) ??
+            digest;
+          this.#restoredFunctionDigests.push({ logicalId, digest, artifactDigest, layers });
         }
         const { Code: code } = properties;
         if (code.S3Bucket === this.deploymentBucketName && typeof code.S3Key === 'string') {
@@ -1327,7 +1344,7 @@ class DeploymentArtifactManager {
    * next deployment would update the function once more for nothing.
    */
   repairFunctionTags = async (template: CloudFormationTemplate) => {
-    const repaired = [tagNames.codeDigest(), tagNames.sharedLayers()];
+    const repaired = [tagNames.codeDigest(), tagNames.artifactDigest(), tagNames.sharedLayers()];
     await Promise.all(
       stackManager.existingStackResources
         .filter(({ ResourceType }) => ResourceType === 'AWS::Lambda::Function')
@@ -1349,7 +1366,12 @@ class DeploymentArtifactManager {
     );
   };
 
-  #restoredFunctionDigests: { logicalId: string; digest: string; layers: SharedLayerContent[] }[] = [];
+  #restoredFunctionDigests: {
+    logicalId: string;
+    digest: string;
+    artifactDigest: string;
+    layers: SharedLayerContent[];
+  }[] = [];
 
   /**
    * Sets each restored function's code-digest and shared-layers tags after a rollback. CloudFormation leaves a tag
@@ -1357,7 +1379,7 @@ class DeploymentArtifactManager {
    */
   tagRestoredFunctions = async () => {
     await Promise.all(
-      this.#restoredFunctionDigests.map(async ({ logicalId, digest, layers }) => {
+      this.#restoredFunctionDigests.map(async ({ logicalId, digest, artifactDigest, layers }) => {
         const functionName = stackManager.existingStackResources.find(
           ({ LogicalResourceId }) => LogicalResourceId === logicalId
         )?.PhysicalResourceId;
@@ -1367,6 +1389,7 @@ class DeploymentArtifactManager {
           lambdaArn: FunctionArn,
           tags: [
             { key: tagNames.codeDigest(), value: digest },
+            { key: tagNames.artifactDigest(), value: artifactDigest },
             ...(layers.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
           ]
         });

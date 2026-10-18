@@ -25,6 +25,42 @@ export type FastDeployPlan = {
   layers: SharedLayerHotswapInformation[];
 };
 
+/** Publication starts only after the corresponding object exists. Store failures until every upload has settled. */
+export const createSharedLayerPublication = (plan: FastDeployPlan) => {
+  const changed = new Set(
+    plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
+  );
+  const layers = plan.layers.filter(({ layerNumber }) => changed.has(layerNumber));
+  const publications = new Map<number, Promise<{ arns: Map<number, string> } | { error: unknown }>>();
+  const onLayerUploaded = (layerNumber: number) => {
+    const layer = layers.find((candidate) => candidate.layerNumber === layerNumber);
+    if (!layer || publications.has(layerNumber)) return;
+    publications.set(
+      layerNumber,
+      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' }).then(
+        (arns) => ({ arns }),
+        (error: unknown) => ({ error })
+      )
+    );
+  };
+  return {
+    onLayerUploaded,
+    settle: async () => {
+      await Promise.all(publications.values());
+    },
+    wait: async () => {
+      const results = await Promise.all(publications.values());
+      if (publications.size !== layers.length) throw new Error('A shared layer object was not uploaded.');
+      const arns = new Map<number, string>();
+      for (const result of results) {
+        if ('error' in result) throw result.error;
+        for (const [number, arn] of result.arns) arns.set(number, arn);
+      }
+      return arns;
+    }
+  };
+};
+
 /**
  * Finds the functions and container services whose running code differs from this deployment. Returns a reason
  * instead when one of them cannot be updated directly.
@@ -102,41 +138,60 @@ export const performFastDeploy = async ({
   plan,
   recordRelease,
   deploymentArtifacts,
-  progress
-}: { plan: FastDeployPlan; recordRelease: boolean } & Pick<DeployOperation, 'deploymentArtifacts' | 'progress'>) => {
+  progress,
+  layerVersions
+}: { plan: FastDeployPlan; recordRelease: boolean; layerVersions?: Promise<Map<number, string>> } & Pick<
+  DeployOperation,
+  'deploymentArtifacts' | 'progress'
+>) => {
   const workloadCount = plan.functions.length + plan.services.length;
   await progress.startEvent({ eventType: 'HOTSWAP_UPDATE', description: 'Updating code directly' });
-  // The layer versions exist before any function changes: a function given its new code first would import shared
-  // code that is not there yet, and a layer that cannot be published leaves every function as it was.
+  // Publication and bridge preparation are independent. Functions whose layers stay unchanged can also update while
+  // those run; a consumer of changed layers waits for both before its first mutation.
   const changedLayerNumbers = new Set(
     plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
   );
-  const layerArns = await resolveSharedLayerVersions(
-    plan.layers.filter(({ layerNumber }) => changedLayerNumbers.has(layerNumber))
-  ).catch((error: ExpectedErrorType) => {
-    throw new ExpectedError('STACK', `Publishing the shared layers failed: ${error?.message ?? error}`, [
-      'No function or service was changed.',
-      'Fix the problem and deploy again.'
-    ]);
-  });
+  const publication = (
+    layerVersions ??
+    resolveSharedLayerVersions(plan.layers.filter(({ layerNumber }) => changedLayerNumbers.has(layerNumber)))
+  ).then(
+    (arns) => ({ arns }),
+    (error: unknown) => ({ error })
+  );
   const serviceUpdates: Parameters<typeof rolloutWaitHint>[0] = [];
-  const transitions = await prepareSharedLayerTransitions(plan.functions, plan.layers).catch((error: unknown) => {
-    throw new CliError({
-      category: 'DEPLOYMENT',
-      code: 'SHARED_LAYER_TRANSITION_FAILED',
-      message: `Could not prepare a safe shared-layer transition: ${error instanceof Error ? error.message : String(error)}`,
-      hints: ['No function or service was changed. Fix the problem and deploy again, or use --fullDeploy.']
-    });
-  });
+  const preparation = prepareSharedLayerTransitions(plan.functions, plan.layers).then(
+    (transitions) => ({ transitions }),
+    (error: unknown) => ({
+      error: new CliError({
+        category: 'DEPLOYMENT',
+        code: 'SHARED_LAYER_TRANSITION_FAILED',
+        message: `Could not prepare a safe shared-layer transition: ${error instanceof Error ? error.message : String(error)}`,
+        hints: ['Fix the problem and deploy again, or use --fullDeploy.']
+      })
+    })
+  );
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
   const updates = [
     ...plan.functions.map((update) => ({
       name: update.workloadName,
       run: async () => {
+        let layerArns: Map<number, string> | undefined;
+        let transitionalLayerArns: string[] | undefined;
+        if (update.changedLayers.length) {
+          const result = await publication;
+          if ('error' in result)
+            throw new Error(
+              `Publishing the shared layers failed: ${result.error instanceof Error ? result.error.message : String(result.error)}`
+            );
+          layerArns = result.arns;
+          const prepared = await preparation;
+          if ('error' in prepared) throw prepared.error;
+          transitionalLayerArns = prepared.transitions.get(update.lambdaResourceName);
+        }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,
-          transitionalLayerArns: transitions.get(update.lambdaResourceName),
+          transitionalLayerArns,
           deferFinalTags: recordRelease,
           ...(update.changedLayers.length ? { layerArns } : {})
         });
@@ -150,6 +205,9 @@ export const performFastDeploy = async ({
     }))
   ];
   const results = await Promise.allSettled(updates.map(({ run }) => run()));
+  // A publication failure can be reported before bridge preparation finishes. Settle every started request before
+  // returning, including when no shared consumer reached its first mutation.
+  await Promise.all([publication, preparation]);
   const failed = updates.filter((_, index) => results[index].status === 'rejected');
   if (failed.length) {
     // Preserve the identities of successful partial updates for source-map activation. A failed workload still

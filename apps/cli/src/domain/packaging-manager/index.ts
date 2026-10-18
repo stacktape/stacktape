@@ -17,6 +17,8 @@ import type {
 import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import AdmZip from 'adm-zip';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
@@ -25,6 +27,14 @@ import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import {
+  getTagValue,
+  parseSharedLayersTag,
+  layerNameOfArn
+} from '@domain-services/deployment-artifact-manager/shared-layers';
+import { tagNames } from '@stacktape/naming/tag-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
@@ -566,7 +576,8 @@ export class PackagingManager {
   #packageNodeLambdasWithSplitBundling = async ({
     nodeLambdas,
     commandCanUseCache,
-    packageAnalysisCache
+    packageAnalysisCache,
+    chunkNaming = 'input-set'
   }: {
     nodeLambdas: Array<{
       name: string;
@@ -577,6 +588,7 @@ export class PackagingManager {
     }>;
     commandCanUseCache: boolean;
     packageAnalysisCache: PackageAnalysisCache;
+    chunkNaming?: 'input-set' | 'content';
   }): Promise<void> => {
     if (nodeLambdas.length === 0) return;
     this.#layerArtifacts = [];
@@ -665,6 +677,7 @@ export class PackagingManager {
     // Every function in a split build has the same architecture.
     const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
     const splitResult = await buildSplitBundle({
+      chunkNaming,
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
       cwd: globalStateManager.workingDir,
@@ -924,12 +937,7 @@ export class PackagingManager {
       const endDigest = startTiming('split:function-digest', { job: jobName });
       const digest = await getSplitFunctionDigest({
         distFolderPath,
-        sourceMapsSha256: sourceMaps?.sha256,
-        chunkLayers: Array.from(layerNumbers ?? []).map((layerNumber) => ({
-          layerNumber,
-          contentHash: this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber)?.contentHash
-        })),
-        nativeLayer: nativeLayer ? { layerNumber: nativeLayer.layerNumber, contentHash: nativeLayer.contentHash } : null
+        sourceMapsSha256: sourceMaps?.sha256
       });
       endDigest();
 
@@ -1020,6 +1028,73 @@ export class PackagingManager {
     });
 
     await this.#waitForAllOrThrow(zipPromises);
+    if (chunkNaming === 'input-set' && (await this.#stableChunksNeedContentNames(nodeLambdas))) {
+      // Bun renames symbols globally. If that changes an entry as well as a shared chunk at the same stable path,
+      // those generations cannot coexist in a bridge. Rebuild this group with graph/content names before upload.
+      const jobs = new Set(nodeLambdas.map(({ name, type }) => getJobName({ workloadName: name, workloadType: type })));
+      this.#packagedJobs = this.#packagedJobs.filter(({ jobName }) => !jobs.has(jobName));
+      await this.#packageNodeLambdasWithSplitBundling({
+        nodeLambdas,
+        commandCanUseCache,
+        packageAnalysisCache,
+        chunkNaming: 'content'
+      });
+    }
+  };
+
+  #stableChunksNeedContentNames = async (nodeLambdas: { name: string; type: string }[]): Promise<boolean> => {
+    if (stackManager.stackActionType !== 'update' || !this.#layerArtifacts.length) return false;
+    const oldLayers = new Map<string, Promise<AdmZip>>();
+    let nextFiles: Map<string, Buffer> | undefined;
+    const chunkLayerNames = new Set(
+      this.#layerArtifacts.map(({ layerNumber }) =>
+        awsResourceNames.sharedChunkLayer({
+          stackName: globalStateManager.targetStack.stackName,
+          layerNumber
+        })
+      )
+    );
+    for (const { name, type } of nodeLambdas) {
+      const resource = configManager.allUserCodeLambdas.find((lambda) => lambda.name === name);
+      if (!resource || !('cfLogicalName' in resource)) continue;
+      const deployed = stackManager.existingStackResources.find(
+        ({ LogicalResourceId }) => LogicalResourceId === resource.cfLogicalName
+      );
+      const artifactDigest = getTagValue(deployed?.tags, tagNames.artifactDigest());
+      const output = this.getPackagingOutputForJob(getJobName({ workloadName: name, workloadType: type }));
+      // Older builds used content names and cannot conflict with input-set names. The first deployment adopts them.
+      if (!artifactDigest || artifactDigest === output?.digest) continue;
+      const identities = parseSharedLayersTag(getTagValue(deployed?.tags, tagNames.sharedLayers()));
+      const changedLayer = [...(this.#lambdaLayerMap.get(name) ?? [])].some(
+        (number) => identities?.get(number) !== this.getLayerArtifact(number)?.contentHash
+      );
+      if (!changedLayer) continue;
+      if (!nextFiles) {
+        nextFiles = new Map();
+        for (const layer of this.#layerArtifacts)
+          for (const chunk of layer.chunks) {
+            nextFiles.set(`nodejs/chunks/${chunk}`, await readFile(join(layer.layerPath, 'nodejs', 'chunks', chunk)));
+          }
+      }
+      for (const arn of await awsSdkManager.lambda.getFunctionLayerArns({
+        lambdaResourceName: resource!.resourceName
+      })) {
+        if (!chunkLayerNames.has(layerNameOfArn(arn)!)) continue;
+        if (!oldLayers.has(arn))
+          oldLayers.set(
+            arn,
+            (async () => {
+              const version = await awsSdkManager.lambda.getLayerVersion({ arn });
+              return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: version.Content?.Location }));
+            })()
+          );
+        for (const entry of (await oldLayers.get(arn)!).getEntries()) {
+          const next = nextFiles.get(entry.entryName);
+          if (next && !next.equals(entry.getData())) return true;
+        }
+      }
+    }
+    return false;
   };
 
   packageAllWorkloads = async ({

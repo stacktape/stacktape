@@ -48,7 +48,7 @@ import {
 } from '../es/import-classification';
 import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
-import { normalizeSplitBuildIdentity, projectRelativeSource } from '../es/artifact-identity';
+import { normalizeSplitBuildIdentity, projectRelativeSource, resolveBunOutputPath } from '../es/artifact-identity';
 import { resolvePrisma } from '../bundlers/es/utils';
 import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
@@ -75,6 +75,7 @@ export const buildSplitBundle = async ({
   minifyIdentifiers = false,
   sourceMaps = 'external',
   sourceMapBannerType = 'pre-compiled',
+  chunkNaming = 'input-set',
   excludeDependencies = [],
   dependenciesToExcludeFromBundle = [],
   bundleAwsSdk = false,
@@ -112,6 +113,7 @@ export const buildSplitBundle = async ({
     minifyIdentifiers,
     sourceMaps,
     sourceMapBannerType,
+    chunkNaming,
     excludeDependencies,
     dependenciesToExcludeFromBundle,
     bundleAwsSdk,
@@ -230,7 +232,8 @@ const executeBunBuild = async ({
   aliases,
   tracker,
   packageAnalysisCache,
-  createPackagingError
+  createPackagingError,
+  chunkNaming
 }: AnalyzePluginOptions & {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   sharedOutdir: string;
@@ -239,6 +242,7 @@ const executeBunBuild = async ({
   minifyIdentifiers: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
+  chunkNaming: 'input-set' | 'content';
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
   /** The emitted files after identity normalization: their final paths, kinds and sizes. */
@@ -342,6 +346,7 @@ const executeBunBuild = async ({
     javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     projectRoot: monorepoRoot || cwd,
     sourcesResolveFrom: sharedOutdir,
+    chunkNaming,
     chunkKeys: new Map(
       Object.entries(result.metafile!.outputs)
         .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
@@ -349,7 +354,14 @@ const executeBunBuild = async ({
           basename(path, '.js'),
           JSON.stringify(
             Object.keys(output.inputs)
-              .map((input) => projectRelativeSource(canonicalizeEntrypointPath(input), monorepoRoot || cwd))
+              .map((input) => {
+                // Entrypoint lookup folds Windows case; artifact identities must preserve the project's file names.
+                const absolute = resolveBunOutputPath(process.cwd(), input);
+                return projectRelativeSource(
+                  existsSync(absolute) ? realpathSync(absolute) : absolute,
+                  monorepoRoot || cwd
+                );
+              })
               .toSorted()
           )
         ])
