@@ -17,6 +17,7 @@ import { configManager } from '@domain-services/config-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { updateEcsService } from '../../src/commands/_utils/cw-deployment';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
@@ -649,6 +650,58 @@ describe('container rolling deployment family', () => {
     // A worker receives no traffic, and its configured stop timeout wins over the default.
     expect(deploymentConfiguration(template, 'worker').EarlySuccessCriteria).toEqual(earlySuccess);
     expect(stopTimeouts(template, 'worker')).toEqual([10]);
+  });
+
+  test('an HTTP API with only a non-essential sidecar check uses unchecked discovery and says so', async () => {
+    await synthesizeFamily('container-sidecar-health-hotswap', config());
+    const original = configManager.allContainerWorkloads.find(({ name }) => name === 'apiWeb')!;
+    const workload = {
+      ...original,
+      containers: [
+        ...original.containers,
+        {
+          ...original.containers[0],
+          name: 'telemetry',
+          essential: false,
+          events: [],
+          internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
+        }
+      ]
+    };
+    const logger = operationReporter.createChildLogger({
+      parentEventType: 'HOTSWAP_UPDATE',
+      instanceId: workload.name
+    });
+    const loggerSpy = spyOn(operationReporter, 'createChildLogger').mockReturnValue(logger);
+    const finishSpy = spyOn(logger, 'finishEvent');
+    const startSpy = spyOn(awsSdkManager.ecs, 'startRollingUpdate').mockResolvedValue({ deploymentId: 'ecs-svc/2' });
+    const waitSpy = spyOn(awsSdkManager.ecs, 'waitForRollingUpdate').mockResolvedValue({
+      finishedWhen: 'new-instances-discoverable'
+    });
+    try {
+      await updateEcsService({
+        workload,
+        ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
+        blueGreen: false,
+        ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },
+        ecsService: { needsUpdate: true, currentState: {} }
+      } as unknown as Parameters<typeof updateEcsService>[0]);
+      expect(waitSpy).toHaveBeenCalledWith({
+        ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
+        deploymentId: 'ecs-svc/2',
+        allowUncheckedDiscovery: true
+      });
+      expect(finishSpy).toHaveBeenCalledWith({
+        eventType: 'UPDATE_ECS_SERVICE',
+        finalMessage:
+          "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background"
+      });
+    } finally {
+      waitSpy.mockRestore();
+      startSpy.mockRestore();
+      finishSpy.mockRestore();
+      loggerSpy.mockRestore();
+    }
   });
 
   test('a hotswap sends the overridden deployment configuration that CloudFormation receives', async () => {

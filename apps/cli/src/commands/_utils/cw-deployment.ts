@@ -35,6 +35,7 @@ import { lowerCaseFirstCharacterOfEveryWord, lowerCaseFirstCharacterOfObjectKeys
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloudformation';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { hasApplicationHealthCheck } from './container-health';
 import set from 'lodash/set';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 
@@ -378,7 +379,7 @@ export const updateEcsService = async ({
           allowUncheckedDiscovery:
             workload.configParentResourceType === 'web-service' &&
             workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
-            !workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+            !hasApplicationHealthCheck(workload.containers)
         }));
       }
     } finally {
@@ -391,7 +392,7 @@ export const updateEcsService = async ({
         // The load balancer and API Gateway start routing to the new containers within seconds; no AWS API shows when.
         'new-targets-healthy':
           'New version healthy and registered with the load balancer; traffic moves to it within seconds. Old containers drain in the background',
-        'new-instances-discoverable': workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+        'new-instances-discoverable': hasApplicationHealthCheck(workload.containers)
           ? "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background"
           : "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background",
         'new-targets-healthy-and-instances-discoverable':

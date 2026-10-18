@@ -3,6 +3,7 @@ import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { tuiManager } from '@application-services/tui-manager';
 import type { ExpectedError as ExpectedErrorType } from '@utils/errors';
 import { CliError, ExpectedError } from '@utils/errors';
+import { hasApplicationHealthCheck } from '../_utils/container-health';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import {
   deleteSupersededSharedLayerVersions,
@@ -25,19 +26,19 @@ export type FastDeployPlan = {
   layers: SharedLayerHotswapInformation[];
 };
 
-/** Publication starts only after the corresponding object exists. Store failures until every upload has settled. */
+/** Publish local ZIPs alongside uploads; cached layers can still publish from S3. Settle failures before returning. */
 export const createSharedLayerPublication = (plan: FastDeployPlan) => {
   const changed = new Set(
     plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
   );
   const layers = plan.layers.filter(({ layerNumber }) => changed.has(layerNumber));
   const publications = new Map<number, Promise<{ arns: Map<number, string> } | { error: unknown }>>();
-  const onLayerUploaded = (layerNumber: number) => {
+  const onLayerUploaded = (layerNumber: number, zipPath?: string) => {
     const layer = layers.find((candidate) => candidate.layerNumber === layerNumber);
     if (!layer || publications.has(layerNumber)) return;
     publications.set(
       layerNumber,
-      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' }).then(
+      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS', zipPath }).then(
         (arns) => ({ arns }),
         (error: unknown) => ({ error })
       )
@@ -114,7 +115,7 @@ export const rolloutWaitHint = (
         (finishedWhen === 'new-instances-discoverable' || finishedWhen === 'rollout-completed') &&
         workload.configParentResourceType === 'web-service' &&
         workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
-        !workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+        !hasApplicationHealthCheck(workload.containers)
     )
     .map(({ workload }) => workload.nameChain[0]);
   if (!names.length) return undefined;
@@ -141,7 +142,7 @@ export const performFastDeploy = async ({
   const workloadCount = plan.functions.length + plan.services.length;
   await progress.startEvent({ eventType: 'HOTSWAP_UPDATE', description: 'Updating code directly' });
   // Publication and bridge preparation are independent. Functions whose layers stay unchanged can also update while
-  // those run; a consumer of changed layers waits for both before its first mutation.
+  // those run. Layer-only consumers wait for publication; mixed edits also wait for preparation.
   const changedLayerNumbers = new Set(
     plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
   );
@@ -172,6 +173,7 @@ export const performFastDeploy = async ({
       run: async () => {
         let layerArns: Map<number, string> | undefined;
         let transitionalLayerArns: string[] | undefined;
+        let layerFirst = false;
         if (update.changedLayers.length) {
           const result = await publication;
           if ('error' in result)
@@ -179,13 +181,18 @@ export const performFastDeploy = async ({
               `Publishing the shared layers failed: ${result.error instanceof Error ? result.error.message : String(result.error)}`
             );
           layerArns = result.arns;
-          const prepared = await preparation;
-          if ('error' in prepared) throw prepared.error;
-          transitionalLayerArns = prepared.transitions.get(update.lambdaResourceName);
+          if (update.codeChanged) {
+            const prepared = await preparation;
+            if ('error' in prepared) throw prepared.error;
+            const transition = prepared.transitions.get(update.lambdaResourceName);
+            transitionalLayerArns = transition?.layerArns;
+            layerFirst = transition?.layerFirst ?? false;
+          }
         }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,
           transitionalLayerArns,
+          layerFirst,
           deferFinalTags: recordRelease,
           ...(update.changedLayers.length ? { layerArns } : {})
         });

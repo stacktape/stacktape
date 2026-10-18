@@ -17,7 +17,14 @@ mock.module('../_utils/cw-deployment', () => ({
 /** What the fast deployment did, in order: layer resolutions, function updates and the final cleanup. */
 const steps: { step: string; layerArns?: Record<number, string> }[] = [];
 let failLayerPublication = false;
-mock.module('../_utils/shared-layer-transition', () => ({ prepareSharedLayerTransitions: async () => new Map() }));
+let preparationBarrier: Promise<void> | undefined;
+let onFunctionUpdate: ((name: string) => void) | undefined;
+mock.module('../_utils/shared-layer-transition', () => ({
+  prepareSharedLayerTransitions: async () => {
+    await preparationBarrier;
+    return new Map();
+  }
+}));
 mock.module('../_utils/fn-deployment', () => ({
   getLambdaFunctionHotswapInformation: () => ({}),
   getSharedLayerHotswapInformation: () => [],
@@ -40,6 +47,7 @@ mock.module('../_utils/fn-deployment', () => ({
       step: `function:${workloadName}`,
       ...(layerArns ? { layerArns: Object.fromEntries(layerArns) } : {})
     });
+    onFunctionUpdate?.(workloadName);
     const tagUpdatedFunction = async () => {
       steps.push({ step: `tag:${workloadName}` });
     };
@@ -110,6 +118,41 @@ describe('a fast deployment with shared layers', () => {
       1: 'arn:layer:1'
     });
     expect(steps.at(-1)).toEqual({ step: 'cleanup:stack-api,stack-report' });
+  });
+
+  test('layer-only consumers can update while a mixed edit still prepares its transition', async () => {
+    steps.length = 0;
+    let releasePreparation!: () => void;
+    preparationBarrier = new Promise((resolve) => {
+      releasePreparation = resolve;
+    });
+    let layerUpdated!: () => void;
+    const layerUpdate = new Promise<void>((resolve) => {
+      layerUpdated = resolve;
+    });
+    onFunctionUpdate = (name) => {
+      if (name === 'layer-only') layerUpdated();
+    };
+    const plan = {
+      functions: [
+        { ...lambda('mixed', [1]), codeChanged: true },
+        { ...lambda('layer-only', [1]), codeChanged: false }
+      ],
+      services: [],
+      layers: [{ layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    const deployment = performFastDeploy({ plan, recordRelease: false, progress, deploymentArtifacts: {} } as never);
+    try {
+      await layerUpdate;
+      expect(steps.some(({ step }) => step === 'function:layer-only')).toBe(true);
+      expect(steps.some(({ step }) => step === 'function:mixed')).toBe(false);
+    } finally {
+      releasePreparation();
+      await deployment;
+      preparationBarrier = undefined;
+      onFunctionUpdate = undefined;
+    }
+    expect(steps.some(({ step }) => step === 'function:mixed')).toBe(true);
   });
 
   test('changes no function when a layer cannot be published, and says so', async () => {
@@ -189,6 +232,18 @@ describe('the hint after a fast deploy without an application health check', () 
         'and automatic rollback: https://docs.stacktape.com/resources/compute/web-service/#health-checks'
     ]);
     expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain(
+      'Application health is unchecked for api.'
+    );
+  });
+
+  test('still warns when only a non-essential sidecar has a health check', async () => {
+    const workload = webService('api');
+    workload.containers.push({
+      name: 'telemetry',
+      essential: false,
+      internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
+    } as StpContainerWorkload['containers'][number]);
+    expect((await deploy([[workload, 'new-instances-discoverable']]))[0]).toContain(
       'Application health is unchecked for api.'
     );
   });

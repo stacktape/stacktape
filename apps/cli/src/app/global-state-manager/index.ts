@@ -558,9 +558,9 @@ export class GlobalStateManager {
 
     // loading method API
     const loadCredentialsUsingApi = async (): Promise<LoadedAwsCredentials> => {
-      const { credentials } = await stacktapeTrpcApiManager.apiClient.awsAccountCredentials({
-        awsAccountName: this.targetAwsAccount.name
-      });
+      const { credentials } = await timeAsync('credentials:console', () =>
+        stacktapeTrpcApiManager.apiClient.awsAccountCredentials({ awsAccountName: this.targetAwsAccount.name })
+      );
       return { ...credentials, expiration: new Date(credentials.expiration), source: 'api' } as LoadedAwsCredentials;
     };
 

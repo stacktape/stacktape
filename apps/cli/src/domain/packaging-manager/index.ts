@@ -17,9 +17,13 @@ import type {
 import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import AdmZip from 'adm-zip';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import {
+  archiveFiles,
+  createSharedLayerCompatibilityCheck
+} from '@domain-services/deployment-artifact-manager/shared-layer-compatibility';
+import { dirname, isAbsolute, join, resolve, relative } from 'node:path';
 import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -240,6 +244,43 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  // Packaging and transition preparation inspect the same deployed generation before any function mutation.
+  #deployedFunctions = new Map<string, ReturnType<typeof awsSdkManager.lambda.getFunctionDeployment>>();
+  #deployedFunctionZips = new Map<string, Promise<AdmZip>>();
+  #deployedLayerZips = new Map<string, Promise<AdmZip>>();
+
+  getDeployedFunction = (lambdaResourceName: string) => {
+    if (!this.#deployedFunctions.has(lambdaResourceName))
+      this.#deployedFunctions.set(
+        lambdaResourceName,
+        awsSdkManager.lambda.getFunctionDeployment({ lambdaResourceName })
+      );
+    return this.#deployedFunctions.get(lambdaResourceName)!;
+  };
+
+  getDeployedFunctionZip = (lambdaResourceName: string): Promise<AdmZip> => {
+    if (!this.#deployedFunctionZips.has(lambdaResourceName))
+      this.#deployedFunctionZips.set(
+        lambdaResourceName,
+        (async () => {
+          const current = await this.getDeployedFunction(lambdaResourceName);
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: current.Code?.Location }));
+        })()
+      );
+    return this.#deployedFunctionZips.get(lambdaResourceName)!;
+  };
+
+  getDeployedLayerZip = (arn: string): Promise<AdmZip> => {
+    if (!this.#deployedLayerZips.has(arn))
+      this.#deployedLayerZips.set(
+        arn,
+        (async () => {
+          const version = await awsSdkManager.lambda.getLayerVersion({ arn });
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: version.Content?.Location }));
+        })()
+      );
+    return this.#deployedLayerZips.get(arn)!;
+  };
   #layerArtifacts: Array<{
     layerNumber: number;
     layerPath: string;
@@ -392,6 +433,9 @@ export class PackagingManager {
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
+    this.#deployedFunctions.clear();
+    this.#deployedFunctionZips.clear();
+    this.#deployedLayerZips.clear();
     this.#layerArtifacts = [];
     this.#nativeBinaryLayers = [];
     this.#lambdaLayerMap.clear();
@@ -1029,8 +1073,7 @@ export class PackagingManager {
 
     await this.#waitForAllOrThrow(zipPromises);
     if (chunkNaming === 'input-set' && (await this.#stableChunksNeedContentNames(nodeLambdas))) {
-      // Bun renames symbols globally. If that changes an entry as well as a shared chunk at the same stable path,
-      // those generations cannot coexist in a bridge. Rebuild this group with graph/content names before upload.
+      // Only incompatible module interfaces need content names so both generations can coexist in a bridge.
       const jobs = new Set(nodeLambdas.map(({ name, type }) => getJobName({ workloadName: name, workloadType: type })));
       this.#packagedJobs = this.#packagedJobs.filter(({ jobName }) => !jobs.has(jobName));
       await this.#packageNodeLambdasWithSplitBundling({
@@ -1044,8 +1087,12 @@ export class PackagingManager {
 
   #stableChunksNeedContentNames = async (nodeLambdas: { name: string; type: string }[]): Promise<boolean> => {
     if (stackManager.stackActionType !== 'update' || !this.#layerArtifacts.length) return false;
-    const oldLayers = new Map<string, Promise<AdmZip>>();
-    let nextFiles: Map<string, Buffer> | undefined;
+    const endCompatibility = startTiming('split:check-layer-compatibility');
+    const compatible = createSharedLayerCompatibilityCheck();
+    const nextFiles = new Map<string, Buffer>();
+    for (const layer of this.#layerArtifacts)
+      for (const chunk of layer.chunks)
+        nextFiles.set(`nodejs/chunks/${chunk}`, await readFile(join(layer.layerPath, 'nodejs', 'chunks', chunk)));
     const chunkLayerNames = new Set(
       this.#layerArtifacts.map(({ layerNumber }) =>
         awsResourceNames.sharedChunkLayer({
@@ -1054,47 +1101,73 @@ export class PackagingManager {
         })
       )
     );
-    for (const { name, type } of nodeLambdas) {
+    const check = async ({ name, type }: { name: string; type: string }): Promise<boolean> => {
       const resource = configManager.allUserCodeLambdas.find((lambda) => lambda.name === name);
-      if (!resource || !('cfLogicalName' in resource)) continue;
+      if (!resource || !('cfLogicalName' in resource)) return false;
       const deployed = stackManager.existingStackResources.find(
         ({ LogicalResourceId }) => LogicalResourceId === resource.cfLogicalName
       );
       const artifactDigest = getTagValue(deployed?.tags, tagNames.artifactDigest());
       const output = this.getPackagingOutputForJob(getJobName({ workloadName: name, workloadType: type }));
       // Older builds used content names and cannot conflict with input-set names. The first deployment adopts them.
-      if (!artifactDigest || artifactDigest === output?.digest) continue;
+      if (!artifactDigest || artifactDigest === output?.digest) return false;
       const identities = parseSharedLayersTag(getTagValue(deployed?.tags, tagNames.sharedLayers()));
       const changedLayer = [...(this.#lambdaLayerMap.get(name) ?? [])].some(
         (number) => identities?.get(number) !== this.getLayerArtifact(number)?.contentHash
       );
-      if (!changedLayer) continue;
-      if (!nextFiles) {
-        nextFiles = new Map();
-        for (const layer of this.#layerArtifacts)
-          for (const chunk of layer.chunks) {
-            nextFiles.set(`nodejs/chunks/${chunk}`, await readFile(join(layer.layerPath, 'nodejs', 'chunks', chunk)));
-          }
-      }
-      for (const arn of await awsSdkManager.lambda.getFunctionLayerArns({
-        lambdaResourceName: resource!.resourceName
-      })) {
-        if (!chunkLayerNames.has(layerNameOfArn(arn)!)) continue;
-        if (!oldLayers.has(arn))
-          oldLayers.set(
-            arn,
-            (async () => {
-              const version = await awsSdkManager.lambda.getLayerVersion({ arn });
-              return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: version.Content?.Location }));
-            })()
-          );
-        for (const entry of (await oldLayers.get(arn)!).getEntries()) {
+      if (!changedLayer) return false;
+      const current = await this.getDeployedFunction(resource.resourceName);
+      const oldFiles = new Map<string, Buffer>();
+      let conflict = false;
+      for (const { Arn: arn } of current.Configuration?.Layers ?? []) {
+        if (!arn || !chunkLayerNames.has(layerNameOfArn(arn)!)) continue;
+        for (const entry of (await this.getDeployedLayerZip(arn)).getEntries()) {
+          if (entry.isDirectory) continue;
+          const data = entry.getData();
+          oldFiles.set(`/opt/${entry.entryName}`, data);
           const next = nextFiles.get(entry.entryName);
-          if (next && !next.equals(entry.getData())) return true;
+          if (next && !next.equals(data)) conflict = true;
         }
       }
-    }
-    return false;
+      if (conflict) {
+        const oldFunction = await this.getDeployedFunctionZip(resource.resourceName);
+        const nextPath = fsPaths.absoluteLambdaArtifactFolderPath({
+          jobName: getJobName({ workloadName: name, workloadType: type }),
+          invocationId: globalStateManager.invocationId
+        });
+        const functionFiles = new Map<string, Buffer>();
+        const collect = async (dir: string) => {
+          for (const entry of await readdir(dir, { withFileTypes: true })) {
+            const path = join(dir, entry.name);
+            if (entry.isDirectory()) await collect(path);
+            else functionFiles.set(`/var/task/${relative(nextPath, path).replaceAll('\\', '/')}`, await readFile(path));
+          }
+        };
+        await collect(nextPath);
+        if (
+          !compatible({
+            oldFunction: archiveFiles(oldFunction, '/var/task'),
+            nextFunction: functionFiles,
+            oldLayers: oldFiles,
+            nextLayers: new Map([...nextFiles].map(([path, data]) => [`/opt/${path}`, data]))
+          }).layerFirst
+        )
+          return true;
+      }
+      return false;
+    };
+    let cursor = 0;
+    let incompatible = false;
+    const results = await Promise.allSettled(
+      Array.from({ length: Math.min(4, nodeLambdas.length) }, async () => {
+        while (!incompatible && cursor < nodeLambdas.length)
+          if (await check(nodeLambdas[cursor++]!)) incompatible = true;
+      })
+    );
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed?.status === 'rejected') throw failed.reason;
+    endCompatibility({ incompatible });
+    return incompatible;
   };
 
   packageAllWorkloads = async ({
