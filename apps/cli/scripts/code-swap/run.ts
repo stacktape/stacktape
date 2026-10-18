@@ -34,7 +34,7 @@ import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { buildSupervisor } from './build-supervisor';
-import { calibrateClock } from './analyze';
+import { analyzeBenchmark, calibrateClock } from './analyze';
 import type { BenchmarkRun } from './runtime';
 
 const ACCOUNT = '597581086285',
@@ -739,6 +739,9 @@ const main = async () => {
       console.error(new AggregateError(errors, 'Benchmark cleanup incomplete'));
     }
   }
+  const report = await analyzeBenchmark(directory);
+  console.log(`Phase-1 decision: ${report.go ? 'GO' : 'NO-GO'}. Report: ${join(directory, 'summary.json')}`);
+  if (!report.go) process.exitCode = 1;
 };
 if (import.meta.main)
   main().catch((error) => {

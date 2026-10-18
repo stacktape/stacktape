@@ -70,9 +70,7 @@ export const passesServingGate = (
   swap.max <= 25 &&
   swap.p50 <= image.p50 / 2 &&
   swap.p95 <= image.p95 / 2;
-const main = async () => {
-  const directory = resolve(process.argv[2] ?? '');
-  if (!process.argv[2]) throw new Error('Pass the owned run directory.');
+export const analyzeBenchmark = async (directory: string) => {
   const report: { configurations: unknown[]; go: boolean; clockSource: string } = {
     configurations: [],
     go: true,
@@ -214,7 +212,13 @@ const main = async () => {
       report.go &&= go;
     }
   await writeFile(join(directory, 'summary.json'), JSON.stringify(report, null, 2));
+  return report;
+};
+const main = async () => {
+  if (!process.argv[2]) throw new Error('Pass the owned run directory.');
+  const report = await analyzeBenchmark(resolve(process.argv[2]));
   console.log(JSON.stringify(report, null, 2));
+  if (!report.go) process.exitCode = 1;
 };
 if (import.meta.main)
   main().catch((error) => {

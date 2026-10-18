@@ -91,3 +91,6 @@ every raw sample, failure and outlier. Report first/all-task serving, old-proces
 matched image times. Every Node configuration must have serving p50 ≤5 s, p95 ≤15 s, maximum ≤25 s, p50/p95 at most half
 the image control, and zero memory fallbacks. A miss stops later safety phases pending investigation and a new explicit
 go/no-go result.
+
+Both the runner (after cleanup) and standalone analysis exit nonzero for a no-go result. Partial runs still retain their
+recovery state and raw measurements for standalone analysis.
