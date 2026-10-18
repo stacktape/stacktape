@@ -152,6 +152,22 @@ const main = async () => {
         swap.failures === 0 &&
         swap.memoryFallbacks === 0 &&
         swap.replacedDuringSwap === 0;
+      let continuous: { status: number; error?: string }[] = [];
+      let continuousSource: string | undefined;
+      for (const name of ['continuous-traffic.json', 'continuous-live.jsonl']) {
+        try {
+          const raw = await readFile(join(location, name), 'utf8');
+          continuous = name.endsWith('jsonl')
+            ? raw
+                .trim()
+                .split('\n')
+                .filter(Boolean)
+                .map((line) => JSON.parse(line))
+            : JSON.parse(raw);
+          continuousSource = name;
+          break;
+        } catch {}
+      }
       const configuration = {
         memory,
         tasks,
@@ -159,9 +175,16 @@ const main = async () => {
         clock,
         clockError,
         ...modes,
-        traffic: {
+        timedTraffic: {
           requests: polls.length,
           errors: polls.filter((p) => p.error || p.status >= 500 || p.status === 0).length
+        },
+        continuousTrace: {
+          source: continuousSource,
+          requests: continuous.length,
+          errors: continuous.filter((p) => p.error || p.status >= 500 || p.status === 0).length,
+          includesGaps: true,
+          mayIncludeCleanup: continuousSource === 'continuous-live.jsonl'
         }
       };
       report.configurations.push(configuration);
