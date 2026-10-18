@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { analyzeBenchmark, calibrateClock, passesServingGate, percentile } from './analyze';
+import { diagnoseConfiguration } from './diagnose';
 test('the serving gate keeps tails, failures in sample count, and both matched-image ratios', () => {
   expect(
     percentile(
@@ -101,6 +102,20 @@ test('analysis and its CLI reject failed controls and memory fallbacks even with
       )
     );
     expect((await analyzeBenchmark(directory)).go).toBe(true);
+    const swapPollsPath = join(directory, '512-1/swap-512-1-01-polls.json');
+    const originalPolls = await readFile(swapPollsPath, 'utf8');
+    const errorPolls = JSON.parse(originalPolls) as { status: number; error?: string }[];
+    errorPolls[0] = { ...errorPolls[0]!, status: 0, error: 'TimeoutError: public request timed out' };
+    await writeFile(swapPollsPath, JSON.stringify(errorPolls));
+    expect((await analyzeBenchmark(directory)).go).toBe(false);
+    const ledger = JSON.parse(await readFile(join(directory, '512-1/request-errors.json'), 'utf8')) as {
+      phase: string;
+      type: string;
+    }[];
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]!.phase).toBe('swap');
+    expect(ledger[0]!.type).toContain('TimeoutError');
+    await writeFile(swapPollsPath, originalPolls);
     const controlPath = join(directory, '512-1/image-512-1-01.json');
     const originalControl = await readFile(controlPath, 'utf8');
     const control = JSON.parse(originalControl) as { failure?: string };
@@ -119,6 +134,90 @@ test('analysis and its CLI reject failed controls and memory fallbacks even with
     expect(await child.exited).toBe(1);
     expect((JSON.parse(await readFile(join(directory, 'summary.json'), 'utf8')) as { go: boolean }).go).toBe(false);
     expect(await readFile(target, 'utf8')).toBe(JSON.stringify(failed));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('diagnostics map shared monotonic traces through AWS fits and retain requests crossing proposal', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'code-swap-diagnostics-'));
+  try {
+    const label = 'swap-512-1-01',
+      awsStart = 1792300000000,
+      start = 1000,
+      hostClockOffsetMs = 5000;
+    const host = (seconds: number) => start + seconds * 1100;
+    const at = (seconds: number) => host(seconds) + hostClockOffsetMs;
+    const events = [
+      { phase: 'event', eventType: 'LOAD_USER_DATA', status: 'started', hostMs: at(1) },
+      { phase: 'event', eventType: 'LOAD_CONFIG_FILE', status: 'started', hostMs: at(1.5) },
+      { phase: 'event', eventType: 'LOAD_METADATA_FROM_AWS', status: 'completed', hostMs: at(2) },
+      { phase: 'event', eventType: 'BUILD_CODE', status: 'completed', hostMs: at(2.1) },
+      { phase: 'event', eventType: 'UPLOAD_IMAGE', status: 'completed', hostMs: at(4) },
+      { phase: 'signal:prepare', hostMs: at(2.2) },
+      { phase: 'signal:commit', hostMs: at(4.5) }
+    ];
+    await writeFile(join(directory, `${label}-trace.jsonl`), events.map((e) => JSON.stringify(e)).join('\n'));
+    const failed = {
+      hostMs: host(3),
+      requestStartMs: host(2),
+      awsMs: 0,
+      rttMs: 1100,
+      status: 503,
+      requestId: 'gateway-one'
+    };
+    await writeFile(join(directory, `${label}-polls.json`), JSON.stringify([failed]));
+    await writeFile(
+      join(directory, 'continuous-traffic.json'),
+      JSON.stringify([
+        { ...failed, hostMs: host(-4), requestStartMs: host(-5), phase: 'baseline', requestId: 'baseline-one' }
+      ])
+    );
+    await writeFile(
+      join(directory, 'gateway-errors.json'),
+      JSON.stringify([
+        {
+          timestamp: awsStart + 3000,
+          message: JSON.stringify({
+            requestId: 'gateway-one',
+            requestTimeEpoch: '1792300003',
+            status: '503',
+            integrationError: 'unavailable',
+            integrationLatency: '1'
+          })
+        }
+      ])
+    );
+    const report = await diagnoseConfiguration(
+      directory,
+      [
+        {
+          label,
+          start,
+          hostClockOffsetMs,
+          allMs: 4.65 * 1100,
+          details: { mode: 'swap', completed: [{ task: 'task-a', timings: { switchedAtMs: awsStart + 4600 } }] }
+        }
+      ],
+      new Map([[label, { rate: 1.1, offset: start - 1.1 * awsStart }]])
+    );
+    expect(report.timingSeconds.startup!.p50).toBeCloseTo(1, 4);
+    expect(report.timingSeconds.precommit!.p50).toBeCloseTo(0.5, 4);
+    expect(report.timingSeconds.commitToSwitch!.p50).toBeCloseTo(0.1, 4);
+    expect(report.requestErrors.total).toBe(2);
+    expect(report.requestErrors.duringSwaps).toBe(1);
+    expect(report.requestErrors.gatewayMatched).toBe(1);
+    const ledger = JSON.parse(await readFile(join(directory, 'request-errors.json'), 'utf8')) as {
+      transition?: string;
+      requestStartAwsMs?: number;
+      requestEndAwsMs?: number;
+      gateway?: { loggedAtMs: number; integrationError: string };
+    }[];
+    expect(ledger[0]!.transition).toBe('crosses-proposal');
+    expect(ledger[0]!.requestStartAwsMs).toBeCloseTo(awsStart + 2000, 2);
+    expect(ledger[0]!.requestEndAwsMs).toBeCloseTo(awsStart + 3000, 2);
+    expect(ledger[0]!.gateway?.loggedAtMs).toBe(awsStart + 3000);
+    expect(ledger[0]!.gateway?.integrationError).toBe('unavailable');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

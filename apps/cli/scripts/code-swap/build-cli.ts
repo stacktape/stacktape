@@ -13,11 +13,48 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
   name: 'owned-code-swap-benchmark',
   setup(build) {
     const runtime = resolve('scripts/code-swap/runtime.ts');
+    const tracing = resolve('scripts/code-swap/trace.ts');
+    build.onLoad({ filter: /tui-manager[\\/]output[\\/]jsonl\.ts$/ }, async ({ path }) => ({
+      contents:
+        `import { trace } from ${JSON.stringify(tracing)};\n` +
+        replaceOnce(
+          await readFile(path, 'utf8'),
+          'JSON.stringify(event);',
+          "(trace('event', { eventType: 'eventType' in event ? String(event.eventType) : event.type, status: 'status' in event ? String(event.status) : undefined }), JSON.stringify(event));"
+        ),
+      loader: 'ts'
+    }));
+    build.onLoad({ filter: /aws[\\/]fetch-handler\.ts$/ }, async ({ path }) => {
+      let contents =
+        `import { trace, hostClockMs } from ${JSON.stringify(tracing)};\n` + (await readFile(path, 'utf8'));
+      contents = replaceOnce(
+        contents,
+        'const timeoutMs =',
+        'const traceStart = hostClockMs();\nlet traceStatus: number | undefined;\nconst timeoutMs ='
+      );
+      contents = replaceOnce(
+        contents,
+        'const body = result.response.body;',
+        'traceStatus = result.response.statusCode;\nconst body = result.response.body;'
+      );
+      contents = replaceOnce(
+        contents,
+        'clearTimeout(timer);',
+        "trace('aws-http', { service: request.hostname, target: request.headers['x-amz-target'], startedHostMs: traceStart, status: traceStatus });\nclearTimeout(timer);"
+      );
+      return { contents, loader: 'ts' };
+    });
     build.onLoad(
       { filter: /packages[\\/]packaging[\\/]src[\\/]buildpacks[\\/]js-bundle-image\.ts$/ },
       async ({ path }) => {
         let contents = await readFile(path, 'utf8');
-        contents = `import { benchmarkImage } from ${JSON.stringify(runtime)};\n` + contents;
+        contents = `import { benchmarkImage, benchmarkImageName } from ${JSON.stringify(runtime)};\n` + contents;
+        contents = replaceOnce(contents, 'imageTag: name,', 'imageTag: await benchmarkImageName(name),');
+        contents = replaceOnce(
+          contents,
+          'outcome,\n    imageName: name,',
+          'outcome,\n    imageName: await benchmarkImageName(name),'
+        );
         contents = replaceOnce(
           contents,
           'const dockerfileContents = await createEsDockerFile(',

@@ -47,6 +47,7 @@ func ms(t time.Time) float64 { return float64(time.Since(t).Microseconds()) / 10
 func put(key string, value any) {
 	b, err := json.Marshal(value)
 	must(err)
+	fmt.Printf("{\"benchmarkEvent\":\"status\",\"atMs\":%d,\"data\":%s}\n", now(), b)
 	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
 		must(os.WriteFile(dir+"/"+key+".json", b, 0600))
 		return
@@ -114,6 +115,11 @@ func spawn(dir, rev string, t map[string]any) *generation {
 	target, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", port))
 	u.proxy = httputil.NewSingleHostReverseProxy(target)
 	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second}
+	u.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		b, _ := json.Marshal(map[string]any{"benchmarkEvent": "proxyError", "atMs": now(), "task": taskID, "revision": rev, "error": err.Error()})
+		fmt.Println(string(b))
+		http.Error(w, "upstream unavailable", http.StatusBadGateway)
+	}
 	for !health(port, rev, false) {
 		select {
 		case err := <-u.done:
@@ -178,9 +184,11 @@ func prepare(r record, t map[string]any) *generation {
 	t["extractMs"] = ms(started)
 	u := spawn(dir, r.Revision, t)
 	candidate.Store(u)
+	healthStarted := time.Now()
 	if current.Load() != nil && !health(8080, r.Revision, true) {
 		panic("prepare proxy health failed")
 	}
+	t["prepareHealthMs"] = ms(healthStarted)
 	t["preparedAtMs"] = now()
 	return u
 }

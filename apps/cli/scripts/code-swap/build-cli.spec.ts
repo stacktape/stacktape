@@ -25,8 +25,10 @@ test('only the explicit benchmark build includes unsigned swap activation', asyn
     const [ordinary, benchmark] = await Promise.all([build(false), build(true)]);
     expect(ordinary).not.toContain('STP_CODE_SWAP_BENCH_RUN');
     expect(ordinary).not.toContain('codeSwapBenchmark');
+    expect(ordinary).not.toContain('STP_CODE_SWAP_BENCH_TRACE');
     expect(benchmark).toContain('STP_CODE_SWAP_BENCH_RUN');
     expect(benchmark).toContain('codeSwapBenchmark');
+    expect(benchmark).toContain('STP_CODE_SWAP_BENCH_TRACE');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -1,10 +1,12 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { diagnoseConfiguration } from './diagnose';
 
 type Poll = { hostMs: number; awsMs: number; rttMs: number; status: number; error?: string };
 type Result = {
   label: string;
   start: number;
+  hostClockOffsetMs?: number;
   firstMs?: number;
   allMs?: number;
   exitMs?: number;
@@ -165,6 +167,7 @@ export const analyzeBenchmark = async (directory: string) => {
       );
       const swap = modes.swap!,
         image = modes.image!;
+      const diagnostics = names.length ? await diagnoseConfiguration(location, results, clocks) : undefined;
       const go =
         !!clock &&
         clockErrors.length === 0 &&
@@ -173,7 +176,8 @@ export const analyzeBenchmark = async (directory: string) => {
         swap.failures === 0 &&
         image.failures === 0 &&
         swap.memoryFallbacks === 0 &&
-        swap.replacedDuringSwap === 0;
+        swap.replacedDuringSwap === 0 &&
+        diagnostics?.requestErrors.duringSwaps === 0;
       let continuous: { status: number; error?: string }[] = [];
       let continuousSource: string | undefined;
       for (const name of ['continuous-traffic.json', 'continuous-live.jsonl']) {
@@ -197,14 +201,15 @@ export const analyzeBenchmark = async (directory: string) => {
         clock,
         clockErrors,
         ...modes,
+        diagnostics,
         timedTraffic: {
           requests: polls.length,
-          errors: polls.filter((p) => p.error || p.status >= 500 || p.status === 0).length
+          errors: polls.filter((p) => p.error || p.status >= 400 || p.status === 0).length
         },
         continuousTrace: {
           source: continuousSource,
           requests: continuous.length,
-          errors: continuous.filter((p) => p.error || p.status >= 500 || p.status === 0).length,
+          errors: continuous.filter((p) => p.error || p.status >= 400 || p.status === 0).length,
           includesGaps: true,
           mayIncludeCleanup: continuousSource === 'continuous-live.jsonl'
         }

@@ -1,5 +1,5 @@
 // Source-only, unsigned/unfenced phase-1 experiment. This module is reachable only through build-cli.ts's plugin.
-import { copyFile, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DynamoDBClient, GetItemCommand, PutItemCommand, BatchGetItemCommand } from '@aws-sdk/client-dynamodb';
@@ -11,6 +11,8 @@ import type { LanguageSpecificBundleOutput } from '@stacktape/packaging/runtime-
 import type { getECSHotswapInformation } from '../../src/commands/_utils/cw-deployment';
 import { awsClientConfig, createAwsClientContext } from '../../src/aws/context';
 import { z } from 'zod';
+import { benchmarkDockerfile } from './image';
+import { trace, traceAsync } from './trace';
 
 export const runSchema = z.object({
   name: z.string().regex(/^v4swap-[a-z0-9-]+$/),
@@ -80,21 +82,23 @@ const initialize = async () => {
   };
 };
 const clients = () => (clientsPromise ??= initialize());
+export const benchmarkImageName = async (name: string) => `${(await clients()).run.name}-${name}`;
 const put = async (data: Record<string, unknown>) => {
   const { ddb, run } = await clients();
   await ddb.send(
     new PutItemCommand({ TableName: run.table, Item: { pk: { S: 'release#node' }, data: { S: JSON.stringify(data) } } })
   );
+  trace(`signal:${data.Phase}`);
 };
 const fleet = async (service: string, cluster: string) => {
   const { ecs, run } = await clients();
-  const response = await ecs.send(new DescribeServicesCommand({ services: [service], cluster }));
+  const [response, list] = await Promise.all([
+    ecs.send(new DescribeServicesCommand({ services: [service], cluster })),
+    ecs.send(new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' }))
+  ]);
   const primary = response.services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
   if (!primary || primary.runningCount !== run.count || response.services?.[0]?.desiredCount !== run.count)
     throw new Error('PRIMARY is not fully running.');
-  const list = await ecs.send(
-    new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' })
-  );
   const tasks = await ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] }));
   if (
     tasks.failures?.length ||
@@ -138,6 +142,7 @@ export const benchmarkImage = async (input: {
   dockerBuildOutputArchitecture: string;
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
 }) => {
+  trace('benchmarkImage:start');
   const { run, global, artifacts, stack, s3 } = await clients();
   if (input.runtime !== 'node' || input.dockerBuildOutputArchitecture !== 'linux/amd64')
     throw new Error('Only amd64 Node is qualified for this benchmark.');
@@ -171,11 +176,10 @@ export const benchmarkImage = async (input: {
     revision
   };
   result = { revision, mode: 'image', identity, initial: stack.stackActionType === 'create' };
-  await copyFile(run.supervisor, join(input.buildContextPath, 'stacktape-supervisor'));
   // The image uses the same real bundler output, entrypoint and dependencies as the ordinary js-bundle image.
   const dockerfile =
-    input.dockerfileContents +
-    `\nCOPY stacktape-supervisor /stacktape-supervisor\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js\nENTRYPOINT ["/stacktape-supervisor"]\n`;
+    (await benchmarkDockerfile(input.buildContextPath, input.dockerfileContents, run.supervisor)) +
+    `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js\nENTRYPOINT ["/stacktape-supervisor"]\n`;
   if (stack.stackActionType === 'create' || run.mode === 'image') {
     await put({ Phase: 'abort' });
     return dockerfile;
@@ -194,7 +198,7 @@ export const benchmarkImage = async (input: {
   const cluster = service.split('/')[1];
   // Prepare runs beside the actual Docker build/ECR push; commit remains in updateEcsService after the upload gate.
   prepare = (async () => {
-    const before = await fleet(service, cluster);
+    const before = await traceAsync('prepareFleet', () => fleet(service, cluster));
     result.tasks = before.ids;
     result.primary = before.primary;
     await s3.send(
@@ -205,8 +209,10 @@ export const benchmarkImage = async (input: {
         ContentType: 'application/gzip'
       })
     );
+    trace('bundleUploaded');
     await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
     const prepared = await waitStatus(before.ids, revision, 'prepared');
+    trace('allPrepared');
     result.prepared = prepared;
     return { ids: before.ids, statuses: prepared, service, cluster };
   })();
@@ -217,6 +223,7 @@ export const benchmarkImage = async (input: {
   return dockerfile;
 };
 export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
+  trace('benchmarkSwap:start');
   if (!prepare) return false;
   try {
     const { ids, service, cluster } = await prepare;
@@ -227,7 +234,7 @@ export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHots
       update.workload.containers.some((c) => c.internalHealthCheck)
     )
       throw new Error('Unsupported benchmark workload.');
-    if (JSON.stringify((await fleet(service, cluster)).ids) !== JSON.stringify(ids))
+    if (JSON.stringify((await traceAsync('commitFleet', () => fleet(service, cluster))).ids) !== JSON.stringify(ids))
       throw new Error('Fleet changed before commit.');
     await put({
       Revision: identity!.revision,
@@ -237,6 +244,7 @@ export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHots
       Phase: 'commit'
     });
     const completed = await waitStatus(ids, identity!.revision, 'complete');
+    trace('allComplete');
     if (JSON.stringify((await fleet(service, cluster)).ids) !== JSON.stringify(ids))
       throw new Error('Fleet changed after commit.');
     const { ddb, run } = await clients();

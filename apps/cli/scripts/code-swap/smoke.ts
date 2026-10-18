@@ -1,9 +1,10 @@
-import { mkdtemp, writeFile, copyFile, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, copyFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import { buildSupervisor } from './build-supervisor';
+import { benchmarkDockerfile } from './image';
 
 const main = async () => {
   const root = await mkdtemp(join(tmpdir(), 'stp-swap-smoke-'));
@@ -18,12 +19,18 @@ const main = async () => {
     await copyFile(await buildSupervisor(root), join(root, 'supervisor'));
     const app = (revision: string) =>
       `import http from 'node:http'; const server=http.createServer((req,res)=>{res.statusCode=500;res.end('${revision}')}).listen(process.env.PORT,'0.0.0.0');process.on('SIGTERM',()=>server.close());`;
-    await writeFile(join(root, 'index.mjs'), app('old'));
+    const imageContext = join(root, 'image');
+    await mkdir(imageContext);
+    await writeFile(join(imageContext, 'index.mjs'), app('old'));
     await writeFile(
-      join(root, 'Dockerfile'),
-      'FROM public.ecr.aws/docker/library/node:22-bookworm-slim\nWORKDIR /app\nCOPY index.mjs ./index.mjs\nCOPY supervisor /stacktape-supervisor\nENTRYPOINT ["/stacktape-supervisor"]\n'
+      join(imageContext, 'Dockerfile'),
+      await benchmarkDockerfile(
+        imageContext,
+        'FROM public.ecr.aws/docker/library/node:22-bookworm-slim\nWORKDIR /app\nCOPY . /app\nENTRYPOINT ["/stacktape-supervisor"]\n',
+        join(root, 'supervisor')
+      )
     );
-    await run(['docker', 'build', '-t', name, root]);
+    await run(['docker', 'build', '-t', name, imageContext]);
     await run([
       'docker',
       'run',
@@ -55,6 +62,7 @@ const main = async () => {
       throw new Error('Supervisor smoke timed out.');
     };
     await wait(async () => (await (await fetch(url)).text()) === 'old');
+    await run(['docker', 'exec', name, 'test', '!', '-e', '/app/stacktape-supervisor']);
     const code = join(root, 'code');
     await import('node:fs/promises').then(({ mkdir }) => mkdir(code));
     await writeFile(join(code, 'index.mjs'), app('new'));

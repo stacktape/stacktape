@@ -23,7 +23,12 @@ import {
 } from '@aws-sdk/client-ecs';
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { ECRClient, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
-import { CloudWatchLogsClient, DescribeLogGroupsCommand, DeleteLogGroupCommand } from '@aws-sdk/client-cloudwatch-logs';
+import {
+  CloudWatchLogsClient,
+  DescribeLogGroupsCommand,
+  DeleteLogGroupCommand,
+  FilterLogEventsCommand
+} from '@aws-sdk/client-cloudwatch-logs';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
@@ -35,6 +40,7 @@ import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { buildSupervisor } from './build-supervisor';
 import { analyzeBenchmark, calibrateClock } from './analyze';
+import { hostClockMs } from './trace';
 import type { BenchmarkRun } from './runtime';
 
 const ACCOUNT = '597581086285',
@@ -80,6 +86,53 @@ type Poll = {
   revision: string;
   status: number;
   error?: string;
+  requestStartMs?: number;
+  phase?: string;
+  requestId?: string;
+  errorBody?: string;
+  path?: string;
+};
+let trafficPhase = 'baseline';
+const samplePublic = async (url: string, start: number): Promise<Poll> => {
+  const begin = performance.now();
+  const phase = trafficPhase;
+  try {
+    const response = await fetch(`${url}/version`, {
+      signal: AbortSignal.timeout(4000),
+      headers: { 'cache-control': 'no-cache' }
+    });
+    const raw = await response.text();
+    let revision = '';
+    try {
+      revision = (JSON.parse(raw) as { revision?: string }).revision ?? '';
+    } catch {}
+    return {
+      hostMs: performance.now(),
+      elapsedMs: performance.now() - start,
+      requestStartMs: begin,
+      awsMs: Number(response.headers.get('x-lab-now-ms')),
+      rttMs: performance.now() - begin,
+      task: response.headers.get('x-lab-task') ?? '',
+      revision,
+      status: response.status,
+      phase,
+      requestId: response.headers.get('apigw-requestid') ?? undefined,
+      errorBody: response.status >= 400 ? raw.slice(0, 1024) : undefined
+    };
+  } catch (error) {
+    return {
+      hostMs: performance.now(),
+      elapsedMs: performance.now() - start,
+      requestStartMs: begin,
+      awsMs: 0,
+      rttMs: performance.now() - begin,
+      task: '',
+      revision: '',
+      status: 0,
+      phase,
+      error: String(error)
+    };
+  }
 };
 const save = async (path: string, value: unknown) => {
   await writeFile(`${path}.tmp`, JSON.stringify(value, null, 2));
@@ -361,7 +414,9 @@ const cleanup = async (state: State, owned: Owned) => {
     .map((line) => JSON.parse(line) as { Repository: string; Tag: string });
   assert((await images.exited) === 0, 'Could not enumerate owned local image tags.');
   for (const image of localImages.filter(
-    (image) => image.Repository === `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${owned.repository}`
+    (image) =>
+      image.Repository === `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${owned.repository}` ||
+      image.Repository === `${owned.name}-api-service-container`
   ))
     await invoke(
       ['docker', 'image', 'rm', `${image.Repository}:${image.Tag}`],
@@ -384,7 +439,18 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
     resources: {
       api: {
         type: 'web-service',
-        overrides: { [cfLogicalNames.ecsService('api', false)]: { DesiredCount: count } },
+        overrides: {
+          [cfLogicalNames.ecsService('api', false)]: { DesiredCount: count },
+          [cfLogicalNames.httpApiStage('api')]: {
+            'AccessLogSettings.Format': JSON.stringify({
+              requestId: '$context.requestId',
+              requestTimeEpoch: '$context.requestTimeEpoch',
+              status: '$context.status',
+              integrationError: '$context.integrationErrorMessage',
+              integrationLatency: '$context.integrationLatency'
+            })
+          }
+        },
         properties: {
           port: 8080,
           packaging: {
@@ -421,28 +487,72 @@ const endpoint = async (owned: Owned) => {
   assert(url, 'Missing HTTP API URL.');
   return url;
 };
-const business = async (url: string) => {
-  const quote = await fetch(`${url}/quote`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      lines: [
-        { productId: 'coffee', quantity: 2 },
-        { productId: 'mug', quantity: 1 }
-      ]
-    })
-  });
-  assert(((await quote.json()) as { total: string }).total === '33.00', 'Wrong quote.');
-  const receipt = await fetch(`${url}/receipt`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ orderId: 'order-100', placedAt: '2025-01-15T12:00:00Z', total: '33.00' })
-  });
-  assert(
-    ((await receipt.json()) as { html: string }).html === '<p>Order order-100, 2025-01-15: USD 33.00</p>',
-    'Wrong receipt.'
-  );
-  assert((await fetch(`${url}/products`)).ok, 'Products request failed.');
+const business = async (url: string, evidence: Poll[]) => {
+  const request = async (path: string, init?: RequestInit) => {
+    const begin = performance.now();
+    try {
+      const response = await fetch(`${url}${path}`, { ...init, signal: AbortSignal.timeout(4000) });
+      const body = await response.text();
+      evidence.push({
+        hostMs: performance.now(),
+        elapsedMs: 0,
+        requestStartMs: begin,
+        awsMs: Number(response.headers.get('x-lab-now-ms')),
+        rttMs: performance.now() - begin,
+        task: response.headers.get('x-lab-task') ?? '',
+        revision: '',
+        status: response.status,
+        requestId: response.headers.get('apigw-requestid') ?? undefined,
+        phase: trafficPhase,
+        path,
+        errorBody: body.slice(0, 1024)
+      });
+      assert(response.ok, `${path} returned HTTP ${response.status}.`);
+      return body;
+    } catch (error) {
+      if (evidence.at(-1)?.requestStartMs !== begin)
+        evidence.push({
+          hostMs: performance.now(),
+          elapsedMs: 0,
+          requestStartMs: begin,
+          awsMs: 0,
+          rttMs: performance.now() - begin,
+          task: '',
+          revision: '',
+          status: 0,
+          phase: trafficPhase,
+          path,
+          error: String(error)
+        });
+      throw error;
+    }
+  };
+  try {
+    const quote = await request('/quote', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lines: [
+          { productId: 'coffee', quantity: 2 },
+          { productId: 'mug', quantity: 1 }
+        ]
+      })
+    });
+    assert((JSON.parse(quote) as { total: string }).total === '33.00', 'Wrong quote.');
+    const receipt = await request('/receipt', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ orderId: 'order-100', placedAt: '2025-01-15T12:00:00Z', total: '33.00' })
+    });
+    assert(
+      (JSON.parse(receipt) as { html: string }).html === '<p>Order order-100, 2025-01-15: USD 33.00</p>',
+      'Wrong receipt.'
+    );
+    await request('/products');
+  } catch (error) {
+    if (evidence.length) evidence.at(-1)!.error = String(error);
+    throw error;
+  }
 };
 const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, index: number) => {
   const label = `${run.mode}-${run.memory}-${run.count}-${String(index).padStart(2, '0')}`;
@@ -453,39 +563,15 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   await save(runFile, run);
   const before = await waitForFleet(owned, run.count);
   const polls: Poll[] = [];
+  const businessTraffic: Poll[] = [];
   let running = true;
   const start = performance.now();
+  const hostClockOffsetMs = hostClockMs() - performance.now();
+  trafficPhase = label;
   const poll = async () => {
     // eslint-disable-next-line no-unmodified-loop-condition -- The deploy completion cancels all concurrent pollers.
     while (running) {
-      const begin = performance.now();
-      try {
-        const response = await fetch(`${url}/version`, {
-          signal: AbortSignal.timeout(4000),
-          headers: { 'cache-control': 'no-cache' }
-        });
-        const body = (await response.json()) as { revision: string };
-        polls.push({
-          hostMs: performance.now(),
-          elapsedMs: performance.now() - start,
-          awsMs: Number(response.headers.get('x-lab-now-ms')),
-          rttMs: performance.now() - begin,
-          task: response.headers.get('x-lab-task') ?? '',
-          revision: body.revision,
-          status: response.status
-        });
-      } catch (error) {
-        polls.push({
-          hostMs: performance.now(),
-          elapsedMs: performance.now() - start,
-          awsMs: 0,
-          rttMs: performance.now() - begin,
-          task: '',
-          revision: '',
-          status: 0,
-          error: String(error)
-        });
-      }
+      polls.push(await samplePublic(url, start));
       await Bun.sleep(35);
     }
   };
@@ -495,7 +581,9 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   let expected: string[] = [];
   try {
     await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, `${label}.log`), {
-      STP_CODE_SWAP_BENCH_RUN: runFile
+      STP_CODE_SWAP_BENCH_RUN: runFile,
+      STP_CODE_SWAP_BENCH_TRACE: join(owned.directory, `${label}-trace.jsonl`),
+      STP_TIMINGS_FILE: join(owned.directory, `${label}-timings.json`)
     });
     exitMs = performance.now() - start;
     expected = (await primaryTasks(owned)).ids;
@@ -504,7 +592,7 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
       if (performance.now() > deadline) throw new Error('Not every PRIMARY task served new code.');
       await Bun.sleep(50);
     }
-    await business(url);
+    await business(url, businessTraffic);
   } catch (error) {
     failure = String(error);
   } finally {
@@ -532,10 +620,12 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
     details = JSON.parse(await readFile(run.result, 'utf8'));
   } catch {}
   await save(join(owned.directory, `${label}-polls.json`), polls);
+  await save(join(owned.directory, `${label}-business.json`), businessTraffic);
   const result = {
     label,
     desired,
     start,
+    hostClockOffsetMs,
     exitMs,
     firstMs,
     allMs,
@@ -547,9 +637,12 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   await save(join(owned.directory, `${label}.json`), result);
   console.log(JSON.stringify(result));
   if (failure) throw new Error(failure);
+  trafficPhase = `${label}:settle`;
   // A memory/eligibility fallback also replaces tasks; finish that ordinary rollout before the next timed edit.
   if (run.mode === 'image' || (details && typeof details === 'object' && 'mode' in details && details.mode === 'image'))
     await waitForFleet(owned, run.count);
+
+  trafficPhase = 'gap';
 
   return result;
 };
@@ -681,35 +774,33 @@ const main = async () => {
         const initialFleet = await waitForFleet(owned, count);
         const seenInitial = new Set<string>();
         const routeDeadline = performance.now() + 120000;
-        while (initialFleet.ids.some((id) => !seenInitial.has(id))) {
-          assert(performance.now() < routeDeadline, 'Not every initial task is publicly routable.');
-          const response = await fetch(`${url}/version`, { signal: AbortSignal.timeout(4000) });
-          await response.text();
-          const id = response.headers.get('x-lab-task');
-          if (response.ok && id) seenInitial.add(id);
-          await Bun.sleep(20);
+        const setupTraffic: Poll[] = [];
+        trafficPhase = 'setup-readiness';
+        try {
+          while (initialFleet.ids.some((id) => !seenInitial.has(id))) {
+            assert(performance.now() < routeDeadline, 'Not every initial task is publicly routable.');
+            const sample = await samplePublic(url, 0);
+            setupTraffic.push(sample);
+            if (sample.status === 200 && sample.task) seenInitial.add(sample.task);
+            await Bun.sleep(20);
+          }
+        } finally {
+          await save(join(owned.directory, 'setup-traffic.json'), setupTraffic);
         }
 
-        await business(url);
-        const traffic: { atMs: number; status: number; task: string; error?: string }[] = [];
+        const setupBusiness: Poll[] = [];
+        const traffic: Poll[] = [];
+        trafficPhase = 'baseline';
         const trafficController = new AbortController();
         const trafficLoop = (async () => {
           while (!trafficController.signal.aborted) {
-            try {
-              const response = await fetch(`${url}/version`, { signal: AbortSignal.timeout(4000) });
-              await response.text();
-              traffic.push({
-                atMs: Date.now(),
-                status: response.status,
-                task: response.headers.get('x-lab-task') ?? ''
-              });
-            } catch (error) {
-              traffic.push({ atMs: Date.now(), status: 0, task: '', error: String(error) });
-            }
+            traffic.push(await samplePublic(url, 0));
             await Bun.sleep(35);
           }
         })();
         try {
+          await Bun.sleep(10000);
+          await business(url, setupBusiness);
           // Twenty uninterrupted edits on each exact fleet. Image controls use the same app, checks, caches and source build.
           for (const mode of ['swap', 'image'] as const) {
             run.mode = mode;
@@ -719,6 +810,26 @@ const main = async () => {
           trafficController.abort();
           await trafficLoop;
           await save(join(owned.directory, 'continuous-traffic.json'), traffic);
+          await save(join(owned.directory, 'setup-business.json'), setupBusiness);
+          // Preserve gateway failures and supervisor transitions before owned log groups are removed.
+          const logs = new CloudWatchLogsClient(clients);
+          for (const [name, logGroupName, filterPattern] of [
+            [
+              'gateway-errors',
+              `/aws/vendedlogs/${owned.name}-bench/api-gateway/api/access-logs`,
+              '{ $.status = "5*" }'
+            ],
+            ['supervisor-events', `/stp/${owned.name}-bench/ecs/api/service-container/process-logs`, '"benchmarkEvent"']
+          ]) {
+            const events = [];
+            let nextToken: string | undefined;
+            do {
+              const page = await logs.send(new FilterLogEventsCommand({ logGroupName, filterPattern, nextToken }));
+              events.push(...(page.events ?? []));
+              nextToken = page.nextToken;
+            } while (nextToken);
+            await save(join(owned.directory, `${name}.json`), events);
+          }
         }
         await cleanup(state, owned);
       }

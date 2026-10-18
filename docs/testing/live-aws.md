@@ -94,3 +94,21 @@ go/no-go result.
 
 Both the runner (after cleanup) and standalone analysis exit nonzero for a no-go result. Partial runs still retain their
 recovery state and raw measurements for standalone analysis.
+
+For timing investigations, each edit also writes a CLI monotonic trace, the ordinary `STP_TIMINGS_FILE` spans and a
+shared-host-clock offset. Analysis relates those to the edit's qualified AWS clock fit; laptop wall timestamps are
+metadata only. `timing-details.json` separates the serial image/commit path from overlapping download, startup and
+health checks, and retains slow AWS attempts. Every request records its start, end, phase and gateway request ID when
+available. Analysis writes every failure to `request-errors.json` and refuses a go result if a swap request fails,
+including a request that began before proposal. Baseline, image settlement and command gaps remain separately labelled.
+The runner exports gateway failures and supervisor events before deleting their log groups. Keep those files with the
+raw polls; a client timeout alone does not establish that the supervisor dropped a request. Initial routing
+qualification retries transient public errors within its existing two-minute deadline and records every request in
+`setup-traffic.json`. It still requires a response from every expected task before timed edits start. The existing
+ten-second baseline precedes the initial business checks. Those checks and every post-edit business check keep their
+exact assertions without retries; their responses are drained and saved separately, including bounded failure bodies, so
+a gateway error cannot appear only as “Wrong receipt”. Baseline waiting is outside every timed edit.
+
+The benchmark image keeps its supervisor in a reusable layer ahead of the application layer. Each owned run has its own
+local Docker tag, so independent configurations can run concurrently without overwriting another run's image. Normal
+release/dev builds contain neither the activation hooks nor these diagnostics.
