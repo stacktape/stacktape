@@ -55,7 +55,7 @@ test('per-edit fits handle gradual clock-rate changes that invalidate one long-r
   }
 });
 
-test('analysis writes the decision and its CLI fails for a memory fallback even with fast serving', async () => {
+test('analysis and its CLI reject failed controls and memory fallbacks even with fast serving', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'code-swap-gate-'));
   try {
     await Promise.all(
@@ -101,6 +101,13 @@ test('analysis writes the decision and its CLI fails for a memory fallback even 
       )
     );
     expect((await analyzeBenchmark(directory)).go).toBe(true);
+    const controlPath = join(directory, '512-1/image-512-1-01.json');
+    const originalControl = await readFile(controlPath, 'utf8');
+    const control = JSON.parse(originalControl) as { failure?: string };
+    control.failure = 'The image served but its release history failed.';
+    await writeFile(controlPath, JSON.stringify(control));
+    expect((await analyzeBenchmark(directory)).go).toBe(false);
+    await writeFile(controlPath, originalControl);
     const target = join(directory, '512-1/swap-512-1-01.json');
     const failed = JSON.parse(await readFile(target, 'utf8')) as { details: { mode: string; fallback?: string } };
     failed.details = { mode: 'image', fallback: 'memory_screen' };

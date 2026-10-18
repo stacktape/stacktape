@@ -171,6 +171,7 @@ export const analyzeBenchmark = async (directory: string) => {
         passesServingGate(swap.first, image.first) &&
         passesServingGate(swap.all, image.all) &&
         swap.failures === 0 &&
+        image.failures === 0 &&
         swap.memoryFallbacks === 0 &&
         swap.replacedDuringSwap === 0;
       let continuous: { status: number; error?: string }[] = [];
