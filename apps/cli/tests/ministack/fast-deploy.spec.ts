@@ -7,7 +7,9 @@ import { gunzipSync } from 'node:zlib';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
   DeleteFunctionCommand,
+  GetFunctionCommand,
   GetFunctionConfigurationCommand,
+  GetLayerVersionByArnCommand,
   InvokeCommand,
   LambdaClient,
   ListLayerVersionsCommand,
@@ -308,6 +310,77 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
   const layerLogicalId = 'StpSharedChunkLayer1LayerVersion';
   let deployed = false;
   const extracted: string[] = [];
+  const missingImports: string[] = [];
+  let observedUpdates = 0;
+  let codeUpdates = 0;
+  let layerUpdates = 0;
+  let functionUploads = 0;
+  let holdFunctionUploads = false;
+  let publicationSeen = false;
+  let heldUploads = 0;
+  let uploadTimeouts = 0;
+  const archiveAt = async (location: string) => {
+    const url = new URL(location);
+    const local =
+      url.origin === 'http://localhost:4566' ? `${ministack.endpoint}${url.pathname}${url.search}` : location;
+    return new AdmZip(Buffer.from(await (await fetch(local)).arrayBuffer()));
+  };
+  // Observe the installed module graph after each successful API mutation, including the interval between updates.
+  // MiniStack cannot prove AWS's timing, but this would catch a code-first update before the final state hides it.
+  const proxy = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    async fetch(request) {
+      const url = new URL(request.url);
+      const body = await request.arrayBuffer();
+      if (request.method === 'PUT' && url.pathname.endsWith('/code')) codeUpdates++;
+      if (request.method === 'PUT' && url.pathname.endsWith('/configuration')) layerUpdates++;
+      if (request.method === 'PUT' && /\/(?:first|second)\/v[^/]+\.zip$/.test(url.pathname)) functionUploads++;
+      if (request.method === 'POST' && /\/layers\/[^/]+\/versions$/.test(url.pathname)) {
+        const content = (JSON.parse(new TextDecoder().decode(body)) as { Content?: { S3Key?: string } }).Content;
+        if (content?.S3Key) publicationSeen = true;
+      }
+      if (holdFunctionUploads && request.method === 'PUT' && /\/(?:first|second)\/v[^/]+\.zip$/.test(url.pathname)) {
+        heldUploads++;
+        for (let attempt = 0; attempt < 100; attempt++) {
+          if (publicationSeen) break;
+          await Bun.sleep(100);
+        }
+        if (!publicationSeen) uploadTimeouts++;
+      }
+      const headers = new Headers(request.headers);
+      headers.set('host', new URL(ministack.endpoint).host);
+      const response = await fetch(`${ministack.endpoint}${url.pathname}${url.search}`, {
+        method: request.method,
+        headers,
+        ...(body.byteLength ? { body } : {})
+      });
+      const target = url.pathname.match(/\/functions\/([^/]+)\/(?:code|configuration)$/);
+      if (response.ok && request.method === 'PUT' && target) {
+        const current = await lambda.send(new GetFunctionCommand({ FunctionName: decodeURIComponent(target[1]!) }));
+        const code = await archiveAt(current.Code!.Location!);
+        const layers = await Promise.all(
+          (current.Configuration?.Layers ?? []).map(async ({ Arn }) =>
+            archiveAt((await lambda.send(new GetLayerVersionByArnCommand({ Arn }))).Content!.Location!)
+          )
+        );
+        const names = new Set(layers.flatMap((zip) => zip.getEntries().map(({ entryName }) => `/opt/${entryName}`)));
+        for (const zip of [code, ...layers])
+          for (const entry of zip.getEntries()) {
+            if (!entry.entryName.endsWith('.js')) continue;
+            for (const match of entry
+              .getData()
+              .toString()
+              .matchAll(/["'`](\/opt\/nodejs\/chunks\/chunk-[a-z0-9]+\.js)["'`]/g)) {
+              if (!names.has(match[1]!)) missingImports.push(`${entry.entryName}: ${match[1]}`);
+            }
+          }
+        observedUpdates++;
+      }
+      return response;
+    }
+  });
+  const throughProxy = { ...ministack, endpoint: proxy.url.origin };
   try {
     await writeProjectFiles(project, {
       'stacktape.yml': config,
@@ -342,7 +415,9 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
           return {
             code: configuration.CodeSha256!,
             layers: (configuration.Layers ?? []).map(({ Arn }) => Arn!),
-            tag: Tags?.['stp:shared-layers']
+            tag: Tags?.['stp:shared-layers'],
+            digest: Tags?.['stp:code-digest'],
+            artifactDigest: Tags?.['stp:artifact-digest']
           };
         })
       );
@@ -403,10 +478,15 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(initial[1]!.tag).toBe(initial[0]!.tag);
     const identity1 = identityOf(initial[0]!.tag);
 
-    // The shared code changes: the layer version is published directly and both functions get it with their code.
+    // The shared code changes, but the function ZIPs remain byte-identical: only their layer configuration changes.
     await writeProjectFiles(project, { 'shared.ts': sharedSource('s2') });
-    const shared = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared' });
+    const shared = await runSourceCli({ project, step: 'update', ministack: throughProxy, logName: 'update-shared' });
     expect(shared.exitCode, shared.tail).toBe(0);
+    expect(observedUpdates).toBeGreaterThan(0);
+    expect(codeUpdates).toBe(0);
+    expect(layerUpdates).toBe(2);
+    expect(functionUploads).toBe(0);
+    expect(missingImports).toEqual([]);
     expect(shared.changeSummary).toBeUndefined();
     expect(await getStackTemplate(cloudFormation, project.stackName)).toBe(templateAfterCreate);
     expect(await deployedVersion()).toBe('v000001');
@@ -415,10 +495,25 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(afterShared.map(({ layers }) => layers)).toEqual([[fastArn], [fastArn]]);
     expect(fastArn).not.toBe(cloudFormationV1);
     expect(fastArn.split(':')[6]).toBe(layerName);
-    expect(afterShared.map(({ code }) => code)).not.toEqual(initial.map(({ code }) => code));
+    expect(afterShared.map(({ code }) => code)).toEqual(initial.map(({ code }) => code));
+    expect(afterShared.map(({ artifactDigest }) => artifactDigest)).toEqual(
+      initial.map(({ artifactDigest }) => artifactDigest)
+    );
+    expect(afterShared.map(({ digest }) => digest)).not.toEqual(initial.map(({ digest }) => digest));
     const identity2 = identityOf(afterShared[0]!.tag);
     expect(identity2).not.toBe(identity1);
     expect(afterShared[1]!.tag).toBe(afterShared[0]!.tag);
+    const activatedMaps = project.controlPlane.calls
+      .filter(({ procedure }) => procedure === 'recordStackOperation')
+      .map(({ input }) => (input as { sourceMaps?: SourceMapManifest }).sourceMaps)
+      .filter((manifest): manifest is SourceMapManifest => Boolean(manifest))
+      .at(-1)!;
+    for (const [index, functionName] of functionNames.entries()) {
+      const entry = activatedMaps.functions.find(({ lambdaName }) => lambdaName === functionName)!;
+      expect(entry.digest).toBe(afterShared[index]!.digest!);
+      expect(entry.sourceMapKeys).toContain(`source-maps/shared-layer-1/${identity2}.json`);
+      expect(entry.activeSince).toBeGreaterThan(0);
+    }
     const published = await layerVersions();
     expect(published.map(({ arn }) => arn).toSorted()).toEqual([cloudFormationV1, fastArn].toSorted());
     expect(published.find(({ arn }) => arn === fastArn)!.description).toContain(`(stp:fast-deployment ${identity2})`);
@@ -578,6 +673,26 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(settled.changeSummary).toBeUndefined();
     expect(await state()).toEqual(afterDrift);
     expect((await releaseTemplates()).length).toBe(13);
+
+    // A mixed entry/shared edit falls back to graph/content names so both generations can coexist. Hold the function
+    // ZIP uploads until PublishLayerVersion starts: publication must depend only on the layer's object reaching S3.
+    publicationSeen = false;
+    holdFunctionUploads = true;
+    await writeProjectFiles(project, { 'shared.ts': sharedSource('s6'), 'first.ts': splitHandler('first', 'v3') });
+    const mixed = await runSourceCli({
+      project,
+      step: 'update',
+      ministack: throughProxy,
+      logName: 'mixed-shared-entry'
+    });
+    expect(mixed.exitCode, mixed.tail).toBe(0);
+    expect(heldUploads).toBeGreaterThan(0);
+    expect(uploadTimeouts).toBe(0);
+    expect(missingImports).toEqual([]);
+    const afterMixed = await state();
+    expect(
+      await runInRuntime({ prefix: 'first', code: afterMixed[0]!.code, identity: identityOf(afterMixed[0]!.tag) })
+    ).toBe(`first-v3:s6:${sharedPayload.length}`);
   } finally {
     try {
       if (deployed) {
@@ -591,6 +706,7 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
         expect(left).toEqual([]);
       }
     } finally {
+      proxy.stop(true);
       await project.close();
       await ministack.stop();
       await Promise.all([out, ...extracted].map((path) => rm(path, { recursive: true, force: true })));

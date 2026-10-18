@@ -16,6 +16,7 @@ import {
   describeFastDeploymentLayerVersion,
   formatSharedLayersTag,
   getDeployedSharedLayers,
+  getFunctionCodeDigest,
   getTagValue,
   parseFastDeploymentLayerVersion,
   replaceSharedLayerArns,
@@ -176,7 +177,9 @@ export const getLambdaFunctionHotswapInformation = ({
   const deployedResource = stackManager.existingStackResources.find(
     ({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName
   );
-  const deployedLambdaDigest = getTagValue(deployedResource?.tags, tagNames.codeDigest());
+  const deployedLambdaDigest =
+    getTagValue(deployedResource?.tags, tagNames.artifactDigest()) ??
+    getTagValue(deployedResource?.tags, tagNames.codeDigest());
   const deployedLayers = getDeployedSharedLayers({
     tags: deployedResource?.tags,
     deployedTemplate: templateManager.oldTemplate,
@@ -233,7 +236,8 @@ export const findLambdaOutsideFastPathUsingLayers = ({
  * earlier fast deployment published from it, or a new version published now. Returns the version ARN by layer number.
  */
 export const resolveSharedLayerVersions = async (
-  layers: SharedLayerHotswapInformation[]
+  layers: SharedLayerHotswapInformation[],
+  { parentEventType = 'HOTSWAP_UPDATE' }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS' } = {}
 ): Promise<Map<number, string>> => {
   const arns = new Map<number, string>();
   await Promise.all(
@@ -250,7 +254,7 @@ export const resolveSharedLayerVersions = async (
         return;
       }
       const logger = operationReporter.createChildLogger({
-        parentEventType: 'HOTSWAP_UPDATE',
+        parentEventType,
         instanceId: `shared-layer-${layer.layerNumber}`,
         label: `shared layer ${layer.layerNumber}`
       });
@@ -325,6 +329,7 @@ export const updateFunctionCode = async ({
   codeChanged = true,
   layers,
   layerArns,
+  transitionalLayerArns,
   deferFinalTags = false,
   devMode
 }: {
@@ -339,6 +344,8 @@ export const updateFunctionCode = async ({
   layers?: { layerNumber: number; layerName: string; identity: string }[];
   /** The version of every shared layer by number. Given only when the function's layers change. */
   layerArns?: Map<number, string>;
+  /** A two-generation bridge prepared from the deployed code's imports. Attach it before changing code. */
+  transitionalLayerArns?: string[];
   /** Keep the update pending until the fast deployment has recorded its release. */
   deferFinalTags?: boolean;
   devMode?: boolean;
@@ -358,8 +365,8 @@ export const updateFunctionCode = async ({
     });
   }
 
-  // Invalidate both identities before changing code or layers. A failed final tag write must never leave the
-  // function claiming to run the previous layer content.
+  // Mark the runtime identity pending before a switch. Keep the artifact digest valid for a layer-only update:
+  // invalidating it would incorrectly force a code upload when retrying an interrupted configuration update.
   await awsSdkManager.lambda.tagFunction({
     lambdaArn: arns.lambdaFromFullName({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -368,6 +375,7 @@ export const updateFunctionCode = async ({
     }),
     tags: [
       { key: tagNames.codeDigest(), value: 'updating' },
+      ...(codeChanged ? [{ key: tagNames.artifactDigest(), value: 'updating' }] : []),
       ...(layerArns && layers?.length ? [{ key: tagNames.sharedLayers(), value: 'updating' }] : [])
     ]
   });
@@ -376,6 +384,13 @@ export const updateFunctionCode = async ({
     region: globalStateManager.region,
     lambdaAwsName: lambdaResourceName
   });
+  if (codeChanged && layerArns && layers?.length && !transitionalLayerArns) {
+    throw new Error('A code and shared-layer update requires a safe transitional layer.');
+  }
+  if (transitionalLayerArns) {
+    await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: transitionalLayerArns });
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  }
   if (codeChanged) {
     ({ FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
       lambdaResourceName,
@@ -384,7 +399,8 @@ export const updateFunctionCode = async ({
     }));
     await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
   }
-  // The layers follow the code: Lambda takes one update at a time, and the new code imports from the new layer.
+  // Both code generations load with the bridge. Once the new code is active, drop the old chunks by attaching the
+  // canonical layer. Release templates always name that clean artifact, never the temporary union.
   let updatedLayerArns: string[] | undefined;
   if (layerArns && layers?.length) {
     updatedLayerArns =
@@ -410,7 +426,8 @@ export const updateFunctionCode = async ({
       .tagFunction({
         lambdaArn: FunctionArn,
         tags: [
-          { key: tagNames.codeDigest(), value: digest },
+          { key: tagNames.codeDigest(), value: getFunctionCodeDigest(digest, layers) },
+          { key: tagNames.artifactDigest(), value: digest },
           ...(layers?.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
         ]
       })

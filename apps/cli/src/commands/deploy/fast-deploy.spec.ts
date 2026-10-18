@@ -17,6 +17,7 @@ mock.module('../_utils/cw-deployment', () => ({
 /** What the fast deployment did, in order: layer resolutions, function updates and the final cleanup. */
 const steps: { step: string; layerArns?: Record<number, string> }[] = [];
 let failLayerPublication = false;
+mock.module('../_utils/shared-layer-transition', () => ({ prepareSharedLayerTransitions: async () => new Map() }));
 mock.module('../_utils/fn-deployment', () => ({
   getLambdaFunctionHotswapInformation: () => ({}),
   getSharedLayerHotswapInformation: () => [],

@@ -11,6 +11,7 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
+import { mergeHashes } from '@stacktape/packaging/artifact/hashing';
 
 export type SharedLayerContent = { layerNumber: number; identity: string };
 
@@ -65,6 +66,10 @@ export const formatSharedLayersTag = (layers: SharedLayerContent[]): string =>
     .sort((left, right) => left.layerNumber - right.layerNumber)
     .map(({ layerNumber, identity }) => `${layerNumber}:${identity}`)
     .join('/');
+
+/** The running module graph, including layers, remains distinct when two releases share one function ZIP. */
+export const getFunctionCodeDigest = (artifactDigest: string, layers: SharedLayerContent[] = []): string =>
+  layers.length ? mergeHashes(artifactDigest, formatSharedLayersTag(layers)) : artifactDigest;
 
 /** The layers a function's tag records, or `undefined` when the function carries no such tag. */
 export const parseSharedLayersTag = (value: string | undefined): Map<number, string> | undefined => {

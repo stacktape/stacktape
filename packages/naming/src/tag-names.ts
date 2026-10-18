@@ -14,6 +14,10 @@ export const tagNames = {
   codeDigest() {
     return 'stp:code-digest';
   },
+  /** The function package and maps. `codeDigest` also covers its shared layers for runtime/source-map identity. */
+  artifactDigest() {
+    return 'stp:artifact-digest';
+  },
   /** The shared chunk layers a function runs with, as `<layer number>:<content hash>` pairs separated by `/`. */
   sharedLayers() {
     return 'stp:shared-layers';
