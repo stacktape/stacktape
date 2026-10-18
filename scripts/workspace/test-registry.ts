@@ -5840,6 +5840,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
+      'apps/cli/scripts/operations/lifecycle-hooks.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
