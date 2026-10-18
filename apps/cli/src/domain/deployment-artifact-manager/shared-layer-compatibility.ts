@@ -14,8 +14,17 @@ export const archiveFiles = (zip: AdmZip, root: string): Map<string, Buffer> =>
 type Module = { exports: Set<string>; imports: { path: string; names: string[] | null }[]; uncertain: boolean };
 
 const scan = (path: string, data: Buffer): Module => {
-  const source = ts.createSourceFile(path, data.toString(), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-  const result: Module = { exports: new Set(), imports: [], uncertain: false };
+  // TypeScript exposes parser diagnostics on the returned node, but omits them from its public SourceFile type.
+  const source = ts.createSourceFile(
+    path,
+    data.toString(),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS
+  ) as ts.SourceFile & {
+    parseDiagnostics: readonly ts.Diagnostic[];
+  };
+  const result: Module = { exports: new Set(), imports: [], uncertain: source.parseDiagnostics.length > 0 };
   const local = (name: string) => name.startsWith('.') || name.startsWith('/opt/nodejs/chunks/');
   for (const statement of source.statements) {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
@@ -100,7 +109,7 @@ export const createSharedLayerCompatibilityCheck = () => {
     nextFunction: Map<string, Buffer>;
     oldLayers: Map<string, Buffer>;
     nextLayers: Map<string, Buffer>;
-  }): boolean => {
+  }): { layerFirst: boolean; rollbackCompatible: boolean } => {
     const links = (
       functionFiles: Map<string, Buffer>,
       layerFiles: Map<string, Buffer>,
@@ -143,9 +152,13 @@ export const createSharedLayerCompatibilityCheck = () => {
       }
       return true;
     };
-    return links(oldFunction, nextLayers, oldLayers) && links(nextFunction, oldLayers, nextLayers);
+    return {
+      layerFirst: links(oldFunction, nextLayers, oldLayers),
+      rollbackCompatible: links(nextFunction, oldLayers, nextLayers)
+    };
   };
 };
 
-export const canUpdateSharedLayersFirst: ReturnType<typeof createSharedLayerCompatibilityCheck> = (input) =>
-  createSharedLayerCompatibilityCheck()(input);
+export const canUpdateSharedLayersFirst = (
+  input: Parameters<ReturnType<typeof createSharedLayerCompatibilityCheck>>[0]
+): boolean => createSharedLayerCompatibilityCheck()(input).layerFirst;

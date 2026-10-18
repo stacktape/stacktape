@@ -1,4 +1,5 @@
 import AdmZip from 'adm-zip';
+import { tuiManager } from '@application-services/tui-manager';
 import {
   archiveFiles,
   createSharedLayerCompatibilityCheck
@@ -32,7 +33,7 @@ export const prepareSharedLayerTransitions = async (
   const publications = new Map<string, Promise<string>>();
   let activeDownloads = 0;
   const waiting: (() => void)[] = [];
-  const download = (key: string, location: () => Promise<string | undefined>) => {
+  const download = (key: string, loadZip: () => Promise<AdmZip>) => {
     if (!downloads.has(key))
       downloads.set(
         key,
@@ -46,7 +47,7 @@ export const prepareSharedLayerTransitions = async (
             else waiting.push(start);
           });
           try {
-            return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: await location() }));
+            return await loadZip();
           } finally {
             activeDownloads--;
             waiting.shift()?.();
@@ -69,6 +70,7 @@ export const prepareSharedLayerTransitions = async (
   };
   const endPreparation = startTiming('fast-deploy:prepare-layers');
   const compatible = createSharedLayerCompatibilityCheck();
+  const rollbackWindows: string[] = [];
   const transitions = new Map<string, { layerArns?: string[]; layerFirst?: boolean }>();
   const prepared: {
     fn: FunctionUpdate;
@@ -76,18 +78,20 @@ export const prepareSharedLayerTransitions = async (
     bridges: ReturnType<typeof buildSharedLayerTransitions>;
     combinedSize: number;
   }[] = [];
-  // Keep memory bounded when a stack has many large function archives. Layer downloads and bridge publications reuse
-  // one promise per version/content; they are not repeated for every consumer.
+  // Bound concurrent archive reads. Packaging's deployed archives, layer downloads and bridge publications reuse
+  // one promise per function/version/content instead of repeating the work for every consumer.
   const candidates = functions.filter(({ codeChanged, changedLayers }) => codeChanged && changedLayers.length);
   let cursor = 0;
   const prepare = async (fn: FunctionUpdate) => {
-    const deployed = await awsSdkManager.lambda.getFunctionDeployment({ lambdaResourceName: fn.lambdaResourceName });
+    const deployed = await packagingManager.getDeployedFunction(fn.lambdaResourceName);
     const currentArns = (deployed.Configuration?.Layers ?? []).flatMap(({ Arn }) => (Arn ? [Arn] : []));
-    const functionZip = await download(fn.lambdaResourceName, async () => deployed.Code?.Location);
+    const functionZip = await download(fn.lambdaResourceName, () =>
+      packagingManager.getDeployedFunctionZip(fn.lambdaResourceName)
+    );
     const currentLayers = await Promise.all(
       currentArns.map(async (arn) => ({
         arn,
-        zip: await download(arn, async () => (await awsSdkManager.lambda.getLayerVersion({ arn })).Content?.Location)
+        zip: await download(arn, () => packagingManager.getDeployedLayerZip(arn))
       }))
     );
     const changed = fn.changedLayers.map(({ layerNumber }) =>
@@ -116,14 +120,16 @@ export const prepareSharedLayerTransitions = async (
     for (const { layerName, zip } of nextLayers)
       if (!currentArns.some((arn) => arn.split(':')[6] === layerName)) mounted.push(zip);
     const nextFiles = new Map(mounted.flatMap((zip) => [...archiveFiles(zip, '/opt')]));
-    if (
-      compatible({
-        oldFunction: archiveFiles(functionZip, '/var/task'),
-        nextFunction: archiveFiles(nextZip, '/var/task'),
-        oldLayers,
-        nextLayers: nextFiles
-      })
-    ) {
+    const endCompatibility = startTiming('fast-deploy:layer-compatibility', { function: fn.workloadName });
+    const compatibility = compatible({
+      oldFunction: archiveFiles(functionZip, '/var/task'),
+      nextFunction: archiveFiles(nextZip, '/var/task'),
+      oldLayers,
+      nextLayers: nextFiles
+    });
+    endCompatibility(compatibility);
+    if (compatibility.layerFirst) {
+      if (!compatibility.rollbackCompatible) rollbackWindows.push(fn.workloadName);
       transitions.set(fn.lambdaResourceName, { layerFirst: true });
       return;
     }
@@ -180,10 +186,15 @@ export const prepareSharedLayerTransitions = async (
     );
     transitions.set(fn.lambdaResourceName, { layerArns: replaceSharedLayerArns(currentArns, replacements) });
   }
+  if (rollbackWindows.length)
+    tuiManager.info(
+      `A CloudFormation rollback across this edit may briefly fail invocations for ${rollbackWindows.join(', ')} while code and layers update separately.`
+    );
   endPreparation({
     functions: candidates.length,
     bridges: publications.size,
-    layerFirst: candidates.length - prepared.length
+    layerFirst: candidates.length - prepared.length,
+    rollbackWindows: rollbackWindows.length
   });
   return transitions;
 };

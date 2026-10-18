@@ -244,6 +244,43 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  // Packaging and transition preparation inspect the same deployed generation before any function mutation.
+  #deployedFunctions = new Map<string, ReturnType<typeof awsSdkManager.lambda.getFunctionDeployment>>();
+  #deployedFunctionZips = new Map<string, Promise<AdmZip>>();
+  #deployedLayerZips = new Map<string, Promise<AdmZip>>();
+
+  getDeployedFunction = (lambdaResourceName: string) => {
+    if (!this.#deployedFunctions.has(lambdaResourceName))
+      this.#deployedFunctions.set(
+        lambdaResourceName,
+        awsSdkManager.lambda.getFunctionDeployment({ lambdaResourceName })
+      );
+    return this.#deployedFunctions.get(lambdaResourceName)!;
+  };
+
+  getDeployedFunctionZip = (lambdaResourceName: string): Promise<AdmZip> => {
+    if (!this.#deployedFunctionZips.has(lambdaResourceName))
+      this.#deployedFunctionZips.set(
+        lambdaResourceName,
+        (async () => {
+          const current = await this.getDeployedFunction(lambdaResourceName);
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: current.Code?.Location }));
+        })()
+      );
+    return this.#deployedFunctionZips.get(lambdaResourceName)!;
+  };
+
+  getDeployedLayerZip = (arn: string): Promise<AdmZip> => {
+    if (!this.#deployedLayerZips.has(arn))
+      this.#deployedLayerZips.set(
+        arn,
+        (async () => {
+          const version = await awsSdkManager.lambda.getLayerVersion({ arn });
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: version.Content?.Location }));
+        })()
+      );
+    return this.#deployedLayerZips.get(arn)!;
+  };
   #layerArtifacts: Array<{
     layerNumber: number;
     layerPath: string;
@@ -396,6 +433,9 @@ export class PackagingManager {
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
+    this.#deployedFunctions.clear();
+    this.#deployedFunctionZips.clear();
+    this.#deployedLayerZips.clear();
     this.#layerArtifacts = [];
     this.#nativeBinaryLayers = [];
     this.#lambdaLayerMap.clear();
@@ -1047,7 +1087,6 @@ export class PackagingManager {
 
   #stableChunksNeedContentNames = async (nodeLambdas: { name: string; type: string }[]): Promise<boolean> => {
     if (stackManager.stackActionType !== 'update' || !this.#layerArtifacts.length) return false;
-    const oldLayers = new Map<string, Promise<AdmZip>>();
     const endCompatibility = startTiming('split:check-layer-compatibility');
     const compatible = createSharedLayerCompatibilityCheck();
     const nextFiles = new Map<string, Buffer>();
@@ -1077,20 +1116,12 @@ export class PackagingManager {
         (number) => identities?.get(number) !== this.getLayerArtifact(number)?.contentHash
       );
       if (!changedLayer) return false;
-      const current = await awsSdkManager.lambda.getFunctionDeployment({ lambdaResourceName: resource.resourceName });
+      const current = await this.getDeployedFunction(resource.resourceName);
       const oldFiles = new Map<string, Buffer>();
       let conflict = false;
       for (const { Arn: arn } of current.Configuration?.Layers ?? []) {
         if (!arn || !chunkLayerNames.has(layerNameOfArn(arn)!)) continue;
-        if (!oldLayers.has(arn))
-          oldLayers.set(
-            arn,
-            (async () => {
-              const version = await awsSdkManager.lambda.getLayerVersion({ arn });
-              return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: version.Content?.Location }));
-            })()
-          );
-        for (const entry of (await oldLayers.get(arn)!).getEntries()) {
+        for (const entry of (await this.getDeployedLayerZip(arn)).getEntries()) {
           if (entry.isDirectory) continue;
           const data = entry.getData();
           oldFiles.set(`/opt/${entry.entryName}`, data);
@@ -1099,9 +1130,7 @@ export class PackagingManager {
         }
       }
       if (conflict) {
-        const oldFunction = new AdmZip(
-          await awsSdkManager.lambda.downloadArtifact({ location: current.Code?.Location })
-        );
+        const oldFunction = await this.getDeployedFunctionZip(resource.resourceName);
         const nextPath = fsPaths.absoluteLambdaArtifactFolderPath({
           jobName: getJobName({ workloadName: name, workloadType: type }),
           invocationId: globalStateManager.invocationId
@@ -1121,7 +1150,7 @@ export class PackagingManager {
             nextFunction: functionFiles,
             oldLayers: oldFiles,
             nextLayers: new Map([...nextFiles].map(([path, data]) => [`/opt/${path}`, data]))
-          })
+          }).layerFirst
         )
           return true;
       }

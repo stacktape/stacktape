@@ -142,7 +142,7 @@ export const performFastDeploy = async ({
   const workloadCount = plan.functions.length + plan.services.length;
   await progress.startEvent({ eventType: 'HOTSWAP_UPDATE', description: 'Updating code directly' });
   // Publication and bridge preparation are independent. Functions whose layers stay unchanged can also update while
-  // those run; a consumer of changed layers waits for both before its first mutation.
+  // those run. Layer-only consumers wait for publication; mixed edits also wait for preparation.
   const changedLayerNumbers = new Set(
     plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
   );
@@ -181,11 +181,13 @@ export const performFastDeploy = async ({
               `Publishing the shared layers failed: ${result.error instanceof Error ? result.error.message : String(result.error)}`
             );
           layerArns = result.arns;
-          const prepared = await preparation;
-          if ('error' in prepared) throw prepared.error;
-          const transition = prepared.transitions.get(update.lambdaResourceName);
-          transitionalLayerArns = transition?.layerArns;
-          layerFirst = transition?.layerFirst ?? false;
+          if (update.codeChanged) {
+            const prepared = await preparation;
+            if ('error' in prepared) throw prepared.error;
+            const transition = prepared.transitions.get(update.lambdaResourceName);
+            transitionalLayerArns = transition?.layerArns;
+            layerFirst = transition?.layerFirst ?? false;
+          }
         }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,

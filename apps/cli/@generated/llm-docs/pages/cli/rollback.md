@@ -88,6 +88,8 @@ The rollback command reads rollback safety metadata from the deployed stack and 
 
 If the stack was deployed before rollback support was added, the safety metadata may be missing. The rollback still proceeds, but with a warning that results may be unpredictable if the config used `$File`, TypeScript transforms, custom directives, or `after:deploy` hooks.
 
+Shared-layer fast deployments check that the old handler can run on the new layer before attaching it. They do not require the new handler to run on the old layer. CloudFormation restores code and layers separately during rollback: across an edit that added a used export, restoring the old layer first can briefly fail invocations until the old handler is restored. The forward deployment prints a note when it detects this incompatibility. Rollbacks across several releases can also cross incompatible chunk generations. The final restored code and layers are consistent; rollback does not guarantee uninterrupted invocations during that transition.
+
 ## Version availability
 
 Use `--listVersions` to see which versions are still available. If a target version is not found in the deployment bucket, Stacktape reports that it was not found, lists the versions that are available, and notes that old versions may have been cleaned up based on the `previousVersionsToKeep` setting.

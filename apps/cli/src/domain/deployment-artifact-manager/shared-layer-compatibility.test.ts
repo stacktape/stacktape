@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { canUpdateSharedLayersFirst } from './shared-layer-compatibility';
+import { canUpdateSharedLayersFirst, createSharedLayerCompatibilityCheck } from './shared-layer-compatibility';
 const files = (root: string, entries: Record<string, string>) =>
   new Map(Object.entries(entries).map(([path, code]) => [`${root}/${path}`, Buffer.from(code)]));
 const entry = (name: string) =>
@@ -19,7 +19,7 @@ test('mixed edits link across both generations, with renamed local symbols and q
     compatible('const old = () => 1; export { old as helper };', 'const next = () => 2; export { next as "helper" };')
   ).toBe(true);
 });
-test('adding a used export, removing one, or changing an exported name requires a bridge', () => {
+test('adding a used export permits layer-first; removing a used export requires a bridge', () => {
   expect(
     compatible(
       'export const helper = () => 1;',
@@ -27,7 +27,7 @@ test('adding a used export, removing one, or changing an exported name requires 
       'helper',
       'added'
     )
-  ).toBe(false);
+  ).toBe(true);
   expect(compatible('export const helper = () => 1;', 'export const renamed = () => 2;', 'helper', 'renamed')).toBe(
     false
   );
@@ -48,7 +48,9 @@ test('chunk-to-chunk and local chunk dependencies must resolve too', () => {
     'index.js': 'import { missing } from "./chunks/local.js";',
     'chunks/local.js': 'export const other = 1;'
   });
-  expect(canUpdateSharedLayersFirst({ oldFunction: entry('helper'), nextFunction, oldLayers, nextLayers })).toBe(false);
+  expect(
+    createSharedLayerCompatibilityCheck()({ oldFunction: entry('helper'), nextFunction, oldLayers, nextLayers })
+  ).toEqual({ layerFirst: true, rollbackCompatible: false });
 });
 test.each([
   'export * from "./chunk-b.js";',
@@ -77,4 +79,31 @@ test('literal dynamic imports and namespace imports are safe only with identical
     nextLayers.set('/opt/nodejs/chunks/chunk-b.js', Buffer.from('export const renamed = 2;'));
     expect(check()).toBe(false);
   }
+});
+
+test('forward safety and rollback safety are independent', () => {
+  const check = createSharedLayerCompatibilityCheck();
+  const input = {
+    oldFunction: entry('helper'),
+    nextFunction: entry('added'),
+    oldLayers: layer('export const helper = () => 1;'),
+    nextLayers: layer('export const helper = () => 2; export const added = () => 3;')
+  };
+  expect(check(input)).toEqual({ layerFirst: true, rollbackCompatible: false });
+  expect(
+    check({
+      oldFunction: input.nextFunction,
+      nextFunction: input.oldFunction,
+      oldLayers: input.nextLayers,
+      nextLayers: input.oldLayers
+    })
+  ).toEqual({ layerFirst: false, rollbackCompatible: true });
+});
+
+test.each([
+  'export const helper = () => 2; import { hidden from "./missing.js";',
+  'export const helper = () => ;',
+  'export const helper = () => 2; /* unterminated'
+])('parse diagnostics keep the bridge: %s', (code) => {
+  expect(compatible('export const helper = () => 1;', code)).toBe(false);
 });
