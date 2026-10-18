@@ -667,7 +667,6 @@ const main = async () => {
         owned.stackId = stack!.StackId;
         await save(join(directory, 'state.json'), state);
         const url = await endpoint(owned);
-        await business(url);
         const initialFleet = await waitForFleet(owned, count);
         const seenInitial = new Set<string>();
         const routeDeadline = performance.now() + 120000;
@@ -680,6 +679,7 @@ const main = async () => {
           await Bun.sleep(20);
         }
 
+        await business(url);
         const traffic: { atMs: number; status: number; task: string; error?: string }[] = [];
         const trafficController = new AbortController();
         const trafficLoop = (async () => {
