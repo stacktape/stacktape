@@ -618,10 +618,8 @@ describe('container rolling deployment family', () => {
     const linuxParameters = (workloadName: string) =>
       (
         (template.Resources[cfLogicalNames.ecsTaskDefinition(workloadName)] as Resource).Properties
-          ?.ContainerDefinitions as { Name: string; LinuxParameters?: unknown }[]
-      )
-        .filter(({ Name }) => Name === 'service-container')
-        .map(({ LinuxParameters }) => LinuxParameters);
+          ?.ContainerDefinitions as { LinuxParameters?: unknown }[]
+      ).map(({ LinuxParameters }) => LinuxParameters);
 
     // The js-bundle image has no tini: the init process ECS starts passes the stop signal to the server.
     expect(linuxParameters('web')).toEqual([{ InitProcessEnabled: true }]);

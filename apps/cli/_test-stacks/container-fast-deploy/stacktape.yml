@@ -1,7 +1,8 @@
 # Sample app for `scripts/real-aws/container-fast-deploy-canary.ts`, which times a code-only container deploy.
 #
 # - `albweb` is a web service behind an application load balancer; the target group health check decides readiness.
-# - `apiweb` is a web service behind an HTTP API Gateway (Cloud Map), using the default HTTP readiness check.
+# - `apiweb` is a web service behind an HTTP API Gateway (Cloud Map). Its container health check is the only signal
+#   that the new task is ready, so the canary keeps it.
 #
 # The canary copies this directory, replaces the owner tag value with its run owner and edits the release string in
 # `src/server.ts` before every measured deploy.
@@ -34,3 +35,10 @@ resources:
       resources:
         cpu: 0.25
         memory: 512
+      internalHealthCheck:
+        healthCheckCommand:
+          - CMD-SHELL
+          - curl -fsS http://localhost:$PORT/health || exit 1
+        intervalSeconds: 5
+        timeoutSeconds: 2
+        retries: 2

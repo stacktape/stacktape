@@ -175,9 +175,38 @@ const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish][]) =
   return hints;
 };
 
-describe('HTTP API readiness after a fast deploy', () => {
-  test('does not recommend internalHealthCheck when the default HTTP check already proves readiness', async () => {
-    expect(await deploy([[webService('api'), 'new-instances-discoverable']])).toEqual([]);
-    expect(await deploy([[webService('api'), 'rollout-completed']])).toEqual([]);
+describe('the hint after a fast deploy without an application health check', () => {
+  test('is printed once for web services behind an HTTP API without internalHealthCheck', async () => {
+    const printed = await deploy([
+      [webService('api'), 'new-instances-discoverable'],
+      [webService('admin'), 'rollout-completed'],
+      [webService('web', { healthCheck: true }), 'new-instances-discoverable']
+    ]);
+
+    expect(printed).toEqual([
+      'Application health is unchecked for api, admin. Add a one-line internalHealthCheck for failure detection ' +
+        'and automatic rollback: https://docs.stacktape.com/resources/compute/web-service/#health-checks'
+    ]);
+    expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain(
+      'Application health is unchecked for api.'
+    );
+  });
+
+  test.each<[string, StpContainerWorkload, RollingUpdateFinish]>([
+    [
+      'finished once API Gateway discovered the new version',
+      webService('api', { healthCheck: true }),
+      'new-instances-discoverable'
+    ],
+    // With a health check, only a missing permission makes the update wait; the hint would not help.
+    ['has an internalHealthCheck', webService('api', { healthCheck: true }), 'rollout-completed'],
+    ['is behind a load balancer', webService('api', { ingress: 'application-load-balancer' }), 'rollout-completed'],
+    [
+      'is not a web service',
+      { ...webService('worker'), configParentResourceType: 'worker-service' } as StpContainerWorkload,
+      'rollout-completed'
+    ]
+  ])('is not printed for a service that %s', async (_, workload, finishedWhen) => {
+    expect(await deploy([[workload, finishedWhen]])).toEqual([]);
   });
 });

@@ -1,3 +1,6 @@
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { RollingUpdateFinish } from 'src/aws/ecs';
+import { tuiManager } from '@application-services/tui-manager';
 import type { ExpectedError as ExpectedErrorType } from '@utils/errors';
 import { ExpectedError } from '@utils/errors';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
@@ -61,6 +64,26 @@ export const planFastDeploy = async ({
   return { plan: { functions, services, layers } };
 };
 
+/** One hint per deploy for HTTP API web services whose application health was not checked. */
+export const rolloutWaitHint = (
+  updates: { workload: StpContainerWorkload; finishedWhen?: RollingUpdateFinish }[]
+): string | undefined => {
+  const names = updates
+    .filter(
+      ({ workload, finishedWhen }) =>
+        (finishedWhen === 'new-instances-discoverable' || finishedWhen === 'rollout-completed') &&
+        workload.configParentResourceType === 'web-service' &&
+        workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
+        !workload.containers.some(({ internalHealthCheck }) => internalHealthCheck)
+    )
+    .map(({ workload }) => workload.nameChain[0]);
+  if (!names.length) return undefined;
+  return (
+    `Application health is unchecked for ${names.join(', ')}. Add a one-line internalHealthCheck for failure detection ` +
+    'and automatic rollback: https://docs.stacktape.com/resources/compute/web-service/#health-checks'
+  );
+};
+
 /**
  * Updates every planned function and service directly, then records the deployment as a release. Every update runs to
  * completion before a failure is reported, so the error names exactly which workloads run the new code.
@@ -86,6 +109,7 @@ export const performFastDeploy = async ({
       'Fix the problem and deploy again.'
     ]);
   });
+  const serviceUpdates: Parameters<typeof rolloutWaitHint>[0] = [];
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
   const updates = [
@@ -103,9 +127,7 @@ export const performFastDeploy = async ({
     })),
     ...plan.services.map((update) => ({
       name: update.workload.name,
-      run: async () => {
-        await updateEcsService(update);
-      }
+      run: async () => serviceUpdates.push({ workload: update.workload, ...(await updateEcsService(update)) })
     }))
   ];
   const results = await Promise.allSettled(updates.map(({ run }) => run()));
@@ -143,4 +165,6 @@ export const performFastDeploy = async ({
       ? `Updated ${workloadCount} workload${workloadCount === 1 ? '' : 's'}`
       : 'No code changes (nothing to update)'
   });
+  const hint = rolloutWaitHint(serviceUpdates);
+  if (hint) tuiManager.hint(hint);
 };

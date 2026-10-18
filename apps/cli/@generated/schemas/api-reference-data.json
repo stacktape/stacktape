@@ -60833,48 +60833,6 @@
     },
     "typeDeclaration": "// [!code focus-start]\ntype WebServiceAlbLoadBalancingProps = {\n  /** Seconds between health checks. */\n  healthcheckInterval?: number;\n  /** Path the load balancer pings to check container health. */\n  healthcheckPath?: string;\n  /** Seconds before a health check is considered failed. */\n  healthcheckTimeout?: number;\n};\n// [!code focus-end]"
   },
-  "WebServiceHttpApiGatewayLoadBalancing": {
-    "definitionName": "WebServiceHttpApiGatewayLoadBalancing",
-    "properties": [
-      {
-        "name": "properties",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "reference",
-          "typeName": "WebServiceHttpApiGatewayLoadBalancingProps"
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 0,
-      "optionalCount": 1
-    },
-    "typeDeclaration": "import type { WebServiceHttpApiGatewayLoadBalancingProps } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceHttpApiGatewayLoadBalancing = {\n  properties?: WebServiceHttpApiGatewayLoadBalancingProps;\n};\n// [!code focus-end]"
-  },
-  "WebServiceHttpApiGatewayLoadBalancingProps": {
-    "definitionName": "WebServiceHttpApiGatewayLoadBalancingProps",
-    "properties": [
-      {
-        "name": "healthcheckPath",
-        "required": false,
-        "shortDescription": "<p> HTTP path used to check whether the application is ready.</p>\n<p>Without a path, Stacktape requests <code>/</code> on the container&#39;s port and accepts any HTTP response, including 404 or 500.\nSet a path such as <code>/health</code> to require a 200–399 response instead. Redirects are not followed.\nThe check runs in a small side container, so your image needs no health-check tools.\nAn explicit <code>internalHealthCheck</code> on the application takes precedence.</p>",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ]
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 0,
-      "optionalCount": 1
-    },
-    "typeDeclaration": "// [!code focus-start]\ntype WebServiceHttpApiGatewayLoadBalancingProps = {\n  /** HTTP path used to check whether the application is ready.\n\nWithout a path, Stacktape requests `/` on the container's port and accepts any HTTP response, including 404 or 500.\nSet a path such as `/health` to require a 200–399 response instead. Redirects are not followed.\nThe check runs in a small side container, so your image needs no health-check tools.\nAn explicit `internalHealthCheck` on the application takes precedence. */\n  healthcheckPath?: string;\n};\n// [!code focus-end]"
-  },
   "WebServiceNlbLoadBalancing": {
     "definitionName": "WebServiceNlbLoadBalancing",
     "properties": [
@@ -63478,20 +63436,7 @@
             {
               "label": "http-api-gateway",
               "typeName": "WebServiceHttpApiGatewayLoadBalancing",
-              "properties": [
-                {
-                  "name": "healthcheckPath",
-                  "required": false,
-                  "shortDescription": "<p> HTTP path used to check whether the application is ready.</p>\n<p>Without a path, Stacktape requests <code>/</code> on the container&#39;s port and accepts any HTTP response, including 404 or 500.\nSet a path such as <code>/health</code> to require a 200–399 response instead. Redirects are not followed.\nThe check runs in a small side container, so your image needs no health-check tools.\nAn explicit <code>internalHealthCheck</code> on the application takes precedence.</p>",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "string"
-                    ]
-                  }
-                }
-              ]
+              "properties": []
             },
             {
               "label": "application-load-balancer",

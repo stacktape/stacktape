@@ -379,18 +379,6 @@ export const lanes: readonly Lane[] = [
     selections: ['synthesis-families']
   },
   {
-    id: 'web-service-health-check-runtime',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:web-service-health-check'],
-    level: 'process',
-    tier: 'change',
-    tests: ['apps/cli/scripts/real-aws/web-service-health-check-runtime.ts'],
-    requires: ['docker', 'network'],
-    release: 'affected-external-contract',
-    proves:
-      'The pinned web-service probe accepts HTTP responses and rejects unavailable applications without tools in the application image.',
-    selections: ['web-service-health-check']
-  },
-  {
     id: 'deployment-rules',
     command: [
       'pnpm',
@@ -3926,9 +3914,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/_utils/cw-deployment.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
-      'apps/cli/_test-stacks/container-fast-deploy/**',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/web-service-health-check.ts',
-      'apps/cli/scripts/real-aws/web-service-health-check-runtime.ts'
+      'apps/cli/_test-stacks/container-fast-deploy/**'
     ],
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
@@ -3947,8 +3933,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
-      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
-      'apps/cli/scripts/real-aws/web-service-health-check-runtime.ts'
+      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
     ],
     lanes: [
       'deployment-rules',
@@ -3960,8 +3945,7 @@ export const slices: readonly Slice[] = [
       'console-database-cli-console',
       'live-aws',
       'cli-test-real-aws-alias-canary',
-      'container-fast-deploy-live',
-      'web-service-health-check-runtime'
+      'container-fast-deploy-live'
     ],
     contributors: ['S03', 'S46']
   },

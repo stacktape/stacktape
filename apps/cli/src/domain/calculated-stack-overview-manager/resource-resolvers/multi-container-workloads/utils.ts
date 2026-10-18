@@ -1,4 +1,3 @@
-import { getWebServiceHealthCheck } from './web-service-health-check';
 import type {
   ContainerDefinition,
   HealthCheck,
@@ -1378,7 +1377,6 @@ export const getEcsTaskDefinition = (
     TaskRoleArn: getAtt(cfLogicalNames.ecsTaskRole(workload.name), 'Arn'),
     ContainerDefinitions: [
       ...getContainerWorkloadContainerDefinitions(workload),
-      ...(calculatedStackOverviewManager.context.command === 'dev' ? [] : getWebServiceHealthCheck(workload)),
       ...(workloadTracing ? [getOtelCollectorSidecarDefinition(workload)] : [])
     ],
     Volumes: volumes.length > 0 ? volumes : undefined,

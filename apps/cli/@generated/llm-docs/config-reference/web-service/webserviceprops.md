@@ -869,7 +869,7 @@ More cost-effective above ~500k requests/day. AWS Free Tier eligible.
 Requires explicit `ports` configuration. Does not support CDN, top-level firewall, or gradual deployments.
 
 Choices:
-- `http-api-gateway` (`WebServiceHttpApiGatewayLoadBalancing`). Properties: `healthcheckPath?: string`.
+- `http-api-gateway` (`WebServiceHttpApiGatewayLoadBalancing`)
 - `application-load-balancer` (`WebServiceAlbLoadBalancing`). Properties: `healthcheckPath?: string`, `healthcheckInterval?: number`, `healthcheckTimeout?: number`.
 - `network-load-balancer` (`WebServiceNlbLoadBalancing`). Properties: `healthcheckPath?: string`, `healthcheckInterval?: number`, `healthcheckTimeout?: number`, `healthCheckProtocol?: string: "HTTP" | "TCP"`, `healthCheckPort?: number`, `ports: Array<WebServiceNlbLoadBalancingPort>`.
 

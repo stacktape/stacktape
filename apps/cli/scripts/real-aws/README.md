@@ -251,11 +251,3 @@ pnpm --filter @stacktape/cli run test:real-aws-lambda-dev
 An interrupted run prints its exact recovery command. Keep the same variables and run
 `pnpm --filter @stacktape/cli run test:real-aws-lambda-dev -- --cleanup-only` before starting another run. This is an
 explicit release lane; normal test commands cannot opt into it.
-
-## Web-service HTTP check runtime
-
-`pnpm --filter @stacktape/cli run test:web-service-health-check` executes the HTTP readiness command in its pinned,
-small BusyBox image. It needs Docker and pulls the image if absent. It contacts no AWS service, checks default and
-configured-path status handling, malformed responses, a stalled server, an unfinished body and a closed port, and
-removes every container it creates. The server and probe share a container network namespace, matching Fargate's
-localhost behavior.
