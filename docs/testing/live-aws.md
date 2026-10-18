@@ -53,3 +53,37 @@ These two commands are easy to confuse:
 Never replace `pnpm dev:cli` with an installed `stacktape` binary when testing an unbuilt CLI change. Never infer the
 deployment stage from source-CLI dev mode; spell out `--stage`, `--region`, `--projectName`, and the credential mode for
 mutating commands.
+
+## Source-only code-swap benchmark
+
+The phase-1 experiment lives in `apps/cli/scripts/code-swap`. Its explicit build plugin produces a separate source CLI;
+normal dev/release builds do not contain its unsigned, unfenced activation path. There is no public configuration or
+installed CLI switch. This is a speed decision before runtime, ECS-readiness, capacity and protected-lifecycle work.
+
+Build the source benchmark from the CLI working directory, after `pnpm dev:cli version` has materialized development
+artifacts:
+
+```sh
+pnpm --filter @stacktape/cli exec bun scripts/code-swap/build-cli.ts .stacktape/code-swap/cli
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts
+```
+
+The runner accepts only account `597581086285`, region `eu-west-1`, profile/connected account `stacktape-e2e`, and a new
+owned `v4swap-` project at stage `bench`. It copies the `deploy-benchmarks/fixtures/containers/node` commerce API from
+`STP_CODE_SWAP_BENCH_FIXTURE` (default `/home/congy/projects/deploy-benchmarks/fixtures/containers/node`) into its
+ignored run directory. A small entrypoint starts its exported app because the bundler resolves `import.meta.url` at
+build time. The pinned Go builder requires Docker. No package is published.
+
+Each 512/1024 MiB, one/two-task configuration receives 20 consecutive edits and 20 matched image controls under public
+traffic. The real CLI discovers configuration, bundles, builds/pushes images, uploads S3 bundles, allocates releases and
+records ordinary release history. The supervisor enforces the lifetime kernel-peak screen; image fallbacks remain in the
+latency distribution. Preparation runs alongside image work, and activation waits for the pushed image. No voluntary
+task reset occurs within a swap sequence. Readiness, signed authority and final IAM are deliberately outside this
+experiment.
+
+The runner prints an exact recovery command and cleans up in `finally`. Keep its state until deletion is verified. Run
+`pnpm --filter @stacktape/cli exec bun scripts/code-swap/analyze.ts <run-directory>` to write the summary. It measures
+the WSL clock rate against AWS proxy timestamps rather than assuming the historical 9.6% drift. Retain every raw sample,
+failure and outlier. Report first/all-task serving, old-process exit, CLI exit, fallback rate and matched image times.
+Every Node configuration must have serving p50 ≤5 s, p95 ≤15 s, maximum ≤25 s, p50/p95 at most half the image control,
+and zero memory fallbacks. A miss stops later safety phases pending investigation and a new explicit go/no-go result.

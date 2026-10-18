@@ -35,7 +35,6 @@ type record struct {
 var current, candidate atomic.Pointer[generation]
 var taskID, app, table, bucket string
 var baseline string
-var publicPort = "8080"
 var local = &http.Client{Timeout: 2 * time.Second}
 
 func must(err error) {
@@ -95,7 +94,11 @@ func spawn(dir, rev string, t map[string]any) *generation {
 	port = 20000 + rand.Intn(10000)
 	var c *exec.Cmd
 	if app == "node" {
-		c = exec.Command("node", "index.mjs")
+		entry := os.Getenv("STP_BENCH_ENTRY")
+		if entry == "" {
+			entry = "index.mjs"
+		}
+		c = exec.Command("node", entry)
 
 	}
 	c.Dir = dir
@@ -292,18 +295,12 @@ func main() {
 
 func parseHTTPDate(h http.Header, key string) time.Time { t, _ := http.ParseTime(h.Get(key)); return t }
 func memory() map[string]any {
-	base := "/sys/fs/cgroup/memory/"
-	peakFile := "memory.max_usage_in_bytes"
-	limitFile := "memory.limit_in_bytes"
-	usageFile := "memory.usage_in_bytes"
-	version := 1
-	if _, err := os.Stat(base + peakFile); err != nil {
-		base = "/sys/fs/cgroup/"
-		peakFile = "memory.peak"
-		limitFile = "memory.max"
-		usageFile = "memory.current"
-		version = 2
+	base, version := memoryController()
+	peakFile, limitFile, usageFile := "memory.max_usage_in_bytes", "memory.limit_in_bytes", "memory.usage_in_bytes"
+	if version == 2 {
+		peakFile, limitFile, usageFile = "memory.peak", "memory.max", "memory.current"
 	}
+
 	readNum := func(f string) int64 {
 		b, err := os.ReadFile(base + f)
 		if err != nil {
@@ -324,4 +321,55 @@ func memory() map[string]any {
 	}
 	need := 2.5*float64(peak) + 64*1024*1024
 	return map[string]any{"atMs": now(), "cgroupVersion": version, "peakFile": base + peakFile, "peakBytes": peak, "rawLimitBytes": rawLimit, "effectiveLimitBytes": limit, "usageBytes": readNum(usageFile), "requiredBytes": need, "allowed": peak > 0 && limit > 0 && need <= .9*float64(limit)}
+}
+
+// Resolve the actual containing controller; a new kernel alone says nothing about Fargate's cgroup version.
+func memoryController() (string, int) {
+	groups, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return "/unknown/", 0
+	}
+	mounts, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return "/unknown/", 0
+	}
+	for _, group := range strings.Split(string(groups), "\n") {
+		fields := strings.SplitN(group, ":", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		version := 1
+		if fields[0] == "0" && fields[1] == "" {
+			version = 2
+		} else if !strings.Contains(","+fields[1]+",", ",memory,") {
+			continue
+		}
+		for _, line := range strings.Split(string(mounts), "\n") {
+			parts := strings.SplitN(line, " - ", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			left, right := strings.Fields(parts[0]), strings.Fields(parts[1])
+			if len(left) < 5 || len(right) < 3 {
+				continue
+			}
+			if version == 1 && (right[0] != "cgroup" || !strings.Contains(","+right[2]+",", ",memory,")) {
+				continue
+			}
+			if version == 2 && right[0] != "cgroup2" {
+				continue
+			}
+			root, mount := left[3], left[4]
+			relative := strings.TrimPrefix(fields[2], root)
+			if root != "/" && !strings.HasPrefix(fields[2], root) {
+				continue
+			}
+			path := mount + "/" + strings.TrimPrefix(relative, "/")
+			if !strings.HasSuffix(path, "/") {
+				path += "/"
+			}
+			return path, version
+		}
+	}
+	return "/unknown/", 0
 }

@@ -27,6 +27,35 @@ export type Slice = {
 
 export const lanes: readonly Lane[] = [
   {
+    id: 'code-swap-build-boundary',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'scripts/code-swap/build-cli.spec.ts',
+      'scripts/code-swap/analyze.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/scripts/code-swap/build-cli.spec.ts', 'apps/cli/scripts/code-swap/analyze.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'The ordinary CLI build cannot activate the unsigned benchmark path.'
+  },
+  {
+    id: 'code-swap-live-benchmark',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/run.ts'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/code-swap/run.ts'],
+    requires: ['docker', 'aws', 'network'],
+    release: 'affected-external-contract',
+    proves: 'Real source CLI edits and matched image deployments pass the measured Node serving gate.'
+  },
+  {
     id: 'code-swap-artifacts',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'exec', 'bun', 'test', 'src/artifact/code-swap.test.ts'],
     level: 'focused',
@@ -41,7 +70,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/smoke.ts'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/scripts/code-swap/smoke.ts'],
+    tests: ['apps/cli/scripts/code-swap/smoke.ts', 'apps/cli/scripts/code-swap/supervisor/archive_test.go'],
     requires: ['docker'],
     release: 'affected-external-contract',
     proves: 'The pinned image applies a verified bundle and serves it through the real proxy.'
@@ -3455,8 +3484,15 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['container-deploy'],
     paths: ['packages/packaging/src/artifact/code-swap.ts', 'apps/cli/scripts/code-swap/**'],
-    tests: ['packages/packaging/src/artifact/code-swap.test.ts', 'apps/cli/scripts/code-swap/smoke.ts'],
-    lanes: ['code-swap-artifacts', 'code-swap-supervisor']
+    tests: [
+      'packages/packaging/src/artifact/code-swap.test.ts',
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/build-cli.spec.ts',
+      'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/run.ts'
+    ],
+    lanes: ['code-swap-artifacts', 'code-swap-supervisor', 'code-swap-build-boundary', 'code-swap-live-benchmark']
   },
   {
     id: 'S01',

@@ -1,0 +1,669 @@
+import {
+  CloudFormationClient,
+  CancelUpdateStackCommand,
+  DescribeStacksCommand,
+  DescribeStackResourcesCommand
+} from '@aws-sdk/client-cloudformation';
+import {
+  DynamoDBClient,
+  CreateTableCommand,
+  DescribeTableCommand,
+  DeleteTableCommand,
+  ListTagsOfResourceCommand
+} from '@aws-sdk/client-dynamodb';
+import {
+  ECSClient,
+  DescribeServicesCommand,
+  DescribeTasksCommand,
+  ListTasksCommand,
+  ListTaskDefinitionsCommand,
+  DescribeClustersCommand,
+  DeregisterTaskDefinitionCommand
+} from '@aws-sdk/client-ecs';
+import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { ECRClient, DescribeRepositoriesCommand } from '@aws-sdk/client-ecr';
+import { CloudWatchLogsClient, DescribeLogGroupsCommand, DeleteLogGroupCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+import { fromIni } from '@aws-sdk/credential-providers';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { randomBytes } from 'node:crypto';
+import { openSync, closeSync } from 'node:fs';
+import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { buildSupervisor } from './build-supervisor';
+import type { BenchmarkRun } from './runtime';
+
+const ACCOUNT = '597581086285',
+  REGION = 'eu-west-1',
+  PROFILE = 'stacktape-e2e';
+const cliRoot = resolve(import.meta.dir, '../..');
+const root = resolve(cliRoot, '../..');
+const clients = { region: REGION, credentials: fromIni({ profile: PROFILE }) };
+const cfn = new CloudFormationClient(clients),
+  ddb = new DynamoDBClient(clients),
+  ecs = new ECSClient(clients),
+  s3 = new S3Client(clients),
+  ecr = new ECRClient(clients);
+type Owned = {
+  name: string;
+  owner: string;
+  table: string;
+  bucket: string;
+  repository: string;
+  directory: string;
+  stackId?: string;
+  tableAttempted?: boolean;
+  stackAttempted?: boolean;
+  cleaned?: boolean;
+  inventory?: { type: string; id: string }[];
+};
+type State = {
+  account: string;
+  region: string;
+  profile: string;
+  owner: string;
+  directory: string;
+  resources: Owned[];
+  supervisor: string;
+  cli: string;
+};
+type Poll = {
+  hostMs: number;
+  elapsedMs: number;
+  awsMs: number;
+  rttMs: number;
+  task: string;
+  revision: string;
+  status: number;
+  error?: string;
+};
+const save = async (path: string, value: unknown) => {
+  await writeFile(`${path}.tmp`, JSON.stringify(value, null, 2));
+  await rename(`${path}.tmp`, path);
+};
+const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
+  if (!condition) throw new Error(message);
+};
+const missing = (error: unknown) => /does not exist|NotFound|ResourceNotFound|NoSuch|404/.test(String(error));
+const invoke = async (args: string[], log: string, env: Record<string, string | undefined> = {}) => {
+  const output = openSync(log, 'w');
+  const child = Bun.spawn(args, {
+    cwd: cliRoot,
+    env: { ...process.env, STP_DEV_MODE: 'true', AWS_PROFILE: PROFILE, AWS_REGION: REGION, ...env },
+    stdout: output,
+    stderr: output
+  });
+  const timeout = setTimeout(() => child.kill('SIGTERM'), 30 * 60 * 1000);
+  const code = await child.exited.finally(() => {
+    clearTimeout(timeout);
+    closeSync(output);
+  });
+  if (code) throw new Error(`Command failed (${code}); see ${log}`);
+};
+const cliArgs = (state: State, owned: Owned, command: string) => [
+  'bun',
+  state.cli,
+  command,
+  '--configPath',
+  join(owned.directory, 'stacktape.json'),
+  '--projectName',
+  owned.name,
+  '--stage',
+  'bench',
+  '--region',
+  REGION,
+  '--awsAccount',
+  PROFILE,
+  '--outputFormat',
+  'jsonl',
+  '--autoConfirmOperation'
+];
+const guard = async () => {
+  assert(
+    process.env.STP_CODE_SWAP_BENCH_LIVE === '1',
+    'Set STP_CODE_SWAP_BENCH_LIVE=1 for the authorized disposable benchmark.'
+  );
+  assert(
+    !Object.keys(process.env).some((key) => /^(AWS_ENDPOINT_URL|STP_.*ENDPOINT)/.test(key) && process.env[key]),
+    'Endpoint overrides are forbidden.'
+  );
+  assert(
+    (await new STSClient(clients).send(new GetCallerIdentityCommand({}))).Account === ACCOUNT,
+    'Wrong AWS account.'
+  );
+};
+const getStack = async (owned: Owned) => {
+  try {
+    const stack = (await cfn.send(new DescribeStacksCommand({ StackName: owned.stackId ?? `${owned.name}-bench` })))
+      .Stacks?.[0];
+    return stack?.StackStatus === 'DELETE_COMPLETE' ? undefined : stack;
+  } catch (error) {
+    if (missing(error)) return undefined;
+    throw error;
+  }
+};
+
+const ownedStack = async (owned: Owned) => {
+  const stack = await getStack(owned);
+  if (stack)
+    assert(
+      stack.Tags?.some((tag) => tag.Key === 'code-swap-benchmark-owner' && tag.Value === owned.owner),
+      'Stack ownership mismatch.'
+    );
+  return stack;
+};
+const primaryTasks = async (owned: Owned, strict = false) => {
+  const resources = await cfn.send(
+    new DescribeStackResourcesCommand({ StackName: owned.stackId ?? `${owned.name}-bench` })
+  );
+  const service = resources.StackResources?.find(
+    (resource) => resource.ResourceType === 'AWS::ECS::Service'
+  )?.PhysicalResourceId;
+  assert(service, 'Missing ECS service.');
+  const cluster = service.split('/')[1]!;
+  const described = await ecs.send(new DescribeServicesCommand({ cluster, services: [service] }));
+  const primary = described.services?.[0]?.deployments?.find((deployment) => deployment.status === 'PRIMARY');
+  assert(primary, 'Missing PRIMARY.');
+  const list = await ecs.send(
+    new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' })
+  );
+  const tasks = await ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] }));
+  if (strict)
+    assert(
+      tasks.tasks?.every((task) => task.taskDefinitionArn === primary.taskDefinition),
+      'Old tasks still draining.'
+    );
+  return {
+    ids: (tasks.tasks ?? [])
+      .filter((task) => task.taskDefinitionArn === primary.taskDefinition && task.lastStatus === 'RUNNING')
+      .map((task) => task.taskArn!.split('/').at(-1)!),
+    service,
+    cluster
+  };
+};
+const cleanup = async (state: State, owned: Owned) => {
+  if (owned.cleaned) return;
+  await guard();
+  const stack = await ownedStack(owned);
+  if (owned.stackAttempted && (stack || owned.stackId)) {
+    const resources = await cfn.send(
+      new DescribeStackResourcesCommand({ StackName: owned.stackId ?? `${owned.name}-bench` })
+    );
+    owned.inventory = [
+      ...(owned.inventory ?? []),
+      ...(resources.StackResources ?? [])
+        .filter((r) => r.PhysicalResourceId)
+        .map((r) => ({ type: r.ResourceType!, id: r.PhysicalResourceId! }))
+    ].filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index);
+    await save(join(state.directory, 'state.json'), state);
+  }
+  if (stack) {
+    if (stack.StackStatus === 'UPDATE_IN_PROGRESS') {
+      await cfn.send(new CancelUpdateStackCommand({ StackName: stack.StackId }));
+    }
+    for (let i = 0; i < 1200; i++) {
+      const current = await ownedStack(owned);
+      if (!current?.StackStatus?.endsWith('_IN_PROGRESS')) break;
+      await Bun.sleep(1000);
+    }
+    owned.stackId = stack.StackId;
+    await save(join(state.directory, 'state.json'), state);
+    // Deep benchmark artifacts are not understood by the ordinary historical key parser.
+    let continuation: string | undefined;
+    do {
+      const listed = await s3.send(
+        new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/', ContinuationToken: continuation })
+      );
+      if (listed.Contents?.length)
+        await s3.send(
+          new DeleteObjectsCommand({
+            Bucket: owned.bucket,
+            Delete: { Objects: listed.Contents.map(({ Key }) => ({ Key: Key! })) }
+          })
+        );
+      continuation = listed.NextContinuationToken;
+    } while (continuation);
+    await invoke(cliArgs(state, owned, 'delete'), join(owned.directory, 'delete.log'));
+  }
+  if (owned.tableAttempted) {
+    try {
+      const table = await ddb.send(new DescribeTableCommand({ TableName: owned.table }));
+      const tags = await ddb.send(new ListTagsOfResourceCommand({ ResourceArn: table.Table!.TableArn! }));
+      assert(
+        tags.Tags?.some((tag) => tag.Key === 'code-swap-benchmark-owner' && tag.Value === owned.owner),
+        'Table ownership mismatch.'
+      );
+      await ddb.send(new DeleteTableCommand({ TableName: owned.table }));
+    } catch (error) {
+      if (!missing(error)) throw error;
+    }
+  }
+  // ECS retains inactive revision metadata. Deregister every owned active revision, including direct image updates.
+  let nextToken: string | undefined;
+  do {
+    const definitions = await ecs.send(
+      new ListTaskDefinitionsCommand({ familyPrefix: `${owned.name}-bench`, status: 'ACTIVE', nextToken })
+    );
+    for (const arn of definitions.taskDefinitionArns ?? [])
+      await ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn }));
+    nextToken = definitions.nextToken;
+  } while (nextToken);
+  for (let i = 0; i < 180; i++) {
+    const remaining = await getStack(owned);
+    if (!remaining) break;
+    await Bun.sleep(1000);
+  }
+  assert(!(await getStack(owned)), 'Stack remains after delete.');
+  for (let i = 0; i < 60; i++) {
+    try {
+      await ddb.send(new DescribeTableCommand({ TableName: owned.table }));
+      await Bun.sleep(1000);
+    } catch (error) {
+      if (missing(error)) break;
+      throw error;
+    }
+  }
+  for (const query of [
+    () => ddb.send(new DescribeTableCommand({ TableName: owned.table })),
+    () => s3.send(new HeadBucketCommand({ Bucket: owned.bucket })),
+    () => ecr.send(new DescribeRepositoriesCommand({ repositoryNames: [owned.repository] }))
+  ]) {
+    let gone = false;
+    try {
+      await query();
+    } catch (error) {
+      if (missing(error)) gone = true;
+      else throw error;
+    }
+    assert(gone, 'Owned table/bucket/repository still exists.');
+  }
+  const logs = new CloudWatchLogsClient(clients);
+  for (const item of owned.inventory ?? []) {
+    if (item.type === 'AWS::Logs::LogGroup') {
+      const found = await logs.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: item.id }));
+      if (found.logGroups?.some((group) => group.logGroupName === item.id))
+        await logs.send(new DeleteLogGroupCommand({ logGroupName: item.id }));
+      assert(
+        !(await logs.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: item.id }))).logGroups?.some(
+          (group) => group.logGroupName === item.id
+        ),
+        'Owned log group remains.'
+      );
+    }
+    if (item.type === 'AWS::ECS::Cluster') {
+      const response = await ecs.send(new DescribeClustersCommand({ clusters: [item.id] }));
+      assert(
+        !(response.clusters ?? []).some(
+          (cluster) => cluster.status === 'ACTIVE' || cluster.runningTasksCount || cluster.pendingTasksCount
+        ),
+        'Owned cluster still active.'
+      );
+    }
+  }
+  const images = Bun.spawn(['docker', 'image', 'ls', '--format', '{{json .}}'], { stdout: 'pipe', stderr: 'inherit' });
+  const localImages = (await new Response(images.stdout).text())
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { Repository: string; Tag: string });
+  assert((await images.exited) === 0, 'Could not enumerate owned local image tags.');
+  for (const image of localImages.filter(
+    (image) => image.Repository === `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${owned.repository}`
+  ))
+    await invoke(
+      ['docker', 'image', 'rm', `${image.Repository}:${image.Tag}`],
+      join(owned.directory, 'local-image-cleanup.log')
+    );
+  owned.cleaned = true;
+  await save(join(state.directory, 'state.json'), state);
+  await save(join(owned.directory, 'cleanup.json'), {
+    verified: true,
+    at: new Date().toISOString(),
+    stack: owned.stackId,
+    table: owned.table,
+    bucket: owned.bucket,
+    repository: owned.repository
+  });
+};
+const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
+  const config = {
+    projectName: owned.name,
+    resources: {
+      api: {
+        type: 'web-service',
+        properties: {
+          port: 8080,
+          packaging: {
+            type: 'js-bundle',
+            properties: { entryfilePath: 'entry.mjs', nodeVersion: 22, disableSourceMaps: true }
+          },
+          resources: { cpu: 0.25, memory },
+          scaling: { minInstances: count, maxInstances: count },
+          iamRoleStatements: [
+            {
+              Effect: 'Allow',
+              Action: ['dynamodb:GetItem', 'dynamodb:PutItem'],
+              Resource: [`arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${owned.table}`]
+            },
+            { Effect: 'Allow', Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${owned.bucket}/code-swap/*`] }
+          ]
+        }
+      }
+    },
+    stackConfig: {
+      tags: [{ name: 'code-swap-benchmark-owner', value: owned.owner }],
+      outputs: [{ name: 'apiUrl', value: "$ResourceParam('api', 'url')" }]
+    }
+  };
+  await save(join(owned.directory, 'stacktape.json'), config);
+};
+const endpoint = async (owned: Owned) => {
+  const stack = await getStack(owned);
+  const output = stack?.Outputs?.find((item) => item.OutputKey === 'apiUrl');
+  if (output?.OutputValue) return output.OutputValue;
+  // CLI stack-info keeps authored output names when CloudFormation normalizes their logical IDs.
+  const outputs = stack?.Outputs ?? [];
+  const url = outputs.find((item) => item.OutputValue?.includes('.execute-api.'))?.OutputValue;
+  assert(url, 'Missing HTTP API URL.');
+  return url;
+};
+const business = async (url: string) => {
+  const quote = await fetch(`${url}/quote`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      lines: [
+        { productId: 'coffee', quantity: 2 },
+        { productId: 'mug', quantity: 1 }
+      ]
+    })
+  });
+  assert(((await quote.json()) as { total: string }).total === '33.00', 'Wrong quote.');
+  const receipt = await fetch(`${url}/receipt`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ orderId: 'order-100', placedAt: '2025-01-15T12:00:00Z', total: '33.00' })
+  });
+  assert(
+    ((await receipt.json()) as { html: string }).html === '<p>Order order-100, 2025-01-15: USD 33.00</p>',
+    'Wrong receipt.'
+  );
+  assert((await fetch(`${url}/products`)).ok, 'Products request failed.');
+};
+const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, index: number) => {
+  const label = `${run.mode}-${run.memory}-${run.count}-${String(index).padStart(2, '0')}`;
+  const desired = `${label}-${state.owner}`;
+  await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = ${JSON.stringify(desired)};\n`);
+  run.result = join(owned.directory, `${label}-cli-result.json`);
+  const runFile = join(owned.directory, 'run.json');
+  await save(runFile, run);
+  const before = await primaryTasks(owned, true);
+  const polls: Poll[] = [];
+  let running = true;
+  const start = performance.now();
+  const poll = async () => {
+    // eslint-disable-next-line no-unmodified-loop-condition -- The deploy completion cancels all concurrent pollers.
+    while (running) {
+      const begin = performance.now();
+      try {
+        const response = await fetch(`${url}/version`, {
+          signal: AbortSignal.timeout(4000),
+          headers: { 'cache-control': 'no-cache' }
+        });
+        const body = (await response.json()) as { revision: string };
+        polls.push({
+          hostMs: performance.now(),
+          elapsedMs: performance.now() - start,
+          awsMs: Number(response.headers.get('x-lab-now-ms')),
+          rttMs: performance.now() - begin,
+          task: response.headers.get('x-lab-task') ?? '',
+          revision: body.revision,
+          status: response.status
+        });
+      } catch (error) {
+        polls.push({
+          hostMs: performance.now(),
+          elapsedMs: performance.now() - start,
+          awsMs: 0,
+          rttMs: performance.now() - begin,
+          task: '',
+          revision: '',
+          status: 0,
+          error: String(error)
+        });
+      }
+      await Bun.sleep(35);
+    }
+  };
+  const pollers = Promise.all([poll(), poll(), poll(), poll()]);
+  let exitMs: number | undefined;
+  let failure: string | undefined;
+  let expected: string[] = [];
+  try {
+    await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, `${label}.log`), {
+      STP_CODE_SWAP_BENCH_RUN: runFile
+    });
+    exitMs = performance.now() - start;
+    expected = (await primaryTasks(owned)).ids;
+    const deadline = performance.now() + 120000;
+    while (!expected.every((id) => polls.some((p) => p.revision === desired && p.task === id))) {
+      if (performance.now() > deadline) throw new Error('Not every PRIMARY task served new code.');
+      await Bun.sleep(50);
+    }
+    await business(url);
+  } catch (error) {
+    failure = String(error);
+  } finally {
+    running = false;
+    await pollers;
+  }
+  const hits = polls.filter((p) => p.revision === desired && expected.includes(p.task));
+  const firstMs = hits.length ? Math.min(...hits.map((p) => p.elapsedMs)) : undefined;
+  const allMs =
+    expected.length && expected.every((id) => hits.some((p) => p.task === id))
+      ? Math.max(...expected.map((id) => Math.min(...hits.filter((p) => p.task === id).map((p) => p.elapsedMs))))
+      : undefined;
+  let details: unknown;
+  try {
+    details = JSON.parse(await readFile(run.result, 'utf8'));
+  } catch {}
+  await save(join(owned.directory, `${label}-polls.json`), polls);
+  const result = {
+    label,
+    desired,
+    start,
+    exitMs,
+    firstMs,
+    allMs,
+    before: before.ids,
+    after: expected,
+    failure,
+    details
+  };
+  await save(join(owned.directory, `${label}.json`), result);
+  console.log(JSON.stringify(result));
+  if (failure) throw new Error(failure);
+  // Serialize image rollouts before the next control, retaining every edit in the timing distribution.
+  if (run.mode === 'image')
+    for (let i = 0; i < 240; i++) {
+      try {
+        await primaryTasks(owned, true);
+        break;
+      } catch {
+        await Bun.sleep(1000);
+      }
+    }
+  return result;
+};
+const main = async () => {
+  await guard();
+  const stateArg = process.argv.indexOf('--state');
+  const directory =
+    stateArg >= 0
+      ? resolve(process.argv[stateArg + 1]!)
+      : resolve(root, '.stacktape/code-swap', `live-${randomBytes(6).toString('hex')}`);
+  await mkdir(directory, { recursive: true });
+  let state: State;
+  if (process.argv.includes('--cleanup-only')) {
+    state = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8'));
+    assert(
+      state.account === ACCOUNT && state.region === REGION && state.profile === PROFILE,
+      'Recovery target mismatch.'
+    );
+    for (const owned of state.resources) await cleanup(state, owned);
+    return;
+  }
+  const owner = randomBytes(8).toString('hex');
+  state = {
+    account: ACCOUNT,
+    region: REGION,
+    profile: PROFILE,
+    owner,
+    directory,
+    resources: [],
+    supervisor: await buildSupervisor(join(directory, 'supervisor')),
+    cli: resolve(cliRoot, '.stacktape/code-swap/cli/entrypoint.js')
+  };
+  await save(join(directory, 'state.json'), state);
+  console.log(
+    `Recovery: STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --cleanup-only --state ${directory}`
+  );
+  const fixture = resolve(
+    process.env.STP_CODE_SWAP_BENCH_FIXTURE ?? '/home/congy/projects/deploy-benchmarks/fixtures/containers/node'
+  );
+  try {
+    for (const memory of [512, 1024] as const)
+      for (const count of [1, 2] as const) {
+        const name = `v4swap-${owner.slice(0, 8)}-${memory}-${count}`;
+        const stackHash = getGloballyUniqueStackHash({
+          stackName: `${name}-bench`,
+          accountId: ACCOUNT,
+          region: REGION
+        });
+        const owned: Owned = {
+          name,
+          owner,
+          table: `${name}-control`,
+          bucket: awsResourceNames.deploymentBucket(stackHash),
+          repository: awsResourceNames.deploymentEcrRepo(stackHash),
+          directory: join(directory, `${memory}-${count}`)
+        };
+        state.resources.push(owned);
+        await mkdir(owned.directory, { recursive: true });
+        await save(join(directory, 'state.json'), state);
+        assert(!(await getStack(owned)), 'Stack name already exists.');
+        let tableExists = false;
+        try {
+          await ddb.send(new DescribeTableCommand({ TableName: owned.table }));
+          tableExists = true;
+        } catch (error) {
+          if (!missing(error)) throw error;
+        }
+        assert(!tableExists, 'Table name already exists.');
+        await cp(fixture, owned.directory, {
+          recursive: true,
+          filter: (path) => !path.split('/').some((part) => part === 'node_modules' || part === '.stacktape')
+        });
+        await invoke(
+          ['npm', 'ci', '--ignore-scripts', '--prefix', owned.directory],
+          join(owned.directory, 'install.log')
+        );
+        // Stacktape's bundler resolves import.meta.url at build time. Start the fixture's exported app explicitly.
+        await writeFile(
+          join(owned.directory, 'entry.mjs'),
+          "import { createApp } from './server.mjs'; const server = createApp().listen(Number(process.env.PORT), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
+        );
+        await configure(owned, memory, count);
+        owned.tableAttempted = true;
+        await save(join(directory, 'state.json'), state);
+        await ddb.send(
+          new CreateTableCommand({
+            TableName: owned.table,
+            KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+            AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
+            BillingMode: 'PAY_PER_REQUEST',
+            Tags: [{ Key: 'code-swap-benchmark-owner', Value: owner }]
+          })
+        );
+        for (let i = 0; i < 60; i++) {
+          if ((await ddb.send(new DescribeTableCommand({ TableName: owned.table }))).Table?.TableStatus === 'ACTIVE')
+            break;
+          await Bun.sleep(1000);
+        }
+        const run: BenchmarkRun = {
+          name,
+          owner,
+          table: owned.table,
+          mode: 'swap',
+          supervisor: state.supervisor,
+          result: join(owned.directory, 'setup-result.json'),
+          memory,
+          count
+        };
+        const runFile = join(owned.directory, 'run.json');
+        await save(runFile, run);
+        owned.stackAttempted = true;
+        await save(join(directory, 'state.json'), state);
+        await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'setup.log'), {
+          STP_CODE_SWAP_BENCH_RUN: runFile
+        });
+        const stack = await ownedStack(owned);
+        owned.stackId = stack!.StackId;
+        await save(join(directory, 'state.json'), state);
+        const url = await endpoint(owned);
+        await business(url);
+        const traffic: { atMs: number; status: number; task: string; error?: string }[] = [];
+        const trafficController = new AbortController();
+        const trafficLoop = (async () => {
+          while (!trafficController.signal.aborted) {
+            try {
+              const response = await fetch(`${url}/version`, { signal: AbortSignal.timeout(4000) });
+              await response.text();
+              traffic.push({
+                atMs: Date.now(),
+                status: response.status,
+                task: response.headers.get('x-lab-task') ?? ''
+              });
+            } catch (error) {
+              traffic.push({ atMs: Date.now(), status: 0, task: '', error: String(error) });
+            }
+            await Bun.sleep(35);
+          }
+        })();
+        try {
+          // Twenty uninterrupted edits on each exact fleet. Image controls use the same app, checks, caches and source build.
+          for (const mode of ['swap', 'image'] as const) {
+            run.mode = mode;
+            for (let i = 1; i <= 20; i++) await edit(state, owned, run, url, i);
+          }
+        } finally {
+          trafficController.abort();
+          await trafficLoop;
+          await save(join(owned.directory, 'continuous-traffic.json'), traffic);
+        }
+        await cleanup(state, owned);
+      }
+  } finally {
+    const errors: unknown[] = [];
+    for (const owned of state.resources) {
+      try {
+        await cleanup(state, owned);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length) {
+      console.error(
+        `Cleanup required: STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --cleanup-only --state ${directory}`
+      );
+      process.exitCode = 1;
+      console.error(new AggregateError(errors, 'Benchmark cleanup incomplete'));
+    }
+  }
+};
+if (import.meta.main)
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
