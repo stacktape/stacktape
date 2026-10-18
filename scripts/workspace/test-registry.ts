@@ -397,6 +397,7 @@ export const lanes: readonly Lane[] = [
       'src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
+      'src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -415,6 +416,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -3911,6 +3913,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/ecs.ts',
       'apps/cli/src/aws/lambda.ts',
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer*.ts',
+      'apps/cli/src/commands/_utils/fn-deployment.ts',
+      'apps/cli/src/commands/_utils/shared-layer-transition.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.ts',
       'apps/cli/src/utils/stack-info-map-diff.ts',
       'apps/cli/tests/ministack/**',
@@ -3938,6 +3943,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
     ],
     lanes: [
