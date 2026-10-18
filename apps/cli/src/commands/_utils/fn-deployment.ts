@@ -325,6 +325,7 @@ export const updateFunctionCode = async ({
   codeChanged = true,
   layers,
   layerArns,
+  transitionalLayerArns,
   deferFinalTags = false,
   devMode
 }: {
@@ -339,6 +340,8 @@ export const updateFunctionCode = async ({
   layers?: { layerNumber: number; layerName: string; identity: string }[];
   /** The version of every shared layer by number. Given only when the function's layers change. */
   layerArns?: Map<number, string>;
+  /** A two-generation bridge prepared from the deployed code's imports. Attach it before changing code. */
+  transitionalLayerArns?: string[];
   /** Keep the update pending until the fast deployment has recorded its release. */
   deferFinalTags?: boolean;
   devMode?: boolean;
@@ -376,6 +379,13 @@ export const updateFunctionCode = async ({
     region: globalStateManager.region,
     lambdaAwsName: lambdaResourceName
   });
+  if (codeChanged && layerArns && layers?.length && !transitionalLayerArns) {
+    throw new Error('A code and shared-layer update requires a safe transitional layer.');
+  }
+  if (transitionalLayerArns) {
+    await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: transitionalLayerArns });
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  }
   if (codeChanged) {
     ({ FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
       lambdaResourceName,
@@ -384,7 +394,8 @@ export const updateFunctionCode = async ({
     }));
     await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
   }
-  // The layers follow the code: Lambda takes one update at a time, and the new code imports from the new layer.
+  // Both code generations load with the bridge. Once the new code is active, drop the old chunks by attaching the
+  // canonical layer. Release templates always name that clean artifact, never the temporary union.
   let updatedLayerArns: string[] | undefined;
   if (layerArns && layers?.length) {
     updatedLayerArns =

@@ -48,7 +48,7 @@ import {
 } from '../es/import-classification';
 import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
-import { normalizeSplitBuildIdentity } from '../es/artifact-identity';
+import { normalizeSplitBuildIdentity, projectRelativeSource } from '../es/artifact-identity';
 import { resolvePrisma } from '../bundlers/es/utils';
 import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
@@ -341,7 +341,19 @@ const executeBunBuild = async ({
   const renames = await normalizeSplitBuildIdentity({
     javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     projectRoot: monorepoRoot || cwd,
-    sourcesResolveFrom: sharedOutdir
+    sourcesResolveFrom: sharedOutdir,
+    chunkKeys: new Map(
+      Object.entries(result.metafile!.outputs)
+        .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
+        .map(([path, output]) => [
+          basename(path, '.js'),
+          JSON.stringify(
+            Object.keys(output.inputs)
+              .map((input) => projectRelativeSource(canonicalizeEntrypointPath(input), monorepoRoot || cwd))
+              .toSorted()
+          )
+        ])
+    )
   });
   const renamed = (text: string) => text.replace(/chunk-[a-z0-9]{8}/g, (name) => renames.get(name) ?? name);
   const outputs = await Promise.all(

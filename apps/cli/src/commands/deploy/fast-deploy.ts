@@ -2,7 +2,7 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { tuiManager } from '@application-services/tui-manager';
 import type { ExpectedError as ExpectedErrorType } from '@utils/errors';
-import { ExpectedError } from '@utils/errors';
+import { CliError, ExpectedError } from '@utils/errors';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import {
   deleteSupersededSharedLayerVersions,
@@ -14,6 +14,7 @@ import {
   updateFunctionCode
 } from '../_utils/fn-deployment';
 import type { initializeDeployOperation } from '../_utils/initialization';
+import { prepareSharedLayerTransitions } from '../_utils/shared-layer-transition';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -61,6 +62,9 @@ export const planFastDeploy = async ({
   const layers = sharedLayers.filter(({ layerNumber }) =>
     functions.some((lambda) => lambda.layers.some((layer) => layer.layerNumber === layerNumber))
   );
+  if (functions.some(({ changedLayers }) => changedLayers.some(({ layerNumber }) => layerNumber === 0))) {
+    return { reason: 'native dependency layer changed' };
+  }
   return { plan: { functions, services, layers } };
 };
 
@@ -116,6 +120,14 @@ export const performFastDeploy = async ({
     ]);
   });
   const serviceUpdates: Parameters<typeof rolloutWaitHint>[0] = [];
+  const transitions = await prepareSharedLayerTransitions(plan.functions, plan.layers).catch((error: unknown) => {
+    throw new CliError({
+      category: 'DEPLOYMENT',
+      code: 'SHARED_LAYER_TRANSITION_FAILED',
+      message: `Could not prepare a safe shared-layer transition: ${error instanceof Error ? error.message : String(error)}`,
+      hints: ['No function or service was changed. Fix the problem and deploy again, or use --fullDeploy.']
+    });
+  });
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
   const updates = [
@@ -124,6 +136,7 @@ export const performFastDeploy = async ({
       run: async () => {
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,
+          transitionalLayerArns: transitions.get(update.lambdaResourceName),
           deferFinalTags: recordRelease,
           ...(update.changedLayers.length ? { layerArns } : {})
         });
