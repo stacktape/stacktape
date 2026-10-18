@@ -82,8 +82,10 @@ task reset occurs within a swap sequence. Readiness, signed authority and final 
 experiment.
 
 The runner prints an exact recovery command and cleans up in `finally`. Keep its state until deletion is verified. Run
-`pnpm --filter @stacktape/cli exec bun scripts/code-swap/analyze.ts <run-directory>` to write the summary. It measures
-the WSL clock rate against AWS proxy timestamps rather than assuming the historical 9.6% drift. Retain every raw sample,
-failure and outlier. Report first/all-task serving, old-process exit, CLI exit, fallback rate and matched image times.
-Every Node configuration must have serving p50 ≤5 s, p95 ≤15 s, maximum ≤25 s, p50/p95 at most half the image control,
-and zero memory fallbacks. A miss stops later safety phases pending investigation and a new explicit go/no-go result.
+`pnpm --filter @stacktape/cli exec bun scripts/code-swap/analyze.ts <run-directory>` to write the summary. It fits each
+edit against AWS proxy timestamps rather than assuming a constant WSL clock rate or the historical 9.6% drift. Each fit
+needs at least 100 low-RTT samples over three seconds and a maximum residual of 250 ms; unqualified edits cannot pass.
+Retain every raw sample, failure and outlier. Report first/all-task serving, old-process exit, CLI exit, fallback rate
+and matched image times. Every Node configuration must have serving p50 ≤5 s, p95 ≤15 s, maximum ≤25 s, p50/p95 at most
+half the image control, and zero memory fallbacks. A miss stops later safety phases pending investigation and a new
+explicit go/no-go result.
