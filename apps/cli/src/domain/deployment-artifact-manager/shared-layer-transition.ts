@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import AdmZip from 'adm-zip';
 import { DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
-import { LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES } from '@stacktape/packaging/artifact/lambda-limits';
+import {
+  LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES,
+  LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES
+} from '@stacktape/packaging/artifact/lambda-limits';
 
 const CHUNKS = 'nodejs/chunks/';
 const imports = (code: string) =>
@@ -12,6 +15,33 @@ const imports = (code: string) =>
 
 export const unzippedSize = (zip: AdmZip): number =>
   zip.getEntries().reduce((total, entry) => total + entry.header.size, 0);
+
+const transitionArchive = (layerNumber: number, files: Map<string, Buffer>, size: number) => {
+  const hash = createHash('sha256');
+  const entries = [...files].sort(([a], [b]) => a.localeCompare(b));
+  for (const [name, data] of entries) hash.update(name).update('\0').update(data).update('\0');
+  let bytes: Buffer | undefined;
+  return {
+    layerNumber,
+    files,
+    size,
+    identity: `transition-${hash.digest('hex').slice(0, 24)}`,
+    // Collect closures before compression so a fitting union compresses the new chunks only once.
+    get zip(): Buffer {
+      if (!bytes) {
+        const archive = new AdmZip();
+        for (const [name, data] of entries) archive.addFile(name, data);
+        const zip = archive.toBuffer();
+        if (zip.length > LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES)
+          throw new Error(
+            'The transitional layer ZIP exceeds Lambda’s 50 MB direct upload limit. Use a full deployment.'
+          );
+        bytes = zip;
+      }
+      return bytes;
+    }
+  };
+};
 
 /**
  * Retain only the old code's reachable chunk closure, even when its layer is an interrupted transition. Copying the
@@ -27,7 +57,7 @@ export const buildSharedLayerTransitions = ({
   nextFunctionSize: number;
   currentLayers: { arn: string; zip: AdmZip }[];
   nextLayers: { layerNumber: number; layerName: string; zip: AdmZip }[];
-}): { layerNumber: number; zip: Buffer; identity: string; size: number }[] => {
+}): ReturnType<typeof transitionArchive>[] => {
   const nextByName = new Map(nextLayers.map((layer) => [layer.layerName, layer]));
   const oldFiles = new Map<string, { data: Buffer; layerName: string }>();
   for (const { arn, zip } of currentLayers) {
@@ -75,16 +105,7 @@ export const buildSharedLayerTransitions = ({
         `Shared layer ${layerNumber} needs ${(size / 1024 / 1024).toFixed(2)} MB during its safe transition, exceeding the 50 MB layer budget. Use a full deployment.`
       );
     }
-    const archive = new AdmZip();
-    const hash = createHash('sha256');
-    for (const [name, data] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
-      hash.update(name).update('\0').update(data).update('\0');
-      archive.addFile(name, data);
-    }
-    const bytes = archive.toBuffer();
-    if (bytes.length > 50 * 1024 * 1024)
-      throw new Error('The transitional layer ZIP exceeds Lambda’s 50 MB direct upload limit. Use a full deployment.');
-    return { layerNumber, zip: bytes, identity: `transition-${hash.digest('hex').slice(0, 24)}`, size };
+    return transitionArchive(layerNumber, files, size);
   });
   const unchangedSize = currentLayers
     .filter(({ arn }) => !nextByName.has(arn.split(':')[6]!))
@@ -99,4 +120,44 @@ export const buildSharedLayerTransitions = ({
     );
   }
   return transitions;
+};
+
+/** Share one union per layer when every consumer still fits; otherwise keep the smaller per-function bridges. */
+export const unionSharedLayerTransitions = (
+  prepared: { bridges: ReturnType<typeof buildSharedLayerTransitions>; combinedSize: number }[]
+): Map<number, ReturnType<typeof buildSharedLayerTransitions>[number]> | undefined => {
+  const files = new Map<number, Map<string, Buffer>>();
+  const conflicting = new Set<number>();
+  for (const { bridges } of prepared)
+    for (const bridge of bridges) {
+      let layer = files.get(bridge.layerNumber);
+      if (!layer) {
+        layer = new Map();
+        files.set(bridge.layerNumber, layer);
+      }
+      for (const [name, data] of bridge.files) {
+        if (layer.has(name) && !layer.get(name)!.equals(data)) conflicting.add(bridge.layerNumber);
+        layer.set(name, data);
+      }
+    }
+  const union = new Map<number, ReturnType<typeof buildSharedLayerTransitions>[number]>();
+  for (const [layerNumber, entries] of files) {
+    const size = [...entries.values()].reduce((sum, data) => sum + data.length, 0);
+    if (conflicting.has(layerNumber) || size > DEFAULT_LAYER_CONFIG.maxLayerSize) continue;
+    const bridge = transitionArchive(layerNumber, entries, size);
+    try {
+      void bridge.zip;
+    } catch {
+      continue;
+    }
+    union.set(layerNumber, bridge);
+  }
+  for (const { bridges, combinedSize } of prepared) {
+    if (
+      combinedSize + bridges.reduce((sum, bridge) => sum + (union.get(bridge.layerNumber)?.size ?? bridge.size), 0) >
+      LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES
+    )
+      for (const { layerNumber } of bridges) union.delete(layerNumber);
+  }
+  return union.size ? union : undefined;
 };

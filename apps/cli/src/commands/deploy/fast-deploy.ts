@@ -26,19 +26,19 @@ export type FastDeployPlan = {
   layers: SharedLayerHotswapInformation[];
 };
 
-/** Publication starts only after the corresponding object exists. Store failures until every upload has settled. */
+/** Publish local ZIPs alongside uploads; cached layers can still publish from S3. Settle failures before returning. */
 export const createSharedLayerPublication = (plan: FastDeployPlan) => {
   const changed = new Set(
     plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
   );
   const layers = plan.layers.filter(({ layerNumber }) => changed.has(layerNumber));
   const publications = new Map<number, Promise<{ arns: Map<number, string> } | { error: unknown }>>();
-  const onLayerUploaded = (layerNumber: number) => {
+  const onLayerUploaded = (layerNumber: number, zipPath?: string) => {
     const layer = layers.find((candidate) => candidate.layerNumber === layerNumber);
     if (!layer || publications.has(layerNumber)) return;
     publications.set(
       layerNumber,
-      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' }).then(
+      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS', zipPath }).then(
         (arns) => ({ arns }),
         (error: unknown) => ({ error })
       )
@@ -173,6 +173,7 @@ export const performFastDeploy = async ({
       run: async () => {
         let layerArns: Map<number, string> | undefined;
         let transitionalLayerArns: string[] | undefined;
+        let layerFirst = false;
         if (update.changedLayers.length) {
           const result = await publication;
           if ('error' in result)
@@ -182,11 +183,14 @@ export const performFastDeploy = async ({
           layerArns = result.arns;
           const prepared = await preparation;
           if ('error' in prepared) throw prepared.error;
-          transitionalLayerArns = prepared.transitions.get(update.lambdaResourceName);
+          const transition = prepared.transitions.get(update.lambdaResourceName);
+          transitionalLayerArns = transition?.layerArns;
+          layerFirst = transition?.layerFirst ?? false;
         }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,
           transitionalLayerArns,
+          layerFirst,
           deferFinalTags: recordRelease,
           ...(update.changedLayers.length ? { layerArns } : {})
         });

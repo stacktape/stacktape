@@ -71,6 +71,16 @@ export const formatSharedLayersTag = (layers: SharedLayerContent[]): string =>
 export const getFunctionCodeDigest = (artifactDigest: string, layers: SharedLayerContent[] = []): string =>
   layers.length ? mergeHashes(artifactDigest, formatSharedLayersTag(layers)) : artifactDigest;
 
+/** Older CLIs update only codeDigest. A leftover artifact tag must never suppress a required code update. */
+export const getDeployedArtifactDigest = (
+  artifactDigest: string | undefined,
+  codeDigest: string | undefined,
+  layers: SharedLayerContent[]
+): string | undefined =>
+  artifactDigest && (codeDigest === 'updating' || codeDigest === getFunctionCodeDigest(artifactDigest, layers))
+    ? artifactDigest
+    : codeDigest;
+
 /** The layers a function's tag records, or `undefined` when the function carries no such tag. */
 export const parseSharedLayersTag = (value: string | undefined): Map<number, string> | undefined => {
   if (value === undefined) return undefined;
