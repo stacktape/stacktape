@@ -104,6 +104,18 @@ export class AwsLambda {
       .send(new GetLayerVersionByArnCommand({ Arn: arn }))
       .catch(this.#getErrorHandler('Failed to read a deployed layer version.'));
 
+  /** Signed Lambda artifact URLs must never appear in errors, including a failed response-body read. */
+  downloadArtifact = async ({ location }: { location?: string }): Promise<Buffer> => {
+    if (!location) throw new Error('AWS did not return the deployed artifact download location.');
+    try {
+      const response = await fetch(location, { redirect: 'error' });
+      if (!response.ok) throw new Error('Artifact download failed.');
+      return Buffer.from(await response.arrayBuffer());
+    } catch {
+      throw new Error('Could not download a deployed Lambda artifact.');
+    }
+  };
+
   publishLayerVersion = async ({
     layerName,
     description,

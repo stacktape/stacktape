@@ -39,7 +39,7 @@ import { startSecurityInventory, uploadSecurityInventory } from '../_utils/secur
 import { assessAndPrintSecurityPosture, describeSecurityReportRejection } from '../_utils/security-posture-output';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
-import { type FastDeployPlan, performFastDeploy, planFastDeploy } from './fast-deploy';
+import { createSharedLayerPublication, type FastDeployPlan, performFastDeploy, planFastDeploy } from './fast-deploy';
 import { buildPreviewResourceChanges } from '../diff/utils';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 import {
@@ -350,7 +350,17 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('UPLOAD');
-  await deploymentArtifacts.uploadAllArtifacts({ includeTemplates: !fastDeployPlan });
+  const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
+  try {
+    await deploymentArtifacts.uploadAllArtifacts({
+      includeTemplates: !fastDeployPlan,
+      onSharedLayerUploaded: sharedLayerPublication?.onLayerUploaded
+    });
+  } catch (error) {
+    // Publication may already be in flight. Settle it before reporting an upload failure; no workload was switched.
+    await sharedLayerPublication?.settle();
+    throw error;
+  }
   const sourceMapManifest = await recordSourceMapsBeforeSwitch(template.getTemplate());
 
   // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
@@ -404,7 +414,13 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   progress.setPhase('DEPLOY');
   try {
     if (fastDeployPlan) {
-      await performFastDeploy({ plan: fastDeployPlan, recordRelease: createsRelease, deploymentArtifacts, progress });
+      await performFastDeploy({
+        plan: fastDeployPlan,
+        recordRelease: createsRelease,
+        deploymentArtifacts,
+        progress,
+        layerVersions: sharedLayerPublication?.wait()
+      });
     } else {
       await performFullDeploy({ deploymentArtifacts, stack, tui });
     }

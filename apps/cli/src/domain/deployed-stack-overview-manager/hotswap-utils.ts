@@ -61,7 +61,7 @@ export const isCodeOnlyFunctionChange = (change: ResourceDifference) =>
   differsOnlyIn(change, ({ Code: _code, Tags = [], ...properties }) => ({
     ...properties,
     Tags: (Tags as { Key: string }[]).filter(
-      ({ Key }) => Key !== tagNames.codeDigest() && Key !== tagNames.sharedLayers()
+      ({ Key }) => Key !== tagNames.codeDigest() && Key !== tagNames.artifactDigest() && Key !== tagNames.sharedLayers()
     )
   }));
 

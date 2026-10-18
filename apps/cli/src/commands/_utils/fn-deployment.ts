@@ -16,6 +16,7 @@ import {
   describeFastDeploymentLayerVersion,
   formatSharedLayersTag,
   getDeployedSharedLayers,
+  getFunctionCodeDigest,
   getTagValue,
   parseFastDeploymentLayerVersion,
   replaceSharedLayerArns,
@@ -176,7 +177,9 @@ export const getLambdaFunctionHotswapInformation = ({
   const deployedResource = stackManager.existingStackResources.find(
     ({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName
   );
-  const deployedLambdaDigest = getTagValue(deployedResource?.tags, tagNames.codeDigest());
+  const deployedLambdaDigest =
+    getTagValue(deployedResource?.tags, tagNames.artifactDigest()) ??
+    getTagValue(deployedResource?.tags, tagNames.codeDigest());
   const deployedLayers = getDeployedSharedLayers({
     tags: deployedResource?.tags,
     deployedTemplate: templateManager.oldTemplate,
@@ -233,7 +236,8 @@ export const findLambdaOutsideFastPathUsingLayers = ({
  * earlier fast deployment published from it, or a new version published now. Returns the version ARN by layer number.
  */
 export const resolveSharedLayerVersions = async (
-  layers: SharedLayerHotswapInformation[]
+  layers: SharedLayerHotswapInformation[],
+  { parentEventType = 'HOTSWAP_UPDATE' }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS' } = {}
 ): Promise<Map<number, string>> => {
   const arns = new Map<number, string>();
   await Promise.all(
@@ -250,7 +254,7 @@ export const resolveSharedLayerVersions = async (
         return;
       }
       const logger = operationReporter.createChildLogger({
-        parentEventType: 'HOTSWAP_UPDATE',
+        parentEventType,
         instanceId: `shared-layer-${layer.layerNumber}`,
         label: `shared layer ${layer.layerNumber}`
       });
@@ -361,8 +365,8 @@ export const updateFunctionCode = async ({
     });
   }
 
-  // Invalidate both identities before changing code or layers. A failed final tag write must never leave the
-  // function claiming to run the previous layer content.
+  // Mark the runtime identity pending before a switch. Keep the artifact digest valid for a layer-only update:
+  // invalidating it would incorrectly force a code upload when retrying an interrupted configuration update.
   await awsSdkManager.lambda.tagFunction({
     lambdaArn: arns.lambdaFromFullName({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -371,6 +375,7 @@ export const updateFunctionCode = async ({
     }),
     tags: [
       { key: tagNames.codeDigest(), value: 'updating' },
+      ...(codeChanged ? [{ key: tagNames.artifactDigest(), value: 'updating' }] : []),
       ...(layerArns && layers?.length ? [{ key: tagNames.sharedLayers(), value: 'updating' }] : [])
     ]
   });
@@ -421,7 +426,8 @@ export const updateFunctionCode = async ({
       .tagFunction({
         lambdaArn: FunctionArn,
         tags: [
-          { key: tagNames.codeDigest(), value: digest },
+          { key: tagNames.codeDigest(), value: getFunctionCodeDigest(digest, layers) },
+          { key: tagNames.artifactDigest(), value: digest },
           ...(layers?.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
         ]
       })

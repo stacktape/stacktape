@@ -179,12 +179,17 @@ platform. Clone or create a separate worktree on the WSL filesystem and install 
 
 ## Real AWS and releases
 
-Shared-code fast deployments prepare a temporary chunk layer containing the old function's reachable chunks and the new
-chunks. The CLI attaches it before changing code, then attaches the clean new layer. Interrupted updates keep their
-identities pending so the next deploy or rollback repairs them. Transition layers keep the normal 50 MB layer budget and
-the combined 250 MB function-plus-layers limit, including user layers. A transition that cannot fit fails before
-changing a function; use `--fullDeploy` for that release. CloudFormation itself updates configuration and code
-sequentially, so a full deployment does not promise uninterrupted invocations of `$LATEST`.
+Split chunks normally use names derived from their input file sets. A shared-code edit that leaves the entries unchanged
+updates only the layer configuration, without uploading function ZIPs. If Bun changes an entry too, the CLI uses content
+names and prepares a temporary layer containing the old function's reachable chunks and the new chunks. It attaches that
+layer before changing code, then attaches the clean new layer. Interrupted updates keep their identities pending so the
+next deploy or rollback repairs them. Transition layers keep the normal 50 MB layer budget and the combined 250 MB
+function-plus-layers limit, including user layers. A transition that cannot fit fails before changing a function; use
+`--fullDeploy` for that release. CloudFormation itself updates configuration and code sequentially, so a full deployment
+does not promise uninterrupted invocations of `$LATEST`.
+
+`stp:artifact-digest` identifies a function package and its maps for upload reuse. `stp:code-digest` also covers its
+shared layers, so the Console can distinguish source maps for releases that share the same function ZIP.
 
 Real deployments are explicit, costed validation. Use a unique project, spell out project and stage on every command,
 verify the exact account first, and delete the stack after success or failure. The guarded packaging and init canaries,

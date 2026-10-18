@@ -28,14 +28,7 @@ export const prepareSharedLayerTransitions = async (
       downloads.set(
         key,
         (async () => {
-          const url = await location();
-          if (!url) throw new Error('AWS did not return the deployed artifact download location.');
-          // A fetch error may include the signed URL. Replace it with a diagnostic that carries no credentials.
-          const response = await fetch(url).catch(() => {
-            throw new Error('Could not download a deployed Lambda artifact.');
-          });
-          if (!response.ok) throw new Error(`Could not download a deployed Lambda artifact (HTTP ${response.status}).`);
-          return new AdmZip(Buffer.from(await response.arrayBuffer()));
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: await location() }));
         })()
       );
     return downloads.get(key)!;
