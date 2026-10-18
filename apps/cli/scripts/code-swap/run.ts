@@ -34,6 +34,7 @@ import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { buildSupervisor } from './build-supervisor';
+import { calibrateClock } from './analyze';
 import type { BenchmarkRun } from './runtime';
 
 const ACCOUNT = '597581086285',
@@ -507,6 +508,16 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   } catch (error) {
     failure = String(error);
   } finally {
+    // Keep the clock qualification separate from serving and CLI-exit latency.
+    const calibrationDeadline = performance.now() + 15000;
+    while (performance.now() < calibrationDeadline) {
+      try {
+        calibrateClock(polls, 3000);
+        break;
+      } catch {
+        await Bun.sleep(100);
+      }
+    }
     running = false;
     await pollers;
   }

@@ -85,7 +85,9 @@ The runner prints an exact recovery command and cleans up in `finally`. Keep its
 `pnpm --filter @stacktape/cli exec bun scripts/code-swap/analyze.ts <run-directory>` to write the summary. It fits each
 edit against AWS proxy timestamps rather than assuming a constant WSL clock rate or the historical 9.6% drift. Each fit
 needs at least 100 low-RTT samples over three seconds and a maximum residual of 250 ms; unqualified edits cannot pass.
-Retain every raw sample, failure and outlier. Report first/all-task serving, old-process exit, CLI exit, fallback rate
-and matched image times. Every Node configuration must have serving p50 ≤5 s, p95 ≤15 s, maximum ≤25 s, p50/p95 at most
-half the image control, and zero memory fallbacks. A miss stops later safety phases pending investigation and a new
-explicit go/no-go result.
+After the timed command, the runner allows a 15-second clock qualification window. This does not extend the recorded
+CLI-exit or first/all-task serving times. If qualification still fails, analysis retains and flags the edit. Retain
+every raw sample, failure and outlier. Report first/all-task serving, old-process exit, CLI exit, fallback rate and
+matched image times. Every Node configuration must have serving p50 ≤5 s, p95 ≤15 s, maximum ≤25 s, p50/p95 at most half
+the image control, and zero memory fallbacks. A miss stops later safety phases pending investigation and a new explicit
+go/no-go result.
