@@ -289,11 +289,12 @@ with successful repetitions.
 Use `observe-capacity.ts <run-directory>` during the run to retain exact-function request/duration logs and table API
 counts before cleanup removes the log group. Request-to-grant measurements use task/Lambda timestamps from AWS, not the
 WSL clock. Common admissions probe conditional slots directly; full fixed-key reads and confirmed-STOPPED reconciliation
-run under pressure. The stream processes one batch per shard against the fixed two-execution reservation. Transaction
-conflicts are retryable failures, not evidence that another owner already reclaimed a slot. The local fixture injects
-that conflict and verifies it cannot silently acknowledge a STOPPED release. `cleanup-audit.ts <run-directory>` checks
-saved capacity resources and every revision status, including `DELETE_IN_PROGRESS`; an accepted ECS deletion is not
-verified absence.
+run under pressure. The stream collects up to 20 records for one second and processes one batch per shard against the
+fixed two-execution reservation. Within an invocation, ECS membership lookups batch actual identities by service; no
+observation comes from event contents or persists across invocations. Transaction conflicts are retryable failures, not
+evidence that another owner already reclaimed a slot. The local fixture injects that conflict and verifies it cannot
+silently acknowledge a STOPPED release. `cleanup-audit.ts <run-directory>` checks saved capacity resources and every
+revision status, including `DELETE_IN_PROGRESS`; an accepted ECS deletion is not verified absence.
 
 The lifecycle fixture also replaces a healthy-old rollout with an owned missing bundle key, verifies the new bootstrap
 stops, restores the committed record and waits for ECS recovery. Its outage stage stops one of two serving tasks while
@@ -301,3 +302,8 @@ the allocator is disabled, queues an owned poison record, restores service after
 replacement within 180 AWS seconds. Retain the capacity log companion to separately check the 30-second post-restore
 grant limit; the 180-second routing assertion alone does not prove it. Neither case performs a manual replacement to
 hide scheduler backoff.
+
+`--capacity-hundred-only --capacity-only --regression --phase3 --configurations 1024-1` runs the full 20-edit speed
+regression and the 100-start allocator gate without repeating the separate 501-task drift fixture. Preserve both runs;
+the smaller rerun alone cannot establish the live hard-counter boundary. Failed speed medians and admission tails remain
+in the evidence even if a later scoped repeat passes.

@@ -230,9 +230,21 @@ export const qualifyLifecycle = async (
     await lambda.send(
       new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 2 })
     );
+    // The outage copy may have aged past the stream's60s record limit. Drive a
+    // fresh poison alongside valid recovery rather than assuming it was handled.
+    await ddb.send(
+      new PutItemCommand({
+        TableName: owned.table,
+        Item: {
+          pk: { S: 'status#owned-poison' },
+          capacityRequest: { S: 'recovered-poison' }
+        }
+      })
+    );
     await wait(() => fullyRouted(2, [outageVictim.taskArn!]), 180);
     const recoveryMs = samples.findLast((sample) => sample.awsMs)!.awsMs! - restoredAt;
     assert(recoveryMs <= 180000, 'Pending recovery exceeded180 AWS seconds.');
+    qualification.pendingRoutingRecovery = { restoredAtAWSMs: restoredAt, recoveryAWSSeconds: recoveryMs / 1000 };
     const poison = await new CloudWatchLogsClient(clients).send(
       new FilterLogEventsCommand({
         logGroupName: `/aws/lambda/${owned.name}-capacity`,

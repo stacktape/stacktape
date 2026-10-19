@@ -32,6 +32,15 @@ export const handleCapacityEvent = async (allocator: Allocator, input: unknown) 
   }
   const event = streamSchema.parse(input);
   const batchItemFailures: { itemIdentifier: string }[] = [];
+  // A failed batch observation falls back to per-record validation, preserving
+  // poison isolation and partial retries without trusting any supplied metadata.
+  const observations = allocator
+    .observe(
+      event.Records.filter((record) => record.eventName !== 'REMOVE' && record.dynamodb.NewImage?.capacityRequest).map(
+        (record) => record.dynamodb.Keys.pk.S
+      )
+    )
+    .catch(() => undefined);
   await Promise.all(
     event.Records.map(async (record) => {
       if (record.eventName === 'REMOVE' || !record.dynamodb.NewImage?.capacityRequest) return;
@@ -41,7 +50,7 @@ export const handleCapacityEvent = async (allocator: Allocator, input: unknown) 
           .safeParse(record.dynamodb.NewImage.capacityRequestedAt ?? record.dynamodb.NewImage.capacityRequest);
         const rawMs = request.success ? Number(request.data.S) : NaN;
         const requestedAtMs = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : undefined;
-        const grant = await allocator.allocate(record.dynamodb.Keys.pk.S, requestedAtMs);
+        const grant = await allocator.allocate(record.dynamodb.Keys.pk.S, requestedAtMs, observations);
         console.log(
           JSON.stringify({
             benchmarkEvent: 'capacityAdmission',

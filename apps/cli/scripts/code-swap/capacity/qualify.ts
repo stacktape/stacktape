@@ -14,14 +14,19 @@ const main = async () => {
   const stopped = new Set<string>();
   const unknown = new Set<string>();
   let describeUnavailable = false;
+  let serviceLookups = 0;
+  const taskLookups: string[][] = [];
   const ecsFixture = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
     async fetch(request) {
       if (describeUnavailable) return Response.json({ __type: 'ServerException' }, { status: 500 });
       const body = (await request.json()) as { tasks?: string[] };
-      if (request.headers.get('x-amz-target')?.endsWith('DescribeServices'))
+      if (request.headers.get('x-amz-target')?.endsWith('DescribeServices')) {
+        serviceLookups++;
         return Response.json({ services: [{ serviceArn, deployments: [{ taskDefinition: 'owned:1' }] }] });
+      }
+      taskLookups.push(body.tasks ?? []);
       return Response.json({
         tasks: body.tasks
           ?.filter((task) => task !== 'f'.repeat(32) && !unknown.has(task))
@@ -165,6 +170,26 @@ const main = async () => {
       1000,
       'Retries must retain first-request latency.'
     );
+    assert.equal((await allocator.slots()).length, 500);
+    const pair = (await allocator.slots()).slice(0, 2);
+    for (const grant of pair) stopped.add(grant.task);
+    await allocator.reclaim(plan);
+    const priorServiceLookups = serviceLookups,
+      priorTaskLookups = taskLookups.length;
+    const batched = await handleCapacityEvent(allocator, {
+      Records: [505, 506].map((id) => ({
+        eventID: `batch-${id}`,
+        eventName: 'MODIFY',
+        dynamodb: {
+          SequenceNumber: String(id),
+          Keys: { pk: { S: owner(id) } },
+          NewImage: { capacityRequest: { S: '2000' }, capacityRequestedAt: { S: '1000' } }
+        }
+      }))
+    });
+    assert.deepEqual(batched, { batchItemFailures: [] });
+    assert.equal(serviceLookups - priorServiceLookups, 1);
+    assert.deepEqual(taskLookups.slice(priorTaskLookups), [[505, 506].map((id) => id.toString(16).padStart(32, '0'))]);
     assert.equal((await allocator.slots()).length, 500);
     await assert.rejects(() => allocator.allocate('status#node#forged:task'));
     console.log(

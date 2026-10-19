@@ -6,7 +6,7 @@ import {
   TransactWriteItemsCommand,
   type AttributeValue
 } from '@aws-sdk/client-dynamodb';
-import { ECSClient, DescribeTasksCommand, DescribeServicesCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, DescribeTasksCommand, DescribeServicesCommand, type Task, type Service } from '@aws-sdk/client-ecs';
 import { z } from 'zod';
 
 const serviceSchema = z.object({
@@ -67,6 +67,7 @@ const conditional = (error: unknown) => {
 const decodeGrant = (item?: Item): Grant | undefined =>
   item?.data?.S ? grantSchema.parse(JSON.parse(item.data.S)) : undefined;
 
+type Observation = { planVersion: string; cluster: string; task?: Task; service?: Service; failed: boolean };
 export class Allocator {
   constructor(
     readonly table: string,
@@ -95,31 +96,83 @@ export class Allocator {
       }
     };
   }
-  async allocate(owner: string, requestedAtMs?: number): Promise<Grant | undefined> {
+  // One invocation validates its actual task membership in ECS batches. These
+  // observations are never accepted from event contents or retained across calls.
+  async observe(owners: string[]): Promise<Map<string, Observation>> {
+    const plan = await this.plan();
+    const result = new Map<string, Observation>();
+    await Promise.all(
+      Object.entries(plan.services).map(async ([name, service]) => {
+        const matching = owners.flatMap((owner) => {
+          const match = /^status#([a-zA-Z0-9_-]+)#(AROA[A-Z0-9]+):([a-f0-9]{32})$/.exec(owner);
+          return match?.[1] === name && match[2] === service.roleId ? [{ owner, task: match[3]! }] : [];
+        });
+        if (!matching.length) return;
+        const current = await this.ecs.send(
+          new DescribeServicesCommand({ cluster: service.cluster, services: [service.serviceArn] })
+        );
+        for (let offset = 0; offset < matching.length; offset += 100) {
+          const batch = matching.slice(offset, offset + 100);
+          const tasks = await this.ecs.send(
+            new DescribeTasksCommand({ cluster: service.cluster, tasks: [...new Set(batch.map((item) => item.task))] })
+          );
+          for (const item of batch)
+            result.set(item.owner, {
+              planVersion: plan.version,
+              cluster: service.cluster,
+              task: tasks.tasks?.find((task) => task.taskArn?.split('/').at(-1) === item.task),
+              service: current.services?.[0],
+              failed: Boolean(
+                current.failures?.length ||
+                tasks.failures?.some((failure) => !failure.arn || failure.arn.split('/').at(-1) === item.task)
+              )
+            });
+        }
+      })
+    );
+    return result;
+  }
+  async allocate(
+    owner: string,
+    requestedAtMs?: number,
+    observations?: Promise<Map<string, Observation> | undefined>
+  ): Promise<Grant | undefined> {
     const match = /^status#([a-zA-Z0-9_-]+)#(AROA[A-Z0-9]+):([a-f0-9]{32})$/.exec(owner);
     if (!match) throw new InvalidRequest('Malformed protected status key.');
     const name = match[1]!,
       role = match[2]!,
       task = match[3]!;
-    const plan = await this.plan();
+    const [plan, existingItem, terminal] = await Promise.all([
+      this.plan(),
+      this.get(grantKey(owner)),
+      this.get(terminalKey(owner))
+    ]);
     const service = plan.services[name];
     if (!service || service.roleId !== role) throw new InvalidRequest('Unknown service/role.');
-    const existing = decodeGrant(await this.get(grantKey(owner)));
+    const existing = decodeGrant(existingItem);
     if (existing) {
       if (existing.owner !== owner || existing.task !== task) throw new Error('Protected admission identity mismatch.');
       return existing;
     }
-    if (await this.get(terminalKey(owner))) return undefined;
-    const [tasks, services] = await Promise.all([
-      this.ecs.send(new DescribeTasksCommand({ cluster: service.cluster, tasks: [task] })),
-      this.ecs.send(new DescribeServicesCommand({ cluster: service.cluster, services: [service.serviceArn] }))
-    ]);
-    const live = tasks.tasks?.[0],
-      current = services.services?.[0];
+    if (terminal) return undefined;
+    let observation = (await observations)?.get(owner);
+    if (!observation || observation.planVersion !== plan.version || observation.cluster !== service.cluster) {
+      const [tasks, services] = await Promise.all([
+        this.ecs.send(new DescribeTasksCommand({ cluster: service.cluster, tasks: [task] })),
+        this.ecs.send(new DescribeServicesCommand({ cluster: service.cluster, services: [service.serviceArn] }))
+      ]);
+      observation = {
+        planVersion: plan.version,
+        cluster: service.cluster,
+        task: tasks.tasks?.[0],
+        service: services.services?.[0],
+        failed: Boolean(tasks.failures?.length || services.failures?.length || tasks.tasks?.length !== 1)
+      };
+    }
+    const live = observation.task,
+      current = observation.service;
     if (
-      tasks.failures?.length ||
-      services.failures?.length ||
-      tasks.tasks?.length !== 1 ||
+      observation.failed ||
       !live ||
       !current ||
       live.taskArn?.split('/').at(-1) !== task ||

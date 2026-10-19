@@ -100,8 +100,8 @@ export const capacityResources = (input: {
         FunctionName: ref('SwapCapacity'),
         EventSourceArn: input.streamArn,
         StartingPosition: 'LATEST',
-        BatchSize: 10,
-        MaximumBatchingWindowInSeconds: 0,
+        BatchSize: 20,
+        MaximumBatchingWindowInSeconds: 1,
         // One batch per shard avoids multiplying demand against the fixed
         // two-execution reservation during startup bursts.
         ParallelizationFactor: 1,

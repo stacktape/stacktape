@@ -221,6 +221,10 @@ export const qualifyLiveCapacity = async (
     // A failed latency gate remains a no-go. Continue the independently bounded
     // hard-counter fixture so it cannot be mistaken for an untested boundary.
     await save(join(owned.directory, 'capacity-pressure.json'), report);
+    if (process.argv.includes('--capacity-hundred-only')) {
+      assert(admissionPassed, '100-start admission latency exceeded its release budget.');
+      return;
+    }
     recovery.desiredCountAttempted = 501;
     await save(stateFile, recovery);
     await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount: 501 }));
@@ -235,8 +239,18 @@ export const qualifyLiveCapacity = async (
       refusals = all.filter((row) => row.outcome === 'refused');
       return grants.length === 500 && refusals.length > 0 && recovery.tasks.length >= 501;
     }, 600);
-    const grants = await allocator.slots();
+    report.hardCapObservation = {
+      maximumSlots,
+      observedTaskIdentities: recovery.tasks.length,
+      refusedOwners: [...new Set(refusals.map((row) => row.owner))]
+    };
+    await save(join(owned.directory, 'capacity-pressure.json'), report);
+    let grants = await allocator.slots();
     await wait(async () => {
+      // A stopped owner can be reclaimed/replaced while bootstrap settles. Read
+      // the current ledger each time rather than waiting on a retired snapshot.
+      grants = await allocator.slots();
+      if (grants.length !== 500) return false;
       const rows = await statusRows(grants.map((grant) => grant.owner));
       return (
         rows.length === 500 && rows.every((row) => row.state === 'complete' && row.revision === committed.Revision)
