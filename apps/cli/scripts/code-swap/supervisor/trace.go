@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"syscall"
 )
 
@@ -23,12 +22,13 @@ func (u *generation) startTraced() error {
 			ready <- err
 			return
 		}
-		fd := 3 + len(u.cmd.ExtraFiles)
-		u.cmd.ExtraFiles = append(u.cmd.ExtraFiles, gate)
-		if u.cmd.Env == nil {
-			u.cmd.Env = os.Environ()
+		if len(u.cmd.ExtraFiles) != 0 {
+			gate.Close()
+			release.Close()
+			ready <- fmt.Errorf("unexpected launcher descriptors")
+			return
 		}
-		u.cmd.Env = append(u.cmd.Env, "STP_BENCH_TRACE_FD="+strconv.Itoa(fd))
+		u.cmd.ExtraFiles = []*os.File{gate}
 		if err := u.cmd.Start(); err != nil {
 			gate.Close()
 			release.Close()
