@@ -21,7 +21,7 @@ Alarms are not the right tool for every monitoring need:
 
 - **Debugging a specific request** — use [logs](/observability/logs) and the [`stacktape logs`](/cli/logs) CLI command instead.
 - **Trend analysis over weeks** — use [metrics](/observability/metrics) dashboards in the Console for visual exploration.
-- **Tracking application-level errors** — [error tracking](/observability/error-tracking) automatically group and deduplicate runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
+- **Tracking application-level errors** — [error tracking](/observability/error-tracking) automatically groups and deduplicates runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
 - **Cost alerting** — use [budgets](/managing-costs/budgets) to get notified when spend crosses a threshold.
 
 ## Supported resources
@@ -358,4 +358,4 @@ Deploy a stage with alarms configured and use [`stacktape alarms`](/cli/alarms) 
 
 ### When should I use alarms vs error tracking?
 
-[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Error tracking](/observability/error-tracking) automatically detect, group, and deduplicate individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and issues for application-level error tracking. Most production stacks benefit from both — alarms catch broad degradation while issues catch specific bugs.
+[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Error tracking](/observability/error-tracking) automatically detects, groups, and deduplicates individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and error tracking for application-level errors. Most production stacks benefit from both — alarms catch broad degradation while error tracking catches specific bugs.
