@@ -1115,7 +1115,11 @@ const main = async () => {
         }
         if (process.argv.includes('--capacity-only')) {
           await qualifyLiveCapacity(owned, { clients, guard, save });
-        } else if (owned.phase3 && !process.argv.includes('--image-penalty-only')) {
+        } else if (
+          owned.phase3 &&
+          !process.argv.includes('--image-penalty-only') &&
+          !process.argv.includes('--speed-only')
+        ) {
           const sample = await samplePublic(url, 0);
           await qualifyLifecycle(owned, url, sample.revision, { clients, guard, save });
         }

@@ -307,3 +307,8 @@ hide scheduler backoff.
 regression and the 100-start allocator gate without repeating the separate 501-task drift fixture. Preserve both runs;
 the smaller rerun alone cannot establish the live hard-counter boundary. Failed speed medians and admission tails remain
 in the evidence even if a later scoped repeat passes.
+
+`--speed-only --regression --phase3 --configurations 1024-1` runs the isolated 20-edit regression without repeating
+lifecycle or admission pressure. Fleet preflights read the protected plan alongside ECS discovery, then task details
+alongside exact own grants. Prepare, commit and completion each repeat those validations. Status polling reuses only the
+checked RoleId for key addressing; it still strongly reads every task status and cannot cache a health/grant result.

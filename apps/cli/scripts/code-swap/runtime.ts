@@ -100,16 +100,45 @@ const put = async (data: Record<string, unknown>) => {
   );
   trace(`signal:${data.Phase}`);
 };
+let checkedStatusRoleId: string | undefined;
 const fleet = async (service: string, cluster: string) => {
   const { ecs, run, ddb } = await clients();
-  const [response, list] = await Promise.all([
+  const [response, list, planItem] = await Promise.all([
     ecs.send(new DescribeServicesCommand({ services: [service], cluster })),
-    ecs.send(new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' }))
+    ecs.send(new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' })),
+    run.phase3
+      ? ddb.send(
+          new GetItemCommand({ TableName: run.table, Key: { pk: { S: 'capacity#plan' } }, ConsistentRead: true })
+        )
+      : undefined
   ]);
   const primary = response.services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
   if (!primary || primary.runningCount !== run.count || response.services?.[0]?.desiredCount !== run.count)
     throw new Error('PRIMARY is not fully running.');
-  const tasks = await ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] }));
+  const plan = run.phase3
+    ? z
+        .object({
+          deleting: z.literal(false),
+          services: z.object({ node: z.object({ roleId: z.string(), slots: z.number().int().min(1).max(450) }) })
+        })
+        .parse(JSON.parse(planItem!.Item!.data!.S!))
+    : undefined;
+  const listedIds = (list.taskArns ?? []).map((arn) => arn.split('/').at(-1)!).toSorted();
+  const [tasks, grants] = await Promise.all([
+    ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] })),
+    plan && listedIds.length
+      ? ddb.send(
+          new BatchGetItemCommand({
+            RequestItems: {
+              [run.table]: {
+                ConsistentRead: true,
+                Keys: listedIds.map((id) => ({ pk: { S: `admission#node#${plan.services.node.roleId}:${id}` } }))
+              }
+            }
+          })
+        )
+      : undefined
+  ]);
   if (
     tasks.failures?.length ||
     tasks.tasks?.length !== run.count ||
@@ -117,34 +146,20 @@ const fleet = async (service: string, cluster: string) => {
   )
     throw new Error('Unexpected fleet membership/revision.');
   const ids = tasks.tasks.map(({ taskArn }) => taskArn!.split('/').at(-1)!).toSorted();
-  if (run.phase3) {
+  if (JSON.stringify(ids) !== JSON.stringify(listedIds)) throw new Error('Listed/described fleet mismatch.');
+  if (plan) {
     if (tasks.tasks.some((task) => task.healthStatus !== 'HEALTHY'))
       throw new Error('Supervisor-checked PRIMARY is not healthy.');
-    const item = await ddb.send(
-      new GetItemCommand({ TableName: run.table, Key: { pk: { S: 'capacity#plan' } }, ConsistentRead: true })
-    );
-    const plan = z
-      .object({
-        deleting: z.literal(false),
-        services: z.object({ node: z.object({ roleId: z.string(), slots: z.number().int().min(1).max(450) }) })
-      })
-      .parse(JSON.parse(item.Item!.data!.S!));
-    const grants = await ddb.send(
-      new BatchGetItemCommand({
-        RequestItems: {
-          [run.table]: {
-            ConsistentRead: true,
-            Keys: ids.map((id) => ({ pk: { S: `admission#node#${plan.services.node.roleId}:${id}` } }))
-          }
-        }
-      })
-    );
-    if (Object.keys(grants.UnprocessedKeys ?? {}).length) throw new Error('Unprocessed admission preflight.');
+    if (!grants || Object.keys(grants.UnprocessedKeys ?? {}).length)
+      throw new Error('Unprocessed admission preflight.');
     const found = (grants.Responses?.[run.table] ?? []).map((row) =>
       z.object({ task: z.string(), slot: z.number().int().min(0).max(499) }).parse(JSON.parse(row.data!.S!))
     );
     if (found.length !== ids.length || ids.some((id) => !found.some((grant) => grant.task === id)))
       throw new Error('PRIMARY admission missing; use image repair.');
+    // This is key addressing for the checked fleet, not a cached validity result.
+    // Every prepare/commit/completion preflight rereads the plan and own grants.
+    checkedStatusRoleId = plan.services.node.roleId;
   }
   return { ids, primary: primary.id };
 };
@@ -152,13 +167,8 @@ const statuses = async (ids: string[]) => {
   const { ddb, run } = await clients();
   let rolePrefix = '';
   if (run.phase3) {
-    const plan = await ddb.send(
-      new GetItemCommand({ TableName: run.table, Key: { pk: { S: 'capacity#plan' } }, ConsistentRead: true })
-    );
-    const data = z
-      .object({ services: z.object({ node: z.object({ roleId: z.string() }) }) })
-      .parse(JSON.parse(plan.Item!.data!.S!));
-    rolePrefix = `${data.services.node.roleId}:`;
+    if (!checkedStatusRoleId) throw new Error('Status addressing requires a checked fleet preflight.');
+    rolePrefix = `${checkedStatusRoleId}:`;
   }
   const keys = ids.map((id) => ({ pk: { S: `status#node#${rolePrefix}${id}` } }));
   const response = await ddb.send(
