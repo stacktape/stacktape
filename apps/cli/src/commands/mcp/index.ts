@@ -358,7 +358,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
             'dev',
             'diagnostics',
             'docs',
-            'issues',
+            'errors',
             'local',
             'project',
             'secrets',

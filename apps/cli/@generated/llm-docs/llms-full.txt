@@ -1553,7 +1553,7 @@ stacktape alarms --stage prod --region eu-west-1 --agent
 
 - [`stacktape logs`](/cli/logs) — fetch and search logs from a deployed resource.
 - [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics for a deployed resource.
-- [`stacktape issues:list`](/cli/issues-list) — list detected runtime issues (errors) across your deployed functions and containers.
+- [`stacktape errors:list`](/cli/errors-list) — list detected runtime issues (errors) across your deployed functions and containers.
 
 ## FAQ
 
@@ -3921,6 +3921,254 @@ Yes. For domains registered with another registrar (GoDaddy, Namecheap, Hostinge
 
 ---
 
+# errors:ignore
+
+Source: `apps/docs/content/cli/errors-ignore.mdx`
+Route: `/cli/errors-ignore`
+
+The `errors:ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`errors:reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`errors:resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs.
+
+## Usage
+
+```bash
+stacktape errors:ignore --issueId <issue-id>
+```
+
+You can find issue IDs by running [`errors:list`](/cli/errors-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
+
+## Flags Reference
+
+
+## CLI Options: `stacktape errors:ignore`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--issueId (-iid)` | yes | `string` | Issue ID — The ID of the issue to act on. | - |
+| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+
+
+## Examples
+
+Ignore a specific issue by its ID:
+
+```bash
+stacktape errors:ignore --issueId iss_abc123def456
+```
+
+Use agent mode for scripted or CI workflows where you need structured JSON output:
+
+```bash
+stacktape errors:ignore --issueId iss_abc123def456 --agent
+```
+
+## When to Ignore vs Resolve
+
+Use `errors:ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`errors:reopen`](/cli/errors-reopen).
+
+Use [`errors:resolve`](/cli/errors-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
+
+## Related Commands
+
+- [`errors:list`](/cli/errors-list) — list detected runtime issues with filtering by status, project, or stage
+- [`errors:resolve`](/cli/errors-resolve) — mark an issue as resolved (will reopen on recurrence)
+- [`errors:reopen`](/cli/errors-reopen) — reopen a previously resolved or ignored issue
+
+---
+
+# errors:list
+
+Source: `apps/docs/content/cli/errors-list.mdx`
+Route: `/cli/errors-list`
+
+The `errors:list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal.
+
+## Usage
+
+List all issues with default settings (returns up to 25 issues when no limit is provided):
+
+```bash
+stacktape errors:list
+```
+
+List open issues for a specific project and stage:
+
+```bash
+stacktape errors:list --projectName my-app --stage production --issueStatus OPEN
+```
+
+## Flags reference
+
+
+## CLI Options: `stacktape errors:list`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--issueStatus (-is)` | no | `string` | Issue Status Filter — Filter tracked errors by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
+| `--limit (-lim)` | no | `number` | Limit — Maximum number of items to return. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+
+
+## Examples
+
+Return up to 100 issues:
+
+```bash
+stacktape errors:list --limit 100
+```
+
+List only ignored issues:
+
+```bash
+stacktape errors:list --issueStatus IGNORED
+```
+
+Get JSON output for scripting or AI coding assistants. In agent mode, the command prints the returned issues as a pretty-printed JSON array instead of a table.
+
+```bash
+stacktape errors:list --agent --projectName my-app --stage production
+```
+
+## Output
+
+In interactive mode, the command prints a table with the following columns:
+
+| Column    | Description                                                        |
+| --------- | ------------------------------------------------------------------ |
+| ID        | Unique issue identifier (used with other issue commands)           |
+| Status    | `OPEN`, `RESOLVED`, or `IGNORED`                                   |
+| Error     | Truncated error message (up to 60 characters)                      |
+| Type      | Error type or class name                                           |
+| Function  | Name of the function or container that produced the error          |
+| Project   | Project name                                                       |
+| Stage     | Stage name                                                         |
+| Count     | Total number of occurrences                                        |
+| Last seen | Timestamp of the most recent occurrence                            |
+
+When no limit is provided, the command requests 25 issues. Omit `--projectName`, `--stage`, or `--issueStatus` when you do not want to narrow by those fields.
+
+## Related commands
+
+- [`errors:resolve`](/cli/errors-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
+- [`errors:ignore`](/cli/errors-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
+- [`errors:reopen`](/cli/errors-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
+- [`logs`](/cli/logs) — Fetch logs from a deployed resource to investigate root causes of issues.
+
+---
+
+# errors:reopen
+
+Source: `apps/docs/content/cli/errors-reopen.mdx`
+Route: `/cli/errors-reopen`
+
+The `errors:reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`errors:list`](/cli/errors-list) with OPEN status.
+
+## Usage
+
+The `errors:reopen` command takes one required flag, `--issueId`, to identify the issue to reopen. It requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)).
+
+```bash
+stacktape errors:reopen --issueId iss_abc123def456
+```
+
+On success, the command calls the Stacktape API and prints `Issue <issueId> reopened.`
+
+## Examples
+
+Reopen an issue by its ID:
+
+```bash
+stacktape errors:reopen --issueId iss_abc123def456
+```
+
+Reopen using the short alias:
+
+```bash
+stacktape errors:reopen -iid iss_abc123def456
+```
+
+Reopen in agent mode for programmatic consumption:
+
+```bash
+stacktape errors:reopen --issueId iss_abc123def456 --agent
+```
+
+## Arguments reference
+
+The table below lists all accepted flags for `errors:reopen`.
+
+
+## CLI Options: `stacktape errors:reopen`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--issueId (-iid)` | yes | `string` | Issue ID — The ID of the issue to act on. | - |
+| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+
+
+## Related commands
+
+The issue lifecycle commands — list, resolve, ignore, and reopen — let you triage runtime issues from the CLI.
+
+- [`errors:list`](/cli/errors-list) — List detected runtime issues with their error message, type, function name, project/stage, occurrence count, and status.
+- [`errors:resolve`](/cli/errors-resolve) — Mark an issue as resolved. It will reopen automatically if the same error occurs again.
+- [`errors:ignore`](/cli/errors-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences.
+
+---
+
+# errors:resolve
+
+Source: `apps/docs/content/cli/errors-resolve.mdx`
+Route: `/cli/errors-resolve`
+
+The `errors:resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`errors:ignore`](/cli/errors-ignore) instead.
+
+## Usage
+
+```bash
+stacktape errors:resolve --issueId iss_abc123def456
+```
+
+You need the issue ID. Use [`errors:list`](/cli/errors-list) to list detected runtime issues before resolving one.
+
+## Flags reference
+
+The only required flag is `--issueId`. Use [`errors:list`](/cli/errors-list) to find the ID of the issue you want to resolve.
+
+
+## CLI Options: `stacktape errors:resolve`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--issueId (-iid)` | yes | `string` | Issue ID — The ID of the issue to act on. | - |
+| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+
+
+## Examples
+
+Resolve an issue in agent mode for use in scripts or AI coding assistants:
+
+```bash
+stacktape errors:resolve --issueId iss_abc123def456 --agent
+```
+
+## Related commands
+
+- [`errors:list`](/cli/errors-list) — list all detected runtime issues with their status and occurrence count
+- [`errors:ignore`](/cli/errors-ignore) — mark an issue as ignored so new occurrences do not reopen it or generate alerts
+- [`errors:reopen`](/cli/errors-reopen) — reopen a resolved or ignored issue, setting its status back to open
+
+---
+
 # help
 
 Source: `apps/docs/content/cli/help.mdx`
@@ -4903,254 +5151,6 @@ confirmation is a file on your disk or a read-only AWS check.
 
 It writes exactly one file, and never on top of an existing configuration — see above. The one
 destructive flag is `--initializeProjectTo`, which empties the directory you point it at.
-
----
-
-# issues:ignore
-
-Source: `apps/docs/content/cli/issues-ignore.mdx`
-Route: `/cli/issues-ignore`
-
-The `issues:ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`issues:reopen`](/cli/issues-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`issues:resolve`](/cli/issues-resolve) which will automatically reopen if the same error recurs.
-
-## Usage
-
-```bash
-stacktape issues:ignore --issueId <issue-id>
-```
-
-You can find issue IDs by running [`issues:list`](/cli/issues-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
-
-## Flags Reference
-
-
-## CLI Options: `stacktape issues:ignore`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--issueId (-iid)` | yes | `string` | Issue ID — The ID of the issue to act on. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-
-
-## Examples
-
-Ignore a specific issue by its ID:
-
-```bash
-stacktape issues:ignore --issueId iss_abc123def456
-```
-
-Use agent mode for scripted or CI workflows where you need structured JSON output:
-
-```bash
-stacktape issues:ignore --issueId iss_abc123def456 --agent
-```
-
-## When to Ignore vs Resolve
-
-Use `issues:ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`issues:reopen`](/cli/issues-reopen).
-
-Use [`issues:resolve`](/cli/issues-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
-
-## Related Commands
-
-- [`issues:list`](/cli/issues-list) — list detected runtime issues with filtering by status, project, or stage
-- [`issues:resolve`](/cli/issues-resolve) — mark an issue as resolved (will reopen on recurrence)
-- [`issues:reopen`](/cli/issues-reopen) — reopen a previously resolved or ignored issue
-
----
-
-# issues:list
-
-Source: `apps/docs/content/cli/issues-list.mdx`
-Route: `/cli/issues-list`
-
-The `issues:list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal.
-
-## Usage
-
-List all issues with default settings (returns up to 25 issues when no limit is provided):
-
-```bash
-stacktape issues:list
-```
-
-List open issues for a specific project and stage:
-
-```bash
-stacktape issues:list --projectName my-app --stage production --issueStatus OPEN
-```
-
-## Flags reference
-
-
-## CLI Options: `stacktape issues:list`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--issueStatus (-is)` | no | `string` | Issue Status Filter — Filter issues by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
-| `--limit (-lim)` | no | `number` | Limit — Maximum number of items to return. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-
-
-## Examples
-
-Return up to 100 issues:
-
-```bash
-stacktape issues:list --limit 100
-```
-
-List only ignored issues:
-
-```bash
-stacktape issues:list --issueStatus IGNORED
-```
-
-Get JSON output for scripting or AI coding assistants. In agent mode, the command prints the returned issues as a pretty-printed JSON array instead of a table.
-
-```bash
-stacktape issues:list --agent --projectName my-app --stage production
-```
-
-## Output
-
-In interactive mode, the command prints a table with the following columns:
-
-| Column    | Description                                                        |
-| --------- | ------------------------------------------------------------------ |
-| ID        | Unique issue identifier (used with other issue commands)           |
-| Status    | `OPEN`, `RESOLVED`, or `IGNORED`                                   |
-| Error     | Truncated error message (up to 60 characters)                      |
-| Type      | Error type or class name                                           |
-| Function  | Name of the function or container that produced the error          |
-| Project   | Project name                                                       |
-| Stage     | Stage name                                                         |
-| Count     | Total number of occurrences                                        |
-| Last seen | Timestamp of the most recent occurrence                            |
-
-When no limit is provided, the command requests 25 issues. Omit `--projectName`, `--stage`, or `--issueStatus` when you do not want to narrow by those fields.
-
-## Related commands
-
-- [`issues:resolve`](/cli/issues-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
-- [`issues:ignore`](/cli/issues-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
-- [`issues:reopen`](/cli/issues-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
-- [`logs`](/cli/logs) — Fetch logs from a deployed resource to investigate root causes of issues.
-
----
-
-# issues:reopen
-
-Source: `apps/docs/content/cli/issues-reopen.mdx`
-Route: `/cli/issues-reopen`
-
-The `issues:reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`issues:list`](/cli/issues-list) with OPEN status.
-
-## Usage
-
-The `issues:reopen` command takes one required flag, `--issueId`, to identify the issue to reopen. It requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)).
-
-```bash
-stacktape issues:reopen --issueId iss_abc123def456
-```
-
-On success, the command calls the Stacktape API and prints `Issue <issueId> reopened.`
-
-## Examples
-
-Reopen an issue by its ID:
-
-```bash
-stacktape issues:reopen --issueId iss_abc123def456
-```
-
-Reopen using the short alias:
-
-```bash
-stacktape issues:reopen -iid iss_abc123def456
-```
-
-Reopen in agent mode for programmatic consumption:
-
-```bash
-stacktape issues:reopen --issueId iss_abc123def456 --agent
-```
-
-## Arguments reference
-
-The table below lists all accepted flags for `issues:reopen`.
-
-
-## CLI Options: `stacktape issues:reopen`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--issueId (-iid)` | yes | `string` | Issue ID — The ID of the issue to act on. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-
-
-## Related commands
-
-The issue lifecycle commands — list, resolve, ignore, and reopen — let you triage runtime issues from the CLI.
-
-- [`issues:list`](/cli/issues-list) — List detected runtime issues with their error message, type, function name, project/stage, occurrence count, and status.
-- [`issues:resolve`](/cli/issues-resolve) — Mark an issue as resolved. It will reopen automatically if the same error occurs again.
-- [`issues:ignore`](/cli/issues-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences.
-
----
-
-# issues:resolve
-
-Source: `apps/docs/content/cli/issues-resolve.mdx`
-Route: `/cli/issues-resolve`
-
-The `issues:resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`issues:ignore`](/cli/issues-ignore) instead.
-
-## Usage
-
-```bash
-stacktape issues:resolve --issueId iss_abc123def456
-```
-
-You need the issue ID. Use [`issues:list`](/cli/issues-list) to list detected runtime issues before resolving one.
-
-## Flags reference
-
-The only required flag is `--issueId`. Use [`issues:list`](/cli/issues-list) to find the ID of the issue you want to resolve.
-
-
-## CLI Options: `stacktape issues:resolve`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--issueId (-iid)` | yes | `string` | Issue ID — The ID of the issue to act on. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-
-
-## Examples
-
-Resolve an issue in agent mode for use in scripts or AI coding assistants:
-
-```bash
-stacktape issues:resolve --issueId iss_abc123def456 --agent
-```
-
-## Related commands
-
-- [`issues:list`](/cli/issues-list) — list all detected runtime issues with their status and occurrence count
-- [`issues:ignore`](/cli/issues-ignore) — mark an issue as ignored so new occurrences do not reopen it or generate alerts
-- [`issues:reopen`](/cli/issues-reopen) — reopen a resolved or ignored issue, setting its status back to open
 
 ---
 
@@ -15424,7 +15424,7 @@ Your stack is deployed and CI/CD pushes changes automatically. Before real users
 
 ## Alarms
 
-Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms directly on individual resources in your config, or configure global alarms in the [Stacktape Console](/getting-started/using-console-ui) that apply across all matching resources.
+Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms on individual resources in your stack config and deploy to apply them. The [Stacktape Console](/getting-started/using-console-ui) shows deployed alarm state and history.
 
 Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
@@ -15473,7 +15473,7 @@ export default defineConfig(() => {
 
 This alarm fires when more than 5% of invocations fail in at least 2 out of 3 consecutive 60-second windows — filtering out isolated spikes while catching sustained problems. The `evaluation` block controls this: `period` sets each window to 60 seconds, `evaluationPeriods: 3` looks at the last three windows, and `breachedPeriods: 2` requires at least two to breach before firing. The email notification target ensures your on-call team is alerted immediately.
 
-For production, most teams use Slack (`type: 'slack'` with `conversationId` and `accessToken`) or a custom webhook. See [Alarms](/observability/alarms) for all trigger types, notification channel configuration, and global alarm setup.
+For production, most teams use Slack (`type: 'slack'` with `conversationId` and `accessToken`) or a custom webhook. See [Alarms](/observability/alarms) for all trigger types, notification channel configuration, and migration of legacy Console rules.
 
 ## Budgets
 
@@ -15660,11 +15660,15 @@ Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names
 
 Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis clusters, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
 
-The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag. Alarms configured for the whole organization in the Console are applied by v4 the same way v3 applied them.
+The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag. Existing organization-wide Console alarm rules remain as legacy rules. The Console no longer creates or edits alarm rules; use `stacktape alarms:export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
 
 Container services without gradual deployments shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
 
 Code-only deployments of web services behind the default HTTP API finish once the new tasks are `RUNNING` and API Gateway can discover them, plus a 4-second routing allowance. Old tasks drain in the background. No health check is added by default, so this does not confirm that the new application works. Add an `internalHealthCheck` for application failure detection and automatic rollback. HTTP API tasks also gain a managed drain container, which waits 35 seconds before ECS signals the application so cached routes can expire. This uses one of ECS's 10 container slots and has a 16 MiB memory limit. The protection applies once those task definitions are running; the first rollout still retires the previous unprotected tasks. Keep an application shutdown delay or use a maintenance window for that transition. Services with an `internalHealthCheck`, and ALB/NLB services, keep their existing health-based completion checks. Code-only deploy timing stays the same. Full CloudFormation deployments, scale-in and deletion take about 36 seconds longer per task stop; tasks can stop in parallel. The 35-second delay can be raised through task definition overrides, with a matching increase to the helper’s stop timeout. The helper is non-essential and pulls a digest-pinned image from the stack’s private ECR; the CLI copies both amd64 and arm64 images there once without Docker. The privileged Console connection role already covers this copy. Restricted deployer roles need `ecr:BatchGetImage`, `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload` and `ecr:PutImage` on the stack’s deployment repository, even when all application images are prebuilt. Upgrade every team and Console runner CLI before adopting the helper: older CLIs can delete its cached images during retention. See [web-service health checks](/resources/compute/web-service#health-checks).
+
+## Error tracking names
+
+Use `errors:list`, `errors:ignore`, `errors:resolve`, and `errors:reopen` in place of the `issues:*` CLI commands, including MCP command requests and automation. Replace `deploymentConfig.issues` with `deploymentConfig.errorTracking` in YAML and TypeScript configs. The old names are rejected without aliases. Issue IDs, status values, `--issueId`, and `--issueStatus` are unchanged. See [Error tracking](/observability/error-tracking) for capture settings and triage commands.
 
 ## Target AWS account
 
@@ -16288,13 +16292,13 @@ An alarm sends to the `notificationChannels` listed on it, such as Slack, email 
 
 The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
 
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.issues`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
+Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
 
 > Screenshot: Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status Caption: The Error tracking page groups repeated runtime errors so you don't search logs by hand.
 
 
-Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/issues) for configuration details and the CLI commands [`stacktape issues:list`](/cli/issues-list) and [`stacktape issues:resolve`](/cli/issues-resolve).
+Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/error-tracking) for configuration details and the CLI commands [`stacktape errors:list`](/cli/errors-list) and [`stacktape errors:resolve`](/cli/errors-resolve).
 
 ## Cost dashboards
 
@@ -16318,7 +16322,7 @@ A deploy gives the Console enough stack metadata to show deployments, costs (whe
 | Logs | — | [`stacktape logs`](/cli/logs) | None |
 | Metrics | — | [`stacktape metrics`](/cli/metrics) | None |
 | Alarms | Alerting → Alarms | View state: [`stacktape alarms`](/cli/alarms) | `alarms` on resources in the config + alert channel |
-| Error tracking | Observability → Error tracking | [`stacktape issues:list`](/cli/issues-list) | None, on by default |
+| Error tracking | Observability → Error tracking | [`stacktape errors:list`](/cli/errors-list) | None, on by default |
 | Costs | Organization → Costs | — | None — reports arrive daily |
 | Secrets | Configuration → Secrets | [`stacktape secret:set`](/cli/secret-set) | Connected AWS account + AWS region selection |
 
@@ -19773,7 +19777,7 @@ AWS Cost Explorer shows all charges across your entire AWS account with flexible
 Source: `apps/docs/content/observability/alarms.mdx`
 Route: `/observability/alarms`
 
-Stacktape alarms monitor CloudWatch metrics for your deployed resources and fire when a threshold is breached. You define alarms inline on individual resources in your config, or create organization-wide alarm rules in the [Stacktape Console](/stacktape-console/console-overview). When an alarm fires, it sends notifications to configured [alert channels](/observability/alert-channels) — Slack, MS Teams, email, Discord, or webhooks.
+Stacktape alarms monitor CloudWatch metrics for your deployed resources and fire when a threshold is breached. Define alarms on individual resources in your stack configuration and deploy the stack to apply changes. The [Stacktape Console](/stacktape-console/console-overview) shows alarm state and history. When an alarm fires, it sends to its configured `notificationChannels` and opens an [incident](/observability/incidents), which Console notification rules can route to [alert channels](/observability/alert-channels).
 
 ## When to use
 
@@ -19786,7 +19790,7 @@ Common starting points:
 - **API error rate** — detect HTTP 5xx spikes across your API gateway or load balancer.
 - **SQS queue depth** — spot consumer backlog before messages start expiring.
 
-For production stages, define at least one error-rate alarm per public-facing resource and one storage/CPU alarm per database. Use [global alarm rules](#global-alarm-rules) in the Console to enforce this across all projects without touching individual configs.
+For production stages, define at least one error-rate alarm per public-facing resource and one storage/CPU alarm per database. Keep these alarms in version control with each stack so threshold changes are reviewed and deployed with your code.
 
 ## When NOT to use
 
@@ -19794,7 +19798,7 @@ Alarms are not the right tool for every monitoring need:
 
 - **Debugging a specific request** — use [logs](/observability/logs) and the [`stacktape logs`](/cli/logs) CLI command instead.
 - **Trend analysis over weeks** — use [metrics](/observability/metrics) dashboards in the Console for visual exploration.
-- **Tracking application-level errors** — [issues](/observability/issues) automatically group and deduplicate runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
+- **Tracking application-level errors** — [error tracking](/observability/error-tracking) automatically groups and deduplicates runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
 - **Cost alerting** — use [budgets](/managing-costs/budgets) to get notified when spend crosses a threshold.
 
 ## Supported resources
@@ -19808,8 +19812,6 @@ Stacktape supports inline alarms on five resource types. Each resource accepts a
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `alarms` | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets`, `application-load-balancer-custom` |
 | [SQS queue](/resources/messaging/sqs-queue) | `alarms` | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
-
-Global alarm rules target these five resource types.
 
 ## Trigger types
 
@@ -20033,7 +20035,20 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
-For the full setup guide on each integration type, see [alert channels](/observability/alert-channels).
+To reuse a named Console [alert channel](/observability/alert-channels), add a `console-channel` reference to the alarm's `notificationChannels`:
+
+
+Example (YAML):
+
+```yaml
+notificationChannels:
+  - type: console-channel
+    properties:
+      channelName: production-alerts
+```
+
+
+A firing alarm also opens an [incident](/observability/incidents). Configure [notification rules](/observability/notifications) to route incident alerts to your team. Choose the delivery paths you need to avoid duplicate notifications.
 
 ### Alarm description
 
@@ -20043,56 +20058,13 @@ Use the optional `description` property on an alarm to include a custom message 
 
 The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view.
 
-## Global alarm rules
+## Migrating legacy Console alarm rules
 
-Stacktape global alarm rules are organization-level alarm rules managed in the Stacktape Console, with optional project and stage filters. When filters are empty, the Console labels the scope as "All projects" or "All stages".
+The Console no longer creates or edits alarm rules. Existing rules appear under **Legacy alarm rules** on the Alarms page. They keep applying to matching deployments until the stack defines its alarms in configuration.
 
+Run `stacktape alarms:export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments), and deploy each affected stage. Verify the resulting alarms before deleting the legacy rule in the Console.
 
-> Screenshot: Stacktape Console alarm rules page showing a table of alarm rules with columns for name, creation date, targeted projects, targeted stages, and trigger type Caption: The alarm rules page in the Console lets you create, view, and delete organization-wide alarms.
-
-
-Global alarm rules target resource types from the `StpAlarmEnabledResource` set: Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues. Each rule specifies a trigger type and optional project/stage scope. Most trigger types also require threshold properties; the `sqs-queue-not-empty` trigger has no configurable threshold.
-
-### Scoping rules to projects and stages
-
-Each global alarm rule can be scoped to specific projects (via `forServices`) and stages (via `forStages`). When omitted, the rule applies to all projects and all stages in the organization.
-
-Common scoping patterns:
-
-- **Production only** — set `forStages` to `["production"]` to avoid alert noise from dev/staging stages.
-- **Specific project** — set `forServices` to `["payment-api"]` for project-specific thresholds.
-- **Everything** — leave both filters empty to create a baseline alarm for all deployments.
-
-### How global and inline alarms interact
-
-Inline alarms are defined per-resource in your config. Global alarm rules are scoped to matching projects (via `forServices`) and stages (via `forStages`), applying to resources within those filters. You can exclude specific global alarm rules from a resource using `disabledGlobalAlarms`.
-
-### Disabling global alarms on specific resources
-
-If a global alarm rule doesn't make sense for a particular resource, use `disabledGlobalAlarms` to opt out by alarm name. This property is available on alarm-enabled resource types ([Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [SQS queues](/resources/messaging/sqs-queue)) and accepts an array of global alarm names to exclude from the resource.
-
-This is useful when a resource has unusual characteristics — for example, a scheduled Lambda that runs long by design and would constantly trip a duration alarm:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const dailyReport = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/daily-report.ts'
-    }),
-    timeout: 300,
-    disabledGlobalAlarms: ['lambda-duration-high']
-  });
-
-  return { resources: { dailyReport } };
-});
-```
-
-
-The `disabledGlobalAlarms` array takes the alarm names as configured in the Console.
+`disabledGlobalAlarms` excludes named legacy rules from a resource while you migrate. For new alarms, edit the resource's `alarms` list directly.
 
 ## Viewing alarm states
 
@@ -20110,7 +20082,7 @@ stacktape alarms --stage production --region eu-west-1
 
 ### Console
 
-The Console alarm rules page lists alarm rules by name, created date, targeted projects, targeted stages, and trigger type. The details modal shows alert-channel summary, trigger properties, and evaluation settings. The table includes delete controls for each rule. For real-time alarm state of a specific stage's resources, use the [`stacktape alarms`](/cli/alarms) CLI command.
+The Console's **Alarms** page shows deployed alarms and their states across projects and stages. Open an alarm to inspect its state history. Configure thresholds and evaluation windows in the stack config, then deploy to apply them.
 
 ## Alarms as event triggers
 
@@ -20143,15 +20115,15 @@ AWS CloudWatch charges per alarm-metric per month. Stacktape alarms use standard
 
 ### Can I set different alarm thresholds for production vs development?
 
-Yes. Global alarm rules in the Console can be scoped to specific stages using `forStages`. Create a strict rule targeting `["production"]` with a low error threshold, and a relaxed rule (or no rule) for development stages. Alternatively, use [stage-based configuration](/configuration/stages-and-environments) in your TypeScript config to conditionally set different alarm thresholds per stage.
+Yes. Use [stage-based configuration](/configuration/stages-and-environments) in your TypeScript config to select thresholds or omit alarms for a stage, then deploy each affected stage.
 
 ### How do I avoid false alarms from short traffic spikes?
 
 Tune the `evaluation` property. Increase `evaluationPeriods` (how many periods to look at) and set `breachedPeriods` to require multiple periods in breach before firing. For example, `evaluationPeriods: 5` with `breachedPeriods: 3` means the threshold must be breached in at least 3 of the last 5 periods. Increasing `period` from 60 to 300 seconds also smooths out short spikes by aggregating metric data over a wider window.
 
-### What is the difference between inline alarms and global alarm rules?
+### Where do I change an alarm rule?
 
-Inline alarms are defined in your `stacktape.ts` config on individual resources and deploy as part of that stack. Global alarm rules are created in the Console at the organization level and scoped to matching projects and stages via `forServices` and `forStages` filters. Both produce CloudWatch alarms and use the same notification target configuration. Individual resources can opt out of specific global rules using `disabledGlobalAlarms`.
+Edit the resource's `alarms` list in the stack configuration and deploy. If the alarm comes from a legacy Console rule, [export it into configuration](#migrating-legacy-console-alarm-rules) first.
 
 ### Can I alarm on custom CloudWatch metrics from my application?
 
@@ -20161,9 +20133,9 @@ Custom application-level metrics emitted via the CloudWatch SDK are not directly
 
 Deploy a stage with alarms configured and use [`stacktape alarms`](/cli/alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
 
-### When should I use alarms vs issues?
+### When should I use alarms vs error tracking?
 
-[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Issues](/observability/issues) automatically detect, group, and deduplicate individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and issues for application-level error tracking. Most production stacks benefit from both — alarms catch broad degradation while issues catch specific bugs.
+[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Error tracking](/observability/error-tracking) automatically detects, groups, and deduplicates individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and error tracking for application-level errors. Most production stacks benefit from both — alarms catch broad degradation while error tracking catches specific bugs.
 
 ---
 
@@ -20172,13 +20144,13 @@ Deploy a stage with alarms configured and use [`stacktape alarms`](/cli/alarms) 
 Source: `apps/docs/content/observability/alert-channels.mdx`
 Route: `/observability/alert-channels`
 
-Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
+Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
 
 Stacktape supports six channel types: **Slack (Stacktape app)**, **Slack** (your own bot token), **Microsoft Teams**, **Discord**, **Email**, and **Webhook**.
 
 ## When to use alert channels
 
-Alert channels are Console-managed destinations that can be reused across rules. Create a channel when you want a named target that [notification rules](/observability/notifications), [alarm rules](/observability/alarms), or [budget alerts](/managing-costs/budgets) can reference. Once a channel exists, rules across your organization can deliver to it without duplicating configuration.
+Alert channels are Console-managed destinations that can be reused across rules. Create a channel when you want a named target that [notification rules](/observability/notifications), [config alarms](/observability/alarms#notification-targets), or [budget alerts](/managing-costs/budgets) can reference. Once a channel exists, rules across your organization can deliver to it without duplicating configuration.
 
 ## When NOT to use alert channels
 
@@ -20186,7 +20158,7 @@ Alert channels are a Console-only feature. If your team does not use the Stackta
 
 ## Channel types
 
-Stacktape supports five channel types. When a channel has properties named `webhookUrl`, `accessToken`, or `secret`, the details modal masks them as sensitive values.
+Stacktape supports six channel types. A channel's page masks properties named `webhookUrl`, `accessToken` or `secret` as sensitive values.
 
 ### Slack (Stacktape app)
 
@@ -20245,15 +20217,23 @@ For most teams, start with **Slack** or **Teams** for real-time visibility, and 
 
 ## Creating a channel in the Console
 
-Alert channels are listed on the **Channels** page in the Stacktape Console. The **New alert channel** button opens the channel creation dialog. Create channels here, then use them in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
+Alert channels are listed on the **Channels** page in the Stacktape Console, with what each one receives and its last alert. The **New alert channel** button opens the channel creation dialog; after you create a channel, its page opens.
 
-Alert channel management is available in the Stacktape Console. The Console uses channels in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
+## The channel page
+
+Click a channel to open its page:
+
+- **What it receives**: its [notification rules](/observability/notifications), with **New rule** to add one, and the [budgets](/managing-costs/budgets) that alert it.
+- **Recent alerts**: the last alerts sent to it and whether each was accepted. Click one for the delivery details.
+- **Settings**: the channel's destination. Delivery credentials such as webhook URLs and tokens are not shown after they are saved.
+
+**Send test** sends a test message to check the channel, and **Delete** removes it once no rule uses it. Both need the `org:manage-alert-channels` permission.
 
 ## Using channels with rules
 
-Channels are used by notification rules, alarm rules, and budget alerts to deliver alerts. They serve as delivery targets for three types of rules in the Stacktape Console:
+Channels are delivery targets for Console notification rules and budget alerts. Config alarms can also reference them:
 
-- **[Alarm rules](/observability/alarms)** monitor AWS metrics (Lambda error rates, database CPU, API latency) and deliver an alert to the configured channel when a threshold is breached. The underlying CloudWatch alarms and EventBridge routing are created or updated on the next deployment of each matching stage.
+- **[Config alarms](/observability/alarms#notification-targets)** monitor AWS metrics (Lambda error rates, database CPU, API latency). Reference a named channel with `type: console-channel` in the alarm's `notificationChannels` and deploy the stack to apply changes. A firing alarm also opens an incident, which Console notification rules can route to channels.
 - **[Notification rules](/observability/notifications)** deliver alerts when deployment events happen — a deploy succeeds, fails, or is canceled. Each notification rule specifies which events to watch and which channel to deliver the alert to.
 - **[Budget alerts](/managing-costs/budgets)** fire when AWS spending crosses a defined threshold.
 
@@ -20267,11 +20247,11 @@ The Channels page includes a delete action for each listed channel. When the del
 
 ### Can I use the same channel for alarms, notifications, and budgets?
 
-Yes — this is the main reason to use Console-managed channels. Create a channel once and reference it from [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Channels are scoped to the selected organization, so you don't recreate them per project or stage.
+Yes — this is the main reason to use Console-managed channels. Create a channel once and reference it from [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Channels are scoped to the selected organization, so you don't recreate them per project or stage.
 
 ### When should I use a Console channel instead of config-level alarm options?
 
-Use Console-managed channels when the destination is shared across multiple rules, or when non-developers need to manage alert routing without touching config files. If you'd rather define alarms that deploy alongside your stack from your Stacktape config, see [alarm configuration](/observability/alarms) instead.
+Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. See [alarm notification targets](/observability/alarms#notification-targets).
 
 ### Can I send alerts to multiple Slack channels?
 
@@ -20279,7 +20259,7 @@ Yes, but you create a separate alert channel for each Slack channel you want to 
 
 ### How do I tell whether an alert was actually delivered?
 
-Check [Alert history](/observability/alert-history) in the Console. It lists every alert sent to a channel with its delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
+Open the channel in the Console: its page shows the last alert and whether it was sent, and its recent alerts. [Sent alerts](/observability/alert-history) lists every alert across channels. If an alert shows as sent but the destination never received it, check the receiving system's own logs.
 
 ### Why can't I delete a channel?
 
@@ -20291,126 +20271,267 @@ No. Alert channels are a Console-only feature — they are created, viewed, and 
 
 ---
 
-# Alert History
+# Sent Alerts
 
 Source: `apps/docs/content/observability/alert-history.mdx`
 Route: `/observability/alert-history`
 
-The Stacktape Console's alert history page displays alert events for the selected organization — across [alarms](/observability/alarms), [notifications](/observability/notifications), [budget alerts](/managing-costs/budgets), and [issues](/observability/issues). Instead of checking separate history views for each system, use alert history to see what fired, when, and whether the alert reached its intended channel.
+**Sent alerts** (under Alerting in the Stacktape Console) lists every alert Stacktape sent to your
+[alert channels](/observability/alert-channels): incidents, deploys and changes covered by a channel's
+[notification rules](/observability/notifications), [alarms](/observability/alarms#notification-targets) from your
+stack configuration, and [budget alerts](/managing-costs/budgets). Use it to check what
+was sent and whether it arrived.
 
-## What alert history tracks
-
-Alert history displays **alert event** rows returned for the selected organization. It lists the alerts the Console sent to channels: incident pages, deploy and change notifications, and budget alerts. The table displays each event as a row with the following columns:
+## Columns
 
 | Column | Description |
 |---|---|
-| **Time** | When the event occurred. Passed as the table's default sort column. |
-| **Source** | Which system generated the event — Notification, Alarm, Budget, or Issue. Displayed as a color-coded badge. |
-| **Event** | The specific trigger type (e.g. "Deploy failed", "Alarm triggered"). See the full list below. |
-| **Severity** | The severity value for the event. WARNING, ERROR, and CRITICAL use distinct colors. INFO and unrecognized severity values render with the primary text color. |
-| **Project** | The project associated with the event, when applicable. Shows "-" if not project-specific. |
-| **Stage** | The stage associated with the event, when applicable. Shows "-" if not stage-specific. |
-| **Title** | A human-readable summary of what happened. |
-| **Delivery** | Per-channel delivery status for each [alert channel](/observability/alert-channels) the event was routed to. |
+| **Time** | When the alert was sent. Hover it for the exact time. |
+| **Alert** | What happened, for example an opened incident or a failed deploy. |
+| **Project / stage** | Where it happened, or "Organization" for organization-wide alerts such as budgets and secret changes. |
+| **Sent to** | The channels that received it. A channel that did not accept it is shown in red. |
+| **Delivery** | **Sent** when every channel accepted it, **Failed** when none did, **1 of 3 failed** when some did not, and **Sending** while a delivery is in progress. |
 
-Alert history queries events at the organization level, so you see alerts from all projects and stages in one place.
+An event that no channel receives is not sent, so it does not appear here.
 
-## Event types
+## Delivery details
 
-Alert events span four source categories. The alert history page displays these known event types.
+Click a row to see, for each channel, whether the provider accepted the alert ("Accepted by Slack", "Accepted by the
+email service", "Accepted by the webhook endpoint"), every attempt with its time, and the error when it failed. A
+failed channel links to its page, where **Send test** checks the channel after you fix it. An incident alert links to
+the incident.
 
-| Source | Event types |
-|---|---|
-| **Notification** | Deploy started, Deploy succeeded, Deploy failed, Delete started, Delete succeeded, Delete failed, Deploy rolled back, Rollback succeeded, Rollback failed, Preview deploy succeeded, Preview deploy failed, Git push deploy succeeded, Git push deploy failed, Script run succeeded, Script run failed, Secret created, Secret updated, Secret deleted |
-| **Alarm** | Alarm triggered, Alarm resolved |
-| **Budget** | Budget threshold exceeded, Budget forecasted overspend |
-| **Issue** | Issue detected, Issue resolved |
+"Accepted" means the provider took the message. Stacktape does not see whether a person read it.
 
-Notification events cover the broadest range — deployments, rollbacks, previews, Git push deploys, script runs, and secret lifecycle changes. Alarm, budget, and issue events are narrower, each tracking the trigger-and-resolve lifecycle for their respective system.
+## Filters
 
-## Severity levels
+Filter by **source** (incidents, deploys and changes, budgets) and by **channel**. A channel's page links here already
+filtered to that channel. The old `/notifications/history` address opens this page filtered to deploys and changes.
 
-The Console displays each alert event's severity using color-coded styling. The Console defines distinct colors for WARNING, ERROR, and CRITICAL:
+## Other history pages
 
-| Severity | Color |
-|---|---|
-| **INFO** | Default text |
-| **WARNING** | Orange |
-| **ERROR** | Red |
-| **CRITICAL** | Dark red |
-
-The alert history page renders the severity value returned with each event. WARNING, ERROR, and CRITICAL are styled with the distinct colors shown above. INFO and any unrecognized severity values render with the primary text color.
-
-## Filtering events
-
-The alert history page includes a **source filter** dropdown at the top of the table. You can filter the view to show:
-
-- **All sources** — the default view showing every event across all four categories.
-- **Issues** — only issue detection and resolution events.
-- **Alarms** — only alarm triggered and resolved events.
-- **Notifications** — deployment, delete, rollback, preview deploy, Git push deploy, script, and secret events.
-- **Budgets** — only budget threshold and forecasted overspend events.
-
-Changing the filter resets the table back to the first page. Use the source filter to narrow down a noisy timeline — for example, filtering to "Alarms" when investigating a spike in alarm activity, or to "Notifications" when checking whether the team was notified about a recent deploy failure.
-
-## Delivery tracking
-
-The Delivery column renders the delivery records returned with each event. It serves as the audit trail that answers "did the team actually get notified?" Each delivery shows a status and channel summary.
-
-Each delivery in the list shows two things:
-
-- **Status** — displayed as a color-coded label: `SENT` (green), `FAILED` (red), or `PENDING` (orange).
-- **Channel** — the [alert channel](/observability/alert-channels) the delivery targeted, rendered with the channel name and type.
-
-When an event has multiple delivery records, the Delivery column lists each one separately with its own status and channel summary.
-
-When an event has no delivery records, the table displays **"No rules matched"**. The event is still visible in the timeline.
-
-
-> **Tip:** If you see "No rules matched" for events you care about, check that routing rules in [notifications](/observability/notifications), [alarms](/observability/alarms), or [budgets](/managing-costs/budgets) cover the event type and route to an [alert channel](/observability/alert-channels).
-
-
-## Pagination
-
-Alert history is paginated and loads on demand. You can control the number of events displayed per page and navigate through pages using the table's built-in pagination controls. The total count of matching events is passed to the table's pagination controls.
-
-## When the table is empty
-
-If no alert events have been recorded yet, the table shows the message: *"No alert events yet. Events will appear here when alarms trigger, issues are detected, or notifications are sent."*
-
-Alert history displays alert events returned for the selected organization. Events appear when an incident pages a channel, a [notification rule](/observability/notifications) sends a deploy or change notification, or a [budget alert](/managing-costs/budgets) fires. The source filter offers Incident pages, Deploys and changes, and Budgets. Delivery information appears when delivery records exist for an event.
-
-## Alert history vs. individual history views
-
-The Console also has an alarm history page for each alarm and a budget history page (**Budgets → History**), each focused on a single source. Notification rule alerts have no separate page: `/notifications/history` redirects to Alert history filtered to notifications. Alert history is the unified table that combines events from all sources on a single page.
-
-Use **alert history** when you need a cross-cutting view — for example, correlating a failed deploy notification with the alarm that fired shortly after, or reviewing all alert activity over the last hour regardless of source. Use the source-specific history pages when investigating a single alert category in isolation.
-
-
-> **Info:** Alert history is available in the Stacktape Console. For CLI-based alarm inspection, use [`stacktape alarms`](/cli/alarms) to check current CloudWatch alarm states.
-
+An alarm's own history shows its CloudWatch state changes, and **Budgets → History** shows budget alerts only. Sent
+alerts is the one place that shows everything sent to your channels.
 
 ## FAQ
 
-### When should I use alert history vs. the source-specific history pages?
+### An alert shows "1 of 3 failed". Did my team get it?
 
-Alert history combines incident pages, deploy and change notifications, and budget alerts in one table. Budget history (under Budgets) shows only budget alerts, and an alarm's own history shows its CloudWatch state changes. Use Alert history to see everything that was sent and whether it was delivered.
+The channels that accepted it got it. Open the row to see which channel failed and why, then open that channel and send
+a test once its settings are fixed.
 
-### Can I filter alert history by project or stage?
+### Why is an event I expected missing?
 
-The source filter dropdown filters by event source (Alarm, Notification, Budget, Issue), not by project or stage. The table does display Project and Stage columns for every event, so you can identify which project and stage each event belongs to.
+Only events a channel receives are sent. Open the channel under **Channels** and check its rules: which events they
+cover and for which projects and stages.
 
-### What does "No rules matched" mean in the Delivery column?
+### Can I see sent alerts from the CLI?
 
-The Console displays "No rules matched" when an event's delivery records are empty. The event is still visible in the timeline. If you expected a delivery, check your routing rules in [notifications](/observability/notifications), [alarms](/observability/alarms), or [budgets](/managing-costs/budgets) and verify they cover the event type and route to an [alert channel](/observability/alert-channels).
+No. Sent alerts is a Console page. For CloudWatch alarm states, use [`stacktape alarms`](/cli/alarms).
 
-### What delivery statuses can an alert have?
+---
 
-The Console styles three delivery statuses with distinct colors: **SENT** (green), **FAILED** (red), and **PENDING** (orange). When an event has multiple delivery records — for example, because it matched rules pointing to different channels — each delivery is listed separately with its own independent status.
+# Error tracking
 
-### Can I view alert history from the CLI?
+Source: `apps/docs/content/observability/error-tracking.mdx`
+Route: `/observability/error-tracking`
 
-No — alert history is a Console-only page. For CLI-based alarm inspection, use [`stacktape alarms`](/cli/alarms) to check current CloudWatch alarm states.
+Stacktape error tracking is a built-in error inbox available on the **Error tracking** page of the [Stacktape Console](/stacktape-console/console-overview) and in the [CLI](/cli/errors-list). It displays recorded runtime errors with each issue's status, error message, error type, occurrence count, function name, and originating project and stage. Manage issues without integrating a third-party error tracking service.
+
+Use `stacktape errors:list`, `errors:resolve`, `errors:ignore`, and `errors:reopen` to manage recorded errors from the CLI. Configure capture with `deploymentConfig.errorTracking`. Each recorded error group is called an issue.
+
+## Migrating to v4
+
+Rename `issues:list`, `issues:ignore`, `issues:resolve`, and `issues:reopen` to `errors:list`, `errors:ignore`, `errors:resolve`, and `errors:reopen` in scripts and MCP command requests. Rename `deploymentConfig.issues` to `deploymentConfig.errorTracking` in YAML and TypeScript configs. The old names are rejected; there are no aliases. Issue IDs, status values, `--issueId`, and `--issueStatus` stay the same.
+
+## When to use
+
+Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
+
+- You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
+- You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
+- You want occurrence counts and error classification grouped per issue, not scattered across individual log entries.
+
+Error tracking works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
+
+
+> **Info:** Resources configured with `logging.logClass: infrequent-access` do not feed error tracking because AWS does not support the required log subscription filters. Their logs remain available through bounded Logs Insights snapshots in the Console and CLI.
+
+
+## When NOT to use
+
+Stacktape error tracking displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of it. Error tracking is best for triaging recurring runtime failures — not for full-stack observability.
+
+## Turning error tracking off or limiting stages
+
+Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
+
+The stack's configuration decides. Turn error tracking off for a stack, or limit it to some stages, in `deploymentConfig.errorTracking`; the change takes effect at the stack's next deployment.
+
+```yaml
+deploymentConfig:
+  errorTracking:
+    enabled: true                    # default; false turns error tracking off for this stack
+    stages: [production, staging]    # omitted or empty means every stage
+```
+
+The Console has one organization-wide switch as well. Click **Settings** on the Error tracking page to open **Error tracking settings**; organization owners and admins can turn error tracking off and on there. While it is off, no error events are recorded for any stack. The same dialog lists the deployed stacks and whether their last successful deployment wired error tracking, so you can see which stacks still run an older CLI.
+
+## What leaves your AWS account
+
+For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. Logs themselves stay in your account.
+
+Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
+
+During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact.
+
+## Stack traces of bundled JavaScript
+
+A JavaScript or TypeScript function packaged with [`js-bundle`](/packaging/function/js-bundle) runs minified code, so the frames the runtime logs point into the bundle (`/var/task/index.js:1:4821`). Its source maps are not in the deployment package: each deployment stores them in the stack's deployment bucket and tells the Console which maps describe the code each function runs from when.
+
+When an issue is first seen, the Console reads the maps of the code that threw. It picks them by the version the failing execution environment ran, or, for `$LATEST`, by the time the environment started, so an error from an environment started before a later deployment, or from a version an alias still routes traffic to, gets the maps of its own code. It reads them through your connected account's role, limited for that session to the stack's source maps and the function's configuration and tags. The issue's detail page then shows the stack trace in your source files, with the original file, line and function.
+
+The maps contain no source code. The Console stores the mapped file, line, column and function of each frame and keeps nothing else from the maps. Lambda logs in CloudWatch still show the bundled positions. To have Node.js map those as well, set [`keepSourceMapsInPackage`](/packaging/function/js-bundle#source-maps); the Console then shows the frames as Node.js logged them.
+
+Stack traces are mapped for errors from code deployed by the current CLI; errors from earlier deployments show the bundled positions.
+
+## Error types
+
+The detector classifies each error. The Console shows the classification as a plain label on the issue's detail page, while the CLI prints the raw `errorType` value:
+
+| `errorType` | Console label |
+|---|---|
+| `uncaught` | **Uncaught exception** |
+| `caught` | **Logged error** |
+| `unhandled_rejection` | **Unhandled promise rejection** |
+| `exit_error` | **Process exited** |
+| `handler_not_found` | **Handler not found** |
+| `panic` | **Panic** |
+
+If an error type is not in this table, the Console also displays the raw `errorType` value. Use the label to recognize similar errors at a glance. The Console supports filtering by status, search text, project, and stage; the CLI [`errors:list`](/cli/errors-list) command supports filtering by project name, stage, issue status, and result limit.
+
+## Issue statuses
+
+Every issue has one of three statuses. The Console displays summary cards at the top of the Error tracking page with the count for each:
+
+| Status | Color in Console | Meaning |
+|---|---|---|
+| **Open** | Red | Active error that needs attention |
+| **Resolved** | Green | Marked as fixed |
+| **Ignored** | Gray | Intentionally suppressed |
+
+The CLI has separate commands for resolving, ignoring, and reopening errors: [`errors:resolve`](/cli/errors-resolve), [`errors:ignore`](/cli/errors-ignore), and [`errors:reopen`](/cli/errors-reopen). Clicking a row in the Console navigates to the selected issue.
+
+## Viewing issues in the Console
+
+The Error tracking page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. Three summary cards at the top show the count of Open, Resolved, and Ignored issues at a glance.
+
+### Issue table
+
+Below the summary cards and filters, a table lists issues with these columns:
+
+| Column | Shows |
+|---|---|
+| **Error** | The error message, with the project, stage and function name (when available) below it |
+| **Events** | Total occurrences of this error |
+| **Last seen** | Time of the most recent occurrence |
+| **First seen** | Time the issue was first recorded |
+| **Status** | Open, Resolved or Ignored |
+
+Clicking a row navigates to the selected issue.
+
+### Filtering
+
+The Console provides four combinable filters that let you narrow the issue list:
+
+- **Status** — All, Open, Resolved, or Ignored. Defaults to Open so you see active errors first.
+- **Search** — Substring match against error messages. Useful for finding a specific exception type or message pattern.
+- **Project** — Narrow results to a single project.
+- **Stage** — Narrow results to a single stage. The dropdown includes stages from your deployed and undeployed projects plus stages found in existing issues.
+
+The table shows 20 items per page by default and uses Last seen as the default sort column. Changing any filter resets to the first page.
+
+
+> Screenshot: Stacktape Console Error tracking page showing three summary cards for Open, Resolved, and Ignored counts, filter controls for status, search, project, and stage, and a paginated table listing runtime errors with columns for error, events, last seen, first seen, and status Caption: Error tracking page with summary cards, filters, and the error table
+
+
+## Managing issues from the CLI
+
+The Stacktape CLI provides commands for working with issues. The [`errors:list`](/cli/errors-list) command initializes the Stacktape API client with your configured [API key](/stacktape-console/api-keys). In agent mode, it prints raw JSON for programmatic use in CI/CD pipelines and AI coding assistants.
+
+### Listing issues
+
+[`stacktape errors:list`](/cli/errors-list) displays issues as a formatted table. The default limit is 25.
+
+```bash
+stacktape errors:list
+```
+
+Filter by project, stage, or status:
+
+```bash
+stacktape errors:list --projectName my-api --stage production --issueStatus OPEN
+```
+
+Set a custom limit:
+
+```bash
+stacktape errors:list --limit 50
+```
+
+In agent mode (used by AI coding assistants), the command outputs the raw `listIssues` response as JSON. The table view displays ID, status, error message, error type, function name, project, stage, occurrence count, and last seen.
+
+### Changing issue status
+
+The CLI has separate commands for changing issue status:
+
+- [`stacktape errors:resolve`](/cli/errors-resolve)
+- [`stacktape errors:ignore`](/cli/errors-ignore)
+- [`stacktape errors:reopen`](/cli/errors-reopen)
+
+## Error tracking vs logs vs alarms
+
+Error tracking, [logs](/observability/logs), and [alarms](/observability/alarms) serve different observability purposes. See the dedicated pages for full details on each; the summary below highlights how they complement each other:
+
+| | Error tracking | [Logs](/observability/logs) | [Alarms](/observability/alarms) |
+|---|---|---|---|
+| **Purpose** | Track and triage runtime errors | View raw output from functions and workloads | Alert on metric thresholds |
+| **Grouping** | Errors grouped with occurrence counts | Individual log lines | One alarm per rule |
+| **Action model** | Resolve, ignore, or reopen | Search and filter via [`logs`](/cli/logs) | Triggers [notifications](/observability/notifications) |
+| **Best for** | Error triage and regression tracking | Debugging specific requests | Proactive threshold monitoring |
+
+Error tracking complements [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Error tracking page to diagnose which errors are driving the spike.
+
+## Limitations
+
+- **No in-process instrumentation.** Stacktape error tracking does not use an in-process SDK. Errors that are silently swallowed, produce no output, or result in silent data corruption are not captured.
+- **False positives possible.** Log lines that match error patterns but aren't actual application errors (for example, error messages logged at info level for diagnostic purposes) may be recorded as issues. Review unexpected entries before acting on them.
+
+## FAQ
+
+### How do I turn error tracking off for a stack?
+
+Set `deploymentConfig.errorTracking.enabled: false` in the stack's configuration and deploy. To keep only some stages, list them in `deploymentConfig.errorTracking.stages`. Organization owners and admins can also turn error tracking off for every stack at once in **Error tracking settings** (the **Settings** button on the Error tracking page).
+
+### Why aren't my issues showing up?
+
+The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Open **Error tracking settings** with the **Settings** button on the Error tracking page: it lists each deployed stack and whether its last deployment wired error tracking. Also check that the organization switch is on and that the resource does not use `logging.logClass: infrequent-access`.
+
+### Does issue monitoring add cost?
+
+Very little. The detector is a Lambda function in your account that runs only when a log line matches an error pattern, and it reports each distinct error once per log batch. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
+
+### How is Stacktape error tracking different from Sentry or Datadog?
+
+Stacktape error tracking is built in and does not require adding a Sentry or Bugsnag SDK to your application. Because it does not use in-process instrumentation, it provides less context than a dedicated APM tool — no breadcrumbs, no custom tags, no user session tracking, no performance traces. It also can't capture errors that are silently swallowed or produce no log output. Use error tracking for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
+
+### What happens to existing issues when I disable monitoring?
+
+Existing issues remain visible in the Console after monitoring is turned off — they are not deleted. You can still filter and search them; only the capture of new issues stops.
+
+### When should I use issues vs alarms for error monitoring?
+
+Use both — they answer different questions. [Alarms](/observability/alarms) fire when a metric crosses a threshold (e.g., error rate above 5%), telling you *something is wrong*. Error tracking tells you *what specific errors are happening* and how often. Set up alarms with [alert channels](/observability/alert-channels) for real-time notification, then use the Error tracking page to identify which errors caused the spike and decide how to fix them.
 
 ---
 
@@ -20641,7 +20762,7 @@ Stacktape can open incidents from:
 - failing [uptime checks](/observability/uptime-checks) and silent uptime probers
 - failing [synthetic tests](/observability/synthetic-tests)
 - firing [CloudWatch alarms](/observability/alarms)
-- production [runtime error groups](/observability/issues)
+- production [runtime error groups](/observability/error-tracking)
 - unhealthy CloudFormation stacks
 - certificates approaching expiry
 
@@ -20721,206 +20842,6 @@ Runtime error groups are different: absence of an error is not immediate proof o
 - [`incidents:ack`](/cli/incidents-ack) — acknowledge ownership
 - [`incidents:resolve`](/cli/incidents-resolve) — resolve after manual verification
 - [`incidents:watch`](/cli/incidents-watch) — wait for sustained recovery
-
----
-
-# Error tracking
-
-Source: `apps/docs/content/observability/issues.mdx`
-Route: `/observability/issues`
-
-Stacktape error tracking is a built-in error inbox available on the **Error tracking** page of the [Stacktape Console](/stacktape-console/console-overview) and in the [CLI](/cli/issues-list). It displays recorded runtime errors with each issue's status, error message, error type, occurrence count, function name, and originating project and stage. Manage issues without integrating a third-party error tracking service.
-
-The CLI commands (`stacktape issues:list`, `issues:resolve`, `issues:ignore`, `issues:reopen`) and the configuration key `deploymentConfig.issues` keep the name `issues`; each recorded error is called an issue.
-
-## When to use
-
-Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
-
-- You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
-- You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
-- You want occurrence counts and error classification grouped per issue, not scattered across individual log entries.
-
-Error tracking works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
-
-
-> **Info:** Resources configured with `logging.logClass: infrequent-access` do not feed error tracking because AWS does not support the required log subscription filters. Their logs remain available through bounded Logs Insights snapshots in the Console and CLI.
-
-
-## When NOT to use
-
-Stacktape error tracking displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of it. Error tracking is best for triaging recurring runtime failures — not for full-stack observability.
-
-## Turning error tracking off or limiting stages
-
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
-
-The stack's configuration decides. Turn error tracking off for a stack, or limit it to some stages, in `deploymentConfig.issues`; the change takes effect at the stack's next deployment.
-
-```yaml
-deploymentConfig:
-  issues:
-    enabled: true                    # default; false turns error tracking off for this stack
-    stages: [production, staging]    # omitted or empty means every stage
-```
-
-The Console has one organization-wide switch as well. Click **Settings** on the Error tracking page to open **Error tracking settings**; organization owners and admins can turn error tracking off and on there. While it is off, no error events are recorded for any stack. The same dialog lists the deployed stacks and whether their last successful deployment wired error tracking, so you can see which stacks still run an older CLI.
-
-## What leaves your AWS account
-
-For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. Logs themselves stay in your account.
-
-Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
-
-During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact.
-
-## Stack traces of bundled JavaScript
-
-A JavaScript or TypeScript function packaged with [`js-bundle`](/packaging/function/js-bundle) runs minified code, so the frames the runtime logs point into the bundle (`/var/task/index.js:1:4821`). Its source maps are not in the deployment package: each deployment stores them in the stack's deployment bucket and tells the Console which maps describe the code each function runs from when.
-
-When an issue is first seen, the Console reads the maps of the code that threw. It picks them by the version the failing execution environment ran, or, for `$LATEST`, by the time the environment started, so an error from an environment started before a later deployment, or from a version an alias still routes traffic to, gets the maps of its own code. It reads them through your connected account's role, limited for that session to the stack's source maps and the function's configuration and tags. The issue's detail page then shows the stack trace in your source files, with the original file, line and function.
-
-The maps contain no source code. The Console stores the mapped file, line, column and function of each frame and keeps nothing else from the maps. Lambda logs in CloudWatch still show the bundled positions. To have Node.js map those as well, set [`keepSourceMapsInPackage`](/packaging/function/js-bundle#source-maps); the Console then shows the frames as Node.js logged them.
-
-Stack traces are mapped for errors from code deployed by the current CLI; errors from earlier deployments show the bundled positions.
-
-## Error types
-
-The detector classifies each error. The Console shows the classification as a plain label on the issue's detail page, while the CLI prints the raw `errorType` value:
-
-| `errorType` | Console label |
-|---|---|
-| `uncaught` | **Uncaught exception** |
-| `caught` | **Logged error** |
-| `unhandled_rejection` | **Unhandled promise rejection** |
-| `exit_error` | **Process exited** |
-| `handler_not_found` | **Handler not found** |
-| `panic` | **Panic** |
-
-If an error type is not in this table, the Console also displays the raw `errorType` value. Use the label to recognize similar errors at a glance. The Console supports filtering by status, search text, project, and stage; the CLI [`issues:list`](/cli/issues-list) command supports filtering by project name, stage, issue status, and result limit.
-
-## Issue statuses
-
-Every issue has one of three statuses. The Console displays summary cards at the top of the Error tracking page with the count for each:
-
-| Status | Color in Console | Meaning |
-|---|---|---|
-| **Open** | Red | Active error that needs attention |
-| **Resolved** | Green | Marked as fixed |
-| **Ignored** | Gray | Intentionally suppressed |
-
-The CLI has separate commands for resolving, ignoring, and reopening issues: [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), and [`issues:reopen`](/cli/issues-reopen). Clicking a row in the Console navigates to the selected issue.
-
-## Viewing issues in the Console
-
-The Error tracking page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. Three summary cards at the top show the count of Open, Resolved, and Ignored issues at a glance.
-
-### Issue table
-
-Below the summary cards and filters, a table lists issues with these columns:
-
-| Column | Shows |
-|---|---|
-| **Error** | The error message, with the project, stage and function name (when available) below it |
-| **Events** | Total occurrences of this error |
-| **Last seen** | Time of the most recent occurrence |
-| **First seen** | Time the issue was first recorded |
-| **Status** | Open, Resolved or Ignored |
-
-Clicking a row navigates to the selected issue.
-
-### Filtering
-
-The Console provides four combinable filters that let you narrow the issue list:
-
-- **Status** — All, Open, Resolved, or Ignored. Defaults to Open so you see active errors first.
-- **Search** — Substring match against error messages. Useful for finding a specific exception type or message pattern.
-- **Project** — Narrow results to a single project.
-- **Stage** — Narrow results to a single stage. The dropdown includes stages from your deployed and undeployed projects plus stages found in existing issues.
-
-The table shows 20 items per page by default and uses Last seen as the default sort column. Changing any filter resets to the first page.
-
-
-> Screenshot: Stacktape Console Error tracking page showing three summary cards for Open, Resolved, and Ignored counts, filter controls for status, search, project, and stage, and a paginated table listing runtime errors with columns for error, events, last seen, first seen, and status Caption: Error tracking page with summary cards, filters, and the error table
-
-
-## Managing issues from the CLI
-
-The Stacktape CLI provides commands for working with issues. The [`issues:list`](/cli/issues-list) command initializes the Stacktape API client with your configured [API key](/stacktape-console/api-keys). In agent mode, it prints raw JSON for programmatic use in CI/CD pipelines and AI coding assistants.
-
-### Listing issues
-
-[`stacktape issues:list`](/cli/issues-list) displays issues as a formatted table. The default limit is 25.
-
-```bash
-stacktape issues:list
-```
-
-Filter by project, stage, or status:
-
-```bash
-stacktape issues:list --projectName my-api --stage production --issueStatus OPEN
-```
-
-Set a custom limit:
-
-```bash
-stacktape issues:list --limit 50
-```
-
-In agent mode (used by AI coding assistants), the command outputs the raw `listIssues` response as JSON. The table view displays ID, status, error message, error type, function name, project, stage, occurrence count, and last seen.
-
-### Changing issue status
-
-The CLI has separate commands for changing issue status:
-
-- [`stacktape issues:resolve`](/cli/issues-resolve)
-- [`stacktape issues:ignore`](/cli/issues-ignore)
-- [`stacktape issues:reopen`](/cli/issues-reopen)
-
-## Error tracking vs logs vs alarms
-
-Error tracking, [logs](/observability/logs), and [alarms](/observability/alarms) serve different observability purposes. See the dedicated pages for full details on each; the summary below highlights how they complement each other:
-
-| | Error tracking | [Logs](/observability/logs) | [Alarms](/observability/alarms) |
-|---|---|---|---|
-| **Purpose** | Track and triage runtime errors | View raw output from functions and workloads | Alert on metric thresholds |
-| **Grouping** | Errors grouped with occurrence counts | Individual log lines | One alarm per rule |
-| **Action model** | Resolve, ignore, or reopen | Search and filter via [`logs`](/cli/logs) | Triggers [notifications](/observability/notifications) |
-| **Best for** | Error triage and regression tracking | Debugging specific requests | Proactive threshold monitoring |
-
-Error tracking complements [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Error tracking page to diagnose which errors are driving the spike.
-
-## Limitations
-
-- **No in-process instrumentation.** Stacktape error tracking does not use an in-process SDK. Errors that are silently swallowed, produce no output, or result in silent data corruption are not captured.
-- **False positives possible.** Log lines that match error patterns but aren't actual application errors (for example, error messages logged at info level for diagnostic purposes) may be recorded as issues. Review unexpected entries before acting on them.
-
-## FAQ
-
-### How do I turn error tracking off for a stack?
-
-Set `deploymentConfig.issues.enabled: false` in the stack's configuration and deploy. To keep only some stages, list them in `deploymentConfig.issues.stages`. Organization owners and admins can also turn error tracking off for every stack at once in **Error tracking settings** (the **Settings** button on the Error tracking page).
-
-### Why aren't my issues showing up?
-
-The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Open **Error tracking settings** with the **Settings** button on the Error tracking page: it lists each deployed stack and whether its last deployment wired error tracking. Also check that the organization switch is on and that the resource does not use `logging.logClass: infrequent-access`.
-
-### Does issue monitoring add cost?
-
-Very little. The detector is a Lambda function in your account that runs only when a log line matches an error pattern, and it reports each distinct error once per log batch. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
-
-### How is Stacktape error tracking different from Sentry or Datadog?
-
-Stacktape error tracking is built in and does not require adding a Sentry or Bugsnag SDK to your application. Because it does not use in-process instrumentation, it provides less context than a dedicated APM tool — no breadcrumbs, no custom tags, no user session tracking, no performance traces. It also can't capture errors that are silently swallowed or produce no log output. Use error tracking for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
-
-### What happens to existing issues when I disable monitoring?
-
-Existing issues remain visible in the Console after monitoring is turned off — they are not deleted. You can still filter and search them; only the capture of new issues stops.
-
-### When should I use issues vs alarms for error monitoring?
-
-Use both — they answer different questions. [Alarms](/observability/alarms) fire when a metric crosses a threshold (e.g., error rate above 5%), telling you *something is wrong*. Error tracking tells you *what specific errors are happening* and how often. Set up alarms with [alert channels](/observability/alert-channels) for real-time notification, then use the Error tracking page to identify which errors caused the spike and decide how to fix them.
 
 ---
 
@@ -21663,12 +21584,12 @@ Metrics tell you *what* is happening — error rates are up, latency is increasi
 
 ---
 
-# Notifications
+# Notification Rules
 
 Source: `apps/docs/content/observability/notifications.mdx`
 Route: `/observability/notifications`
 
-Stacktape notification rules send selected Stacktape events to your team, such as a failed deployment, an opened incident or a changed secret. Each rule maps one or more event types to an [alert channel](/observability/alert-channels) and can be scoped to specific projects and stages.
+Notification rules decide which Stacktape events an [alert channel](/observability/alert-channels) receives, such as a failed deployment, an opened incident or a changed secret. Each rule belongs to one channel, lists one or more event types and can be limited to specific projects and stages. Rules are managed on the channel's page in the Console.
 
 
 > **Info:** Notifications cover **events recorded by Stacktape**: deployments, deletions, rollbacks, Git deployments, script runs, secret and SSM parameter changes, incidents and new security findings. For **metric-based alerts** on running resources (CPU, error rates, latency), use [alarms](/observability/alarms). A firing alarm opens an [incident](/observability/incidents), and a notification rule that watches incident events sends it to your channel.
@@ -21709,21 +21630,19 @@ A new rule starts with the failure events, the incident events and new security 
 
 ## Managing notification rules
 
-Open **Notifications** in the Alerting group of the Stacktape Console. The page requires the `org:manage-notifications` permission and lists existing rules with these columns:
+Open **Channels** in the Alerting group of the Stacktape Console and click a channel. Its page lists what the channel receives, one rule per row:
 
 | Column | Description |
 |---|---|
-| **Events** | The event types this rule watches |
-| **Projects** | The projects this rule applies to, or "All projects" |
-| **Stages** | The stages this rule applies to, or "All stages" |
-| **Sent to** | The [alert channel](/observability/alert-channels) that receives the alerts |
-| **Created** | When the rule was created |
+| **Events** | The events the rule sends, grouped by subject, for example "Incidents: opened, resolved" |
+| **From** | The projects and stages the rule covers, for example "All projects · production stages" |
+| **Added** | When the rule was created |
 
-To create a rule, click **New notification rule**, choose an alert channel and event types, then click **Create rule**. To delete a rule, use the **Delete** action on its row. Deleting a rule stops the alerts but keeps the channel.
+The Channels list summarises the same thing per channel in its **Receives** column.
 
+To add a rule, click **New rule** on the channel's page, choose the event types and, optionally, projects and stages, then click **Add rule**. To delete a rule, use **Delete** in its row menu; the channel stays. Adding and deleting rules needs the `org:manage-notifications` permission (organization owners and admins); every member can see them.
 
-> Screenshot: Stacktape Console Notifications page showing a table of notification rules with events, projects, stages, destination channel, and creation date columns Caption: The Notifications page lists notification rules for the selected organization
-
+A new Slack (Stacktape app) channel starts with default rules: incidents and failed deployments from every stage, successful deployments from production stages, and new security findings.
 
 ## Scoping notifications
 
@@ -21738,9 +21657,9 @@ Project and stage scoping can be combined. Secret and SSM parameter events belon
 > **Tip:** Create separate rules for different severity levels. For example, route failure events to a high-urgency Slack channel and success events to a low-noise webhook.
 
 
-## Alert history
+## Checking what was sent
 
-The [Alert history](/observability/alert-history) page in the Alerting group lists every alert Stacktape sent to your channels, including notification rule alerts, incident pages and budget alerts, with the delivery status per channel. The **Alert history** button on the Notifications page opens it. The old `/notifications/history` address redirects to Alert history filtered to notifications. If an alert wasn't delivered, check the destination [alert channel](/observability/alert-channels) configuration; an expired webhook URL or a misconfigured Slack integration is the most common cause.
+[Sent alerts](/observability/alert-history) in the Alerting group lists every alert Stacktape sent to your channels, with the delivery outcome per channel. Each channel's page also shows its recent alerts. If an alert was not delivered, the delivery details name the error and link to the channel, where **Send test** checks it after you fix its settings. The old `/notifications` address opens Channels.
 
 ## Notifications vs. alarms vs. budgets
 
@@ -21748,7 +21667,7 @@ Notifications, alarms and budgets serve different purposes. Notification rules a
 
 | Feature | Watches for | Defined in |
 |---|---|---|
-| **Notifications** | Stacktape events (for example a failed deployment or an opened incident) | Console, Notifications page |
+| **Notification rules** | Stacktape events (for example a failed deployment or an opened incident) | Console, on each channel's page |
 | **[Alarms](/observability/alarms)** | CloudWatch metric thresholds (error rates, CPU, latency, queue depth) | Stacktape configuration, `alarms` list on a resource; created on deploy |
 | **[Budgets](/managing-costs/budgets)** | AWS spending thresholds | Console, Budgets page |
 
@@ -21760,11 +21679,11 @@ Stacktape creates the AWS budget when a budget is saved. Alarms are created when
 
 ### Can I route different events to different channels?
 
-Yes. Create several notification rules, each with its own event types, scope and [alert channel](/observability/alert-channels). For example, send all deployment events to a low-noise webhook with one rule, and route only `production` deploy failures to a high-urgency Slack channel with another.
+Yes. Each channel has its own rules, so give each channel the events and scope it should receive. For example, send all deployment events to a low-noise webhook with one rule, and route only `production` deploy failures to a high-urgency Slack channel with another.
 
 ### Why didn't my notification get delivered?
 
-Open [Alert history](/observability/alert-history), which lists every alert that was sent with its delivery status per channel. If a delivery failed, the cause is usually the destination [alert channel](/observability/alert-channels): an expired webhook URL or a misconfigured Slack integration.
+Open [Sent alerts](/observability/alert-history), which lists every alert that was sent with its delivery status per channel. If a delivery failed, the cause is usually the destination [alert channel](/observability/alert-channels): an expired webhook URL or a misconfigured Slack integration.
 
 ### What is the difference between notifications and alarms?
 
@@ -21785,7 +21704,7 @@ Yes. Set the rule's stages to the stage names it applies to, such as `production
 Source: `apps/docs/content/observability/overview.mdx`
 Route: `/observability/overview`
 
-Stacktape surfaces logs, metrics, alarms, and issues through the CLI and Console — reading from the same AWS CloudWatch data your stack produces. Alert channels, notifications, and alert history organize delivery routing and alert records in the Stacktape Console. Error tracking (the Console's Error tracking page) is on for every stage by default and is wired into each stack during deployment.
+Stacktape surfaces logs, metrics, alarms, and issues through the CLI and Console — reading from the same AWS CloudWatch data your stack produces. In the Stacktape Console, each alert channel has rules that choose which events it receives, and Sent alerts records what was sent. Error tracking (the Console's Error tracking page) is on for every stage by default and is wired into each stack during deployment.
 
 ## Observability surfaces
 
@@ -21798,11 +21717,11 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 | [Tracing](/observability/tracing) | — | Trace search and waterfall views | See [Tracing](/observability/tracing) |
 | [Uptime checks](/observability/uptime-checks) | — | Live status, availability history, incidents | See [Uptime checks](/observability/uptime-checks) |
 | [Synthetic tests](/observability/synthetic-tests) | — | Run history with screenshots | See [Synthetic tests](/observability/synthetic-tests) |
-| [Alarms](/observability/alarms) | [`stacktape alarms`](/cli/alarms) | Alarm state overview, alarm rules editor | See [Alarms](/observability/alarms) |
+| [Alarms](/observability/alarms) | [`stacktape alarms`](/cli/alarms) | Alarm state and history | See [Alarms](/observability/alarms) |
 | [Incidents](/observability/incidents) | [`stacktape incidents`](/cli/incidents) and lifecycle commands | Correlated incident queue and evidence | — |
-| [Error tracking](/observability/issues) | [`stacktape issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), [`issues:reopen`](/cli/issues-reopen) | Error inbox with grouping and occurrence counts | On by default; `deploymentConfig.issues` turns it off or limits stages |
+| [Error tracking](/observability/error-tracking) | [`stacktape errors:list`](/cli/errors-list), [`errors:resolve`](/cli/errors-resolve), [`errors:ignore`](/cli/errors-ignore), [`errors:reopen`](/cli/errors-reopen) | Error inbox with grouping and occurrence counts | On by default; `deploymentConfig.errorTracking` turns it off or limits stages |
 | [Alert channels](/observability/alert-channels) | — | Create and manage channels | See [Alert channels](/observability/alert-channels) |
-| [Notifications](/observability/notifications) | — | Notification rules for deployment events | — |
+| [Notification rules](/observability/notifications) | — | Which events each alert channel receives | — |
 | [Alert history](/observability/alert-history) | — | Unified log of all delivered alerts | — |
 | [Log forwarding](/observability/log-forwarding) | — | — | See [Log forwarding](/observability/log-forwarding) |
 
@@ -21816,51 +21735,51 @@ Stacktape provides a metrics surface for viewing AWS CloudWatch metrics produced
 
 ## Alarms
 
-Alarms monitor CloudWatch metrics and fire when a threshold is breached. You can define alarm rules per-resource in your Stacktape configuration or create alarm rules in the Stacktape Console that apply across projects and stages. For the authoritative list of resource types that support config-time alarms, trigger types, and evaluation windows, see [Alarms](/observability/alarms).
+Alarms monitor CloudWatch metrics and fire when a threshold is breached. Define alarms per resource in your stack configuration and deploy to apply them. The Console shows their state and history. For the authoritative list of resource types that support config-time alarms, trigger types, and evaluation windows, see [Alarms](/observability/alarms).
 
 **Config-time definition** — use the `alarms` property on supported resources to define threshold-based alarms directly in your Stacktape configuration. These alarms are version-controlled and deploy with your stack. For the full property reference and supported trigger types, see [Alarms](/observability/alarms).
 
-**Console-managed rules** — alarm rules created in the Console monitor AWS metrics for your resources, such as Lambda error rates, database CPU usage, or API latency. When a metric crosses the defined threshold, an alert is sent to the channel you specify. Creating or changing a rule saves it in the Console; Stacktape creates, updates, or removes the underlying CloudWatch Alarms and EventBridge notification routing the next time each matching project and stage is deployed.
+**Legacy Console rules** — existing rules remain visible under **Legacy alarm rules**. Use `stacktape alarms:export` to move them into stack configuration. The Console no longer creates or edits alarm rules.
 
 **From the CLI**, use [`stacktape alarms`](/cli/alarms) to inspect alarm state in a stack.
 
 ## Error tracking
 
-Error tracking is an error inbox for your deployed workloads, shown on the **Error tracking** page in the Console. The CLI commands and the `deploymentConfig.issues` key keep the name `issues`. Instead of manually searching logs for exceptions, Stacktape detects common runtime error patterns, groups repeated occurrences into a single item, and surfaces them with the error message, stack trace, originating resource, project, stage, and occurrence count.
+Error tracking is an error inbox for your deployed workloads, shown on the **Error tracking** page in the Console. Use `errors:list` to inspect errors from the CLI and `deploymentConfig.errorTracking` to control capture. Instead of manually searching logs for exceptions, Stacktape detects common runtime error patterns, groups repeated occurrences into a single item, and surfaces them with the error message, stack trace, originating resource, project, stage, and occurrence count.
 
 **How detection works** — on deployment, Stacktape adds CloudWatch Logs subscription filters to supported Stacktape-managed Lambda functions and `js-bundle` containers. Matching log events are sent to the Stacktape service Lambda in your stack, parsed, fingerprinted, and reported to the Console. Issues are grouped by fingerprint, project, and stage.
 
 Detection is log-pattern based. It looks for common runtime error markers: Lambda invoke errors, unhandled promise rejections, exceptions, tracebacks, panics, fatal errors, and stack-trace lines for TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP.
 
-**Turning it off or limiting stages**: error tracking is on for every stage of every stack by default. A stack turns it off or limits it to some stages with `deploymentConfig.issues`; the change takes effect at the stack's next deployment. Organization owners and admins can also turn it off for every stack in **Error tracking settings** (the **Settings** button on the Error tracking page).
+**Turning it off or limiting stages**: error tracking is on for every stage of every stack by default. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`; the change takes effect at the stack's next deployment. Organization owners and admins can also turn it off for every stack in **Error tracking settings** (the **Settings** button on the Error tracking page).
 
-**From the CLI**, manage issues using [`stacktape issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), and [`issues:reopen`](/cli/issues-reopen). See the CLI reference pages for available options.
+**From the CLI**, manage issues using [`stacktape errors:list`](/cli/errors-list), [`errors:resolve`](/cli/errors-resolve), [`errors:ignore`](/cli/errors-ignore), and [`errors:reopen`](/cli/errors-reopen). See the CLI reference pages for available options.
 
 **High-volume protection** — Stacktape includes built-in safety limits. Stale log batches are ignored, each detector invocation handles a bounded number of matching errors, context lookups are capped, and the Console stores only recent occurrence examples while keeping the full occurrence count.
 
 **Limitations** — Because detection starts from log messages, it can miss errors that don't match the recognized patterns and can also pick up application logs that merely look like errors. It is best for recurring runtime failures, not a complete observability or tracing system. On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages.
 
-For setup, detection scope, and limitations, see [Error tracking](/observability/issues).
+For setup, detection scope, and limitations, see [Error tracking](/observability/error-tracking).
 
 ## Alert channels
 
-Alert channels are the destinations where alarm and notification alerts get delivered. You create channels in the Stacktape Console, then use them in notification rules, alarm rules, and budget alerts.
+Alert channels are the destinations where alarm and notification alerts get delivered. You create channels in the Stacktape Console, then use them in notification rules and budget alerts, or reference them from config alarms with `console-channel`.
 
-Channels deliver alerts to destinations such as Slack, email, or a webhook. For Console-managed alarm rules and deployment notifications, you select a pre-created channel.
+Channels deliver alerts to destinations such as Slack, email, or a webhook. For deployment and incident notifications, select a pre-created channel. For alarms in config, use a `console-channel` reference or configure the integration directly on the alarm.
 
 For supported integration types, setup instructions, and authentication details, see [Alert channels](/observability/alert-channels).
 
-## Notifications
+## Notification rules
 
 Notification rules alert you when deployment lifecycle events happen — a deploy succeeds, fails, or is canceled. Each rule specifies which events to watch and which channel to deliver the alert to.
 
-Notifications are managed in the Stacktape Console. Each notification rule delivers to a configured alert channel.
+Notification rules are managed in the Stacktape Console, on the page of the alert channel they send to.
 
-For event types and scoping, see [Notifications](/observability/notifications).
+For event types and scoping, see [Notification rules](/observability/notifications).
 
-## Alert history
+## Sent alerts
 
-The Console keeps one log of the alerts it sends: incident pages, deploy and change notifications, and budget alerts. Use Alert history to see every alert your organization was sent and whether it reached its channels.
+The Console keeps one log of the alerts it sends: incidents, deploy and change notifications, and budget alerts. Use [Sent alerts](/observability/alert-history) to see every alert your organization was sent and whether it reached its channels.
 
 Stacktape also maintains separate focused histories:
 
@@ -21879,7 +21798,7 @@ For supported targets, configuration details, and provider-specific setup, see [
 
 ## CLI vs Console
 
-The CLI debug commands are designed for ad-hoc investigation — you're debugging a problem right now and want quick answers in your terminal. The Console is designed for ongoing monitoring — persistent views, alarm management, and team-wide visibility.
+The CLI debug commands are designed for ad-hoc investigation — you're debugging a problem right now and want quick answers in your terminal. The Console is designed for ongoing monitoring — persistent views, alarm state and history, and team-wide visibility.
 
 **Use the CLI when:**
 - You're actively debugging a failing deployment or runtime error
@@ -21888,10 +21807,9 @@ The CLI debug commands are designed for ad-hoc investigation — you're debuggin
 - You're scripting observability checks in CI/CD
 
 **Use the Console when:**
-- You want alarm rules that apply across projects and stages
 - You need to monitor alarm state across your organization
 - You want to manage issues as a team
-- You need alert history and delivery audit trails
+- You need a record of sent alerts and whether they were delivered
 - You're setting up notification routing for deployment events
 
 Both work against the same underlying CloudWatch data and Stacktape issue store. They're complementary, not competing.
@@ -21906,13 +21824,13 @@ Yes. Stacktape's [log forwarding](/observability/log-forwarding) streams logs to
 
 No. Lambda functions and container workloads write stdout/stderr to CloudWatch Logs automatically. AWS provides infrastructure metrics (invocations, errors, CPU, memory, latency) without code changes. For application-level metrics beyond what AWS provides, consult the [AWS CloudWatch documentation on publishing custom metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html).
 
-### What's the difference between alarms defined in config vs the Console?
+### Where do I configure alarms?
 
-Per-resource alarms in your `stacktape.ts` are version-controlled and deploy with your code — each alarm specifies a trigger type and threshold directly on the resource. Console-managed alarm rules are organization-wide policies created through the UI. Both produce CloudWatch Alarms. Use config alarms for resource-specific thresholds tied to your code. Use Console rules for organization-wide standards applied across projects and stages.
+Define alarms on each resource in your stack configuration and deploy. The Console displays deployed alarm state and history. Export existing legacy Console rules with `stacktape alarms:export` before moving them into configuration. See [Alarms](/observability/alarms#migrating-legacy-console-alarm-rules).
 
 ### How does issue detection differ from log monitoring?
 
-[Error tracking](/observability/issues) is an automated error inbox. It detects, groups, and tracks recurring runtime errors with no setup, because it is on by default. Log monitoring (via [`stacktape logs`](/cli/logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
+[Error tracking](/observability/error-tracking) is an automated error inbox. It detects, groups, and tracks recurring runtime errors with no setup, because it is on by default. Log monitoring (via [`stacktape logs`](/cli/logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
 
 ### Why isn't issue detection picking up my errors?
 
@@ -22013,7 +21931,7 @@ exports.handler = async () => {
 
 ## Failure alerts
 
-Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
 ## Cost
 
@@ -22155,7 +22073,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 - **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Use a [synthetic test](/observability/synthetic-tests) for that.
 - **Monitoring internal-only services** — probers reach endpoints over the public internet. A VPC-internal service is not reachable.
-- **Catching application errors** — [issues](/observability/issues) group runtime errors from logs; an endpoint can serve 200s while a background job fails.
+- **Catching application errors** — [error tracking](/observability/error-tracking) groups runtime errors from logs; an endpoint can serve 200s while a background job fails.
 
 ## Configuration
 
@@ -24246,7 +24164,7 @@ Stacktape bundles your code starting from the entry file into a single output fi
 
 ### Source maps
 
-Each deployment stores the function's source maps in the stack's deployment bucket instead of the deployment package, so the package carries code only. The maps contain no source code. When the [Stacktape Console](/observability/issues) first sees an error from the function, it uses the maps of the code that threw to show the stack trace with the original file, line and function. Stack traces in CloudWatch logs point into the bundled code.
+Each deployment stores the function's source maps in the stack's deployment bucket instead of the deployment package, so the package carries code only. The maps contain no source code. When the [Stacktape Console](/observability/error-tracking) first sees an error from the function, it uses the maps of the code that threw to show the stack trace with the original file, line and function. Stack traces in CloudWatch logs point into the bundled code.
 
 The deployment bucket keeps a function's maps as long as it keeps a deployment package that uses them, so the maps of every release you can [roll back](/cli/rollback) to stay available.
 
@@ -28416,7 +28334,7 @@ Set `deletionProtection` to `true` to prevent accidental deletion of the underly
 
 ## Alarms
 
-The Convex resource accepts `ApplicationLoadBalancerAlarm` and `RelationalDatabaseAlarm` [alarm](/observability/alarms) triggers, covering ALB health and database performance metrics. Alarms are merged with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarm names from this deployment. See [alarms](/observability/alarms) for available trigger types and configuration details.
+The Convex resource accepts `ApplicationLoadBalancerAlarm` and `RelationalDatabaseAlarm` [alarm](/observability/alarms) triggers, covering ALB health and database performance metrics. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration. See [alarms](/observability/alarms) for available trigger types and configuration details.
 
 ## Dev mode
 
@@ -29473,7 +29391,7 @@ Lambda functions also support log forwarding to external services (HTTP endpoint
 
 ### Alarms
 
-Lambda function alarms support `lambda-error-rate` and `lambda-duration` triggers. Function-specific alarms are merged with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarms from a function.
+Lambda function alarms support `lambda-error-rate` and `lambda-duration` triggers. Define alarms in the function config and deploy to apply changes. Existing legacy Console rules can be [exported into config](/observability/alarms#migrating-legacy-console-alarm-rules); `disabledGlobalAlarms` excludes named legacy rules during migration.
 
 
 Example (TypeScript):
@@ -34401,7 +34319,7 @@ export default defineConfig(() => {
 ```
 
 
-Each alarm trigger supports optional `evaluation` settings to control the evaluation window and avoid alerting on brief spikes. Use `disabledGlobalAlarms` to exclude specific global alarms (configured in the Stacktape Console) from this database.
+Each alarm trigger supports optional `evaluation` settings to control the evaluation window and avoid alerting on brief spikes. Define alarms in the database config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration.
 
 ## Backups and maintenance
 
@@ -38889,7 +38807,7 @@ Stacktape supports two alarm triggers for SQS queues:
 - **`sqs-queue-not-empty`** — fires when the queue has activity (any of: visible messages, in-flight messages, messages received, or messages sent are non-zero). Use this to detect a consumer that has stopped processing.
 - **`sqs-queue-received-messages-count`** — fires when the number of received messages crosses a `thresholdCount`. Use this to detect unexpected traffic spikes. Defaults to comparing the **average** messages received per period against the threshold; customize with `statistic` and `comparisonOperator`.
 
-Alarms configured on the queue are merged with any alarms configured globally. You can disable specific global alarms per queue using `disabledGlobalAlarms`. For more on alarms, see [Alarms](/observability/alarms) and [Alert channels](/observability/alert-channels).
+Define alarms in the queue config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration. For more on alarms, see [Alarms](/observability/alarms) and [Alert channels](/observability/alert-channels).
 
 
 Example (TypeScript):
@@ -39304,7 +39222,7 @@ The `interface` property accepts `'internet'` (default) or `'internal'`. Interna
 
 ## Alarms
 
-Stacktape supports three alarm trigger types for Application Load Balancer: **error rate** (`application-load-balancer-error-rate`, percentage of 4xx/5xx responses), **unhealthy targets** (`application-load-balancer-unhealthy-targets`, percentage of targets failing health checks), and **custom** (`application-load-balancer-custom`). Alarm notification targets are configured per-alarm — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Alarms defined on the resource are merged with any global alarms configured in the Stacktape Console.
+Stacktape supports three alarm trigger types for Application Load Balancer: **error rate** (`application-load-balancer-error-rate`, percentage of 4xx/5xx responses), **unhealthy targets** (`application-load-balancer-unhealthy-targets`, percentage of targets failing health checks), and **custom** (`application-load-balancer-custom`). Alarm notification targets are configured per-alarm — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config.
 
 
 Example (TypeScript):
@@ -39344,7 +39262,7 @@ The error-rate and unhealthy-targets triggers support a custom `comparisonOperat
 
 You can fine-tune alarm sensitivity with the `evaluation` property: set the evaluation `period` (default 60 seconds), `evaluationPeriods` (how many recent periods to examine), and `breachedPeriods` (how many must breach to fire). This prevents alarms from firing on brief spikes.
 
-To exclude specific global alarms from this ALB, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
+To exclude specific legacy Console rules during migration, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
 
 ## Referenceable parameters
 
@@ -40594,7 +40512,7 @@ export default defineConfig(() => {
 
 ## Alarms
 
-Stacktape supports two alarm types for HTTP API Gateway: **error rate** (percentage of 4xx/5xx responses) and **latency** (request-to-response time). Alarm notification targets are configured per-alarm through the shared notification integrations — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Alarms defined on the resource are merged with any global alarms configured in the Stacktape Console.
+Stacktape supports two alarm types for HTTP API Gateway: **error rate** (percentage of 4xx/5xx responses) and **latency** (request-to-response time). Alarm notification targets are configured per-alarm through the shared notification integrations — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config.
 
 
 Example (TypeScript):
@@ -40633,7 +40551,7 @@ With the example settings and the default comparison operator (`GreaterThanThres
 
 You can fine-tune alarm sensitivity with the `evaluation` property: set the evaluation `period` (default 60 seconds), `evaluationPeriods` (how many recent periods to examine), and `breachedPeriods` (how many must breach to fire). This prevents alarms from firing on brief spikes.
 
-To exclude specific global alarms from this gateway, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
+To exclude specific legacy Console rules during migration, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
 
 ## Referenceable parameters
 
@@ -47368,7 +47286,7 @@ From the Console you can:
 - Review deployment activity and AWS costs across projects and stages
 - Respond to [incidents](/observability/incidents), which group signals such as a failing uptime check, a firing alarm or a new error in a production stage
 - Read [logs](/observability/logs), [metrics](/observability/metrics) and [traces](/observability/tracing), and see the state of [uptime checks](/observability/uptime-checks) and [synthetic tests](/observability/synthetic-tests)
-- Triage runtime errors on the [Error tracking](/observability/issues) page
+- Triage runtime errors on the [Error tracking](/observability/error-tracking) page
 - Review security findings from each deployment and set [guardrails](/guardrails/overview) that are enforced on every deployment
 - Create [alert channels](/observability/alert-channels), [notification rules](/observability/notifications) and [budgets](/managing-costs/budgets), and check delivery in [Alert history](/observability/alert-history)
 - Manage sensitive values in AWS Secrets Manager and configuration values in AWS Systems Manager Parameter Store
@@ -47385,9 +47303,9 @@ The sidebar starts with Overview and Incidents, followed by five groups. Some it
 |---|---|---|
 | **Top** | Overview, Incidents | Default dashboard and the [incident](/observability/incidents) queue |
 | **Organization** | Projects, Runners, Activity, Members, Costs | Projects and stages, the EC2 runners that run Git deploys and GitHub Actions jobs, CLI operation history, [members and roles](/stacktape-console/team-and-access-control), [cost tracking](/managing-costs/dashboards) |
-| **Observability** | Logs, Metrics, Traces, Uptime, Synthetics, Error tracking | [Logs](/observability/logs), [metrics](/observability/metrics), [traces](/observability/tracing), [uptime checks](/observability/uptime-checks), [synthetic tests](/observability/synthetic-tests), [runtime errors](/observability/issues) |
+| **Observability** | Logs, Metrics, Traces, Uptime, Synthetics, Error tracking | [Logs](/observability/logs), [metrics](/observability/metrics), [traces](/observability/tracing), [uptime checks](/observability/uptime-checks), [synthetic tests](/observability/synthetic-tests), [runtime errors](/observability/error-tracking) |
 | **Security** | Overview, Posture, Vulnerabilities, Exposure, Guardrails | Security score per stack, configuration findings, vulnerable packages, what the internet can reach, [guardrails](/guardrails/overview) |
-| **Alerting** | Channels, Notifications, Alert history, Alarms, Budgets | [Alert channels](/observability/alert-channels), [notification rules](/observability/notifications), [delivered alerts](/observability/alert-history), [alarm state](/observability/alarms), [budgets](/managing-costs/budgets) (All budgets and History) |
+| **Alerting** | Channels, Sent alerts, Alarms, Budgets | [Alert channels](/observability/alert-channels) and their [notification rules](/observability/notifications), [sent alerts](/observability/alert-history), [alarm state](/observability/alarms), [budgets](/managing-costs/budgets) (All budgets and History) |
 | **Configuration** | Secrets, SSM parameters, AWS accounts, Domains | [Secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
 
 The profile menu in the header opens Account (your account settings), API keys, Subscription plans, Billing, Third-party providers and Git connections.
@@ -47427,7 +47345,7 @@ Alarm rules created in the Console earlier are legacy. They are listed under **L
 
 ### Tracking runtime errors
 
-The **Error tracking** page in the Observability group is an error inbox for your deployed workloads. Stacktape reads runtime errors from your logs and groups repeated occurrences into one entry per distinct error and resource. Error tracking is on for every stage by default; a stack turns it off or limits it to some stages with `deploymentConfig.issues`. The page requires the `issues:view` permission. See [Error tracking](/observability/issues).
+The **Error tracking** page in the Observability group is an error inbox for your deployed workloads. Stacktape reads runtime errors from your logs and groups repeated occurrences into one entry per distinct error and resource. Error tracking is on for every stage by default; a stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. The page requires the `issues:view` permission. See [Error tracking](/observability/error-tracking).
 
 ### Inviting members
 
@@ -47439,7 +47357,7 @@ Open **Budgets** in the Alerting group and click **New budget alert**. Each budg
 
 ### Configuring alert channels and notification rules
 
-Channels are the destinations where alerts are delivered, such as a Slack channel, an email address or a webhook. Open **Channels** in the Alerting group and click **New alert channel**. Then open **Notifications** and click **New notification rule** to choose which events (for example a failed deployment, an opened incident or a changed secret) go to which channel. The Notifications page requires the `org:manage-notifications` permission. **Alert history** lists every alert that was sent and its delivery status per channel.
+Channels are the destinations where alerts are delivered, such as a Slack channel, an email address or a webhook. Open **Channels** in the Alerting group and click **New alert channel**. The new channel's page opens; click **New rule** there to choose which events (for example a failed deployment, an opened incident or a changed secret) it receives. Adding rules requires the `org:manage-notifications` permission. **Sent alerts** lists every alert that was sent and its delivery status per channel.
 
 ## Permission-gated navigation
 
@@ -47452,14 +47370,13 @@ The Console uses role-based access control. Sidebar items are hidden when your r
 | Costs | `org:view-billing` |
 | Error tracking | `issues:view` |
 | Security group (Overview, Posture, Vulnerabilities, Exposure, Guardrails) | `security:view` |
-| Notifications | `org:manage-notifications` |
 | Alarms | `org:manage-alarms` |
 | Budgets | `org:manage-budgets` |
 | Secrets | `secrets:view` |
 | SSM parameters | `ssm-params:view` |
 | Domains | `domains:manage` |
 
-Overview, Projects, Runners, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Alert history and AWS accounts are not filtered by permission in the sidebar. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
+Overview, Projects, Runners, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Sent alerts and AWS accounts are not filtered by permission in the sidebar. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
 
 
 > **Warning:** If a sidebar item is missing, your role may not include the required permission. Ask your organization's owner or admin to adjust your access. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
@@ -47477,7 +47394,7 @@ Alarms are created when the stack is deployed. After you add an alarm to a resou
 
 ### The Error tracking page is empty despite errors in logs
 
-A stack reports errors only after it has been deployed with Stacktape v4, because the log subscriptions are added during deployment. Click **Settings** on the Error tracking page to open **Error tracking settings**: it shows whether error tracking is on for the organization and lists each deployed stack with whether its last deployment wired error tracking. Also check that the stack's `deploymentConfig.issues` does not turn it off for that stage, and that the resource does not use `logging.logClass: infrequent-access`. See [Error tracking](/observability/issues).
+A stack reports errors only after it has been deployed with Stacktape v4, because the log subscriptions are added during deployment. Click **Settings** on the Error tracking page to open **Error tracking settings**: it shows whether error tracking is on for the organization and lists each deployed stack with whether its last deployment wired error tracking. Also check that the stack's `deploymentConfig.errorTracking` does not turn it off for that stage, and that the resource does not use `logging.logClass: infrequent-access`. See [Error tracking](/observability/error-tracking).
 
 ### Sidebar items are missing
 
@@ -47513,7 +47430,7 @@ The Costs page breaks down AWS costs by project and stage, generated daily from 
 
 ### Why is a sidebar item missing for me?
 
-The Console uses role-based access control, and several sidebar items are permission-gated. For example, Members requires `members:view`, Costs requires `org:view-billing`, and Alarms, Notifications and Budgets require the matching `org:manage-*` permission. If an item is missing, ask your organization's owner or admin to adjust your role. See [Team and access control](/stacktape-console/team-and-access-control).
+The Console uses role-based access control, and several sidebar items are permission-gated. For example, Members requires `members:view`, Costs requires `org:view-billing`, and Alarms and Budgets require the matching `org:manage-*` permission. If an item is missing, ask your organization's owner or admin to adjust your role. See [Team and access control](/stacktape-console/team-and-access-control).
 
 ---
 
@@ -87616,7 +87533,7 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { IssuesConfig, SecurityScanningConfig } from 'stacktape';
+import type { ErrorTrackingConfig, SecurityScanningConfig } from 'stacktape';
 
 type DeploymentConfig = {
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
@@ -87625,8 +87542,8 @@ type DeploymentConfig = {
   disableAutoRollback?: boolean;
   /** Disable faster uploads via S3 Transfer Acceleration. */
   disableS3TransferAcceleration?: boolean;
-  /** Issues: runtime errors read from this stack's logs and grouped in the Console. */
-  issues?: IssuesConfig;
+  /** Error tracking: runtime errors read from this stack's logs and grouped in the Console. */
+  errorTracking?: ErrorTrackingConfig;
   /** How long (in minutes) to monitor rollback alarms after deployment completes. */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /** How many old deployment artifacts (Lambda bundles, container images) to keep. */
@@ -87785,21 +87702,21 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `issues`
+## Property: `errorTracking`
 
 - Required: no
-- Type: `IssuesConfig`
+- Type: `ErrorTrackingConfig`
 
-Issues: runtime errors read from this stack's logs and grouped in the Console.
+Error tracking: runtime errors read from this stack's logs and grouped in the Console.
 
-On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+On by default for every stage. Turn it off here, or limit it to some stages. See `ErrorTrackingConfig` for what is sent
 and how sensitive text is masked.
 
 ### Example 1 (yaml)
 
 ```yaml
 deploymentConfig:
-  issues:
+  errorTracking:
     enabled: false
 resources:
   api:
@@ -87817,7 +87734,7 @@ resources:
 import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => ({
-  deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+  deploymentConfig: { errorTracking: { stages: ['production', 'staging'] } },
   resources: {
     api: new LambdaFunction({
       packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' })
@@ -88579,6 +88496,69 @@ Environment variable value. Numbers and booleans are converted to strings.
 
 ---
 
+# ErrorTrackingConfig API Reference
+
+Source: `packages/config/src/shared.ts`
+Route: `/config-reference/helpers`
+
+## TypeScript definition
+
+```typescript
+type ErrorTrackingConfig = {
+  /** Records runtime errors from this stack's logs in the Stacktape Console. */
+  enabled?: boolean;
+  /** Stages that record errors. When omitted or empty, every stage does. */
+  stages?: Array<string>;
+};
+```
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Records runtime errors from this stack's logs in the Stacktape Console.
+
+When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
+detector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack
+traces and occurrence counts, shown on the Error tracking page and by `stacktape errors:list`.
+
+What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
+the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
+`password` or `authorization`, email addresses, IP addresses, card numbers and user home paths) are masked before
+the event is sent. Logs themselves stay in your account.
+
+When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an
+organization-wide switch that turns error tracking off for every stack at once.
+
+## Property: `stages`
+
+- Required: no
+- Type: `Array<string>`
+
+Stages that record errors. When omitted or empty, every stage does.
+
+Use it to keep short-lived preview stages out of the Error tracking page while production and staging report.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  errorTracking:
+    stages: [production, staging]
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+```
+
+---
+
 # Hooks API Reference
 
 Source: `packages/config/src/shared.ts`
@@ -89002,69 +88982,6 @@ export default defineConfig(() => {
     resources: { cache }
   };
 });
-```
-
----
-
-# IssuesConfig API Reference
-
-Source: `packages/config/src/shared.ts`
-Route: `/config-reference/helpers`
-
-## TypeScript definition
-
-```typescript
-type IssuesConfig = {
-  /** Records runtime errors from this stack's logs as Issues in the Stacktape Console. */
-  enabled?: boolean;
-  /** Stages that record Issues. When omitted or empty, every stage does. */
-  stages?: Array<string>;
-};
-```
-
-## Property: `enabled`
-
-- Required: no
-- Type: `boolean`
-- Default: `true`
-
-Records runtime errors from this stack's logs as Issues in the Stacktape Console.
-
-When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
-detector. Matching error lines are grouped into Issues (one per distinct error and resource) with their stack
-traces and occurrence counts, shown on the Issues page and by `stacktape issues:list`.
-
-What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
-the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
-`password` or `authorization`, email addresses, IP addresses, card numbers and user home paths) are masked before
-the event is sent. Logs themselves stay in your account.
-
-When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an
-organization-wide switch that turns Issues off for every stack at once.
-
-## Property: `stages`
-
-- Required: no
-- Type: `Array<string>`
-
-Stages that record Issues. When omitted or empty, every stage does.
-
-Use it to keep short-lived preview stages out of the Issues page while production and staging report.
-
-### Example 1 (yaml)
-
-```yaml
-deploymentConfig:
-  issues:
-    stages: [production, staging]
-resources:
-  api:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: src/api.ts
 ```
 
 ---

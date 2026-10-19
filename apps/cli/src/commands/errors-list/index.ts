@@ -2,7 +2,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initializeControlPlaneOperation } from '../_utils/initialization';
 
-export const commandIssuesList = async () => {
+export const commandErrorsList = async () => {
   const { apiClient, args } = await initializeControlPlaneOperation();
   const { projectName, stage, issueStatus, limit } = args;
 
