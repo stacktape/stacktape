@@ -203,18 +203,27 @@ export const benchmarkImage = async (input: {
   const cluster = service.split('/')[1];
   // Prepare runs beside the actual Docker build/ECR push; commit remains in updateEcsService after the upload gate.
   prepare = (async () => {
-    const before = await traceAsync('prepareFleet', () => fleet(service, cluster));
+    const [fleetCheck, upload] = await Promise.allSettled([
+      traceAsync('prepareFleet', () => fleet(service, cluster)),
+      traceAsync('bundleUpload', async () => {
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: artifacts.deploymentBucketName,
+            Key: key,
+            Body: bundle.bytes,
+            ContentType: 'application/gzip'
+          })
+        );
+        trace('bundleUploaded');
+      })
+    ]);
+    // Finish both operations before any fallback; a failed check never publishes prepare.
+    if (fleetCheck.status === 'rejected') throw fleetCheck.reason;
+    if (upload.status === 'rejected') throw upload.reason;
+    const before = fleetCheck.value;
     result.tasks = before.ids;
     result.primary = before.primary;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: artifacts.deploymentBucketName,
-        Key: key,
-        Body: bundle.bytes,
-        ContentType: 'application/gzip'
-      })
-    );
-    trace('bundleUploaded');
+    trace('preparePrerequisitesReady');
     await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
     const prepared = await waitStatus(before.ids, revision, 'prepared');
     trace('allPrepared');
