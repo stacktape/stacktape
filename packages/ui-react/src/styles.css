@@ -589,11 +589,13 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.1)
     );
     pointer-events: none;
+    /* An easing without overshoot: the indicator slides and stops inside the bar instead of springing past its
+       ends. */
     transition:
-      left 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      top 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      width 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      height 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      left 250ms cubic-bezier(0.2, 0, 0, 1),
+      top 250ms cubic-bezier(0.2, 0, 0, 1),
+      width 250ms cubic-bezier(0.2, 0, 0, 1),
+      height 250ms cubic-bezier(0.2, 0, 0, 1),
       opacity var(--stp-motion-duration-fast) var(--stp-motion-easing);
     will-change: left, top, width, height;
   }
@@ -1120,7 +1122,7 @@
 
   /* The same hover as the select; a focused field keeps its focus border under the pointer. */
   .stp-ui-text-field__surface:hover:not(:focus-within) {
-    border-color: var(--stp-field-border-hover, var(--stp-border-strong));
+    border-color: var(--stp-field-border-hover, var(--stp-field-hover-border));
   }
 
   .stp-ui-text-field__surface:focus-within {

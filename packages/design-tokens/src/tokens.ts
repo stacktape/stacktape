@@ -50,8 +50,10 @@ export const designTokens = {
     primaryLight: 'rgb(34, 166, 166)',
     accent: 'rgb(34, 87, 122)'
   },
-  /** Neutral field focus feedback. Text inputs and selects should not turn into brand actions. */
+  /** Neutral field hover and focus feedback. Text inputs and selects should not turn into brand actions. */
   field: {
+    /** Hover lifts the hairline a step toward the focus border; focus adds the ring. */
+    hoverBorder: 'rgba(110, 116, 116, 0.38)',
     focusBorder: 'rgba(110, 116, 116, 0.56)',
     focusRing: 'rgba(110, 116, 116, 0.12)'
   },
@@ -120,6 +122,7 @@ export const tokenVar = {
     accent: 'var(--stp-interactive-accent)'
   },
   field: {
+    hoverBorder: 'var(--stp-field-hover-border)',
     focusBorder: 'var(--stp-field-focus-border)',
     focusRing: 'var(--stp-field-focus-ring)'
   },
