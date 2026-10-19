@@ -2,7 +2,8 @@
 
 **Sent alerts** (under Alerting in the Stacktape Console) lists every alert Stacktape sent to your
 [alert channels](/observability/alert-channels): incidents, deploys and changes covered by a channel's
-[notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Use it to check what
+[notification rules](/observability/notifications), [alarms](/observability/alarms#notification-targets) from your
+stack configuration, and [budget alerts](/managing-costs/budgets). Use it to check what
 was sent and whether it arrived.
 
 ## Columns

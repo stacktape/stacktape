@@ -1,19 +1,19 @@
-# issues:ignore
+# errors:ignore
 
-The `issues:ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`issues:reopen`](/cli/issues-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`issues:resolve`](/cli/issues-resolve) which will automatically reopen if the same error recurs.
+The `errors:ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`errors:reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`errors:resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs.
 
 ## Usage
 
 ```bash
-stacktape issues:ignore --issueId <issue-id>
+stacktape errors:ignore --issueId <issue-id>
 ```
 
-You can find issue IDs by running [`issues:list`](/cli/issues-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
+You can find issue IDs by running [`errors:list`](/cli/errors-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
 
 ## Flags Reference
 
 
-## CLI Options: `stacktape issues:ignore`
+## CLI Options: `stacktape errors:ignore`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
@@ -28,23 +28,23 @@ You can find issue IDs by running [`issues:list`](/cli/issues-list). This comman
 Ignore a specific issue by its ID:
 
 ```bash
-stacktape issues:ignore --issueId iss_abc123def456
+stacktape errors:ignore --issueId iss_abc123def456
 ```
 
 Use agent mode for scripted or CI workflows where you need structured JSON output:
 
 ```bash
-stacktape issues:ignore --issueId iss_abc123def456 --agent
+stacktape errors:ignore --issueId iss_abc123def456 --agent
 ```
 
 ## When to Ignore vs Resolve
 
-Use `issues:ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`issues:reopen`](/cli/issues-reopen).
+Use `errors:ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`errors:reopen`](/cli/errors-reopen).
 
-Use [`issues:resolve`](/cli/issues-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
+Use [`errors:resolve`](/cli/errors-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
 
 ## Related Commands
 
-- [`issues:list`](/cli/issues-list) — list detected runtime issues with filtering by status, project, or stage
-- [`issues:resolve`](/cli/issues-resolve) — mark an issue as resolved (will reopen on recurrence)
-- [`issues:reopen`](/cli/issues-reopen) — reopen a previously resolved or ignored issue
+- [`errors:list`](/cli/errors-list) — list detected runtime issues with filtering by status, project, or stage
+- [`errors:resolve`](/cli/errors-resolve) — mark an issue as resolved (will reopen on recurrence)
+- [`errors:reopen`](/cli/errors-reopen) — reopen a previously resolved or ignored issue

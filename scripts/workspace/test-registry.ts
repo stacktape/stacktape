@@ -5377,7 +5377,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/issue-access.ts',
       'apps/console/api/src/issues/**',
       'apps/console/ui/src/pages/IssuesPage/**',
-      'apps/cli/src/commands/issues-*/**'
+      'apps/cli/src/commands/errors-*/**'
     ],
     tests: [
       'apps/console/api/scripts/issue-triage.test.ts',

@@ -11,7 +11,7 @@ From the Console you can:
 - Review deployment activity and AWS costs across projects and stages
 - Respond to [incidents](/observability/incidents), which group signals such as a failing uptime check, a firing alarm or a new error in a production stage
 - Read [logs](/observability/logs), [metrics](/observability/metrics) and [traces](/observability/tracing), and see the state of [uptime checks](/observability/uptime-checks) and [synthetic tests](/observability/synthetic-tests)
-- Triage runtime errors on the [Error tracking](/observability/issues) page
+- Triage runtime errors on the [Error tracking](/observability/error-tracking) page
 - Review security findings from each deployment and set [guardrails](/guardrails/overview) that are enforced on every deployment
 - Create [alert channels](/observability/alert-channels), [notification rules](/observability/notifications) and [budgets](/managing-costs/budgets), and check delivery in [Alert history](/observability/alert-history)
 - Manage sensitive values in AWS Secrets Manager and configuration values in AWS Systems Manager Parameter Store
@@ -28,7 +28,7 @@ The sidebar starts with Overview and Incidents, followed by five groups. Some it
 |---|---|---|
 | **Top** | Overview, Incidents | Default dashboard and the [incident](/observability/incidents) queue |
 | **Organization** | Projects, Runners, Activity, Members, Costs | Projects and stages, the EC2 runners that run Git deploys and GitHub Actions jobs, CLI operation history, [members and roles](/stacktape-console/team-and-access-control), [cost tracking](/managing-costs/dashboards) |
-| **Observability** | Logs, Metrics, Traces, Uptime, Synthetics, Error tracking | [Logs](/observability/logs), [metrics](/observability/metrics), [traces](/observability/tracing), [uptime checks](/observability/uptime-checks), [synthetic tests](/observability/synthetic-tests), [runtime errors](/observability/issues) |
+| **Observability** | Logs, Metrics, Traces, Uptime, Synthetics, Error tracking | [Logs](/observability/logs), [metrics](/observability/metrics), [traces](/observability/tracing), [uptime checks](/observability/uptime-checks), [synthetic tests](/observability/synthetic-tests), [runtime errors](/observability/error-tracking) |
 | **Security** | Overview, Posture, Vulnerabilities, Exposure, Guardrails | Security score per stack, configuration findings, vulnerable packages, what the internet can reach, [guardrails](/guardrails/overview) |
 | **Alerting** | Channels, Sent alerts, Alarms, Budgets | [Alert channels](/observability/alert-channels) and their [notification rules](/observability/notifications), [sent alerts](/observability/alert-history), [alarm state](/observability/alarms), [budgets](/managing-costs/budgets) (All budgets and History) |
 | **Configuration** | Secrets, SSM parameters, AWS accounts, Domains | [Secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
@@ -70,7 +70,7 @@ Alarm rules created in the Console earlier are legacy. They are listed under **L
 
 ### Tracking runtime errors
 
-The **Error tracking** page in the Observability group is an error inbox for your deployed workloads. Stacktape reads runtime errors from your logs and groups repeated occurrences into one entry per distinct error and resource. Error tracking is on for every stage by default; a stack turns it off or limits it to some stages with `deploymentConfig.issues`. The page requires the `issues:view` permission. See [Error tracking](/observability/issues).
+The **Error tracking** page in the Observability group is an error inbox for your deployed workloads. Stacktape reads runtime errors from your logs and groups repeated occurrences into one entry per distinct error and resource. Error tracking is on for every stage by default; a stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. The page requires the `issues:view` permission. See [Error tracking](/observability/error-tracking).
 
 ### Inviting members
 
@@ -119,7 +119,7 @@ Alarms are created when the stack is deployed. After you add an alarm to a resou
 
 ### The Error tracking page is empty despite errors in logs
 
-A stack reports errors only after it has been deployed with Stacktape v4, because the log subscriptions are added during deployment. Click **Settings** on the Error tracking page to open **Error tracking settings**: it shows whether error tracking is on for the organization and lists each deployed stack with whether its last deployment wired error tracking. Also check that the stack's `deploymentConfig.issues` does not turn it off for that stage, and that the resource does not use `logging.logClass: infrequent-access`. See [Error tracking](/observability/issues).
+A stack reports errors only after it has been deployed with Stacktape v4, because the log subscriptions are added during deployment. Click **Settings** on the Error tracking page to open **Error tracking settings**: it shows whether error tracking is on for the organization and lists each deployed stack with whether its last deployment wired error tracking. Also check that the stack's `deploymentConfig.errorTracking` does not turn it off for that stage, and that the resource does not use `logging.logClass: infrequent-access`. See [Error tracking](/observability/error-tracking).
 
 ### Sidebar items are missing
 
