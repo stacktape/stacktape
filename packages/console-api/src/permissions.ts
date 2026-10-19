@@ -108,8 +108,8 @@ export const ASSIGNABLE_ROLES = ['OWNER', 'ADMIN', 'DEVELOPER', 'VIEWER'] as con
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 export const ROLE_DESCRIPTIONS: Record<AssignableRole, string> = {
-  OWNER: 'Full control. Can delete org, manage billing, transfer ownership.',
-  ADMIN: 'Everything except org deletion. Can manage members, AWS accounts, settings.',
-  DEVELOPER: 'Can deploy, delete non-production stages, manage secrets and configs.',
-  VIEWER: 'Read-only. Can view projects, deployments, logs, and costs.'
+  OWNER: 'Full control. Can delete the organization, manage billing and transfer ownership.',
+  ADMIN: 'Everything except deleting the organization. Can manage members, AWS accounts and settings.',
+  DEVELOPER: 'Can deploy, delete non-production stages, and manage secrets and configuration.',
+  VIEWER: 'Read-only. Can view projects, deployments, logs and costs.'
 };
