@@ -27,7 +27,7 @@ export class HedgedHttpsAgent extends HttpsAgent {
   }
   constructor(
     options: AgentOptions = {},
-    private readonly hedgeDelay = 300
+    private readonly hedgeDelay = 100
   ) {
     super({ ...options, keepAlive: true });
   }

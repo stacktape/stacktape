@@ -170,7 +170,7 @@ failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero me
 Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
 matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
 
-The benchmark HTTPS agent starts a second TCP connection after 300 ms if the first is still pending. It keeps the
+The benchmark HTTPS agent starts a second TCP connection after 100 ms if the first is still pending. It keeps the
 original alive, selects one connected socket, and performs one normal verified TLS handshake before sending HTTP. The
 unused socket closes without receiving HTTP headers or a body. Whole-response deadlines and caller cancellation cover
 both dials and body collection. Traces retain both dial outcomes and the winner's DNS/TCP/TLS timing, including all
