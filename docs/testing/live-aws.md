@@ -185,11 +185,24 @@ failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero me
 Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
 matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
 
+The benchmark HTTPS agent starts a second TCP connection after 100 ms if the first is still pending. It keeps the
+original alive, selects one connected socket, and performs one normal verified TLS handshake before sending HTTP. The
+unused socket closes without receiving HTTP headers or a body. Whole-response deadlines and caller cancellation cover
+both dials and body collection. Traces retain both dial outcomes and the winner's DNS/TCP/TLS timing, including all
+waiting time in end-to-end latency. The ordinary installed CLI transport is unchanged. Offline tests cover a delayed TCP
+completion, stalled TLS, body/header deadlines, cancellation, certificate verification and one dispatched POST. The
+benchmark build also removes credential identifiers from identity-lookup errors.
+
 The installed-package consumer uses the CLI's `benchmarkBaseInputs` function and the same ten inputs: manifest, lock,
 authored config (including environment), supervisor hash, Dockerfile, runtime, Node version/target, minification and
 architecture. It proves changes to each invalidate the base. `.npmrc`, patches absent from the lockfile and Railpack
 plans are not benchmark inputs; their wiring remains later work. Committed-code restart/scale-out, exact-image rollback
 and same-revision scale-only overlay retention remain Phase 3/5 clauses of B8.
+
+`socketMs` always means the request's socket-assignment event. Hedged connections additionally record `dialStartMs`, the
+winning dial's start offset; DNS/TCP/TLS marks include that offset. Queued requests carry their own cancellation signal
+through request options. The measured speed margin depends on the 100 ms backup dial; it is not supervisor-only speed or
+a repeat of the matched-image Phase-1 gate.
 
 The immutable bundle upload overlaps the fleet preflight. Both operations finish successfully before prepare is
 published, including on failure paths. Neither changes the image-upload gate before commit. Trace spans retain the

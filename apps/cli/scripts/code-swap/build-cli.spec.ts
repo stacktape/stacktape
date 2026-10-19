@@ -61,6 +61,7 @@ test('only the explicit benchmark build includes unsigned swap activation', asyn
     expect(benchmark).toContain('STP_CODE_SWAP_BENCH_RUN');
     expect(benchmark).toContain('codeSwapBenchmark');
     expect(benchmark).toContain('STP_CODE_SWAP_BENCH_TRACE');
+    expect(benchmark).not.toContain('Unable to get identity for credentials (access key id:');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

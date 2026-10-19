@@ -9,7 +9,8 @@ export const hostClockMs = () => {
   if (libc.symbols.clock_gettime(1, pointer) !== 0) throw new Error('Cannot read benchmark host clock.');
   return Number(clock[0]) * 1000 + Number(clock[1]) / 1e6;
 };
-export const trace = (phase: string, detail: Record<string, string | number | undefined> = {}) => {
+type TraceValue = string | number | undefined | { [key: string]: TraceValue } | TraceValue[];
+export const trace = (phase: string, detail: Record<string, TraceValue> = {}) => {
   const file = process.env.STP_CODE_SWAP_BENCH_TRACE;
   if (file) appendFileSync(file, JSON.stringify({ phase, hostMs: hostClockMs(), ...detail }) + '\n');
 };
