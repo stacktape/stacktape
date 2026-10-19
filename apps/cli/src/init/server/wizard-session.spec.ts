@@ -450,7 +450,14 @@ describe('startWizardSession', () => {
 
     it('streams a deploy to the page and ends with its outcome', async () => {
       let emit: ((event: unknown) => void) | undefined;
-      let settle: ((outcome: { ok: boolean; code: string; message: string; urls?: string[] }) => void) | undefined;
+      let settle:
+        | ((outcome: {
+            ok: boolean;
+            code: string;
+            message: string;
+            urls?: Array<{ resourceName: string; url: string }>;
+          }) => void)
+        | undefined;
       let requestedUrlResources: string[] = [];
 
       session = await startWizardSession({
@@ -481,8 +488,8 @@ describe('startWizardSession', () => {
             status: string;
             events: Array<{ type?: string; data?: unknown }>;
             commandLine: string;
-            outcome?: { ok: boolean; urls?: string[] };
-            urls?: string[];
+            outcome?: { ok: boolean; urls?: unknown };
+            urls?: Array<{ resourceName: string; url: string }>;
           };
         };
 
@@ -534,14 +541,19 @@ describe('startWizardSession', () => {
       expect(streamed[1]?.data).toBeUndefined();
       expect(JSON.stringify(streamed)).not.toContain('do-not-publish');
 
-      settle!({ ok: true, code: 'OK', message: 'Deployed', urls: ['https://api.example.com/'] });
+      settle!({
+        ok: true,
+        code: 'OK',
+        message: 'Deployed',
+        urls: [{ resourceName: 'api', url: 'https://api.example.com/' }]
+      });
       await new Promise((wait) => setTimeout(wait, 50));
 
       const finished = await readState();
       expect(finished.deployment?.status).toBe('succeeded');
       expect(finished.deployment?.outcome?.ok).toBe(true);
       expect(finished.deployment?.outcome?.urls).toBeUndefined();
-      expect(finished.deployment?.urls).toEqual(['https://api.example.com/']);
+      expect(finished.deployment?.urls).toEqual([{ resourceName: 'api', url: 'https://api.example.com/' }]);
     });
 
     it('checks with deploy credentials, then binds update consent to the exact StackId', async () => {

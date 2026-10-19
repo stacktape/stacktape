@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
+import { CopyableCommand } from './components/CopyableCommand';
 import { GuideRail } from './components/GuideRail';
 import { Section } from './components/Section';
 import { connect, SessionError, type Session, type WizardState } from './session';
@@ -63,9 +64,17 @@ export function App() {
   if (failure !== undefined) {
     return (
       <main className="wizard-shell">
-        <p className="wizard-step-label">Session ended</p>
-        <h1 className="wizard-title">This wizard is no longer running</h1>
-        <p className="wizard-lede">{failure}</p>
+        <div className="wizard-masthead flex flex-col gap-6">
+          <div>
+            <p className="wizard-step-label">Session ended</p>
+            <h1 className="wizard-title">This wizard is no longer running</h1>
+            <p className="wizard-lede">{failure}</p>
+          </div>
+          <div className="max-w-[420px]">
+            <p className="m-0 mb-2 text-[0.9rem] text-[var(--stp-text-muted)]">In your project’s directory, run:</p>
+            <CopyableCommand command="stacktape init" />
+          </div>
+        </div>
       </main>
     );
   }
@@ -155,9 +164,8 @@ export function App() {
               id="read"
               isActive={isActive('read')}
               isMuted={!isActive('read')}
-              {...(isActive('read')
-                ? { title: 'Reading your project' }
-                : { summary: <ScanStep isDone startedAt={startedAt} state={state} /> })}
+              // The page heading already says "Reading your project".
+              {...(isActive('read') ? {} : { summary: <ScanStep isDone startedAt={startedAt} state={state} /> })}
             >
               {!isActive('read') ? undefined : state.phase === 'failed' ? (
                 <div className="flex flex-col gap-4">
@@ -315,7 +323,7 @@ const headingFor = (state: WizardState): string => {
 
 const ledeFor = (state: WizardState): string => {
   if (state.phase === 'ready') {
-    return 'We read your code on this machine, work out the AWS setup it needs, and hand you one file. Nothing is created on AWS and nothing is billed until you press Deploy.';
+    return 'We read your code on this machine, work out the AWS setup it needs, and hand you one file. Nothing is created on AWS and nothing is billed until you confirm the deploy.';
   }
   if (state.phase === 'reviewing' && state.configFile === undefined && !nothingFound(state)) {
     return 'Everything below came from your own code. Change any choice below and the file and the price follow.';

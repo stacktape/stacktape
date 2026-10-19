@@ -1,6 +1,7 @@
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import type { WizardState } from '../session';
+import { Row } from './RowList';
 
 const HOST_NAMES: Record<string, string> = {
   github: 'GitHub',
@@ -17,7 +18,7 @@ const HOST_LABELS: Record<string, string> = {
 /**
  * Deploying on every push, instead of from here.
  *
- * Offered only when the repository's remote says which host would run it — a GitHub Actions workflow
+ * A row of the next steps after the first deploy. Offered only when the repository's remote says which host would run it — a GitHub Actions workflow
  * in a GitLab project is litter. The file is written; the credentials it needs are listed and left to
  * the user, because a tool that quietly creates deployment credentials is one nobody can audit.
  */
@@ -41,20 +42,28 @@ export function PipelineCard({
 
   if (written !== undefined) {
     return (
-      <section>
-        <h3 className="wizard-section-heading">Deploy on every push</h3>
-        <p className="m-0 mb-3 text-[var(--stp-text-muted)]">
-          Written to <span className="wizard-code text-[var(--stp-text-primary)]">{written.filename}</span>.{' '}
-          {written.authSummary}
-        </p>
-
+      <Row
+        description={
+          <>
+            Written to <span className="wizard-code text-[var(--stp-text-primary)]">{written.filename}</span>.{' '}
+            {written.authSummary}
+          </>
+        }
+        title={
+          <>
+            <span aria-hidden className="wizard-check-mark is-passed">
+              ✓
+            </span>
+            Deploy on every push
+          </>
+        }
+      >
         {written.existingPath !== undefined && (
           <Alert className="mb-3" tone="info" title="You already had a pipeline">
             <span className="wizard-code">{written.existingPath}</span> was left exactly as it is. Merge the two
             yourself, or delete whichever you do not want.
           </Alert>
         )}
-
         <p className="m-0 mb-2 text-[0.9rem] text-[var(--stp-text-muted)]">
           Commit and push it, and add {written.requiredSecrets.length === 1 ? 'this secret' : 'these secrets'} in{' '}
           {HOST_LABELS[written.host] ?? written.host}. From then on it deploys{' '}
@@ -68,21 +77,25 @@ export function PipelineCard({
             </li>
           ))}
         </ul>
-      </section>
+      </Row>
     );
   }
 
   return (
-    <section>
-      <h3 className="wizard-section-heading">Deploy on every push</h3>
-      <p className="wizard-lede mb-4">
-        This project pushes to {HOST_NAMES[host!] ?? host}. We can write a {HOST_LABELS[host!] ?? host} pipeline that
-        deploys <span className="wizard-code">{stage}</span> whenever the default branch changes. It names the
-        credentials it needs and never creates any.
-      </p>
-      <Button isLoading={isBusy} onClick={() => onWrite(stage, region)} variant="secondary">
-        Add a {HOST_LABELS[host!] ?? host} pipeline
-      </Button>
-    </section>
+    <Row
+      action={
+        <Button isLoading={isBusy} onClick={() => onWrite(stage, region)} variant="secondary">
+          Add a {HOST_LABELS[host!] ?? host} pipeline
+        </Button>
+      }
+      description={
+        <>
+          This project pushes to {HOST_NAMES[host!] ?? host}. The pipeline deploys{' '}
+          <span className="wizard-code">{stage}</span> whenever the default branch changes. It names the credentials it
+          needs and never creates any.
+        </>
+      }
+      title="Deploy on every push"
+    />
   );
 }

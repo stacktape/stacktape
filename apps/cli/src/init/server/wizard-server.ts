@@ -94,8 +94,8 @@ export type WizardDeployment = {
    * minutes is the point. The page must say so: resources that exist are resources that bill.
    */
   keptPartialProgress?: boolean;
-  /** Typed deployed-resource URLs resolved after success; never scraped from repository output. */
-  urls?: string[];
+  /** Typed deployed-resource URLs resolved after success, by resource; never scraped from repository output. */
+  urls?: Array<{ resourceName: string; url: string }>;
 };
 
 /** What the page renders. Serialised as-is, so nothing here may contain a secret. */
