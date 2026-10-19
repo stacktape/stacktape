@@ -1754,6 +1754,23 @@
               }
             },
             "DependsOn": []
+          },
+          {
+            "Name": "stp-cloudmap-drain",
+            "Image": "public.ecr.aws/docker/library/busybox:1.37.0",
+            "Essential": true,
+            "Memory": 16,
+            "User": "65534",
+            "ReadonlyRootFilesystem": true,
+            "EntryPoint": ["/bin/sh", "-c"],
+            "Command": ["trap 'sleep 35; exit 0' TERM; while :; do sleep 1; done"],
+            "StopTimeout": 40,
+            "DependsOn": [
+              {
+                "ContainerName": "service-container",
+                "Condition": "START"
+              }
+            ]
           }
         ],
         "RuntimePlatform": {

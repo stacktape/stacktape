@@ -1,3 +1,4 @@
+import { getCloudMapDrainContainer } from './cloud-map-drain';
 import type {
   ContainerDefinition,
   HealthCheck,
@@ -1365,6 +1366,7 @@ export const getEcsTaskDefinition = (
     });
   });
   const workloadTracing = getWorkloadTracing(workload);
+  const cloudMapDrain = getCloudMapDrainContainer(workload);
   const cpuArchitecture =
     packagingManager.getTargetCpuArchitectureForContainer(workload.resources) === 'linux/arm64' ? 'ARM64' : 'X86_64';
   return cfnResource('AWS::ECS::TaskDefinition', {
@@ -1377,6 +1379,7 @@ export const getEcsTaskDefinition = (
     TaskRoleArn: getAtt(cfLogicalNames.ecsTaskRole(workload.name), 'Arn'),
     ContainerDefinitions: [
       ...getContainerWorkloadContainerDefinitions(workload),
+      ...(cloudMapDrain ? [cloudMapDrain] : []),
       ...(workloadTracing ? [getOtelCollectorSidecarDefinition(workload)] : [])
     ],
     Volumes: volumes.length > 0 ? volumes : undefined,
