@@ -14,6 +14,20 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
   setup(build) {
     const runtime = resolve('scripts/code-swap/runtime.ts');
     const tracing = resolve('scripts/code-swap/trace.ts');
+    build.onLoad({ filter: /multi-container-workloads[\\/]cloud-map-drain\.ts$/ }, async ({ path }) => {
+      let contents = await readFile(path, 'utf8');
+      contents = replaceOnce(
+        contents,
+        "workload.containers.some(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));",
+        "!process.env.STP_CODE_SWAP_BENCH_RUN && workload.containers.some(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));"
+      );
+      contents = replaceOnce(
+        contents,
+        '  const servers = workload.containers.filter(',
+        '  if (process.env.STP_CODE_SWAP_BENCH_RUN) return undefined;\n  const servers = workload.containers.filter('
+      );
+      return { contents, loader: 'ts' };
+    });
     build.onLoad({ filter: /tui-manager[\\/]output[\\/]jsonl\.ts$/ }, async ({ path }) => ({
       contents:
         `import { trace } from ${JSON.stringify(tracing)};\n` +

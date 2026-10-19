@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { buildBenchmarkCli } from './build-cli';
+import { buildBenchmarkCli, benchmarkBuildPlugin } from './build-cli';
 import { createStacktapeOpenTuiBuildPlugin } from '../support/opentui-loader';
 
 // Exercise the actual build boundary: a release-style build must not contain the prototype at all.
@@ -66,3 +66,42 @@ test('only the explicit benchmark build includes unsigned swap activation', asyn
     await rm(directory, { recursive: true, force: true });
   }
 }, 30000);
+
+test('only an active benchmark omits the separate Cloud Map drain container', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'swap-drain-boundary-'));
+  try {
+    for (const benchmark of [false, true]) {
+      const result = await Bun.build({
+        entrypoints: [
+          'src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/cloud-map-drain.ts'
+        ],
+        outdir: join(directory, benchmark ? 'benchmark' : 'ordinary'),
+        target: 'bun',
+        plugins: benchmark ? [benchmarkBuildPlugin()] : []
+      });
+      expect(result.success).toBe(true);
+      for (const active of [false, true]) {
+        const env = { ...process.env };
+        if (active) env.STP_CODE_SWAP_BENCH_RUN = 'fixture-run.json';
+        else delete env.STP_CODE_SWAP_BENCH_RUN;
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            '-e',
+            `
+          const m=await import(${JSON.stringify(result.outputs[0]!.path)});
+          const workload={containers:[{name:'app',events:[{type:'http-api-gateway'}]}]};
+          console.log(JSON.stringify([m.needsCloudMapDrain(workload),Boolean(m.getCloudMapDrainContainer(workload,'image'))]));
+        `
+          ],
+          { env, stdout: 'pipe', stderr: 'pipe' }
+        );
+        const [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
+        expect(await child.exited, err).toBe(0);
+        expect(JSON.parse(out)).toEqual(benchmark && active ? [false, false] : [true, true]);
+      }
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
