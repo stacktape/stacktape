@@ -67,7 +67,7 @@ export function StartStep({
         </li>
         <li>
           <strong>Nothing is created on AWS and nothing is billed.</strong> The result is one file in your project. AWS
-          only comes into it if you press Deploy at the end, and that step says so before it does anything.
+          only comes into it if you confirm a deploy at the end, and that step says so before it does anything.
         </li>
         <li>
           <strong>You will see everything before you commit to it.</strong> Every piece of infrastructure comes with the
@@ -127,7 +127,7 @@ export function StartStep({
                     }}
                     title={option.label}
                     value={option.id}
-                    {...(option.version === undefined ? {} : { meta: option.version })}
+                    {...(option.version === undefined ? {} : { meta: versionLabel(option.version) })}
                   />
                 ))}
               </SelectionCardGroup>
@@ -160,3 +160,9 @@ export function StartStep({
     </div>
   );
 }
+
+/** "2.1.296 (Claude Code)" and "codex-cli 0.98.0" are what the agents print; the card already names the agent. */
+export const versionLabel = (version: string): string => {
+  const number = /\d+\.\d+(?:\.\d+)?/.exec(version)?.[0];
+  return number === undefined ? version : `v${number}`;
+};
