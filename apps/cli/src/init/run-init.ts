@@ -628,11 +628,10 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
           })
         )
       ).filter((entry) => entry !== undefined);
-      // Two resources behind one address (a site and its API on one domain) are one row on the page.
-      return {
-        ...outcome,
-        urls: urls.filter((entry, index) => urls.findIndex(({ url }) => url === entry.url) === index)
-      };
+      // Two resources behind one address (a site and its API on one domain) are one row that names both.
+      const byUrl = new Map<string, string[]>();
+      for (const { resourceName, url } of urls) byUrl.set(url, [...(byUrl.get(url) ?? []), resourceName]);
+      return { ...outcome, urls: [...byUrl].map(([url, names]) => ({ resourceName: names.join(' and '), url })) };
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
     // Only in a development checkout. A released CLI serves a bundle that cannot change underneath

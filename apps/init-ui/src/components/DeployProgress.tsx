@@ -97,7 +97,7 @@ export function DeployProgress({
             </ul>
           ) : (
             <p className="m-0 text-[var(--stp-text-muted)]">
-              Everything was created. Nothing in this stack has a public address.
+              Everything was created. No public address was found for it; the Console lists its resources.
             </p>
           )}
           {anyRepairApplied && (
@@ -229,7 +229,12 @@ export function DeployProgress({
       <section>
         <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
           {finished && (
-            <button className="wizard-disclosure" onClick={() => setShowSteps(!showSteps)} type="button">
+            <button
+              aria-expanded={showSteps}
+              className="wizard-disclosure"
+              onClick={() => setShowSteps(!showSteps)}
+              type="button"
+            >
               {showSteps ? 'Hide' : 'Show'} the {model.phases.length} deploy steps
             </button>
           )}

@@ -505,40 +505,38 @@ export function DeployStep({
         </section>
       )}
 
-      {!compositionBlocks && (
-        // Before the deploy, in one place: once it has run, its result is part of the way there.
-        <ul aria-label="Local try-out" className="wizard-rows">
-          <Row
-            action={
-              verification === undefined || verification.status === 'unavailable' ? (
-                <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
-                  {verification === undefined ? 'Build and start it here' : 'Try again'}
-                </Button>
-              ) : undefined
-            }
-            description={
-              verification === undefined
-                ? 'Optional. Builds your services in Docker on this machine and starts them without network access and with placeholder settings, to catch an app that will not start before it reaches AWS. It runs your project’s code, including dependency install scripts.'
-                : verification.status === 'unavailable'
-                  ? 'It did not run: it needs Docker, and Docker is not running on this machine. Start Docker (or install Docker Desktop) and try again, or skip it. AWS will be the app’s first full run.'
-                  : undefined
-            }
-            title="Try it on this machine first"
-          >
-            {verification === undefined || verification.status === 'unavailable' ? undefined : (
-              <VerificationResult
-                file={file.filename}
-                hasUnverifiedServices={hasUnverifiedServices}
-                isBusy={isBusy}
-                onDismiss={onDismissVerification}
-                onVerify={onVerify}
-                verification={verification}
-                verificationBlocks={verificationBlocks}
-              />
-            )}
-          </Row>
-        </ul>
-      )}
+      {/* Before the deploy, in one place: once it has run, its result is part of the way there. */}
+      <ul aria-label="Local try-out" className="wizard-rows">
+        <Row
+          action={
+            verification === undefined || verification.status === 'unavailable' ? (
+              <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
+                {verification === undefined ? 'Build and start it here' : 'Try again'}
+              </Button>
+            ) : undefined
+          }
+          description={
+            verification === undefined
+              ? 'Optional. Builds your services in Docker on this machine and starts them without network access and with placeholder settings, to catch an app that will not start before it reaches AWS. It runs your project’s code, including dependency install scripts.'
+              : verification.status === 'unavailable'
+                ? 'It did not run: it needs Docker, and Docker is not running on this machine. Start Docker (or install Docker Desktop) and try again, or skip it. AWS will be the app’s first full run.'
+                : undefined
+          }
+          title="Try it on this machine first"
+        >
+          {verification === undefined || verification.status === 'unavailable' ? undefined : (
+            <VerificationResult
+              file={file.filename}
+              hasUnverifiedServices={hasUnverifiedServices}
+              isBusy={isBusy}
+              onDismiss={onDismissVerification}
+              onVerify={onVerify}
+              verification={verification}
+              verificationBlocks={verificationBlocks}
+            />
+          )}
+        </Row>
+      </ul>
 
       <section className="flex flex-col gap-4">
         <h3 className="wizard-section-heading m-0">What the deploy does</h3>
