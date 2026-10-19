@@ -2032,7 +2032,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
-      'apps/console/ui/e2e/isolated-shell.test.ts'
+      'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-projects-volume.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2568,6 +2569,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-projects-volume.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5054,6 +5056,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/deployments/operation-description.test.ts',
       'apps/console/api/src/deployments/failure-explanations.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
+      'apps/console/ui/e2e/isolated-projects-volume.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
