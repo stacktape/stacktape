@@ -475,7 +475,7 @@ export function DeployStep({
         <section>
           <h3 className="wizard-section-heading">Before you deploy</h3>
           {secrets.length > 0 && (
-            <div className="mb-4 flex flex-col gap-3">
+            <div className={`flex flex-col gap-3 ${gaps.length > 0 || unsetNames.length > 0 ? 'mb-4' : ''}`}>
               <p className="m-0 text-[var(--stp-text-muted)]">
                 Create {secrets.length === 1 ? 'this secret' : `these ${secrets.length} secrets`} in{' '}
                 <span className="wizard-code">{region}</span>. Each command asks for the value; the deploy stops if one
