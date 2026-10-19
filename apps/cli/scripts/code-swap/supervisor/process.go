@@ -19,32 +19,38 @@ type processInfo struct {
 	zombie             bool
 }
 
-func processes() map[int]processInfo {
-	entries, _ := os.ReadDir("/proc")
-	out := map[int]processInfo{}
-	for _, e := range entries {
-		pid, err := strconv.Atoi(e.Name())
-		if err != nil {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join("/proc", e.Name(), "stat"))
-		if err != nil {
-			continue
-		}
-		end := strings.LastIndex(string(b), ")")
-		if end < 0 {
-			continue
-		}
-		f := strings.Fields(string(b)[end+1:])
-		if len(f) < 20 {
-			continue
-		}
-		parent, _ := strconv.Atoi(f[1])
-		group, _ := strconv.Atoi(f[2])
-		out[pid] = processInfo{pid, parent, group, f[19], f[0] == "Z"}
+func processAt(pid int) (processInfo, bool) {
+	b, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+	if err != nil {
+		return processInfo{}, false
 	}
-	return out
+	end := strings.LastIndex(string(b), ")")
+	if end < 0 {
+		return processInfo{}, false
+	}
+	f := strings.Fields(string(b)[end+1:])
+	if len(f) < 20 {
+		return processInfo{}, false
+	}
+	parent, _ := strconv.Atoi(f[1])
+	group, _ := strconv.Atoi(f[2])
+	return processInfo{pid, parent, group, f[19], f[0] == "Z"}, true
 }
+
+func isProcessLeader(pid int) bool {
+	b, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 && f[0] == "Tgid:" {
+			return f[1] == strconv.Itoa(pid)
+		}
+	}
+	return false
+}
+
 func score(pid, value int) error {
 	path := fmt.Sprintf("/proc/%d/oom_score_adj", pid)
 	if err := os.WriteFile(path, []byte(strconv.Itoa(value)), 0600); err != nil {
@@ -85,55 +91,15 @@ func launch() {
 	must(syscall.Exec(binary, os.Args[3:], os.Environ()))
 }
 func (u *generation) members() (map[int]processInfo, error) {
-	all := processes()
 	u.treeMu.Lock()
 	defer u.treeMu.Unlock()
-	// A group ID can outlive its leader and can later be reused. Discover new
-	// members only while an original, start-time-verified group member anchors it.
-	groupLive := false
-	for pid, start := range u.membership {
-		if p, ok := all[pid]; ok && p.start == start && p.group == u.pid {
-			groupLive = true
-			break
-		}
-	}
-	for pid, p := range all {
-		if groupLive && p.group == u.pid {
-			u.membership[pid] = p.start
-		}
-	}
-	// A double-fork/setsid child can be adopted before its original parent is sampled.
-	// In this single-app harness, adopted children outside another tracked generation are unsupported escapes.
-	for pid, p := range all {
-		if p.parent != os.Getpid() || p.group == u.pid {
-			continue
-		}
-		otherGroup := false
-		for _, other := range []*generation{current.Load(), candidate.Load(), oldGeneration.Load()} {
-			if other != nil && other != u && p.group == other.pid {
-				otherGroup = true
-			}
-		}
-		if !otherGroup {
-			u.membership[pid] = p.start
-		}
-	}
-	for changed := true; changed; {
-		changed = false
-		for pid, p := range all {
-			if _, exists := u.membership[pid]; exists {
-				continue
-			}
-			if start, ok := u.membership[p.parent]; ok && all[p.parent].start == start {
-				u.membership[pid] = p.start
-				changed = true
-			}
-		}
-	}
+	// Membership is registered at kernel fork events before either process can
+	// run on. Do not infer ownership from a reusable pgid or from orphan adoption.
+
 	out := map[int]processInfo{}
 	var err error
 	for pid, start := range u.membership {
-		if p, ok := all[pid]; ok && p.start == start {
+		if p, ok := processAt(pid); ok && p.start == start {
 			if p.group != u.pid {
 				err = fmt.Errorf("unsupported detached process tree")
 			}
@@ -205,6 +171,9 @@ func (u *generation) reap(deadline time.Time) error {
 	for {
 		members, _ := u.members()
 		if len(members) == 0 && u.exited.Load() {
+			if u.traceFailure.Load() {
+				return fmt.Errorf("process exit observation failed; cleanup unverified")
+			}
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -232,7 +201,7 @@ func (u *generation) terminate() error {
 	for time.Now().Before(deadline) {
 		members, _ := u.members()
 		if len(members) == 0 && u.exited.Load() {
-			return nil
+			return u.reap(time.Now())
 		}
 		time.Sleep(5 * time.Millisecond)
 	}

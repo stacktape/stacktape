@@ -36,6 +36,9 @@ func TestChildExitPolicy(t *testing.T) {
 				u.signal(syscall.SIGKILL)
 				t.Fatal("leader never exited")
 			}
+			if u.traceFailure.Load() {
+				t.Fatal("kernel exit observation failed")
+			}
 			if u.treeFailure.Load() != tc.killed {
 				t.Fatalf("SIGKILL failure = %v, want %v", u.treeFailure.Load(), tc.killed)
 			}
@@ -51,7 +54,7 @@ func TestStoppedGrandchildReaped(t *testing.T) {
 		t.Fatal(errno)
 	}
 	dir := t.TempDir()
-	cmd := exec.Command("sh", "-c", "read x <&3; sh -c 'echo $$ > \"$1/pid\"; kill -STOP $$; sleep 30' child \"$1\" & wait", "leader", dir)
+	cmd := exec.Command("sh", "-c", "read x <&3; sh -c 'echo $$ > \"$1/pid\"; kill -STOP $$; sleep 30' child \"$1\" & exit 0", "leader", dir)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	u := &generation{cmd: cmd, membership: map[int]string{}}
 	if err := u.startTraced(); err != nil {
@@ -104,7 +107,8 @@ func TestUnverifiedReapKeepsHealthyTaskAndBlocksFallback(t *testing.T) {
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
-			u := &generation{cmd: cmd, pid: cmd.Process.Pid, revision: "failed", membership: map[int]string{cmd.Process.Pid: processes()[cmd.Process.Pid].start}}
+			info, _ := processAt(cmd.Process.Pid)
+			u := &generation{cmd: cmd, pid: cmd.Process.Pid, revision: "failed", membership: map[int]string{cmd.Process.Pid: info.start}}
 			healthy := &generation{revision: "healthy"}
 			current.Store(healthy)
 			timing := map[string]any{}

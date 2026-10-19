@@ -418,7 +418,10 @@ const main = async () => {
         const v = await status();
         return v.state === 'failed' && v.timings.candidateReaped && v;
       });
-      assert.match(s.reason, /OOM/);
+      // Kernel exit observation may see SIGKILL before the OOM counter read.
+      // Establish the cause from the counter delta, rather than an error label.
+      assert.match(s.reason, /OOM|SIGKILL/);
+      assert(s.timings.oomAfter > s.timings.oomBefore);
       assert.equal((await get()).body, 'old');
       const restored = await inspect();
       if (restored.pid !== old.pid) {
