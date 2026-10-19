@@ -61,6 +61,26 @@ export const lanes: readonly Lane[] = [
     proves: 'Real source CLI edits and matched image deployments pass the measured Node serving gate.'
   },
   {
+    id: 'code-swap-runtime-safety',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/qualify.ts'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/code-swap/qualify.ts'],
+    requires: ['docker'],
+    release: 'affected-external-contract',
+    proves: 'The built capped image preserves drains, inherits OOM scores and reaps complete failed candidate trees.'
+  },
+  {
+    id: 'code-swap-fargate-safety',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/live-runtime.ts'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/code-swap/live-runtime.ts'],
+    requires: ['docker', 'aws', 'network'],
+    release: 'affected-external-contract',
+    proves: 'The same runtime failure scenarios pass on owned Fargate tasks with verified cleanup.'
+  },
+  {
     id: 'code-swap-artifacts',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'exec', 'bun', 'test', 'src/artifact/code-swap.test.ts'],
     level: 'focused',
@@ -75,7 +95,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/smoke.ts'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/scripts/code-swap/smoke.ts', 'apps/cli/scripts/code-swap/supervisor/archive_test.go'],
+    tests: [
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go'
+    ],
     requires: ['docker'],
     release: 'affected-external-contract',
     proves: 'The pinned image applies a verified bundle and serves it through the real proxy.'
@@ -3497,12 +3521,20 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',
       'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go',
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
       'apps/cli/scripts/code-swap/run.ts'
     ],
-    lanes: ['code-swap-artifacts', 'code-swap-supervisor', 'code-swap-build-boundary', 'code-swap-live-benchmark']
+    lanes: [
+      'code-swap-artifacts',
+      'code-swap-supervisor',
+      'code-swap-build-boundary',
+      'code-swap-live-benchmark',
+      'code-swap-runtime-safety',
+      'code-swap-fargate-safety'
+    ]
   },
   {
     id: 'S01',

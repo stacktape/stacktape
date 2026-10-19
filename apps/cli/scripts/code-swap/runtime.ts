@@ -121,11 +121,14 @@ const waitStatus = async (ids: string[], revision: string, state: string) => {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
     const found = await statuses(ids);
+    const failed = found.find((s) => s.revision === revision && s.state === 'failed');
+    if (failed?.timings.candidateReaped) throw new Error(`Candidate failed: ${failed.reason}`);
     const refused = found.find((s) => s.revision === revision && s.state === 'refused');
     if (refused) {
-      result.fallback = 'memory_screen';
+      const reason = refused.reason ?? 'prepare_refused';
+      result.fallback = reason;
       result.refusal = refused;
-      throw new Error('memory_screen');
+      throw new Error(reason);
     }
     if (found.length === ids.length && found.every((s) => s.revision === revision && s.state === state)) return found;
     await Bun.sleep(100);
@@ -198,18 +201,27 @@ export const benchmarkImage = async (input: {
   const cluster = service.split('/')[1];
   // Prepare runs beside the actual Docker build/ECR push; commit remains in updateEcsService after the upload gate.
   prepare = (async () => {
-    const before = await traceAsync('prepareFleet', () => fleet(service, cluster));
+    const [fleetCheck, upload] = await Promise.allSettled([
+      traceAsync('prepareFleet', () => fleet(service, cluster)),
+      traceAsync('bundleUpload', async () => {
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: artifacts.deploymentBucketName,
+            Key: key,
+            Body: bundle.bytes,
+            ContentType: 'application/gzip'
+          })
+        );
+        trace('bundleUploaded');
+      })
+    ]);
+    // Finish both operations before any fallback; a failed check never publishes prepare.
+    if (fleetCheck.status === 'rejected') throw fleetCheck.reason;
+    if (upload.status === 'rejected') throw upload.reason;
+    const before = fleetCheck.value;
     result.tasks = before.ids;
     result.primary = before.primary;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: artifacts.deploymentBucketName,
-        Key: key,
-        Body: bundle.bytes,
-        ContentType: 'application/gzip'
-      })
-    );
-    trace('bundleUploaded');
+    trace('preparePrerequisitesReady');
     await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
     const prepared = await waitStatus(before.ids, revision, 'prepared');
     trace('allPrepared');
@@ -258,6 +270,23 @@ export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHots
   } catch (error) {
     result = { ...result, mode: 'image', fallback: result.fallback ?? 'swap_failed', failure: String(error) };
     await put({ Phase: 'abort' });
+    const expectedIds = result.tasks === undefined ? [] : z.array(z.string()).parse(result.tasks);
+    const deadline = Date.now() + 35000;
+    for (;;) {
+      const found = expectedIds.length ? await statuses(expectedIds) : [];
+      if (
+        found.length === expectedIds.length &&
+        found.every(
+          (s) =>
+            s.state === 'complete' ||
+            s.state === 'refused' ||
+            (s.timings.candidateReaped && ['failed', 'aborted'].includes(s.state))
+        )
+      )
+        break;
+      if (Date.now() > deadline) throw new Error('Candidate cleanup not confirmed; refusing image fallback.');
+      await Bun.sleep(100);
+    }
     return false;
   }
 };

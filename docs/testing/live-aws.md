@@ -57,8 +57,11 @@ mutating commands.
 ## Source-only code-swap benchmark
 
 The phase-1 experiment lives in `apps/cli/scripts/code-swap`. Its explicit build plugin produces a separate source CLI;
-normal dev/release builds do not contain its unsigned, unfenced activation path. There is no public configuration or
-installed CLI switch. This is a speed decision before runtime, ECS-readiness, capacity and protected-lifecycle work.
+normal dev/release builds do not contain its unsigned, unfenced activation path. An active benchmark run omits the
+separate Cloud Map drain sidecar because its supervisor owns the cached-routing allowance. Ordinary builds and inactive
+benchmark commands retain main's sidecar behavior. This keeps the qualification single-container; it does not establish
+compatibility with arbitrary sidecars. There is no public configuration or installed CLI switch. This is a speed
+decision before runtime, ECS-readiness, capacity and protected-lifecycle work.
 
 Build the source benchmark from the CLI working directory, after `pnpm dev:cli version` has materialized development
 artifacts:
@@ -104,11 +107,12 @@ available. Analysis writes every failure to `request-errors.json` and refuses a 
 including a request that began before proposal. Baseline, image settlement and command gaps remain separately labelled.
 The runner exports gateway failures and supervisor events before deleting their log groups. Keep those files with the
 raw polls; a client timeout alone does not establish that the supervisor dropped a request. Initial routing
-qualification retries transient public errors within its existing two-minute deadline and records every request in
-`setup-traffic.json`. It still requires a response from every expected task before timed edits start. The existing
-ten-second baseline precedes the initial business checks. Those checks and every post-edit business check keep their
-exact assertions without retries; their responses are drained and saved separately, including bounded failure bodies, so
-a gateway error cannot appear only as “Wrong receipt”. Baseline waiting is outside every timed edit.
+qualification requires 30 uninterrupted AWS-clock seconds of successful responses from expected tasks within its
+two-minute deadline, and records every request in `setup-traffic.json`. Errors or foreign task identities reset that
+setup window. Every expected task must appear in that window before timed edits start. The existing ten-second baseline
+precedes the initial business checks. Those checks and every post-edit business check keep their exact assertions
+without retries; their responses are drained and saved separately, including bounded failure bodies, so a gateway error
+cannot appear only as “Wrong receipt”. Baseline waiting is outside every timed edit.
 
 The benchmark build minifies and splits commands into separate modules, so invoking deploy does not parse unrelated
 commands. Both swap edits and image controls use that same build. Its transport experiment uses shared HTTP/HTTPS
@@ -127,3 +131,59 @@ and service wait and cannot by itself identify an AWS service bottleneck. Preser
 The benchmark image keeps its supervisor in a reusable layer ahead of the application layer. Each owned run has its own
 local Docker tag, so independent configurations can run concurrently without overwriting another run's image. Normal
 release/dev builds contain neither the activation hooks nor these diagnostics.
+
+### Runtime and artifact qualification (phase 2)
+
+The same source-only boundary also owns `scripts/code-swap/qualify.ts` and `live-runtime.ts`. The former runs the built
+supervisor in capped, pinned Node images; the latter deploys that image with the Stacktape CLI and runs owned Fargate
+1.4.0 amd64 tasks. Both use the same application and controller fixtures. The controller uses container monotonic time.
+Each OOM/lifetime-peak scenario gets a fresh container/task because a read-only kernel lifetime peak cannot be reset.
+
+```sh
+pnpm --filter @stacktape/cli exec bun scripts/code-swap/qualify.ts
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/live-runtime.ts
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --regression --configurations 1024-1
+```
+
+The runtime cases cover inherited OOM scores and their restoration, late workers, actual prepare/post-switch worker
+OOMs, leader/worker crashes, detached-tree refusal, complete reaping, long HTTP/SSE/WebSocket drains and task SIGTERM
+during application startup, after switching and while shutting down old code. Clean and ordinary nonzero child exits are
+allowed; child SIGKILL fails the attempt. A stopped grandchild is killed and reaped on startup failure. The combined
+burst/cache/tmpfs scenario proves an aggregate peak increase; it does not isolate cache or tmpfs charging. The live stop
+cases use ECS `StopTask`; the fixture forwards that signal and verifies child reaping before the essential container
+exits. WebSockets receive close code 1001 at the drain deadline. Shutdown retains cached HTTP traffic for 30 seconds and
+preserves the original old-tree deadline and concurrent grace. The test-only task-definition override supplies the exact
+82-second ECS stop budget for a 40-second drain and grace. The local default-grace cases use a 60-second budget.
+Production synthesis stays unchanged. The timeout formula is checked by fixture arithmetic with a hand-set override;
+rejecting oversized grace before an ECS update remains Phase 3. Configured application checks, ECS readiness and
+capacity admission remain later phases.
+
+Docker needs `--oom-score-adj=-998` to reproduce Fargate's inherited score. The supervisor verifies protection before
+starting applications. Kernel exit observation uses parent-owned `PTRACE_SEIZE` before the launcher gate opens, with
+inherited fork/clone/exit events, so a parent-reaped child SIGKILL is distinguishable from a clean exit. Job-control
+stops use `PTRACE_LISTEN`. No capability is added; an environment denying parent-child tracing refuses startup. The
+pinned builder runs `go test -race` before building the static supervisor. This remains a source-only amd64
+qualification; other architectures and production runtime integration need their own qualification. Local targeted
+debugging accepts `QUAL_SCENARIOS` with comma-separated scenario names. `review-fixes` covers clean/nonzero child exits,
+a startup failure with a stopped grandchild, and a child SIGKILL. The live runner also accepts `QUAL_SCENARIOS` for
+standalone tasks and `QUAL_MAIN_SCENARIO` for its service task; preserve those selections with the report. Preserve the
+reports and source/artifact revision with the handoff. An intentional candidate failure remains a failed swap even after
+local recovery; never count it as a successful traffic sample.
+
+The live runner prints its exact `--cleanup-only --state <directory>` recovery command. Cleanup uses the exact owned
+stack/family and task identities, stops standalone tasks, deregisters/deletes revisions one at a time (below ECS's
+10-revision maximum), and waits for ACTIVE, INACTIVE and DELETE_IN_PROGRESS listings to become empty. ECS can retain
+recently referenced revisions for an hour; an accepted deletion alone does not mark cleanup verified.
+
+`--memory-fallback --configurations 512-1` runs a deliberate working-set increase followed by a code edit that must use
+exactly one image fallback. Its report retains both attempts, the peak, fallback frequency and AWS-calibrated image
+latency.
+
+`--regression` runs only 20 swaps for the selected configuration. It retains per-edit AWS clock fits, all requests,
+failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero memory fallbacks and unchanged task identity.
+Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
+matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
+
+The immutable bundle upload overlaps the fleet preflight. Both operations finish successfully before prepare is
+published, including on failure paths. Neither changes the image-upload gate before commit. Trace spans retain the
+actual overlapping upload interval and the time when both prerequisites finished.

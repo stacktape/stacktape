@@ -38,6 +38,7 @@ const main = async () => {
       '--name',
       name,
       '--init',
+      '--oom-score-adj=-998',
       '--user',
       `${process.getuid!()}:${process.getgid!()}`,
       '--memory',
