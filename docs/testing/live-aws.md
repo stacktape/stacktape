@@ -57,8 +57,11 @@ mutating commands.
 ## Source-only code-swap benchmark
 
 The phase-1 experiment lives in `apps/cli/scripts/code-swap`. Its explicit build plugin produces a separate source CLI;
-normal dev/release builds do not contain its unsigned, unfenced activation path. There is no public configuration or
-installed CLI switch. This is a speed decision before runtime, ECS-readiness, capacity and protected-lifecycle work.
+normal dev/release builds do not contain its unsigned, unfenced activation path. An active benchmark run omits the
+separate Cloud Map drain sidecar because its supervisor owns the cached-routing allowance. Ordinary builds and inactive
+benchmark commands retain main's sidecar behavior. This keeps the qualification single-container; it does not establish
+compatibility with arbitrary sidecars. There is no public configuration or installed CLI switch. This is a speed
+decision before runtime, ECS-readiness, capacity and protected-lifecycle work.
 
 Build the source benchmark from the CLI working directory, after `pnpm dev:cli version` has materialized development
 artifacts:
