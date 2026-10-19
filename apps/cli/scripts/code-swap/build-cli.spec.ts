@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { buildBenchmarkCli } from './build-cli';
 import { createStacktapeOpenTuiBuildPlugin } from '../support/opentui-loader';
 
@@ -26,14 +26,32 @@ test('only the explicit benchmark build includes unsigned swap activation', asyn
     const benchmark = (
       await Promise.all(outputs.filter((output) => output.path.endsWith('.js')).map((output) => output.text()))
     ).join('\n');
-    // Execute the actual split/minified artifact, including dynamic command imports.
+    // Source CLI startup reads the development helper directory even for version. Keep this process smoke
+    // independent of an earlier build:dev-artifacts and of the developer's persisted state.
     if (process.platform === 'linux') {
-      const child = Bun.spawn([process.execPath, join(directory, 'benchmark', 'entrypoint.js'), 'version'], {
-        stdout: 'pipe',
-        stderr: 'pipe'
-      });
-      const stdout = await new Response(child.stdout).text();
-      expect(await child.exited).toBe(0);
+      const working = join(directory, 'working');
+      await mkdir(join(working, '__stacktape-dist', 'dev', 'helper-lambdas'), { recursive: true });
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          '--preload',
+          resolve('scripts/network-guard-preload.ts'),
+          join(directory, 'benchmark', 'entrypoint.js'),
+          'version'
+        ],
+        {
+          cwd: working,
+          env: { ...process.env, HOME: working, STP_DISABLE_TELEMETRY: '1' },
+          stdout: 'pipe',
+          stderr: 'pipe'
+        }
+      );
+      const [stdout, stderr, code] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited
+      ]);
+      if (code !== 0) throw new Error(`Built CLI version failed (${code}): ${stdout}\n${stderr}`);
       expect(stdout).toContain('Stacktape version:');
     }
     expect(ordinary).not.toContain('STP_CODE_SWAP_BENCH_RUN');

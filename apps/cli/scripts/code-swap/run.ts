@@ -300,19 +300,24 @@ const cleanup = async (state: State, owned: Owned) => {
     await save(join(state.directory, 'state.json'), state);
     // Deep benchmark artifacts are not understood by the ordinary historical key parser.
     let continuation: string | undefined;
-    do {
-      const listed = await s3.send(
-        new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/', ContinuationToken: continuation })
-      );
-      if (listed.Contents?.length)
-        await s3.send(
-          new DeleteObjectsCommand({
-            Bucket: owned.bucket,
-            Delete: { Objects: listed.Contents.map(({ Key }) => ({ Key: Key! })) }
-          })
+    try {
+      do {
+        const listed = await s3.send(
+          new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/', ContinuationToken: continuation })
         );
-      continuation = listed.NextContinuationToken;
-    } while (continuation);
+        if (listed.Contents?.length)
+          await s3.send(
+            new DeleteObjectsCommand({
+              Bucket: owned.bucket,
+              Delete: { Objects: listed.Contents.map(({ Key }) => ({ Key: Key! })) }
+            })
+          );
+        continuation = listed.NextContinuationToken;
+      } while (continuation);
+    } catch (error) {
+      // A previous partial delete may already have removed the artifact bucket. Keep recovering the owned stack.
+      if (!missing(error)) throw error;
+    }
     await invoke(cliArgs(state, owned, 'delete'), join(owned.directory, 'delete.log'));
   }
   if (owned.tableAttempted) {

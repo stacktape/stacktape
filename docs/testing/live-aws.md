@@ -81,7 +81,8 @@ latency distribution. Preparation runs alongside image work, and activation wait
 task reset occurs within a swap sequence. Readiness, signed authority and final IAM are deliberately outside this
 experiment.
 
-The runner prints an exact recovery command and cleans up in `finally`. Keep its state until deletion is verified. Run
+The runner prints an exact recovery command and cleans up in `finally`. Recovery accepts an artifact bucket already
+removed by partial stack deletion. Keep its state until deletion is verified. Run
 `pnpm --filter @stacktape/cli exec bun scripts/code-swap/analyze.ts <run-directory>` to write the summary. It fits each
 edit against AWS proxy timestamps rather than assuming a constant WSL clock rate or the historical 9.6% drift. Each fit
 needs at least 100 low-RTT samples over three seconds and a maximum residual of 250 ms; unqualified edits cannot pass.

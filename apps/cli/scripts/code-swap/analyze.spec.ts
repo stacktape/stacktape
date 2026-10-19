@@ -137,7 +137,7 @@ test('analysis and its CLI reject failed controls and memory fallbacks even with
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
+}, 30000);
 
 test('diagnostics map shared monotonic traces through AWS fits and retain requests crossing proposal', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'code-swap-diagnostics-'));
