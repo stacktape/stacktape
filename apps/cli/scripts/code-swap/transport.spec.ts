@@ -3,6 +3,8 @@ import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { HttpRequest } from '@smithy/protocol-http';
 
+// This source-only benchmark reads Linux CLOCK_MONOTONIC through libc; its transport scenarios require Linux.
+
 test.skipIf(process.platform !== 'linux')(
   'measured transport drains over 1,000 requests, preserves errors, and aborts stalled headers and bodies',
   async () => {
@@ -120,7 +122,7 @@ test.skipIf(process.platform !== 'linux')(
   10000
 );
 
-test('pending TLS dials are canceled by the whole-response deadline', async () => {
+test.skipIf(process.platform !== 'linux')('pending TLS dials are canceled by the whole-response deadline', async () => {
   const { createServer: createTcpServer } = await import('node:net');
   const { createMeasuredHandler } = await import('./transport');
   const sockets = new Set<import('node:net').Socket>();
@@ -145,28 +147,31 @@ test('pending TLS dials are canceled by the whole-response deadline', async () =
   }
 });
 
-test('Console does not replay a dispatched POST when its peer disconnects', async () => {
-  const { measuredConsoleFetch } = await import('./transport');
-  let writes = 0;
-  const server = createServer((request) => {
-    writes++;
-    request.resume();
-    request.on('end', () => request.socket.destroy());
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  try {
-    await expect(
-      measuredConsoleFetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/`, {
-        method: 'POST',
-        body: 'once-only-write'
-      })
-    ).rejects.toThrow();
-    expect(writes).toBe(1);
-  } finally {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+test.skipIf(process.platform !== 'linux')(
+  'Console does not replay a dispatched POST when its peer disconnects',
+  async () => {
+    const { measuredConsoleFetch } = await import('./transport');
+    let writes = 0;
+    const server = createServer((request) => {
+      writes++;
+      request.resume();
+      request.on('end', () => request.socket.destroy());
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      await expect(
+        measuredConsoleFetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/`, {
+          method: 'POST',
+          body: 'once-only-write'
+        })
+      ).rejects.toThrow();
+      expect(writes).toBe(1);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   }
-});
+);
 
 test.skipIf(process.platform !== 'linux')(
   'a delayed first TCP completion sends one verified HTTPS request',
