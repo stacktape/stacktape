@@ -18778,6 +18778,7 @@
         "page:/observability/alert-channels#webhook",
         "page:/observability/alert-channels#choosing-the-right-channel-type",
         "page:/observability/alert-channels#creating-a-channel-in-the-console",
+        "page:/observability/alert-channels#the-channel-page",
         "page:/observability/alert-channels#using-channels-with-rules",
         "page:/observability/alert-channels#deleting-a-channel",
         "page:/observability/alert-channels#faq",
@@ -18791,7 +18792,7 @@
     },
     {
       "id": "page:/observability/alert-history",
-      "title": "Alert History",
+      "title": "Sent Alerts",
       "route": "/observability/alert-history",
       "sourcePath": "apps/docs/content/observability/alert-history.mdx",
       "outputPath": "pages/observability/alert-history.md",
@@ -18802,21 +18803,15 @@
         "alert-history"
       ],
       "chunks": [
-        "page:/observability/alert-history#alert-history",
-        "page:/observability/alert-history#what-alert-history-tracks",
-        "page:/observability/alert-history#event-types",
-        "page:/observability/alert-history#severity-levels",
-        "page:/observability/alert-history#filtering-events",
-        "page:/observability/alert-history#delivery-tracking",
-        "page:/observability/alert-history#pagination",
-        "page:/observability/alert-history#when-the-table-is-empty",
-        "page:/observability/alert-history#alert-history-vs-individual-history-views",
+        "page:/observability/alert-history#sent-alerts",
+        "page:/observability/alert-history#columns",
+        "page:/observability/alert-history#delivery-details",
+        "page:/observability/alert-history#filters",
+        "page:/observability/alert-history#other-history-pages",
         "page:/observability/alert-history#faq",
-        "page:/observability/alert-history#when-should-i-use-alert-history-vs-the-source-specific-history-pages",
-        "page:/observability/alert-history#can-i-filter-alert-history-by-project-or-stage",
-        "page:/observability/alert-history#what-does-no-rules-matched-mean-in-the-delivery-column",
-        "page:/observability/alert-history#what-delivery-statuses-can-an-alert-have",
-        "page:/observability/alert-history#can-i-view-alert-history-from-the-cli"
+        "page:/observability/alert-history#an-alert-shows-1-of-3-failed-did-my-team-get-it",
+        "page:/observability/alert-history#why-is-an-event-i-expected-missing",
+        "page:/observability/alert-history#can-i-see-sent-alerts-from-the-cli"
       ]
     },
     {
@@ -19036,7 +19031,7 @@
     },
     {
       "id": "page:/observability/notifications",
-      "title": "Notifications",
+      "title": "Notification Rules",
       "route": "/observability/notifications",
       "sourcePath": "apps/docs/content/observability/notifications.mdx",
       "outputPath": "pages/observability/notifications.md",
@@ -19047,13 +19042,13 @@
         "notifications"
       ],
       "chunks": [
-        "page:/observability/notifications#notifications",
+        "page:/observability/notifications#notification-rules",
         "page:/observability/notifications#when-to-use-notifications",
         "page:/observability/notifications#when-not-to-use-notifications",
         "page:/observability/notifications#event-types",
         "page:/observability/notifications#managing-notification-rules",
         "page:/observability/notifications#scoping-notifications",
-        "page:/observability/notifications#alert-history",
+        "page:/observability/notifications#checking-what-was-sent",
         "page:/observability/notifications#notifications-vs-alarms-vs-budgets",
         "page:/observability/notifications#faq",
         "page:/observability/notifications#can-i-route-different-events-to-different-channels",
@@ -19083,8 +19078,8 @@
         "page:/observability/overview#alarms",
         "page:/observability/overview#error-tracking",
         "page:/observability/overview#alert-channels",
-        "page:/observability/overview#notifications",
-        "page:/observability/overview#alert-history",
+        "page:/observability/overview#notification-rules",
+        "page:/observability/overview#sent-alerts",
         "page:/observability/overview#log-forwarding",
         "page:/observability/overview#cli-vs-console",
         "page:/observability/overview#faq",

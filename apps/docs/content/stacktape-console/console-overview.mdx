@@ -37,7 +37,7 @@ The sidebar starts with Overview and Incidents, followed by five groups. Some it
 | **Organization** | Projects, Runners, Activity, Members, Costs | Projects and stages, the EC2 runners that run Git deploys and GitHub Actions jobs, CLI operation history, [members and roles](/stacktape-console/team-and-access-control), [cost tracking](/managing-costs/dashboards) |
 | **Observability** | Logs, Metrics, Traces, Uptime, Synthetics, Error tracking | [Logs](/observability/logs), [metrics](/observability/metrics), [traces](/observability/tracing), [uptime checks](/observability/uptime-checks), [synthetic tests](/observability/synthetic-tests), [runtime errors](/observability/error-tracking) |
 | **Security** | Overview, Posture, Vulnerabilities, Exposure, Guardrails | Security score per stack, configuration findings, vulnerable packages, what the internet can reach, [guardrails](/guardrails/overview) |
-| **Alerting** | Channels, Notifications, Alert history, Alarms, Budgets | [Alert channels](/observability/alert-channels), [notification rules](/observability/notifications), [delivered alerts](/observability/alert-history), [alarm state](/observability/alarms), [budgets](/managing-costs/budgets) (All budgets and History) |
+| **Alerting** | Channels, Sent alerts, Alarms, Budgets | [Alert channels](/observability/alert-channels) and their [notification rules](/observability/notifications), [sent alerts](/observability/alert-history), [alarm state](/observability/alarms), [budgets](/managing-costs/budgets) (All budgets and History) |
 | **Configuration** | Secrets, SSM parameters, AWS accounts, Domains | [Secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
 
 The profile menu in the header opens Account (your account settings), API keys, Subscription plans, Billing, Third-party providers and Git connections.
@@ -89,7 +89,7 @@ Open **Budgets** in the Alerting group and click **New budget alert**. Each budg
 
 ### Configuring alert channels and notification rules
 
-Channels are the destinations where alerts are delivered, such as a Slack channel, an email address or a webhook. Open **Channels** in the Alerting group and click **New alert channel**. Then open **Notifications** and click **New notification rule** to choose which events (for example a failed deployment, an opened incident or a changed secret) go to which channel. The Notifications page requires the `org:manage-notifications` permission. **Alert history** lists every alert that was sent and its delivery status per channel.
+Channels are the destinations where alerts are delivered, such as a Slack channel, an email address or a webhook. Open **Channels** in the Alerting group and click **New alert channel**. The new channel's page opens; click **New rule** there to choose which events (for example a failed deployment, an opened incident or a changed secret) it receives. Adding rules requires the `org:manage-notifications` permission. **Sent alerts** lists every alert that was sent and its delivery status per channel.
 
 ## Permission-gated navigation
 
@@ -102,14 +102,13 @@ The Console uses role-based access control. Sidebar items are hidden when your r
 | Costs | `org:view-billing` |
 | Error tracking | `issues:view` |
 | Security group (Overview, Posture, Vulnerabilities, Exposure, Guardrails) | `security:view` |
-| Notifications | `org:manage-notifications` |
 | Alarms | `org:manage-alarms` |
 | Budgets | `org:manage-budgets` |
 | Secrets | `secrets:view` |
 | SSM parameters | `ssm-params:view` |
 | Domains | `domains:manage` |
 
-Overview, Projects, Runners, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Alert history and AWS accounts are not filtered by permission in the sidebar. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
+Overview, Projects, Runners, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Sent alerts and AWS accounts are not filtered by permission in the sidebar. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
 
 <Warning>
 If a sidebar item is missing, your role may not include the required permission. Ask your organization's owner or admin to adjust your access. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
@@ -163,4 +162,4 @@ The Costs page breaks down AWS costs by project and stage, generated daily from 
 
 ### Why is a sidebar item missing for me?
 
-The Console uses role-based access control, and several sidebar items are permission-gated. For example, Members requires `members:view`, Costs requires `org:view-billing`, and Alarms, Notifications and Budgets require the matching `org:manage-*` permission. If an item is missing, ask your organization's owner or admin to adjust your role. See [Team and access control](/stacktape-console/team-and-access-control).
+The Console uses role-based access control, and several sidebar items are permission-gated. For example, Members requires `members:view`, Costs requires `org:view-billing`, and Alarms and Budgets require the matching `org:manage-*` permission. If an item is missing, ask your organization's owner or admin to adjust your role. See [Team and access control](/stacktape-console/team-and-access-control).

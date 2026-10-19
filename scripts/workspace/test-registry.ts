@@ -1893,6 +1893,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
+      'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
@@ -2600,6 +2601,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
+      'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
@@ -5595,11 +5597,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/messages/email-messages.ts',
       'apps/console/api/src/model-helpers/index.ts',
       'apps/console/ui/src/pages/AlertChannels/**',
-      'apps/console/ui/src/pages/AlertHistoryPage/**'
+      'apps/console/ui/src/pages/AlertHistoryPage/**',
+      'apps/console/ui/src/components/Monitoring/**'
     ],
     tests: [
       'apps/console/api/scripts/alerts-database.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
