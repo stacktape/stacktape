@@ -27,6 +27,26 @@ export type Slice = {
 
 export const lanes: readonly Lane[] = [
   {
+    id: 'code-swap-artifacts',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'exec', 'bun', 'test', 'src/artifact/code-swap.test.ts'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['packages/packaging/src/artifact/code-swap.test.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Deterministic runnable code and base identities remain separate.'
+  },
+  {
+    id: 'code-swap-supervisor',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/smoke.ts'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/code-swap/smoke.ts', 'apps/cli/scripts/code-swap/supervisor/archive_test.go'],
+    requires: ['docker'],
+    release: 'affected-external-contract',
+    proves: 'The pinned image applies a verified bundle and serves it through the real proxy.'
+  },
+  {
     id: 'agent-instructions',
     command: ['pnpm', 'check:instructions'],
     level: 'focused',
@@ -3433,6 +3453,19 @@ export const lanes: readonly Lane[] = [
 ];
 
 export const slices: readonly Slice[] = [
+  {
+    id: 'code-swap-foundations',
+    promise: 'Benchmark-only Node code replacement preserves artifact and process identities.',
+    status: 'active',
+    journeys: ['container-deploy'],
+    paths: ['packages/packaging/src/artifact/code-swap.ts', 'apps/cli/scripts/code-swap/**'],
+    tests: [
+      'packages/packaging/src/artifact/code-swap.test.ts',
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go'
+    ],
+    lanes: ['code-swap-artifacts', 'code-swap-supervisor']
+  },
   {
     id: 'S01',
     promise: 'Public config, CloudFormation types and schema agree.',
