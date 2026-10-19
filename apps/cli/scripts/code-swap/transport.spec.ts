@@ -208,10 +208,14 @@ test.skipIf(process.platform !== 'linux')(
     expect(await openssl.exited).toBe(0);
     let requests = 0,
       connections = 0;
+    const gateResponse = Promise.withResolvers<ServerResponse>();
     const server = createHttpsServer({ key: await readFile(key), cert: await readFile(cert) }, (request, response) => {
       requests++;
       request.resume();
-      request.once('end', () => response.end('complete'));
+      request.once('end', () => {
+        if (request.url === '/queue-gate') gateResponse.resolve(response);
+        else response.end('complete');
+      });
     });
     server.on('connection', () => connections++);
     server.on('tlsClientError', () => {});
@@ -289,6 +293,61 @@ test.skipIf(process.platform !== 'linux')(
         expect(requests).toBe(1);
       } finally {
         untrusted.destroy();
+      }
+
+      const invalidTls = new HedgedHttpsAgent({ ciphers: 'no-such-cipher' });
+      try {
+        await expect(
+          createMeasuredHandler({ secureAgent: invalidTls }).handle(
+            new HttpRequest({
+              protocol: 'https:',
+              hostname: '127.0.0.1',
+              port: (server.address() as AddressInfo).port
+            })
+          )
+        ).rejects.toThrow();
+        expect(requests).toBe(1);
+      } finally {
+        invalidTls.destroy();
+      }
+
+      class QueuedAgent extends HedgedHttpsAgent {
+        readonly dials: import('node:net').Socket[] = [];
+        protected override connectSocket(options: import('node:net').TcpNetConnectOpts) {
+          const socket = super.connectSocket(options);
+          this.dials.push(socket);
+          if (this.dials.length > 1) {
+            const emit = socket.emit.bind(socket);
+            socket.emit = ((event: string | symbol, ...args: unknown[]) =>
+              event === 'connect' ? true : emit(event, ...args)) as typeof socket.emit;
+          }
+          return socket;
+        }
+      }
+      const queued = new QueuedAgent({ ca: await readFile(cert), maxSockets: 1 });
+      try {
+        const handler = createMeasuredHandler({ secureAgent: queued, requestTimeout: 3000 });
+        const input = { protocol: 'https:', hostname: '127.0.0.1', port: (server.address() as AddressInfo).port };
+        const first = handler.handle(new HttpRequest({ ...input, path: '/queue-gate' }));
+        const heldResponse = await gateResponse.promise;
+        const until = Date.now() + 2000;
+        const controller = new AbortController();
+        const result = handler.handle(new HttpRequest(input), { abortSignal: controller.signal }).then(
+          () => null,
+          (e) => e
+        );
+        await Bun.sleep(10);
+        expect(queued.dials.length).toBe(1);
+        heldResponse!.setHeader('connection', 'close');
+        heldResponse!.end('gate');
+        await first;
+        while (queued.dials.length < 2 && Date.now() < until) await Bun.sleep(5);
+        expect(queued.dials.length).toBeGreaterThanOrEqual(2);
+        controller.abort();
+        expect(await result).toMatchObject({ name: 'AbortError' });
+        expect(queued.dials.slice(1).every((socket) => socket.destroyed)).toBe(true);
+      } finally {
+        queued.destroy();
       }
     } finally {
       agent.destroy();

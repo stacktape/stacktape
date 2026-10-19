@@ -43,6 +43,7 @@ type Trace = {
   error?: string;
   reused?: number;
   socketMs?: number;
+  dialStartMs?: number;
   dnsMs?: number;
   connectMs?: number;
   tlsMs?: number;
@@ -179,8 +180,8 @@ export const diagnoseConfiguration = async (location: string, results: Edit[], c
           seconds: (t.hostMs - t.startedHostMs!) / clock!.rate / 1000,
           transportSeconds: {
             socket: seconds(t.socketMs),
-            dns: t.reused ? 0 : difference(t.dnsMs, t.socketMs),
-            connect: t.reused ? 0 : difference(t.connectMs, t.dnsMs ?? t.socketMs),
+            dns: t.reused ? 0 : difference(t.dnsMs, t.dialStartMs ?? t.socketMs),
+            connect: t.reused ? 0 : difference(t.connectMs, t.dnsMs ?? t.dialStartMs ?? t.socketMs),
             tls: t.reused ? 0 : difference(t.tlsMs, t.connectMs),
             firstByte: seconds(t.firstByteMs),
             responseWait: difference(t.firstByteMs, t.sentMs),

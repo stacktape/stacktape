@@ -194,3 +194,8 @@ authored config (including environment), supervisor hash, Dockerfile, runtime, N
 architecture. It proves changes to each invalidate the base. `.npmrc`, patches absent from the lockfile and Railpack
 plans are not benchmark inputs; their wiring remains later work. Committed-code restart/scale-out, exact-image rollback
 and same-revision scale-only overlay retention remain Phase 3/5 clauses of B8.
+
+`socketMs` always means the request's socket-assignment event. Hedged connections additionally record `dialStartMs`, the
+winning dial's start offset; DNS/TCP/TLS marks include that offset. Queued requests carry their own cancellation signal
+through request options. The measured speed margin depends on the 100 ms backup dial; it is not supervisor-only speed or
+a repeat of the matched-image Phase-1 gate.

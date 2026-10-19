@@ -12,18 +12,33 @@ const httpAgent = new HttpAgent({ keepAlive: true });
 type Dial = { startedHostMs: number; dnsMs?: number; connectMs?: number; tlsMs?: number; outcome: string };
 const dialAttempts = new WeakMap<AbortSignal, Dial[]>();
 const dialDetails = new WeakMap<Duplex, { chosen: Dial; trials: Dial[]; claimed: boolean }>();
-type DialOptions = RequestOptions;
+// Carry cancellation into the dial without ambient synchronous state.
+type DialOptions = RequestOptions & { stpBenchmarkSignal?: AbortSignal };
 // Race at most two TCP connections, then perform one normal verified TLS handshake before HTTP dispatch.
+type SocketCallback = (error: Error | null, socket: Duplex) => void;
+// These Node agent hooks are runtime APIs omitted by @types/node.
+const agentHooks = HttpsAgent.prototype as HttpsAgent & {
+  addRequest(request: ClientRequest, options: DialOptions): void;
+  createSocket(request: ClientRequest, options: DialOptions, callback: SocketCallback): void;
+};
 export class HedgedHttpsAgent extends HttpsAgent {
-  private activeSignal?: AbortSignal;
-  withSignal<T>(signal: AbortSignal, create: () => T): T {
-    const previous = this.activeSignal;
-    this.activeSignal = signal;
-    try {
-      return create();
-    } finally {
-      this.activeSignal = previous;
-    }
+  private readonly requestSignals = new WeakMap<ClientRequest, AbortSignal>();
+  addRequest(request: ClientRequest, options: DialOptions) {
+    if (options.stpBenchmarkSignal) this.requestSignals.set(request, options.stpBenchmarkSignal);
+    agentHooks.addRequest.call(this, request, options);
+  }
+  createSocket(request: ClientRequest, options: DialOptions, callback: SocketCallback) {
+    // Node may pass the closed socket's options when draining a same-origin queue.
+    // Take the signal from the queued request, not from the previous connection.
+    agentHooks.createSocket.call(
+      this,
+      request,
+      {
+        ...options,
+        stpBenchmarkSignal: this.requestSignals.get(request)
+      },
+      callback
+    );
   }
   constructor(
     options: AgentOptions = {},
@@ -44,7 +59,7 @@ export class HedgedHttpsAgent extends HttpsAgent {
     let finished = false;
     let backup: ReturnType<typeof setTimeout> | undefined;
     let last: Duplex;
-    const signal = this.activeSignal;
+    const signal = options.stpBenchmarkSignal;
     if (signal) dialAttempts.set(signal, trials);
     const abort = () => {
       const error = new Error('Connection canceled');
@@ -60,7 +75,15 @@ export class HedgedHttpsAgent extends HttpsAgent {
       for (const trial of trials) if (trial !== chosen && trial.outcome === 'pending') trial.outcome = 'canceled';
       if (winner && chosen) {
         const secureOptions: DialOptions & { socket: Duplex } = { ...options, socket: winner };
-        const secure = super.createConnection(secureOptions) as TLSSocket;
+        let secure: TLSSocket;
+        try {
+          secure = super.createConnection(secureOptions) as TLSSocket;
+        } catch (cause) {
+          winner.destroy();
+          chosen.outcome = 'tls-setup-error';
+          callback(cause instanceof Error ? cause : new Error('TLS setup failed', { cause }), winner);
+          return;
+        }
         secure.once('secureConnect', () => {
           chosen.tlsMs = hostClockMs() - chosen.startedHostMs;
           chosen.outcome = 'ready';
@@ -162,39 +185,36 @@ export const createMeasuredHandler = ({
         }
         signal.addEventListener('abort', rejectOnAbort, { once: true });
         const secure = request.protocol === 'https:';
-        outgoing = secureAgent.withSignal(signal, () =>
-          (secure ? httpsRequest : httpRequest)(
-            {
-              protocol: request.protocol,
-              hostname: request.hostname,
-              port: request.port,
-              path: request.path + (query.size ? `?${query}` : ''),
-              method: request.method,
-              headers: request.headers,
-              agent: secure ? secureAgent : httpAgent,
-              signal
-            },
-            (incoming) => {
-              mark('firstByteMs');
-              marks.status = incoming.statusCode;
-              const chunks: Buffer[] = [];
-              incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
-              incoming.on('error', reject);
-              incoming.on('end', () => {
-                const headers: Record<string, string> = {};
-                for (const [name, value] of Object.entries(incoming.headers))
-                  if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
-                resolve(
-                  new HttpResponse({
-                    statusCode: incoming.statusCode ?? 0,
-                    headers,
-                    body: Readable.from(Buffer.concat(chunks))
-                  })
-                );
-              });
-            }
-          )
-        );
+        const requestOptions: DialOptions = {
+          protocol: request.protocol,
+          hostname: request.hostname,
+          port: request.port,
+          path: request.path + (query.size ? `?${query}` : ''),
+          method: request.method,
+          headers: request.headers,
+          agent: secure ? secureAgent : httpAgent,
+          signal,
+          stpBenchmarkSignal: signal
+        };
+        outgoing = (secure ? httpsRequest : httpRequest)(requestOptions, (incoming) => {
+          mark('firstByteMs');
+          marks.status = incoming.statusCode;
+          const chunks: Buffer[] = [];
+          incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
+          incoming.on('error', reject);
+          incoming.on('end', () => {
+            const headers: Record<string, string> = {};
+            for (const [name, value] of Object.entries(incoming.headers))
+              if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
+            resolve(
+              new HttpResponse({
+                statusCode: incoming.statusCode ?? 0,
+                headers,
+                body: Readable.from(Buffer.concat(chunks))
+              })
+            );
+          });
+        });
         outgoing.on('error', reject);
         outgoing.on('socket', (socket) => {
           mark('socketMs');
@@ -203,10 +223,11 @@ export const createMeasuredHandler = ({
             details.claimed = true;
             connectionDials = details.trials;
             marks.reused = 0;
-            marks.socketMs = details.chosen.startedHostMs - startedHostMs;
+            const dialStartMs = details.chosen.startedHostMs - startedHostMs;
+            marks.dialStartMs = dialStartMs;
             for (const name of ['dnsMs', 'connectMs', 'tlsMs'] as const) {
               const value = details.chosen[name];
-              if (value !== undefined) marks[name] = marks.socketMs + value;
+              if (value !== undefined) marks[name] = dialStartMs + value;
             }
             if (details.chosen.tlsMs === undefined) (socket as TLSSocket).once('secureConnect', () => mark('tlsMs'));
             return;
