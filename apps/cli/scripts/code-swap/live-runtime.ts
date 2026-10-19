@@ -215,7 +215,7 @@ const main = async () => {
       for (const task of state.tasks) {
         const response = await ecs.send(new DescribeTasksCommand({ cluster: task.cluster, tasks: [task.arn] }));
         const found = response.tasks?.[0];
-        if (found?.lastStatus === 'STOPPED' || task.scenario.startsWith('stop-')) {
+        if (found?.lastStatus === 'STOPPED' || (task.scenario.startsWith('stop-') && found?.lastStatus === 'RUNNING')) {
           const stream = `ecs/${container.name}/${task.arn.split('/').at(-1)}`;
           const events = await logs.send(
             new FilterLogEventsCommand({
@@ -259,6 +259,9 @@ const main = async () => {
     if (Object.values(reports).some((r) => (r as { state: string }).state !== 'passed'))
       throw new Error('Fargate runtime qualification failed; see reports.json.');
     console.log('All seven Fargate runtime scenarios passed.');
+  } catch (error) {
+    await save(join(directory, 'failure.json'), { error: String(error) });
+    throw error;
   } finally {
     try {
       await stopTasks(state);
