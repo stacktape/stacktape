@@ -17,6 +17,7 @@ const canonical = (value: Json): string => {
 
 /** Runnable files form the code identity; dependencies and all execution settings form the image identity. */
 export const createCodeSwapBundle = async (directory: string, baseInputs: Json) => {
+  let expandedBytes = 1024;
   const files: { name: string; bytes: Buffer; executable: boolean }[] = [];
   const visit = async (relative: string) => {
     for (const name of (await readdir(join(directory, relative))).toSorted()) {
@@ -27,13 +28,16 @@ export const createCodeSwapBundle = async (directory: string, baseInputs: Json) 
       if (stat.isDirectory()) {
         // eslint-disable-next-line no-await-in-loop -- Bound open files and retain archive order.
         await visit(path);
-      } else if (stat.isFile())
+      } else if (stat.isFile()) {
+        expandedBytes += 512 + Math.ceil(stat.size / 512) * 512;
+        if (expandedBytes > 128 * 1024 * 1024 || files.length >= 10000)
+          throw new Error('Code swap archive exceeds the runtime extraction limit.');
         files.push({
           name: path, // eslint-disable-next-line no-await-in-loop -- Read one file at a time.
           bytes: await readFile(join(directory, path)),
           executable: !!(stat.mode & 0o111)
         });
-      else throw new Error(`Code swap cannot archive links or special files: ${path}`);
+      } else throw new Error(`Code swap cannot archive links or special files: ${path}`);
     }
   };
   await visit('');
@@ -61,6 +65,7 @@ export const createCodeSwapBundle = async (directory: string, baseInputs: Json) 
   }
   const tar = Buffer.concat([...entries, Buffer.alloc(1024)]);
   const bytes = gzipSync(tar, { level: 9 });
+  if (bytes.length > 20 * 1024 * 1024) throw new Error('Code swap bundle exceeds the runtime download limit.');
   return {
     bytes,
     sha256: sha256(bytes),

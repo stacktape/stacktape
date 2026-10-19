@@ -56,3 +56,54 @@ func TestApplyIntegrityAndPaths(t *testing.T) {
 		t.Fatal("corrupt gzip accepted")
 	}
 }
+
+func TestAtomicExtractionAndEntryConflicts(t *testing.T) {
+	for _, names := range [][]string{{"index.mjs", "index.mjs"}, {"index.mjs", "a", "a/b"}, {"index.mjs", "../outside"}, {"index.mjs", "node_modules"}} {
+		var b bytes.Buffer
+		z := gzip.NewWriter(&b)
+		a := tar.NewWriter(z)
+		for _, name := range names {
+			if err := a.WriteHeader(&tar.Header{Name: name, Typeflag: tar.TypeReg, Mode: 07777}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		a.Close()
+		z.Close()
+		parent := t.TempDir()
+		dst := filepath.Join(parent, "r")
+		if applyBundle(b.Bytes(), sha256Hex(b.Bytes()), int64(b.Len()), dst) == nil {
+			t.Fatal("invalid entries published", names)
+		}
+		entries, _ := os.ReadDir(parent)
+		if len(entries) != 0 {
+			t.Fatal("failed extraction leaked staging directory", entries)
+		}
+	}
+	parent := t.TempDir()
+	dst := filepath.Join(parent, "r")
+	os.Mkdir(dst, 0755)
+	os.WriteFile(filepath.Join(dst, "owned"), []byte("retain"), 0600)
+	b := bundleForTest(t, "index.mjs", tar.TypeReg)
+	if applyBundle(b, sha256Hex(b), int64(len(b)), dst) == nil {
+		t.Fatal("existing live directory replaced")
+	}
+	content, _ := os.ReadFile(filepath.Join(dst, "owned"))
+	if string(content) != "retain" {
+		t.Fatal("live directory changed")
+	}
+}
+func TestArchiveExpansionLimit(t *testing.T) {
+	var b bytes.Buffer
+	z := gzip.NewWriter(&b)
+	a := tar.NewWriter(z)
+	a.WriteHeader(&tar.Header{Name: "index.mjs", Typeflag: tar.TypeReg, Size: 129 * 1024 * 1024, Mode: 0644})
+	zero := make([]byte, 1024*1024)
+	for i := 0; i < 129; i++ {
+		a.Write(zero)
+	}
+	a.Close()
+	z.Close()
+	if applyBundle(b.Bytes(), sha256Hex(b.Bytes()), int64(b.Len()), filepath.Join(t.TempDir(), "r")) == nil {
+		t.Fatal("expansion bomb accepted")
+	}
+}

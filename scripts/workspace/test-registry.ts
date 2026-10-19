@@ -81,6 +81,17 @@ export const lanes: readonly Lane[] = [
     proves: 'The same runtime failure scenarios pass on owned Fargate tasks with verified cleanup.'
   },
   {
+    id: 'code-swap-artifact-consumer',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/artifact-consumer.ts'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/code-swap/artifact-consumer.ts'],
+    requires: ['docker'],
+    release: 'affected-external-contract',
+    proves:
+      'Installed Node package consumers execute after deterministic archive application and invalidate image inputs.'
+  },
+  {
     id: 'code-swap-artifacts',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'exec', 'bun', 'test', 'src/artifact/code-swap.test.ts'],
     level: 'focused',
@@ -3533,7 +3544,8 @@ export const slices: readonly Slice[] = [
       'code-swap-build-boundary',
       'code-swap-live-benchmark',
       'code-swap-runtime-safety',
-      'code-swap-fargate-safety'
+      'code-swap-fargate-safety',
+      'code-swap-artifact-consumer'
     ]
   },
   {
