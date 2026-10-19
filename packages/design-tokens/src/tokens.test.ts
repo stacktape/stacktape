@@ -24,6 +24,7 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-interactive-primary',
       '--stp-interactive-primary-light',
       '--stp-interactive-accent',
+      '--stp-field-hover-border',
       '--stp-field-focus-border',
       '--stp-field-focus-ring',
       '--stp-status-error',
