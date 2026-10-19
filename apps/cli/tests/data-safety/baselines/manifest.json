@@ -35,7 +35,7 @@
       },
       "v4": {
         "producer": "current synthesis (synthesizeFixture)",
-        "producedAt": "2026-10-16T19:57:47.772Z",
+        "producedAt": "2026-10-19T08:03:29.211Z",
         "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
       }
     },

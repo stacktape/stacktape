@@ -195,7 +195,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
   // we need to go through environment variables and transform them to strings.
   // this is because some of the resolved directives could have resolved to i.e number which is not allowed when registering task definition
   (calculatedTaskDefinition.Properties.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
-    (containerDef.Environment as CfKeyValuePair[]).forEach((envVar) => {
+    (containerDef.Environment as CfKeyValuePair[] | undefined)?.forEach((envVar) => {
       envVar.Value = String(envVar.Value);
     });
   });
