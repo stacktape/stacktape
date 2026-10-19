@@ -11,6 +11,8 @@ export const capacityCost = (tasks: number, services = 1) => {
     releaseReads: tasks * (hours * 3600 + edits * 30 * 5),
     // Strong bootstrap read and bounded retry; no admission reads.
     bootstrapReads: starts * 2,
+    cliStatusReads: tasks * edits * 30 * 10,
+    deployReads: edits * 32 * services,
     // Four 4-KiB status writes per edit + startup, plus record/lock bookkeeping.
     writes: tasks * edits * 4 * 4 + starts * 4 + edits * 32 * services,
     kmsAsymmetricRequests: edits * 3 * services,
@@ -22,7 +24,7 @@ export const capacityCost = (tasks: number, services = 1) => {
     logGB: (tasks * edits * 10) / 1024 / 1024
   };
   const costs = {
-    dynamoReads: (counts.releaseReads + counts.bootstrapReads) * rr,
+    dynamoReads: (counts.releaseReads + counts.bootstrapReads + counts.cliStatusReads + counts.deployReads) * rr,
     dynamoWrites: counts.writes * wr,
     dynamoStorage: counts.statusGB * 0.283,
     signing: 1 + (counts.kmsAsymmetricRequests * 0.15) / 10000,

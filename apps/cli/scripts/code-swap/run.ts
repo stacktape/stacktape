@@ -901,7 +901,7 @@ const main = async () => {
         // Stacktape's bundler resolves import.meta.url at build time. Start the fixture's exported app explicitly.
         await writeFile(
           join(owned.directory, 'entry.mjs'),
-          "import { createApp } from './server.mjs'; const server = createApp().listen(Number(process.env.PORT), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
+          "import { createApp } from './server.mjs'; const server = createApp().listen(Number(process.env.PORT ?? 8080), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
         );
         owned.tableAttempted = true;
         await save(join(directory, 'state.json'), state);
@@ -951,6 +951,11 @@ const main = async () => {
           await save(join(owned.directory, 'setup-traffic.json'), setupTraffic);
         }
 
+        if (process.argv.includes('--over-cap-only')) {
+          await qualifyOverCap(state, owned, run, url);
+          await cleanup(state, owned);
+          continue;
+        }
         const setupBusiness: Poll[] = [];
         const traffic: Poll[] = [];
         trafficPhase = 'baseline';
@@ -1105,7 +1110,8 @@ const main = async () => {
     process.argv.includes('--memory-fallback') ||
     process.argv.includes('--image-penalty-only') ||
     process.argv.includes('--lifecycle-only') ||
-    process.argv.includes('--cap-lifecycle')
+    process.argv.includes('--cap-lifecycle') ||
+    process.argv.includes('--over-cap-only')
   )
     return;
   const report = await analyzeBenchmark(

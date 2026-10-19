@@ -224,16 +224,19 @@ owned harness has exactly one service. It has no coordinator, stream, admission 
 
 ```sh
 STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --cap-lifecycle --phase3 --configurations 1024-1
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --over-cap-only --phase3 --configurations 1024-1
 STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --speed-only --regression --phase3 --configurations 1024-1
 ```
 
 The cap fixture seeds a committed overlay, then scales to ten tasks with maximumPercent 100 and
 minimumHealthyPercent 90. It tests delayed committed bootstrap, a missing bundle, replacement after CLI exit and
 all-unhealthy recovery. It then raises the maximum to eleven and verifies a real CLI image deploy with the cap reason.
-Preserve the synthesized template, lifecycle samples, fallback output and every failed run. `--lifecycle-only` runs the
-smaller two-task variant. `observe-discovery.ts <run-directory>` records actual Cloud Map filtering and public responses
-alongside a live run. The speed command runs twenty edits on one unchanged task, retains every request failure and fits
-AWS-side timestamps. It must meet p50 <=5 s, p95 <=15 s, max <=25 s and zero swap request failures.
+`--over-cap-only` exercises that image transition without repeating the ten-task scale-out. The application entrypoint
+defaults PORT to 8080 so the ordinary image also runs without the supervisor. Preserve the synthesized template,
+lifecycle samples, fallback output and every failed run. `--lifecycle-only` runs the smaller two-task variant.
+`observe-discovery.ts <run-directory>` records actual Cloud Map filtering and public responses alongside a live run. The
+speed command runs twenty edits on one unchanged task, retains every request failure and fits AWS-side timestamps. It
+must meet p50 <=5 s, p95 <=15 s, max <=25 s and zero swap request failures.
 
 The application grace and ECS timeout remain separate: `W=G`, `D=max(30,W)`, `T=max(60,D+G+2)`, `T<=120`. The 35-second
 drain sidecar has its own 40-second ECS timeout and stops before the supervisor. The supervisor then serves cached
@@ -252,12 +255,13 @@ not replace the matched image distributions. `cleanup-audit.ts <run-directory>` 
 ECS revision status, including DELETE_IN_PROGRESS. Legacy coordinator-resource checks exist solely to recover old runs.
 
 The [Ireland cost model](../../apps/cli/scripts/code-swap/cost.ts) reuses the archived 19 October regional rates and
-includes strong 4-KiB polling, bounded bootstrap reads, status writes, signing, S3 requests/retention and bounded logs.
-There are no coordinator invocations, streams, grants or alarms. At 730 hours, 100 edits/day, 100 starts/task-month,
-20-MiB bundles and 30 retained releases/service, the model estimates $1.72/month for one task, $6.13 for ten and $251.76
-for 500 pollers across 25 services. Account cost is the sum of stack budgets; no account-wide runtime registry is
-introduced for small dev/staging fleets. Administrator drift and external overlapping rollouts are outside this static
-bound. Measure actual request/retry counts before treating the model as a customer cost qualification.
+includes strong 4-KiB polling, bounded bootstrap and CLI status reads, status writes, signing, S3 requests/retention and
+bounded logs. There are no coordinator invocations, streams, grants or alarms. At 730 hours, 100 edits/day, 100
+starts/task-month, 20-MiB bundles and 30 retained releases/service, the model estimates $1.87/month for one task, $7.44
+for ten and $316.66 for 500 pollers across 25 services. Account cost is the sum of stack budgets; no account-wide
+runtime registry is introduced for small dev/staging fleets. Administrator drift and external overlapping rollouts are
+outside this static bound. Measure actual request/retry counts before treating the model as a customer cost
+qualification.
 
 Before the first publication exposing code swap, ship the pinned supervisor/SBOM, cap/readiness/stop template, protected
 record policies and runner permissions together. The existing private v4 launch action owns publication timing. Complete
