@@ -161,7 +161,11 @@ const main = async () => {
       .services![0]!;
     const definition = (await ecs.send(new DescribeTaskDefinitionCommand({ taskDefinition: service.taskDefinition! })))
       .taskDefinition!;
-    const container = definition.containerDefinitions![0]!;
+    const container = definition.containerDefinitions?.find(
+      (c) => c.essential && c.portMappings?.some((p) => p.containerPort === 8080)
+    );
+    if (!container?.name || !container.logConfiguration?.options?.['awslogs-group'])
+      throw new Error('Qualification application container or its log group is missing.');
     const url = await endpoint(owned);
     // Keep the service task's exact ID and immutable definition; no readiness/admission machinery is added.
     const reports: Record<string, unknown> = {};
@@ -247,8 +251,11 @@ const main = async () => {
           if (found?.lastStatus === 'STOPPED' && parsed.at(-1) && ['passed', 'failed'].includes(parsed.at(-1).state))
             reports[task.scenario] = {
               ...parsed.at(-1),
-              state: found.containers?.[0]?.exitCode === 0 ? parsed.at(-1).state : 'failed',
-              exitCode: found.containers?.[0]?.exitCode,
+              state:
+                found.containers?.find((c) => c.name === container.name)?.exitCode === 0
+                  ? parsed.at(-1).state
+                  : 'failed',
+              exitCode: found.containers?.find((c) => c.name === container.name)?.exitCode,
               stoppedReason: found.stoppedReason
             };
         }
