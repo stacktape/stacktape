@@ -1100,7 +1100,8 @@ const main = async () => {
   if (
     process.argv.includes('--memory-fallback') ||
     process.argv.includes('--image-penalty-only') ||
-    process.argv.includes('--lifecycle-only')
+    process.argv.includes('--lifecycle-only') ||
+    process.argv.includes('--cap-lifecycle')
   )
     return;
   const report = await analyzeBenchmark(
