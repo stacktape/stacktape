@@ -704,7 +704,7 @@ Lambda functions also support log forwarding to external services (HTTP endpoint
 
 ### Alarms
 
-Lambda function alarms support `lambda-error-rate` and `lambda-duration` triggers. Function-specific alarms are merged with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarms from a function.
+Lambda function alarms support `lambda-error-rate` and `lambda-duration` triggers. Define alarms in the function config and deploy to apply changes. Existing legacy Console rules can be [exported into config](/observability/alarms#migrating-legacy-console-alarm-rules); `disabledGlobalAlarms` excludes named legacy rules during migration.
 
 
 Example (TypeScript):

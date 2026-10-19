@@ -47,6 +47,10 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [dev](/cli/dev) - source: apps/docs/content/cli/dev.mdx
 - [diff](/cli/diff) - source: apps/docs/content/cli/diff.mdx
 - [domain:add](/cli/domain-add) - source: apps/docs/content/cli/domain-add.mdx
+- [errors:ignore](/cli/errors-ignore) - source: apps/docs/content/cli/errors-ignore.mdx
+- [errors:list](/cli/errors-list) - source: apps/docs/content/cli/errors-list.mdx
+- [errors:reopen](/cli/errors-reopen) - source: apps/docs/content/cli/errors-reopen.mdx
+- [errors:resolve](/cli/errors-resolve) - source: apps/docs/content/cli/errors-resolve.mdx
 - [help](/cli/help) - source: apps/docs/content/cli/help.mdx
 - [incidents:ack](/cli/incidents-ack) - source: apps/docs/content/cli/incidents-ack.mdx
 - [incidents:resolve](/cli/incidents-resolve) - source: apps/docs/content/cli/incidents-resolve.mdx
@@ -58,10 +62,6 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [info:stacks](/cli/info-stacks) - source: apps/docs/content/cli/info-stacks.mdx
 - [info:whoami](/cli/info-whoami) - source: apps/docs/content/cli/info-whoami.mdx
 - [init](/cli/init) - source: apps/docs/content/cli/init.mdx
-- [issues:ignore](/cli/issues-ignore) - source: apps/docs/content/cli/issues-ignore.mdx
-- [issues:list](/cli/issues-list) - source: apps/docs/content/cli/issues-list.mdx
-- [issues:reopen](/cli/issues-reopen) - source: apps/docs/content/cli/issues-reopen.mdx
-- [issues:resolve](/cli/issues-resolve) - source: apps/docs/content/cli/issues-resolve.mdx
 - [login](/cli/login) - source: apps/docs/content/cli/login.mdx
 - [logout](/cli/logout) - source: apps/docs/content/cli/logout.mdx
 - [logs](/cli/logs) - source: apps/docs/content/cli/logs.mdx
@@ -134,9 +134,9 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Alarms](/observability/alarms) - source: apps/docs/content/observability/alarms.mdx
 - [Alert Channels](/observability/alert-channels) - source: apps/docs/content/observability/alert-channels.mdx
 - [Alert History](/observability/alert-history) - source: apps/docs/content/observability/alert-history.mdx
+- [Error tracking](/observability/error-tracking) - source: apps/docs/content/observability/error-tracking.mdx
 - [AI Assessment, Investigation and Fixes](/observability/incident-ai) - source: apps/docs/content/observability/incident-ai.mdx
 - [Incidents](/observability/incidents) - source: apps/docs/content/observability/incidents.mdx
-- [Error tracking](/observability/issues) - source: apps/docs/content/observability/issues.mdx
 - [Log Forwarding](/observability/log-forwarding) - source: apps/docs/content/observability/log-forwarding.mdx
 - [Logs](/observability/logs) - source: apps/docs/content/observability/logs.mdx
 - [Metrics](/observability/metrics) - source: apps/docs/content/observability/metrics.mdx
