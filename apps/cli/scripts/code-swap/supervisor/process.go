@@ -69,6 +69,46 @@ func (u *generation) members() (map[int]processInfo, error) {
 	// Membership is registered at kernel fork events before either process can
 	// run on. Do not infer ownership from a reusable pgid or from orphan adoption.
 
+	if !u.traced.Load() {
+		// While idle, track the live process group and descendants. Exact start
+		// times prevent PID reuse; candidates use kernel fork-event ownership.
+		known := map[int]processInfo{}
+		for pid, start := range u.membership {
+			if p, ok := processAt(pid); ok && p.start == start {
+				known[pid] = p
+			}
+		}
+		groupAlive := false
+		for _, p := range known {
+			if p.group == u.pid {
+				groupAlive = true
+			}
+		}
+		entries, _ := os.ReadDir("/proc")
+		all := map[int]processInfo{}
+		for _, entry := range entries {
+			pid, err := strconv.Atoi(entry.Name())
+			if err != nil {
+				continue
+			}
+			if p, ok := processAt(pid); ok {
+				all[pid] = p
+			}
+		}
+		for changed := true; changed; {
+			changed = false
+			for pid, p := range all {
+				if _, ok := known[pid]; ok {
+					continue
+				}
+				if _, parent := known[p.parent]; parent || (groupAlive && p.group == u.pid) {
+					known[pid] = p
+					u.membership[pid] = p.start
+					changed = true
+				}
+			}
+		}
+	}
 	out := map[int]processInfo{}
 	var err error
 	for pid, start := range u.membership {
@@ -81,10 +121,15 @@ func (u *generation) members() (map[int]processInfo, error) {
 			if p.zombie && p.parent == os.Getpid() && pid != u.pid {
 				var status syscall.WaitStatus
 				if reaped, _ := syscall.Wait4(pid, &status, syscall.WNOHANG, nil); reaped == pid {
+					delete(u.membership, pid)
 					continue
 				}
 			}
 			out[pid] = p
+		} else {
+			// A missing or reused PID can never become this member again. Keep
+			// zombies until their final wait, but bound work by live membership.
+			delete(u.membership, pid)
 		}
 	}
 	return out, err
