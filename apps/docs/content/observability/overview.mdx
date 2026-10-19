@@ -7,7 +7,7 @@ seoDescription: 'Monitor your AWS stack with Stacktape: CloudWatch logs, metrics
 
 # Observability Overview
 
-Stacktape surfaces logs, metrics, alarms, and issues through the CLI and Console — reading from the same AWS CloudWatch data your stack produces. Alert channels, notifications, and alert history organize delivery routing and alert records in the Stacktape Console. Error tracking (the Console's Error tracking page) is on for every stage by default and is wired into each stack during deployment.
+Stacktape surfaces logs, metrics, alarms, and issues through the CLI and Console — reading from the same AWS CloudWatch data your stack produces. In the Stacktape Console, each alert channel has rules that choose which events it receives, and Sent alerts records what was sent. Error tracking (the Console's Error tracking page) is on for every stage by default and is wired into each stack during deployment.
 
 ## Observability surfaces
 
@@ -24,7 +24,7 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 | [Incidents](/observability/incidents) | [`stacktape incidents`](/cli/incidents) and lifecycle commands | Correlated incident queue and evidence | — |
 | [Error tracking](/observability/issues) | [`stacktape issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), [`issues:reopen`](/cli/issues-reopen) | Error inbox with grouping and occurrence counts | On by default; `deploymentConfig.issues` turns it off or limits stages |
 | [Alert channels](/observability/alert-channels) | — | Create and manage channels | See [Alert channels](/observability/alert-channels) |
-| [Notifications](/observability/notifications) | — | Notification rules for deployment events | — |
+| [Notification rules](/observability/notifications) | — | Which events each alert channel receives | — |
 | [Alert history](/observability/alert-history) | — | Unified log of all delivered alerts | — |
 | [Log forwarding](/observability/log-forwarding) | — | — | See [Log forwarding](/observability/log-forwarding) |
 
@@ -72,17 +72,17 @@ Channels deliver alerts to destinations such as Slack, email, or a webhook. For 
 
 For supported integration types, setup instructions, and authentication details, see [Alert channels](/observability/alert-channels).
 
-## Notifications
+## Notification rules
 
 Notification rules alert you when deployment lifecycle events happen — a deploy succeeds, fails, or is canceled. Each rule specifies which events to watch and which channel to deliver the alert to.
 
-Notifications are managed in the Stacktape Console. Each notification rule delivers to a configured alert channel.
+Notification rules are managed in the Stacktape Console, on the page of the alert channel they send to.
 
-For event types and scoping, see [Notifications](/observability/notifications).
+For event types and scoping, see [Notification rules](/observability/notifications).
 
-## Alert history
+## Sent alerts
 
-The Console keeps one log of the alerts it sends: incident pages, deploy and change notifications, and budget alerts. Use Alert history to see every alert your organization was sent and whether it reached its channels.
+The Console keeps one log of the alerts it sends: incidents, deploy and change notifications, and budget alerts. Use [Sent alerts](/observability/alert-history) to see every alert your organization was sent and whether it reached its channels.
 
 Stacktape also maintains separate focused histories:
 
@@ -113,7 +113,7 @@ The CLI debug commands are designed for ad-hoc investigation — you're debuggin
 - You want alarm rules that apply across projects and stages
 - You need to monitor alarm state across your organization
 - You want to manage issues as a team
-- You need alert history and delivery audit trails
+- You need a record of sent alerts and whether they were delivered
 - You're setting up notification routing for deployment events
 
 Both work against the same underlying CloudWatch data and Stacktape issue store. They're complementary, not competing.
