@@ -7,6 +7,7 @@ import {
 import {
   DynamoDBClient,
   CreateTableCommand,
+  PutItemCommand,
   DescribeTableCommand,
   DeleteTableCommand,
   ListTagsOfResourceCommand
@@ -38,6 +39,13 @@ import { randomBytes } from 'node:crypto';
 import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { capacityResources } from './capacity/template';
+import { qualifyLiveCapacity } from './live-capacity';
+import { qualifyLifecycle } from './lifecycle';
+import { buildCapacity } from './build-capacity';
+import { LambdaClient, GetFunctionCommand, ListEventSourceMappingsCommand } from '@aws-sdk/client-lambda';
+import { EventBridgeClient, DescribeRuleCommand } from '@aws-sdk/client-eventbridge';
+import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
 import { buildSupervisor } from './build-supervisor';
 import { analyzeBenchmark, calibrateClock } from './analyze';
 import { hostClockMs } from './trace';
@@ -62,6 +70,8 @@ type Owned = {
   repository: string;
   directory: string;
   stackId?: string;
+  phase3?: boolean;
+  streamArn?: string;
   tableAttempted?: boolean;
   stackAttempted?: boolean;
   cleaned?: boolean;
@@ -197,6 +207,8 @@ const cliArgs = (state: State, owned: Owned, command: string) => [
   'jsonl',
   '--autoConfirmOperation'
 ];
+export const isPendingTaskRole = (error: unknown) =>
+  error instanceof Error && /^NoSuchEntity(?:Exception)?$/.test(error.name);
 const guard = async () => {
   assert(
     process.env.STP_CODE_SWAP_BENCH_LIVE === '1',
@@ -448,6 +460,38 @@ const cleanup = async (state: State, owned: Owned) => {
       );
     }
   }
+  if (owned.phase3) {
+    const lambda = new LambdaClient(clients),
+      events = new EventBridgeClient(clients),
+      iam = new IAMClient(clients);
+    const functionName = `${owned.name}-capacity`;
+    const mappings = await lambda.send(new ListEventSourceMappingsCommand({ FunctionName: functionName }));
+    assert(!mappings.EventSourceMappings?.length, 'Owned capacity stream mapping remains.');
+    for (const check of [
+      () => lambda.send(new GetFunctionCommand({ FunctionName: functionName })),
+      ...(owned.inventory ?? [])
+        .filter((item) => item.type === 'AWS::Events::Rule' && item.id.includes('SwapCapacity'))
+        .map((item) => () => events.send(new DescribeRuleCommand({ Name: item.id }))),
+      ...(owned.inventory ?? [])
+        .filter((item) => item.type === 'AWS::IAM::Role' && item.id.includes('SwapCapacity'))
+        .map((item) => () => iam.send(new GetRoleCommand({ RoleName: item.id })))
+    ]) {
+      let absent = false;
+      try {
+        await check();
+      } catch (error) {
+        if (missing(error) || /NoSuchEntity/.test(String(error))) absent = true;
+        else throw error;
+      }
+      assert(absent, 'Owned capacity function/rule/role remains.');
+    }
+    await save(join(owned.directory, 'capacity-cleanup.json'), {
+      verified: true,
+      functionName,
+      streamMappingsAbsent: true,
+      ownedRuleAndRoleAbsent: true
+    });
+  }
   const images = Bun.spawn(['docker', 'image', 'ls', '--format', '{{json .}}'], { stdout: 'pipe', stderr: 'inherit' });
   const localImages = (await new Response(images.stdout).text())
     .trim()
@@ -476,13 +520,50 @@ const cleanup = async (state: State, owned: Owned) => {
   });
 };
 const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
+  const stackName = `${owned.name}-bench`;
+  const cluster = `arn:aws:ecs:${REGION}:${ACCOUNT}:cluster/${awsResourceNames.ecsCluster('api', stackName)}`;
   const config = {
+    ...(owned.phase3
+      ? {
+          cloudformationResources: capacityResources({
+            tableArn: `arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${owned.table}`,
+            streamArn: owned.streamArn!,
+            tableName: owned.table,
+            clusterArn: cluster,
+            functionName: `${owned.name}-capacity`,
+            codeBucket: owned.bucket,
+            codeKey: 'code-swap/capacity.zip'
+          })
+        }
+      : {}),
     projectName: owned.name,
     resources: {
       api: {
         type: 'web-service',
         overrides: {
-          [cfLogicalNames.ecsService('api', false)]: { DesiredCount: count },
+          [cfLogicalNames.ecsService('api', false)]: {
+            DesiredCount: count,
+            ...(owned.phase3
+              ? {
+                  'DeploymentConfiguration.MinimumHealthyPercent': 100,
+                  'DeploymentConfiguration.MaximumPercent': 200,
+                  ServiceName: awsResourceNames.ecsService('api', stackName, false)
+                }
+              : {})
+          },
+          ...(owned.phase3
+            ? {
+                [cfLogicalNames.ecsTaskDefinition('api')]: {
+                  'ContainerDefinitions.0.Environment': [
+                    {
+                      Name: 'STP_BENCH_ROLE_ID',
+                      Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole('api'), 'RoleId'] }
+                    },
+                    { Name: 'STP_BENCH_ADMISSION', Value: '1' }
+                  ]
+                }
+              }
+            : {}),
           [cfLogicalNames.httpApiStage('api')]: {
             'AccessLogSettings.Format': JSON.stringify({
               requestId: '$context.requestId',
@@ -500,12 +581,36 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
             properties: { entryfilePath: 'entry.mjs', nodeVersion: 22, disableSourceMaps: true }
           },
           resources: { cpu: 0.25, memory },
-          scaling: { minInstances: count, maxInstances: count },
+          scaling: {
+            minInstances: count,
+            maxInstances: process.argv.includes('--capacity-only') ? 150 : owned.phase3 ? 2 : count
+          },
           iamRoleStatements: [
             {
               Effect: 'Allow',
-              Action: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-              Resource: [`arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${owned.table}`]
+              Action: ['dynamodb:GetItem'],
+              Resource: [`arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${owned.table}`],
+              ...(owned.phase3
+                ? {
+                    Condition: {
+                      'ForAllValues:StringEquals': {
+                        'dynamodb:LeadingKeys': ['release#node', 'admission#node#${aws:userid}']
+                      }
+                    }
+                  }
+                : {})
+            },
+            {
+              Effect: 'Allow',
+              Action: ['dynamodb:PutItem'],
+              Resource: [`arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${owned.table}`],
+              ...(owned.phase3
+                ? {
+                    Condition: {
+                      'ForAllValues:StringEquals': { 'dynamodb:LeadingKeys': ['status#node#${aws:userid}'] }
+                    }
+                  }
+                : {})
             },
             { Effect: 'Allow', Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${owned.bucket}/code-swap/*`] }
           ]
@@ -748,7 +853,8 @@ const main = async () => {
           table: `${name}-control`,
           bucket: awsResourceNames.deploymentBucket(stackHash),
           repository: awsResourceNames.deploymentEcrRepo(stackHash),
-          directory: join(directory, `${memory}-${count}`)
+          directory: join(directory, `${memory}-${count}`),
+          phase3: process.argv.includes('--phase3')
         };
         state.resources.push(owned);
         await mkdir(owned.directory, { recursive: true });
@@ -775,7 +881,6 @@ const main = async () => {
           join(owned.directory, 'entry.mjs'),
           "import { createApp } from './server.mjs'; const server = createApp().listen(Number(process.env.PORT), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
         );
-        await configure(owned, memory, count);
         owned.tableAttempted = true;
         await save(join(directory, 'state.json'), state);
         await ddb.send(
@@ -784,6 +889,9 @@ const main = async () => {
             KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
             AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
             BillingMode: 'PAY_PER_REQUEST',
+            ...(owned.phase3
+              ? { StreamSpecification: { StreamEnabled: true, StreamViewType: 'NEW_AND_OLD_IMAGES' as const } }
+              : {}),
             Tags: [{ Key: 'code-swap-benchmark-owner', Value: owner }]
           })
         );
@@ -792,11 +900,20 @@ const main = async () => {
             break;
           await Bun.sleep(1000);
         }
+        if (owned.phase3) {
+          owned.streamArn = (
+            await ddb.send(new DescribeTableCommand({ TableName: owned.table }))
+          ).Table!.LatestStreamArn!;
+          await buildCapacity(owned.directory);
+          await save(join(directory, 'state.json'), state);
+        }
+        await configure(owned, memory, count);
         const run: BenchmarkRun = {
           name,
           owner,
           table: owned.table,
           mode: 'swap',
+          phase3: owned.phase3,
           supervisor: state.supervisor,
           result: join(owned.directory, 'setup-result.json'),
           memory,
@@ -806,9 +923,77 @@ const main = async () => {
         await save(runFile, run);
         owned.stackAttempted = true;
         await save(join(directory, 'state.json'), state);
-        await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'setup.log'), {
+        let setupFailed = false;
+        const deploy = invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'setup.log'), {
           STP_CODE_SWAP_BENCH_RUN: runFile
+        }).catch((error) => {
+          setupFailed = true;
+          throw error;
         });
+        const initializePlan = async () => {
+          if (!owned.phase3) return;
+          const stackName = `${owned.name}-bench`;
+          const cluster = `arn:aws:ecs:${REGION}:${ACCOUNT}:cluster/${awsResourceNames.ecsCluster('api', stackName)}`;
+          for (let i = 0; i < 180; i++) {
+            if (setupFailed) return;
+            // During CREATE/UPDATE, DescribeStackResources can still show the
+            // previous artifact-only template. Resolve the named task role
+            // directly; waiting for CFN completion would deadlock admission.
+            const role = awsResourceNames.containerWorkloadRole(stackName, REGION, 'api');
+            if (role) {
+              const resolvedRole = await new IAMClient(clients)
+                .send(new GetRoleCommand({ RoleName: role }))
+                .catch((error) => {
+                  if (isPendingTaskRole(error)) return undefined;
+                  throw error;
+                });
+              if (!resolvedRole) {
+                await Bun.sleep(2000);
+                continue;
+              }
+              const roleId = resolvedRole.Role!.RoleId!;
+              const plan = {
+                version: 'phase3-1',
+                deleting: false,
+                account: ACCOUNT,
+                region: REGION,
+                services: {
+                  node: {
+                    cluster,
+                    serviceArn: `arn:aws:ecs:${REGION}:${ACCOUNT}:service/${awsResourceNames.ecsCluster('api', stackName)}/${awsResourceNames.ecsService('api', stackName, false)}`,
+                    roleId,
+                    start: 0,
+                    slots: process.argv.includes('--capacity-only') ? 450 : 6
+                  }
+                }
+              };
+              await ddb.send(
+                new PutItemCommand({
+                  TableName: owned.table,
+                  Item: {
+                    pk: { S: 'capacity#plan' },
+                    data: { S: JSON.stringify(plan) },
+                    version: { S: plan.version },
+                    deleting: { BOOL: false }
+                  }
+                })
+              );
+              return;
+            }
+            await Bun.sleep(2000);
+          }
+          throw new Error('Capacity plan role bootstrap never completed.');
+        };
+        const setup = await Promise.allSettled([
+          deploy,
+          initializePlan().catch((error) => {
+            console.error(
+              JSON.stringify({ capacityPlanBootstrapFailure: error instanceof Error ? error.name : 'unknown' })
+            );
+            throw error;
+          })
+        ]);
+        for (const item of setup) if (item.status === 'rejected') throw item.reason;
         const stack = await ownedStack(owned);
         owned.stackId = stack!.StackId;
         await save(join(directory, 'state.json'), state);
@@ -835,7 +1020,34 @@ const main = async () => {
         try {
           await Bun.sleep(10000);
           await business(url, setupBusiness);
-          if (process.argv.includes('--memory-fallback')) {
+          if (process.argv.includes('--lifecycle-only') || process.argv.includes('--capacity-admission-only')) {
+            run.mode = 'swap';
+            await edit(state, owned, run, url, 1);
+          } else if (process.argv.includes('--image-penalty-only')) {
+            assert(owned.phase3, 'Image readiness control requires the owned phase3 harness.');
+            run.mode = 'image';
+            const controls = [];
+            for (const [index, checked] of [false, true].entries()) {
+              run.readinessControl = checked;
+              const outcome = await edit(state, owned, run, url, 101 + index);
+              const polls: Poll[] = JSON.parse(
+                await readFile(join(owned.directory, `${outcome.label}-polls.json`), 'utf8')
+              );
+              const clock = calibrateClock(polls, 3000);
+              controls.push({
+                checked,
+                outcome,
+                clock,
+                allServingSeconds: outcome.allMs! / clock.rate / 1000,
+                cliExitSeconds: outcome.exitMs! / clock.rate / 1000
+              });
+            }
+            await save(join(directory, 'image-readiness-penalty.json'), {
+              scope: 'One paired image control, same admission/drain/app/CLI; no Phase1 distribution claim',
+              controls,
+              addedServingSeconds: controls[1]!.allServingSeconds - controls[0]!.allServingSeconds
+            });
+          } else if (process.argv.includes('--memory-fallback')) {
             assert(memory === 512 && count === 1, 'The memory fallback fixture requires 512-1.');
             const entry = join(owned.directory, 'entry.mjs');
             const source = await readFile(entry, 'utf8');
@@ -901,8 +1113,26 @@ const main = async () => {
             await save(join(owned.directory, `${name}.json`), events);
           }
         }
+        if (process.argv.includes('--capacity-only')) {
+          await qualifyLiveCapacity(owned, { clients, guard, save });
+        } else if (owned.phase3 && !process.argv.includes('--image-penalty-only')) {
+          const sample = await samplePublic(url, 0);
+          await qualifyLifecycle(owned, url, sample.revision, { clients, guard, save });
+        }
         await cleanup(state, owned);
       }
+  } catch (error) {
+    await save(join(directory, 'failure.json'), {
+      name: error instanceof Error ? error.name : 'unknown',
+      frames: error instanceof Error ? error.stack?.split('\n').slice(1) : undefined
+    });
+    console.error(
+      JSON.stringify({
+        benchmarkFailure: error instanceof Error ? error.name : 'unknown',
+        evidence: join(directory, 'failure.json')
+      })
+    );
+    throw error;
   } finally {
     const errors: unknown[] = [];
     for (const owned of state.resources) {
@@ -920,7 +1150,12 @@ const main = async () => {
       console.error(new AggregateError(errors, 'Benchmark cleanup incomplete'));
     }
   }
-  if (process.argv.includes('--memory-fallback')) return;
+  if (
+    process.argv.includes('--memory-fallback') ||
+    process.argv.includes('--image-penalty-only') ||
+    process.argv.includes('--lifecycle-only')
+  )
+    return;
   const report = await analyzeBenchmark(
     directory,
     process.argv.includes('--regression') ? selections : undefined,

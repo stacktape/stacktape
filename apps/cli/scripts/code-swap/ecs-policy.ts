@@ -3,7 +3,11 @@ import { z } from 'zod';
 import type { StpContainerWorkload } from '../../src/domain/config-manager/resolved-types/multi-container-workloads';
 import { declaredCapacity, supervisorHealthCheck, supervisorStopBudget } from './ecs-budget';
 
-const phase3Run = z.object({ phase3: z.boolean().optional() });
+const phase3Run = z.object({
+  phase3: z.boolean().optional(),
+  mode: z.enum(['swap', 'image']).optional(),
+  readinessControl: z.boolean().optional()
+});
 export const benchmarkHasPhase3 = () => {
   const path = process.env.STP_CODE_SWAP_BENCH_RUN;
   return Boolean(path && phase3Run.parse(JSON.parse(readFileSync(path, 'utf8'))).phase3);
@@ -24,8 +28,11 @@ export const benchmarkContainerPolicy = (
   declaredCapacity([
     { name: workload.name, maximum: workload.scaling.maxInstances, maximumPercent: 200, minimumHealthyPercent: 100 }
   ]);
+  const run = phase3Run.parse(JSON.parse(readFileSync(process.env.STP_CODE_SWAP_BENCH_RUN!, 'utf8')));
+  if (run.readinessControl === false && run.mode !== 'image')
+    throw new Error('Unchecked readiness control is image-only.');
   return {
-    HealthCheck: supervisorHealthCheck,
+    HealthCheck: run.readinessControl === false ? undefined : supervisorHealthCheck,
     StopTimeout: supervisorStopBudget(container.stopTimeout).stopTimeout,
     LinuxParameters: { InitProcessEnabled: true }
   };

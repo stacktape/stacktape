@@ -31,3 +31,39 @@ test('declared maxima, surge and stopping generation fit before opt-in', () => {
   expect(() => declaredCapacity([{ ...service(1), minimumHealthyPercent: 0 }])).toThrow();
   expect(() => declaredCapacity([service(1, 150)])).toThrow();
 });
+
+test('the benchmark can compare image readiness while swaps always retain the ECS gate', async () => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { benchmarkContainerPolicy } = await import('./ecs-policy');
+  const directory = await mkdtemp(join(tmpdir(), 'swap-readiness-control-'));
+  const path = join(directory, 'run.json');
+  const previous = process.env.STP_CODE_SWAP_BENCH_RUN;
+  const container = { name: 'app', packaging: { type: 'js-bundle' } } as Parameters<typeof benchmarkContainerPolicy>[1];
+  const workload = { name: 'api', containers: [container], resources: {}, scaling: { maxInstances: 2 } } as Parameters<
+    typeof benchmarkContainerPolicy
+  >[0];
+  try {
+    process.env.STP_CODE_SWAP_BENCH_RUN = path;
+    await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap' }));
+    expect(benchmarkContainerPolicy(workload, container).HealthCheck?.Command).toEqual([
+      'CMD',
+      '/stacktape-supervisor',
+      'readiness'
+    ]);
+    await writeFile(path, JSON.stringify({ phase3: true, mode: 'image', readinessControl: false }));
+    expect(benchmarkContainerPolicy(workload, container).HealthCheck).toBeUndefined();
+    expect(benchmarkContainerPolicy(workload, container).StopTimeout).toBe(60);
+    await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap', readinessControl: false }));
+    expect(() => benchmarkContainerPolicy(workload, container)).toThrow('image-only');
+    await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap' }));
+    expect(() =>
+      benchmarkContainerPolicy({ ...workload, scaling: { ...workload.scaling, maxInstances: 151 } }, container)
+    ).toThrow('declared slots');
+  } finally {
+    if (previous === undefined) delete process.env.STP_CODE_SWAP_BENCH_RUN;
+    else process.env.STP_CODE_SWAP_BENCH_RUN = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});

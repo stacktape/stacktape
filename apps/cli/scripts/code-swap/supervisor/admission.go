@@ -38,6 +38,9 @@ func acquireAdmission() error {
 		if err == nil {
 			var result struct{ Item map[string]map[string]string }
 			err = awsJSONContext(ctx, "dynamodb", "DynamoDB_20120810.GetItem", map[string]any{"TableName": table, "Key": map[string]any{"pk": map[string]string{"S": grantKey}}, "ConsistentRead": true}, &result)
+			if err == nil && result.Item["refusal"]["S"] == "poller_capacity_exceeded" {
+				return fmt.Errorf("poller_capacity_exceeded: protected startup capacity is full")
+			}
 			if err == nil && result.Item["data"]["S"] != "" {
 				var grant struct {
 					Owner, Task string

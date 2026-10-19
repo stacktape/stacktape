@@ -709,9 +709,10 @@ func main() {
 		case <-time.After(time.Duration(r.BootstrapDelayS) * time.Second):
 		}
 	}
-    if r.BootstrapDelayS>0 {
-        ioDeadline:=time.Now().Add(60*time.Second);bootstrapDeadline.Store(&ioDeadline)
-    }
+	if r.BootstrapDelayS > 0 {
+		ioDeadline := time.Now().Add(60 * time.Second)
+		bootstrapDeadline.Store(&ioDeadline)
+	}
 	// Refuse unsupported protection before executing any application; no unsafe score approximation.
 	must(score(os.Getpid(), -998))
 	if r.Revision != "" && r.Phase == "commit" {
