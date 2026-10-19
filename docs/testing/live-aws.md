@@ -239,9 +239,10 @@ Lifetime ptrace imposes fork/signal latency and prevents external debugger attac
 candidates through preparation and overlap, then detaches after old-tree reaping and OOM-score restoration. Baseline and
 committed bootstrap use ordinary process waits. Denied ptrace refuses candidate execution and leaves the checked image
 baseline serving for image repair. Worker SIGKILL attribution is available during candidate overlap; idle descendant
-discovery uses process-group/parent membership and start identities. Qualification must cover its late-fork/leader-exit
-limits before customer enablement. A leader that keeps answering while its workers exit without SIGKILL remains an
-explicit deferred B3 clause; an authored check that reaches those workers is the eventual remedy.
+discovery uses process-group/parent membership and start identities. An idle worker killed and reaped by its application
+can also lose SIGKILL attribution; a census does not recover its wait status. Qualification must cover its
+late-fork/leader-exit limits before customer enablement. A leader that keeps answering while its workers exit without
+SIGKILL remains an explicit deferred B3 clause; an authored check that reaches those workers is the eventual remedy.
 
 For a local diagnostic of tracer overhead alone, run `STP_MEASURE_TRACE=1 go test -run '^TestTraceOverhead$' -v` in the
 pinned Go builder against the supervisor sources. It compares direct, lifetime-traced and detached HTTP fixtures with
