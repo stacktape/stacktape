@@ -32,7 +32,8 @@ func applyBundle(data []byte, digest string, size int64, destination string) (er
 		return err
 	}
 	defer gz.Close()
-	tr := tar.NewReader(io.LimitReader(gz, 128*1024*1024+1))
+	expanded := &io.LimitedReader{R: gz, N: 128*1024*1024 + 1}
+	tr := tar.NewReader(expanded)
 	names := map[string]bool{}
 	var total int64
 	for {
@@ -74,10 +75,13 @@ func applyBundle(data []byte, digest string, size int64, destination string) (er
 		}
 	}
 	// Consume the gzip trailer as well: a valid tar inside corrupt gzip must never execute.
-	if _, err := io.Copy(io.Discard, gz); err != nil {
+	if _, err := io.Copy(io.Discard, expanded); err != nil {
 		return err
 	}
-	if !names["index.mjs"] {
+	if expanded.N <= 0 {
+		return fmt.Errorf("expanded archive too large")
+	}
+	if !names["index.mjs"] && !names["index.js"] {
 		return fmt.Errorf("missing Node entrypoint")
 	}
 	return os.Rename(staging, destination)

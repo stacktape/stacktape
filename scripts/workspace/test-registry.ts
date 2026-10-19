@@ -27,6 +27,40 @@ export type Slice = {
 
 export const lanes: readonly Lane[] = [
   {
+    id: 'code-swap-build-boundary',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'scripts/code-swap/build-cli.spec.ts',
+      'scripts/code-swap/analyze.spec.ts',
+      'scripts/code-swap/transport.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/code-swap/build-cli.spec.ts',
+      'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/transport.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'The ordinary CLI build cannot activate the unsigned benchmark path.'
+  },
+  {
+    id: 'code-swap-live-benchmark',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/run.ts'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/code-swap/run.ts'],
+    requires: ['docker', 'aws', 'network'],
+    release: 'affected-external-contract',
+    proves: 'Real source CLI edits and matched image deployments pass the measured Node serving gate.'
+  },
+  {
     id: 'code-swap-artifacts',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'exec', 'bun', 'test', 'src/artifact/code-swap.test.ts'],
     level: 'focused',
@@ -3462,9 +3496,13 @@ export const slices: readonly Slice[] = [
     tests: [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',
-      'apps/cli/scripts/code-swap/supervisor/archive_test.go'
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/build-cli.spec.ts',
+      'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/run.ts'
     ],
-    lanes: ['code-swap-artifacts', 'code-swap-supervisor']
+    lanes: ['code-swap-artifacts', 'code-swap-supervisor', 'code-swap-build-boundary', 'code-swap-live-benchmark']
   },
   {
     id: 'S01',
