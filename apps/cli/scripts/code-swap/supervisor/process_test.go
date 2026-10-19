@@ -104,7 +104,7 @@ func TestUnverifiedReapKeepsHealthyTaskAndBlocksFallback(t *testing.T) {
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
-			u := &generation{cmd: cmd, pid: cmd.Process.Pid, revision: "failed", membership: map[int]string{}}
+			u := &generation{cmd: cmd, pid: cmd.Process.Pid, revision: "failed", membership: map[int]string{cmd.Process.Pid: processes()[cmd.Process.Pid].start}}
 			healthy := &generation{revision: "healthy"}
 			current.Store(healthy)
 			timing := map[string]any{}
@@ -147,4 +147,25 @@ func TestStopDuringFailureLeavesTreesForShutdown(t *testing.T) {
 	if current.Load() != u || oldGeneration.Load() != old {
 		t.Fatal("shutdown tree ownership lost")
 	}
+}
+
+func TestReusedGroupIsNotSignaled(t *testing.T) {
+	cmd := exec.Command("sleep", "30")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Process.Kill()
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	u := &generation{pid: cmd.Process.Pid, membership: map[int]string{cmd.Process.Pid: "previous-start-time"}}
+	u.exited.Store(true)
+	u.signal(syscall.SIGTERM)
+	select {
+	case err := <-done:
+		t.Fatalf("signaled reused process group: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	cmd.Process.Kill()
+	<-done
 }

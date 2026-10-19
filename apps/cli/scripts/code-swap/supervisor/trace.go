@@ -37,6 +37,7 @@ func (u *generation) startTraced() error {
 		gate.Close()
 		leader := u.cmd.Process.Pid
 		u.pid = leader
+		u.membership[leader] = processes()[leader].start
 		options := syscall.PTRACE_O_TRACEFORK | syscall.PTRACE_O_TRACEVFORK | syscall.PTRACE_O_TRACECLONE | syscall.PTRACE_O_TRACEEXIT | 0x100000 // EXITKILL
 		_, _, errno := syscall.Syscall6(syscall.SYS_PTRACE, 0x4206, uintptr(leader), 0, uintptr(options), 0, 0)                                   // SEIZE
 		if errno != 0 {

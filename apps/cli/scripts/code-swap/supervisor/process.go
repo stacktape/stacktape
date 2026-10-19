@@ -88,8 +88,17 @@ func (u *generation) members() (map[int]processInfo, error) {
 	all := processes()
 	u.treeMu.Lock()
 	defer u.treeMu.Unlock()
+	// A group ID can outlive its leader and can later be reused. Discover new
+	// members only while an original, start-time-verified group member anchors it.
+	groupLive := false
+	for pid, start := range u.membership {
+		if p, ok := all[pid]; ok && p.start == start && p.group == u.pid {
+			groupLive = true
+			break
+		}
+	}
 	for pid, p := range all {
-		if p.group == u.pid {
+		if groupLive && p.group == u.pid {
 			u.membership[pid] = p.start
 		}
 	}
