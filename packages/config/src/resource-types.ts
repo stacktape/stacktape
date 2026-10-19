@@ -87,5 +87,11 @@ export const getPrettyResourceName = (resourceName: string) => {
     .replace('Bastion', 'Bastion (Jump Host)')
     .replace('Event Bus', 'Event Bus (EventBridge)')
     .replace('State Machine', 'State Machine')
-    .replace('Application Load', 'Load');
+    .replace('Application Load', 'Load')
+    .replace(/\bApi\b/g, 'API')
+    .replace('Http API', 'HTTP API')
+    .replace('Nextjs', 'Next.js')
+    .replace('Sveltekit', 'SvelteKit')
+    .replace('Solidstart', 'SolidStart')
+    .replace('Tanstack', 'TanStack');
 };
