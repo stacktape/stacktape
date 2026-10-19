@@ -138,6 +138,7 @@ Each OOM/lifetime-peak scenario gets a fresh container/task because a read-only 
 ```sh
 pnpm --filter @stacktape/cli exec bun scripts/code-swap/qualify.ts
 STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/live-runtime.ts
+pnpm --filter @stacktape/cli exec bun scripts/code-swap/artifact-consumer.ts
 STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --regression --configurations 1024-1
 ```
 
