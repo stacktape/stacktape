@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode, Ref } from 'react';
 import type {
   ActionMeta,
   ControlProps,
+  SingleValueProps,
   InputActionMeta,
   MenuPlacement,
   OptionProps,
@@ -21,6 +22,8 @@ export type SelectOption<Value = string | number> = {
   /** Plain text for filtering options whose visual label contains React elements. */
   searchText?: string;
   value: Value;
+  /** A shorter form for the closed control ("🇮🇪 eu-west-1"), when the menu label carries more ("… Europe (Ireland)"). */
+  valueLabel?: ReactNode;
   icon?: ReactNode;
   isDisabled?: boolean;
   isProminent?: boolean;
@@ -57,6 +60,11 @@ export type SelectProps<Value> = {
   style?: CSSProperties;
   width?: CSSProperties['width'];
   leading?: ReactNode;
+  /**
+   * A muted name drawn inside the control before its value ("Region  eu-west-1"), for selects in a toolbar where a
+   * label above would not fit. A preselected value alone does not say what the control chooses.
+   */
+  inlineLabel?: ReactNode;
   menuPlacement?: MenuPlacement;
   minMenuHeight?: number;
   maxMenuHeight?: number;
@@ -73,7 +81,8 @@ export type SelectProps<Value> = {
   hideDropdownIndicator?: boolean;
   breakOptionWord?: boolean;
   optionHeight?: number | string | undefined;
-  controlHeight?: number;
+  /** Defaults to the shared control height (`--stp-control-height`). */
+  controlHeight?: number | string;
   cursor?: CSSProperties['cursor'];
   inputRef?: Ref<SelectInstance<SelectOption<Value>, boolean>>;
   form?: string;
@@ -82,6 +91,7 @@ export type SelectProps<Value> = {
 type SelectPresentation = {
   breakOptionWord: boolean;
   leading?: ReactNode;
+  inlineLabel?: ReactNode;
   optionHeight?: number | string | undefined;
 };
 
@@ -92,13 +102,23 @@ const filterSelectOption = createFilter<SelectOption<unknown>>({
 });
 
 function SelectControl<Value>(controlProps: ControlProps<SelectOption<Value>, boolean>) {
-  const { leading } = useContext(SelectPresentationContext);
+  const { leading, inlineLabel } = useContext(SelectPresentationContext);
   return (
     <components.Control {...controlProps}>
       {leading ? <span className="stp-ui-select__leading">{leading}</span> : null}
+      {inlineLabel ? (
+        <span className="stp-ui-select__inline-label" aria-hidden="true">
+          {inlineLabel}
+        </span>
+      ) : null}
       {controlProps.children}
     </components.Control>
   );
+}
+
+function SelectSingleValue<Value>(singleValueProps: SingleValueProps<SelectOption<Value>, boolean>) {
+  const option = singleValueProps.data;
+  return <components.SingleValue {...singleValueProps}>{option.valueLabel ?? option.label}</components.SingleValue>;
 }
 
 function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Value>, boolean>) {
@@ -133,7 +153,7 @@ export function Select<Value>({
   breakOptionWord = false,
   className,
   closeMenuOnSelect,
-  controlHeight = 35,
+  controlHeight = 'var(--stp-control-height, 35px)',
   cursor = 'pointer',
   defaultValue,
   disabled = false,
@@ -144,6 +164,7 @@ export function Select<Value>({
   hideSelectedOptions,
   inputRef,
   inputValue,
+  inlineLabel,
   label,
   labelAddon,
   labelDetail,
@@ -175,14 +196,29 @@ export function Select<Value>({
   value,
   width
 }: SelectProps<Value>) {
-  const selectComponents = useMemo(() => ({ Control: SelectControl<Value>, Option: SelectOptionComponent<Value> }), []);
+  const selectComponents = useMemo(
+    () => ({
+      Control: SelectControl<Value>,
+      Option: SelectOptionComponent<Value>,
+      SingleValue: SelectSingleValue<Value>
+    }),
+    []
+  );
   const presentation = useMemo(
-    () => ({ breakOptionWord, leading, optionHeight }),
-    [breakOptionWord, leading, optionHeight]
+    () => ({ breakOptionWord, inlineLabel, leading, optionHeight }),
+    [breakOptionWord, inlineLabel, leading, optionHeight]
   );
   const styles = useMemo(
-    () => createStyles<Value>({ controlHeight, cursor, hideDropdownIndicator, multiple }),
-    [controlHeight, cursor, hideDropdownIndicator, multiple]
+    () =>
+      createStyles<Value>({
+        controlHeight,
+        cursor,
+        hasLeading: !!leading || !!inlineLabel,
+        hideDropdownIndicator,
+        multiple,
+        searchable
+      }),
+    [controlHeight, cursor, leading, inlineLabel, hideDropdownIndicator, multiple, searchable]
   );
 
   const select = (
@@ -265,6 +301,10 @@ export function Select<Value>({
  * react-select's own theme is blue (`#2684FF` focus and hover borders, light-blue option presses). Every colour the
  * styles below do not set falls back to this theme, so it holds palette neutrals instead.
  */
+/** The secondary button's rest and hover shadows (`.stp-ui-button--secondary`), for selects drawn as buttons. */
+const BUTTON_SHADOW_REST = '0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09)';
+const BUTTON_SHADOW_RAISED = '0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
+
 const neutralTheme = (theme: Theme): Theme => ({
   ...theme,
   colors: {
@@ -279,14 +319,22 @@ const neutralTheme = (theme: Theme): Theme => ({
 function createStyles<Value>({
   controlHeight,
   cursor,
+  hasLeading,
   hideDropdownIndicator,
-  multiple
+  multiple,
+  searchable
 }: {
-  controlHeight: number;
+  controlHeight: number | string;
   cursor: CSSProperties['cursor'];
+  hasLeading: boolean;
   hideDropdownIndicator: boolean;
   multiple: boolean;
+  searchable: boolean;
 }): StylesConfig<SelectOption<Value>, boolean> {
+  // A select you can type into is a field: recessed, like a text input. One you can only open is a button that opens
+  // a menu, so it wears the secondary button's surface and its rest, hover and focus shadows (the time range picker
+  // does the same).
+  const isButton = !searchable && !multiple;
   return {
     clearIndicator: (base) => ({
       ...base,
@@ -300,20 +348,27 @@ function createStyles<Value>({
       ...base,
       minHeight: controlHeight,
       height: multiple ? undefined : controlHeight,
-      padding: '0 6px',
+      // Content starts 14px in, where a text field's does, so icons, values and inset labels share one line.
+      padding: '0 6px 0 14px',
       // One border recipe with `TextField`: `--stp-field-border` is a colour there, so it is one here.
       // Longhands, because react-select's base already holds `borderColor` and spreading it first keeps
       // that key's position, so a `border` shorthand written here would land after it and reset it.
       borderStyle: 'solid',
       borderWidth: 1,
-      borderColor: state.isFocused
-        ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
-        : 'var(--stp-field-border, var(--stp-border-subtle))',
+      borderColor: isButton
+        ? 'transparent'
+        : state.isFocused
+          ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
+          : 'var(--stp-field-border, var(--stp-border-subtle))',
       borderRadius: 'var(--stp-field-radius, var(--stp-radius-large))',
-      background: 'var(--stp-field-background, var(--stp-surface-input))',
-      boxShadow: state.isFocused
-        ? 'var(--stp-field-shadow-focus, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 3px var(--stp-field-focus-ring))'
-        : 'var(--stp-field-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3))',
+      background: isButton ? 'var(--stp-control-surface)' : 'var(--stp-field-background, var(--stp-surface-input))',
+      boxShadow: isButton
+        ? state.isFocused
+          ? `${BUTTON_SHADOW_RAISED}, 0 0 0 3px var(--stp-field-focus-ring)`
+          : BUTTON_SHADOW_REST
+        : state.isFocused
+          ? 'var(--stp-field-shadow-focus, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 3px var(--stp-field-focus-ring))'
+          : 'var(--stp-field-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3))',
       cursor: state.isDisabled ? 'not-allowed' : cursor,
       // The same disabled look as `TextField`.
       opacity: state.isDisabled ? 0.6 : 1,
@@ -321,11 +376,18 @@ function createStyles<Value>({
         'border-color var(--stp-motion-duration-fast) var(--stp-motion-easing), box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing)',
       // Hover never replaces the focus border: a focused control keeps its ring under the pointer. The key is
       // `&:hover`, react-select's own, so this replaces its blue hover border instead of adding a second rule.
-      '&:hover': {
-        borderColor: state.isFocused
-          ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
-          : 'var(--stp-field-border-hover, var(--stp-field-hover-border))'
-      }
+      '&:hover': isButton
+        ? {
+            borderColor: 'transparent',
+            boxShadow: state.isFocused
+              ? `${BUTTON_SHADOW_RAISED}, 0 0 0 3px var(--stp-field-focus-ring)`
+              : BUTTON_SHADOW_RAISED
+          }
+        : {
+            borderColor: state.isFocused
+              ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
+              : 'var(--stp-field-border-hover, var(--stp-field-hover-border))'
+          }
     }),
     dropdownIndicator: (base, state) => ({
       ...base,
@@ -336,10 +398,14 @@ function createStyles<Value>({
       ':hover': { color: 'var(--stp-text-primary)' }
     }),
     indicatorSeparator: () => ({ display: 'none' }),
-    input: (base) => ({ ...base, color: 'var(--stp-text-primary)', margin: 0 }),
+    input: (base) => ({ ...base, color: 'var(--stp-text-primary)', margin: 0, paddingLeft: 0 }),
     menu: (base) => ({
       ...base,
       zIndex: 10001,
+      // As wide as the longest option (within reason), so a long project name in a 200px filter stays on one line.
+      width: 'max-content',
+      minWidth: '100%',
+      maxWidth: 'min(420px, var(--stp-select-menu-max-width, 420px))',
       marginBlock: 3,
       padding: 3,
       overflow: 'hidden',
@@ -349,7 +415,13 @@ function createStyles<Value>({
       boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45)'
     }),
     menuList: (base) => ({ ...base, padding: 0, color: 'var(--stp-text-primary)' }),
-    menuPortal: (base) => ({ ...base, zIndex: 10001 }),
+    // The menu may be wider than its control, but never past the window's right edge.
+    menuPortal: (base, { rect }) => ({
+      ...base,
+      zIndex: 10001,
+      ['--stp-select-menu-max-width' as string]:
+        typeof window === 'undefined' ? undefined : `${Math.max(rect.width, window.innerWidth - rect.left - 12)}px`
+    }),
     multiValue: (base) => ({
       ...base,
       margin: '1px 3px',
@@ -382,8 +454,9 @@ function createStyles<Value>({
       // A press keeps the hover fill instead of react-select's light-blue flash.
       ':active': { background: state.isSelected ? 'rgba(255, 255, 255, 0.09)' : 'rgba(255, 255, 255, 0.05)' }
     }),
-    placeholder: (base) => ({ ...base, color: 'var(--stp-text-faint)' }),
-    singleValue: (base) => ({ ...base, color: 'var(--stp-text-primary)' }),
-    valueContainer: (base) => ({ ...base, padding: '1px 6px' })
+    placeholder: (base) => ({ ...base, marginLeft: 0, color: 'var(--stp-text-faint)' }),
+    singleValue: (base) => ({ ...base, marginLeft: 0, color: 'var(--stp-text-primary)' }),
+    // Flush with the control's inset; after an icon or inline label, the same 8px gap a text field leaves.
+    valueContainer: (base) => ({ ...base, padding: hasLeading ? '1px 2px 1px 8px' : '1px 2px 1px 0' })
   };
 }
