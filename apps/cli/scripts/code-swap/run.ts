@@ -785,6 +785,10 @@ export const qualifyOverCap = async (state: State, owned: Owned, run: BenchmarkR
   const path = join(owned.directory, 'stacktape.json');
   const config = JSON.parse(await readFile(path, 'utf8'));
   config.resources.api.properties.scaling.maxInstances = 11;
+  // At desiredCount one and no surge, the image control must permit the old task to stop.
+  config.resources.api.overrides[cfLogicalNames.ecsService('api', false)][
+    'DeploymentConfiguration.MinimumHealthyPercent'
+  ] = 0;
   await save(path, config);
   const revision = `over-cap-${state.owner}`;
   await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = ${JSON.stringify(revision)};\n`);
