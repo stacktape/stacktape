@@ -4668,6 +4668,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J2'],
     paths: [
       'apps/cli/src/domain/deployment-artifact-manager/**',
+      'apps/cli/src/aws/ecr.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.ts',
       'packages/ministack/**',
@@ -4676,10 +4677,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
+      'apps/cli/src/aws/ecr.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/commands/_utils/source-map-manifest.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/source-maps.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/rollback-artifacts.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
     lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']

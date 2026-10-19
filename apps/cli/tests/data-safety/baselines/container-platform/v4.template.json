@@ -1754,6 +1754,23 @@
               }
             },
             "DependsOn": []
+          },
+          {
+            "Name": "stp-cloudmap-drain",
+            "Image": "977946299200.dkr.ecr.eu-west-1.amazonaws.com/932f0975-stp-multi-container-workload-repo@sha256:66a6306db78bf2dbf3487f293aa8d6990d8e506fdffab9cc43fe422becf886e4",
+            "Essential": false,
+            "Memory": 16,
+            "User": "65534",
+            "ReadonlyRootFilesystem": true,
+            "EntryPoint": ["/bin/sh", "-c"],
+            "Command": ["trap 'sleep 35; exit 0' TERM; while :; do sleep 1; done"],
+            "StopTimeout": 40,
+            "DependsOn": [
+              {
+                "ContainerName": "service-container",
+                "Condition": "START"
+              }
+            ]
           }
         ],
         "RuntimePlatform": {
