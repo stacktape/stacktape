@@ -1,21 +1,21 @@
-# issues:resolve
+# errors:resolve
 
-The `issues:resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`issues:ignore`](/cli/issues-ignore) instead.
+The `errors:resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`errors:ignore`](/cli/errors-ignore) instead.
 
 ## Usage
 
 ```bash
-stacktape issues:resolve --issueId iss_abc123def456
+stacktape errors:resolve --issueId iss_abc123def456
 ```
 
-You need the issue ID. Use [`issues:list`](/cli/issues-list) to list detected runtime issues before resolving one.
+You need the issue ID. Use [`errors:list`](/cli/errors-list) to list detected runtime issues before resolving one.
 
 ## Flags reference
 
-The only required flag is `--issueId`. Use [`issues:list`](/cli/issues-list) to find the ID of the issue you want to resolve.
+The only required flag is `--issueId`. Use [`errors:list`](/cli/errors-list) to find the ID of the issue you want to resolve.
 
 
-## CLI Options: `stacktape issues:resolve`
+## CLI Options: `stacktape errors:resolve`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
@@ -30,11 +30,11 @@ The only required flag is `--issueId`. Use [`issues:list`](/cli/issues-list) to 
 Resolve an issue in agent mode for use in scripts or AI coding assistants:
 
 ```bash
-stacktape issues:resolve --issueId iss_abc123def456 --agent
+stacktape errors:resolve --issueId iss_abc123def456 --agent
 ```
 
 ## Related commands
 
-- [`issues:list`](/cli/issues-list) — list all detected runtime issues with their status and occurrence count
-- [`issues:ignore`](/cli/issues-ignore) — mark an issue as ignored so new occurrences do not reopen it or generate alerts
-- [`issues:reopen`](/cli/issues-reopen) — reopen a resolved or ignored issue, setting its status back to open
+- [`errors:list`](/cli/errors-list) — list all detected runtime issues with their status and occurrence count
+- [`errors:ignore`](/cli/errors-ignore) — mark an issue as ignored so new occurrences do not reopen it or generate alerts
+- [`errors:reopen`](/cli/errors-reopen) — reopen a resolved or ignored issue, setting its status back to open

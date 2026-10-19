@@ -1,6 +1,6 @@
 # Alert History
 
-The Stacktape Console's alert history page displays alert events for the selected organization — across [alarms](/observability/alarms), [notifications](/observability/notifications), [budget alerts](/managing-costs/budgets), and [issues](/observability/issues). Instead of checking separate history views for each system, use alert history to see what fired, when, and whether the alert reached its intended channel.
+The Stacktape Console's alert history page displays alert events for the selected organization — across [alarms](/observability/alarms), [notifications](/observability/notifications), [budget alerts](/managing-costs/budgets), and [error tracking](/observability/error-tracking). Instead of checking separate history views for each system, use alert history to see what fired, when, and whether the alert reached its intended channel.
 
 ## What alert history tracks
 

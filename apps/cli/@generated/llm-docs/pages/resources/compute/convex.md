@@ -468,7 +468,7 @@ Set `deletionProtection` to `true` to prevent accidental deletion of the underly
 
 ## Alarms
 
-The Convex resource accepts `ApplicationLoadBalancerAlarm` and `RelationalDatabaseAlarm` [alarm](/observability/alarms) triggers, covering ALB health and database performance metrics. Alarms are merged with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarm names from this deployment. See [alarms](/observability/alarms) for available trigger types and configuration details.
+The Convex resource accepts `ApplicationLoadBalancerAlarm` and `RelationalDatabaseAlarm` [alarm](/observability/alarms) triggers, covering ALB health and database performance metrics. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration. See [alarms](/observability/alarms) for available trigger types and configuration details.
 
 ## Dev mode
 

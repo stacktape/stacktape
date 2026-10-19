@@ -8,7 +8,7 @@ Your stack is deployed and CI/CD pushes changes automatically. Before real users
 
 ## Alarms
 
-Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms directly on individual resources in your config, or configure global alarms in the [Stacktape Console](/getting-started/using-console-ui) that apply across all matching resources.
+Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms on individual resources in your stack config and deploy to apply them. The [Stacktape Console](/getting-started/using-console-ui) shows deployed alarm state and history.
 
 Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
@@ -57,7 +57,7 @@ export default defineConfig(() => {
 
 This alarm fires when more than 5% of invocations fail in at least 2 out of 3 consecutive 60-second windows — filtering out isolated spikes while catching sustained problems. The `evaluation` block controls this: `period` sets each window to 60 seconds, `evaluationPeriods: 3` looks at the last three windows, and `breachedPeriods: 2` requires at least two to breach before firing. The email notification target ensures your on-call team is alerted immediately.
 
-For production, most teams use Slack (`type: 'slack'` with `conversationId` and `accessToken`) or a custom webhook. See [Alarms](/observability/alarms) for all trigger types, notification channel configuration, and global alarm setup.
+For production, most teams use Slack (`type: 'slack'` with `conversationId` and `accessToken`) or a custom webhook. See [Alarms](/observability/alarms) for all trigger types, notification channel configuration, and migration of legacy Console rules.
 
 ## Budgets
 
