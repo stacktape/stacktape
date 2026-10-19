@@ -180,3 +180,9 @@ latency.
 failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero memory fallbacks and unchanged task identity.
 Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
 matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
+
+The installed-package consumer uses the CLI's `benchmarkBaseInputs` function and the same ten inputs: manifest, lock,
+authored config (including environment), supervisor hash, Dockerfile, runtime, Node version/target, minification and
+architecture. It proves changes to each invalidate the base. `.npmrc`, patches absent from the lockfile and Railpack
+plans are not benchmark inputs; their wiring remains later work. Committed-code restart/scale-out, exact-image rollback
+and same-revision scale-only overlay retention remain Phase 3/5 clauses of B8.

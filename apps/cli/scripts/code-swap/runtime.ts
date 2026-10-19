@@ -1,7 +1,6 @@
 // Source-only, unsigned/unfenced phase-1 experiment. This module is reachable only through build-cli.ts's plugin.
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { DynamoDBClient, GetItemCommand, PutItemCommand, BatchGetItemCommand } from '@aws-sdk/client-dynamodb';
 import { ECSClient, DescribeServicesCommand, ListTasksCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -12,6 +11,7 @@ import type { getECSHotswapInformation } from '../../src/commands/_utils/cw-depl
 import { awsClientConfig, createAwsClientContext } from '../../src/aws/context';
 import { z } from 'zod';
 import { benchmarkDockerfile } from './image';
+import { benchmarkBaseInputs } from './base-inputs';
 import { trace, traceAsync } from './trace';
 
 export const runSchema = z.object({
@@ -47,7 +47,6 @@ let result: Record<string, unknown> = {};
 let prepare: Promise<{ ids: string[]; statuses: Status[]; service: string; cluster: string }> | undefined;
 let preparationError: unknown;
 let clientsPromise: ReturnType<typeof initialize> | undefined;
-const hash = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 const initialize = async () => {
   if (!process.env.STP_CODE_SWAP_BENCH_RUN) throw new Error('Missing owned benchmark run file.');
   const run = runSchema.parse(JSON.parse(await readFile(process.env.STP_CODE_SWAP_BENCH_RUN, 'utf8')));
@@ -156,18 +155,21 @@ export const benchmarkImage = async (input: {
   const lock = await readFile(join(source, 'package-lock.json'), 'utf8');
   const authored = await readFile(global.configPath, 'utf8');
   const supervisor = await readFile(run.supervisor);
-  const bundle = await createCodeSwapBundle(input.buildContextPath, {
-    manifest,
-    lock,
-    authored,
-    supervisor: hash(supervisor),
-    dockerfile: input.dockerfileContents,
-    runtime: input.runtime,
-    nodeVersion: input.nodeVersion,
-    nodeTarget: input.nodeTarget,
-    minify: input.minify,
-    architecture: input.dockerBuildOutputArchitecture
-  });
+  const bundle = await createCodeSwapBundle(
+    input.buildContextPath,
+    benchmarkBaseInputs({
+      manifest,
+      lock,
+      authored,
+      supervisor,
+      dockerfile: input.dockerfileContents,
+      runtime: input.runtime,
+      nodeVersion: input.nodeVersion,
+      nodeTarget: input.nodeTarget,
+      minify: input.minify,
+      architecture: input.dockerBuildOutputArchitecture
+    })
+  );
   const revision = stack.nextVersion;
   const key = `code-swap/api/bundles/${revision}-${bundle.sha256}.tgz`;
   identity = {

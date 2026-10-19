@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import { buildSupervisor } from './build-supervisor';
+import { benchmarkBaseInputs } from './base-inputs';
 
 // Real public-subpath consumer: bundle installed packages, apply with the built Go extractor, execute with Node.
 const main = async () => {
@@ -20,17 +21,18 @@ const main = async () => {
     const source = join(root, 'source.mjs'),
       output = join(root, 'output');
     await mkdir(output);
-    const base = {
+    const base = benchmarkBaseInputs({
       manifest: await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
       lock: await readFile(new URL('../../pnpm-lock.yaml', import.meta.url), 'utf8'),
-      runtime: 'node22',
-      environment: { MODE: 'test' },
-      build: { minify: true },
-      plan: null,
-      supervisor: 'qualified-binary',
-      architecture: 'amd64',
-      patches: {}
-    };
+      authored: JSON.stringify({ resources: { api: { environment: { MODE: 'test' } } } }),
+      supervisor: await readFile(supervisor),
+      dockerfile: 'FROM node:22\nCOPY . /app\n',
+      runtime: 'node',
+      nodeVersion: 22,
+      nodeTarget: 'node22',
+      minify: true,
+      architecture: 'linux/amd64'
+    });
     const build = async (value: string) => {
       // Resolve actual installed packages from this workspace, outside the temporary source directory.
       await writeFile(
@@ -79,7 +81,7 @@ const main = async () => {
     await symlink('/etc/passwd', join(output, 'escape'));
     await assert.rejects(createCodeSwapBundle(output, base), /links/);
     console.log(
-      'B8 PASS: installed zod/lodash execute through deterministic archives; dependency/env/runtime/plan/build/supervisor/architecture/patch changes invalidate base; swap back changes running code. Archive links refused.'
+      'B8 phase-2 consumer clauses PASS: installed zod/lodash execute through deterministic archives; every benchmark CLI base input invalidates the image identity (manifest/lock/authored config/supervisor/Dockerfile/runtime/Node version/target/minify/architecture); swap back changes running code. Archive links refused.'
     );
   } finally {
     await rm(root, { recursive: true, force: true });
