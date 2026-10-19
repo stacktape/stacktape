@@ -1,3 +1,5 @@
+import { CLOUD_MAP_DRAIN_IMAGES, cloudMapDrainImageTag } from './cloud-map-drain-image';
+import { needsCloudMapDrain } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/cloud-map-drain';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { StackActionType } from '@domain-services/cloudformation-stack-manager/types';
 import type { DeploymentBucketObjectType } from '@domain-services/deployment-artifact-manager/types';
@@ -563,7 +565,8 @@ class DeploymentArtifactManager {
 
   getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] =>
     selectObsoleteArtifacts({
-      artifacts: previousItems,
+      // Helpers survive release retention so running tasks and rollbacks can still pull them.
+      artifacts: previousItems.filter(({ tag }) => !tag?.startsWith('stp-cloudmap-drain-')),
       usage: {
         uploadedObjects: this.successfullyCreatedObjects,
         uploadedImages: this.successfullyUploadedImages,
@@ -732,6 +735,19 @@ class DeploymentArtifactManager {
     onSharedLayerUploaded?: (layerNumber: number, zipPath?: string) => void;
   }) => {
     const jobs: (() => Promise<any>)[] = [];
+
+    if (configManager.allContainerWorkloads.some(needsCloudMapDrain)) {
+      jobs.push(async () => {
+        for (const digest of Object.values(CLOUD_MAP_DRAIN_IMAGES)) {
+          await awsSdkManager.ecr.copyPublicImage({
+            repositoryName: this.repositoryName,
+            sourceRepository: 'docker/library/busybox',
+            digest,
+            tag: cloudMapDrainImageTag(digest)
+          });
+        }
+      });
+    }
 
     if (includeTemplates) {
       jobs.push(() => this.uploadCloudFormationTemplate());

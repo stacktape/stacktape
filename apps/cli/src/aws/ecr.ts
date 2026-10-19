@@ -1,5 +1,12 @@
+import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import type { ECRClient, ImageIdentifier } from '@aws-sdk/client-ecr';
 import {
+  BatchCheckLayerAvailabilityCommand,
+  CompleteLayerUploadCommand,
+  InitiateLayerUploadCommand,
+  UploadLayerPartCommand,
+  LayerAlreadyExistsException,
   BatchDeleteImageCommand,
   BatchGetImageCommand,
   GetAuthorizationTokenCommand,
@@ -95,6 +102,102 @@ export class AwsEcr {
         // A retried rollback finds the tag already in place.
         if (error instanceof ImageAlreadyExistsException) return;
         errorHandler(error);
+      });
+  };
+
+  /** Copy a small pinned public image into the deployment repository without a Docker daemon.
+   * A matching private tag is a cache hit: no public registry requests or layer transfers on later deploys.
+   */
+  copyPublicImage = async ({
+    repositoryName,
+    sourceRepository,
+    digest,
+    tag
+  }: {
+    repositoryName: string;
+    sourceRepository: string;
+    digest: string;
+    tag: string;
+  }): Promise<void> => {
+    const client = this.#createClient();
+    const existing = await client.send(new BatchGetImageCommand({ repositoryName, imageIds: [{ imageTag: tag }] }));
+    if (existing.images?.[0]?.imageId?.imageDigest === digest) return;
+    if (existing.failures?.some(({ failureCode }) => failureCode !== 'ImageNotFound')) {
+      throw new Error('Failed to check cached drain image in private ECR.');
+    }
+    const tokenResponse = await fetch(
+      'https://public.ecr.aws/token/?service=public.ecr.aws&scope=repository:' + sourceRepository + ':pull',
+      {
+        signal: AbortSignal.timeout(60_000)
+      }
+    );
+    if (!tokenResponse.ok) throw new Error(`Drain image registry authorization failed (${tokenResponse.status}).`);
+    const { token } = z.object({ token: z.string() }).parse(await tokenResponse.json());
+    const read = async (path: string, expectedDigest: string) => {
+      const response = await fetch(`https://public.ecr.aws/v2/${sourceRepository}/${path}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.oci.image.manifest.v1+json' },
+        signal: AbortSignal.timeout(60_000)
+      });
+      if (!response.ok) throw new Error(`Drain image download failed (${response.status}).`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== expectedDigest) {
+        throw new Error('Drain image download did not match its pinned SHA-256 digest.');
+      }
+      return bytes;
+    };
+    const manifestBytes = await read(`manifests/${digest}`, digest);
+    const descriptor = z.object({
+      digest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+      size: z
+        .number()
+        .int()
+        .positive()
+        .max(10 * 1024 * 1024)
+    });
+    const manifest = z
+      .object({
+        schemaVersion: z.literal(2),
+        mediaType: z.literal('application/vnd.oci.image.manifest.v1+json'),
+        config: descriptor,
+        layers: z.array(descriptor).max(10)
+      })
+      .parse(JSON.parse(manifestBytes.toString()));
+    // ECR requires the config blob as well as filesystem layers before accepting the manifest.
+    for (const blob of [manifest.config, ...manifest.layers]) {
+      const availability = await client.send(
+        new BatchCheckLayerAvailabilityCommand({ repositoryName, layerDigests: [blob.digest] })
+      );
+      if (availability.layers?.some(({ layerAvailability }) => layerAvailability === 'AVAILABLE')) continue;
+      const bytes = await read(`blobs/${blob.digest}`, blob.digest);
+      if (bytes.length !== blob.size) throw new Error('Drain image blob size did not match its manifest.');
+      const { uploadId } = await client.send(new InitiateLayerUploadCommand({ repositoryName }));
+      await client.send(
+        new UploadLayerPartCommand({
+          repositoryName,
+          uploadId,
+          partFirstByte: 0,
+          partLastByte: bytes.length - 1,
+          layerPartBlob: bytes
+        })
+      );
+      await client
+        .send(new CompleteLayerUploadCommand({ repositoryName, uploadId, layerDigests: [blob.digest] }))
+        .catch((error: unknown) => {
+          if (!(error instanceof LayerAlreadyExistsException)) throw error;
+        });
+    }
+    await client
+      .send(
+        new PutImageCommand({
+          repositoryName,
+          imageTag: tag,
+          imageDigest: digest,
+          imageManifest: manifestBytes.toString(),
+          imageManifestMediaType: manifest.mediaType
+        })
+      )
+      .catch((error: unknown) => {
+        if (!(error instanceof ImageAlreadyExistsException)) throw error;
       });
   };
 

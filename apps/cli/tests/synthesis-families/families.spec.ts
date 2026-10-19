@@ -651,12 +651,23 @@ describe('container rolling deployment family', () => {
     // sidecar waits for API Gateway's cached Cloud Map routes; readiness and application stop timeouts stay separate.
     for (const workload of ['apiWeb', 'checkedApiWeb']) {
       const containers = (template.Resources[cfLogicalNames.ecsTaskDefinition(workload)] as Resource).Properties
-        ?.ContainerDefinitions as { Name: string; DependsOn?: unknown; HealthCheck?: unknown; StopTimeout?: number }[];
+        ?.ContainerDefinitions as {
+        Name: string;
+        DependsOn?: unknown;
+        HealthCheck?: unknown;
+        StopTimeout?: number;
+        Essential?: boolean;
+        Image?: string;
+        Command?: string[];
+      }[];
       const drain = containers.find(({ Name }) => Name === 'stp-cloudmap-drain');
       expect(drain).toBeDefined();
       expect(drain?.DependsOn).toEqual([{ ContainerName: 'service-container', Condition: 'START' }]);
       expect(drain?.HealthCheck).toBeUndefined();
       expect(drain?.StopTimeout).toBe(40);
+      expect(drain?.Essential).toBe(false);
+      expect(drain?.Image).toMatch(/\.dkr\.ecr\.eu-west-1\.amazonaws\.com\/.+@sha256:[a-f0-9]{64}$/);
+      expect(drain?.Command?.[0]).toContain('sleep 35');
       expect(containers.find(({ Name }) => Name === 'service-container')?.StopTimeout).toBe(30);
     }
     expect(stopTimeouts(template, 'internal')).toEqual([30]);

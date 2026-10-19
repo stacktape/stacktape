@@ -1,4 +1,4 @@
-import { CLOUD_MAP_DRAIN_CONTAINER_NAME, getCloudMapDrainContainer } from './cloud-map-drain';
+import { CLOUD_MAP_DRAIN_CONTAINER_NAME, needsCloudMapDrain } from './cloud-map-drain';
 import type {
   ContainerDefinition,
   KeyValuePair,
@@ -110,7 +110,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       `Tracing skipped for \`${definition.name}\`: EC2-based workloads run in bridge network mode, where containers cannot reach the collector sidecar on localhost.`
     );
   }
-  const cloudMapDrain = getCloudMapDrainContainer(definition);
+  const cloudMapDrain = needsCloudMapDrain(definition);
   if (cloudMapDrain) {
     if (definition.containers.some(({ name }) => name === CLOUD_MAP_DRAIN_CONTAINER_NAME)) {
       throw new CliError({

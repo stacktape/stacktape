@@ -9,13 +9,19 @@ export const CLOUD_MAP_DRAIN_CONTAINER_NAME = 'stp-cloudmap-drain';
  * This lets even an application that closes immediately on SIGTERM serve the cached routes. It does not add a health
  * check or delay the new application, and the application's own stopTimeout remains available for in-flight work.
  */
-export const getCloudMapDrainContainer = (workload: StpContainerWorkload): ContainerDefinition | undefined => {
+export const needsCloudMapDrain = (workload: StpContainerWorkload): boolean =>
+  workload.containers.some(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));
+
+export const getCloudMapDrainContainer = (
+  workload: StpContainerWorkload,
+  image: string
+): ContainerDefinition | undefined => {
   const servers = workload.containers.filter(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));
   if (!servers.length) return undefined;
   return {
     Name: CLOUD_MAP_DRAIN_CONTAINER_NAME,
-    Image: 'public.ecr.aws/docker/library/busybox:1.37.0',
-    Essential: true,
+    Image: image,
+    Essential: false,
     Memory: 16,
     User: '65534',
     ReadonlyRootFilesystem: true,

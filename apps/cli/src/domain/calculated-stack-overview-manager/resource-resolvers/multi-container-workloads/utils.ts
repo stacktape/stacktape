@@ -1,3 +1,5 @@
+import { CLOUD_MAP_DRAIN_IMAGES } from '@domain-services/deployment-artifact-manager/cloud-map-drain-image';
+import { getEcrRepositoryUrl } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getCloudMapDrainContainer } from './cloud-map-drain';
 import type {
   ContainerDefinition,
@@ -1366,9 +1368,14 @@ export const getEcsTaskDefinition = (
     });
   });
   const workloadTracing = getWorkloadTracing(workload);
-  const cloudMapDrain = getCloudMapDrainContainer(workload);
   const cpuArchitecture =
     packagingManager.getTargetCpuArchitectureForContainer(workload.resources) === 'linux/arm64' ? 'ARM64' : 'X86_64';
+  const { accountId, region, globallyUniqueStackHash } = calculatedStackOverviewManager.context;
+  const drainDigest = CLOUD_MAP_DRAIN_IMAGES[cpuArchitecture === 'ARM64' ? 'arm64' : 'amd64'];
+  const cloudMapDrain = getCloudMapDrainContainer(
+    workload,
+    `${getEcrRepositoryUrl(accountId, region, awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash))}@${drainDigest}`
+  );
   return cfnResource('AWS::ECS::TaskDefinition', {
     Family: awsResourceNames.ecsTaskDefinitionFamily(workload.name, calculatedStackOverviewManager.context.stackName),
     NetworkMode: workload.resources.instanceTypes ? 'bridge' : 'awsvpc',
