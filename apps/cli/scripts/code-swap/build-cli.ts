@@ -41,6 +41,16 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
       );
       return { contents, loader: 'ts' };
     });
+    build.onLoad({ filter: /cloudformation-stack-manager[\\/]index\.ts$/ }, async ({ path }) => ({
+      contents:
+        `import { benchmarkPrimeIdentity } from ${JSON.stringify(runtime)};\n` +
+        replaceOnce(
+          await readFile(path, 'utf8'),
+          '      this.#getDetailOfSelectedResources(this.existingStackResources),',
+          '      this.#getDetailOfSelectedResources(this.existingStackResources),\n      benchmarkPrimeIdentity(),'
+        ),
+      loader: 'ts'
+    }));
     build.onLoad({ filter: /tui-manager[\\/]output[\\/]jsonl\.ts$/ }, async ({ path }) => ({
       contents:
         `import { trace } from ${JSON.stringify(tracing)};\n` +

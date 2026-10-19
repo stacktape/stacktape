@@ -168,18 +168,7 @@ const waitStatus = async (ids: string[], revision: string, state: string) => {
   }
   throw new Error(`Timed out waiting for ${state}.`);
 };
-export const benchmarkImage = async (input: {
-  dockerfileContents: string;
-  buildContextPath: string;
-  runtime: string;
-  nodeVersion: number;
-  nodeTarget: string;
-  minify: boolean;
-  dockerBuildOutputArchitecture: string;
-  languageSpecificBundleOutput: LanguageSpecificBundleOutput;
-}) => {
-  trace('benchmarkImage:start');
-  const { run, global, artifacts, stack, s3 } = await clients();
+const benchmarkCapacity = async () => {
   const { configManager } = await import('../../src/domain/config-manager');
   const workload = configManager.allContainerWorkloads.find((workload) => workload.name === 'api');
   if (!workload) throw new Error('Missing benchmark workload.');
@@ -197,6 +186,35 @@ export const benchmarkImage = async (input: {
       };
     })
   ).budgets.find((item) => item.name === workload.name)!;
+  return capacity;
+};
+let roleLookup: Promise<void> | undefined;
+export const benchmarkPrimeIdentity = () => {
+  if (!process.env.STP_CODE_SWAP_BENCH_RUN) return Promise.resolve();
+  return (roleLookup ??= (async () => {
+    const { run, stack, iam } = await clients();
+    if (!run.phase3 || stack.stackActionType === 'create') return;
+    if ((await benchmarkCapacity()).reason) return;
+    const role = stack.existingStackResources.find(
+      (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
+    )?.PhysicalResourceId;
+    if (!role) throw new Error('Missing benchmark task role.');
+    checkedStatusRoleId = (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
+  })());
+};
+export const benchmarkImage = async (input: {
+  dockerfileContents: string;
+  buildContextPath: string;
+  runtime: string;
+  nodeVersion: number;
+  nodeTarget: string;
+  minify: boolean;
+  dockerBuildOutputArchitecture: string;
+  languageSpecificBundleOutput: LanguageSpecificBundleOutput;
+}) => {
+  trace('benchmarkImage:start');
+  const { run, global, artifacts, stack, s3 } = await clients();
+  const capacity = await benchmarkCapacity();
   if (capacity.reason) {
     result = { mode: 'image', fallback: 'task_cap_exceeded', reason: capacity.reason };
     const { tuiManager } = await import('../../src/app/tui-manager');
@@ -205,17 +223,7 @@ export const benchmarkImage = async (input: {
     return input.dockerfileContents;
   }
   declaredMaximum = capacity.pollers! - capacity.tasks!;
-  const roleLookup =
-    run.phase3 && stack.stackActionType !== 'create'
-      ? (async () => {
-          const role = stack.existingStackResources.find(
-            (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
-          )?.PhysicalResourceId;
-          if (!role) throw new Error('Missing benchmark task role.');
-          const { iam } = await clients();
-          checkedStatusRoleId = (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
-        })()
-      : Promise.resolve();
+  const identityLookup = benchmarkPrimeIdentity();
   const headLookup =
     stack.stackActionType !== 'create' && run.mode === 'swap'
       ? s3
@@ -223,7 +231,7 @@ export const benchmarkImage = async (input: {
           .then(async (response) => identitySchema.parse(JSON.parse(await response.Body!.transformToString())))
       : undefined;
   // Start independent reads together; every result is awaited before it is used.
-  roleLookup.catch(() => {});
+  identityLookup.catch(() => {});
   headLookup?.catch(() => {});
   if (input.runtime !== 'node' || input.dockerBuildOutputArchitecture !== 'linux/amd64')
     throw new Error('Only amd64 Node is qualified for this benchmark.');
@@ -265,7 +273,7 @@ export const benchmarkImage = async (input: {
   // The image uses the same real bundler output, entrypoint and dependencies as the ordinary js-bundle image.
   const rendered = await benchmarkDockerfile(input.buildContextPath, input.dockerfileContents, run.supervisor);
   const dockerfile = async () => {
-    await roleLookup;
+    await identityLookup;
     return (
       rendered +
       `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
@@ -299,7 +307,7 @@ export const benchmarkImage = async (input: {
         );
         trace('bundleUploaded');
       }),
-      roleLookup
+      identityLookup
     ]);
     // Finish every prerequisite before any fallback; a failed check never publishes prepare.
     if (fleetCheck.status === 'rejected') throw fleetCheck.reason;
