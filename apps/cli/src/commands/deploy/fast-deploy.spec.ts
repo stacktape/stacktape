@@ -207,12 +207,27 @@ const webService = (
     ]
   }) as unknown as StpContainerWorkload;
 
-const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish][]) => {
+const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish, boolean?][]) => {
   hints.length = 0;
   for (const [workload, finishedWhen] of services) finishes.set(workload.name, finishedWhen);
   const plan = {
     functions: [],
-    services: services.map(([workload]) => ({ workload })),
+    services: services.map(([workload, , supervisor]) => ({
+      workload,
+      newCfTaskDefinition: {
+        Properties: {
+          ContainerDefinitions: workload.containers.map((container) => ({
+            Name: container.name,
+            Essential: container.essential,
+            HealthCheck: supervisor
+              ? { Command: ['CMD', '/stacktape-supervisor', 'readiness'] }
+              : container.internalHealthCheck
+                ? { Command: container.internalHealthCheck.healthCheckCommand }
+                : undefined
+          }))
+        }
+      }
+    })),
     layers: []
   } as unknown as FastDeployPlan;
   await performFastDeploy({ plan, recordRelease: false, progress, deploymentArtifacts: {} } as never);
@@ -234,6 +249,11 @@ describe('the hint after a fast deploy without an application health check', () 
     expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain(
       'Application health is unchecked for api.'
     );
+  });
+
+  test('does not call a generated essential supervisor check unchecked', async () => {
+    expect(await deploy([[webService('api'), 'new-instances-discoverable', true]])).toEqual([]);
+    expect(await deploy([[webService('api'), 'rollout-completed', true]])).toEqual([]);
   });
 
   test('still warns when only a non-essential sidecar has a health check', async () => {

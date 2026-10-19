@@ -677,57 +677,74 @@ describe('container rolling deployment family', () => {
     expect(stopTimeouts(template, 'worker')).toEqual([10]);
   });
 
-  test('an HTTP API with only a non-essential sidecar check uses unchecked discovery and says so', async () => {
-    await synthesizeFamily('container-sidecar-health-hotswap', config());
-    const original = configManager.allContainerWorkloads.find(({ name }) => name === 'apiWeb')!;
-    const workload = {
-      ...original,
-      containers: [
-        ...original.containers,
-        {
-          ...original.containers[0],
-          name: 'telemetry',
-          essential: false,
-          events: [],
-          internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
-        }
-      ]
-    };
-    const logger = operationReporter.createChildLogger({
-      parentEventType: 'HOTSWAP_UPDATE',
-      instanceId: workload.name
-    });
-    const loggerSpy = spyOn(operationReporter, 'createChildLogger').mockReturnValue(logger);
-    const finishSpy = spyOn(logger, 'finishEvent');
-    const startSpy = spyOn(awsSdkManager.ecs, 'startRollingUpdate').mockResolvedValue({ deploymentId: 'ecs-svc/2' });
-    const waitSpy = spyOn(awsSdkManager.ecs, 'waitForRollingUpdate').mockResolvedValue({
-      finishedWhen: 'new-instances-discoverable'
-    });
-    try {
-      await updateEcsService({
-        workload,
-        ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
-        blueGreen: false,
-        ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },
-        ecsService: { needsUpdate: true, currentState: {} }
-      } as unknown as Parameters<typeof updateEcsService>[0]);
-      expect(waitSpy).toHaveBeenCalledWith({
-        ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
-        deploymentId: 'ecs-svc/2',
-        allowUncheckedDiscovery: true
+  test.each([false, true])(
+    'HTTP API discovery and hints follow the effective supervisor check=%s',
+    async (supervisor) => {
+      const template = await synthesizeFamily('container-sidecar-health-hotswap', config());
+      const taskDefinition = structuredClone(
+        template.Resources[cfLogicalNames.ecsTaskDefinition('apiWeb')]
+      ) as Resource;
+      taskDefinition.Properties!.ContainerDefinitions.push({
+        Name: 'telemetry',
+        Essential: false,
+        HealthCheck: { Command: ['CMD', 'true'] }
       });
-      expect(finishSpy).toHaveBeenCalledWith({
-        eventType: 'UPDATE_ECS_SERVICE',
-        finalMessage:
-          "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background"
+      if (supervisor)
+        taskDefinition.Properties!.ContainerDefinitions[0].HealthCheck = {
+          Command: ['CMD', '/stacktape-supervisor', 'readiness']
+        };
+      const original = configManager.allContainerWorkloads.find(({ name }) => name === 'apiWeb')!;
+      const workload = {
+        ...original,
+        containers: [
+          ...original.containers,
+          {
+            ...original.containers[0],
+            name: 'telemetry',
+            essential: false,
+            events: [],
+            internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
+          }
+        ]
+      };
+      const logger = operationReporter.createChildLogger({
+        parentEventType: 'HOTSWAP_UPDATE',
+        instanceId: workload.name
       });
-    } finally {
-      waitSpy.mockRestore();
-      startSpy.mockRestore();
-      finishSpy.mockRestore();
-      loggerSpy.mockRestore();
+      const loggerSpy = spyOn(operationReporter, 'createChildLogger').mockReturnValue(logger);
+      const finishSpy = spyOn(logger, 'finishEvent');
+      const startSpy = spyOn(awsSdkManager.ecs, 'startRollingUpdate').mockResolvedValue({ deploymentId: 'ecs-svc/2' });
+      const waitSpy = spyOn(awsSdkManager.ecs, 'waitForRollingUpdate').mockResolvedValue({
+        finishedWhen: 'new-instances-discoverable'
+      });
+      try {
+        await updateEcsService({
+          workload,
+          newCfTaskDefinition: taskDefinition,
+          ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
+          blueGreen: false,
+          ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },
+          ecsService: { needsUpdate: true, currentState: {} }
+        } as unknown as Parameters<typeof updateEcsService>[0]);
+        expect(waitSpy).toHaveBeenCalledWith({
+          ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
+          deploymentId: 'ecs-svc/2',
+          allowUncheckedDiscovery: !supervisor
+        });
+        expect(finishSpy).toHaveBeenCalledWith({
+          eventType: 'UPDATE_ECS_SERVICE',
+          finalMessage: supervisor
+            ? "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background"
+            : "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background"
+        });
+      } finally {
+        waitSpy.mockRestore();
+        startSpy.mockRestore();
+        finishSpy.mockRestore();
+        loggerSpy.mockRestore();
+      }
     }
-  });
+  );
 
   test('a hotswap sends the overridden deployment configuration that CloudFormation receives', async () => {
     const serviceLogicalId = cfLogicalNames.ecsService('albWeb', false);
@@ -769,6 +786,7 @@ describe('container rolling deployment family', () => {
     try {
       await updateEcsService({
         workload: configManager.allContainerWorkloads.find(({ name }) => name === 'albWeb')!,
+        newCfTaskDefinition: template.Resources[cfLogicalNames.ecsTaskDefinition('albWeb')],
         ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/albWeb',
         blueGreen: false,
         ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },
