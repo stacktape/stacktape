@@ -1,6 +1,6 @@
 # Alarms
 
-Stacktape alarms monitor CloudWatch metrics for your deployed resources and fire when a threshold is breached. You define alarms inline on individual resources in your config, or create organization-wide alarm rules in the [Stacktape Console](/stacktape-console/console-overview). When an alarm fires, it sends notifications to configured [alert channels](/observability/alert-channels) — Slack, MS Teams, email, Discord, or webhooks.
+Stacktape alarms monitor CloudWatch metrics for your deployed resources and fire when a threshold is breached. Define alarms on individual resources in your stack configuration and deploy the stack to apply changes. The [Stacktape Console](/stacktape-console/console-overview) shows alarm state and history. When an alarm fires, it sends to its configured `notificationChannels` and opens an [incident](/observability/incidents), which Console notification rules can route to [alert channels](/observability/alert-channels).
 
 ## When to use
 
@@ -13,7 +13,7 @@ Common starting points:
 - **API error rate** — detect HTTP 5xx spikes across your API gateway or load balancer.
 - **SQS queue depth** — spot consumer backlog before messages start expiring.
 
-For production stages, define at least one error-rate alarm per public-facing resource and one storage/CPU alarm per database. Use [global alarm rules](#global-alarm-rules) in the Console to enforce this across all projects without touching individual configs.
+For production stages, define at least one error-rate alarm per public-facing resource and one storage/CPU alarm per database. Keep these alarms in version control with each stack so threshold changes are reviewed and deployed with your code.
 
 ## When NOT to use
 
@@ -21,7 +21,7 @@ Alarms are not the right tool for every monitoring need:
 
 - **Debugging a specific request** — use [logs](/observability/logs) and the [`stacktape logs`](/cli/logs) CLI command instead.
 - **Trend analysis over weeks** — use [metrics](/observability/metrics) dashboards in the Console for visual exploration.
-- **Tracking application-level errors** — [issues](/observability/issues) automatically group and deduplicate runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
+- **Tracking application-level errors** — [error tracking](/observability/error-tracking) automatically group and deduplicate runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
 - **Cost alerting** — use [budgets](/managing-costs/budgets) to get notified when spend crosses a threshold.
 
 ## Supported resources
@@ -35,8 +35,6 @@ Stacktape supports inline alarms on five resource types. Each resource accepts a
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `alarms` | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets`, `application-load-balancer-custom` |
 | [SQS queue](/resources/messaging/sqs-queue) | `alarms` | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
-
-Global alarm rules target these five resource types.
 
 ## Trigger types
 
@@ -260,7 +258,20 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
-For the full setup guide on each integration type, see [alert channels](/observability/alert-channels).
+To reuse a named Console [alert channel](/observability/alert-channels), add a `console-channel` reference to the alarm's `notificationChannels`:
+
+
+Example (YAML):
+
+```yaml
+notificationChannels:
+  - type: console-channel
+    properties:
+      channelName: production-alerts
+```
+
+
+A firing alarm also opens an [incident](/observability/incidents). Configure [notification rules](/observability/notifications) to route incident alerts to your team. Choose the delivery paths you need to avoid duplicate notifications.
 
 ### Alarm description
 
@@ -270,56 +281,13 @@ Use the optional `description` property on an alarm to include a custom message 
 
 The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view.
 
-## Global alarm rules
+## Migrating legacy Console alarm rules
 
-Stacktape global alarm rules are organization-level alarm rules managed in the Stacktape Console, with optional project and stage filters. When filters are empty, the Console labels the scope as "All projects" or "All stages".
+The Console no longer creates or edits alarm rules. Existing rules appear under **Legacy alarm rules** on the Alarms page. They keep applying to matching deployments until the stack defines its alarms in configuration.
 
+Run `stacktape alarms:export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments), and deploy each affected stage. Verify the resulting alarms before deleting the legacy rule in the Console.
 
-> Screenshot: Stacktape Console alarm rules page showing a table of alarm rules with columns for name, creation date, targeted projects, targeted stages, and trigger type Caption: The alarm rules page in the Console lets you create, view, and delete organization-wide alarms.
-
-
-Global alarm rules target resource types from the `StpAlarmEnabledResource` set: Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues. Each rule specifies a trigger type and optional project/stage scope. Most trigger types also require threshold properties; the `sqs-queue-not-empty` trigger has no configurable threshold.
-
-### Scoping rules to projects and stages
-
-Each global alarm rule can be scoped to specific projects (via `forServices`) and stages (via `forStages`). When omitted, the rule applies to all projects and all stages in the organization.
-
-Common scoping patterns:
-
-- **Production only** — set `forStages` to `["production"]` to avoid alert noise from dev/staging stages.
-- **Specific project** — set `forServices` to `["payment-api"]` for project-specific thresholds.
-- **Everything** — leave both filters empty to create a baseline alarm for all deployments.
-
-### How global and inline alarms interact
-
-Inline alarms are defined per-resource in your config. Global alarm rules are scoped to matching projects (via `forServices`) and stages (via `forStages`), applying to resources within those filters. You can exclude specific global alarm rules from a resource using `disabledGlobalAlarms`.
-
-### Disabling global alarms on specific resources
-
-If a global alarm rule doesn't make sense for a particular resource, use `disabledGlobalAlarms` to opt out by alarm name. This property is available on alarm-enabled resource types ([Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [SQS queues](/resources/messaging/sqs-queue)) and accepts an array of global alarm names to exclude from the resource.
-
-This is useful when a resource has unusual characteristics — for example, a scheduled Lambda that runs long by design and would constantly trip a duration alarm:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const dailyReport = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/daily-report.ts'
-    }),
-    timeout: 300,
-    disabledGlobalAlarms: ['lambda-duration-high']
-  });
-
-  return { resources: { dailyReport } };
-});
-```
-
-
-The `disabledGlobalAlarms` array takes the alarm names as configured in the Console.
+`disabledGlobalAlarms` excludes named legacy rules from a resource while you migrate. For new alarms, edit the resource's `alarms` list directly.
 
 ## Viewing alarm states
 
@@ -337,7 +305,7 @@ stacktape alarms --stage production --region eu-west-1
 
 ### Console
 
-The Console alarm rules page lists alarm rules by name, created date, targeted projects, targeted stages, and trigger type. The details modal shows alert-channel summary, trigger properties, and evaluation settings. The table includes delete controls for each rule. For real-time alarm state of a specific stage's resources, use the [`stacktape alarms`](/cli/alarms) CLI command.
+The Console's **Alarms** page shows deployed alarms and their states across projects and stages. Open an alarm to inspect its state history. Configure thresholds and evaluation windows in the stack config, then deploy to apply them.
 
 ## Alarms as event triggers
 
@@ -370,15 +338,15 @@ AWS CloudWatch charges per alarm-metric per month. Stacktape alarms use standard
 
 ### Can I set different alarm thresholds for production vs development?
 
-Yes. Global alarm rules in the Console can be scoped to specific stages using `forStages`. Create a strict rule targeting `["production"]` with a low error threshold, and a relaxed rule (or no rule) for development stages. Alternatively, use [stage-based configuration](/configuration/stages-and-environments) in your TypeScript config to conditionally set different alarm thresholds per stage.
+Yes. Use [stage-based configuration](/configuration/stages-and-environments) in your TypeScript config to select thresholds or omit alarms for a stage, then deploy each affected stage.
 
 ### How do I avoid false alarms from short traffic spikes?
 
 Tune the `evaluation` property. Increase `evaluationPeriods` (how many periods to look at) and set `breachedPeriods` to require multiple periods in breach before firing. For example, `evaluationPeriods: 5` with `breachedPeriods: 3` means the threshold must be breached in at least 3 of the last 5 periods. Increasing `period` from 60 to 300 seconds also smooths out short spikes by aggregating metric data over a wider window.
 
-### What is the difference between inline alarms and global alarm rules?
+### Where do I change an alarm rule?
 
-Inline alarms are defined in your `stacktape.ts` config on individual resources and deploy as part of that stack. Global alarm rules are created in the Console at the organization level and scoped to matching projects and stages via `forServices` and `forStages` filters. Both produce CloudWatch alarms and use the same notification target configuration. Individual resources can opt out of specific global rules using `disabledGlobalAlarms`.
+Edit the resource's `alarms` list in the stack configuration and deploy. If the alarm comes from a legacy Console rule, [export it into configuration](#migrating-legacy-console-alarm-rules) first.
 
 ### Can I alarm on custom CloudWatch metrics from my application?
 
@@ -388,6 +356,6 @@ Custom application-level metrics emitted via the CloudWatch SDK are not directly
 
 Deploy a stage with alarms configured and use [`stacktape alarms`](/cli/alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
 
-### When should I use alarms vs issues?
+### When should I use alarms vs error tracking?
 
-[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Issues](/observability/issues) automatically detect, group, and deduplicate individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and issues for application-level error tracking. Most production stacks benefit from both — alarms catch broad degradation while issues catch specific bugs.
+[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Error tracking](/observability/error-tracking) automatically detect, group, and deduplicate individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and issues for application-level error tracking. Most production stacks benefit from both — alarms catch broad degradation while issues catch specific bugs.

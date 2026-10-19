@@ -433,6 +433,19 @@ const verify = async () => {
       assert(String(rendered.data?.content).includes(expected), `${route}: missing rendered content ${expected}`);
       assert(!String(rendered.data?.content).includes('@@LLM_DOCS_'));
     }
+    const errorCommands = await call('stacktape_cli', { action: 'list', category: 'errors' });
+    assert.equal(errorCommands.ok, true);
+    const errorCommandNames = (errorCommands.data?.commands as Array<{ command: string }>).map(
+      ({ command }) => command
+    );
+    for (const action of ['list', 'ignore', 'resolve', 'reopen']) {
+      assert(errorCommandNames.includes(`errors:${action}`));
+      const described = await call('stacktape_cli', { action: 'describe', command: `errors:${action}` });
+      assert.equal(described.ok, true);
+      assert.equal(described.data?.safety, action === 'list' ? 'readOnly' : 'mutating');
+      const removed = await call('stacktape_cli', { action: 'describe', command: `issues:${action}` });
+      assert.equal(removed.ok, false, 'The old command must not remain as an alias');
+    }
     const listed = await call('stacktape_cli', { action: 'list', category: 'deployment' });
     assert((listed.data?.commands as Array<{ command: string }>).some((command) => command.command === 'deploy'));
     const plan = await call('stacktape_cli', {
@@ -461,7 +474,7 @@ const verify = async () => {
     assert.equal((override.data?.args as Record<string, unknown>).autoConfirmOperation, true);
     for (const [safety, commands] of [
       ['destructive', ['delete', 'secret:delete', 'aws-profile:delete', 'org:delete']],
-      ['mutating', ['deploy', 'rollback', 'domain:add', 'issues:resolve', 'container:exec']],
+      ['mutating', ['deploy', 'rollback', 'domain:add', 'errors:resolve', 'container:exec']],
       ['interactive', ['login', 'init', 'dev', 'dev:stop', 'bastion:session', 'bastion:tunnel', 'container:session']]
     ] as const) {
       for (const command of commands) {
