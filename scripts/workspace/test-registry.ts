@@ -95,7 +95,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/smoke.ts'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/scripts/code-swap/smoke.ts', 'apps/cli/scripts/code-swap/supervisor/archive_test.go'],
+    tests: [
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go'
+    ],
     requires: ['docker'],
     release: 'affected-external-contract',
     proves: 'The pinned image applies a verified bundle and serves it through the real proxy.'
@@ -3517,6 +3521,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',
       'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go',
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',

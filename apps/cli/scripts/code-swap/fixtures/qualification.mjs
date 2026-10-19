@@ -193,7 +193,7 @@ const main = async () => {
         chunkedBytes: body.bytes
       };
     });
-    await test('B2 worker, burst, cache and tmpfs charged to lifetime peak', async () => {
+    await test('B2 combined burst/cache/tmpfs activity raises lifetime peak (sources not isolated)', async () => {
       const before = (await status()).timings.memoryAfter;
       for (const path of ['/burst', '/cache', '/tmpfs']) assert.equal((await get(path)).status, 200);
       const s = await attempt('new500');
@@ -345,7 +345,45 @@ const main = async () => {
     });
     await stop();
   }
-  if (scenario === 'normal' || scenario === 'worker-kill') {
+  if (scenario === 'normal' || scenario === 'review-fixes') {
+    await test('B3 clean and nonzero short-lived children allow prepare and swap', async () => {
+      await start();
+      assert.equal((await attempt('workers', false)).state, 'prepared');
+      const results = [];
+      for (const path of ['/short-child', '/nonzero-child']) {
+        const r = await fetch(url + path, { headers: { 'X-Lab-Prepare': '1' } });
+        results.push(await r.json());
+      }
+      await sleep(500);
+      assert.equal((await status()).state, 'prepared');
+      await signalRecord('workers', 'commit');
+      const complete = await wait(async () => {
+        const s = await status();
+        return s.state === 'complete' && s.revision === 'workers' && s;
+      });
+      assert.deepEqual(
+        results.map((r) => r.code),
+        [0, 17]
+      );
+      return { results, complete };
+    });
+    await stop();
+    await test('B3 startup failure with stopped grandchild reaps full tree and preserves baseline', async () => {
+      await start();
+      await signalRecord('stuckStartup', 'prepare');
+      const pid = await wait(async () => Number(await readFile('/tmp/qual-stuck-pid', 'utf8')));
+      await wait(async () => /[Tt]/.test((await readFile(`/proc/${pid}/stat`, 'utf8')).split(') ')[1][0]));
+      const failure = await wait(async () => {
+        const s = await status();
+        return s.revision === 'stuckStartup' && s.state === 'failed' && s.timings.candidateReaped && s;
+      }, 45000);
+      await pidsGone([pid]);
+      assert.equal((await get()).body, 'old');
+      return { stoppedGrandchild: pid, failure };
+    });
+    await stop();
+  }
+  if (scenario === 'normal' || scenario === 'worker-kill' || scenario === 'review-fixes') {
     await test('B3 unexplained worker SIGKILL fails prepare and reaps remaining workers', async () => {
       await start();
       await attempt('workers', false);
@@ -356,7 +394,7 @@ const main = async () => {
         const s = await status();
         return s.state === 'failed' && s.timings.candidateReaped && s;
       });
-      assert.match(failure.reason, /worker exit/);
+      assert.match(failure.reason, /worker SIGKILL/);
       assert.equal((await get()).body, 'old');
       await pidsGone([victim.pid, ...victim.workers.map((p) => p.pid)]);
       return failure;
@@ -411,7 +449,12 @@ const main = async () => {
       await start('ignoreTerm', stopGrace);
       let held;
       if (phase === 'switch') held = await stream('/sse');
-      await attempt('stop', false);
+      if (phase === 'prepare') {
+        await signalRecord('slowStartup', 'prepare');
+        // A running child proves spawn is in progress; prepared must not have been published.
+        await wait(async () => logs.includes('"revision":"slowStartup"'));
+        assert.notEqual((await status()).state, 'prepared');
+      } else await attempt('stop', false);
       if (phase !== 'prepare') {
         await signalRecord('stop', 'commit');
         await wait(async () => (await get()).revision === 'stop');
@@ -430,6 +473,11 @@ const main = async () => {
       } else {
         begin = performance.now();
         supervisor.kill('SIGTERM');
+      }
+      if (phase === 'prepare') {
+        const atStop = await status();
+        assert.notEqual(atStop.state, 'prepared');
+        assert(!logs.includes('"state":"prepared"'));
       }
       await sleep(1000);
       assert.equal((await get()).status, 200);

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,6 +61,15 @@ func score(pid, value int) error {
 
 // A launcher changes its own score before exec; application code cannot fork before inheritance is established.
 func launch() {
+	fd, err := strconv.Atoi(os.Getenv("STP_BENCH_TRACE_FD"))
+	must(err)
+	gate := os.NewFile(uintptr(fd), "trace-start")
+	var start [1]byte
+	_, err = io.ReadFull(gate, start[:])
+	must(err)
+	gate.Close()
+	os.Unsetenv("STP_BENCH_TRACE_FD")
+
 	value, err := strconv.Atoi(os.Args[2])
 	must(err)
 	must(score(os.Getpid(), value))
@@ -72,19 +82,19 @@ func (u *generation) members() (map[int]processInfo, error) {
 	u.treeMu.Lock()
 	defer u.treeMu.Unlock()
 	for pid, p := range all {
-		if p.group == u.cmd.Process.Pid {
+		if p.group == u.pid {
 			u.membership[pid] = p.start
 		}
 	}
 	// A double-fork/setsid child can be adopted before its original parent is sampled.
 	// In this single-app harness, adopted children outside another tracked generation are unsupported escapes.
 	for pid, p := range all {
-		if p.parent != os.Getpid() || p.group == u.cmd.Process.Pid {
+		if p.parent != os.Getpid() || p.group == u.pid {
 			continue
 		}
 		otherGroup := false
-		for _, other := range []*generation{current.Load(), candidate.Load(), oldGeneration} {
-			if other != nil && other != u && p.group == other.cmd.Process.Pid {
+		for _, other := range []*generation{current.Load(), candidate.Load(), oldGeneration.Load()} {
+			if other != nil && other != u && p.group == other.pid {
 				otherGroup = true
 			}
 		}
@@ -107,26 +117,16 @@ func (u *generation) members() (map[int]processInfo, error) {
 	out := map[int]processInfo{}
 	var err error
 	for pid, start := range u.membership {
-		if p, ok := all[pid]; !ok || p.start != start {
-			if pid != u.cmd.Process.Pid {
-				u.treeFailure = true
-			}
-		}
-	}
-	for pid, start := range u.membership {
 		if p, ok := all[pid]; ok && p.start == start {
-			if p.group != u.cmd.Process.Pid {
+			if p.group != u.pid {
 				err = fmt.Errorf("unsupported detached process tree")
 			}
-			// Adopted grandchildren belong to us as a subreaper. Cmd.Wait owns only the leader.
-			if p.zombie && p.parent == os.Getpid() && pid != u.cmd.Process.Pid {
+			// The tracer observes exits; the subreaper still owns the final wait for
+			// adopted orphans once ptrace has released their exit event.
+			if p.zombie && p.parent == os.Getpid() && pid != u.pid {
 				var status syscall.WaitStatus
-				reaped, waitErr := syscall.Wait4(pid, &status, syscall.WNOHANG, nil)
-				if reaped == pid {
+				if reaped, _ := syscall.Wait4(pid, &status, syscall.WNOHANG, nil); reaped == pid {
 					continue
-				}
-				if waitErr != nil {
-					fmt.Printf("{\"benchmarkEvent\":\"reapError\",\"pid\":%d,\"error\":%q}\n", pid, waitErr.Error())
 				}
 			}
 			out[pid] = p
@@ -172,8 +172,13 @@ func (u *generation) protect() error {
 }
 func (u *generation) signal(sig syscall.Signal) {
 	// Signal group plus known descendants: a detected setsid escape must also be cleaned up.
-	syscall.Kill(-u.cmd.Process.Pid, sig)
 	members, _ := u.members()
+	for _, p := range members {
+		if p.group == u.pid {
+			syscall.Kill(-u.pid, sig)
+			break
+		}
+	}
 	for pid, p := range members {
 		if !p.zombie {
 			syscall.Kill(pid, sig)
@@ -196,11 +201,18 @@ func (u *generation) terminate() error {
 	if u == nil {
 		return nil
 	}
-	if u.termAt.IsZero() {
+	u.terminateMu.Lock()
+	defer u.terminateMu.Unlock()
+	u.treeMu.Lock()
+	first := u.termAt.IsZero()
+	if first {
 		u.termAt = time.Now()
-		u.signal(syscall.SIGTERM)
 	}
 	deadline := u.termAt.Add(grace)
+	u.treeMu.Unlock()
+	if first {
+		u.signal(syscall.SIGTERM)
+	}
 	for time.Now().Before(deadline) {
 		members, _ := u.members()
 		if len(members) == 0 && u.exited.Load() {
@@ -215,4 +227,10 @@ func (u *generation) remove() {
 	if u != nil && u.cmd.Dir != baseline {
 		must(os.RemoveAll(u.cmd.Dir))
 	}
+}
+
+func (u *generation) terminating() bool {
+	u.treeMu.Lock()
+	defer u.treeMu.Unlock()
+	return !u.termAt.IsZero()
 }
