@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -61,6 +62,12 @@ func score(pid, value int) error {
 
 // A launcher changes its own score before exec; application code cannot fork before inheritance is established.
 func launch() {
+	// Keep exec on the leader seized by the parent, including across the blocking gate read.
+	runtime.LockOSThread()
+	if syscall.Gettid() != os.Getpid() {
+		panic("launcher must run on its leader thread")
+	}
+
 	fd, err := strconv.Atoi(os.Getenv("STP_BENCH_TRACE_FD"))
 	must(err)
 	gate := os.NewFile(uintptr(fd), "trace-start")
