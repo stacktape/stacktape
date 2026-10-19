@@ -21,9 +21,10 @@ export const benchmarkContainerPolicy = (
   // The owned harness has one service. Reject other composition rather than
   // pretending a per-service calculation enforces a stack-wide total.
   if (workload.name !== 'api') throw new Error('Phase 3 benchmark supports only its owned api service.');
-  declaredCapacity([
-    { name: workload.name, maximum: workload.scaling.maxInstances, maximumPercent: 200, minimumHealthyPercent: 100 }
+  const capacity = declaredCapacity([
+    { name: workload.name, maximum: workload.scaling.maxInstances, maximumPercent: 200 }
   ]);
+  if (capacity.budgets[0]?.reason) return {};
   return {
     HealthCheck: supervisorHealthCheck,
     StopTimeout: supervisorStopBudget(container.stopTimeout).stopTimeout,
