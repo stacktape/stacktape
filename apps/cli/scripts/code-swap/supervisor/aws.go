@@ -254,3 +254,11 @@ func truncate(s string, n int) string {
 	}
 	return s
 }
+
+func statusKey() string {
+	identity := taskID
+	if role := os.Getenv("STP_BENCH_ROLE_ID"); role != "" {
+		identity = role + ":" + taskID
+	}
+	return "status#" + app + "#" + identity
+}

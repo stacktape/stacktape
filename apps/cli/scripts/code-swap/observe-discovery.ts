@@ -2,13 +2,13 @@
 // public HTTP throughout rollout/replacement, including an all-unhealthy fleet.
 import { readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
-import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import {
   ServiceDiscoveryClient,
   GetServiceCommand,
   GetNamespaceCommand,
   DiscoverInstancesCommand
 } from '@aws-sdk/client-servicediscovery';
+import { CloudFormationClient, DescribeStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { clients, guard, getStack, endpoint, save, type State } from './run';
 import { hostClockMs } from './trace';
@@ -24,13 +24,11 @@ const main = async () => {
   const owned = state.resources[0]!;
   const stack = await getStack(owned);
   assert(stack?.Tags?.some((tag) => tag.Key === 'code-swap-benchmark-owner' && tag.Value === owned.owner));
-  const raw = (
-    await new DynamoDBClient(clients).send(
-      new GetItemCommand({ TableName: owned.table, Key: { pk: { S: 'capacity#plan' } }, ConsistentRead: true })
-    )
-  ).Item!;
-  const plan = JSON.parse(raw.data!.S!) as { services: { node: { cluster: string; serviceArn: string } } };
-  const { cluster, serviceArn } = plan.services.node;
+  const resources = (
+    await new CloudFormationClient(clients).send(new DescribeStackResourcesCommand({ StackName: stack.StackId }))
+  ).StackResources!;
+  const serviceArn = resources.find((resource) => resource.ResourceType === 'AWS::ECS::Service')!.PhysicalResourceId!;
+  const cluster = serviceArn.split('/')[1]!;
   const service = (await new ECSClient(clients).send(new DescribeServicesCommand({ cluster, services: [serviceArn] })))
     .services![0]!;
   const discovery = new ServiceDiscoveryClient(clients);

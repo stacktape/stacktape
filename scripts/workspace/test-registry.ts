@@ -38,8 +38,7 @@ export const lanes: readonly Lane[] = [
       'scripts/code-swap/build-cli.spec.ts',
       'scripts/code-swap/analyze.spec.ts',
       'scripts/code-swap/transport.spec.ts',
-      'scripts/code-swap/ecs-budget.spec.ts',
-      'scripts/code-swap/role-bootstrap.spec.ts'
+      'scripts/code-swap/ecs-budget.spec.ts'
     ],
     level: 'process',
     tier: 'pr',
@@ -47,23 +46,11 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
-      'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
-      'apps/cli/scripts/code-swap/role-bootstrap.spec.ts'
+      'apps/cli/scripts/code-swap/ecs-budget.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
     proves: 'The ordinary CLI build cannot activate the unsigned benchmark path.'
-  },
-  {
-    id: 'code-swap-capacity',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/capacity/qualify.ts'],
-    level: 'process',
-    tier: 'change',
-    tests: ['apps/cli/scripts/code-swap/capacity/qualify.ts'],
-    requires: ['docker', 'network'],
-    release: 'affected-external-contract',
-    proves:
-      'Real DynamoDB transactions on MiniStack cap 501 concurrent synthetic-ECS admissions at 500, retain unknown owners and isolate poison/partial retries; no live IAM or latency claim.'
   },
   {
     id: 'code-swap-live-benchmark',
@@ -3553,10 +3540,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/transport.spec.ts',
       'apps/cli/scripts/code-swap/run.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
-      'apps/cli/scripts/code-swap/role-bootstrap.spec.ts',
-      'apps/cli/scripts/code-swap/capacity/qualify.ts',
       'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
-      'apps/cli/scripts/code-swap/supervisor/admission_test.go',
       'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
     ],
     lanes: [
@@ -3566,8 +3550,7 @@ export const slices: readonly Slice[] = [
       'code-swap-live-benchmark',
       'code-swap-runtime-safety',
       'code-swap-fargate-safety',
-      'code-swap-artifact-consumer',
-      'code-swap-capacity'
+      'code-swap-artifact-consumer'
     ]
   },
   {

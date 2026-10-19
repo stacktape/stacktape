@@ -658,7 +658,7 @@ func main() {
 		applications := 0
 		reservedMiB := int64(0)
 		for _, c := range meta.Containers {
-			if os.Getenv("STP_BENCH_ADMISSION") == "1" && c.Name == "stp-cloudmap-drain" && c.Limits.Memory == 16 {
+			if os.Getenv("STP_BENCH_PHASE3") == "1" && c.Name == "stp-cloudmap-drain" && c.Limits.Memory == 16 {
 				reservedMiB += 16
 				continue
 			}
@@ -686,12 +686,6 @@ func main() {
 		return
 	}
 	defer closeReadiness()
-	// Admission is supplied by the phase-3 protected allocator. Legacy local
-	// runtime qualification has no release-record pollers to allocate.
-	if err := acquireAdmission(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
 	deadline := time.Now().Add(60 * time.Second)
 	bootstrapDeadline.Store(&deadline)
 	boot := time.Now()

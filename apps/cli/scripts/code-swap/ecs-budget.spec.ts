@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { declaredCapacity, supervisorStopBudget } from './ecs-budget';
+import { capacityWithOverrides, declaredCapacity, supervisorStopBudget } from './ecs-budget';
 
 test('stop budgets preserve app grace and account for the separately ordered drain', () => {
   expect(supervisorStopBudget()).toEqual({
@@ -21,7 +21,8 @@ test('the service cap includes autoscaling maximum and deployment surge', () => 
   expect(declaredCapacity([service(10, 100)]).total).toBe(20);
   expect(declaredCapacity([service(6)]).budgets[0]?.reason).toContain('maximum 12 tasks');
   expect(declaredCapacity([service(11, 100)]).budgets[0]?.reason).toContain('exceeds 10');
-  expect(declaredCapacity([service(7, 150)]).budgets[0]?.reason).toContain('maximum 11 tasks');
+  expect(declaredCapacity([service(7, 150)]).budgets[0]?.tasks).toBe(10);
+  expect(declaredCapacity([service(8, 150)]).budgets[0]?.reason).toContain('maximum 12 tasks');
   for (const maximum of [0, -1, 1.5, Infinity, NaN])
     expect(declaredCapacity([service(maximum)]).budgets[0]?.reason).toContain('unknown');
   for (const percent of [0, 99, 201, Infinity, NaN])
@@ -60,12 +61,26 @@ test('the benchmark can compare image readiness while swaps always retain the EC
     await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap', readinessControl: false }));
     expect(() => benchmarkContainerPolicy(workload, container)).toThrow('image-only');
     await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap' }));
-    expect(() =>
-      benchmarkContainerPolicy({ ...workload, scaling: { ...workload.scaling, maxInstances: 151 } }, container)
-    ).toThrow('declared slots');
+    expect(
+      benchmarkContainerPolicy({ ...workload, scaling: { ...workload.scaling, maxInstances: 6 } }, container)
+    ).toEqual({});
   } finally {
     if (previous === undefined) delete process.env.STP_CODE_SWAP_BENCH_RUN;
     else process.env.STP_CODE_SWAP_BENCH_RUN = previous;
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('effective desired-count and surge overrides cannot bypass the cap', () => {
+  const service = { name: 'api', maximum: 5, maximumPercent: 200 };
+  expect(capacityWithOverrides(service, undefined).tasks).toBe(10);
+  expect(capacityWithOverrides(service, { DesiredCount: 6 }).reason).toContain('maximum 12');
+  expect(
+    capacityWithOverrides({ ...service, maximum: 10 }, { 'DeploymentConfiguration.MaximumPercent': 100 }).tasks
+  ).toBe(10);
+  expect(
+    capacityWithOverrides({ ...service, maximum: 6 }, { DeploymentConfiguration: { MaximumPercent: 200 } }).reason
+  ).toContain('maximum 12');
+  expect(capacityWithOverrides(service, { DeploymentConfiguration: { Ref: 'unknown' } }).reason).toContain('unknown');
+  expect(capacityWithOverrides(service, { DesiredCount: { Ref: 'unknown' } }).reason).toContain('unknown');
 });

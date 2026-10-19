@@ -7,7 +7,6 @@ import {
 import {
   DynamoDBClient,
   CreateTableCommand,
-  PutItemCommand,
   DescribeTableCommand,
   DeleteTableCommand,
   ListTagsOfResourceCommand
@@ -39,10 +38,7 @@ import { randomBytes } from 'node:crypto';
 import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { capacityResources } from './capacity/template';
-import { qualifyLiveCapacity } from './live-capacity';
 import { qualifyLifecycle } from './lifecycle';
-import { buildCapacity } from './build-capacity';
 import { LambdaClient, GetFunctionCommand, ListEventSourceMappingsCommand } from '@aws-sdk/client-lambda';
 import { EventBridgeClient, DescribeRuleCommand } from '@aws-sdk/client-eventbridge';
 import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
@@ -71,7 +67,6 @@ type Owned = {
   directory: string;
   stackId?: string;
   phase3?: boolean;
-  streamArn?: string;
   tableAttempted?: boolean;
   stackAttempted?: boolean;
   cleaned?: boolean;
@@ -207,8 +202,6 @@ const cliArgs = (state: State, owned: Owned, command: string) => [
   'jsonl',
   '--autoConfirmOperation'
 ];
-export const isPendingTaskRole = (error: unknown) =>
-  error instanceof Error && /^NoSuchEntity(?:Exception)?$/.test(error.name);
 const guard = async () => {
   assert(
     process.env.STP_CODE_SWAP_BENCH_LIVE === '1',
@@ -450,6 +443,16 @@ const cleanup = async (state: State, owned: Owned) => {
         'Owned log group remains.'
       );
     }
+    if (item.type === 'AWS::Lambda::Function') {
+      let absent = false;
+      try {
+        await new LambdaClient(clients).send(new GetFunctionCommand({ FunctionName: item.id }));
+      } catch (error) {
+        if (missing(error)) absent = true;
+        else throw error;
+      }
+      assert(absent, 'Owned Lambda remains after stack deletion.');
+    }
     if (item.type === 'AWS::ECS::Cluster') {
       const response = await ecs.send(new DescribeClustersCommand({ clusters: [item.id] }));
       assert(
@@ -521,21 +524,7 @@ const cleanup = async (state: State, owned: Owned) => {
 };
 const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
   const stackName = `${owned.name}-bench`;
-  const cluster = `arn:aws:ecs:${REGION}:${ACCOUNT}:cluster/${awsResourceNames.ecsCluster('api', stackName)}`;
   const config = {
-    ...(owned.phase3
-      ? {
-          cloudformationResources: capacityResources({
-            tableArn: `arn:aws:dynamodb:${REGION}:${ACCOUNT}:table/${owned.table}`,
-            streamArn: owned.streamArn!,
-            tableName: owned.table,
-            clusterArn: cluster,
-            functionName: `${owned.name}-capacity`,
-            codeBucket: owned.bucket,
-            codeKey: 'code-swap/capacity.zip'
-          })
-        }
-      : {}),
     projectName: owned.name,
     resources: {
       api: {
@@ -545,8 +534,8 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
             DesiredCount: count,
             ...(owned.phase3
               ? {
-                  'DeploymentConfiguration.MinimumHealthyPercent': 100,
-                  'DeploymentConfiguration.MaximumPercent': 200,
+                  'DeploymentConfiguration.MinimumHealthyPercent': process.argv.includes('--cap-lifecycle') ? 90 : 100,
+                  'DeploymentConfiguration.MaximumPercent': process.argv.includes('--cap-lifecycle') ? 100 : 200,
                   ServiceName: awsResourceNames.ecsService('api', stackName, false)
                 }
               : {})
@@ -558,8 +547,7 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
                     {
                       Name: 'STP_BENCH_ROLE_ID',
                       Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole('api'), 'RoleId'] }
-                    },
-                    { Name: 'STP_BENCH_ADMISSION', Value: '1' }
+                    }
                   ]
                 }
               }
@@ -583,7 +571,7 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
           resources: { cpu: 0.25, memory },
           scaling: {
             minInstances: count,
-            maxInstances: process.argv.includes('--capacity-only') ? 150 : owned.phase3 ? 2 : count
+            maxInstances: process.argv.includes('--cap-lifecycle') ? 10 : owned.phase3 ? 2 : count
           },
           iamRoleStatements: [
             {
@@ -594,7 +582,7 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
                 ? {
                     Condition: {
                       'ForAllValues:StringEquals': {
-                        'dynamodb:LeadingKeys': ['release#node', 'admission#node#${aws:userid}']
+                        'dynamodb:LeadingKeys': ['release#node']
                       }
                     }
                   }
@@ -793,6 +781,36 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
 
   return result;
 };
+export const qualifyOverCap = async (state: State, owned: Owned, run: BenchmarkRun, url: string) => {
+  const path = join(owned.directory, 'stacktape.json');
+  const config = JSON.parse(await readFile(path, 'utf8'));
+  config.resources.api.properties.scaling.maxInstances = 11;
+  await save(path, config);
+  const revision = `over-cap-${state.owner}`;
+  await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = ${JSON.stringify(revision)};\n`);
+  run.count = 1;
+  run.result = join(owned.directory, 'cap-fallback-cli-result.json');
+  const runFile = join(owned.directory, 'run.json');
+  await save(runFile, run);
+  const log = join(owned.directory, 'cap-fallback.log');
+  await invoke(cliArgs(state, owned, 'deploy'), log, { STP_CODE_SWAP_BENCH_RUN: runFile });
+  await waitForFleet(owned, 1);
+  const fallback = JSON.parse(await readFile(run.result, 'utf8'));
+  assert(
+    fallback.mode === 'image' && fallback.fallback === 'task_cap_exceeded',
+    'Over-cap service did not use images.'
+  );
+  assert(
+    fallback.reason.includes('exceeds 10') && (await readFile(log, 'utf8')).includes(fallback.reason),
+    'Missing CLI cap reason.'
+  );
+  const response = await fetch(`${url}/version`, { signal: AbortSignal.timeout(4000) });
+  assert(
+    response.ok && ((await response.json()) as { revision: string }).revision === revision,
+    'Image fallback did not serve the new code.'
+  );
+  await save(join(owned.directory, 'cap-fallback.json'), fallback);
+};
 const main = async () => {
   await guard();
   const stateArg = process.argv.indexOf('--state');
@@ -889,9 +907,6 @@ const main = async () => {
             KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
             AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
             BillingMode: 'PAY_PER_REQUEST',
-            ...(owned.phase3
-              ? { StreamSpecification: { StreamEnabled: true, StreamViewType: 'NEW_AND_OLD_IMAGES' as const } }
-              : {}),
             Tags: [{ Key: 'code-swap-benchmark-owner', Value: owner }]
           })
         );
@@ -899,13 +914,6 @@ const main = async () => {
           if ((await ddb.send(new DescribeTableCommand({ TableName: owned.table }))).Table?.TableStatus === 'ACTIVE')
             break;
           await Bun.sleep(1000);
-        }
-        if (owned.phase3) {
-          owned.streamArn = (
-            await ddb.send(new DescribeTableCommand({ TableName: owned.table }))
-          ).Table!.LatestStreamArn!;
-          await buildCapacity(owned.directory);
-          await save(join(directory, 'state.json'), state);
         }
         await configure(owned, memory, count);
         const run: BenchmarkRun = {
@@ -923,77 +931,9 @@ const main = async () => {
         await save(runFile, run);
         owned.stackAttempted = true;
         await save(join(directory, 'state.json'), state);
-        let setupFailed = false;
-        const deploy = invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'setup.log'), {
+        await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'setup.log'), {
           STP_CODE_SWAP_BENCH_RUN: runFile
-        }).catch((error) => {
-          setupFailed = true;
-          throw error;
         });
-        const initializePlan = async () => {
-          if (!owned.phase3) return;
-          const stackName = `${owned.name}-bench`;
-          const cluster = `arn:aws:ecs:${REGION}:${ACCOUNT}:cluster/${awsResourceNames.ecsCluster('api', stackName)}`;
-          for (let i = 0; i < 180; i++) {
-            if (setupFailed) return;
-            // During CREATE/UPDATE, DescribeStackResources can still show the
-            // previous artifact-only template. Resolve the named task role
-            // directly; waiting for CFN completion would deadlock admission.
-            const role = awsResourceNames.containerWorkloadRole(stackName, REGION, 'api');
-            if (role) {
-              const resolvedRole = await new IAMClient(clients)
-                .send(new GetRoleCommand({ RoleName: role }))
-                .catch((error) => {
-                  if (isPendingTaskRole(error)) return undefined;
-                  throw error;
-                });
-              if (!resolvedRole) {
-                await Bun.sleep(2000);
-                continue;
-              }
-              const roleId = resolvedRole.Role!.RoleId!;
-              const plan = {
-                version: 'phase3-1',
-                deleting: false,
-                account: ACCOUNT,
-                region: REGION,
-                services: {
-                  node: {
-                    cluster,
-                    serviceArn: `arn:aws:ecs:${REGION}:${ACCOUNT}:service/${awsResourceNames.ecsCluster('api', stackName)}/${awsResourceNames.ecsService('api', stackName, false)}`,
-                    roleId,
-                    start: 0,
-                    slots: process.argv.includes('--capacity-only') ? 450 : 6
-                  }
-                }
-              };
-              await ddb.send(
-                new PutItemCommand({
-                  TableName: owned.table,
-                  Item: {
-                    pk: { S: 'capacity#plan' },
-                    data: { S: JSON.stringify(plan) },
-                    version: { S: plan.version },
-                    deleting: { BOOL: false }
-                  }
-                })
-              );
-              return;
-            }
-            await Bun.sleep(2000);
-          }
-          throw new Error('Capacity plan role bootstrap never completed.');
-        };
-        const setup = await Promise.allSettled([
-          deploy,
-          initializePlan().catch((error) => {
-            console.error(
-              JSON.stringify({ capacityPlanBootstrapFailure: error instanceof Error ? error.name : 'unknown' })
-            );
-            throw error;
-          })
-        ]);
-        for (const item of setup) if (item.status === 'rejected') throw item.reason;
         const stack = await ownedStack(owned);
         owned.stackId = stack!.StackId;
         await save(join(directory, 'state.json'), state);
@@ -1020,7 +960,7 @@ const main = async () => {
         try {
           await Bun.sleep(10000);
           await business(url, setupBusiness);
-          if (process.argv.includes('--lifecycle-only') || process.argv.includes('--capacity-admission-only')) {
+          if (process.argv.includes('--lifecycle-only') || process.argv.includes('--cap-lifecycle')) {
             run.mode = 'swap';
             await edit(state, owned, run, url, 1);
           } else if (process.argv.includes('--image-penalty-only')) {
@@ -1043,7 +983,7 @@ const main = async () => {
               });
             }
             await save(join(directory, 'image-readiness-penalty.json'), {
-              scope: 'One paired image control, same admission/drain/app/CLI; no Phase1 distribution claim',
+              scope: 'One paired image control, same drain/app/CLI; no Phase1 distribution claim',
               controls,
               addedServingSeconds: controls[1]!.allServingSeconds - controls[0]!.allServingSeconds
             });
@@ -1113,15 +1053,18 @@ const main = async () => {
             await save(join(owned.directory, `${name}.json`), events);
           }
         }
-        if (process.argv.includes('--capacity-only')) {
-          await qualifyLiveCapacity(owned, { clients, guard, save });
-        } else if (
-          owned.phase3 &&
-          !process.argv.includes('--image-penalty-only') &&
-          !process.argv.includes('--speed-only')
-        ) {
+        if (owned.phase3 && !process.argv.includes('--image-penalty-only') && !process.argv.includes('--speed-only')) {
           const sample = await samplePublic(url, 0);
-          await qualifyLifecycle(owned, url, sample.revision, { clients, guard, save });
+          await qualifyLifecycle(owned, url, sample.revision, {
+            clients,
+            guard,
+            save,
+            count: process.argv.includes('--cap-lifecycle') ? 10 : 2
+          });
+          if (process.argv.includes('--cap-lifecycle')) {
+            await waitForFleet(owned, 1);
+            await qualifyOverCap(state, owned, run, url);
+          }
         }
         await cleanup(state, owned);
       }
@@ -1187,6 +1130,7 @@ export {
   ownedStack,
   endpoint,
   waitForFleet,
+  edit,
   clients,
   ACCOUNT,
   REGION,

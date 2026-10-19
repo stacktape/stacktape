@@ -10,6 +10,7 @@ import {
   DescribeTasksCommand
 } from '@aws-sdk/client-ecs';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import type { LanguageSpecificBundleOutput } from '@stacktape/packaging/runtime-contracts';
@@ -19,6 +20,7 @@ import { z } from 'zod';
 import { benchmarkDockerfile } from './image';
 import { benchmarkBaseInputs } from './base-inputs';
 import { trace, traceAsync } from './trace';
+import { serviceCapacity, declaredCapacity } from './ecs-budget';
 import { parse as parseYaml } from 'yaml';
 import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -86,6 +88,7 @@ const initialize = async () => {
     global,
     artifacts,
     stack,
+    iam: new IAMClient(config),
     ddb: new DynamoDBClient(config),
     ecs: new ECSClient(config),
     s3: new S3Client(config)
@@ -102,43 +105,16 @@ const put = async (data: Record<string, unknown>) => {
 };
 let checkedStatusRoleId: string | undefined;
 const fleet = async (service: string, cluster: string) => {
-  const { ecs, run, ddb } = await clients();
-  const [response, list, planItem] = await Promise.all([
+  const { ecs, run } = await clients();
+  const [response, list] = await Promise.all([
     ecs.send(new DescribeServicesCommand({ services: [service], cluster })),
-    ecs.send(new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' })),
-    run.phase3
-      ? ddb.send(
-          new GetItemCommand({ TableName: run.table, Key: { pk: { S: 'capacity#plan' } }, ConsistentRead: true })
-        )
-      : undefined
+    ecs.send(new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' }))
   ]);
   const primary = response.services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
   if (!primary || primary.runningCount !== run.count || response.services?.[0]?.desiredCount !== run.count)
     throw new Error('PRIMARY is not fully running.');
-  const plan = run.phase3
-    ? z
-        .object({
-          deleting: z.literal(false),
-          services: z.object({ node: z.object({ roleId: z.string(), slots: z.number().int().min(1).max(450) }) })
-        })
-        .parse(JSON.parse(planItem!.Item!.data!.S!))
-    : undefined;
   const listedIds = (list.taskArns ?? []).map((arn) => arn.split('/').at(-1)!).toSorted();
-  const [tasks, grants] = await Promise.all([
-    ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] })),
-    plan && listedIds.length
-      ? ddb.send(
-          new BatchGetItemCommand({
-            RequestItems: {
-              [run.table]: {
-                ConsistentRead: true,
-                Keys: listedIds.map((id) => ({ pk: { S: `admission#node#${plan.services.node.roleId}:${id}` } }))
-              }
-            }
-          })
-        )
-      : undefined
-  ]);
+  const tasks = await ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] }));
   if (
     tasks.failures?.length ||
     tasks.tasks?.length !== run.count ||
@@ -147,19 +123,10 @@ const fleet = async (service: string, cluster: string) => {
     throw new Error('Unexpected fleet membership/revision.');
   const ids = tasks.tasks.map(({ taskArn }) => taskArn!.split('/').at(-1)!).toSorted();
   if (JSON.stringify(ids) !== JSON.stringify(listedIds)) throw new Error('Listed/described fleet mismatch.');
-  if (plan) {
+  if (run.phase3) {
     if (tasks.tasks.some((task) => task.healthStatus !== 'HEALTHY'))
       throw new Error('Supervisor-checked PRIMARY is not healthy.');
-    if (!grants || Object.keys(grants.UnprocessedKeys ?? {}).length)
-      throw new Error('Unprocessed admission preflight.');
-    const found = (grants.Responses?.[run.table] ?? []).map((row) =>
-      z.object({ task: z.string(), slot: z.number().int().min(0).max(499) }).parse(JSON.parse(row.data!.S!))
-    );
-    if (found.length !== ids.length || ids.some((id) => !found.some((grant) => grant.task === id)))
-      throw new Error('PRIMARY admission missing; use image repair.');
-    // This is key addressing for the checked fleet, not a cached validity result.
-    // Every prepare/commit/completion preflight rereads the plan and own grants.
-    checkedStatusRoleId = plan.services.node.roleId;
+    if (!checkedStatusRoleId) throw new Error('Missing checked-task RoleId.');
   }
   return { ids, primary: primary.id };
 };
@@ -207,6 +174,61 @@ export const benchmarkImage = async (input: {
 }) => {
   trace('benchmarkImage:start');
   const { run, global, artifacts, stack, s3 } = await clients();
+  const { configManager } = await import('../../src/domain/config-manager');
+  const workload = configManager.allContainerWorkloads.find((workload) => workload.name === 'api');
+  if (!workload) throw new Error('Missing benchmark workload.');
+  let capacity = declaredCapacity(
+    configManager.allContainerWorkloads.map((item) => {
+      const resource = configManager.config.resources[item.name];
+      return {
+        name: item.name,
+        maximum: item.scaling.maxInstances,
+        maximumPercent: 200,
+        overrides:
+          resource && 'overrides' in resource
+            ? resource.overrides?.[cfLogicalNames.ecsService(item.name, false)]
+            : undefined
+      };
+    })
+  ).budgets.find((item) => item.name === workload.name)!;
+  const roleLookup =
+    run.phase3 && stack.stackActionType !== 'create'
+      ? (async () => {
+          const role = stack.existingStackResources.find(
+            (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
+          )?.PhysicalResourceId;
+          if (!role) throw new Error('Missing benchmark task role.');
+          const { iam } = await clients();
+          checkedStatusRoleId = (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
+        })()
+      : Promise.resolve();
+  roleLookup.catch(() => {});
+  if (stack.stackActionType !== 'create') {
+    const service = stack.existingStackResources.find(
+      (resource) => resource.ResourceType === 'AWS::ECS::Service'
+    )?.PhysicalResourceId;
+    if (service) {
+      const actual = (
+        await (
+          await clients()
+        ).ecs.send(new DescribeServicesCommand({ cluster: service.split('/')[1], services: [service] }))
+      ).services?.[0];
+      const liveCapacity = serviceCapacity({
+        name: workload.name,
+        maximum: Math.max(workload.scaling.maxInstances, actual?.desiredCount ?? 0),
+        maximumPercent: actual?.deploymentConfiguration?.maximumPercent ?? NaN
+      });
+      if (liveCapacity.reason) capacity = { name: workload.name, ...liveCapacity };
+    }
+  }
+  await roleLookup;
+  if (capacity.reason) {
+    result = { mode: 'image', fallback: 'task_cap_exceeded', reason: capacity.reason };
+    const { tuiManager } = await import('../../src/app/tui-manager');
+    tuiManager.info(capacity.reason);
+    await put({ Phase: 'abort' });
+    return input.dockerfileContents;
+  }
   if (input.runtime !== 'node' || input.dockerBuildOutputArchitecture !== 'linux/amd64')
     throw new Error('Only amd64 Node is qualified for this benchmark.');
   if (input.languageSpecificBundleOutput.es?.externalDependencies?.length)
@@ -245,7 +267,7 @@ export const benchmarkImage = async (input: {
   // The image uses the same real bundler output, entrypoint and dependencies as the ordinary js-bundle image.
   const dockerfile =
     (await benchmarkDockerfile(input.buildContextPath, input.dockerfileContents, run.supervisor)) +
-    `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js\nENTRYPOINT ["/stacktape-supervisor"]\n`;
+    `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`;
   if (stack.stackActionType === 'create' || run.mode === 'image') {
     await put({ Phase: 'abort' });
     return dockerfile;
@@ -386,16 +408,6 @@ export const benchmarkBootstrapBucket = async () => {
             })
           )
         );
-        if (run.phase3) {
-          const { s3 } = await clients();
-          await s3.send(
-            new PutObjectCommand({
-              Bucket: artifacts.deploymentBucketName,
-              Key: 'code-swap/capacity.zip',
-              Body: await readFile(join(dirname(run.result), 'capacity.zip'))
-            })
-          );
-        }
         result.bootstrap = { attempts, clientElapsedMs: performance.now() - started };
         return;
       }
@@ -410,7 +422,11 @@ export const benchmarkBootstrapBucket = async () => {
 };
 export const benchmarkReleaseIdentity = () => ({ identity, mode: result.mode, fallback: result.fallback });
 export const benchmarkComplete = async () => {
-  if (!identity) return;
+  if (!identity) {
+    const { run } = await clients();
+    await writeFile(run.result, JSON.stringify(result, null, 2));
+    return;
+  }
   const { run, s3, artifacts, stack } = await clients();
   // Fast deploys record the overlay identity in their ordinary marker. A
   // full CFN image deploy instead records its version and exact task image in

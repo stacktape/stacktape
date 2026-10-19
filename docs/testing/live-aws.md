@@ -156,8 +156,8 @@ exits. WebSockets receive close code 1001 at the drain deadline. Shutdown retain
 preserves the original old-tree deadline and concurrent grace. The test-only task-definition override supplies the exact
 82-second ECS stop budget for a 40-second drain and grace. The local default-grace cases use a 60-second budget.
 Production synthesis stays unchanged. The timeout formula is checked by fixture arithmetic with a hand-set override;
-rejecting oversized grace before an ECS update remains Phase 3. Configured application checks, ECS readiness and
-capacity admission remain later phases.
+rejecting oversized grace before an ECS update remains Phase 3. Configured application checks, ECS readiness and the
+service-cap check remain later phases.
 
 Docker needs `--oom-score-adj=-998` to reproduce Fargate's inherited score. The supervisor verifies protection before
 starting applications. Kernel exit observation uses parent-owned `PTRACE_SEIZE` before the launcher gate opens, with
@@ -208,109 +208,58 @@ The immutable bundle upload overlaps the fleet preflight. Both operations finish
 published, including on failure paths. Neither changes the image-upload gate before commit. Trace spans retain the
 actual overlapping upload interval and the time when both prerequisites finished.
 
-### Readiness and capacity qualification (phase 3)
+### Readiness and service-cap qualification (phase 3)
 
-The owned runner's `--phase3` argument keeps the private-ECR Cloud Map drain container and adds the essential
-`/stacktape-supervisor readiness` ECS command through the benchmark build plugin. Ordinary builds remain unchanged. The
-command queries a live Unix socket; the supervisor checks the current generation through its proxy every five seconds.
-Admission, bootstrap, stale checks, process failure and task stop cannot pass readiness. Configured application checks
-remain a later qualification scope.
+The source-only `--phase3` runner retains the private-ECR Cloud Map drain container and adds an essential
+`/stacktape-supervisor readiness` ECS command. Ordinary builds remain unchanged. The command queries a live Unix socket;
+the supervisor checks its committed generation through the proxy every five seconds. Pending/failed bootstrap, stale
+checks, process failure and task stop cannot pass readiness. Configured application checks remain a later scope.
+
+Before opt-in and every deploy, the benchmark checks the declared autoscaling maximum and effective deployment surge:
+`floor(maximum * maximumPercent / 100) <= 10`. Unknown bounds and larger services use images with a one-line CLI reason.
+ECS rounds this limit down
+([deployment configuration](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_DeploymentConfiguration.html)).
+The static stack budget sums surge plus one draining generation across opted-in services and must stay at most 500. The
+owned harness has exactly one service. It has no coordinator, stream, admission grants, slots or STOPPED handler.
 
 ```sh
-pnpm --filter @stacktape/cli exec bun scripts/code-swap/capacity/qualify.ts
-STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --regression --phase3 --configurations 1024-1
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --cap-lifecycle --phase3 --configurations 1024-1
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --speed-only --regression --phase3 --configurations 1024-1
 ```
 
-The first command uses MiniStack DynamoDB transactions and a synthetic ECS membership server. It tests 501 concurrent
-requests, duplicate grants, confirmed-STOPPED reclamation and stale workers; it does not establish AWS IAM or startup
-latency. The live runner deploys the separate 256 MiB capacity Lambda, reserved concurrency two, filtered stream,
-STOPPED-only rule and alarms through the Stacktape CLI. Its controller initializes the capacity plan after task-role
-creation. This unsigned benchmark bootstrap is not final protected CFN lifecycle adoption; phase 4 owns that boundary.
-Preserve the generated template, lifecycle samples and every failed run.
+The cap fixture seeds a committed overlay, then scales to ten tasks with maximumPercent 100 and
+minimumHealthyPercent 90. It tests delayed committed bootstrap, a missing bundle, replacement after CLI exit and
+all-unhealthy recovery. It then raises the maximum to eleven and verifies a real CLI image deploy with the cap reason.
+Preserve the synthesized template, lifecycle samples, fallback output and every failed run. `--lifecycle-only` runs the
+smaller two-task variant. `observe-discovery.ts <run-directory>` records actual Cloud Map filtering and public responses
+alongside a live run. The speed command runs twenty edits on one unchanged task, retains every request failure and fits
+AWS-side timestamps. It must meet p50 <=5 s, p95 <=15 s, max <=25 s and zero swap request failures.
 
-The application grace and ECS timeout are separate: `W=G`, `D=max(30,W)`, `T=max(60,D+G+2)`, and `T<=120`. The 35-second
-drain sidecar has its own 40-second ECS timeout and stops before the supervisor; the supervisor then serves cached
-routes for D and signals application trees concurrently for G. Thus the ordered stop can exceed the supervisor's T (at
-most `40+T`); the Fargate 120-second limit applies to each container timeout. Measure both the ordinary 35-second hold
-and supervisor shutdown when qualifying task stops. The fixed drain container reserves 16 MiB from the supervisor's task
-memory budget; arbitrary additional sidecars remain unsupported.
+The application grace and ECS timeout remain separate: `W=G`, `D=max(30,W)`, `T=max(60,D+G+2)`, `T<=120`. The 35-second
+drain sidecar has its own 40-second ECS timeout and stops before the supervisor. The supervisor then serves cached
+routes for D and signals application trees concurrently for G. Ordered stop can reach `40+T`; the 120-second Fargate
+limit is per container. The fixed helper reserves 16 MiB; arbitrary extra sidecars remain unsupported.
 
-Lifetime ptrace imposes fork/signal latency and prevents external debugger attachment. The narrowed runtime traces only
-candidates through preparation and overlap, then detaches after old-tree reaping and OOM-score restoration. Baseline and
-committed bootstrap use ordinary process waits. Denied ptrace refuses candidate execution and leaves the checked image
-baseline serving for image repair. Worker SIGKILL attribution is available during candidate overlap; idle descendant
-discovery uses process-group/parent membership and start identities. An idle worker killed and reaped by its application
-can also lose SIGKILL attribution; a census does not recover its wait status. Qualification must cover its
-late-fork/leader-exit limits before customer enablement. A leader that keeps answering while its workers exit without
-SIGKILL remains an explicit deferred B3 clause; an authored check that reaches those workers is the eventual remedy.
+The narrowed runtime traces candidates only during prepare/overlap, then detaches after old-tree reaping and OOM-score
+restoration. Baseline and committed bootstrap use ordinary waits. Denied ptrace refuses a candidate and leaves the
+checked image serving for image repair. Idle process census cannot attribute SIGKILL already reaped by the application.
+`go test -race` and the seccomp-denial test run in the pinned Go builder. For a tracer-only diagnostic use
+`STP_MEASURE_TRACE=1 go test -run '^TestTraceOverhead$' -v`; retain all paired rounds. This excludes proxy/AWS costs.
 
-For a local diagnostic of tracer overhead alone, run `STP_MEASURE_TRACE=1 go test -run '^TestTraceOverhead$' -v` in the
-pinned Go builder against the supervisor sources. It compares direct, lifetime-traced and detached HTTP fixtures with
-fork and signal work, with 100 warmups and 500 measured requests per round. Keep all three paired rounds, p50/p99 and
-throughput. This diagnostic excludes the proxy, AWS and application OOM-score setup; it cannot substitute for live
-end-to-end overhead measurements. The seccomp-denial test and `go test -race` are part of the built supervisor lane.
+`--image-penalty-only --phase3 --configurations 1024-1` runs one unchecked/checked image pair with the same app and
+drain. Only its image control can remove ECS readiness. Separate AWS clock fits label the single-pair scope; this does
+not replace the matched image distributions. `cleanup-audit.ts <run-directory>` checks exact saved resources and every
+ECS revision status, including DELETE_IN_PROGRESS. Legacy coordinator-resource checks exist solely to recover old runs.
 
-Before publication, the existing code-swap action in the private v4 readiness guide still requires the pinned artifact,
-readiness/stop/admission template, final writer policies and runner permissions to ship together. Complete that action
-only after the release binary and selected runner pass the initial opt-in, swap and image-repair acceptance checks. No
-benchmark PR authorizes publication or customer activation.
+The [Ireland cost model](../../apps/cli/scripts/code-swap/cost.ts) reuses the archived 19 October regional rates and
+includes strong 4-KiB polling, bounded bootstrap reads, status writes, signing, S3 requests/retention and bounded logs.
+There are no coordinator invocations, streams, grants or alarms. At 730 hours, 100 edits/day, 100 starts/task-month,
+20-MiB bundles and 30 retained releases/service, the model estimates $1.72/month for one task, $6.13 for ten and $251.76
+for 500 pollers across 25 services. Account cost is the sum of stack budgets; no account-wide runtime registry is
+introduced for small dev/staging fleets. Administrator drift and external overlapping rollouts are outside this static
+bound. Measure actual request/retry counts before treating the model as a customer cost qualification.
 
-`--lifecycle-only --phase3 --configurations 1024-1` seeds one committed overlay, then exercises scale-out, a 60-second
-bootstrap delay during a healthy-old rollout, replacement after CLI exit, a 60-second allocator outage with serving
-survivors, and recovery from an unhealthy fleet. This is a lifecycle fixture, not a repeat of the 20-edit speed gate.
-The separate `observe-discovery.ts <run-directory>` companion records actual Cloud Map `HEALTHY` versus
-`HEALTHY_OR_ELSE_ALL` results and public responses; keep its host-monotonic samples with the run.
-
-`--image-penalty-only --phase3 --configurations 1024-1` runs one unchecked/checked image pair with the same application,
-admission and drain. Its image-only control may remove ECS readiness; a swap cannot use that control. The report fits
-AWS clocks separately and labels its single-pair scope. It does not establish a p95 or replace the Phase-1 matched image
-distributions. The runner records failure frames before cleanup, which can wait for ECS's delayed revision removal.
-`GetTemplate` output can be YAML even when the submitted source was JSON.
-
-The [Ireland cost model](../../apps/cli/scripts/code-swap/cost.ts) includes strong 4-KiB reads, status/transaction
-writes, retained bundles, allocator calls/duration, signing, alarms and bounded supervisor logs without free-tier
-credits. Its rates were checked against the regional AWS Price List offers for
-[DynamoDB](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonDynamoDB/current/eu-west-1/index.json),
-[Lambda](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/current/eu-west-1/index.json),
-[S3](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/current/eu-west-1/index.json),
-[KMS](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/awskms/current/eu-west-1/index.json) and
-[CloudWatch](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonCloudWatch/current/eu-west-1/index.json).
-Archive those offers with each live qualification. Archive measured request counts, retry/churn bursts and duration
-alongside the model before treating it as a release-budget pass. The startup envelope includes the owned burst observers
-and retries; latency and recovery gates remain independent.
-
-`--capacity-only --regression --phase3 --configurations 512-1` declares a 450-slot budget, runs the short speed gate,
-then starts 100 additional actual ECS tasks. It records request-to-grant p95/max before attempting the independent
-500/501 counter boundary; either failed latency gate leaves the run a no-go. The boundary deliberately changes the owned
-service desired count beyond its declared scaling maximum; this is a hard-cap fault fixture, not a supported scaling
-configuration. The runner checks the account's Fargate quota without changing it, persists every attempted desired count
-and task identity, and scales to zero in `finally`. `--capacity-admission-only` replaces the 20 edits with one seed
-overlay for an allocator-only rerun. Preserve failed SLA runs, including their throttle counts, rather than pooling them
-with successful repetitions.
-
-Use `observe-capacity.ts <run-directory>` during the run to retain exact-function request/duration logs and table API
-counts before cleanup removes the log group. Request-to-grant measurements use task/Lambda timestamps from AWS, not the
-WSL clock. Common admissions probe conditional slots directly; full fixed-key reads and confirmed-STOPPED reconciliation
-run under pressure. The stream collects up to 20 records for one second and processes one batch per shard against the
-fixed two-execution reservation. Within an invocation, ECS membership lookups batch actual identities by service; no
-observation comes from event contents or persists across invocations. Transaction conflicts are retryable failures, not
-evidence that another owner already reclaimed a slot. The local fixture injects that conflict and verifies it cannot
-silently acknowledge a STOPPED release. `cleanup-audit.ts <run-directory>` checks saved capacity resources and every
-revision status, including `DELETE_IN_PROGRESS`; an accepted ECS deletion is not verified absence.
-
-The lifecycle fixture also replaces a healthy-old rollout with an owned missing bundle key, verifies the new bootstrap
-stops, restores the committed record and waits for ECS recovery. Its outage stage stops one of two serving tasks while
-the allocator is disabled, queues an owned poison record, restores service after 60 AWS seconds, and requires a routed
-replacement within 180 AWS seconds. Retain the capacity log companion to separately check the 30-second post-restore
-grant limit; the 180-second routing assertion alone does not prove it. Neither case performs a manual replacement to
-hide scheduler backoff.
-
-`--capacity-hundred-only --capacity-only --regression --phase3 --configurations 1024-1` runs the full 20-edit speed
-regression and the 100-start allocator gate without repeating the separate 501-task drift fixture. Preserve both runs;
-the smaller rerun alone cannot establish the live hard-counter boundary. Failed speed medians and admission tails remain
-in the evidence even if a later scoped repeat passes.
-
-`--speed-only --regression --phase3 --configurations 1024-1` runs the isolated 20-edit regression without repeating
-lifecycle or admission pressure. Fleet preflights read the protected plan alongside ECS discovery, then task details
-alongside exact own grants. Prepare, commit and completion each repeat those validations. Status polling reuses only the
-checked RoleId for key addressing; it still strongly reads every task status and cannot cache a health/grant result.
+Before the first publication exposing code swap, ship the pinned supervisor/SBOM, cap/readiness/stop template, protected
+record policies and runner permissions together. The existing private v4 launch action owns publication timing. Complete
+only when the extracted release and selected runner pass protected opt-in, eligible swap, over-cap image fallback and
+ordinary rollback on a disposable non-production stack. These benchmark PRs authorize no publication.

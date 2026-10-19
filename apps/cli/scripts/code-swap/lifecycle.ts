@@ -9,13 +9,15 @@ import {
   DescribeTaskDefinitionCommand
 } from '@aws-sdk/client-ecs';
 import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { LambdaClient, PutFunctionConcurrencyCommand } from '@aws-sdk/client-lambda';
-import { CloudFormationClient, GetTemplateCommand } from '@aws-sdk/client-cloudformation';
+import {
+  CloudFormationClient,
+  GetTemplateCommand,
+  DescribeStackResourcesCommand
+} from '@aws-sdk/client-cloudformation';
 import type { AwsCredentialIdentityProvider } from '@aws-sdk/types';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { parse as parseYaml } from 'yaml';
-import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 
 export const qualifyLifecycle = async (
   owned: { name: string; table: string; directory: string },
@@ -24,8 +26,10 @@ export const qualifyLifecycle = async (
   {
     clients,
     guard,
-    save
+    save,
+    count
   }: {
+    count: number;
     clients: { region: string; credentials: AwsCredentialIdentityProvider };
     guard: () => Promise<void>;
     save: (path: string, value: unknown) => Promise<void>;
@@ -33,15 +37,14 @@ export const qualifyLifecycle = async (
 ) => {
   await guard();
   const ecs = new ECSClient(clients),
-    ddb = new DynamoDBClient(clients),
-    lambda = new LambdaClient(clients);
-  const planItem = (
-    await ddb.send(
-      new GetItemCommand({ TableName: owned.table, Key: { pk: { S: 'capacity#plan' } }, ConsistentRead: true })
+    ddb = new DynamoDBClient(clients);
+  const resources = (
+    await new CloudFormationClient(clients).send(
+      new DescribeStackResourcesCommand({ StackName: `${owned.name}-bench` })
     )
-  ).Item!;
-  const plan = JSON.parse(planItem.data!.S!) as { services: { node: { cluster: string; serviceArn: string } } };
-  const { cluster, serviceArn: service } = plan.services.node;
+  ).StackResources!;
+  const service = resources.find((resource) => resource.ResourceType === 'AWS::ECS::Service')!.PhysicalResourceId!;
+  const cluster = service.split('/')[1]!;
   const template = await new CloudFormationClient(clients).send(
     new GetTemplateCommand({ StackName: `${owned.name}-bench` })
   );
@@ -76,6 +79,18 @@ export const qualifyLifecycle = async (
       drain.stopTimeout === 40 &&
       drain.image?.includes('.dkr.ecr.eu-west-1.amazonaws.com/')
   );
+  const originalTasks = new Set((await taskState()).map((task) => task.taskArn!));
+  const release = (
+    await ddb.send(
+      new GetItemCommand({ TableName: owned.table, Key: { pk: { S: 'release#node' } }, ConsistentRead: true })
+    )
+  ).Item!;
+  const committed = JSON.parse(release.data!.S!) as { Revision: string };
+  const roleId = definition.containerDefinitions
+    ?.flatMap((container) => container.environment ?? [])
+    .find((env) => env.name === 'STP_BENCH_ROLE_ID')?.value;
+  assert(roleId, 'Missing injected RoleId in initial task definition.');
+  const bootstrapEvidence = new Map<string, unknown>();
   const registrations = JSON.stringify(initial.serviceRegistries);
   const samples: {
     phase: string;
@@ -121,6 +136,31 @@ export const qualifyLifecycle = async (
     const healthy = tasks.filter(
       (task) => task.healthStatus === 'HEALTHY' && task.lastStatus === 'RUNNING' && !excluded.includes(task.taskArn!)
     );
+    for (const task of healthy) {
+      if (originalTasks.has(task.taskArn!) || bootstrapEvidence.has(task.taskArn!)) continue;
+      const row = (
+        await ddb.send(
+          new GetItemCommand({
+            TableName: owned.table,
+            Key: { pk: { S: `status#node#${roleId}:${task.taskArn!.split('/').at(-1)}` } },
+            ConsistentRead: true
+          })
+        )
+      ).Item;
+      if (!row?.data?.S) return false;
+      const status = JSON.parse(row.data.S) as {
+        state: string;
+        revision: string;
+        timings: { bootAtMs: number; readyAtMs: number; listenerAtMs: number };
+      };
+      assert.equal(status.revision, committed.Revision, 'Healthy replacement did not load committed code.');
+      assert.equal(status.state, 'complete');
+      assert(
+        status.timings.bootAtMs <= status.timings.readyAtMs && status.timings.readyAtMs <= status.timings.listenerAtMs,
+        'Committed bootstrap did not precede listener/readiness.'
+      );
+      bootstrapEvidence.set(task.taskArn!, { task: task.taskArn, health: task.healthStatus, ...status });
+    }
     return (
       healthy.length === count &&
       healthy.every((task) =>
@@ -132,8 +172,33 @@ export const qualifyLifecycle = async (
     );
   };
   try {
-    await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount: 2 }));
-    await wait(() => fullyRouted(2));
+    await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount: count }));
+    await wait(() => fullyRouted(count));
+    if (count === 10) {
+      qualification.atCap = {
+        tasks: count,
+        maximumPercent: initial.deploymentConfiguration?.maximumPercent,
+        scaleOutCommitted: true
+      };
+      phase = 'replacement-after-cli-exit';
+      const victim = (await taskState()).find((task) => task.lastStatus === 'RUNNING')!;
+      await ecs.send(
+        new StopTaskCommand({ cluster, task: victim.taskArn!, reason: 'Owned ten-task cap replacement qualification' })
+      );
+      await wait(() => fullyRouted(count, [victim.taskArn!]));
+      assert.equal(
+        JSON.stringify((await serviceState()).serviceRegistries),
+        registrations,
+        'Registration ownership changed.'
+      );
+      qualification.replacement = { stopped: victim.taskArn, committed: true };
+      assert.equal(
+        samples.filter((sample) => sample.status !== 200 || sample.error || sample.revision !== expected).length,
+        0,
+        'At-cap scale-out/replacement failed a request or served stale code.'
+      );
+      return;
+    }
     phase = 'delayed-healthy-old-rollout';
     const before = (await taskState()).map((task) => task.taskArn!);
     const release = (
@@ -149,7 +214,7 @@ export const qualifyLifecycle = async (
       })
     );
     await ecs.send(new UpdateServiceCommand({ cluster, service, forceNewDeployment: true }));
-    await wait(() => fullyRouted(2, before));
+    await wait(() => fullyRouted(count, before));
     assert.equal(
       JSON.stringify((await serviceState()).serviceRegistries),
       registrations,
@@ -189,87 +254,24 @@ export const qualifyLifecycle = async (
       return failed.length > 0;
     });
     await ddb.send(new PutItemCommand({ TableName: owned.table, Item: release }));
-    await wait(() => fullyRouted(2, priorTasks));
+    await wait(() => fullyRouted(count, priorTasks));
     qualification.failedBundleBootstrap = { failedTasks: failed, staleSuccessfulResponses: 0 };
     phase = 'replacement-after-cli-exit';
     const victim = (await taskState()).find((task) => task.lastStatus === 'RUNNING')!;
     await ecs.send(
       new StopTaskCommand({ cluster, task: victim.taskArn!, reason: 'Owned phase-3 replacement qualification' })
     );
-    await wait(() => fullyRouted(2, [victim.taskArn!]));
-    phase = 'allocator-outage-serving-survivors';
-    await lambda.send(
-      new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 0 })
-    );
-    const outageVictim = (await taskState()).find((task) => task.lastStatus === 'RUNNING')!;
-    await ecs.send(
-      new StopTaskCommand({
-        cluster,
-        task: outageVictim.taskArn!,
-        reason: 'Owned pending-admission outage qualification'
-      })
-    );
-    // The malformed owned request must not block the replacement on recovery.
-    await ddb.send(
-      new PutItemCommand({
-        TableName: owned.table,
-        Item: {
-          pk: { S: 'status#owned-poison' },
-          capacityRequest: { S: 'poison' }
-        }
-      })
-    );
-    // Leave existing admitted tasks serving for 60 AWS seconds; use response
-    // timestamps so the WSL clock rate never shortens the outage.
-    const awsStart = samples.findLast((sample) => sample.awsMs)?.awsMs;
-    assert(awsStart);
-    await wait(async () => (samples.findLast((sample) => sample.awsMs)?.awsMs ?? 0) - awsStart >= 60000, 100);
-    phase = 'allocator-pending-recovery';
-    const restoredAt = samples.findLast((sample) => sample.awsMs)?.awsMs;
-    assert(restoredAt);
-    await lambda.send(
-      new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 2 })
-    );
-    // The outage copy may have aged past the stream's60s record limit. Drive a
-    // fresh poison alongside valid recovery rather than assuming it was handled.
-    await ddb.send(
-      new PutItemCommand({
-        TableName: owned.table,
-        Item: {
-          pk: { S: 'status#owned-poison' },
-          capacityRequest: { S: 'recovered-poison' }
-        }
-      })
-    );
-    await wait(() => fullyRouted(2, [outageVictim.taskArn!]), 180);
-    const recoveryMs = samples.findLast((sample) => sample.awsMs)!.awsMs! - restoredAt;
-    assert(recoveryMs <= 180000, 'Pending recovery exceeded180 AWS seconds.');
-    qualification.pendingRoutingRecovery = { restoredAtAWSMs: restoredAt, recoveryAWSSeconds: recoveryMs / 1000 };
-    const poison = await new CloudWatchLogsClient(clients).send(
-      new FilterLogEventsCommand({
-        logGroupName: `/aws/lambda/${owned.name}-capacity`,
-        filterPattern: '"invalid_request"'
-      })
-    );
-    assert(poison.events?.length, 'Poison did not reach isolated capacity handling.');
-    qualification.pendingOutageRecovery = {
-      outageAWSSeconds: 60,
-      recoveryAWSSeconds: recoveryMs / 1000,
-      poisonDiscarded: true
-    };
+    await wait(() => fullyRouted(count, [victim.taskArn!]));
     phase = 'all-unhealthy-recovery';
     const dead = (await taskState()).filter((task) => task.lastStatus === 'RUNNING');
     for (const task of dead)
       await ecs.send(
         new StopTaskCommand({ cluster, task: task.taskArn!, reason: 'Owned all-unhealthy qualification' })
       );
-    await lambda.send(
-      new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 2 })
-    );
     await wait(
       () =>
         fullyRouted(
-          2,
+          count,
           dead.map((task) => task.taskArn!)
         ),
       180
@@ -284,18 +286,19 @@ export const qualifyLifecycle = async (
     );
     assert.equal(survivorErrors.length, 0, 'Healthy-survivor lifecycle request failed.');
   } finally {
-    await lambda.send(
-      new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 2 })
-    );
     controller.abort();
     await traffic;
+    await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount: 1 }));
     await save(join(owned.directory, 'phase3-lifecycle.json'), {
       qualification,
+      committedBootstrapBeforeReadiness: [...bootstrapEvidence.values()],
       samples,
       registrations,
       definition,
       scope:
-        'scale-out,60s delayed healthy-old rollout,failed bundle bootstrap,replacement,60AWSs allocator outage with pending replacement and poison,all-unhealthy recovery; opt-out/rollback and complete fault matrix remain unqualified'
+        count === 10
+          ? 'Ten-task scale-out and replacement after CLI exit; committed code only; unchanged ECS registrations'
+          : 'Two-task delayed/missing bootstrap, replacement and all-unhealthy recovery; full opt-out/rollback matrix remains unqualified'
     });
   }
 };

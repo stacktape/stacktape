@@ -16,7 +16,7 @@ export const supervisorHealthCheck = {
   Retries: 3,
   StartPeriod: 150
 };
-export type CapacityService = { name: string; maximum: number; maximumPercent: number };
+export type CapacityService = { name: string; maximum: number; maximumPercent: number; overrides?: unknown };
 export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityService) => {
   if (
     !Number.isInteger(maximum) ||
@@ -28,7 +28,7 @@ export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityServi
     return {
       reason: `Code swap skipped for ${name}: task maximum or deployment surge is unknown; using an image deploy.`
     };
-  const tasks = Math.ceil((maximum * maximumPercent) / 100);
+  const tasks = Math.floor((maximum * maximumPercent) / 100);
   if (tasks > 10)
     return {
       tasks,
@@ -38,8 +38,32 @@ export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityServi
   return { tasks, pollers: tasks + maximum };
 };
 export const declaredCapacity = (services: CapacityService[]) => {
-  const budgets = services.map((service) => ({ name: service.name, ...serviceCapacity(service) }));
+  const budgets = services.map((service) => ({
+    name: service.name,
+    ...capacityWithOverrides(service, service.overrides)
+  }));
   const total = budgets.reduce((sum, budget) => sum + (budget.pollers ?? 0), 0);
   if (total > 500) throw new Error('Code swap exceeds 500 declared pollers per stack; use image deploys.');
   return { budgets, total, limit: 500 };
+};
+
+// Read the authored ECS service overrides as well as the defaulted scaling config.
+export const capacityWithOverrides = (service: CapacityService, overrides: unknown) => {
+  if (overrides === undefined) return serviceCapacity(service);
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides))
+    return serviceCapacity({ ...service, maximum: NaN });
+  const values = overrides as Record<string, unknown>;
+  const deployment = values.DeploymentConfiguration;
+  const nested =
+    deployment && typeof deployment === 'object' && !Array.isArray(deployment)
+      ? (deployment as Record<string, unknown>).MaximumPercent
+      : undefined;
+  const maximumPercent = values['DeploymentConfiguration.MaximumPercent'] ?? nested ?? service.maximumPercent;
+  const desired = values.DesiredCount ?? service.maximum;
+  return serviceCapacity({
+    ...service,
+    maximum: typeof desired === 'number' ? Math.max(service.maximum, desired) : NaN,
+    maximumPercent:
+      deployment !== undefined && nested === undefined ? NaN : typeof maximumPercent === 'number' ? maximumPercent : NaN
+  });
 };
