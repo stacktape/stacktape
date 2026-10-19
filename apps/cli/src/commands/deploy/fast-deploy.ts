@@ -3,7 +3,7 @@ import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { tuiManager } from '@application-services/tui-manager';
 import type { ExpectedError as ExpectedErrorType } from '@utils/errors';
 import { CliError, ExpectedError } from '@utils/errors';
-import { hasApplicationHealthCheck } from '../_utils/container-health';
+import { hasEssentialContainerHealthCheck } from '../_utils/container-health';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import {
   deleteSupersededSharedLayerVersions,
@@ -107,15 +107,15 @@ export const planFastDeploy = async ({
 
 /** One hint per deploy for HTTP API web services whose application health was not checked. */
 export const rolloutWaitHint = (
-  updates: { workload: StpContainerWorkload; finishedWhen?: RollingUpdateFinish }[]
+  updates: { workload: StpContainerWorkload; finishedWhen?: RollingUpdateFinish; hasEssentialHealthCheck?: boolean }[]
 ): string | undefined => {
   const names = updates
     .filter(
-      ({ workload, finishedWhen }) =>
+      ({ workload, finishedWhen, hasEssentialHealthCheck }) =>
         (finishedWhen === 'new-instances-discoverable' || finishedWhen === 'rollout-completed') &&
         workload.configParentResourceType === 'web-service' &&
         workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
-        !hasApplicationHealthCheck(workload.containers)
+        !hasEssentialHealthCheck
     )
     .map(({ workload }) => workload.nameChain[0]);
   if (!names.length) return undefined;
@@ -202,7 +202,14 @@ export const performFastDeploy = async ({
     })),
     ...plan.services.map((update) => ({
       name: update.workload.name,
-      run: async () => serviceUpdates.push({ workload: update.workload, ...(await updateEcsService(update)) })
+      run: async () =>
+        serviceUpdates.push({
+          workload: update.workload,
+          hasEssentialHealthCheck: hasEssentialContainerHealthCheck(
+            update.newCfTaskDefinition.Properties.ContainerDefinitions
+          ),
+          ...(await updateEcsService(update))
+        })
     }))
   ];
   const results = await Promise.allSettled(updates.map(({ run }) => run()));
