@@ -15,21 +15,23 @@ test('stop budgets preserve app grace and account for the separately ordered dra
   expect(supervisorStopBudget(59).stopTimeout).toBe(120);
   for (const grace of [-1, 0.5, 60, 120, NaN]) expect(() => supervisorStopBudget(grace)).toThrow();
 });
-test('declared maxima, surge and stopping generation fit before opt-in', () => {
-  const service = (maximum: number, maximumPercent = 200) => ({
-    name: 'api',
-    maximum,
-    maximumPercent,
-    minimumHealthyPercent: 100
-  });
-  expect(declaredCapacity([service(150)]).total).toBe(450);
-  expect(() => declaredCapacity([service(151)])).toThrow();
-  // Exactly 451, including a declared maximum even when desired count is one.
-  expect(() => declaredCapacity([service(149, 101), { ...service(75, 101), name: 'other' }])).toThrow();
-  expect(() => declaredCapacity([service(100), { ...service(51), name: 'other' }])).toThrow();
-  expect(() => declaredCapacity([service(Infinity)])).toThrow();
-  expect(() => declaredCapacity([{ ...service(1), minimumHealthyPercent: 0 }])).toThrow();
-  expect(() => declaredCapacity([service(1, 150)])).toThrow();
+test('the service cap includes autoscaling maximum and deployment surge', () => {
+  const service = (maximum: number, maximumPercent = 200) => ({ name: 'api', maximum, maximumPercent });
+  expect(declaredCapacity([service(5)]).budgets[0]).toEqual({ name: 'api', tasks: 10, pollers: 15 });
+  expect(declaredCapacity([service(10, 100)]).total).toBe(20);
+  expect(declaredCapacity([service(6)]).budgets[0]?.reason).toContain('maximum 12 tasks');
+  expect(declaredCapacity([service(11, 100)]).budgets[0]?.reason).toContain('exceeds 10');
+  expect(declaredCapacity([service(7, 150)]).budgets[0]?.reason).toContain('maximum 11 tasks');
+  for (const maximum of [0, -1, 1.5, Infinity, NaN])
+    expect(declaredCapacity([service(maximum)]).budgets[0]?.reason).toContain('unknown');
+  for (const percent of [0, 99, 201, Infinity, NaN])
+    expect(declaredCapacity([service(1, percent)]).budgets[0]?.reason).toContain('unknown');
+  expect(declaredCapacity(Array.from({ length: 25 }, (_, i) => ({ ...service(10, 100), name: `api${i}` }))).total).toBe(
+    500
+  );
+  expect(() =>
+    declaredCapacity(Array.from({ length: 26 }, (_, i) => ({ ...service(10, 100), name: `api${i}` })))
+  ).toThrow('500');
 });
 
 test('the benchmark can compare image readiness while swaps always retain the ECS gate', async () => {

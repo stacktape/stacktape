@@ -16,22 +16,30 @@ export const supervisorHealthCheck = {
   Retries: 3,
   StartPeriod: 150
 };
-export type CapacityService = { name: string; maximum: number; maximumPercent: number; minimumHealthyPercent: number };
+export type CapacityService = { name: string; maximum: number; maximumPercent: number };
+export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityService) => {
+  if (
+    !Number.isInteger(maximum) ||
+    maximum < 1 ||
+    !Number.isInteger(maximumPercent) ||
+    maximumPercent < 100 ||
+    maximumPercent > 200
+  )
+    return {
+      reason: `Code swap skipped for ${name}: task maximum or deployment surge is unknown; using an image deploy.`
+    };
+  const tasks = Math.ceil((maximum * maximumPercent) / 100);
+  if (tasks > 10)
+    return {
+      tasks,
+      reason: `Code swap skipped for ${name}: maximum ${tasks} tasks including autoscaling and deployment surge exceeds 10; using an image deploy.`
+    };
+  // ECS may stop counting a draining generation against maximumPercent.
+  return { tasks, pollers: tasks + maximum };
+};
 export const declaredCapacity = (services: CapacityService[]) => {
-  const budgets = services.map(({ name, maximum, maximumPercent, minimumHealthyPercent }) => {
-    if (
-      !Number.isInteger(maximum) ||
-      maximum < 1 ||
-      !Number.isInteger(maximumPercent) ||
-      maximumPercent <= 100 ||
-      minimumHealthyPercent !== 100 ||
-      Math.floor((maximum * maximumPercent) / 100) <= maximum
-    )
-      throw new Error(`Unknown capacity or unsupported stop-first rollout for ${name}; use images.`);
-    return { name, slots: Math.ceil((maximum * maximumPercent) / 100) + maximum };
-  });
-  const total = budgets.reduce((sum, { slots }) => sum + slots, 0);
-  if (total + 50 > 500)
-    throw new Error(`Code swap needs ${total} declared slots plus 50 spare; opt out before raising limits.`);
-  return { budgets, total, spare: 50, limit: 500 };
+  const budgets = services.map((service) => ({ name: service.name, ...serviceCapacity(service) }));
+  const total = budgets.reduce((sum, budget) => sum + (budget.pollers ?? 0), 0);
+  if (total > 500) throw new Error('Code swap exceeds 500 declared pollers per stack; use image deploys.');
+  return { budgets, total, limit: 500 };
 };
