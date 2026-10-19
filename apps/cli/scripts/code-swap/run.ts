@@ -142,6 +142,28 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
   if (!condition) throw new Error(message);
 };
 const missing = (error: unknown) => /does not exist|NotFound|ResourceNotFound|NoSuch|404/.test(String(error));
+// Setup is outside the timed sequence. One good route does not establish that
+// initial API Gateway routing has settled across its backends. Keep every sample.
+export const waitForInitialRoutes = async (url: string, ids: string[], samples: Poll[], stableMs = 30000) => {
+  const seen = new Set<string>();
+  const deadline = performance.now() + 120000;
+  let stableSince: number | undefined;
+  for (;;) {
+    assert(performance.now() < deadline, 'Initial public routing did not settle.');
+    const sample = await samplePublic(url, 0);
+    samples.push(sample);
+    if (sample.status === 200 && ids.includes(sample.task) && sample.awsMs > 0) {
+      seen.add(sample.task);
+      stableSince ??= sample.awsMs;
+      if (ids.every((id) => seen.has(id)) && sample.awsMs - stableSince >= stableMs) return;
+    } else {
+      stableSince = undefined;
+      seen.clear();
+    }
+    await Bun.sleep(20);
+  }
+};
+
 const invoke = async (args: string[], log: string, env: Record<string, string | undefined> = {}) => {
   const output = openSync(log, 'w');
   const child = Bun.spawn(args, {
@@ -792,18 +814,10 @@ const main = async () => {
         await save(join(directory, 'state.json'), state);
         const url = await endpoint(owned);
         const initialFleet = await waitForFleet(owned, count);
-        const seenInitial = new Set<string>();
-        const routeDeadline = performance.now() + 120000;
         const setupTraffic: Poll[] = [];
         trafficPhase = 'setup-readiness';
         try {
-          while (initialFleet.ids.some((id) => !seenInitial.has(id))) {
-            assert(performance.now() < routeDeadline, 'Not every initial task is publicly routable.');
-            const sample = await samplePublic(url, 0);
-            setupTraffic.push(sample);
-            if (sample.status === 200 && sample.task) seenInitial.add(sample.task);
-            await Bun.sleep(20);
-          }
+          await waitForInitialRoutes(url, initialFleet.ids, setupTraffic);
         } finally {
           await save(join(owned.directory, 'setup-traffic.json'), setupTraffic);
         }

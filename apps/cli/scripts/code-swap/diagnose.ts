@@ -143,8 +143,12 @@ export const diagnoseConfiguration = async (location: string, results: Edit[], c
     };
     overlap('imageBuild', event('BUILD_IMAGE', 'started'), event('BUILD_IMAGE', 'completed'));
     overlap('imageUpload', event('UPLOAD_IMAGE', 'started'), event('UPLOAD_IMAGE', 'completed'));
-    overlap('bundleUpload', moment('prepareFleet:end'), moment('bundleUploaded'));
-    overlap('proposalWrite', moment('bundleUploaded'), proposal);
+    overlap(
+      'bundleUpload',
+      moment('bundleUpload:start') ?? moment('prepareFleet:end'),
+      moment('bundleUpload:end') ?? moment('bundleUploaded')
+    );
+    overlap('proposalWrite', moment('preparePrerequisitesReady') ?? moment('bundleUploaded'), proposal);
     const supervisor =
       result.details?.completed?.map(({ task, timings: t }) => ({
         task,
