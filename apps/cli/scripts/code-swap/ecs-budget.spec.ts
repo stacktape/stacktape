@@ -21,7 +21,8 @@ test('the service cap includes autoscaling maximum and deployment surge', () => 
   expect(declaredCapacity([service(10, 100)]).total).toBe(20);
   expect(declaredCapacity([service(6)]).budgets[0]?.reason).toContain('maximum 12 tasks');
   expect(declaredCapacity([service(11, 100)]).budgets[0]?.reason).toContain('exceeds 10');
-  expect(declaredCapacity([service(7, 150)]).budgets[0]?.reason).toContain('maximum 11 tasks');
+  expect(declaredCapacity([service(7, 150)]).budgets[0]?.tasks).toBe(10);
+  expect(declaredCapacity([service(8, 150)]).budgets[0]?.reason).toContain('maximum 12 tasks');
   for (const maximum of [0, -1, 1.5, Infinity, NaN])
     expect(declaredCapacity([service(maximum)]).budgets[0]?.reason).toContain('unknown');
   for (const percent of [0, 99, 201, Infinity, NaN])

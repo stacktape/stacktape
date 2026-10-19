@@ -28,7 +28,7 @@ export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityServi
     return {
       reason: `Code swap skipped for ${name}: task maximum or deployment surge is unknown; using an image deploy.`
     };
-  const tasks = Math.ceil((maximum * maximumPercent) / 100);
+  const tasks = Math.floor((maximum * maximumPercent) / 100);
   if (tasks > 10)
     return {
       tasks,
