@@ -1,27 +1,123 @@
 // Benchmark-only transport experiment. Never log headers, full URLs, bodies, credential IDs or error messages.
 import { Agent as HttpAgent, request as httpRequest, type ClientRequest } from 'node:http';
-import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
+import { Agent as HttpsAgent, request as httpsRequest, type AgentOptions, type RequestOptions } from 'node:https';
+import { connect as connectTcp, type TcpNetConnectOpts, type Socket } from 'node:net';
 import type { TLSSocket } from 'node:tls';
-import { Readable } from 'node:stream';
+import { Readable, type Duplex } from 'node:stream';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { HttpRequest, HttpResponse } from '@smithy/protocol-http';
 import { trace, hostClockMs } from './trace';
 
 const httpAgent = new HttpAgent({ keepAlive: true });
-const httpsAgent = new HttpsAgent({ keepAlive: true });
-let sequence = 0;
-
-class ConnectionTimeoutError extends Error {
-  constructor() {
-    super('Connection did not become ready before HTTP dispatch');
-    this.name = 'TimeoutError';
+type Dial = { startedHostMs: number; dnsMs?: number; connectMs?: number; tlsMs?: number; outcome: string };
+const dialAttempts = new WeakMap<AbortSignal, Dial[]>();
+const dialDetails = new WeakMap<Duplex, { chosen: Dial; trials: Dial[]; claimed: boolean }>();
+type DialOptions = RequestOptions;
+// Race at most two TCP connections, then perform one normal verified TLS handshake before HTTP dispatch.
+export class HedgedHttpsAgent extends HttpsAgent {
+  private activeSignal?: AbortSignal;
+  withSignal<T>(signal: AbortSignal, create: () => T): T {
+    const previous = this.activeSignal;
+    this.activeSignal = signal;
+    try {
+      return create();
+    } finally {
+      this.activeSignal = previous;
+    }
+  }
+  constructor(
+    options: AgentOptions = {},
+    private readonly hedgeDelay = 300
+  ) {
+    super({ ...options, keepAlive: true });
+  }
+  protected connectSocket(options: TcpNetConnectOpts): Socket {
+    return connectTcp(options);
+  }
+  override createConnection(
+    options: DialOptions,
+    callback?: (error: Error | null, socket: Duplex) => void
+  ): Duplex | null | undefined {
+    if (!callback) return super.createConnection(options);
+    const pending = new Set<Duplex>();
+    const trials: Dial[] = [];
+    let finished = false;
+    let backup: ReturnType<typeof setTimeout> | undefined;
+    let last: Duplex;
+    const signal = this.activeSignal;
+    if (signal) dialAttempts.set(signal, trials);
+    const abort = () => {
+      const error = new Error('Connection canceled');
+      error.name = 'AbortError';
+      finish(error);
+    };
+    const finish = (error: Error | null, winner?: Duplex, chosen?: Dial) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(backup);
+      signal?.removeEventListener('abort', abort);
+      for (const socket of pending) if (socket !== winner) socket.destroy();
+      for (const trial of trials) if (trial !== chosen && trial.outcome === 'pending') trial.outcome = 'canceled';
+      if (winner && chosen) {
+        const secureOptions: DialOptions & { socket: Duplex } = { ...options, socket: winner };
+        const secure = super.createConnection(secureOptions) as TLSSocket;
+        secure.once('secureConnect', () => {
+          chosen.tlsMs = hostClockMs() - chosen.startedHostMs;
+          chosen.outcome = 'ready';
+        });
+        dialDetails.set(secure, { chosen, trials, claimed: false });
+        callback(null, secure);
+      } else callback(error, last);
+    };
+    const dial = () => {
+      const record: Dial = { startedHostMs: hostClockMs(), outcome: 'pending' };
+      trials.push(record);
+      const socket = this.connectSocket({
+        host: options.hostname ?? options.host ?? 'localhost',
+        port: Number(options.port ?? 443),
+        family: options.family,
+        lookup: options.lookup,
+        localAddress: options.localAddress,
+        localPort: options.localPort
+      });
+      last = socket;
+      pending.add(socket);
+      socket.once('lookup', () => {
+        record.dnsMs = hostClockMs() - record.startedHostMs;
+      });
+      socket.once('connect', () => {
+        record.connectMs = hostClockMs() - record.startedHostMs;
+        record.outcome = 'tcp-ready';
+        finish(null, socket, record);
+      });
+      socket.once('close', () => {
+        if (record.outcome === 'pending') record.outcome = 'canceled';
+      });
+      socket.once('error', (error) => {
+        pending.delete(socket);
+        if (finished) return;
+        record.outcome = error.name;
+        if (trials.length < 2) {
+          clearTimeout(backup);
+          dial();
+        } else if (pending.size === 0) finish(error);
+      });
+    };
+    dial();
+    if (!finished && trials.length < 2) backup = setTimeout(dial, this.hedgeDelay);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    return undefined;
   }
 }
+const httpsAgent = new HedgedHttpsAgent();
+let sequence = 0;
+
 export const createMeasuredHandler = ({
   requestTimeout = 30_000,
-  connectionTimeout = 1500
-}: { requestTimeout?: number; connectionTimeout?: number } = {}) => {
-  const handler = new NodeHttpHandler({ httpAgent, httpsAgent });
+  secureAgent = httpsAgent
+}: { requestTimeout?: number; secureAgent?: HedgedHttpsAgent } = {}) => {
+  const handler = new NodeHttpHandler({ httpAgent, httpsAgent: secureAgent });
   // Agents belong to the benchmark invocation, not to individual service clients.
   handler.destroy = () => {};
   handler.handle = async (request, options = {}) => {
@@ -40,8 +136,8 @@ export const createMeasuredHandler = ({
     const safeOperation = /^[a-zA-Z0-9_.-]+$/.test(operation) ? operation : request.method;
     let outgoing: ClientRequest | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let connectionTimer: ReturnType<typeof setTimeout> | undefined;
-    let connectionTimedOut = false;
+    let connectionDials: Dial[] | undefined;
+    let rejectOnAbort: (() => void) | undefined;
     const controller = new AbortController();
     const signal = options.abortSignal
       ? AbortSignal.any([options.abortSignal as AbortSignal, controller.signal])
@@ -53,52 +149,70 @@ export const createMeasuredHandler = ({
         timedOut = true;
         controller.abort();
       }, timeoutMs);
-    if (connectionTimeout > 0 && !(request.body instanceof Readable))
-      connectionTimer = setTimeout(() => {
-        connectionTimedOut = true;
-        marks.timeoutPhase = 'connection';
-        controller.abort();
-      }, connectionTimeout);
     try {
       const response = await new Promise<HttpResponse>((resolve, reject) => {
+        rejectOnAbort = () => {
+          const error = new Error('Request canceled');
+          error.name = 'AbortError';
+          reject(error);
+        };
+        if (signal.aborted) {
+          rejectOnAbort();
+          return;
+        }
+        signal.addEventListener('abort', rejectOnAbort, { once: true });
         const secure = request.protocol === 'https:';
-        outgoing = (secure ? httpsRequest : httpRequest)(
-          {
-            protocol: request.protocol,
-            hostname: request.hostname,
-            port: request.port,
-            path: request.path + (query.size ? `?${query}` : ''),
-            method: request.method,
-            headers: request.headers,
-            agent: secure ? httpsAgent : httpAgent,
-            signal
-          },
-          (incoming) => {
-            mark('firstByteMs');
-            marks.status = incoming.statusCode;
-            const chunks: Buffer[] = [];
-            incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
-            incoming.on('error', reject);
-            incoming.on('end', () => {
-              const headers: Record<string, string> = {};
-              for (const [name, value] of Object.entries(incoming.headers))
-                if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
-              resolve(
-                new HttpResponse({
-                  statusCode: incoming.statusCode ?? 0,
-                  headers,
-                  body: Readable.from(Buffer.concat(chunks))
-                })
-              );
-            });
-          }
+        outgoing = secureAgent.withSignal(signal, () =>
+          (secure ? httpsRequest : httpRequest)(
+            {
+              protocol: request.protocol,
+              hostname: request.hostname,
+              port: request.port,
+              path: request.path + (query.size ? `?${query}` : ''),
+              method: request.method,
+              headers: request.headers,
+              agent: secure ? secureAgent : httpAgent,
+              signal
+            },
+            (incoming) => {
+              mark('firstByteMs');
+              marks.status = incoming.statusCode;
+              const chunks: Buffer[] = [];
+              incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
+              incoming.on('error', reject);
+              incoming.on('end', () => {
+                const headers: Record<string, string> = {};
+                for (const [name, value] of Object.entries(incoming.headers))
+                  if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
+                resolve(
+                  new HttpResponse({
+                    statusCode: incoming.statusCode ?? 0,
+                    headers,
+                    body: Readable.from(Buffer.concat(chunks))
+                  })
+                );
+              });
+            }
+          )
         );
         outgoing.on('error', reject);
         outgoing.on('socket', (socket) => {
           mark('socketMs');
+          const details = dialDetails.get(socket);
+          if (details && !details.claimed) {
+            details.claimed = true;
+            connectionDials = details.trials;
+            marks.reused = 0;
+            marks.socketMs = details.chosen.startedHostMs - startedHostMs;
+            for (const name of ['dnsMs', 'connectMs', 'tlsMs'] as const) {
+              const value = details.chosen[name];
+              if (value !== undefined) marks[name] = marks.socketMs + value;
+            }
+            if (details.chosen.tlsMs === undefined) (socket as TLSSocket).once('secureConnect', () => mark('tlsMs'));
+            return;
+          }
           if (!socket.connecting) {
             marks.reused = 1;
-            clearTimeout(connectionTimer);
             return;
           }
           marks.reused = 0;
@@ -108,11 +222,9 @@ export const createMeasuredHandler = ({
           });
           socket.once('connect', () => {
             mark('connectMs');
-            if (!secure) clearTimeout(connectionTimer);
           });
           (socket as TLSSocket).once('secureConnect', () => {
             mark('tlsMs');
-            clearTimeout(connectionTimer);
           });
         });
         outgoing.on('finish', () => mark('sentMs'));
@@ -124,7 +236,6 @@ export const createMeasuredHandler = ({
       return { response };
     } catch (error) {
       marks.error = error instanceof Error ? error.name : 'UnknownError';
-      if (connectionTimedOut) throw new ConnectionTimeoutError();
       if (timedOut) {
         const timeout = new Error(`Request did not complete within ${timeoutMs} ms`, { cause: error });
         timeout.name = 'TimeoutError';
@@ -133,7 +244,9 @@ export const createMeasuredHandler = ({
       throw error;
     } finally {
       clearTimeout(timer);
-      clearTimeout(connectionTimer);
+      if (rejectOnAbort) signal.removeEventListener('abort', rejectOnAbort);
+      connectionDials ??= dialAttempts.get(signal);
+      dialAttempts.delete(signal);
       trace('aws-http', {
         id,
         service: request.hostname,
@@ -143,7 +256,8 @@ export const createMeasuredHandler = ({
         invocation: request.headers['amz-sdk-invocation-id'],
         attempt: request.headers['amz-sdk-request'],
         totalMs: hostClockMs() - startedHostMs,
-        ...marks
+        ...marks,
+        connectionDials
       });
     }
   };
@@ -151,7 +265,7 @@ export const createMeasuredHandler = ({
 };
 
 // Match the Console's buffered JSON fetch contract and trace it through the same transport, with no request data.
-const consoleAttempt = async (url: string, options: RequestInit) => {
+export const measuredConsoleFetch = async (url: string, options: RequestInit = {}) => {
   const parsed = new URL(url);
   const handler = createMeasuredHandler();
   const { response } = await handler.handle(
@@ -172,24 +286,4 @@ const consoleAttempt = async (url: string, options: RequestInit) => {
   const chunks: Buffer[] = [];
   for await (const chunk of response.body) chunks.push(Buffer.from(chunk));
   return new Response(Buffer.concat(chunks), { status: response.statusCode, headers: response.headers });
-};
-
-// Retry only a connection that never became ready to send HTTP. A dispatched request/body failure is not replayed.
-// One deadline covers all Console connection attempts and full response-body collection.
-export const measuredConsoleFetch = async (url: string, options: RequestInit = {}) => {
-  const deadline = AbortSignal.timeout(30000);
-  const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await consoleAttempt(url, { ...options, signal });
-    } catch (error) {
-      if (
-        !(error instanceof ConnectionTimeoutError) ||
-        attempt >= 3 ||
-        signal.aborted ||
-        options.body instanceof Readable
-      )
-        throw error;
-    }
-  }
 };

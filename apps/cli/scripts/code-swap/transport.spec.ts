@@ -120,57 +120,30 @@ test.skipIf(process.platform !== 'linux')(
   10000
 );
 
-test('a stalled TLS handshake aborts before HTTP dispatch; Console retries stay bounded and cancellable', async () => {
+test('pending TLS dials are canceled by the whole-response deadline', async () => {
   const { createServer: createTcpServer } = await import('node:net');
-  const { createMeasuredHandler, measuredConsoleFetch } = await import('./transport');
+  const { createMeasuredHandler } = await import('./transport');
   const sockets = new Set<import('node:net').Socket>();
-  const received: Buffer[] = [];
-  let connections = 0;
   const server = createTcpServer((socket) => {
-    connections++;
     sockets.add(socket);
-    socket.on('data', (b) => received.push(b));
+    socket.resume();
     socket.on('close', () => sockets.delete(socket));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = (server.address() as AddressInfo).port;
   try {
-    const handler = createMeasuredHandler({ connectionTimeout: 50, requestTimeout: 1000 });
+    const handler = createMeasuredHandler({ requestTimeout: 600 });
     await expect(
       handler.handle(
-        new HttpRequest({ protocol: 'https:', hostname: '127.0.0.1', port, method: 'POST', body: 'must-not-dispatch' })
+        new HttpRequest({ protocol: 'https:', hostname: '127.0.0.1', port: (server.address() as AddressInfo).port })
       )
     ).rejects.toMatchObject({ name: 'TimeoutError' });
-    const before = connections;
-    await expect(
-      measuredConsoleFetch(`https://127.0.0.1:${port}/`, { method: 'POST', body: 'must-not-dispatch' })
-    ).rejects.toMatchObject({ name: 'TimeoutError' });
-    expect(connections - before).toBe(3);
-    expect(Buffer.concat(received).toString()).not.toContain('must-not-dispatch');
-    const { STSClient, GetCallerIdentityCommand } = await import('@aws-sdk/client-sts');
-    const client = new STSClient({
-      region: 'eu-west-1',
-      endpoint: `https://127.0.0.1:${port}`,
-      credentials: { accessKeyId: 'fixture-access', secretAccessKey: 'fixture-signing' },
-      maxAttempts: 3,
-      requestHandler: createMeasuredHandler({ connectionTimeout: 50 })
-    });
-    let failure: unknown;
-    try {
-      await client.send(new GetCallerIdentityCommand({}));
-    } catch (error) {
-      failure = error;
-    }
-    expect(failure).toMatchObject({ $metadata: { attempts: 3 } });
-    const canceled = AbortSignal.abort();
-    const prior = connections;
-    await expect(measuredConsoleFetch(`https://127.0.0.1:${port}/`, { signal: canceled })).rejects.toThrow();
-    expect(connections).toBe(prior);
+    await Bun.sleep(50);
+    expect(sockets.size).toBe(0);
   } finally {
     for (const socket of sockets) socket.destroy();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
-}, 10000);
+});
 
 test('Console does not replay a dispatched POST when its peer disconnects', async () => {
   const { measuredConsoleFetch } = await import('./transport');
@@ -194,3 +167,130 @@ test('Console does not replay a dispatched POST when its peer disconnects', asyn
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test.skipIf(process.platform !== 'linux')(
+  'a delayed first TCP completion sends one verified HTTPS request',
+  async () => {
+    const { mkdtemp, readFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { createServer: createHttpsServer } = await import('node:https');
+    const { createMeasuredHandler, HedgedHttpsAgent } = await import('./transport');
+    const directory = await mkdtemp(join(tmpdir(), 'swap-tcp-race-'));
+    const key = join(directory, 'key.pem'),
+      cert = join(directory, 'cert.pem');
+    const openssl = Bun.spawn(
+      [
+        'openssl',
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        key,
+        '-out',
+        cert,
+        '-days',
+        '1',
+        '-subj',
+        '/CN=localhost',
+        '-addext',
+        'subjectAltName=IP:127.0.0.1,DNS:localhost'
+      ],
+      { stdout: 'ignore', stderr: 'ignore' }
+    );
+    expect(await openssl.exited).toBe(0);
+    let requests = 0,
+      connections = 0;
+    const server = createHttpsServer({ key: await readFile(key), cert: await readFile(cert) }, (request, response) => {
+      requests++;
+      request.resume();
+      request.once('end', () => response.end('complete'));
+    });
+    server.on('connection', () => connections++);
+    server.on('tlsClientError', () => {});
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    class DelayedAgent extends HedgedHttpsAgent {
+      first?: import('node:net').Socket;
+      readonly dialSockets: import('node:net').Socket[] = [];
+      constructor(
+        options: import('node:https').AgentOptions,
+        delay = 50,
+        private readonly delayAll = false
+      ) {
+        super(options, delay);
+      }
+      protected override connectSocket(options: import('node:net').TcpNetConnectOpts) {
+        const socket = super.connectSocket(options);
+        this.dialSockets.push(socket);
+        if (this.delayAll || !this.first) {
+          this.first ??= socket;
+          const emit = socket.emit.bind(socket);
+          socket.emit = ((event: string | symbol, ...args: unknown[]) => {
+            if (event === 'connect') {
+              const timer = setTimeout(() => {
+                if (!socket.destroyed) emit(event, ...args);
+              }, 500);
+              socket.once('close', () => clearTimeout(timer));
+              return true;
+            }
+            return emit(event, ...args);
+          }) as typeof socket.emit;
+        }
+        return socket;
+      }
+    }
+    const agent = new DelayedAgent({ ca: await readFile(cert) }, 50);
+    try {
+      const handler = createMeasuredHandler({ requestTimeout: 3000, secureAgent: agent });
+      const { response } = await handler.handle(
+        new HttpRequest({
+          protocol: 'https:',
+          hostname: '127.0.0.1',
+          port: (server.address() as AddressInfo).port,
+          method: 'POST',
+          body: 'once-only-write',
+          headers: { 'content-length': '15' }
+        })
+      );
+      let body = '';
+      for await (const bytes of response.body) body += bytes.toString();
+      expect(body).toBe('complete');
+      expect(connections).toBe(2);
+      expect(requests).toBe(1);
+      expect(agent.first!.destroyed).toBe(true);
+      expect(agent.first!.bytesWritten).toBe(0);
+      const pending = new DelayedAgent({ ca: await readFile(cert) }, 30, true);
+      try {
+        const blocked = createMeasuredHandler({ requestTimeout: 150, secureAgent: pending });
+        await expect(
+          blocked.handle(
+            new HttpRequest({ protocol: 'https:', hostname: '127.0.0.1', port: (server.address() as AddressInfo).port })
+          )
+        ).rejects.toMatchObject({ name: 'TimeoutError' });
+        expect(pending.dialSockets.length).toBe(2);
+        expect(pending.dialSockets.every((socket) => socket.destroyed && socket.bytesWritten === 0)).toBe(true);
+      } finally {
+        pending.destroy();
+      }
+      const untrusted = new HedgedHttpsAgent();
+      try {
+        await expect(
+          createMeasuredHandler({ secureAgent: untrusted }).handle(
+            new HttpRequest({ protocol: 'https:', hostname: '127.0.0.1', port: (server.address() as AddressInfo).port })
+          )
+        ).rejects.toThrow();
+        expect(requests).toBe(1);
+      } finally {
+        untrusted.destroy();
+      }
+    } finally {
+      agent.destroy();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  10000
+);

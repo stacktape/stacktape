@@ -302,13 +302,25 @@ export const benchmarkBootstrapBucket = async () => {
       });
       passes++;
       if (passes >= 3) {
+        // Qualify concurrent fresh connections as well as one reused S3 edge before the initial parallel upload.
+        await Promise.all(
+          Array.from({ length: 8 }, () =>
+            aws.s3.uploadFile({
+              filePath: file,
+              s3Key: 'code-swap/bootstrap-upload-probe.json',
+              bucketName: artifacts.deploymentBucketName,
+              useS3Acceleration: true,
+              contentType: 'application/json'
+            })
+          )
+        );
         result.bootstrap = { attempts, clientElapsedMs: performance.now() - started };
         return;
       }
     } catch (error) {
       lastError = error;
       passes = 0;
-      if (!/No AWSAccessKey|NoAWSAccessKey|TemporaryRedirect/i.test(String(error))) throw error;
+      if (!/No AWSAccessKey|NoAWSAccessKey|TemporaryRedirect|NoSuchBucket/i.test(String(error))) throw error;
     }
     await Bun.sleep(3000);
   }

@@ -24,6 +24,14 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
         ),
       loader: 'ts'
     }));
+    build.onLoad({ filter: /aws[\\/]identity\.ts$/ }, async ({ path }) => ({
+      contents: replaceOnce(
+        await readFile(path, 'utf8'),
+        '`Unable to get identity for credentials (access key id: ${credentials.accessKeyId}).`',
+        "'Unable to get identity for configured credentials.'"
+      ),
+      loader: 'ts'
+    }));
     build.onLoad({ filter: /aws[\\/]fetch-handler\.ts$/ }, async () => ({
       contents: `export { createMeasuredHandler as createFetchHandler } from ${JSON.stringify(resolve('scripts/code-swap/transport.ts'))};`,
       loader: 'ts'
