@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildBenchmarkCli, benchmarkBuildPlugin } from './build-cli';
@@ -70,6 +70,8 @@ test('only the explicit benchmark build includes unsigned swap activation', asyn
 test('only an active benchmark omits the separate Cloud Map drain container', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'swap-drain-boundary-'));
   try {
+    const runPath = join(directory, 'fixture-run.json');
+    await writeFile(runPath, JSON.stringify({ phase3: false }));
     for (const benchmark of [false, true]) {
       const result = await Bun.build({
         entrypoints: [
@@ -81,24 +83,27 @@ test('only an active benchmark omits the separate Cloud Map drain container', as
       });
       expect(result.success).toBe(true);
       for (const active of [false, true]) {
-        const env = { ...process.env };
-        if (active) env.STP_CODE_SWAP_BENCH_RUN = 'fixture-run.json';
-        else delete env.STP_CODE_SWAP_BENCH_RUN;
-        const child = Bun.spawn(
-          [
-            process.execPath,
-            '-e',
-            `
+        for (const phase3 of [false, true]) {
+          await writeFile(runPath, JSON.stringify({ phase3 }));
+          const env = { ...process.env };
+          if (active) env.STP_CODE_SWAP_BENCH_RUN = runPath;
+          else delete env.STP_CODE_SWAP_BENCH_RUN;
+          const child = Bun.spawn(
+            [
+              process.execPath,
+              '-e',
+              `
           const m=await import(${JSON.stringify(result.outputs[0]!.path)});
           const workload={containers:[{name:'app',events:[{type:'http-api-gateway'}]}]};
           console.log(JSON.stringify([m.needsCloudMapDrain(workload),Boolean(m.getCloudMapDrainContainer(workload,'image'))]));
         `
-          ],
-          { env, stdout: 'pipe', stderr: 'pipe' }
-        );
-        const [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
-        expect(await child.exited, err).toBe(0);
-        expect(JSON.parse(out)).toEqual(benchmark && active ? [false, false] : [true, true]);
+            ],
+            { env, stdout: 'pipe', stderr: 'pipe' }
+          );
+          const [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
+          expect(await child.exited, err).toBe(0);
+          expect(JSON.parse(out)).toEqual(benchmark && active && !phase3 ? [false, false] : [true, true]);
+        }
       }
     }
   } finally {

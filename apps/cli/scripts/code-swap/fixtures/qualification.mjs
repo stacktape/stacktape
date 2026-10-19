@@ -140,6 +140,20 @@ const websocket = async () => {
   return { socket, received };
 };
 const main = async () => {
+  if (scenario === 'trace-denied') {
+    await test('B3 denied ptrace keeps checked image-only baseline without panic', async () => {
+      await start();
+      assert.equal((await get()).revision, 'baseline');
+      const failed = await attempt('new');
+      assert.equal(failed.state, 'failed');
+      assert.match(failed.reason, /kernel exit observation unavailable/);
+      assert.equal(failed.timings.candidateReaped, true);
+      assert.equal((await get()).revision, 'baseline');
+      assert.equal(supervisor.exitCode, null);
+      await stop();
+      return { reason: failed.reason, baselineKeptServing: true, candidateReaped: true };
+    });
+  }
   if (scenario === 'normal') {
     await test('B2/B4 baseline kernel peak and HTTP 500 reachability', async () => {
       const s = await start('old500');

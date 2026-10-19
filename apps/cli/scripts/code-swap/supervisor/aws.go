@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -169,7 +170,9 @@ type s3Result struct {
 func s3Do(method, bucket, key string, body []byte, extra map[string]string) (*s3Result, error) {
 	path := "/" + uriEncode(key, false)
 	u := fmt.Sprintf("https://%s.s3.%s.amazonaws.com%s", bucket, region(), path)
-	req, err := http.NewRequest(method, u, bytes.NewReader(body))
+	ctx, cancel := bootstrapRequestContext(context.Background())
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, u, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -214,9 +217,14 @@ func s3Get(bucket, key, etag string) (*s3Result, error) {
 
 // awsJSON calls a JSON-protocol API (SSM, ECS) with X-Amz-Target.
 func awsJSON(service, target string, input any, output any) error {
+	return awsJSONContext(context.Background(), service, target, input, output)
+}
+func awsJSONContext(ctx context.Context, service, target string, input any, output any) error {
+	ctx, cancel := bootstrapRequestContext(ctx)
+	defer cancel()
 	body, _ := json.Marshal(input)
 	host := fmt.Sprintf("%s.%s.amazonaws.com", service, region())
-	req, _ := http.NewRequest("POST", "https://"+host+"/", bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(ctx, "POST", "https://"+host+"/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-amz-json-1.1")
 	if service == "dynamodb" {
 		req.Header.Set("Content-Type", "application/x-amz-json-1.0")

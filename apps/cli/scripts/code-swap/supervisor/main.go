@@ -1,6 +1,6 @@
 package main
 
-// Source-only runtime qualification harness. No installed CLI activation, authority or ECS readiness.
+// Source-only runtime qualification harness. No installed CLI activation or deployment authority.
 import (
 	"bufio"
 	"context"
@@ -27,22 +27,24 @@ import (
 )
 
 type generation struct {
-	cmd          *exec.Cmd
-	pid          int
-	port         int
-	revision     string
-	proxy        *httputil.ReverseProxy
-	inflight     atomic.Int64
-	exited       atomic.Bool
-	membership   map[int]string
-	treeMu       sync.Mutex
-	termAt       time.Time
-	drainUntil   time.Time
-	treeFailure  atomic.Bool
-	traceFailure atomic.Bool
-	terminateMu  sync.Mutex
-	requestsMu   sync.Mutex
-	requests     map[*requestLease]bool
+	cmd            *exec.Cmd
+	pid            int
+	port           int
+	revision       string
+	proxy          *httputil.ReverseProxy
+	inflight       atomic.Int64
+	exited         atomic.Bool
+	membership     map[int]string
+	treeMu         sync.Mutex
+	termAt         time.Time
+	drainUntil     time.Time
+	treeFailure    atomic.Bool
+	traceFailure   atomic.Bool
+	traced         atomic.Bool
+	detachRequests chan chan error
+	terminateMu    sync.Mutex
+	requestsMu     sync.Mutex
+	requests       map[*requestLease]bool
 }
 type requestLease struct {
 	cancel context.CancelFunc
@@ -51,6 +53,7 @@ type requestLease struct {
 type record struct {
 	Revision, Key, Sha256, Phase string
 	Size                         int64
+	BootstrapDelayS              int
 }
 
 var current, candidate, oldGeneration atomic.Pointer[generation]
@@ -63,6 +66,7 @@ var local = &http.Client{Timeout: 2 * time.Second}
 var stopping atomic.Bool
 var stop = make(chan struct{})
 var stopAt atomic.Pointer[time.Time]
+var bootstrapDeadline atomic.Pointer[time.Time]
 var grace, drain = 2 * time.Second, 2 * time.Second
 
 func must(err error) {
@@ -83,36 +87,72 @@ func put(key string, value any) {
 	}
 	must(awsJSON("dynamodb", "DynamoDB_20120810.PutItem", map[string]any{"TableName": table, "Item": map[string]any{"pk": map[string]string{"S": key}, "data": map[string]string{"S": string(b)}}}, nil))
 }
-func read() record {
+func read() (record, error) {
 	var r record
 	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
 		b, err := os.ReadFile(dir + "/release.json")
 		if os.IsNotExist(err) {
-			return r
+			return r, nil
 		}
-		must(err)
-		must(json.Unmarshal(b, &r))
-		return r
+		if err != nil {
+			return r, err
+		}
+		return r, json.Unmarshal(b, &r)
 	}
 	var out struct{ Item map[string]map[string]string }
-	must(awsJSON("dynamodb", "DynamoDB_20120810.GetItem", map[string]any{"TableName": table, "Key": map[string]any{"pk": map[string]string{"S": "release#" + app}}, "ConsistentRead": true}, &out))
-	if d, ok := out.Item["data"]; ok {
-		must(json.Unmarshal([]byte(d["S"]), &r))
+	if err := awsJSON("dynamodb", "DynamoDB_20120810.GetItem", map[string]any{"TableName": table, "Key": map[string]any{"pk": map[string]string{"S": "release#" + app}}, "ConsistentRead": true}, &out); err != nil {
+		return r, err
 	}
-	return r
+	if d, ok := out.Item["data"]; ok {
+		return r, json.Unmarshal([]byte(d["S"]), &r)
+	}
+	return r, nil
+}
+
+func bootstrapRead() (record, error) {
+	deadline := time.Now().Add(60 * time.Second)
+	if at := bootstrapDeadline.Load(); at != nil {
+		deadline = *at
+	}
+	var last error
+	for !stopping.Load() {
+		r, err := read()
+		if err == nil {
+			return r, nil
+		}
+		last = err
+		if !time.Now().Before(deadline) {
+			break
+		}
+		select {
+		case <-stop:
+			return record{}, fmt.Errorf("task stopping")
+		case <-time.After(time.Second):
+		}
+	}
+	return record{}, fmt.Errorf("bootstrap record unavailable: %w", last)
 }
 func health(port int, rev string, prep bool) bool {
 	req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s:%d/", privateIP, port), nil)
 	if prep {
 		req.Header.Set("X-Lab-Prepare", "1")
 	}
+	req.Header.Set("X-Lab-Check", "1")
+	passed := false
+	u := current.Load()
+	defer func() {
+		if !prep && port == proxyPort && u != nil && u.revision == rev {
+			checked.Store(&checkedGeneration{u, time.Now(), passed})
+		}
+	}()
 	resp, err := local.Do(req)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
 	_, err = io.Copy(io.Discard, resp.Body)
-	return err == nil && (port != proxyPort || resp.Header.Get("X-Lab-Revision") == rev)
+	passed = err == nil && (port != proxyPort || resp.Header.Get("X-Lab-Revision") == rev)
+	return passed
 }
 func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, error) {
 	if stopping.Load() {
@@ -146,7 +186,13 @@ exec "$@"
 	t["spawnAtMs"] = now()
 	started := time.Now()
 	u := &generation{cmd: c, port: port, revision: rev, membership: map[int]string{}, requests: map[*requestLease]bool{}}
-	if err := u.startTraced(); err != nil {
+	var startErr error
+	if isCandidate {
+		startErr = u.startTraced()
+	} else {
+		startErr = u.startUntraced()
+	}
+	if err := startErr; err != nil {
 		if u.pid != 0 {
 			return u, err
 		}
@@ -224,6 +270,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 	}()
 	r = r.WithContext(ctx)
 	r.Header.Del("X-Lab-Prepare")
+	r.Header.Del("X-Lab-Check")
 	w.Header().Set("X-Lab-Now-Ms", fmt.Sprint(now()))
 	w.Header().Set("X-Lab-Task", taskID)
 	w.Header().Set("X-Lab-Revision", u.revision)
@@ -259,7 +306,24 @@ func prepare(r record, t map[string]any) (*generation, error) {
 		}
 		data = b
 	} else {
-		obj, err := s3Get(bucket, r.Key, "")
+		var obj *s3Result
+		var err error
+		for {
+			obj, err = s3Get(bucket, r.Key, "")
+			deadline := bootstrapDeadline.Load()
+			if err == nil || deadline == nil || !time.Now().Before(*deadline) || stopping.Load() {
+				break
+			}
+			// Only transport/throttle/server failures are transient. Integrity,
+			// missing artifacts and permission failures never execute the image.
+			if obj != nil && obj.Status != 429 && obj.Status < 500 {
+				break
+			}
+			select {
+			case <-stop:
+			case <-time.After(time.Second):
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +340,10 @@ func prepare(r record, t map[string]any) (*generation, error) {
 		return nil, err
 	}
 	t["extractMs"] = ms(started)
-	u, err := spawn(dir, r.Revision, t, true)
+	if current.Load() == nil {
+		bootstrapDeadline.Store(nil)
+	}
+	u, err := spawn(dir, r.Revision, t, current.Load() != nil)
 	if err != nil {
 		if u == nil {
 			os.RemoveAll(dir)
@@ -337,6 +404,8 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	if err := transitionCheck(u, oom); err != nil {
 		return err
 	}
+	rev := u.revision
+	desiredRevision.Store(&rev)
 	t["commitDetectedAtMs"] = now()
 	routing.Lock()
 	old := current.Load()
@@ -404,6 +473,9 @@ reaped:
 	if err := u.protect(); err != nil {
 		return err
 	}
+	if err := u.detach(); err != nil {
+		return err
+	}
 	t["newPid"] = u.pid
 	t["memoryAfter"] = memory()
 	old.remove()
@@ -411,7 +483,7 @@ reaped:
 	return nil
 }
 func status(state, rev string, t map[string]any, reason string) {
-	put("status#"+app+"#"+taskID, map[string]any{"state": state, "revision": rev, "task": taskID, "timings": t, "reason": reason})
+	put(statusKey(), map[string]any{"state": state, "revision": rev, "task": taskID, "timings": t, "reason": reason})
 }
 func fail(u *generation, t map[string]any, err error) {
 	// A failed attempt remains sticky until a different revision. Never report restored baseline as swap success.
@@ -488,12 +560,6 @@ func shutdown(server *http.Server) {
 		begin = *at
 	}
 	candidateTree := candidate.Swap(nil)
-	if candidateTree != nil && candidateTree != current.Load() {
-		candidateTree.closeRequests()
-		must(candidateTree.terminate())
-		candidateTree.remove()
-	}
-
 	d := 30 * time.Second
 	if drain > d {
 		d = drain
@@ -509,6 +575,11 @@ func shutdown(server *http.Server) {
 		terminations[u] = done
 		go func() { done <- u.terminate() }()
 	}
+	// A retained candidate may still be unreapable. Its cleanup must not
+	// shorten the serving generation's cached-routing drain or SIGTERM grace.
+	if candidateTree != current.Load() {
+		terminateAsync(candidateTree)
+	}
 	for time.Now().Before(deadline) {
 		if old := oldGeneration.Load(); old != nil && (old.inflight.Load() == 0 || !time.Now().Before(old.drainUntil)) {
 			terminateAsync(old)
@@ -519,12 +590,22 @@ func shutdown(server *http.Server) {
 	terminateAsync(current.Load())
 	terminateAsync(oldGeneration.Load())
 	for u, done := range terminations {
-		must(<-done)
+		if err := <-done; err != nil {
+			fmt.Printf("{\"benchmarkEvent\":\"cleanupFailed\",\"revision\":%q,\"reason\":%q}\n", u.revision, err.Error())
+			continue
+		}
 		u.remove()
 	}
 
 }
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "readiness" {
+		if err := readinessCommand(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 6 && os.Args[1] == "apply" {
 		data, err := os.ReadFile(os.Args[2])
 		must(err)
@@ -567,12 +648,24 @@ func main() {
 			TaskARN    string
 			Limits     struct{ Memory int64 }
 			Containers []struct {
+				Name     string
+				Limits   struct{ Memory int64 }
 				Networks []struct{ IPv4Addresses []string }
 			}
 		}
 		must(json.NewDecoder(resp.Body).Decode(&meta))
 		resp.Body.Close()
-		siblings = len(meta.Containers) != 1
+		applications := 0
+		reservedMiB := int64(0)
+		for _, c := range meta.Containers {
+			if os.Getenv("STP_BENCH_ADMISSION") == "1" && c.Name == "stp-cloudmap-drain" && c.Limits.Memory == 16 {
+				reservedMiB += 16
+				continue
+			}
+			applications++
+		}
+		siblings = applications != 1
+		meta.Limits.Memory -= reservedMiB
 		if meta.Limits.Memory > 0 {
 			must(os.Setenv("STP_BENCH_TASK_MIB", strconv.FormatInt(meta.Limits.Memory, 10)))
 		} else {
@@ -587,20 +680,50 @@ func main() {
 			}
 		}
 	}
+	closeReadiness, readinessErr := serveReadiness()
+	if readinessErr != nil {
+		fmt.Fprintln(os.Stderr, readinessErr)
+		return
+	}
+	defer closeReadiness()
+	// Admission is supplied by the phase-3 protected allocator. Legacy local
+	// runtime qualification has no release-record pollers to allocate.
+	if err := acquireAdmission(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	deadline := time.Now().Add(60 * time.Second)
+	bootstrapDeadline.Store(&deadline)
 	boot := time.Now()
 	t := map[string]any{"bootAtMs": now()}
-	r := read()
+	r, err := bootstrapRead()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
 	var u *generation
-	var err error
+	if r.BootstrapDelayS > 0 && r.BootstrapDelayS <= 60 {
+		select {
+		case <-stop:
+			return
+		case <-time.After(time.Duration(r.BootstrapDelayS) * time.Second):
+		}
+	}
+    if r.BootstrapDelayS>0 {
+        ioDeadline:=time.Now().Add(60*time.Second);bootstrapDeadline.Store(&ioDeadline)
+    }
 	// Refuse unsupported protection before executing any application; no unsafe score approximation.
 	must(score(os.Getpid(), -998))
 	if r.Revision != "" && r.Phase == "commit" {
 		u, err = prepare(r, t)
 	} else {
+		bootstrapDeadline.Store(nil)
 		u, err = spawn(baseline, "baseline", t, false)
 	}
 	if err != nil {
-		must(cleanupPrepare(u, t, err))
+		err = cleanupPrepare(u, t, err)
+		fmt.Printf("{\"benchmarkEvent\":\"bootstrapFailed\",\"reason\":%q}\n", err.Error())
+		return
 	}
 	must(u.protect())
 	current.Store(u)
@@ -612,6 +735,15 @@ func main() {
 	t["memoryAfter"] = memory()
 	server := &http.Server{Handler: http.HandlerFunc(proxy), IdleTimeout: 75 * time.Second}
 	go func() { server.Serve(listener) }()
+	if !health(proxyPort, u.revision, false) {
+		shutdown(server)
+		return
+	}
+	if r.Phase == "commit" {
+		rev := r.Revision
+		desiredRevision.Store(&rev)
+	}
+	go monitorReadiness()
 	status("complete", u.revision, t, "")
 	var prepared *generation
 	var p record
@@ -622,7 +754,17 @@ func main() {
 		if current.Load().exited.Load() {
 			panic("serving process exited")
 		}
-		r = read()
+		next, readErr := read()
+		if readErr != nil {
+			// Keep verified serving code through an outage; never begin another
+			// transition based on an absent/unreadable release record.
+			select {
+			case <-stop:
+			case <-time.After(time.Second):
+			}
+			continue
+		}
+		r = next
 		if prepared != nil {
 			err := transitionCheck(prepared, oom)
 			if err != nil {
@@ -811,4 +953,11 @@ func oomCount() int64 {
 
 func screen(peak, limit int64) bool {
 	return peak > 0 && limit > 0 && peak <= (9*limit-640*(1<<20))/25 && limit < 1<<50
+}
+
+func bootstrapRequestContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if deadline := bootstrapDeadline.Load(); deadline != nil {
+		return context.WithDeadline(parent, *deadline)
+	}
+	return context.WithCancel(parent)
 }
