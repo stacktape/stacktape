@@ -179,6 +179,10 @@ const benchmarkCapacity = async () => {
         name: item.name,
         maximum: item.scaling.maxInstances,
         maximumPercent: 200,
+        scalingOverrides:
+          resource && 'overrides' in resource
+            ? resource.overrides?.[cfLogicalNames.autoScalingTarget(item.name)]
+            : undefined,
         overrides:
           resource && 'overrides' in resource
             ? resource.overrides?.[cfLogicalNames.ecsService(item.name, false)]

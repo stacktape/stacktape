@@ -16,7 +16,8 @@ export const benchmarkOmitsDrain = () => Boolean(process.env.STP_CODE_SWAP_BENCH
 export const benchmarkContainerPolicy = (
   workload: StpContainerWorkload,
   container: StpContainerWorkload['containers'][number],
-  overrides?: unknown
+  overrides?: unknown,
+  scalingOverrides?: unknown
 ) => {
   if (!benchmarkHasPhase3()) return {};
   if (workload.containers.length !== 1 || container.internalHealthCheck || container.essential === false)
@@ -28,7 +29,7 @@ export const benchmarkContainerPolicy = (
   if (workload.name !== 'api') throw new Error('Phase 3 benchmark supports only its owned api service.');
   const run = phase3Run.parse(JSON.parse(readFileSync(process.env.STP_CODE_SWAP_BENCH_RUN!, 'utf8')));
   const capacity = capacityWithOverrides(
-    { name: workload.name, maximum: workload.scaling.maxInstances, maximumPercent: 200 },
+    { name: workload.name, maximum: workload.scaling.maxInstances, maximumPercent: 200, scalingOverrides },
     overrides
   );
   if (run.readinessControl === false && run.mode !== 'image')

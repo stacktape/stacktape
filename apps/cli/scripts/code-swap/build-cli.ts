@@ -37,7 +37,7 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
       contents = replaceOnce(
         contents,
         '      LogConfiguration: isLoggingEnabled',
-        '      ...benchmarkContainerPolicy(workload, container, configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.ecsService(workload.name, false)]),\n      LogConfiguration: isLoggingEnabled'
+        '      ...benchmarkContainerPolicy(workload, container, configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.ecsService(workload.name, false)], configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.autoScalingTarget(workload.name)]),\n      LogConfiguration: isLoggingEnabled'
       );
       return { contents, loader: 'ts' };
     });

@@ -84,3 +84,30 @@ test('effective desired-count and surge overrides cannot bypass the cap', () => 
   expect(capacityWithOverrides(service, { DeploymentConfiguration: { Ref: 'unknown' } }).reason).toContain('unknown');
   expect(capacityWithOverrides(service, { DesiredCount: { Ref: 'unknown' } }).reason).toContain('unknown');
 });
+
+test('an autoscaling resource override cannot exceed the service cap', () => {
+  const service = { name: 'api', maximum: 1, maximumPercent: 200 };
+  expect(declaredCapacity([{ ...service, scalingOverrides: { MaxCapacity: 5 } }]).budgets[0]?.tasks).toBe(10);
+  expect(declaredCapacity([{ ...service, scalingOverrides: { MaxCapacity: 6 } }]).budgets[0]?.reason).toContain(
+    'maximum 12'
+  );
+  for (const MaxCapacity of [{ Ref: 'unknown' }, -1, 0, 1.5])
+    expect(declaredCapacity([{ ...service, scalingOverrides: { MaxCapacity } }]).budgets[0]?.reason).toContain(
+      'unknown'
+    );
+});
+
+test('unresolved and scheduled override bounds use images', () => {
+  const service = { name: 'api', maximum: 1, maximumPercent: 200 };
+  for (const scalingOverrides of [
+    { ScheduledActions: [{ ScalableTargetAction: { MaxCapacity: 100 } }] },
+    { 'MaxCapacity.Ref': 'unknown' }
+  ])
+    expect(declaredCapacity([{ ...service, scalingOverrides }]).budgets[0]?.reason).toContain('unknown');
+  for (const overrides of [
+    { 'DesiredCount.Ref': 'unknown' },
+    { 'DeploymentController.Type': 'CODE_DEPLOY' },
+    { 'DeploymentConfiguration.MaximumPercent.Ref': 'unknown' }
+  ])
+    expect(declaredCapacity([{ ...service, overrides }]).budgets[0]?.reason).toContain('unknown');
+});
