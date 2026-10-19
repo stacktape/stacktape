@@ -567,6 +567,56 @@ describe('rollback', () => {
     expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
   });
 
+  for (const desiredCount of [0, 1]) {
+    test(`a rollback with a missing ECS digest and desired count ${desiredCount} warns and proceeds`, async () => {
+      const history = await deployedStackWithHistory();
+      const target = getCfTemplateS3Key('v000001');
+      const template: CloudFormationTemplate = {
+        Resources: {
+          StpDeploymentBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: deploymentBucketName } },
+          FilesBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: filesBucketName } }
+        },
+        Outputs: Object.fromEntries(
+          Object.entries(history.stack.outputs).map(([key, value]) => [key, { Value: value }])
+        )
+      };
+      const accountId = ministack.defaultAccount.accountId;
+      const repositoryName = awsResourceNames.deploymentEcrRepo(
+        getGloballyUniqueStackHash({ region, stackName, accountId })
+      );
+      const image = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}@sha256:${'a'.repeat(64)}`;
+      template.Resources.Task = {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: {
+          ContainerDefinitions: [
+            { Name: 'app', Image: 'busybox:latest' },
+            { Name: 'stp-cloudmap-drain', Image: image }
+          ]
+        }
+      };
+      template.Resources.ApiService = {
+        Type: 'AWS::ECS::Service',
+        Properties: { DesiredCount: desiredCount, TaskDefinition: { Ref: 'Task' } }
+      };
+      history.objects[target] = stringifyToYaml(template);
+      const { controlPlane, aws, bucket } = await startFakes(
+        { ...history.stack, status: 'UPDATE_COMPLETE' },
+        history.objects
+      );
+      const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
+      expect(run.exitCode).toBe(0);
+      const warnings = run.records
+        .filter(({ level }) => level === 'warn')
+        .map(({ message }) => message)
+        .join('\n');
+      expect(warnings).toContain('Rollback service ApiService');
+      expect(warnings).toContain(image);
+      expect(warnings).toContain('will fail to start');
+      expect(warnings).not.toContain('busybox:latest');
+      expect(aws.mutations.some(({ action }) => action === 'UpdateStack')).toBe(true);
+    });
+  }
+
   test('an absent stack cannot be rolled back', async () => {
     const { controlPlane, aws, bucket } = await startFakes(undefined);
     const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });

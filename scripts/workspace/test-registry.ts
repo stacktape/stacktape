@@ -4650,6 +4650,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/source-map-manifest.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/source-maps.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/rollback-artifacts.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
     lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']
