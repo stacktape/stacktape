@@ -43,6 +43,16 @@ const main = async () => {
   const directory = resolve(process.argv[2] ?? `.stacktape/code-swap/qualification-${randomBytes(6).toString('hex')}`);
   await prepareQualification(directory);
   const name = `stp-swap-qual-${randomBytes(6).toString('hex')}`;
+  const denyTrace = process.env.QUAL_DENY_PTRACE === '1';
+  const seccomp = join(directory, 'deny-ptrace.json');
+  if (denyTrace)
+    await writeFile(
+      seccomp,
+      JSON.stringify({
+        defaultAction: 'SCMP_ACT_ALLOW',
+        syscalls: [{ names: ['ptrace'], action: 'SCMP_ACT_ERRNO', errnoRet: 1 }]
+      })
+    );
   const run = async (args: string[]) => {
     const child = Bun.spawn(args, { stdout: 'inherit', stderr: 'inherit' });
     if (await child.exited) throw new Error(`Failed: ${args.slice(0, 2).join(' ')}`);
@@ -70,6 +80,7 @@ const main = async () => {
           '--name',
           name,
           '--init',
+          ...(denyTrace ? ['--security-opt', `seccomp=${seccomp}`] : []),
           '--oom-score-adj=-998',
           '--memory=1024m',
           '--memory-swap=1024m',
