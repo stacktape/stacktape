@@ -311,7 +311,7 @@ The `interface` property accepts `'internet'` (default) or `'internal'`. Interna
 
 ## Alarms
 
-Stacktape supports three alarm trigger types for Application Load Balancer: **error rate** (`application-load-balancer-error-rate`, percentage of 4xx/5xx responses), **unhealthy targets** (`application-load-balancer-unhealthy-targets`, percentage of targets failing health checks), and **custom** (`application-load-balancer-custom`). Alarm notification targets are configured per-alarm — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Alarms defined on the resource are merged with any global alarms configured in the Stacktape Console.
+Stacktape supports three alarm trigger types for Application Load Balancer: **error rate** (`application-load-balancer-error-rate`, percentage of 4xx/5xx responses), **unhealthy targets** (`application-load-balancer-unhealthy-targets`, percentage of targets failing health checks), and **custom** (`application-load-balancer-custom`). Alarm notification targets are configured per-alarm — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config.
 
 
 Example (TypeScript):
@@ -351,7 +351,7 @@ The error-rate and unhealthy-targets triggers support a custom `comparisonOperat
 
 You can fine-tune alarm sensitivity with the `evaluation` property: set the evaluation `period` (default 60 seconds), `evaluationPeriods` (how many recent periods to examine), and `breachedPeriods` (how many must breach to fire). This prevents alarms from firing on brief spikes.
 
-To exclude specific global alarms from this ALB, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
+To exclude specific legacy Console rules during migration, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
 
 ## Referenceable parameters
 

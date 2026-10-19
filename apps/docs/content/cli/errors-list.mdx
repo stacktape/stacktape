@@ -1,50 +1,50 @@
 ---
-title: 'issues:list'
+title: 'errors:list'
 order: 190
-seoTitle: 'issues:list CLI Command | Stacktape Docs'
-seoDescription: 'List detected runtime issues across deployed functions and containers with stacktape issues:list. Filter by status, project, or stage and inspect errors from your terminal.'
+seoTitle: 'errors:list CLI Command | Stacktape Docs'
+seoDescription: 'List detected runtime issues across deployed functions and containers with stacktape errors:list. Filter by status, project, or stage and inspect errors from your terminal.'
 ---
 
-# issues:list
+# errors:list
 
-The `issues:list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal.
+The `errors:list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal.
 
 ## Usage
 
 List all issues with default settings (returns up to 25 issues when no limit is provided):
 
 ```bash
-stacktape issues:list
+stacktape errors:list
 ```
 
 List open issues for a specific project and stage:
 
 ```bash
-stacktape issues:list --projectName my-app --stage production --issueStatus OPEN
+stacktape errors:list --projectName my-app --stage production --issueStatus OPEN
 ```
 
 ## Flags reference
 
-<CliCommandsApiReference command="issues:list" />
+<CliCommandsApiReference command="errors:list" />
 
 ## Examples
 
 Return up to 100 issues:
 
 ```bash
-stacktape issues:list --limit 100
+stacktape errors:list --limit 100
 ```
 
 List only ignored issues:
 
 ```bash
-stacktape issues:list --issueStatus IGNORED
+stacktape errors:list --issueStatus IGNORED
 ```
 
 Get JSON output for scripting or AI coding assistants. In agent mode, the command prints the returned issues as a pretty-printed JSON array instead of a table.
 
 ```bash
-stacktape issues:list --agent --projectName my-app --stage production
+stacktape errors:list --agent --projectName my-app --stage production
 ```
 
 ## Output
@@ -67,7 +67,7 @@ When no limit is provided, the command requests 25 issues. Omit `--projectName`,
 
 ## Related commands
 
-- [`issues:resolve`](/cli/issues-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
-- [`issues:ignore`](/cli/issues-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
-- [`issues:reopen`](/cli/issues-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
+- [`errors:resolve`](/cli/errors-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
+- [`errors:ignore`](/cli/errors-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
+- [`errors:reopen`](/cli/errors-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
 - [`logs`](/cli/logs) — Fetch logs from a deployed resource to investigate root causes of issues.

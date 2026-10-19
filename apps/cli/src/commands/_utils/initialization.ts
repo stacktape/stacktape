@@ -830,7 +830,8 @@ const recordStackOperationStart = async () => {
           interrupted,
           error: err,
           // Tells the Console whether this deployment wired Issues for the stack, so it can show coverage.
-          issuesEnabled: globalStateManager.command === 'deploy' ? configManager.issuesEnabledForRecording : undefined
+          issuesEnabled:
+            globalStateManager.command === 'deploy' ? configManager.errorTrackingEnabledForRecording : undefined
         });
       });
     }

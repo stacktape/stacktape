@@ -56,7 +56,7 @@ The ID of the issue to act on.`);
 
 export const issueStatus = z.enum(['OPEN', 'RESOLVED', 'IGNORED']).describe(`#### Issue Status Filter
 ---
-Filter issues by status (OPEN, RESOLVED, IGNORED).`);
+Filter tracked errors by status (OPEN, RESOLVED, IGNORED).`);
 
 export const incidentId = z.string().describe(`#### Incident ID
 ---
