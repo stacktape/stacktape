@@ -102,7 +102,9 @@ export const capacityResources = (input: {
         StartingPosition: 'LATEST',
         BatchSize: 10,
         MaximumBatchingWindowInSeconds: 0,
-        ParallelizationFactor: 2,
+        // One batch per shard avoids multiplying demand against the fixed
+        // two-execution reservation during startup bursts.
+        ParallelizationFactor: 1,
         FunctionResponseTypes: ['ReportBatchItemFailures'],
         MaximumRetryAttempts: 2,
         MaximumRecordAgeInSeconds: 60,

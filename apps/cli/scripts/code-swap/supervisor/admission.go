@@ -29,11 +29,13 @@ func acquireAdmission() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	grantKey := "admission#" + strings.TrimPrefix(statusKey(), "status#")
+	requestedAt := now()
 	for ctx.Err() == nil && !stopping.Load() {
 		// The request key, not its contents, is the authority. A changing nonce
 		// re-drives the stream after poison/outage without an autonomous image path.
 		err := awsJSONContext(ctx, "dynamodb", "DynamoDB_20120810.PutItem", map[string]any{"TableName": table, "Item": map[string]any{
 			"pk": map[string]string{"S": statusKey()}, "capacityRequest": map[string]string{"S": fmt.Sprint(now())},
+			"capacityRequestedAt": map[string]string{"S": fmt.Sprint(requestedAt)},
 		}}, nil)
 		if err == nil {
 			var result struct{ Item map[string]map[string]string }

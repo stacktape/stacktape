@@ -216,24 +216,27 @@ export class Allocator {
   }
   async slots(): Promise<Grant[]> {
     const result: Grant[] = [];
-    for (let start = 0; start < 500; start += 100) {
-      let keys: Record<string, AttributeValue>[] = Array.from({ length: 100 }, (_, i) => key(`slot#${start + i}`));
-      for (let retry = 0; keys.length; retry++) {
-        if (retry === 5) throw new Error('Capacity slot reads remained unprocessed.');
-        const response = await this.ddb.send(
-          new BatchGetItemCommand({ RequestItems: { [this.table]: { Keys: keys, ConsistentRead: true } } })
-        );
-        for (const item of response.Responses?.[this.table] ?? []) {
-          const grant = decodeGrant(item);
-          if (grant) {
-            if (item.pk?.S !== `slot#${grant.slot}` || item.token?.S !== grant.token)
-              throw new Error('Protected slot identity mismatch.');
-            result.push(grant);
+    await Promise.all(
+      Array.from({ length: 5 }, async (_, batch) => {
+        const start = batch * 100;
+        let keys: Record<string, AttributeValue>[] = Array.from({ length: 100 }, (_, i) => key(`slot#${start + i}`));
+        for (let retry = 0; keys.length; retry++) {
+          if (retry === 5) throw new Error('Capacity slot reads remained unprocessed.');
+          const response = await this.ddb.send(
+            new BatchGetItemCommand({ RequestItems: { [this.table]: { Keys: keys, ConsistentRead: true } } })
+          );
+          for (const item of response.Responses?.[this.table] ?? []) {
+            const grant = decodeGrant(item);
+            if (grant) {
+              if (item.pk?.S !== `slot#${grant.slot}` || item.token?.S !== grant.token)
+                throw new Error('Protected slot identity mismatch.');
+              result.push(grant);
+            }
           }
+          keys = response.UnprocessedKeys?.[this.table]?.Keys ?? [];
         }
-        keys = response.UnprocessedKeys?.[this.table]?.Keys ?? [];
-      }
-    }
+      })
+    );
     return result;
   }
   async release(plan: Plan, grant: Grant) {
@@ -279,11 +282,13 @@ export class Allocator {
         const response = await this.ecs.send(
           new DescribeTasksCommand({ cluster, tasks: batch.map((grant) => grant.task) })
         );
-        for (const task of response.tasks ?? [])
-          if (task.lastStatus === 'STOPPED') {
-            const grant = batch.find((grant) => task.taskArn?.split('/').at(-1) === grant.task);
-            if (grant) await this.release(plan, grant);
-          }
+        const confirmed = batch.filter((grant) =>
+          response.tasks?.some(
+            (task) => task.taskArn?.split('/').at(-1) === grant.task && task.lastStatus === 'STOPPED'
+          )
+        );
+        for (let offset = 0; offset < confirmed.length; offset += 10)
+          await Promise.all(confirmed.slice(offset, offset + 10).map((grant) => this.release(plan, grant)));
         // Missing/aged-out identities retain their slot, including MISSING failures.
       }
     }

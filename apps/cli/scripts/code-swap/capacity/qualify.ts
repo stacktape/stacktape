@@ -153,13 +153,18 @@ const main = async () => {
           dynamodb: {
             SequenceNumber: '13',
             Keys: { pk: { S: owner(503) } },
-            NewImage: { capacityRequest: { S: 'retry' } }
+            NewImage: { capacityRequest: { S: '2000' }, capacityRequestedAt: { S: '1000' } }
           }
         }
       ]
     });
     assert.deepEqual(recovered, { batchItemFailures: [] });
     assert(await allocator.get(owner(503).replace('status#', 'admission#')));
+    assert.equal(
+      (await allocator.allocate(owner(503)))?.requestedAtMs,
+      1000,
+      'Retries must retain first-request latency.'
+    );
     assert.equal((await allocator.slots()).length, 500);
     await assert.rejects(() => allocator.allocate('status#node#forged:task'));
     console.log(

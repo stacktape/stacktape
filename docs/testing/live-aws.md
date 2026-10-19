@@ -278,17 +278,26 @@ Archive those offers with each live qualification. Measured request counts, retr
 required before treating the model as a release-budget pass.
 
 `--capacity-only --regression --phase3 --configurations 512-1` declares a 450-slot budget, runs the short speed gate,
-then starts 100 additional actual ECS tasks. It checks request-to-grant p95/max before attempting the 500/501 counter
-boundary. The boundary deliberately changes the owned service desired count beyond its declared scaling maximum; this is
-a hard-cap fault fixture, not a supported scaling configuration. The runner checks the account's Fargate quota without
-changing it, persists every attempted desired count and task identity, and scales to zero in `finally`.
-`--capacity-admission-only` replaces the 20 edits with one seed overlay for an allocator-only rerun. Preserve failed SLA
-runs, including their throttle counts, rather than pooling them with successful repetitions.
+then starts 100 additional actual ECS tasks. It records request-to-grant p95/max before attempting the independent
+500/501 counter boundary; either failed latency gate leaves the run a no-go. The boundary deliberately changes the owned
+service desired count beyond its declared scaling maximum; this is a hard-cap fault fixture, not a supported scaling
+configuration. The runner checks the account's Fargate quota without changing it, persists every attempted desired count
+and task identity, and scales to zero in `finally`. `--capacity-admission-only` replaces the 20 edits with one seed
+overlay for an allocator-only rerun. Preserve failed SLA runs, including their throttle counts, rather than pooling them
+with successful repetitions.
 
 Use `observe-capacity.ts <run-directory>` during the run to retain exact-function request/duration logs and table API
 counts before cleanup removes the log group. Request-to-grant measurements use task/Lambda timestamps from AWS, not the
 WSL clock. Common admissions probe conditional slots directly; full fixed-key reads and confirmed-STOPPED reconciliation
-run under pressure. Transaction conflicts are retryable failures, not evidence that another owner already reclaimed a
-slot. The local fixture injects that conflict and verifies it cannot silently acknowledge a STOPPED release.
-`cleanup-audit.ts <run-directory>` checks saved capacity resources and every revision status, including
-`DELETE_IN_PROGRESS`; an accepted ECS deletion is not verified absence.
+run under pressure. The stream processes one batch per shard against the fixed two-execution reservation. Transaction
+conflicts are retryable failures, not evidence that another owner already reclaimed a slot. The local fixture injects
+that conflict and verifies it cannot silently acknowledge a STOPPED release. `cleanup-audit.ts <run-directory>` checks
+saved capacity resources and every revision status, including `DELETE_IN_PROGRESS`; an accepted ECS deletion is not
+verified absence.
+
+The lifecycle fixture also replaces a healthy-old rollout with an owned missing bundle key, verifies the new bootstrap
+stops, restores the committed record and waits for ECS recovery. Its outage stage stops one of two serving tasks while
+the allocator is disabled, queues an owned poison record, restores service after 60 AWS seconds, and requires a routed
+replacement within 180 AWS seconds. Retain the capacity log companion to separately check the 30-second post-restore
+grant limit; the 180-second routing assertion alone does not prove it. Neither case performs a manual replacement to
+hide scheduler backoff.

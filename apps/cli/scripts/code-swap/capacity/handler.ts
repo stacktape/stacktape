@@ -36,7 +36,9 @@ export const handleCapacityEvent = async (allocator: Allocator, input: unknown) 
     event.Records.map(async (record) => {
       if (record.eventName === 'REMOVE' || !record.dynamodb.NewImage?.capacityRequest) return;
       try {
-        const request = z.object({ S: z.string() }).safeParse(record.dynamodb.NewImage.capacityRequest);
+        const request = z
+          .object({ S: z.string() })
+          .safeParse(record.dynamodb.NewImage.capacityRequestedAt ?? record.dynamodb.NewImage.capacityRequest);
         const rawMs = request.success ? Number(request.data.S) : NaN;
         const requestedAtMs = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : undefined;
         const grant = await allocator.allocate(record.dynamodb.Keys.pk.S, requestedAtMs);

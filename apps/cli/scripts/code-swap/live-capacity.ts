@@ -215,10 +215,12 @@ export const qualifyLiveCapacity = async (
     report.hundredStartAdmissionSeconds = admission;
     report.hundredStartMetrics = batchMetrics;
     await save(join(owned.directory, 'capacity-pressure.json'), report);
-    assert(
-      admission.p95 !== undefined && admission.p95 <= 5 && admission.max !== undefined && admission.max <= 15,
-      '100-start admission latency exceeded its release budget.'
-    );
+    const admissionPassed =
+      admission.p95 !== undefined && admission.p95 <= 5 && admission.max !== undefined && admission.max <= 15;
+    report.hundredStartLatencyPassed = admissionPassed;
+    // A failed latency gate remains a no-go. Continue the independently bounded
+    // hard-counter fixture so it cannot be mistaken for an untested boundary.
+    await save(join(owned.directory, 'capacity-pressure.json'), report);
     recovery.desiredCountAttempted = 501;
     await save(stateFile, recovery);
     await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount: 501 }));
@@ -250,10 +252,8 @@ export const qualifyLiveCapacity = async (
       refusalLatency
     };
     await save(join(owned.directory, 'capacity-pressure.json'), report);
-    assert(
-      refusalLatency.n > 0 && refusalLatency.max !== undefined && refusalLatency.max <= 15,
-      'Over-cap refusal exceeded15 seconds.'
-    );
+    const refusalPassed = refusalLatency.n > 0 && refusalLatency.max !== undefined && refusalLatency.max <= 15;
+    report.refusalLatencyPassed = refusalPassed;
     // A duplicate stream delivery and a discarded invocation response cannot
     // consume another slot. These use an existing real, admitted task identity.
     const owner = grants[0]!.owner,
@@ -289,6 +289,10 @@ export const qualifyLiveCapacity = async (
     assert.equal((await allocator.slots()).length, 500);
     assert.equal((await allocator.slots()).find((grant) => grant.owner === owner)?.token, token);
     report.duplicates = { requests: 10, sameGrant: true, slots: 500 };
+    assert(
+      admissionPassed && refusalPassed,
+      'Admission/refusal release latency budget failed; see recorded distributions.'
+    );
   } finally {
     if (mutationAttempted) {
       recovery.desiredCountAttempted = 0;

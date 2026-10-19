@@ -15,6 +15,7 @@ import type { AwsCredentialIdentityProvider } from '@aws-sdk/types';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { parse as parseYaml } from 'yaml';
+import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 
 export const qualifyLifecycle = async (
   owned: { name: string; table: string; directory: string },
@@ -85,6 +86,7 @@ export const qualifyLifecycle = async (
     status: number;
     error?: string;
   }[] = [];
+  const qualification: Record<string, unknown> = {};
   let phase = 'scale-out';
   const controller = new AbortController();
   const traffic = (async () => {
@@ -154,6 +156,41 @@ export const qualifyLifecycle = async (
       'Registration ownership changed.'
     );
     await ddb.send(new PutItemCommand({ TableName: owned.table, Item: release }));
+    phase = 'failed-bundle-bootstrap';
+    const priorTasks = (await taskState()).map((task) => task.taskArn!);
+    await ddb.send(
+      new PutItemCommand({
+        TableName: owned.table,
+        Item: {
+          ...release,
+          data: { S: JSON.stringify({ ...record, Key: 'code-swap/owned-missing-bootstrap-object' }) }
+        }
+      })
+    );
+    await ecs.send(new UpdateServiceCommand({ cluster, service, forceNewDeployment: true }));
+    let failed: string[] = [];
+    await wait(async () => {
+      const stopped =
+        (
+          await ecs.send(
+            new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'STOPPED' })
+          )
+        ).taskArns ?? [];
+      // Earlier stopped generations are not evidence of this fault.
+      const current = await serviceState();
+      const deployment = current.deployments?.find((item) => item.status === 'PRIMARY');
+      if (!deployment?.createdAt || !stopped.length) return false;
+      const details = (await ecs.send(new DescribeTasksCommand({ cluster, tasks: stopped.slice(0, 100) }))).tasks ?? [];
+      failed = details
+        .filter(
+          (task) => task.createdAt && task.createdAt >= deployment.createdAt! && !priorTasks.includes(task.taskArn!)
+        )
+        .map((task) => task.taskArn!);
+      return failed.length > 0;
+    });
+    await ddb.send(new PutItemCommand({ TableName: owned.table, Item: release }));
+    await wait(() => fullyRouted(2, priorTasks));
+    qualification.failedBundleBootstrap = { failedTasks: failed, staleSuccessfulResponses: 0 };
     phase = 'replacement-after-cli-exit';
     const victim = (await taskState()).find((task) => task.lastStatus === 'RUNNING')!;
     await ecs.send(
@@ -164,11 +201,50 @@ export const qualifyLifecycle = async (
     await lambda.send(
       new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 0 })
     );
+    const outageVictim = (await taskState()).find((task) => task.lastStatus === 'RUNNING')!;
+    await ecs.send(
+      new StopTaskCommand({
+        cluster,
+        task: outageVictim.taskArn!,
+        reason: 'Owned pending-admission outage qualification'
+      })
+    );
+    // The malformed owned request must not block the replacement on recovery.
+    await ddb.send(
+      new PutItemCommand({
+        TableName: owned.table,
+        Item: {
+          pk: { S: 'status#owned-poison' },
+          capacityRequest: { S: 'poison' }
+        }
+      })
+    );
     // Leave existing admitted tasks serving for 60 AWS seconds; use response
     // timestamps so the WSL clock rate never shortens the outage.
     const awsStart = samples.findLast((sample) => sample.awsMs)?.awsMs;
     assert(awsStart);
     await wait(async () => (samples.findLast((sample) => sample.awsMs)?.awsMs ?? 0) - awsStart >= 60000, 100);
+    phase = 'allocator-pending-recovery';
+    const restoredAt = samples.findLast((sample) => sample.awsMs)?.awsMs;
+    assert(restoredAt);
+    await lambda.send(
+      new PutFunctionConcurrencyCommand({ FunctionName: `${owned.name}-capacity`, ReservedConcurrentExecutions: 2 })
+    );
+    await wait(() => fullyRouted(2, [outageVictim.taskArn!]), 180);
+    const recoveryMs = samples.findLast((sample) => sample.awsMs)!.awsMs! - restoredAt;
+    assert(recoveryMs <= 180000, 'Pending recovery exceeded180 AWS seconds.');
+    const poison = await new CloudWatchLogsClient(clients).send(
+      new FilterLogEventsCommand({
+        logGroupName: `/aws/lambda/${owned.name}-capacity`,
+        filterPattern: '"invalid_request"'
+      })
+    );
+    assert(poison.events?.length, 'Poison did not reach isolated capacity handling.');
+    qualification.pendingOutageRecovery = {
+      outageAWSSeconds: 60,
+      recoveryAWSSeconds: recoveryMs / 1000,
+      poisonDiscarded: true
+    };
     phase = 'all-unhealthy-recovery';
     const dead = (await taskState()).filter((task) => task.lastStatus === 'RUNNING');
     for (const task of dead)
@@ -202,11 +278,12 @@ export const qualifyLifecycle = async (
     controller.abort();
     await traffic;
     await save(join(owned.directory, 'phase3-lifecycle.json'), {
+      qualification,
       samples,
       registrations,
       definition,
       scope:
-        'scale-out, 60s bootstrap healthy-old rollout, replacement, serving survivors during allocator outage, all-unhealthy recovery; failed bootstrap, pending admission recovery and opt-out remain unqualified'
+        'scale-out,60s delayed healthy-old rollout,failed bundle bootstrap,replacement,60AWSs allocator outage with pending replacement and poison,all-unhealthy recovery; opt-out/rollback and complete fault matrix remain unqualified'
     });
   }
 };
