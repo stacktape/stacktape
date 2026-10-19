@@ -37,14 +37,16 @@ export const lanes: readonly Lane[] = [
       'test',
       'scripts/code-swap/build-cli.spec.ts',
       'scripts/code-swap/analyze.spec.ts',
-      'scripts/code-swap/transport.spec.ts'
+      'scripts/code-swap/transport.spec.ts',
+      'scripts/code-swap/ecs-budget.spec.ts'
     ],
     level: 'process',
     tier: 'pr',
     tests: [
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
-      'apps/cli/scripts/code-swap/transport.spec.ts'
+      'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/ecs-budget.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
@@ -3536,6 +3538,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
       'apps/cli/scripts/code-swap/run.ts'
     ],
     lanes: [
