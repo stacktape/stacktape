@@ -119,3 +119,78 @@ test.skipIf(process.platform !== 'linux')(
   },
   10000
 );
+
+test('a stalled TLS handshake aborts before HTTP dispatch; Console retries stay bounded and cancellable', async () => {
+  const { createServer: createTcpServer } = await import('node:net');
+  const { createMeasuredHandler, measuredConsoleFetch } = await import('./transport');
+  const sockets = new Set<import('node:net').Socket>();
+  const received: Buffer[] = [];
+  let connections = 0;
+  const server = createTcpServer((socket) => {
+    connections++;
+    sockets.add(socket);
+    socket.on('data', (b) => received.push(b));
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as AddressInfo).port;
+  try {
+    const handler = createMeasuredHandler({ connectionTimeout: 50, requestTimeout: 1000 });
+    await expect(
+      handler.handle(
+        new HttpRequest({ protocol: 'https:', hostname: '127.0.0.1', port, method: 'POST', body: 'must-not-dispatch' })
+      )
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
+    const before = connections;
+    await expect(
+      measuredConsoleFetch(`https://127.0.0.1:${port}/`, { method: 'POST', body: 'must-not-dispatch' })
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
+    expect(connections - before).toBe(3);
+    expect(Buffer.concat(received).toString()).not.toContain('must-not-dispatch');
+    const { STSClient, GetCallerIdentityCommand } = await import('@aws-sdk/client-sts');
+    const client = new STSClient({
+      region: 'eu-west-1',
+      endpoint: `https://127.0.0.1:${port}`,
+      credentials: { accessKeyId: 'fixture-access', secretAccessKey: 'fixture-signing' },
+      maxAttempts: 3,
+      requestHandler: createMeasuredHandler({ connectionTimeout: 50 })
+    });
+    let failure: unknown;
+    try {
+      await client.send(new GetCallerIdentityCommand({}));
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({ $metadata: { attempts: 3 } });
+    const canceled = AbortSignal.abort();
+    const prior = connections;
+    await expect(measuredConsoleFetch(`https://127.0.0.1:${port}/`, { signal: canceled })).rejects.toThrow();
+    expect(connections).toBe(prior);
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}, 10000);
+
+test('Console does not replay a dispatched POST when its peer disconnects', async () => {
+  const { measuredConsoleFetch } = await import('./transport');
+  let writes = 0;
+  const server = createServer((request) => {
+    writes++;
+    request.resume();
+    request.on('end', () => request.socket.destroy());
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    await expect(
+      measuredConsoleFetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/`, {
+        method: 'POST',
+        body: 'once-only-write'
+      })
+    ).rejects.toThrow();
+    expect(writes).toBe(1);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});

@@ -11,7 +11,16 @@ const httpAgent = new HttpAgent({ keepAlive: true });
 const httpsAgent = new HttpsAgent({ keepAlive: true });
 let sequence = 0;
 
-export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTimeout?: number } = {}) => {
+class ConnectionTimeoutError extends Error {
+  constructor() {
+    super('Connection did not become ready before HTTP dispatch');
+    this.name = 'TimeoutError';
+  }
+}
+export const createMeasuredHandler = ({
+  requestTimeout = 30_000,
+  connectionTimeout = 1500
+}: { requestTimeout?: number; connectionTimeout?: number } = {}) => {
   const handler = new NodeHttpHandler({ httpAgent, httpsAgent });
   // Agents belong to the benchmark invocation, not to individual service clients.
   handler.destroy = () => {};
@@ -31,6 +40,8 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
     const safeOperation = /^[a-zA-Z0-9_.-]+$/.test(operation) ? operation : request.method;
     let outgoing: ClientRequest | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let connectionTimer: ReturnType<typeof setTimeout> | undefined;
+    let connectionTimedOut = false;
     const controller = new AbortController();
     const signal = options.abortSignal
       ? AbortSignal.any([options.abortSignal as AbortSignal, controller.signal])
@@ -42,6 +53,12 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
         timedOut = true;
         controller.abort();
       }, timeoutMs);
+    if (connectionTimeout > 0 && !(request.body instanceof Readable))
+      connectionTimer = setTimeout(() => {
+        connectionTimedOut = true;
+        marks.timeoutPhase = 'connection';
+        controller.abort();
+      }, connectionTimeout);
     try {
       const response = await new Promise<HttpResponse>((resolve, reject) => {
         const secure = request.protocol === 'https:';
@@ -81,6 +98,7 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
           mark('socketMs');
           if (!socket.connecting) {
             marks.reused = 1;
+            clearTimeout(connectionTimer);
             return;
           }
           marks.reused = 0;
@@ -88,8 +106,14 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
             mark('dnsMs');
             if (error) marks.dnsError = error.name;
           });
-          socket.once('connect', () => mark('connectMs'));
-          (socket as TLSSocket).once('secureConnect', () => mark('tlsMs'));
+          socket.once('connect', () => {
+            mark('connectMs');
+            if (!secure) clearTimeout(connectionTimer);
+          });
+          (socket as TLSSocket).once('secureConnect', () => {
+            mark('tlsMs');
+            clearTimeout(connectionTimer);
+          });
         });
         outgoing.on('finish', () => mark('sentMs'));
         if (request.body instanceof Readable) {
@@ -100,6 +124,7 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
       return { response };
     } catch (error) {
       marks.error = error instanceof Error ? error.name : 'UnknownError';
+      if (connectionTimedOut) throw new ConnectionTimeoutError();
       if (timedOut) {
         const timeout = new Error(`Request did not complete within ${timeoutMs} ms`, { cause: error });
         timeout.name = 'TimeoutError';
@@ -108,6 +133,7 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
       throw error;
     } finally {
       clearTimeout(timer);
+      clearTimeout(connectionTimer);
       trace('aws-http', {
         id,
         service: request.hostname,
@@ -125,7 +151,7 @@ export const createMeasuredHandler = ({ requestTimeout = 30_000 }: { requestTime
 };
 
 // Match the Console's buffered JSON fetch contract and trace it through the same transport, with no request data.
-export const measuredConsoleFetch = async (url: string, options: RequestInit = {}) => {
+const consoleAttempt = async (url: string, options: RequestInit) => {
   const parsed = new URL(url);
   const handler = createMeasuredHandler();
   const { response } = await handler.handle(
@@ -146,4 +172,24 @@ export const measuredConsoleFetch = async (url: string, options: RequestInit = {
   const chunks: Buffer[] = [];
   for await (const chunk of response.body) chunks.push(Buffer.from(chunk));
   return new Response(Buffer.concat(chunks), { status: response.statusCode, headers: response.headers });
+};
+
+// Retry only a connection that never became ready to send HTTP. A dispatched request/body failure is not replayed.
+// One deadline covers all Console connection attempts and full response-body collection.
+export const measuredConsoleFetch = async (url: string, options: RequestInit = {}) => {
+  const deadline = AbortSignal.timeout(30000);
+  const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await consoleAttempt(url, { ...options, signal });
+    } catch (error) {
+      if (
+        !(error instanceof ConnectionTimeoutError) ||
+        attempt >= 3 ||
+        signal.aborted ||
+        options.body instanceof Readable
+      )
+        throw error;
+    }
+  }
 };

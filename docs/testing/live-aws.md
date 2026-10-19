@@ -169,3 +169,10 @@ latency.
 failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero memory fallbacks and unchanged task identity.
 Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
 matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
+
+The benchmark transport bounds DNS/TCP/TLS establishment for buffered requests at 1.5 seconds per attempt, then uses the
+SDK's bounded retry policy. Console JSON requests retry at most three times only when the connection never became ready
+for HTTP dispatch; one 30-second deadline includes every attempt and full-body collection. Stream uploads retain their
+whole-response deadline. Every timeout/retry remains in the trace and end-to-end latency; the ordinary installed CLI
+transport is unchanged. The offline transport lane injects a stalled TLS handshake and checks cancellation, pre-dispatch
+refusal, SDK attempt counts and the absence of request bodies on that connection.
