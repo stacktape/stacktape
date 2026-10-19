@@ -126,12 +126,18 @@ func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, er
 	if isCandidate {
 		value = 500
 	}
-	self, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
 	port := 20000 + rand.Intn(12000)
-	c := exec.Command(self, "launch", strconv.Itoa(value), "node", entry)
+	// A native shell waits for tracing, then verifies its own score and execs
+	// the app without forking. Avoid a second Go runtime's threads at startup.
+	c := exec.Command("/bin/sh", "-c", `
+read -r start <&3 || exit 126
+exec 3<&-
+printf '%s' "$1" > /proc/self/oom_score_adj || exit 126
+read -r actual < /proc/self/oom_score_adj || exit 126
+[ "$actual" = "$1" ] || exit 126
+shift
+exec "$@"
+`, "code-swap-launch", strconv.Itoa(value), "node", entry)
 	c.Dir = dir
 	c.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", port))
 	c.Stdout = os.Stdout
@@ -525,10 +531,6 @@ func main() {
 		size, err := strconv.ParseInt(os.Args[4], 10, 64)
 		must(err)
 		must(applyBundle(data, os.Args[3], size, os.Args[5]))
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "launch" {
-		launch()
 		return
 	}
 	// Kernel exit observation owns leader waits; also adopt and reap orphaned grandchildren.
