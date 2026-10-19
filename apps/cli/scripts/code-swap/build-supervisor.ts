@@ -29,7 +29,7 @@ export const buildSupervisor = async (outputDirectory: string) => {
       GO_BUILDER,
       'sh',
       '-c',
-      'go test ./... && go vet ./... && go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o /out/stacktape-supervisor .'
+      'CGO_ENABLED=1 go test -race ./... && go vet ./... && go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o /out/stacktape-supervisor .'
     ],
     { stdout: 'inherit', stderr: 'inherit' }
   );

@@ -106,7 +106,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/smoke.ts'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/scripts/code-swap/smoke.ts', 'apps/cli/scripts/code-swap/supervisor/archive_test.go'],
+    tests: [
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go'
+    ],
     requires: ['docker'],
     release: 'affected-external-contract',
     proves: 'The pinned image applies a verified bundle and serves it through the real proxy.'
@@ -3528,6 +3532,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',
       'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go',
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
@@ -4675,6 +4680,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J2'],
     paths: [
       'apps/cli/src/domain/deployment-artifact-manager/**',
+      'apps/cli/src/aws/ecr.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.ts',
       'packages/ministack/**',
@@ -4683,10 +4689,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
+      'apps/cli/src/aws/ecr.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/commands/_utils/source-map-manifest.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/source-maps.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/rollback-artifacts.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
     lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']

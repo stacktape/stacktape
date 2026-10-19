@@ -1,3 +1,5 @@
+import { CLOUD_MAP_DRAIN_IMAGES, cloudMapDrainImageTag } from './cloud-map-drain-image';
+import { needsCloudMapDrain } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/cloud-map-drain';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { StackActionType } from '@domain-services/cloudformation-stack-manager/types';
 import type { DeploymentBucketObjectType } from '@domain-services/deployment-artifact-manager/types';
@@ -563,7 +565,8 @@ class DeploymentArtifactManager {
 
   getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] =>
     selectObsoleteArtifacts({
-      artifacts: previousItems,
+      // Helpers survive release retention so running tasks and rollbacks can still pull them.
+      artifacts: previousItems.filter(({ tag }) => !tag?.startsWith('stp-cloudmap-drain-')),
       usage: {
         uploadedObjects: this.successfullyCreatedObjects,
         uploadedImages: this.successfullyUploadedImages,
@@ -732,6 +735,19 @@ class DeploymentArtifactManager {
     onSharedLayerUploaded?: (layerNumber: number, zipPath?: string) => void;
   }) => {
     const jobs: (() => Promise<any>)[] = [];
+
+    if (configManager.allContainerWorkloads.some(needsCloudMapDrain)) {
+      jobs.push(async () => {
+        for (const digest of Object.values(CLOUD_MAP_DRAIN_IMAGES)) {
+          await awsSdkManager.ecr.copyPublicImage({
+            repositoryName: this.repositoryName,
+            sourceRepository: 'docker/library/busybox',
+            digest,
+            tag: cloudMapDrainImageTag(digest)
+          });
+        }
+      });
+    }
 
     if (includeTemplates) {
       jobs.push(() => this.uploadCloudFormationTemplate());
@@ -1511,12 +1527,16 @@ class DeploymentArtifactManager {
     const template = await this.getTemplate({ version: targetVersion });
     const availableS3Keys = new Set(this.previousObjects.map((obj) => obj.s3Key));
     const availableImageUris = new Set(
-      this.previousImages.filter(({ tag }) => tag).map(({ tag }) => getEcrImageUrl(this.repositoryUrl, tag))
+      this.previousImages.flatMap(({ tag, dockerDigest }) => [
+        ...(tag ? [getEcrImageUrl(this.repositoryUrl, tag)] : []),
+        ...(dockerDigest ? [`${this.repositoryUrl}@${dockerDigest}`] : [])
+      ])
     );
 
     const missingS3Keys = new Set<string>();
     const missingImages = new Set<string>();
-    for (const resource of Object.values(template.Resources ?? {})) {
+    const restoredDrainImages = new Map<string, boolean>();
+    for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
       const properties = (resource as { Properties?: Record<string, unknown> }).Properties ?? {};
       // Lambda code, layer content and anything else pointing into the deployment bucket.
       for (const source of [properties.Code, properties.Content] as { S3Bucket?: string; S3Key?: string }[]) {
@@ -1524,9 +1544,52 @@ class DeploymentArtifactManager {
           missingS3Keys.add(source.S3Key);
         }
       }
-      const imageUri = (properties.Code as { ImageUri?: string } | undefined)?.ImageUri;
-      if (imageUri?.startsWith(this.repositoryUrl) && !availableImageUris.has(imageUri)) {
-        missingImages.add(imageUri);
+      const isMissingImage = (imageUri: unknown): imageUri is string =>
+        typeof imageUri === 'string' &&
+        (imageUri.startsWith(`${this.repositoryUrl}:`) || imageUri.startsWith(`${this.repositoryUrl}@`)) &&
+        !availableImageUris.has(imageUri);
+      const lambdaImage = (properties.Code as { ImageUri?: unknown } | undefined)?.ImageUri;
+      if (isMissingImage(lambdaImage)) missingImages.add(lambdaImage);
+
+      for (const container of (properties.ContainerDefinitions as { Name?: string; Image?: unknown }[] | undefined) ??
+        []) {
+        const imageUri = container.Image;
+        if (!isMissingImage(imageUri)) continue;
+        const drainDigest = Object.values(CLOUD_MAP_DRAIN_IMAGES).find(
+          (digest) => imageUri === `${this.repositoryUrl}@${digest}`
+        );
+        if (drainDigest && !restoredDrainImages.has(imageUri)) {
+          try {
+            await awsSdkManager.ecr.copyPublicImage({
+              repositoryName: this.repositoryName,
+              sourceRepository: 'docker/library/busybox',
+              digest: drainDigest,
+              tag: cloudMapDrainImageTag(drainDigest)
+            });
+            restoredDrainImages.set(imageUri, true);
+          } catch (error) {
+            restoredDrainImages.set(imageUri, false);
+            tuiManager.warn(`Could not restore pinned drain image ${imageUri}: ${error}`);
+          }
+        }
+        if (restoredDrainImages.get(imageUri)) continue;
+        const services = Object.entries(template.Resources ?? {}).flatMap(([serviceId, service]) => {
+          if (service.Type !== 'AWS::ECS::Service') return [];
+          const serviceProperties = service.Properties as
+            | { TaskDefinition?: unknown; ServiceName?: unknown }
+            | undefined;
+          const taskDefinition = serviceProperties?.TaskDefinition;
+          return typeof taskDefinition === 'object' &&
+            taskDefinition !== null &&
+            'Ref' in taskDefinition &&
+            taskDefinition.Ref === logicalId
+            ? [typeof serviceProperties?.ServiceName === 'string' ? serviceProperties.ServiceName : serviceId]
+            : [];
+        });
+        // ECS can register a dormant task definition, and EC2 hosts may still have this image cached.
+        tuiManager.warn(
+          `Rollback service ${services.join(', ') || logicalId}, container ${container.Name ?? '(unnamed)'}: image ${imageUri} is missing from this stack's image repository. New tasks that need to pull this image will fail to start. Continuing rollback; dormant services or EC2 hosts with cached images may still succeed.`
+        );
       }
     }
 
@@ -1534,7 +1597,7 @@ class DeploymentArtifactManager {
       throw new ExpectedError(
         'STACK',
         `Version ${targetVersion} cannot be restored: ${[...missingS3Keys, ...missingImages].join(', ')} ${missingS3Keys.size + missingImages.size === 1 ? 'is' : 'are'} no longer in this stack's deployment bucket or image repository.`,
-        'Those artifacts were removed by retention. Raise `deploymentConfig.previousVersionsToKeep` to keep more, and roll back to a version that is still complete.'
+        'Those artifacts may have been removed by retention or deleted manually. Raise `deploymentConfig.previousVersionsToKeep` to keep more, and roll back to a version that is still complete.'
       );
     }
   };

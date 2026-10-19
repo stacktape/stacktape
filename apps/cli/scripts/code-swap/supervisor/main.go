@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -27,6 +28,7 @@ import (
 
 type generation struct {
 	cmd         *exec.Cmd
+	pid         int
 	port        int
 	revision    string
 	proxy       *httputil.ReverseProxy
@@ -36,7 +38,8 @@ type generation struct {
 	treeMu      sync.Mutex
 	termAt      time.Time
 	drainUntil  time.Time
-	treeFailure bool
+	treeFailure atomic.Bool
+	terminateMu sync.Mutex
 	requestsMu  sync.Mutex
 	requests    map[*requestLease]bool
 }
@@ -49,7 +52,7 @@ type record struct {
 	Size                         int64
 }
 
-var current, candidate atomic.Pointer[generation]
+var current, candidate, oldGeneration atomic.Pointer[generation]
 var routing sync.Mutex
 var taskID, app, table, bucket, baseline string
 var privateIP = "127.0.0.1"
@@ -60,7 +63,6 @@ var stopping atomic.Bool
 var stop = make(chan struct{})
 var stopAt atomic.Pointer[time.Time]
 var grace, drain = 2 * time.Second, 2 * time.Second
-var oldGeneration *generation
 
 func must(err error) {
 	if err != nil {
@@ -136,15 +138,14 @@ func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, er
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	t["spawnAtMs"] = now()
 	started := time.Now()
-	if err := c.Start(); err != nil {
+	u := &generation{cmd: c, port: port, revision: rev, membership: map[int]string{}, requests: map[*requestLease]bool{}}
+	if err := u.startTraced(); err != nil {
+		if u.pid != 0 {
+			return u, err
+		}
 		return nil, err
 	}
-	u := &generation{cmd: c, port: port, revision: rev, membership: map[int]string{}, requests: map[*requestLease]bool{}}
-	go func() {
-		err := c.Wait()
-		u.exited.Store(true)
-		fmt.Printf("{\"benchmarkEvent\":\"processExit\",\"atMs\":%d,\"pid\":%d,\"failed\":%t}\n", now(), c.Process.Pid, err != nil)
-	}()
+	fmt.Printf("{\"benchmarkEvent\":\"preparing\",\"pid\":%d,\"revision\":%q}\n", u.pid, rev)
 	target, _ := url.Parse(fmt.Sprintf("http://%s:%d", privateIP, port))
 	u.proxy = httputil.NewSingleHostReverseProxy(target)
 	u.proxy.FlushInterval = -1
@@ -156,9 +157,7 @@ func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, er
 	for {
 		_, treeErr := u.members()
 		if stopping.Load() || u.exited.Load() || treeErr != nil || time.Since(started) > 30*time.Second {
-			u.terminate()
-			u.remove()
-			return nil, fmt.Errorf("candidate startup failed: exit=%t tree=%v", u.exited.Load(), treeErr)
+			return u, fmt.Errorf("candidate startup failed: exit=%t tree=%v", u.exited.Load(), treeErr)
 		}
 		if health(port, rev, false) {
 			break
@@ -272,21 +271,36 @@ func prepare(r record, t map[string]any) (*generation, error) {
 	t["extractMs"] = ms(started)
 	u, err := spawn(dir, r.Revision, t, true)
 	if err != nil {
-		os.RemoveAll(dir)
-		return nil, err
+		if u == nil {
+			os.RemoveAll(dir)
+		}
+		return u, err
 	}
 	candidate.Store(u)
 	started = time.Now()
 	if current.Load() != nil && !health(proxyPort, r.Revision, true) {
-		candidate.Store(nil)
-		u.terminate()
-		u.remove()
-		return nil, fmt.Errorf("prepare proxy check failed")
+		return u, fmt.Errorf("prepare proxy check failed")
 	}
 	t["prepareHealthMs"] = ms(started)
 	t["preparedAtMs"] = now()
 	return u, nil
 }
+
+// Retain a failed cleanup tree so task shutdown can retry it; never authorize fallback on an unverified reap.
+func cleanupPrepare(u *generation, t map[string]any, cause error) error {
+	t["candidateReaped"] = false
+	if u != nil {
+		candidate.Store(u)
+		if err := u.terminate(); err != nil {
+			return errors.Join(cause, err)
+		}
+		candidate.Store(nil)
+		u.remove()
+	}
+	t["candidateReaped"] = true
+	return cause
+}
+
 func transitionCheck(u *generation, oom int64) error {
 	if stopping.Load() {
 		return fmt.Errorf("task stopping")
@@ -301,8 +315,8 @@ func transitionCheck(u *generation, oom int64) error {
 	if _, err := u.members(); err != nil {
 		return err
 	}
-	if u.treeFailure {
-		return fmt.Errorf("unexplained worker exit during overlap")
+	if u.treeFailure.Load() {
+		return fmt.Errorf("unexplained worker SIGKILL during overlap")
 	}
 	return nil
 }
@@ -312,10 +326,13 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	}
 	t["commitDetectedAtMs"] = now()
 	routing.Lock()
-	old := current.Swap(u)
+	old := current.Load()
+	deadline := time.Now().Add(drain)
+	old.drainUntil = deadline
+	oldGeneration.Store(old)
+	current.Store(u)
 	candidate.Store(nil)
 	routing.Unlock()
-	oldGeneration = old
 	t["switchedAtMs"] = now()
 	started := time.Now()
 	if !health(proxyPort, u.revision, false) {
@@ -324,8 +341,6 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	t["postHealthMs"] = ms(started)
 	t["postHealthAtMs"] = now()
 	started = time.Now()
-	deadline := started.Add(drain)
-	old.drainUntil = deadline
 	nextCheck := time.Now().Add(time.Second)
 	for old.inflight.Load() > 0 && time.Now().Before(deadline) {
 		if err := transitionCheck(u, oom); err != nil {
@@ -346,7 +361,7 @@ func activate(u *generation, t map[string]any, oom int64) error {
 		old.closeRequests()
 	}
 	started = time.Now()
-	t["oldPid"] = old.cmd.Process.Pid
+	t["oldPid"] = old.pid
 	// Continue transition monitoring during the old tree's shutdown grace.
 	finished := make(chan error, 1)
 	go func() { finished <- old.terminate() }()
@@ -376,10 +391,10 @@ reaped:
 	if err := u.protect(); err != nil {
 		return err
 	}
-	t["newPid"] = u.cmd.Process.Pid
+	t["newPid"] = u.pid
 	t["memoryAfter"] = memory()
 	old.remove()
-	oldGeneration = nil
+	oldGeneration.Store(nil)
 	return nil
 }
 func status(state, rev string, t map[string]any, reason string) {
@@ -387,28 +402,41 @@ func status(state, rev string, t map[string]any, reason string) {
 }
 func fail(u *generation, t map[string]any, err error) {
 	// A failed attempt remains sticky until a different revision. Never report restored baseline as swap success.
+	t["candidateReaped"] = false
 	t["oomAfter"] = oomCount()
 	status("failed", u.revision, t, err.Error())
-	if old := oldGeneration; old != nil {
-		if !old.exited.Load() && old.termAt.IsZero() && health(old.port, old.revision, false) {
+	if old := oldGeneration.Load(); old != nil {
+		if !old.exited.Load() && !old.terminating() && health(old.port, old.revision, false) {
 			routing.Lock()
 			current.Store(old)
 			routing.Unlock()
 			t["localRevert"] = "warm"
-			oldGeneration = nil
+			oldGeneration.Store(nil)
 		}
+	}
+	if stopping.Load() {
+		if current.Load() != u {
+			candidate.Store(u)
+		}
+		return
 	}
 	if current.Load() == u {
 		// The baseline may already be reaped. Restart and check it before routing; preserve its directory until then.
 		dir := baseline
 		rev := "baseline"
-		if oldGeneration != nil {
-			dir = oldGeneration.cmd.Dir
-			rev = oldGeneration.revision
+		if old := oldGeneration.Load(); old != nil {
+			dir = old.cmd.Dir
+			rev = old.revision
 		}
 		replacement, e := spawn(dir, rev, map[string]any{}, false)
 		if e != nil {
-			panic("baseline restart failed")
+			if stopping.Load() {
+				if replacement != nil {
+					candidate.Store(replacement)
+				}
+				return
+			}
+			panic(fmt.Errorf("baseline restart failed: %w", e))
 		}
 		routing.Lock()
 		current.Store(replacement)
@@ -416,16 +444,25 @@ func fail(u *generation, t map[string]any, err error) {
 		t["localRevert"] = "restart"
 		t["baselineRestartedAtMs"] = now()
 	}
-	candidate.Store(nil)
 	u.closeRequests()
-	must(u.terminate())
+	if e := u.terminate(); e != nil {
+		t["candidateReaped"] = false
+		candidate.Store(u)
+		status("failed", u.revision, t, errors.Join(err, e).Error())
+		return
+	}
+	candidate.Store(nil)
 	u.remove()
-	if oldGeneration != nil {
-		must(oldGeneration.terminate())
-		if oldGeneration.cmd.Dir != current.Load().cmd.Dir {
-			oldGeneration.remove()
+	if old := oldGeneration.Load(); old != nil {
+		if e := old.terminate(); e != nil {
+			t["candidateReaped"] = true
+			status("failed", u.revision, t, errors.Join(err, e).Error())
+			return
 		}
-		oldGeneration = nil
+		if old.cmd.Dir != current.Load().cmd.Dir {
+			old.remove()
+		}
+		oldGeneration.Store(nil)
 	}
 	t["candidateReaped"] = true
 	status("failed", u.revision, t, err.Error())
@@ -460,14 +497,14 @@ func shutdown(server *http.Server) {
 		go func() { done <- u.terminate() }()
 	}
 	for time.Now().Before(deadline) {
-		if old := oldGeneration; old != nil && (old.inflight.Load() == 0 || !time.Now().Before(old.drainUntil)) {
+		if old := oldGeneration.Load(); old != nil && (old.inflight.Load() == 0 || !time.Now().Before(old.drainUntil)) {
 			terminateAsync(old)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	server.Close()
 	terminateAsync(current.Load())
-	terminateAsync(oldGeneration)
+	terminateAsync(oldGeneration.Load())
 	for u, done := range terminations {
 		must(<-done)
 		u.remove()
@@ -553,7 +590,9 @@ func main() {
 	} else {
 		u, err = spawn(baseline, "baseline", t, false)
 	}
-	must(err)
+	if err != nil {
+		must(cleanupPrepare(u, t, err))
+	}
 	must(u.protect())
 	current.Store(u)
 	candidate.Store(nil)
@@ -582,16 +621,17 @@ func main() {
 				failed = p.Revision
 				prepared = nil
 			} else if r.Revision != p.Revision || r.Phase == "abort" {
-				candidate.Store(nil)
-				must(prepared.terminate())
-				prepared.remove()
-				timing["candidateReaped"] = true
-				status("aborted", p.Revision, timing, "")
+				if e := cleanupPrepare(prepared, timing, nil); e != nil {
+					status("failed", p.Revision, timing, e.Error())
+					failed = p.Revision
+				} else {
+					status("aborted", p.Revision, timing, "")
+				}
 				prepared = nil
 			}
 		}
 		if r.Revision != "" && r.Revision != current.Load().revision && r.Revision != failed {
-			if prepared == nil && r.Phase == "prepare" {
+			if prepared == nil && candidate.Load() == nil && oldGeneration.Load() == nil && r.Phase == "prepare" {
 				timing = map[string]any{"detectedAtMs": now()}
 				m := memory()
 				timing["memoryBefore"] = m
@@ -615,7 +655,8 @@ func main() {
 				p = r
 				prepared, err = prepare(r, timing)
 				if err != nil {
-					timing["candidateReaped"] = true
+					err = cleanupPrepare(prepared, timing, err)
+					prepared = nil
 					status("failed", r.Revision, timing, err.Error())
 					failed = r.Revision
 					continue

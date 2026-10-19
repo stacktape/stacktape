@@ -144,17 +144,28 @@ STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-sw
 
 The runtime cases cover inherited OOM scores and their restoration, late workers, actual prepare/post-switch worker
 OOMs, leader/worker crashes, detached-tree refusal, complete reaping, long HTTP/SSE/WebSocket drains and task SIGTERM
-while preparing, switching and shutting down old code. The live stop cases use ECS `StopTask`; the fixture forwards that
-signal and verifies child reaping before the essential container exits. WebSockets receive close code 1001 at the drain
-deadline. Shutdown retains cached HTTP traffic for 30 seconds and preserves the original old-tree deadline and
-concurrent grace. The test-only task-definition override supplies the exact 82-second ECS stop budget for a 40-second
-drain and grace. The local default-grace cases use a 60-second budget. Production synthesis stays unchanged. Configured
-application checks, ECS readiness and capacity admission remain later phases.
+during application startup, after switching and while shutting down old code. Clean and ordinary nonzero child exits are
+allowed; child SIGKILL fails the attempt. A stopped grandchild is killed and reaped on startup failure. The combined
+burst/cache/tmpfs scenario proves an aggregate peak increase; it does not isolate cache or tmpfs charging. The live stop
+cases use ECS `StopTask`; the fixture forwards that signal and verifies child reaping before the essential container
+exits. WebSockets receive close code 1001 at the drain deadline. Shutdown retains cached HTTP traffic for 30 seconds and
+preserves the original old-tree deadline and concurrent grace. The test-only task-definition override supplies the exact
+82-second ECS stop budget for a 40-second drain and grace. The local default-grace cases use a 60-second budget.
+Production synthesis stays unchanged. The timeout formula is checked by fixture arithmetic with a hand-set override;
+rejecting oversized grace before an ECS update remains Phase 3. Configured application checks, ECS readiness and
+capacity admission remain later phases.
 
 Docker needs `--oom-score-adj=-998` to reproduce Fargate's inherited score. The supervisor verifies protection before
-starting applications; no capability is added to the container. Local targeted debugging accepts `QUAL_SCENARIOS` with
-comma-separated scenario names. Preserve the reports and source/artifact revision with the handoff. An intentional
-candidate failure remains a failed swap even after local recovery; never count it as a successful traffic sample.
+starting applications. Kernel exit observation uses parent-owned `PTRACE_SEIZE` before the launcher gate opens, with
+inherited fork/clone/exit events, so a parent-reaped child SIGKILL is distinguishable from a clean exit. Job-control
+stops use `PTRACE_LISTEN`. No capability is added; an environment denying parent-child tracing refuses startup. The
+pinned builder runs `go test -race` before building the static supervisor. This remains a source-only amd64
+qualification; other architectures and production runtime integration need their own qualification. Local targeted
+debugging accepts `QUAL_SCENARIOS` with comma-separated scenario names. `review-fixes` covers clean/nonzero child exits,
+a startup failure with a stopped grandchild, and a child SIGKILL. The live runner also accepts `QUAL_SCENARIOS` for
+standalone tasks and `QUAL_MAIN_SCENARIO` for its service task; preserve those selections with the report. Preserve the
+reports and source/artifact revision with the handoff. An intentional candidate failure remains a failed swap even after
+local recovery; never count it as a successful traffic sample.
 
 The live runner prints its exact `--cleanup-only --state <directory>` recovery command. Cleanup uses the exact owned
 stack/family and task identities, stops standalone tasks, deregisters/deletes revisions one at a time (below ECS's
@@ -177,3 +188,9 @@ both dials and body collection. Traces retain both dial outcomes and the winner'
 waiting time in end-to-end latency. The ordinary installed CLI transport is unchanged. Offline tests cover a delayed TCP
 completion, stalled TLS, body/header deadlines, cancellation, certificate verification and one dispatched POST. The
 benchmark build also removes credential identifiers from identity-lookup errors.
+
+The installed-package consumer uses the CLI's `benchmarkBaseInputs` function and the same ten inputs: manifest, lock,
+authored config (including environment), supervisor hash, Dockerfile, runtime, Node version/target, minification and
+architecture. It proves changes to each invalidate the base. `.npmrc`, patches absent from the lockfile and Railpack
+plans are not benchmark inputs; their wiring remains later work. Committed-code restart/scale-out, exact-image rollback
+and same-revision scale-only overlay retention remain Phase 3/5 clauses of B8.

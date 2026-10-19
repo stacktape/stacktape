@@ -24,7 +24,16 @@ if (process.env.QUAL_WORKER) {
     workers.push(child);
     return child;
   };
-  if (config.startupCrash) process.exit(17);
+  if (config.stuckGrandchild) {
+    const child = spawn('sh', ['-c', 'sleep 300 & echo $! > /tmp/qual-stuck-pid; kill -STOP $!; exit 0'], {
+      stdio: 'ignore'
+    });
+    workers.push(child);
+  }
+  if (config.startupCrash) {
+    if (config.stuckGrandchild) await new Promise((r) => setTimeout(r, 500));
+    process.exit(17);
+  }
   hold(config.initialMiB ?? 0);
   for (let i = 0; i < (config.workers ?? 0); i++) worker();
   if (config.lateForks) {
@@ -73,6 +82,16 @@ if (process.env.QUAL_WORKER) {
     if (req.url === '/crash') {
       res.end('crashing');
       setTimeout(() => process.exit(19), 20);
+      return;
+    }
+    if (req.url === '/short-child') {
+      const child = spawn('sh', ['-c', 'exit 0']);
+      child.once('exit', (code, signal) => res.end(JSON.stringify({ code, signal })));
+      return;
+    }
+    if (req.url === '/nonzero-child') {
+      const child = spawn('sh', ['-c', 'exit 17']);
+      child.once('exit', (code, signal) => res.end(JSON.stringify({ code, signal })));
       return;
     }
     if (req.url === '/worker-kill') {
@@ -135,6 +154,7 @@ if (process.env.QUAL_WORKER) {
     socket.write(Buffer.concat([Buffer.from([0x81, body.length]), body]));
     socket.on('data', () => {});
   });
+  if (config.slowStartup) await new Promise((r) => setTimeout(r, 15000));
   server.listen(Number(process.env.PORT), '0.0.0.0');
   process.on('SIGTERM', () => {
     if (config.ignoreTerm) return;

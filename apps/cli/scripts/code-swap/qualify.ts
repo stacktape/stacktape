@@ -17,6 +17,8 @@ export const prepareQualification = async (directory: string) => {
     workers: { revision: 'workers', workers: 1, lateForks: true },
     oom: { revision: 'oom', workers: 2 },
     startupCrash: { revision: 'startupCrash', startupCrash: true },
+    stuckStartup: { revision: 'stuckStartup', startupCrash: true, stuckGrandchild: true, slowStartup: true },
+    slowStartup: { revision: 'slowStartup', slowStartup: true, workers: 2 },
     detach: { revision: 'detach', detach: true },
     doubleFork: { revision: 'doubleFork', doubleFork: true },
     large: { revision: 'large', initialMiB: 350 },
