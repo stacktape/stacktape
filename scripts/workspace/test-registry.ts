@@ -1902,7 +1902,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
-      'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
@@ -2031,6 +2031,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
@@ -2570,6 +2571,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
@@ -2624,7 +2626,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
-      'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
@@ -4982,8 +4984,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
+      'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
-      'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts'
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts'
     ],
     lanes: [
       'console-access-rules',
@@ -4996,6 +4999,7 @@ export const slices: readonly Slice[] = [
       'console-database-console-access',
       'console-database-sign-up',
       'console-browser-project-access',
+      'console-browser-isolated',
       'console-ui-test-e2e-project-access'
     ]
   },
