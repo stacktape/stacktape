@@ -107,11 +107,12 @@ available. Analysis writes every failure to `request-errors.json` and refuses a 
 including a request that began before proposal. Baseline, image settlement and command gaps remain separately labelled.
 The runner exports gateway failures and supervisor events before deleting their log groups. Keep those files with the
 raw polls; a client timeout alone does not establish that the supervisor dropped a request. Initial routing
-qualification retries transient public errors within its existing two-minute deadline and records every request in
-`setup-traffic.json`. It still requires a response from every expected task before timed edits start. The existing
-ten-second baseline precedes the initial business checks. Those checks and every post-edit business check keep their
-exact assertions without retries; their responses are drained and saved separately, including bounded failure bodies, so
-a gateway error cannot appear only as “Wrong receipt”. Baseline waiting is outside every timed edit.
+qualification requires 30 uninterrupted AWS-clock seconds of successful responses from expected tasks within its
+two-minute deadline, and records every request in `setup-traffic.json`. Errors or foreign task identities reset that
+setup window. Every expected task must appear in that window before timed edits start. The existing ten-second baseline
+precedes the initial business checks. Those checks and every post-edit business check keep their exact assertions
+without retries; their responses are drained and saved separately, including bounded failure bodies, so a gateway error
+cannot appear only as “Wrong receipt”. Baseline waiting is outside every timed edit.
 
 The benchmark build minifies and splits commands into separate modules, so invoking deploy does not parse unrelated
 commands. Both swap edits and image controls use that same build. Its transport experiment uses shared HTTP/HTTPS
@@ -182,3 +183,7 @@ latency.
 failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero memory fallbacks and unchanged task identity.
 Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
 matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
+
+The immutable bundle upload overlaps the fleet preflight. Both operations finish successfully before prepare is
+published, including on failure paths. Neither changes the image-upload gate before commit. Trace spans retain the
+actual overlapping upload interval and the time when both prerequisites finished.

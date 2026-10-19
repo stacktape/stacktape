@@ -157,6 +157,10 @@ test('diagnostics map shared monotonic traces through AWS fits and retain reques
       { phase: 'event', eventType: 'LOAD_METADATA_FROM_AWS', status: 'completed', hostMs: at(2) },
       { phase: 'event', eventType: 'BUILD_CODE', status: 'completed', hostMs: at(2.1) },
       { phase: 'event', eventType: 'UPLOAD_IMAGE', status: 'completed', hostMs: at(4) },
+      { phase: 'bundleUpload:start', hostMs: at(1.9) },
+      { phase: 'bundleUpload:end', hostMs: at(2) },
+      { phase: 'prepareFleet:end', hostMs: at(2.1) },
+      { phase: 'preparePrerequisitesReady', hostMs: at(2.1) },
       { phase: 'signal:prepare', hostMs: at(2.2) },
       { phase: 'signal:commit', hostMs: at(4.5) },
       {
@@ -235,6 +239,8 @@ test('diagnostics map shared monotonic traces through AWS fits and retain reques
     expect(report.timingSeconds.precommit!.p50).toBeCloseTo(0.5, 4);
     expect(report.timingSeconds.commitToSwitch!.p50).toBeCloseTo(0.1, 4);
     const timings = JSON.parse(await readFile(join(directory, 'timing-details.json'), 'utf8'));
+    expect(timings[0].overlappingWork.bundleUpload).toBeCloseTo(0.1, 6);
+    expect(timings[0].overlappingWork.proposalWrite).toBeCloseTo(0.1, 6);
     const transport = timings[0].networkRequests;
     expect(transport[0].attempt).toBe('attempt=2; max=3');
     expect(transport[0].transportSeconds.dns).toBeCloseTo(0.02, 6);
@@ -262,3 +268,34 @@ test('diagnostics map shared monotonic traces through AWS fits and retain reques
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test.skipIf(process.platform !== 'linux')(
+  'initial route qualification resets after gateway errors and foreign tasks',
+  async () => {
+    const { createServer } = await import('node:http');
+    const { waitForInitialRoutes } = await import('./run');
+    let count = 0;
+    const server = createServer((_req, res) => {
+      count++;
+      res.statusCode = count === 2 ? 503 : 200;
+      res.setHeader('x-lab-now-ms', String(Date.now()));
+      res.setHeader('x-lab-task', count === 3 ? 'foreign' : 'expected');
+      res.end(JSON.stringify({ revision: 'baseline' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const samples: Parameters<typeof waitForInitialRoutes>[2] = [];
+    try {
+      const { port } = server.address() as import('node:net').AddressInfo;
+      await waitForInitialRoutes(`http://127.0.0.1:${port}`, ['expected'], samples, 80);
+      expect(samples[0]!.status).toBe(200);
+      expect(samples[1]!.status).toBe(503);
+      expect(samples[2]!.task).toBe('foreign');
+      const stable = samples.slice(3);
+      expect(stable.every((s) => s.status === 200 && s.task === 'expected')).toBe(true);
+      expect(stable.at(-1)!.awsMs - stable[0]!.awsMs).toBeGreaterThanOrEqual(80);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }
+);
