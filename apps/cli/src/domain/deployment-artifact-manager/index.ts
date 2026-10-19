@@ -1527,7 +1527,10 @@ class DeploymentArtifactManager {
     const template = await this.getTemplate({ version: targetVersion });
     const availableS3Keys = new Set(this.previousObjects.map((obj) => obj.s3Key));
     const availableImageUris = new Set(
-      this.previousImages.filter(({ tag }) => tag).map(({ tag }) => getEcrImageUrl(this.repositoryUrl, tag))
+      this.previousImages.flatMap(({ tag, dockerDigest }) => [
+        ...(tag ? [getEcrImageUrl(this.repositoryUrl, tag)] : []),
+        ...(dockerDigest ? [`${this.repositoryUrl}@${dockerDigest}`] : [])
+      ])
     );
 
     const missingS3Keys = new Set<string>();
@@ -1540,9 +1543,18 @@ class DeploymentArtifactManager {
           missingS3Keys.add(source.S3Key);
         }
       }
-      const imageUri = (properties.Code as { ImageUri?: string } | undefined)?.ImageUri;
-      if (imageUri?.startsWith(this.repositoryUrl) && !availableImageUris.has(imageUri)) {
-        missingImages.add(imageUri);
+      const imageUris = [
+        (properties.Code as { ImageUri?: unknown } | undefined)?.ImageUri,
+        ...((properties.ContainerDefinitions as { Image?: unknown }[] | undefined) ?? []).map(({ Image }) => Image)
+      ];
+      for (const imageUri of imageUris) {
+        if (
+          typeof imageUri === 'string' &&
+          (imageUri.startsWith(`${this.repositoryUrl}:`) || imageUri.startsWith(`${this.repositoryUrl}@`)) &&
+          !availableImageUris.has(imageUri)
+        ) {
+          missingImages.add(imageUri);
+        }
       }
     }
 
@@ -1550,7 +1562,7 @@ class DeploymentArtifactManager {
       throw new ExpectedError(
         'STACK',
         `Version ${targetVersion} cannot be restored: ${[...missingS3Keys, ...missingImages].join(', ')} ${missingS3Keys.size + missingImages.size === 1 ? 'is' : 'are'} no longer in this stack's deployment bucket or image repository.`,
-        'Those artifacts were removed by retention. Raise `deploymentConfig.previousVersionsToKeep` to keep more, and roll back to a version that is still complete.'
+        'Those artifacts may have been removed by retention or deleted manually. Raise `deploymentConfig.previousVersionsToKeep` to keep more, and roll back to a version that is still complete.'
       );
     }
   };

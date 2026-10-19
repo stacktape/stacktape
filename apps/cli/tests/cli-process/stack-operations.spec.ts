@@ -567,6 +567,40 @@ describe('rollback', () => {
     expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
   });
 
+  for (const imageSuffix of [':app--hash--v000001', '@sha256:' + 'a'.repeat(64)]) {
+    test(`a rollback with a missing ECS image (${imageSuffix}) stops before any update`, async () => {
+      const history = await deployedStackWithHistory();
+      const target = getCfTemplateS3Key('v000001');
+      const template = structuredClone(history.stack.template);
+      const accountId = ministack.defaultAccount.accountId;
+      const repositoryName = awsResourceNames.deploymentEcrRepo(
+        getGloballyUniqueStackHash({ region, stackName, accountId })
+      );
+      const image = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}${imageSuffix}`;
+      template.Resources.Task = {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: {
+          ContainerDefinitions: [
+            { Name: 'app', Image: 'busybox:latest' },
+            { Name: 'stp-cloudmap-drain', Image: image }
+          ]
+        }
+      };
+      history.objects[target] = stringifyToYaml(template);
+      const { controlPlane, aws, bucket } = await startFakes(
+        { ...history.stack, status: 'UPDATE_ROLLBACK_COMPLETE' },
+        history.objects
+      );
+      const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
+      expect(run.exitCode).not.toBe(0);
+      expect(printable(run)).toContain('cannot be restored');
+      expect(printable(run)).toContain(image);
+      expect(printable(run)).not.toContain('busybox:latest');
+      expect(aws.mutations).toEqual([]);
+      expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000001'), getCfTemplateS3Key('v000002')]);
+    });
+  }
+
   test('an absent stack cannot be rolled back', async () => {
     const { controlPlane, aws, bucket } = await startFakes(undefined);
     const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
