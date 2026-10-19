@@ -6,10 +6,12 @@ import type {
   MenuPlacement,
   OptionProps,
   SelectInstance,
-  StylesConfig
+  StylesConfig,
+  Theme
 } from 'react-select';
 import ReactSelect, { components, createFilter } from 'react-select';
 import { createContext, useContext, useMemo } from 'react';
+import { Tooltip } from '../tooltip/Tooltip';
 
 export type SelectInputActionMeta = InputActionMeta;
 export type SelectMenuPlacement = MenuPlacement;
@@ -41,6 +43,8 @@ export type SelectProps<Value> = {
   hideLabel?: boolean;
   multiple?: boolean;
   disabled?: boolean;
+  /** Why the select is disabled, shown on hover. A disabled control always says why. */
+  disabledReason?: ReactNode;
   loading?: boolean;
   searchable?: boolean;
   placeholder?: string;
@@ -133,6 +137,7 @@ export function Select<Value>({
   cursor = 'pointer',
   defaultValue,
   disabled = false,
+  disabledReason,
   form,
   hideDropdownIndicator = false,
   hideLabel = false,
@@ -180,7 +185,7 @@ export function Select<Value>({
     [controlHeight, cursor, hideDropdownIndicator, multiple]
   );
 
-  return (
+  const select = (
     <div className={['stp-ui-select', className].filter(Boolean).join(' ')} style={{ width, ...style }}>
       {!hideLabel && (label || labelAddon || labelEnd) ? (
         <div className="stp-ui-select__label-row">
@@ -231,6 +236,7 @@ export function Select<Value>({
           {...(inputRef === undefined ? {} : { ref: inputRef })}
           styles={styles}
           {...(tabSelectsValue === undefined ? {} : { tabSelectsValue })}
+          theme={neutralTheme}
           {...(value === undefined ? {} : { value })}
         />
       </SelectPresentationContext.Provider>
@@ -243,7 +249,32 @@ export function Select<Value>({
       ) : null}
     </div>
   );
+  // react-select stops pointer events on a disabled control, so the tooltip listens on a wrapper.
+  return disabled && disabledReason ? (
+    <Tooltip content={disabledReason}>
+      <div className="stp-ui-select__disabled-wrapper" style={{ width, ...style }}>
+        {select}
+      </div>
+    </Tooltip>
+  ) : (
+    select
+  );
 }
+
+/**
+ * react-select's own theme is blue (`#2684FF` focus and hover borders, light-blue option presses). Every colour the
+ * styles below do not set falls back to this theme, so it holds palette neutrals instead.
+ */
+const neutralTheme = (theme: Theme): Theme => ({
+  ...theme,
+  colors: {
+    ...theme.colors,
+    primary: 'var(--stp-field-focus-border)',
+    primary75: 'var(--stp-field-focus-border)',
+    primary50: 'rgba(255, 255, 255, 0.09)',
+    primary25: 'rgba(255, 255, 255, 0.05)'
+  }
+});
 
 function createStyles<Value>({
   controlHeight,
@@ -257,7 +288,13 @@ function createStyles<Value>({
   multiple: boolean;
 }): StylesConfig<SelectOption<Value>, boolean> {
   return {
-    clearIndicator: (base) => ({ ...base, color: 'var(--stp-text-primary)', cursor: 'pointer', padding: 5 }),
+    clearIndicator: (base) => ({
+      ...base,
+      color: 'var(--stp-text-muted)',
+      cursor: 'pointer',
+      padding: 5,
+      ':hover': { color: 'var(--stp-text-primary)' }
+    }),
     container: (base) => ({ ...base, color: 'var(--stp-text-primary)' }),
     control: (base, state) => ({
       ...base,
@@ -278,16 +315,25 @@ function createStyles<Value>({
         ? 'var(--stp-field-shadow-focus, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 3px var(--stp-field-focus-ring))'
         : 'var(--stp-field-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3))',
       cursor: state.isDisabled ? 'not-allowed' : cursor,
+      // The same disabled look as `TextField`.
+      opacity: state.isDisabled ? 0.6 : 1,
       transition:
         'border-color var(--stp-motion-duration-fast) var(--stp-motion-easing), box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing)',
-      // Hover never replaces the focus border: a focused control keeps its ring under the pointer.
-      ':hover': state.isFocused ? {} : { borderColor: 'var(--stp-field-border-hover, var(--stp-border-strong))' }
+      // Hover never replaces the focus border: a focused control keeps its ring under the pointer. The key is
+      // `&:hover`, react-select's own, so this replaces its blue hover border instead of adding a second rule.
+      '&:hover': {
+        borderColor: state.isFocused
+          ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
+          : 'var(--stp-field-border-hover, var(--stp-field-hover-border))'
+      }
     }),
-    dropdownIndicator: (base) => ({
+    dropdownIndicator: (base, state) => ({
       ...base,
       display: hideDropdownIndicator ? 'none' : 'flex',
-      color: 'var(--stp-text-primary)',
-      padding: 6
+      color: state.isDisabled ? 'var(--stp-text-faint)' : 'var(--stp-text-primary)',
+      padding: 6,
+      // The chevron belongs to the control and has no hover of its own (react-select greys it).
+      ':hover': { color: 'var(--stp-text-primary)' }
     }),
     indicatorSeparator: () => ({ display: 'none' }),
     input: (base) => ({ ...base, color: 'var(--stp-text-primary)', margin: 0 }),
@@ -332,7 +378,9 @@ function createStyles<Value>({
       color: 'var(--stp-text-primary)',
       // The chosen option differs from the hovered one by weight as well as by fill.
       fontWeight: state.isSelected ? 700 : undefined,
-      cursor: state.isDisabled ? 'not-allowed' : 'pointer'
+      cursor: state.isDisabled ? 'not-allowed' : 'pointer',
+      // A press keeps the hover fill instead of react-select's light-blue flash.
+      ':active': { background: state.isSelected ? 'rgba(255, 255, 255, 0.09)' : 'rgba(255, 255, 255, 0.05)' }
     }),
     placeholder: (base) => ({ ...base, color: 'var(--stp-text-faint)' }),
     singleValue: (base) => ({ ...base, color: 'var(--stp-text-primary)' }),

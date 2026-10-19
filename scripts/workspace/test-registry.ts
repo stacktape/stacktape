@@ -2028,7 +2028,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
-      'apps/console/ui/e2e/isolated-first-run-links.test.ts'
+      'apps/console/ui/e2e/isolated-first-run-links.test.ts',
+      'apps/console/ui/e2e/isolated-shell.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2500,6 +2501,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
+      'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
@@ -2560,6 +2562,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
+      'apps/console/ui/e2e/isolated-shell.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5723,11 +5726,14 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/BudgetsPage/**',
       'apps/cli/src/domain/budget-manager/**',
       'apps/console/api/src/services/budget-alert-polling.ts',
+      'apps/console/api/src/budgets/**',
+      'apps/console/api/src/lambdas/handle-budget-notification.ts',
       'apps/console/api/src/services/currency-conversion.ts'
     ],
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
+      'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
@@ -5843,12 +5849,23 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Misc/EmptyState.tsx',
       'apps/console/ui/src/components/Misc/ElevatedTable.tsx',
       'apps/console/ui/src/components/FormHelpers/ModalForm.tsx',
-      'apps/console/ui/src/components/Misc/ConfirmationModal.tsx'
+      'apps/console/ui/src/components/Misc/ConfirmationModal.tsx',
+      'apps/console/ui/src/components/Filters/**',
+      'apps/console/ui/src/components/Navigation/**',
+      'apps/console/ui/src/components/Header/Header.tsx',
+      'apps/console/ui/src/components/Misc/SummaryStrip.tsx',
+      'apps/console/ui/src/components/Misc/ProjectStage.tsx',
+      'apps/console/ui/src/components/Misc/DetailHeader.tsx',
+      'apps/console/ui/src/components/Misc/DropdownMenu.tsx',
+      'apps/console/ui/src/AppContent.tsx',
+      'packages/ui-react/src/select/**',
+      'packages/ui-react/src/tabs/**'
     ],
     tests: [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
       'packages/design-tokens/src/tokens.test.ts',
-      'apps/console/ui/e2e/isolated-consistency.test.ts'
+      'apps/console/ui/e2e/isolated-consistency.test.ts',
+      'apps/console/ui/e2e/isolated-shell.test.ts'
     ],
     lanes: [
       'design-tokens-test',
