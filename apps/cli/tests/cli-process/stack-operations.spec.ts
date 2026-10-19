@@ -567,16 +567,24 @@ describe('rollback', () => {
     expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
   });
 
-  for (const imageSuffix of [':app--hash--v000001', '@sha256:' + 'a'.repeat(64)]) {
-    test(`a rollback with a missing ECS image (${imageSuffix}) stops before any update`, async () => {
+  for (const desiredCount of [0, 1]) {
+    test(`a rollback with a missing ECS digest and desired count ${desiredCount} warns and proceeds`, async () => {
       const history = await deployedStackWithHistory();
       const target = getCfTemplateS3Key('v000001');
-      const template = structuredClone(history.stack.template);
+      const template: CloudFormationTemplate = {
+        Resources: {
+          StpDeploymentBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: deploymentBucketName } },
+          FilesBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: filesBucketName } }
+        },
+        Outputs: Object.fromEntries(
+          Object.entries(history.stack.outputs).map(([key, value]) => [key, { Value: value }])
+        )
+      };
       const accountId = ministack.defaultAccount.accountId;
       const repositoryName = awsResourceNames.deploymentEcrRepo(
         getGloballyUniqueStackHash({ region, stackName, accountId })
       );
-      const image = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}${imageSuffix}`;
+      const image = `${accountId}.dkr.ecr.${region}.amazonaws.com/${repositoryName}@sha256:${'a'.repeat(64)}`;
       template.Resources.Task = {
         Type: 'AWS::ECS::TaskDefinition',
         Properties: {
@@ -586,18 +594,26 @@ describe('rollback', () => {
           ]
         }
       };
+      template.Resources.ApiService = {
+        Type: 'AWS::ECS::Service',
+        Properties: { DesiredCount: desiredCount, TaskDefinition: { Ref: 'Task' } }
+      };
       history.objects[target] = stringifyToYaml(template);
       const { controlPlane, aws, bucket } = await startFakes(
-        { ...history.stack, status: 'UPDATE_ROLLBACK_COMPLETE' },
+        { ...history.stack, status: 'UPDATE_COMPLETE' },
         history.objects
       );
       const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
-      expect(run.exitCode).not.toBe(0);
-      expect(printable(run)).toContain('cannot be restored');
-      expect(printable(run)).toContain(image);
-      expect(printable(run)).not.toContain('busybox:latest');
-      expect(aws.mutations).toEqual([]);
-      expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000001'), getCfTemplateS3Key('v000002')]);
+      expect(run.exitCode).toBe(0);
+      const warnings = run.records
+        .filter(({ level }) => level === 'warn')
+        .map(({ message }) => message)
+        .join('\n');
+      expect(warnings).toContain('Rollback service ApiService');
+      expect(warnings).toContain(image);
+      expect(warnings).toContain('will fail to start');
+      expect(warnings).not.toContain('busybox:latest');
+      expect(aws.mutations.some(({ action }) => action === 'UpdateStack')).toBe(true);
     });
   }
 
