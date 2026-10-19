@@ -353,12 +353,27 @@ const cleanup = async (state: State, owned: Owned) => {
       nextToken = definitions.nextToken;
     } while (nextToken);
   }
-  assert(
-    !(
-      await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status: 'ACTIVE' }))
-    ).taskDefinitionArns?.some((arn) => arn.split('/').at(-1)?.split(':')[0] === family),
-    'Owned task definitions still active.'
-  );
+  // ECS retains DELETE_IN_PROGRESS revisions while recently stopped tasks still reference them.
+  // Keep exact-family recovery state until every revision is absent, rather than treating acceptance as deletion.
+  const revisionDeadline = performance.now() + 70 * 60 * 1000;
+  for (;;) {
+    const remaining: string[] = [];
+    for (const status of ['ACTIVE', 'INACTIVE', 'DELETE_IN_PROGRESS'] as const) {
+      let nextToken: string | undefined;
+      do {
+        const page = await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status, nextToken }));
+        remaining.push(
+          ...(page.taskDefinitionArns ?? []).filter((arn) => arn.split('/').at(-1)?.split(':')[0] === family)
+        );
+        nextToken = page.nextToken;
+      } while (nextToken);
+    }
+    if (!remaining.length) break;
+    await save(join(owned.directory, 'task-definition-cleanup.json'), { pending: remaining, verified: false });
+    assert(performance.now() < revisionDeadline, 'Owned task-definition deletion still pending; run cleanup-only.');
+    await Bun.sleep(15000);
+  }
+  await save(join(owned.directory, 'task-definition-cleanup.json'), { pending: [], verified: true });
   for (let i = 0; i < 180; i++) {
     const remaining = await getStack(owned);
     if (!remaining) break;
@@ -806,10 +821,46 @@ const main = async () => {
         try {
           await Bun.sleep(10000);
           await business(url, setupBusiness);
-          // Twenty uninterrupted edits on each exact fleet. Image controls use the same app, checks, caches and source build.
-          for (const mode of ['swap', 'image'] as const) {
-            run.mode = mode;
-            for (let i = 1; i <= 20; i++) await edit(state, owned, run, url, i);
+          if (process.argv.includes('--memory-fallback')) {
+            assert(memory === 512 && count === 1, 'The memory fallback fixture requires 512-1.');
+            const entry = join(owned.directory, 'entry.mjs');
+            const source = await readFile(entry, 'utf8');
+            await writeFile(entry, source + '\nglobalThis.__benchmarkWorkingSet=Buffer.alloc(180*1024*1024,0x5a);\n');
+            const overlap = await edit(state, owned, run, url, 1);
+            await writeFile(entry, source);
+            const fallback = await edit(state, owned, run, url, 2);
+            const first = overlap.details as {
+              mode: string;
+              completed: { timings: { memoryBefore: { peakBytes: number }; memoryAfter: { peakBytes: number } } }[];
+            };
+            const second = fallback.details as { mode: string; fallback: string };
+            assert(
+              first.mode === 'swap' && second.mode === 'image' && second.fallback === 'memory_screen',
+              'Expected one swap followed by exactly one memory image fallback.'
+            );
+            const polls: Poll[] = JSON.parse(
+              await readFile(join(owned.directory, `${fallback.label}-polls.json`), 'utf8')
+            );
+            const clock = calibrateClock(polls, 3000);
+            await save(join(directory, 'memory-fallback.json'), {
+              pass: true,
+              otherwiseEligibleAttempts: 2,
+              memoryFallbacks: 1,
+              fallbackRate: 0.5,
+              overlap,
+              fallback,
+              clock,
+              allServingSeconds: fallback.allMs! / clock.rate / 1000,
+              cliExitSeconds: fallback.exitMs! / clock.rate / 1000
+            });
+          } else {
+            // Twenty uninterrupted edits on each exact fleet. Image controls use the same app, checks, caches and source build.
+            for (const mode of process.argv.includes('--regression')
+              ? (['swap'] as const)
+              : (['swap', 'image'] as const)) {
+              run.mode = mode;
+              for (let i = 1; i <= 20; i++) await edit(state, owned, run, url, i);
+            }
           }
         } finally {
           trafficController.abort();
@@ -855,8 +906,15 @@ const main = async () => {
       console.error(new AggregateError(errors, 'Benchmark cleanup incomplete'));
     }
   }
-  const report = await analyzeBenchmark(directory);
-  console.log(`Phase-1 decision: ${report.go ? 'GO' : 'NO-GO'}. Report: ${join(directory, 'summary.json')}`);
+  if (process.argv.includes('--memory-fallback')) return;
+  const report = await analyzeBenchmark(
+    directory,
+    process.argv.includes('--regression') ? selections : undefined,
+    process.argv.includes('--regression')
+  );
+  console.log(
+    `${process.argv.includes('--regression') ? 'Phase-2 regression' : 'Phase-1 decision'}: ${report.go ? 'GO' : 'NO-GO'}. Report: ${join(directory, 'summary.json')}`
+  );
   if (!report.go) process.exitCode = 1;
 };
 if (import.meta.main)
@@ -864,3 +922,21 @@ if (import.meta.main)
     console.error(error);
     process.exitCode = 1;
   });
+
+// The runtime qualifier shares the benchmark's exact account, ownership, CLI and cleanup boundary.
+export {
+  guard,
+  save,
+  invoke,
+  cliArgs,
+  cleanup,
+  getStack,
+  ownedStack,
+  endpoint,
+  waitForFleet,
+  clients,
+  ACCOUNT,
+  REGION,
+  PROFILE
+};
+export type { State, Owned };

@@ -56,6 +56,14 @@ const distribution = (values: number[]) => ({
   p95: percentile(values, 0.95),
   max: values.length ? Math.max(...values) : null
 });
+export const passesRegressionGate = (swap: { p50: number | null; p95: number | null; max: number | null; n: number }) =>
+  swap.n >= 20 &&
+  swap.p50 !== null &&
+  swap.p95 !== null &&
+  swap.max !== null &&
+  swap.p50 <= 5 &&
+  swap.p95 <= 15 &&
+  swap.max <= 25;
 export const passesServingGate = (
   swap: { p50: number | null; p95: number | null; max: number | null; n: number },
   image: { p50: number | null; p95: number | null; n: number }
@@ -72,15 +80,21 @@ export const passesServingGate = (
   swap.max <= 25 &&
   swap.p50 <= image.p50 / 2 &&
   swap.p95 <= image.p95 / 2;
-export const analyzeBenchmark = async (directory: string) => {
-  const report: { configurations: unknown[]; go: boolean; clockSource: string } = {
+export const analyzeBenchmark = async (
+  directory: string,
+  selections = ['512-1', '512-2', '1024-1', '1024-2'],
+  regression = false
+) => {
+  const report: { configurations: unknown[]; go: boolean; clockSource: string; scope: string } = {
     configurations: [],
+    scope: regression ? 'phase-2-regression' : 'phase-1',
     go: true,
     clockSource:
       'Per-edit Fargate proxy Unix millisecond timestamps regressed against client monotonic midpoint samples; no run-wide constant clock-rate assumption'
   };
   for (const memory of [512, 1024])
     for (const tasks of [1, 2]) {
+      if (!selections.includes(`${memory}-${tasks}`)) continue;
       const location = join(directory, `${memory}-${tasks}`);
       let names: string[] = [];
       try {
@@ -171,8 +185,8 @@ export const analyzeBenchmark = async (directory: string) => {
       const go =
         !!clock &&
         clockErrors.length === 0 &&
-        passesServingGate(swap.first, image.first) &&
-        passesServingGate(swap.all, image.all) &&
+        (regression ? passesRegressionGate(swap.first) : passesServingGate(swap.first, image.first)) &&
+        (regression ? passesRegressionGate(swap.all) : passesServingGate(swap.all, image.all)) &&
         swap.failures === 0 &&
         image.failures === 0 &&
         swap.memoryFallbacks === 0 &&

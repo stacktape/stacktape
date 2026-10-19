@@ -127,3 +127,44 @@ and service wait and cannot by itself identify an AWS service bottleneck. Preser
 The benchmark image keeps its supervisor in a reusable layer ahead of the application layer. Each owned run has its own
 local Docker tag, so independent configurations can run concurrently without overwriting another run's image. Normal
 release/dev builds contain neither the activation hooks nor these diagnostics.
+
+### Runtime and artifact qualification (phase 2)
+
+The same source-only boundary also owns `scripts/code-swap/qualify.ts` and `live-runtime.ts`. The former runs the built
+supervisor in capped, pinned Node images; the latter deploys that image with the Stacktape CLI and runs owned Fargate
+1.4.0 amd64 tasks. Both use the same application and controller fixtures. The controller uses container monotonic time.
+Each OOM/lifetime-peak scenario gets a fresh container/task because a read-only kernel lifetime peak cannot be reset.
+
+```sh
+pnpm --filter @stacktape/cli exec bun scripts/code-swap/qualify.ts
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/live-runtime.ts
+STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --regression --configurations 1024-1
+```
+
+The runtime cases cover inherited OOM scores and their restoration, late workers, actual prepare/post-switch worker
+OOMs, leader/worker crashes, detached-tree refusal, complete reaping, long HTTP/SSE/WebSocket drains and task SIGTERM
+while preparing, switching and shutting down old code. The live stop cases use ECS `StopTask`; the fixture forwards that
+signal and verifies child reaping before the essential container exits. WebSockets receive close code 1001 at the drain
+deadline. Shutdown retains cached HTTP traffic for 30 seconds and preserves the original old-tree deadline and
+concurrent grace. The test-only task-definition override supplies the exact 82-second ECS stop budget for a 40-second
+drain and grace. The local default-grace cases use a 60-second budget. Production synthesis stays unchanged. Configured
+application checks, ECS readiness and capacity admission remain later phases.
+
+Docker needs `--oom-score-adj=-998` to reproduce Fargate's inherited score. The supervisor verifies protection before
+starting applications; no capability is added to the container. Local targeted debugging accepts `QUAL_SCENARIOS` with
+comma-separated scenario names. Preserve the reports and source/artifact revision with the handoff. An intentional
+candidate failure remains a failed swap even after local recovery; never count it as a successful traffic sample.
+
+The live runner prints its exact `--cleanup-only --state <directory>` recovery command. Cleanup uses the exact owned
+stack/family and task identities, stops standalone tasks, deregisters/deletes revisions one at a time (below ECS's
+10-revision maximum), and waits for ACTIVE, INACTIVE and DELETE_IN_PROGRESS listings to become empty. ECS can retain
+recently referenced revisions for an hour; an accepted deletion alone does not mark cleanup verified.
+
+`--memory-fallback --configurations 512-1` runs a deliberate working-set increase followed by a code edit that must use
+exactly one image fallback. Its report retains both attempts, the peak, fallback frequency and AWS-calibrated image
+latency.
+
+`--regression` runs only 20 swaps for the selected configuration. It retains per-edit AWS clock fits, all requests,
+failures and fallbacks, and checks p50 ≤5 s, p95 ≤15 s, max ≤25 s, zero memory fallbacks and unchanged task identity.
+Its report is labelled `phase-2-regression`; it cannot replace the four-configuration phase-1 decision or its
+matched-image ratios. Without that argument the original phase-1 runner and gate are unchanged.
