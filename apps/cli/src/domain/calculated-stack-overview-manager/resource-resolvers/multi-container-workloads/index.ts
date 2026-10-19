@@ -1,3 +1,4 @@
+import { CLOUD_MAP_DRAIN_CONTAINER_NAME, needsCloudMapDrain } from './cloud-map-drain';
 import type {
   ContainerDefinition,
   KeyValuePair,
@@ -108,6 +109,25 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     tuiManager.warn(
       `Tracing skipped for \`${definition.name}\`: EC2-based workloads run in bridge network mode, where containers cannot reach the collector sidecar on localhost.`
     );
+  }
+  const cloudMapDrain = needsCloudMapDrain(definition);
+  if (cloudMapDrain) {
+    if (definition.containers.some(({ name }) => name === CLOUD_MAP_DRAIN_CONTAINER_NAME)) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CLOUD_MAP_DRAIN_NAME_RESERVED',
+        message: `Container name ${CLOUD_MAP_DRAIN_CONTAINER_NAME} in ${definition.name} is reserved for HTTP API draining.`,
+        hints: 'Rename the container.'
+      });
+    }
+    if (definition.containers.length + 1 + Number(!!workloadTracing) > 10) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CLOUD_MAP_DRAIN_CONTAINER_LIMIT_EXCEEDED',
+        message: `Workload ${definition.name} exceeds the ECS limit of 10 containers with HTTP API draining${workloadTracing ? ' and tracing' : ''}.`,
+        hints: 'Reduce the container count.'
+      });
+    }
   }
   if (workloadTracing) {
     // The collector occupies one of ECS's 10 container slots and a reserved name.
@@ -536,9 +556,12 @@ export const getTaskDefinitionTemplateOverrideFns = ({
       });
 
       (templateResourceProps.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
-        // The Stacktape-managed collector must not receive connectTo variables — they can carry
+        // Stacktape-managed helper containers must not receive connectTo variables — they can carry
         // database credentials. Exact match: user containers may legitimately use similar names.
-        if (containerDef.Name === OTEL_COLLECTOR_CONTAINER_NAME) {
+        if (
+          containerDef.Name === OTEL_COLLECTOR_CONTAINER_NAME ||
+          containerDef.Name === CLOUD_MAP_DRAIN_CONTAINER_NAME
+        ) {
           return;
         }
         const currentVars = (containerDef.Environment || []) as KeyValuePair[];

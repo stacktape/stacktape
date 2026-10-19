@@ -623,7 +623,7 @@ describe('container rolling deployment family', () => {
       ).map(({ LinuxParameters }) => LinuxParameters);
 
     // The js-bundle image has no tini: the init process ECS starts passes the stop signal to the server.
-    expect(linuxParameters('web')).toEqual([{ InitProcessEnabled: true }]);
+    expect(linuxParameters('web')).toEqual([{ InitProcessEnabled: true }, undefined]);
     // A prebuilt image may bring its own init.
     expect(linuxParameters('prebuilt')).toEqual([undefined]);
   });
@@ -646,6 +646,31 @@ describe('container rolling deployment family', () => {
     expect(deploymentConfiguration(template, 'apiWeb').EarlySuccessCriteria).toBeUndefined();
     expect(deploymentConfiguration(template, 'internal').EarlySuccessCriteria).toBeUndefined();
     expect(deploymentConfiguration(template, 'checkedApiWeb').EarlySuccessCriteria).toEqual(earlySuccess);
+
+    // ECS reverses START dependencies at shutdown. Retiring HTTP API servers stay alive while the managed
+    // sidecar waits for API Gateway's cached Cloud Map routes; readiness and application stop timeouts stay separate.
+    for (const workload of ['apiWeb', 'checkedApiWeb']) {
+      const containers = (template.Resources[cfLogicalNames.ecsTaskDefinition(workload)] as Resource).Properties
+        ?.ContainerDefinitions as {
+        Name: string;
+        DependsOn?: unknown;
+        HealthCheck?: unknown;
+        StopTimeout?: number;
+        Essential?: boolean;
+        Image?: string;
+        Command?: string[];
+      }[];
+      const drain = containers.find(({ Name }) => Name === 'stp-cloudmap-drain');
+      expect(drain).toBeDefined();
+      expect(drain?.DependsOn).toEqual([{ ContainerName: 'service-container', Condition: 'START' }]);
+      expect(drain?.HealthCheck).toBeUndefined();
+      expect(drain?.StopTimeout).toBe(40);
+      expect(drain?.Essential).toBe(false);
+      expect(drain?.Image).toMatch(/\.dkr\.ecr\.eu-west-1\.amazonaws\.com\/.+@sha256:[a-f0-9]{64}$/);
+      expect(drain?.Command?.[0]).toContain('sleep 35');
+      expect(containers.find(({ Name }) => Name === 'service-container')?.StopTimeout).toBe(30);
+    }
+    expect(stopTimeouts(template, 'internal')).toEqual([30]);
 
     // A worker receives no traffic, and its configured stop timeout wins over the default.
     expect(deploymentConfiguration(template, 'worker').EarlySuccessCriteria).toEqual(earlySuccess);

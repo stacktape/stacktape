@@ -111,7 +111,8 @@ const main = async () => {
   await prepareQualification(owned.directory);
   await writeFile(
     join(owned.directory, 'Dockerfile'),
-    (await readFile(join(owned.directory, 'Dockerfile'), 'utf8')) + '\nENV QUAL_SERVE=1 STP_BENCH_TASK_MIB=1024\n'
+    (await readFile(join(owned.directory, 'Dockerfile'), 'utf8')) +
+      `\nENV QUAL_SERVE=1 STP_BENCH_TASK_MIB=1024 QUAL_SCENARIO=${process.env.QUAL_MAIN_SCENARIO ?? 'normal'}\n`
   );
   const config = {
     projectName: name,
@@ -164,14 +165,15 @@ const main = async () => {
     const url = await endpoint(owned);
     // Keep the service task's exact ID and immutable definition; no readiness/admission machinery is added.
     const reports: Record<string, unknown> = {};
-    for (const scenario of [
+    const scenarios = process.env.QUAL_SCENARIOS?.split(',') ?? [
       'oom-prepare',
       'oom-switch',
       'lifetime',
       'stop-prepare',
       'stop-switch',
       'stop-old-shutdown'
-    ]) {
+    ];
+    for (const scenario of scenarios) {
       state.taskLaunchAttempted = true;
       // Persist the cluster before dispatch so response-loss cleanup can discover startedBy=owner tasks.
       state.tasks.push({ arn: '', cluster: fleet.cluster, scenario: 'dispatch-ledger' });
@@ -252,13 +254,13 @@ const main = async () => {
         }
       }
       await save(join(directory, 'reports.json'), reports);
-      if (Object.keys(reports).length === 7) break;
+      if (Object.keys(reports).length === scenarios.length + 1) break;
       if (performance.now() > deadline) throw new Error('Fargate runtime qualification timed out.');
       await Bun.sleep(3000);
     }
     if (Object.values(reports).some((r) => (r as { state: string }).state !== 'passed'))
       throw new Error('Fargate runtime qualification failed; see reports.json.');
-    console.log('All seven Fargate runtime scenarios passed.');
+    console.log('All selected Fargate runtime scenarios passed.');
   } catch (error) {
     await save(join(directory, 'failure.json'), { error: String(error) });
     throw error;
