@@ -9,10 +9,12 @@ export const capacityCost = (tasks: number, services = 1) => {
   const counts = {
     // Conservative strong polling, 4 KiB items. Add 30s at 5Hz per edit.
     releaseReads: tasks * (hours * 3600 + edits * 30 * 5),
-    admissionReads: starts * (500 + 16),
+    // Upper envelope from owned failed bursts, including observers/retries:
+    // <=1,200 consumed read units and 70 write units per attempted startup.
+    admissionReads: starts * 1200,
     // Four 4-KiB status writes per edit + startup, 2x transactional writes
     // for slot/admission and cleanup, plus plan/record/lock bookkeeping.
-    writes: tasks * edits * 4 * 4 + starts * (16 + 8) + edits * 32,
+    writes: tasks * edits * 4 * 4 + starts * 70 + edits * 32,
     allocatorInvocations: starts * 3,
     allocatorGBSeconds: starts * 3 * 0.25 * 1,
     kmsAsymmetricRequests: edits * 3,

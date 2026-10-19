@@ -274,8 +274,9 @@ credits. Its rates were checked against the regional AWS Price List offers for
 [S3](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/current/eu-west-1/index.json),
 [KMS](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/awskms/current/eu-west-1/index.json) and
 [CloudWatch](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonCloudWatch/current/eu-west-1/index.json).
-Archive those offers with each live qualification. Measured request counts, retry/churn bursts and duration are still
-required before treating the model as a release-budget pass.
+Archive those offers with each live qualification. Archive measured request counts, retry/churn bursts and duration
+alongside the model before treating it as a release-budget pass. The startup envelope includes the owned burst observers
+and retries; latency and recovery gates remain independent.
 
 `--capacity-only --regression --phase3 --configurations 512-1` declares a 450-slot budget, runs the short speed gate,
 then starts 100 additional actual ECS tasks. It records request-to-grant p95/max before attempting the independent
