@@ -27,21 +27,22 @@ import (
 )
 
 type generation struct {
-	cmd         *exec.Cmd
-	pid         int
-	port        int
-	revision    string
-	proxy       *httputil.ReverseProxy
-	inflight    atomic.Int64
-	exited      atomic.Bool
-	membership  map[int]string
-	treeMu      sync.Mutex
-	termAt      time.Time
-	drainUntil  time.Time
-	treeFailure atomic.Bool
-	terminateMu sync.Mutex
-	requestsMu  sync.Mutex
-	requests    map[*requestLease]bool
+	cmd          *exec.Cmd
+	pid          int
+	port         int
+	revision     string
+	proxy        *httputil.ReverseProxy
+	inflight     atomic.Int64
+	exited       atomic.Bool
+	membership   map[int]string
+	treeMu       sync.Mutex
+	termAt       time.Time
+	drainUntil   time.Time
+	treeFailure  atomic.Bool
+	traceFailure atomic.Bool
+	terminateMu  sync.Mutex
+	requestsMu   sync.Mutex
+	requests     map[*requestLease]bool
 }
 type requestLease struct {
 	cancel context.CancelFunc
@@ -315,7 +316,13 @@ func transitionCheck(u *generation, oom int64) error {
 	if _, err := u.members(); err != nil {
 		return err
 	}
+	if u.traceFailure.Load() {
+		return fmt.Errorf("process exit observation failed")
+	}
 	if u.treeFailure.Load() {
+		if count := oomCount(); count < 0 || count != oom {
+			return fmt.Errorf("OOM counter changed or unavailable")
+		}
 		return fmt.Errorf("unexplained worker SIGKILL during overlap")
 	}
 	return nil
@@ -524,7 +531,7 @@ func main() {
 		launch()
 		return
 	}
-	// Adopt and reap grandchildren; Cmd.Wait retains ownership of direct application leaders.
+	// Kernel exit observation owns leader waits; also adopt and reap orphaned grandchildren.
 	_, _, errno := syscall.Syscall6(syscall.SYS_PRCTL, 36, 1, 0, 0, 0, 0)
 	if errno != 0 {
 		panic(errno)
