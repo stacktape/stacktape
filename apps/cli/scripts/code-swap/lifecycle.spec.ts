@@ -6,17 +6,17 @@ import {
   type DynamoDBClient,
   type AttributeValue
 } from '@aws-sdk/client-dynamodb';
-import { acquireLock, recoverLock, removeLock, tableGoneDuringDelete } from './operation-lock';
+import { acquireLock, recoverLock, removeLock, tableGoneDuringDelete } from '../../src/domain/code-swap/operation-lock';
 import {
   readReleaseRecord,
   writeReleaseRecord,
   interruptedSwapReason,
   incompleteHistoryVersions,
   type SwapRecord
-} from './release-record';
-import { taskTableProtection } from './permissions';
-import { resolveStatusRole } from './ecs-policy';
-import { benchmarkTemplate, benchmarkTrackPreparation, benchmarkFinish } from './lifecycle-hooks';
+} from '../../src/domain/code-swap/release-record';
+import { taskTableProtection } from '../../src/domain/code-swap/permissions';
+import { resolveStatusRole } from '../../src/domain/code-swap/ecs-policy';
+import { codeSwapTemplate, codeSwapTrackPreparation, codeSwapFinish } from '../../src/domain/code-swap/lifecycle-hooks';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -91,9 +91,16 @@ test('operation completion waits for preparation even when the image build has a
     throw new Error('preparation failed too');
   });
   preparation.catch(() => {});
-  benchmarkTrackPreparation(preparation);
+  codeSwapTrackPreparation(preparation);
+  const { codeSwapIntegration } = await import('../../src/domain/code-swap/integration');
+  const originalAbort = codeSwapIntegration.abortPreparation;
+  let aborted = false;
+  codeSwapIntegration.abortPreparation = async () => {
+    await Bun.sleep(5);
+    aborted = true;
+  };
   let finished = false;
-  const completion = benchmarkFinish().then(() => {
+  const completion = codeSwapFinish().then(() => {
     finished = true;
   });
   await Bun.sleep(10);
@@ -101,6 +108,8 @@ test('operation completion waits for preparation even when the image build has a
   settle!();
   await completion;
   expect(finished).toBe(true);
+  expect(aborted).toBe(true);
+  codeSwapIntegration.abortPreparation = originalAbort;
 });
 const holder = (invocationId: string, operation: 'deploy' | 'rollback' | 'delete' = 'deploy') => ({
   invocationId,
@@ -213,6 +222,9 @@ test('direct ECS image registration resolves RoleId rather than serializing its 
 
 test('table creation follows task protection, and opt-out retains the Deny while old tasks drain', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'code-swap-optout-'));
+  const { configManager } = await import('../../src/domain/config-manager');
+  const previousConfig = configManager.config;
+  configManager.config = { resources: {} };
   const previous = process.env.STP_CODE_SWAP_BENCH_RUN;
   try {
     const runPath = join(directory, 'run.json');
@@ -233,11 +245,20 @@ test('table creation follows task protection, and opt-out retains the Deny while
       })
     );
     process.env.STP_CODE_SWAP_BENCH_RUN = runPath;
+    const { globalStateManager } = await import('../../src/app/global-state-manager');
+    Object.defineProperty(globalStateManager, 'region', { configurable: true, value: 'eu-west-1' });
+    Object.defineProperty(globalStateManager, 'targetAwsAccount', {
+      configurable: true,
+      value: { awsAccountId: '597581086285' }
+    });
     const template: CloudFormationTemplate = {
       Resources: {
         [cfLogicalNames.ecsTaskDefinition('api')]: {
           Type: 'AWS::ECS::TaskDefinition',
-          Properties: { TaskRoleArn: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole('api'), 'Arn'] } }
+          Properties: {
+            TaskRoleArn: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole('api'), 'Arn'] },
+            ContainerDefinitions: [{ Name: 'app', Environment: [] }]
+          }
         },
         [cfLogicalNames.ecsService('api', false)]: {
           Type: 'AWS::ECS::Service',
@@ -259,7 +280,7 @@ test('table creation follows task protection, and opt-out retains the Deny while
         }
       }
     };
-    await benchmarkTemplate(template);
+    await codeSwapTemplate(template);
     expect(template.Resources.StacktapeCodeSwapTable).toBeUndefined();
     const policy = JSON.stringify(template.Resources[cfLogicalNames.ecsTaskRole('api')]);
     expect(policy).toContain('"Effect":"Deny"');
@@ -267,16 +288,32 @@ test('table creation follows task protection, and opt-out retains the Deny while
     expect(policy).toContain('"PolicyName":"application"');
     const run = JSON.parse(await Bun.file(runPath).text());
     await writeFile(runPath, JSON.stringify({ ...run, optOut: false }));
-    await benchmarkTemplate(template);
+    await codeSwapTemplate(template);
     expect(template.Resources.StacktapeCodeSwapTable.DependsOn).toBe(cfLogicalNames.ecsTaskRole('api'));
     template.Resources[cfLogicalNames.ecsTaskDefinition('api')].Properties = {
       ...template.Resources[cfLogicalNames.ecsTaskDefinition('api')].Properties,
       TaskRoleArn: 'arn:aws:iam::597581086285:role/unprotected'
     };
-    await expect(benchmarkTemplate(template)).rejects.toThrow('protected managed task role');
+    await expect(codeSwapTemplate(template)).rejects.toThrow('protected managed task role');
   } finally {
+    configManager.config = previousConfig;
     if (previous === undefined) delete process.env.STP_CODE_SWAP_BENCH_RUN;
     else process.env.STP_CODE_SWAP_BENCH_RUN = previous;
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('retention bounds old bundles and attempts without deleting the current bootstrap bundle', async () => {
+  const { obsoleteCodeSwapKeys } = await import('../../src/domain/code-swap/release-record');
+  const keys = [
+    'code-swap/api/head.json',
+    'unrelated/object',
+    ...['v000001', 'v000002', 'v000003'].flatMap((version) => [
+      `code-swap/api/bundles/${version}-hash.tgz`,
+      `code-swap/api/attempts/${version}-invocation.json`,
+      `code-swap/api/releases/${version}.json`
+    ])
+  ];
+  expect(obsoleteCodeSwapKeys(keys, 1, 'v000001')).toEqual([]);
+  expect(obsoleteCodeSwapKeys(keys, 2, 'v000003').sort()).toEqual(keys.filter((key) => key.includes('v000001')).sort());
 });

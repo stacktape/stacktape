@@ -1,3 +1,4 @@
+import { codeSwapIntegration } from '@domain-services/code-swap/integration';
 import { CLOUD_MAP_DRAIN_IMAGES, cloudMapDrainImageTag } from './cloud-map-drain-image';
 import { needsCloudMapDrain } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/cloud-map-drain';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -701,7 +702,11 @@ class DeploymentArtifactManager {
       await awsSdkManager.s3.putObject({
         bucketName: this.deploymentBucketName,
         s3Key: markerKey,
-        body: JSON.stringify({ version, invocationId: globalStateManager.invocationId }),
+        body: JSON.stringify({
+          version,
+          invocationId: globalStateManager.invocationId,
+          codeSwap: codeSwapIntegration.releaseIdentity()
+        }),
         contentType: 'application/json',
         onlyIfMissing: true
       });
@@ -920,6 +925,10 @@ class DeploymentArtifactManager {
     }
     objects.forEach((object) => {
       const s3Key = object.Key;
+      if (s3Key.startsWith('code-swap/')) {
+        this.previousObjects.push({ s3Key, name: 'code-swap', version: 'v999999', digest: null, type: 'user-lambda' });
+        return;
+      }
       if (s3Key.startsWith(SOURCE_MAP_KEY_PREFIX)) {
         this.#storedSourceMapKeys.add(s3Key);
         return;
@@ -1303,6 +1312,7 @@ class DeploymentArtifactManager {
    */
   prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
     const template = await this.getTemplate({ version: sourceVersion });
+    codeSwapIntegration.rollbackTemplate(template);
     const copies: Promise<unknown>[] = [];
     this.#restoredFunctionDigests = [];
     for (const [logicalId, resource] of Object.entries(template.Resources)) {

@@ -1,3 +1,4 @@
+import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -67,6 +68,7 @@ export const commandDelete = async () => {
     tui
   } = await initializeDeleteOperation();
 
+  await codeSwapOperation('delete');
   await config.loadGlobalConfig();
   config.validateGuardrails({ hasConfig: !!config.config });
   await notification.init();

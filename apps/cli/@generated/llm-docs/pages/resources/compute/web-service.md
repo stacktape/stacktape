@@ -559,6 +559,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
 | `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| HttpApiGatewayAlarm>` | - |
 | `cdn` | no | `CdnConfiguration` | - |
+| `codeSwap` | no | `boolean` | `false` |
 | `connectTo` | no | `Array<string>` | - |
 | `cors` | no | `HttpApiCorsConfig` | - |
 | `customDomains` | no | `Array<DomainConfiguration>` | - |
@@ -597,3 +598,8 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## In-place code swap
+
+Set `properties.codeSwap: true` to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js on x86 Fargate behind an HTTP API within the ten-task cap, including production. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys.

@@ -1808,6 +1808,14 @@
       ]
     },
     {
+      "name": "recoverOperation",
+      "description": "Recover the named code-swap invocation after stopping it and settling its AWS changes. Repairs interrupted swaps with an image deploy.",
+      "required": false,
+      "allowedTypes": [
+        "string"
+      ]
+    },
+    {
       "name": "stage",
       "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters.",
       "required": false,
@@ -2032,6 +2040,14 @@
       "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.",
       "required": false,
       "alias": "prj",
+      "allowedTypes": [
+        "string"
+      ]
+    },
+    {
+      "name": "recoverOperation",
+      "description": "Recover the named code-swap invocation after stopping it and settling its AWS changes. Repairs interrupted swaps with an image deploy.",
+      "required": false,
       "allowedTypes": [
         "string"
       ]
@@ -6041,6 +6057,14 @@
       "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.",
       "required": false,
       "alias": "prj",
+      "allowedTypes": [
+        "string"
+      ]
+    },
+    {
+      "name": "recoverOperation",
+      "description": "Recover the named code-swap invocation after stopping it and settling its AWS changes. Repairs interrupted swaps with an image deploy.",
+      "required": false,
       "allowedTypes": [
         "string"
       ]

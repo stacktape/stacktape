@@ -78,3 +78,16 @@ export const incompleteHistoryVersions = (record: SwapRecord | undefined) =>
   [...new Set([record?.Proposed?.Revision, record?.Committed?.Revision])].filter((version): version is string =>
     Boolean(version && version !== record?.HistoryVersion)
   );
+
+// Keep current bootstrap identity even if image-history retention is configured to zero.
+export const obsoleteCodeSwapKeys = (keys: string[], keep: number, currentRevision: string) => {
+  const revisionOf = (key: string) => /^code-swap\/api\/(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(key)?.[1];
+  const revisions = [
+    ...new Set(keys.map(revisionOf).filter((revision): revision is string => Boolean(revision)))
+  ].sort();
+  const retained = new Set([...revisions.slice(-Math.max(1, keep)), currentRevision]);
+  return keys.filter((key) => {
+    const revision = revisionOf(key);
+    return revision && revision < currentRevision && !retained.has(revision);
+  });
+};

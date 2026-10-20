@@ -3568,10 +3568,14 @@ export const lanes: readonly Lane[] = [
 export const slices: readonly Slice[] = [
   {
     id: 'code-swap-foundations',
-    promise: 'Benchmark-only Node code replacement preserves artifact and process identities.',
+    promise: 'Opt-in Node code replacement preserves artifact, process, release and image-fallback identities.',
     status: 'active',
     journeys: ['container-deploy'],
-    paths: ['packages/packaging/src/artifact/code-swap.ts', 'apps/cli/scripts/code-swap/**'],
+    paths: [
+      'packages/packaging/src/artifact/code-swap.ts',
+      'apps/cli/scripts/code-swap/**',
+      'apps/cli/src/domain/code-swap/**'
+    ],
     tests: [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',

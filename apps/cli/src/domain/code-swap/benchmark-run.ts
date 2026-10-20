@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 export const runSchema = z.object({
-  name: z.string().regex(/^v4swap-[a-z0-9-]+$/),
+  name: z.string(),
+  service: z.string().default('api'),
   owner: z.string().min(8),
   table: z.string(),
   mode: z.enum(['swap', 'image']),
@@ -12,7 +13,7 @@ export const runSchema = z.object({
   readinessControl: z.boolean().optional(),
   supervisor: z.string(),
   result: z.string(),
-  memory: z.union([z.literal(512), z.literal(1024)]),
-  count: z.union([z.literal(1), z.literal(2)])
+  memory: z.number().int().positive(),
+  count: z.number().int().min(1).max(10)
 });
 export type BenchmarkRun = z.infer<typeof runSchema>;

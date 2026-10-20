@@ -54,14 +54,18 @@ Never replace `pnpm dev:cli` with an installed `stacktape` binary when testing a
 deployment stage from source-CLI dev mode; spell out `--stage`, `--region`, `--projectName`, and the credential mode for
 mutating commands.
 
-## Source-only code-swap benchmark
+## Code-swap qualification
 
-The phase-1 experiment lives in `apps/cli/scripts/code-swap`. Its explicit build plugin produces a separate source CLI;
-normal dev/release builds do not contain its unsigned, unfenced activation path. An active benchmark run omits the
-separate Cloud Map drain sidecar because its supervisor owns the cached-routing allowance. Ordinary builds and inactive
-benchmark commands retain main's sidecar behavior. This keeps the qualification single-container; it does not establish
-compatibility with arbitrary sidecars. There is no public configuration or installed CLI switch. This is a speed
-decision before runtime, ECS-readiness, capacity and protected-lifecycle work.
+The qualification harness lives in `apps/cli/scripts/code-swap`. Its build plugin adds timing transport to the ordinary
+CLI; customer activation uses `web-service.properties.codeSwap`, off by default in every stage, including production.
+`--customer-path --configurations 1024-1` creates a fresh stack through that public property, runs two code swaps under
+traffic and an environment-change image fallback, then deletes and verifies the exact owned resources. It uses no
+benchmark activation file. Runtime code is owned by `apps/cli/src/domain/code-swap`; supervisor source and its pinned Go
+builder remain beside the qualification harness. An active benchmark run omits the separate Cloud Map drain sidecar
+because its supervisor owns the cached-routing allowance. Ordinary builds and inactive benchmark commands retain main's
+sidecar behavior. This keeps the qualification single-container; it does not establish compatibility with arbitrary
+sidecars. There is no public configuration or installed CLI switch. This is a speed decision before runtime,
+ECS-readiness, capacity and protected-lifecycle work.
 
 Build the source benchmark from the CLI working directory, after `pnpm dev:cli version` has materialized development
 artifacts:
@@ -164,12 +168,12 @@ starting applications. Kernel exit observation uses parent-owned `PTRACE_SEIZE` 
 inherited fork/clone/exit events, so a parent-reaped child SIGKILL is distinguishable from a clean exit. Job-control
 stops use `PTRACE_LISTEN`. No capability is added; an environment denying parent-child tracing refuses startup. The
 pinned builder runs `go test -race` before building the static supervisor. This remains a source-only amd64
-qualification; other architectures and production runtime integration need their own qualification. Local targeted
-debugging accepts `QUAL_SCENARIOS` with comma-separated scenario names. `review-fixes` covers clean/nonzero child exits,
-a startup failure with a stopped grandchild, and a child SIGKILL. The live runner also accepts `QUAL_SCENARIOS` for
-standalone tasks and `QUAL_MAIN_SCENARIO` for its service task; preserve those selections with the report. Preserve the
-reports and source/artifact revision with the handoff. An intentional candidate failure remains a failed swap even after
-local recovery; never count it as a successful traffic sample.
+qualification; other architectures and other runtime integrations need their own qualification. Local targeted debugging
+accepts `QUAL_SCENARIOS` with comma-separated scenario names. `review-fixes` covers clean/nonzero child exits, a startup
+failure with a stopped grandchild, and a child SIGKILL. The live runner also accepts `QUAL_SCENARIOS` for standalone
+tasks and `QUAL_MAIN_SCENARIO` for its service task; preserve those selections with the report. Preserve the reports and
+source/artifact revision with the handoff. An intentional candidate failure remains a failed swap even after local
+recovery; never count it as a successful traffic sample.
 
 The live runner prints its exact `--cleanup-only --state <directory>` recovery command. Cleanup uses the exact owned
 stack/family and task identities, stops standalone tasks, deregisters/deletes revisions one at a time (below ECS's
@@ -259,8 +263,8 @@ includes strong 4-KiB polling, bounded bootstrap and CLI status reads, status wr
 bounded logs. There are no coordinator invocations, streams, grants or alarms. At 730 hours, 100 edits/day, 100
 starts/task-month, 20-MiB bundles and 30 retained releases/service, the model estimates $1.87/month for one task, $7.44
 for ten and $316.66 for 500 pollers across 25 services. Account cost is the sum of stack budgets; no account-wide
-runtime registry is introduced for small dev/staging fleets. Administrator drift and external overlapping rollouts are
-outside this static bound. Measure actual request/retry counts before treating the model as a customer cost
+runtime registry is introduced for small fleets within the supported cap. Administrator drift and external overlapping
+rollouts are outside this static bound. Measure actual request/retry counts before treating the model as a customer cost
 qualification.
 
 Before the first publication exposing code swap, ship the pinned supervisor/SBOM, cap/readiness/stop template, protected

@@ -1,3 +1,4 @@
+import { codeSwapSwap, codeSwapResolveRole, codeSwapPending } from '@domain-services/code-swap/runtime';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type {
   KeyValuePair as CfKeyValuePair,
@@ -209,11 +210,13 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     Tags: stackManager.getTags()
   };
 
-  const { needsUpdate: ecsTaskDefinitionNeedsUpdate } = compareEcsTaskDefinitions({
+  await codeSwapResolveRole(calculatedTaskDefinition);
+  const { needsUpdate: imageNeedsUpdate } = compareEcsTaskDefinitions({
     currentTaskDefinition,
     calculatedTaskDefinition
   });
 
+  const ecsTaskDefinitionNeedsUpdate = imageNeedsUpdate || codeSwapPending(workload.name);
   const ecsServiceNeedsUpdate =
     ecsTaskDefinitionNeedsUpdate || currentEcsService.taskDefinition !== currentTaskDefinition.taskDefinitionArn;
 
@@ -235,6 +238,9 @@ export const updateEcsService = async ({
   ecsTaskDefinition,
   ecsService
 }: Awaited<ReturnType<typeof getECSHotswapInformation>>): Promise<{ finishedWhen?: RollingUpdateFinish }> => {
+  if (await codeSwapSwap({ workload, ecsServiceArn, newCfTaskDefinition, blueGreen, ecsTaskDefinition, ecsService }))
+    return {};
+  await codeSwapResolveRole(newCfTaskDefinition);
   const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
     instanceId: workload.name,

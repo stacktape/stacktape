@@ -1,4 +1,4 @@
-// Only the benchmark build uses this policy; authored application grace remains
+// Opted-in workloads use this policy; authored application grace remains
 // distinct from the ECS container timeout and the separate Cloud Map drain.
 export const supervisorStopBudget = (grace = 2) => {
   if (!Number.isInteger(grace) || grace < 0) throw new Error('Invalid application shutdown grace.');
@@ -20,10 +20,18 @@ export type CapacityService = {
   name: string;
   maximum: number;
   maximumPercent: number;
+  minimumHealthyPercent?: number;
+  minimum?: number;
   overrides?: unknown;
   scalingOverrides?: unknown;
 };
-export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityService) => {
+export const serviceCapacity = ({
+  name,
+  maximum,
+  maximumPercent,
+  minimumHealthyPercent = 100,
+  minimum = maximum
+}: CapacityService) => {
   if (
     !Number.isInteger(maximum) ||
     maximum < 1 ||
@@ -35,6 +43,17 @@ export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityServi
       reason: `Code swap skipped for ${name}: task maximum or deployment surge is unknown; using an image deploy.`
     };
   const tasks = Math.floor((maximum * maximumPercent) / 100);
+  if (
+    minimumHealthyPercent !== 100 ||
+    tasks <= maximum ||
+    !Number.isInteger(minimum) ||
+    minimum < 1 ||
+    Math.floor((minimum * maximumPercent) / 100) <= minimum
+  )
+    return {
+      tasks,
+      reason: `Code swap skipped for ${name}: minimumHealthyPercent must be 100 and deployment surge must allow at least one replacement; using an image deploy.`
+    };
   if (tasks > 10)
     return {
       tasks,
@@ -68,7 +87,13 @@ export const capacityWithOverrides = (service: CapacityService, overrides: unkno
   const scalingMaximum = (scaling as Record<string, unknown> | undefined)?.MaxCapacity ?? service.maximum;
   if (typeof scalingMaximum !== 'number' || !Number.isInteger(scalingMaximum) || scalingMaximum < 1)
     return serviceCapacity({ ...service, maximum: NaN });
-  const effective = { ...service, maximum: Math.max(service.maximum, scalingMaximum) };
+  const scalingMinimum =
+    (scaling as Record<string, unknown> | undefined)?.MinCapacity ?? service.minimum ?? service.maximum;
+  const effective = {
+    ...service,
+    maximum: Math.max(service.maximum, scalingMaximum),
+    minimum: typeof scalingMinimum === 'number' ? Math.min(service.minimum ?? service.maximum, scalingMinimum) : NaN
+  };
   if (overrides === undefined) return serviceCapacity(effective);
   if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides))
     return serviceCapacity({ ...service, maximum: NaN });
@@ -78,6 +103,7 @@ export const capacityWithOverrides = (service: CapacityService, overrides: unkno
       (key) =>
         key.startsWith('DesiredCount.') ||
         key.startsWith('DeploymentConfiguration.MaximumPercent.') ||
+        key.startsWith('DeploymentConfiguration.MinimumHealthyPercent.') ||
         key === 'DeploymentController' ||
         key.startsWith('DeploymentController.') ||
         key === 'DeploymentConfiguration.Strategy'
@@ -90,11 +116,36 @@ export const capacityWithOverrides = (service: CapacityService, overrides: unkno
       ? (deployment as Record<string, unknown>).MaximumPercent
       : undefined;
   const maximumPercent = values['DeploymentConfiguration.MaximumPercent'] ?? nested ?? service.maximumPercent;
+  const minimumHealthyPercent =
+    values['DeploymentConfiguration.MinimumHealthyPercent'] ??
+    (deployment && typeof deployment === 'object' && !Array.isArray(deployment)
+      ? (deployment as Record<string, unknown>).MinimumHealthyPercent
+      : undefined) ??
+    service.minimumHealthyPercent ??
+    100;
   const desired = values.DesiredCount ?? service.maximum;
   return serviceCapacity({
     ...service,
     maximum: typeof desired === 'number' ? Math.max(effective.maximum, desired) : NaN,
+    minimumHealthyPercent: typeof minimumHealthyPercent === 'number' ? minimumHealthyPercent : NaN,
     maximumPercent:
       deployment !== undefined && nested === undefined ? NaN : typeof maximumPercent === 'number' ? maximumPercent : NaN
   });
+};
+
+export const memoryFallbackReason = (
+  memory: { peakBytes: number; effectiveLimitBytes: number; peakFile: string },
+  allowedMemory: number[]
+) => {
+  const mib = 1024 * 1024;
+  if (
+    !Number.isFinite(memory.peakBytes) ||
+    memory.peakBytes <= 0 ||
+    !Number.isFinite(memory.effectiveLimitBytes) ||
+    memory.effectiveLimitBytes <= 0
+  )
+    return `kernel memory peak or limit is unavailable (${memory.peakFile}); use an image deploy on a supported platform. Increasing memory alone cannot supply the missing measurement`;
+  const required = Math.ceil((2.5 * memory.peakBytes + 64 * mib) / 0.9 / mib);
+  const next = allowedMemory.find((value) => value >= required && value * mib > memory.effectiveLimitBytes);
+  return `code swap needs at least ${required} MiB with this task's ${Math.ceil(memory.peakBytes / mib)} MiB kernel peak; it has ${Math.floor(memory.effectiveLimitBytes / mib)} MiB. ${next ? `Set resources.memory: ${next}` : 'Increase resources.cpu and resources.memory to a supported size'} or keep using image deploys. Old and new processes share memory during a swap`;
 };

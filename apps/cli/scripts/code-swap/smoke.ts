@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import { buildSupervisor } from './build-supervisor';
-import { benchmarkDockerfile } from './image';
+import { codeSwapDockerfile } from '../../src/domain/code-swap/image';
 
 const main = async () => {
   const root = await mkdtemp(join(tmpdir(), 'stp-swap-smoke-'));
@@ -24,7 +24,7 @@ const main = async () => {
     await writeFile(join(imageContext, 'index.mjs'), app('old'));
     await writeFile(
       join(imageContext, 'Dockerfile'),
-      await benchmarkDockerfile(
+      await codeSwapDockerfile(
         imageContext,
         'FROM public.ecr.aws/docker/library/node:22-bookworm-slim\nWORKDIR /app\nCOPY . /app\nENTRYPOINT ["/stacktape-supervisor"]\n',
         join(root, 'supervisor')

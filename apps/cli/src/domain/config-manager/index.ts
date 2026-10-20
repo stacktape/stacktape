@@ -1061,6 +1061,7 @@ export class ConfigManager {
       const {
         name: _,
         packaging,
+        codeSwap,
         resources,
         type,
         connectTo,
@@ -1100,6 +1101,7 @@ export class ConfigManager {
         _nestedResources: {
           [containerWorkloadIdentifier]: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
+            codeSwap,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,

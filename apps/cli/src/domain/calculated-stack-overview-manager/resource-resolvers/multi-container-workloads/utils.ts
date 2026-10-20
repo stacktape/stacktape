@@ -1,3 +1,4 @@
+import { codeSwapContainerPolicy } from '@domain-services/code-swap/ecs-policy';
 import { CLOUD_MAP_DRAIN_IMAGES } from '@domain-services/deployment-artifact-manager/cloud-map-drain-image';
 import { getEcrRepositoryUrl } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getCloudMapDrainContainer } from './cloud-map-drain';
@@ -444,6 +445,17 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       StopTimeout:
         container.stopTimeout ||
         (workload.deployment ? BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS : DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS),
+      ...codeSwapContainerPolicy(
+        workload,
+        container,
+        ('overrides' in (configManager.config.resources[workload.name] ?? {})
+          ? (configManager.config.resources[workload.name] as { overrides?: Record<string, unknown> }).overrides
+          : undefined)?.[cfLogicalNames.ecsService(workload.name, false)],
+        ('overrides' in (configManager.config.resources[workload.name] ?? {})
+          ? (configManager.config.resources[workload.name] as { overrides?: Record<string, unknown> }).overrides
+          : undefined)?.[cfLogicalNames.autoScalingTarget(workload.name)],
+        configManager.allContainerWorkloads.length
+      ),
       LogConfiguration: isLoggingEnabled
         ? {
             LogDriver: 'awslogs',

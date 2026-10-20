@@ -5,8 +5,8 @@ import { join, resolve } from 'node:path';
 import { buildBenchmarkCli, benchmarkBuildPlugin } from './build-cli';
 import { createStacktapeOpenTuiBuildPlugin } from '../support/opentui-loader';
 
-// Exercise the actual build boundary: a release-style build must not contain the prototype at all.
-test('only the explicit benchmark build includes unsigned swap activation', async () => {
+// Exercise ordinary and instrumented builds through the executable CLI boundary.
+test('ordinary builds include customer code swap while timing transport stays benchmark-only', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'code-swap-build-'));
   try {
     const build = async () => {
@@ -54,12 +54,12 @@ test('only the explicit benchmark build includes unsigned swap activation', asyn
       if (code !== 0) throw new Error(`Built CLI version failed (${code}): ${stdout}\n${stderr}`);
       expect(stdout).toContain('Stacktape version:');
     }
-    expect(ordinary).not.toContain('STP_CODE_SWAP_BENCH_RUN');
-    expect(ordinary).not.toContain('codeSwapBenchmark');
-    expect(ordinary).not.toContain('STP_CODE_SWAP_BENCH_TRACE');
-    expect(ordinary).not.toContain('firstByteMs');
+    expect(ordinary.includes('STP_CODE_SWAP_BENCH_RUN')).toBe(true);
+    expect(ordinary.includes('codeSwap')).toBe(true);
+    expect(ordinary.includes('STP_CODE_SWAP_BENCH_TRACE')).toBe(true);
+    expect(ordinary.includes('firstByteMs')).toBe(false);
     expect(benchmark).toContain('STP_CODE_SWAP_BENCH_RUN');
-    expect(benchmark).toContain('codeSwapBenchmark');
+    expect(benchmark).toContain('codeSwap');
     expect(benchmark).toContain('STP_CODE_SWAP_BENCH_TRACE');
     expect(benchmark).not.toContain('Unable to get identity for credentials (access key id:');
   } finally {
@@ -79,7 +79,12 @@ test('only an active benchmark omits the separate Cloud Map drain container', as
         ],
         outdir: join(directory, benchmark ? 'benchmark' : 'ordinary'),
         target: 'bun',
-        plugins: benchmark ? [benchmarkBuildPlugin()] : []
+        plugins: benchmark
+          ? [benchmarkBuildPlugin(), createStacktapeOpenTuiBuildPlugin()]
+          : [createStacktapeOpenTuiBuildPlugin()],
+        external: ['follow-redirects', '@opentui/core-*', 'web-tree-sitter', 'web-tree-sitter/*'],
+        tsconfig: 'tsconfig.json',
+        define: { STACKTAPE_VERSION: '"4.0.0-dev.0"' }
       });
       expect(result.success).toBe(true);
       for (const active of [false, true]) {
@@ -102,7 +107,7 @@ test('only an active benchmark omits the separate Cloud Map drain container', as
           );
           const [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
           expect(await child.exited, err).toBe(0);
-          expect(JSON.parse(out)).toEqual(benchmark && active && !phase3 ? [false, false] : [true, true]);
+          expect(JSON.parse(out)).toEqual(active && !phase3 ? [false, false] : [true, true]);
         }
       }
     }

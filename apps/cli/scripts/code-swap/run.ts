@@ -40,15 +40,16 @@ import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { qualifyLifecycle } from './lifecycle';
 import { qualifyPhase4 } from './phase4';
-import { readLock } from './operation-lock';
+import { readLock } from '../../src/domain/code-swap/operation-lock';
 import { LambdaClient, GetFunctionCommand, ListEventSourceMappingsCommand } from '@aws-sdk/client-lambda';
 import { EventBridgeClient, DescribeRuleCommand } from '@aws-sdk/client-eventbridge';
 import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
 import { buildSupervisor } from './build-supervisor';
 import { analyzeBenchmark, calibrateClock } from './analyze';
 import { hostClockMs } from './trace';
-import type { BenchmarkRun } from './benchmark-run';
+import type { BenchmarkRun } from '../../src/domain/code-swap/benchmark-run';
 
+const customerPath = process.argv.includes('--customer-path');
 const ACCOUNT = '597581086285',
   REGION = 'eu-west-1',
   PROFILE = 'stacktape-e2e';
@@ -362,7 +363,7 @@ const cleanup = async (state: State, owned: Owned) => {
     await invoke(
       [...cliArgs(state, owned, 'delete'), ...(interrupted ? ['--recoverOperation', interrupted] : [])],
       join(owned.directory, 'delete.log'),
-      owned.phase4 ? { STP_CODE_SWAP_BENCH_RUN: join(owned.directory, 'run.json') } : {}
+      owned.phase4 && !customerPath ? { STP_CODE_SWAP_BENCH_RUN: join(owned.directory, 'run.json') } : {}
     );
   }
   if (owned.tableAttempted) {
@@ -370,7 +371,11 @@ const cleanup = async (state: State, owned: Owned) => {
       const table = await ddb.send(new DescribeTableCommand({ TableName: owned.table }));
       const tags = await ddb.send(new ListTagsOfResourceCommand({ ResourceArn: table.Table!.TableArn! }));
       assert(
-        tags.Tags?.some((tag) => tag.Key === 'code-swap-benchmark-owner' && tag.Value === owned.owner),
+        tags.Tags?.some(
+          (tag) =>
+            (tag.Key === 'code-swap-benchmark-owner' && tag.Value === owned.owner) ||
+            (tag.Key === 'stacktape:code-swap-owner' && tag.Value === `${owned.name}-bench`)
+        ),
         'Table ownership mismatch.'
       );
       await ddb.send(new DeleteTableCommand({ TableName: owned.table }));
@@ -581,6 +586,7 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
           }
         },
         properties: {
+          ...(customerPath && { codeSwap: true }),
           port: 8080,
           packaging: {
             type: 'js-bundle',
@@ -629,6 +635,10 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
       outputs: [{ name: 'apiUrl', value: "$ResourceParam('api', 'url')" }]
     }
   };
+  if (customerPath) {
+    config.resources.api.properties.iamRoleStatements = [];
+    delete config.resources.api.overrides[cfLogicalNames.ecsTaskDefinition('api')];
+  }
   await save(join(owned.directory, 'stacktape.json'), config);
 };
 const endpoint = async (owned: Owned) => {
@@ -708,10 +718,20 @@ const business = async (url: string, evidence: Poll[]) => {
     throw error;
   }
 };
-const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, index: number) => {
+const edit = async (
+  state: State,
+  owned: Owned,
+  run: BenchmarkRun,
+  url: string,
+  index: number,
+  restore?: { source: string; revision: string }
+) => {
   const label = `${run.mode}-${run.memory}-${run.count}-${String(index).padStart(2, '0')}`;
-  const desired = `${label}-${state.owner}`;
-  await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = ${JSON.stringify(desired)};\n`);
+  const desired = restore?.revision ?? `${label}-${state.owner}`;
+  await writeFile(
+    join(owned.directory, 'revision.mjs'),
+    restore?.source ?? `export const revision = ${JSON.stringify(desired)};\n`
+  );
   run.result = join(owned.directory, `${label}-cli-result.json`);
   const runFile = join(owned.directory, 'run.json');
   await save(runFile, run);
@@ -735,7 +755,7 @@ const edit = async (state: State, owned: Owned, run: BenchmarkRun, url: string, 
   let expected: string[] = [];
   try {
     await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, `${label}.log`), {
-      STP_CODE_SWAP_BENCH_RUN: runFile,
+      ...(customerPath ? { STP_CODE_SWAP_BENCH_RESULT: run.result } : { STP_CODE_SWAP_BENCH_RUN: runFile }),
       STP_CODE_SWAP_BENCH_TRACE: join(owned.directory, `${label}-trace.jsonl`),
       STP_TIMINGS_FILE: join(owned.directory, `${label}-timings.json`)
     });
@@ -816,7 +836,9 @@ export const qualifyOverCap = async (state: State, owned: Owned, run: BenchmarkR
   const runFile = join(owned.directory, 'run.json');
   await save(runFile, run);
   const log = join(owned.directory, 'cap-fallback.log');
-  await invoke(cliArgs(state, owned, 'deploy'), log, { STP_CODE_SWAP_BENCH_RUN: runFile });
+  await invoke(cliArgs(state, owned, 'deploy'), log, {
+    ...(customerPath ? { STP_CODE_SWAP_BENCH_RESULT: run.result } : { STP_CODE_SWAP_BENCH_RUN: runFile })
+  });
   await waitForFleet(owned, 1);
   const fallback = JSON.parse(await readFile(run.result, 'utf8'));
   assert(
@@ -891,12 +913,12 @@ const main = async () => {
         const owned: Owned = {
           name,
           owner,
-          table: `${name}-control`,
+          table: customerPath ? `${name}-bench-code-swap` : `${name}-control`,
           bucket: awsResourceNames.deploymentBucket(stackHash),
           repository: awsResourceNames.deploymentEcrRepo(stackHash),
           directory: join(directory, `${memory}-${count}`),
-          phase3: process.argv.includes('--phase3') || process.argv.includes('--phase4'),
-          phase4: process.argv.includes('--phase4')
+          phase3: customerPath || process.argv.includes('--phase3') || process.argv.includes('--phase4'),
+          phase4: customerPath || process.argv.includes('--phase4')
         };
         state.resources.push(owned);
         await mkdir(owned.directory, { recursive: true });
@@ -923,7 +945,7 @@ const main = async () => {
           join(owned.directory, 'entry.mjs'),
           "import { createApp } from './server.mjs'; const server = createApp().listen(Number(process.env.PORT ?? 8080), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
         );
-        if (owned.phase4) {
+        if (owned.phase4 && !customerPath) {
           await cp(
             join(import.meta.dir, 'fixtures/permission-probe.mjs'),
             join(owned.directory, 'permission-probe.mjs')
@@ -953,6 +975,7 @@ const main = async () => {
         }
         await configure(owned, memory, count);
         const run: BenchmarkRun = {
+          service: 'api',
           name,
           owner,
           table: owned.table,
@@ -969,7 +992,7 @@ const main = async () => {
         owned.stackAttempted = true;
         await save(join(directory, 'state.json'), state);
         await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'setup.log'), {
-          STP_CODE_SWAP_BENCH_RUN: runFile
+          ...(customerPath ? { STP_CODE_SWAP_BENCH_RESULT: run.result } : { STP_CODE_SWAP_BENCH_RUN: runFile })
         });
         const stack = await ownedStack(owned);
         owned.stackId = stack!.StackId;
@@ -1002,7 +1025,32 @@ const main = async () => {
         try {
           await Bun.sleep(10000);
           await business(url, setupBusiness);
-          if (owned.phase4 && process.argv.includes('--phase4-only')) {
+          if (customerPath) {
+            const swaps = [];
+            const baselineSource = await readFile(join(owned.directory, 'revision.mjs'), 'utf8');
+            for (let i = 1; i <= 2; i++) {
+              const outcome = await edit(
+                state,
+                owned,
+                run,
+                url,
+                i,
+                i === 2 ? { source: baselineSource, revision: 'baseline' } : undefined
+              );
+              assert((outcome.details as { mode?: string })?.mode === 'swap', 'Customer deploy did not swap code.');
+              swaps.push(outcome);
+            }
+            const path = join(owned.directory, 'stacktape.json');
+            const config = JSON.parse(await readFile(path, 'utf8'));
+            config.resources.api.properties.environment = [{ name: 'PHASE5_BASE_CHANGE', value: '1' }];
+            await save(path, config);
+            const fallback = await edit(state, owned, run, url, 3);
+            assert(
+              (fallback.details as { mode?: string; fallback?: string })?.mode === 'image',
+              'Expected an image fallback.'
+            );
+            await save(join(owned.directory, 'customer-proof.json'), { swaps, fallback });
+          } else if (owned.phase4 && process.argv.includes('--phase4-only')) {
             await qualifyPhase4(state, owned, run, url, {
               clients,
               guard,
@@ -1158,6 +1206,7 @@ const main = async () => {
     }
   }
   if (
+    customerPath ||
     process.argv.includes('--memory-fallback') ||
     process.argv.includes('--image-penalty-only') ||
     process.argv.includes('--lifecycle-only') ||

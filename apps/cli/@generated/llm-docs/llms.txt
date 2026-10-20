@@ -99,6 +99,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Secrets](/configuration/secrets) - source: apps/docs/content/configuration/secrets.mdx
 - [Stages and Environments](/configuration/stages-and-environments) - source: apps/docs/content/configuration/stages-and-environments.mdx
 - [Variables and Reuse](/configuration/variables-and-reuse) - source: apps/docs/content/configuration/variables-and-reuse.mdx
+- [In-place code swap](/deployment-and-lifecycle/code-swap) - source: apps/docs/content/deployment-and-lifecycle/code-swap.mdx
 - [Deploy-Time Parameters](/deployment-and-lifecycle/deploy-time-parameters) - source: apps/docs/content/deployment-and-lifecycle/deploy-time-parameters.mdx
 - [Deploying Stacks](/deployment-and-lifecycle/deploying-stacks) - source: apps/docs/content/deployment-and-lifecycle/deploying-stacks.mdx
 - [Deployment Scripts and Hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) - source: apps/docs/content/deployment-and-lifecycle/deployment-scripts-and-hooks.mdx
