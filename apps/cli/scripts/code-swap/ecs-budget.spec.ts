@@ -173,3 +173,25 @@ test('surge must permit a replacement at the smallest configured fleet too', () 
     capacityWithOverrides({ ...service, minimum: 2, scalingOverrides: { MinCapacity: 1 } }, undefined).reason
   ).toContain('surge');
 });
+
+test('an image-only fallback never receives a command for a supervisor absent from its image', async () => {
+  const { codeSwapIntegration } = await import('../../src/domain/code-swap/integration');
+  const { codeSwapContainerPolicy } = await import('../../src/domain/code-swap/ecs-policy');
+  const previous = codeSwapIntegration.imageHasSupervisor;
+  try {
+    codeSwapIntegration.imageHasSupervisor = false;
+    const container = { name: 'app', packaging: { type: 'js-bundle' } } as Parameters<
+      typeof codeSwapContainerPolicy
+    >[1];
+    const workload = {
+      name: 'orders',
+      codeSwap: true,
+      containers: [container],
+      resources: {},
+      scaling: { minInstances: 1, maxInstances: 2 }
+    } as Parameters<typeof codeSwapContainerPolicy>[0];
+    expect(codeSwapContainerPolicy(workload, container)).toEqual({});
+  } finally {
+    codeSwapIntegration.imageHasSupervisor = previous;
+  }
+});

@@ -336,3 +336,15 @@ test('a refusal waits for every task to observe this attempt, and old completion
   expect(allCandidatesCleaned([refused, status('v000002', 'failed', false)], 2, 'v000002')).toBe(false);
   expect(allCandidatesCleaned([refused, status('v000002', 'complete')], 2, 'v000002')).toBe(true);
 });
+
+test('a no-op image-only deploy never finalizes a release number that was not created', async () => {
+  const { codeSwapComplete } = await import('../../src/domain/code-swap/runtime');
+  const previous = process.env.STP_CODE_SWAP_BENCH_RUN;
+  try {
+    process.env.STP_CODE_SWAP_BENCH_RUN = '/missing/no-op-must-not-open-a-release.json';
+    await codeSwapComplete(false);
+  } finally {
+    if (previous === undefined) delete process.env.STP_CODE_SWAP_BENCH_RUN;
+    else process.env.STP_CODE_SWAP_BENCH_RUN = previous;
+  }
+});

@@ -578,7 +578,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   await notification.waitForQueuedEvents();
-  await codeSwapComplete();
+  await codeSwapComplete(createsRelease);
 
   return {
     stackInfo: detailedStackInfoSensitive,

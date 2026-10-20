@@ -51,7 +51,7 @@ An unknown or unreadable peak, an unsupported memory layout, or a failed screen 
 
 A small supervisor owns the HTTP port, starts the candidate, verifies proxy reachability, switches new requests, then waits for the old process to drain and exit. Without an authored application check, **any complete HTTP response, including 500, counts as reachability**. There is no default application health check and no fixed observation window.
 
-The CLI reports success only after every current task completes, the fleet remains healthy and routable, old process trees exit, and release history is durable. Candidate failure, OOM, task replacement or fleet changes prevent swap success and trigger image convergence. A later crash is an ordinary application incident; use your existing monitoring and rollback procedure.
+The CLI reports success only after every current task completes, the fleet remains healthy and routable, old process trees exit, and release history is durable. Candidate failure, OOM, task replacement or fleet changes prevent swap success and trigger image convergence. If candidate cleanup cannot be confirmed, the command fails and keeps the operation lock; use the recovery procedure below. A later crash is an ordinary application incident; use your existing monitoring and rollback procedure.
 
 Dependency, environment, runtime, supervisor and base configuration changes use image deploys. `--fullDeploy` also forces an image rollout. Scaling without a new task revision keeps the committed code; replacement tasks load that code before reporting ready. Opted-in image rollouts and new tasks pay the ECS supervisor-readiness delay. Normal services without the opt-in keep their existing resources and behavior.
 

@@ -1,3 +1,4 @@
+import { codeSwapIntegration } from './integration';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { StpContainerWorkload } from '../config-manager/resolved-types/multi-container-workloads';
@@ -43,6 +44,7 @@ export const codeSwapContainerPolicy = (
   serviceCount = 1
 ) => {
   if (!workload.codeSwap && !benchmarkHasPhase3()) return {};
+  if (codeSwapIntegration.imageHasSupervisor === false) return {};
   if (workload.codeSwap && unsupportedReason(workload, serviceCount)) return {};
   if (workload.containers.length !== 1 || container.internalHealthCheck || container.essential === false)
     throw new Error('Phase 3 qualifies one essential application without authored checks.');

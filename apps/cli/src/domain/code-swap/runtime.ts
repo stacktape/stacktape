@@ -788,7 +788,8 @@ export const codeSwapRollbackComplete = async (newVersion: string, targetVersion
     })
   );
 };
-export const codeSwapComplete = async () => {
+export const codeSwapComplete = async (createsRelease: boolean) => {
+  if (!createsRelease) return;
   if (!(await getCodeSwapRun())) return;
   if (result.mode === 'unchanged') return;
   if (!identity) {

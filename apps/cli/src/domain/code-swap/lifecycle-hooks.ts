@@ -279,12 +279,14 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
     }
   }
 
-  app.Environment = [
-    ...(app.Environment ?? []).filter(
-      (value) => !(value && typeof value === 'object' && 'Name' in value && value.Name === 'STP_BENCH_ROLE_ID')
-    ),
-    { Name: 'STP_BENCH_ROLE_ID', Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole(run.service), 'RoleId'] } }
-  ];
+  app.Environment = (app.Environment ?? []).filter(
+    (value) => !(value && typeof value === 'object' && 'Name' in value && value.Name === 'STP_BENCH_ROLE_ID')
+  );
+  if (imageHasSupervisor !== false)
+    app.Environment.push({
+      Name: 'STP_BENCH_ROLE_ID',
+      Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole(run.service), 'RoleId'] }
+    });
   definition.Properties = { ...definition.Properties, ContainerDefinitions: containers };
   const service = template.Resources[cfLogicalNames.ecsService(run.service, false)];
   service.DependsOn = [
