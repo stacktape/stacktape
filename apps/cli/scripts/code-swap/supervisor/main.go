@@ -50,7 +50,20 @@ type requestLease struct {
 	cancel context.CancelFunc
 	conn   net.Conn
 }
+type bundleIdentity struct {
+	Revision, Key, Sha256 string
+	Size                  int64
+}
+type proposalIdentity struct {
+	Revision, Key, Sha256, Attempt string
+	Size                           int64
+}
 type record struct {
+	Seq                          int64
+	TaskDefinition               string
+	Committed                    *bundleIdentity
+	Proposed                     *proposalIdentity
+	HistoryVersion               *string
 	Revision, Key, Sha256, Phase string
 	Size                         int64
 	BootstrapDelayS              int
@@ -58,7 +71,7 @@ type record struct {
 
 var current, candidate, oldGeneration atomic.Pointer[generation]
 var routing sync.Mutex
-var taskID, app, table, bucket, baseline string
+var taskID, app, table, bucket, baseline, taskDefinition string
 var privateIP = "127.0.0.1"
 var siblings bool
 var proxyPort = 8080
@@ -104,9 +117,28 @@ func read() (record, error) {
 		return r, err
 	}
 	if d, ok := out.Item["data"]; ok {
-		return r, json.Unmarshal([]byte(d["S"]), &r)
+		if err := json.Unmarshal([]byte(d["S"]), &r); err != nil {
+			return r, err
+		}
+		if os.Getenv("STP_BENCH_PHASE4") == "1" {
+			if r.Seq <= 0 || out.Item["seq"]["N"] != strconv.FormatInt(r.Seq, 10) || r.TaskDefinition == "" {
+				return r, fmt.Errorf("invalid release record sequence or task definition")
+			}
+		}
+		return r, nil
 	}
 	return r, nil
+}
+
+// Proposals never replace the durable desired code of a newly started task.
+func bootstrapIdentity(r record, revision string) record {
+	if r.TaskDefinition[strings.LastIndex(r.TaskDefinition, "/")+1:] == revision && r.Committed != nil {
+		c := r.Committed
+		r.Revision, r.Key, r.Sha256, r.Size, r.Phase = c.Revision, c.Key, c.Sha256, c.Size, "commit"
+	} else {
+		r.Revision, r.Phase = "", "abort"
+	}
+	return r
 }
 
 func bootstrapRead() (record, error) {
@@ -646,6 +678,8 @@ func main() {
 		must(err)
 		var meta struct {
 			TaskARN    string
+			Family     string
+			Revision   string
 			Limits     struct{ Memory int64 }
 			Containers []struct {
 				Name     string
@@ -672,6 +706,7 @@ func main() {
 			must(os.Unsetenv("STP_BENCH_TASK_MIB"))
 		}
 		taskID = meta.TaskARN[strings.LastIndex(meta.TaskARN, "/")+1:]
+		taskDefinition = meta.Family + ":" + meta.Revision
 		for _, c := range meta.Containers {
 			for _, n := range c.Networks {
 				if len(n.IPv4Addresses) > 0 {
@@ -694,6 +729,9 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
+	}
+	if os.Getenv("STP_BENCH_PHASE4") == "1" {
+		r = bootstrapIdentity(r, taskDefinition)
 	}
 	var u *generation
 	if r.BootstrapDelayS > 0 && r.BootstrapDelayS <= 60 {
@@ -745,6 +783,7 @@ func main() {
 	var timing map[string]any
 	var oom int64
 	failed := ""
+	appliedSeq := r.Seq
 	for !stopping.Load() {
 		if current.Load().exited.Load() {
 			panic("serving process exited")
@@ -758,6 +797,16 @@ func main() {
 			case <-time.After(time.Second):
 			}
 			continue
+		}
+		if os.Getenv("STP_BENCH_PHASE4") == "1" {
+			if next.Seq < appliedSeq || next.TaskDefinition[strings.LastIndex(next.TaskDefinition, "/")+1:] != taskDefinition {
+				select {
+				case <-stop:
+				case <-time.After(time.Second):
+				}
+				continue
+			}
+			appliedSeq = next.Seq
 		}
 		r = next
 		if prepared != nil {
