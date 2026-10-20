@@ -8,10 +8,12 @@ import type {
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
+import type { CanDeployResponse } from '@stacktape/console-api/api-key';
 import {
   bold,
   colorize,
   namedLink,
+  plainFallbackLink,
   prettyCommand,
   prettyConfigProperty,
   prettyFilePath,
@@ -635,11 +637,27 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       hint: `You can get your API key in the ${namedLink('apiKeys', 'console')}.`
     };
   },
-  e502({ message }: { message: string }): ReturnedError {
+  e502({ message, freePlanLimit }: CanDeployResponse): ReturnedError {
+    if (!freePlanLimit) {
+      return {
+        type: 'SUBSCRIPTION_REQUIRED',
+        message: message || 'Your organization cannot deploy on its current plan.',
+        hint: `You can upgrade your subscription plan in the ${namedLink('subscription', 'console')}.`
+      };
+    }
+    const usd = (amount: number) =>
+      `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const [year, month] = freePlanLimit.month.split('-').map(Number);
+    const monthName = (monthIndex: number) =>
+      new Date(Date.UTC(year, monthIndex, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
     return {
-      type: 'SUBSCRIPTION_REQUIRED',
-      message,
-      hint: `You can upgrade your subscription plan in the ${namedLink('subscription', 'console')}.`
+      type: 'FREE_PLAN_LIMIT',
+      message: `Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are ${bold(usd(freePlanLimit.monthToDateCostsUsd))} in ${monthName(month - 1)} ${year} (UTC), above the plan's limit of $${freePlanLimit.limitUsd} a month.`,
+      hint: [
+        `To deploy again right away, an Owner or Admin of the organization can upgrade to the Flexible plan: ${colorize('cyan', plainFallbackLink(freePlanLimit.upgradeUrl))}`,
+        'Your running infrastructure is not affected. Deleting and rolling back stages still work.',
+        `Without an upgrade, deploys resume on 1 ${monthName(month)}, when the monthly costs start again.`
+      ]
     };
   },
   e506({ projectId }: { projectId: string }): ReturnedError {
