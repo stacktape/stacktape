@@ -2036,6 +2036,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -2579,6 +2580,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -5788,6 +5790,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
     lanes: [
