@@ -20696,7 +20696,7 @@ Stacktape masks known sensitive shapes in the answers of its tools and in what i
 - **Connecting, replacing or removing the organization's Anthropic, OpenAI or xAI API key:** Owner and Admin.
 - **Connecting or removing their own sign-in with a provider:** each member, for their own, with `stacktape ai:connect` and `stacktape ai:disconnect`, or in the dialog that starts a run.
 
-See [Team and access control](/stacktape-console/team-and-access-control#roles-and-permissions) for how roles are assigned.
+See [Team and access control](/stacktape-console/team-and-access-control#roles) for how roles are assigned.
 
 ## Using your own coding agent instead
 
