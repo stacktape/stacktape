@@ -80,14 +80,26 @@ export const incompleteHistoryVersions = (record: SwapRecord | undefined) =>
   );
 
 // Keep current bootstrap identity even if image-history retention is configured to zero.
-export const obsoleteCodeSwapKeys = (keys: string[], keep: number, currentRevision: string) => {
+export const obsoleteCodeSwapKeys = (
+  keys: string[],
+  keep: number,
+  currentRevision: string,
+  current?: { bundleKey: string; attemptId: string }
+) => {
   const revisionOf = (key: string) => /^code-swap\/api\/(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(key)?.[1];
   const revisions = [
-    ...new Set(keys.map(revisionOf).filter((revision): revision is string => Boolean(revision)))
+    ...new Set(
+      keys.map(revisionOf).filter((revision): revision is string => Boolean(revision && revision <= currentRevision))
+    )
   ].sort();
   const retained = new Set([...revisions.slice(-Math.max(1, keep)), currentRevision]);
   return keys.filter((key) => {
     const revision = revisionOf(key);
+    if (current && revision === currentRevision) {
+      if (key.startsWith('code-swap/api/bundles/')) return key !== current.bundleKey;
+      if (key.startsWith('code-swap/api/attempts/'))
+        return key !== `code-swap/api/attempts/${currentRevision}-${current.attemptId}.json`;
+    }
     return revision && revision < currentRevision && !retained.has(revision);
   });
 };

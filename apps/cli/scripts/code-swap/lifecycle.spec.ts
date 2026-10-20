@@ -315,7 +315,15 @@ test('retention bounds old bundles and attempts without deleting the current boo
     ])
   ];
   expect(obsoleteCodeSwapKeys(keys, 1, 'v000001')).toEqual([]);
+  expect(obsoleteCodeSwapKeys(keys, 2, 'v000002')).toEqual([]);
   expect(obsoleteCodeSwapKeys(keys, 2, 'v000003').sort()).toEqual(keys.filter((key) => key.includes('v000001')).sort());
+  const abandoned = ['code-swap/api/bundles/v000003-abandoned.tgz', 'code-swap/api/attempts/v000003-declined.json'];
+  expect(
+    obsoleteCodeSwapKeys([...keys, ...abandoned], 3, 'v000003', {
+      bundleKey: 'code-swap/api/bundles/v000003-hash.tgz',
+      attemptId: 'invocation'
+    }).sort()
+  ).toEqual(abandoned.sort());
 });
 
 test('a refusal waits for every task to observe this attempt, and old completion never proves cleanup', async () => {

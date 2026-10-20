@@ -978,7 +978,7 @@ export const codeSwapImageExtension = async (workloadName: string) => {
 };
 
 const pruneArtifacts = async (currentRevision: string) => {
-  const { s3, artifacts } = await clients();
+  const { s3, artifacts, global } = await clients();
   const keys: string[] = [];
   let token: string | undefined;
   do {
@@ -992,7 +992,10 @@ const pruneArtifacts = async (currentRevision: string) => {
     keys.push(...(page.Contents ?? []).flatMap((item) => (item.Key ? [item.Key] : [])));
     token = page.NextContinuationToken;
   } while (token);
-  const obsolete = obsoleteCodeSwapKeys(keys, artifacts.maxArtifactVersionsToKeep, currentRevision);
+  const obsolete = obsoleteCodeSwapKeys(keys, artifacts.maxArtifactVersionsToKeep, currentRevision, {
+    bundleKey: identity!.key,
+    attemptId: global.invocationId
+  });
   for (let start = 0; start < obsolete.length; start += 1000) {
     const response = await s3.send(
       new DeleteObjectsCommand({
