@@ -91,3 +91,15 @@ export const obsoleteCodeSwapKeys = (keys: string[], keep: number, currentRevisi
     return revision && revision < currentRevision && !retained.has(revision);
   });
 };
+
+type AttemptStatus = { revision: string; state: string; timings: Record<string, unknown> };
+export const allTasksObservedAttempt = (statuses: AttemptStatus[], count: number, revision: string) =>
+  statuses.length === count && statuses.every((status) => status.revision === revision);
+export const allCandidatesCleaned = (statuses: AttemptStatus[], count: number, revision: string) =>
+  allTasksObservedAttempt(statuses, count, revision) &&
+  statuses.every(
+    (status) =>
+      status.state === 'complete' ||
+      status.state === 'refused' ||
+      (status.timings.candidateReaped === true && ['failed', 'aborted'].includes(status.state))
+  );

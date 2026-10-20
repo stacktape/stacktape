@@ -1,5 +1,5 @@
 import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
-import { codeSwapComplete } from '@domain-services/code-swap/runtime';
+import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
   recordSecurityReport,
   deleteUndeployedStage
@@ -302,6 +302,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       }
     }
   }
+  if (!fastDeployPlan) await codeSwapUseImage();
   // A fast deployment that changes nothing creates no release. Synced bucket content may have changed, and its restore
   // manifest belongs to a release of its own.
   const createsRelease =

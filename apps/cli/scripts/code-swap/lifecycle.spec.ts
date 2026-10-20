@@ -317,3 +317,22 @@ test('retention bounds old bundles and attempts without deleting the current boo
   expect(obsoleteCodeSwapKeys(keys, 1, 'v000001')).toEqual([]);
   expect(obsoleteCodeSwapKeys(keys, 2, 'v000003').sort()).toEqual(keys.filter((key) => key.includes('v000001')).sort());
 });
+
+test('a refusal waits for every task to observe this attempt, and old completion never proves cleanup', async () => {
+  const { allTasksObservedAttempt, allCandidatesCleaned } = await import('../../src/domain/code-swap/release-record');
+  const status = (revision: string, state: string, candidateReaped = false) => ({
+    revision,
+    state,
+    timings: { candidateReaped }
+  });
+  const refused = status('v000002', 'refused');
+  const old = status('v000001', 'complete');
+  expect(allTasksObservedAttempt([refused, old], 2, 'v000002')).toBe(false);
+  expect(allCandidatesCleaned([refused, old], 2, 'v000002')).toBe(false);
+  const prepared = status('v000002', 'prepared');
+  expect(allTasksObservedAttempt([refused, prepared], 2, 'v000002')).toBe(true);
+  expect(allCandidatesCleaned([refused, prepared], 2, 'v000002')).toBe(false);
+  expect(allCandidatesCleaned([refused, status('v000002', 'aborted', true)], 2, 'v000002')).toBe(true);
+  expect(allCandidatesCleaned([refused, status('v000002', 'failed', false)], 2, 'v000002')).toBe(false);
+  expect(allCandidatesCleaned([refused, status('v000002', 'complete')], 2, 'v000002')).toBe(true);
+});

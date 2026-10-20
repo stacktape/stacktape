@@ -166,7 +166,13 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
   if (!run) return;
   if (!run.phase4) return;
   if (run.optOut) {
-    if (!process.env.STP_CODE_SWAP_BENCH_RUN && !hadCodeSwapTable && !template.Resources[TABLE_LOGICAL_ID]) return;
+    const { templateManager } = await import('../template-manager');
+    if (
+      !process.env.STP_CODE_SWAP_BENCH_RUN &&
+      !templateManager.oldTemplate.Resources[TABLE_LOGICAL_ID] &&
+      !template.Resources[TABLE_LOGICAL_ID]
+    )
+      return;
     teardownRequested = true;
   }
   const { globalStateManager: global } = await import('../../app/global-state-manager');
@@ -184,7 +190,16 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
         Tags: [{ Key: 'stacktape:code-swap-owner', Value: run.owner }]
       }
     };
-  protectTaskRole(template, arn, run.service);
+  const { configManager } = await import('../config-manager');
+  const services = new Set([
+    run.service,
+    ...(run.optOut && configManager.config ? configManager.allContainerWorkloads.map((workload) => workload.name) : [])
+  ]);
+  for (const serviceName of services) {
+    // A removed service keeps its existing Deny until CloudFormation deletes its role.
+    if (run.optOut && !template.Resources[cfLogicalNames.ecsTaskDefinition(serviceName)]) continue;
+    protectTaskRole(template, arn, serviceName);
+  }
   if (run.optOut) return;
   const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
   const role = template.Resources[cfLogicalNames.ecsTaskRole(run.service)];

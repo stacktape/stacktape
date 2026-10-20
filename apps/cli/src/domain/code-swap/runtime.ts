@@ -55,6 +55,8 @@ import {
   interruptedSwapReason,
   incompleteHistoryVersions,
   obsoleteCodeSwapKeys,
+  allTasksObservedAttempt,
+  allCandidatesCleaned,
   type SwapRecord
 } from './release-record';
 import {
@@ -308,18 +310,26 @@ const statuses = async (ids: string[]) => {
 const waitStatus = async (ids: string[], revision: string, state: string) => {
   const deadline = Date.now() + 90000;
   let nextFleetCheck = Date.now() + 2000;
+  let stickyFailure: Error | undefined;
   while (Date.now() < deadline) {
     const found = await statuses(ids);
     const failed = found.find((s) => s.revision === revision && s.state === 'failed');
-    if (failed?.timings.candidateReaped) throw new Error(`Candidate failed: ${failed.reason}`);
+    if (failed?.timings.candidateReaped) stickyFailure ??= new Error(`Candidate failed: ${failed.reason}`);
     const refused = found.find((s) => s.revision === revision && s.state === 'refused');
     if (refused) {
       const reason = refused.reason ?? 'prepare_refused';
       result.fallback = reason;
       result.refusal = refused;
-      throw new Error(reason);
+      stickyFailure ??= new Error(reason);
     }
-    if (found.length === ids.length && found.every((s) => s.revision === revision && s.state === state)) return found;
+    // Let every task observe the proposal before aborting, so a fast refusal cannot hide another task preparing.
+    if (stickyFailure && allTasksObservedAttempt(found, ids.length, revision)) throw stickyFailure;
+    if (
+      !stickyFailure &&
+      found.length === ids.length &&
+      found.every((s) => s.revision === revision && s.state === state)
+    )
+      return found;
     if (result.tasks && Date.now() >= nextFleetCheck) {
       const { stack } = await clients();
       const service = stack.existingStackResources.find(
@@ -515,7 +525,7 @@ export const codeSwapImage = async (input: {
   const port =
     configManager.allContainerWorkloads
       .find((item) => item.name === run.service)
-      ?.containers[0]?.environment?.find((entry) => entry.name === 'PORT')?.value ?? 3000;
+      ?.containers[0]?.environment?.findLast((entry) => entry.name === 'PORT')?.value ?? 3000;
   if (typeof port !== 'number' && (typeof port !== 'string' || !/^\d+$/.test(port)))
     throw new Error('Code swap needs a resolved numeric PORT.');
   const authoredGrace =
@@ -704,19 +714,17 @@ const waitForCandidateCleanup = async () => {
   const deadline = Date.now() + 35000;
   for (;;) {
     const found = expectedIds.length ? await statuses(expectedIds) : [];
-    if (
-      found.length === expectedIds.length &&
-      found.every(
-        (s) =>
-          s.state === 'complete' ||
-          s.state === 'refused' ||
-          (s.timings.candidateReaped && ['failed', 'aborted'].includes(s.state))
-      )
-    )
-      break;
+    if (!expectedIds.length || allCandidatesCleaned(found, expectedIds.length, identity!.revision)) break;
     if (Date.now() > deadline) throw new Error('Candidate cleanup not confirmed; refusing image fallback.');
     await Bun.sleep(100);
   }
+};
+
+export const codeSwapUseImage = async () => {
+  if (!prepare) return;
+  await Promise.allSettled([prepare]);
+  await abortCodeSwapPreparation();
+  result = { ...result, mode: 'image', fallback: result.fallback ?? 'task_configuration_changed' };
 };
 
 export const abortCodeSwapPreparation = async () => {
@@ -930,6 +938,7 @@ const reportResult = async () => {
   }
   const reasons: Record<string, string> = {
     base_changed: 'dependencies, environment or base configuration changed',
+    task_configuration_changed: 'the resolved task or infrastructure configuration changed',
     memory_screen: 'the kernel peak-memory screen refused a swap',
     swap_failed: `candidate or fleet check failed (${result.failure})`,
     interrupted_swap_image_repair: 'repairing an interrupted swap',
