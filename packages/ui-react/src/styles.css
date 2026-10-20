@@ -1345,7 +1345,7 @@
   .stp-ui-dialog__body {
     box-sizing: border-box;
     flex: 1 1 auto;
-    min-width: min(var(--stp-dialog-width, 650px), calc(100vw - 48px));
+    min-width: min(var(--stp-dialog-width, var(--stp-dialog-width-form)), calc(100vw - 48px));
     max-width: 100%;
     min-height: 0;
     padding: var(--stp-dialog-padding, 28px);
