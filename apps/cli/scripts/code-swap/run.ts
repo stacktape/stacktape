@@ -39,13 +39,15 @@ import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { qualifyLifecycle } from './lifecycle';
+import { qualifyPhase4 } from './phase4';
+import { readLock } from './operation-lock';
 import { LambdaClient, GetFunctionCommand, ListEventSourceMappingsCommand } from '@aws-sdk/client-lambda';
 import { EventBridgeClient, DescribeRuleCommand } from '@aws-sdk/client-eventbridge';
 import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
 import { buildSupervisor } from './build-supervisor';
 import { analyzeBenchmark, calibrateClock } from './analyze';
 import { hostClockMs } from './trace';
-import type { BenchmarkRun } from './runtime';
+import type { BenchmarkRun } from './benchmark-run';
 
 const ACCOUNT = '597581086285',
   REGION = 'eu-west-1',
@@ -67,6 +69,7 @@ type Owned = {
   directory: string;
   stackId?: string;
   phase3?: boolean;
+  phase4?: boolean;
   tableAttempted?: boolean;
   stackAttempted?: boolean;
   cleaned?: boolean;
@@ -200,7 +203,7 @@ const cliArgs = (state: State, owned: Owned, command: string) => [
   PROFILE,
   '--outputFormat',
   'jsonl',
-  '--autoConfirmOperation'
+  ...(command === 'rollback' ? [] : ['--autoConfirmOperation'])
 ];
 const guard = async () => {
   assert(
@@ -271,7 +274,8 @@ const primaryTasks = async (owned: Owned, strict = false, expectedCount?: number
       .filter((task) => task.taskDefinitionArn === primary.taskDefinition && task.lastStatus === 'RUNNING')
       .map((task) => task.taskArn!.split('/').at(-1)!),
     service,
-    cluster
+    cluster,
+    tasks: tasks.tasks ?? []
   };
 };
 const waitForFleet = async (owned: Owned, count: number) => {
@@ -328,24 +332,38 @@ const cleanup = async (state: State, owned: Owned) => {
     // Deep benchmark artifacts are not understood by the ordinary historical key parser.
     let continuation: string | undefined;
     try {
-      do {
-        const listed = await s3.send(
-          new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/', ContinuationToken: continuation })
-        );
-        if (listed.Contents?.length)
-          await s3.send(
-            new DeleteObjectsCommand({
-              Bucket: owned.bucket,
-              Delete: { Objects: listed.Contents.map(({ Key }) => ({ Key: Key! })) }
-            })
+      if (!owned.phase4) {
+        do {
+          const listed = await s3.send(
+            new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/', ContinuationToken: continuation })
           );
-        continuation = listed.NextContinuationToken;
-      } while (continuation);
+          if (listed.Contents?.length)
+            await s3.send(
+              new DeleteObjectsCommand({
+                Bucket: owned.bucket,
+                Delete: { Objects: listed.Contents.map(({ Key }) => ({ Key: Key! })) }
+              })
+            );
+          continuation = listed.NextContinuationToken;
+        } while (continuation);
+      }
     } catch (error) {
       // A previous partial delete may already have removed the artifact bucket. Keep recovering the owned stack.
       if (!missing(error)) throw error;
     }
-    await invoke(cliArgs(state, owned, 'delete'), join(owned.directory, 'delete.log'));
+    let interrupted: string | undefined;
+    if (owned.phase4) {
+      try {
+        interrupted = (await readLock(ddb, owned.table))?.invocationId;
+      } catch (error) {
+        if (!missing(error)) throw error;
+      }
+    }
+    await invoke(
+      [...cliArgs(state, owned, 'delete'), ...(interrupted ? ['--recoverOperation', interrupted] : [])],
+      join(owned.directory, 'delete.log'),
+      owned.phase4 ? { STP_CODE_SWAP_BENCH_RUN: join(owned.directory, 'run.json') } : {}
+    );
   }
   if (owned.tableAttempted) {
     try {
@@ -574,6 +592,7 @@ const configure = async (owned: Owned, memory: 512 | 1024, count: 1 | 2) => {
             maxInstances: process.argv.includes('--cap-lifecycle') ? 10 : owned.phase3 ? 2 : count
           },
           iamRoleStatements: [
+            ...(owned.phase4 ? [{ Effect: 'Allow', Action: ['dynamodb:*'], Resource: ['*'] }] : []),
             {
               Effect: 'Allow',
               Action: ['dynamodb:GetItem'],
@@ -850,7 +869,7 @@ const main = async () => {
     directory,
     resources: [],
     supervisor: await buildSupervisor(join(directory, 'supervisor')),
-    cli: resolve(cliRoot, '.stacktape/code-swap/cli/entrypoint.js')
+    cli: resolve(process.env.STP_CODE_SWAP_BENCH_CLI ?? join(cliRoot, '.stacktape/code-swap/cli/entrypoint.js'))
   };
   await save(join(directory, 'state.json'), state);
   console.log(
@@ -876,7 +895,8 @@ const main = async () => {
           bucket: awsResourceNames.deploymentBucket(stackHash),
           repository: awsResourceNames.deploymentEcrRepo(stackHash),
           directory: join(directory, `${memory}-${count}`),
-          phase3: process.argv.includes('--phase3')
+          phase3: process.argv.includes('--phase3') || process.argv.includes('--phase4'),
+          phase4: process.argv.includes('--phase4')
         };
         state.resources.push(owned);
         await mkdir(owned.directory, { recursive: true });
@@ -903,21 +923,33 @@ const main = async () => {
           join(owned.directory, 'entry.mjs'),
           "import { createApp } from './server.mjs'; const server = createApp().listen(Number(process.env.PORT ?? 8080), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
         );
+        if (owned.phase4) {
+          await cp(
+            join(import.meta.dir, 'fixtures/permission-probe.mjs'),
+            join(owned.directory, 'permission-probe.mjs')
+          );
+          await writeFile(
+            join(owned.directory, 'entry.mjs'),
+            "import { createApp } from './server.mjs'; import { permissionProbe } from './permission-probe.mjs'; const app=createApp(); app.get('/_phase4/security', async(req,res)=>{try { res.json(await permissionProbe(String(req.query.tasks).split(','))); } catch(error) { res.status(500).json({error:String(error)}); }}); const server=app.listen(Number(process.env.PORT ?? 8080),'0.0.0.0'); process.on('SIGTERM',()=>server.close());\n"
+          );
+        }
         owned.tableAttempted = true;
         await save(join(directory, 'state.json'), state);
-        await ddb.send(
-          new CreateTableCommand({
-            TableName: owned.table,
-            KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
-            AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
-            BillingMode: 'PAY_PER_REQUEST',
-            Tags: [{ Key: 'code-swap-benchmark-owner', Value: owner }]
-          })
-        );
-        for (let i = 0; i < 60; i++) {
-          if ((await ddb.send(new DescribeTableCommand({ TableName: owned.table }))).Table?.TableStatus === 'ACTIVE')
-            break;
-          await Bun.sleep(1000);
+        if (!owned.phase4) {
+          await ddb.send(
+            new CreateTableCommand({
+              TableName: owned.table,
+              KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+              AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
+              BillingMode: 'PAY_PER_REQUEST',
+              Tags: [{ Key: 'code-swap-benchmark-owner', Value: owner }]
+            })
+          );
+          for (let i = 0; i < 60; i++) {
+            if ((await ddb.send(new DescribeTableCommand({ TableName: owned.table }))).Table?.TableStatus === 'ACTIVE')
+              break;
+            await Bun.sleep(1000);
+          }
         }
         await configure(owned, memory, count);
         const run: BenchmarkRun = {
@@ -926,6 +958,7 @@ const main = async () => {
           table: owned.table,
           mode: 'swap',
           phase3: owned.phase3,
+          phase4: owned.phase4,
           supervisor: state.supervisor,
           result: join(owned.directory, 'setup-result.json'),
           memory,
@@ -969,7 +1002,20 @@ const main = async () => {
         try {
           await Bun.sleep(10000);
           await business(url, setupBusiness);
-          if (process.argv.includes('--lifecycle-only') || process.argv.includes('--cap-lifecycle')) {
+          if (owned.phase4 && process.argv.includes('--phase4-only')) {
+            await qualifyPhase4(state, owned, run, url, {
+              clients,
+              guard,
+              invoke,
+              cliArgs,
+              save,
+              configure,
+              primaryTasks,
+              waitForFleet,
+              edit,
+              samplePublic
+            });
+          } else if (process.argv.includes('--lifecycle-only') || process.argv.includes('--cap-lifecycle')) {
             run.mode = 'swap';
             await edit(state, owned, run, url, 1);
           } else if (process.argv.includes('--image-penalty-only')) {
@@ -1062,7 +1108,12 @@ const main = async () => {
             await save(join(owned.directory, `${name}.json`), events);
           }
         }
-        if (owned.phase3 && !process.argv.includes('--image-penalty-only') && !process.argv.includes('--speed-only')) {
+        if (
+          owned.phase3 &&
+          !owned.phase4 &&
+          !process.argv.includes('--image-penalty-only') &&
+          !process.argv.includes('--speed-only')
+        ) {
           const sample = await samplePublic(url, 0);
           await qualifyLifecycle(owned, url, sample.revision, {
             clients,
@@ -1145,6 +1196,9 @@ export {
   clients,
   ACCOUNT,
   REGION,
-  PROFILE
+  PROFILE,
+  configure,
+  primaryTasks,
+  samplePublic
 };
 export type { State, Owned };

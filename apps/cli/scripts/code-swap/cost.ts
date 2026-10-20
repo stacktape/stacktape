@@ -15,8 +15,8 @@ export const capacityCost = (tasks: number, services = 1) => {
     deployReads: edits * 32 * services,
     // Four 4-KiB status writes per edit + startup, plus record/lock bookkeeping.
     writes: tasks * edits * 4 * 4 + starts * 4 + edits * 32 * services,
-    kmsAsymmetricRequests: edits * 3 * services,
     bundlePuts: edits * services,
+    metadataPuts: edits * 3 * services, // Attempt, retained release identity and running-code head; no signing.
     bundleGets: edits * tasks + starts,
     // 30 retained maximum-size bundles per service.
     bundleGB: (services * 30 * 20) / 1024,
@@ -27,8 +27,10 @@ export const capacityCost = (tasks: number, services = 1) => {
     dynamoReads: (counts.releaseReads + counts.bootstrapReads + counts.cliStatusReads + counts.deployReads) * rr,
     dynamoWrites: counts.writes * wr,
     dynamoStorage: counts.statusGB * 0.283,
-    signing: 1 + (counts.kmsAsymmetricRequests * 0.15) / 10000,
-    s3: (counts.bundlePuts * 0.005) / 1000 + (counts.bundleGets * 0.004) / 10000 + counts.bundleGB * 0.023,
+    s3:
+      ((counts.bundlePuts + counts.metadataPuts) * 0.005) / 1000 +
+      (counts.bundleGets * 0.004) / 10000 +
+      counts.bundleGB * 0.023,
     // No coordinator alarms or custom metrics. Bound logs at 10 KiB/edit.
     logs: counts.logGB * (0.57 + 0.03)
   };

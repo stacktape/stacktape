@@ -2,17 +2,36 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { StpContainerWorkload } from '../../src/domain/config-manager/resolved-types/multi-container-workloads';
 import { capacityWithOverrides, supervisorHealthCheck, supervisorStopBudget } from './ecs-budget';
+import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { ContainerDefinition, KeyValuePair } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
+
+export const resolveStatusRole = (
+  definition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>,
+  roleId: string
+) => {
+  for (const container of definition.Properties.ContainerDefinitions as ContainerDefinition[]) {
+    const environment = container.Environment as KeyValuePair[] | undefined;
+    const role = environment?.find((entry) => entry.Name === 'STP_BENCH_ROLE_ID');
+    if (role) role.Value = roleId;
+  }
+};
 
 const phase3Run = z.object({
   phase3: z.boolean().optional(),
+  optOut: z.boolean().optional(),
   mode: z.enum(['swap', 'image']).optional(),
   readinessControl: z.boolean().optional()
 });
 export const benchmarkHasPhase3 = () => {
   const path = process.env.STP_CODE_SWAP_BENCH_RUN;
-  return Boolean(path && phase3Run.parse(JSON.parse(readFileSync(path, 'utf8'))).phase3);
+  if (!path) return false;
+  const run = phase3Run.parse(JSON.parse(readFileSync(path, 'utf8')));
+  return Boolean(run.phase3 && !run.optOut);
 };
-export const benchmarkOmitsDrain = () => Boolean(process.env.STP_CODE_SWAP_BENCH_RUN && !benchmarkHasPhase3());
+export const benchmarkOmitsDrain = () => {
+  const path = process.env.STP_CODE_SWAP_BENCH_RUN;
+  return Boolean(path && !phase3Run.parse(JSON.parse(readFileSync(path, 'utf8'))).optOut && !benchmarkHasPhase3());
+};
 export const benchmarkContainerPolicy = (
   workload: StpContainerWorkload,
   container: StpContainerWorkload['containers'][number],
