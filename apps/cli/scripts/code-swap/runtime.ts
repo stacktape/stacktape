@@ -287,15 +287,19 @@ let roleLookup: Promise<void> | undefined;
 export const benchmarkPrimeIdentity = () => {
   if (!process.env.STP_CODE_SWAP_BENCH_RUN) return Promise.resolve();
   return (roleLookup ??= (async () => {
-    const { run, stack, iam } = await clients();
+    const { run, stack } = await clients();
     if (!run.phase3 || stack.stackActionType === 'create') return;
     if ((await benchmarkCapacity()).reason) return;
-    const role = stack.existingStackResources.find(
-      (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
-    )?.PhysicalResourceId;
-    if (!role) throw new Error('Missing benchmark task role.');
-    checkedStatusRoleId = (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
+    checkedStatusRoleId = await lookupTaskRoleId();
   })());
+};
+const lookupTaskRoleId = async () => {
+  const { stack, iam } = await clients();
+  const role = stack.existingStackResources.find(
+    (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
+  )?.PhysicalResourceId;
+  if (!role) throw new Error('Missing benchmark task role.');
+  return (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
 };
 export const benchmarkImage = async (input: {
   dockerfileContents: string;
@@ -562,8 +566,8 @@ export const benchmarkResolveRole = async (
   const { run } = await clients();
   if (!run.phase4 || run.optOut) return;
   await benchmarkPrimeIdentity();
-  if (!checkedStatusRoleId) throw new Error('Missing RoleId for the image deployment.');
-  resolveStatusRole(definition, checkedStatusRoleId);
+  // Over-cap services skip the swap preflight but still need the RoleId for the image fallback.
+  resolveStatusRole(definition, checkedStatusRoleId ?? (await lookupTaskRoleId()));
 };
 export const benchmarkBootstrapBucket = async () => {
   const { run, artifacts } = await clients();
