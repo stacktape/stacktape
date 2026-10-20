@@ -744,10 +744,23 @@ const recordImageBaseline = async (version: string) => {
     Phase: 'abort'
   });
 };
+const removeCodeSwapArtifacts = async (currentRevision: string) => {
+  const { ecs, stack, s3, artifacts } = await clients();
+  const service = stack.existingStackResources.find(
+    (resource) => resource.ResourceType === 'AWS::ECS::Service'
+  )?.PhysicalResourceId;
+  if (!service) throw new Error('Cannot confirm old code-swap service tasks have stopped.');
+  await waitForRetiredCodeSwapTasks(ecs, service);
+  await pruneCodeSwapArtifacts({ s3, bucket: artifacts.deploymentBucketName, currentRevision, optOut: true });
+};
 export const codeSwapRollbackComplete = async (newVersion: string, targetVersion: string, tablePresent = true) => {
   if (!(await getCodeSwapRun())) return;
   const { run, s3, artifacts } = await clients();
-  if (!run.phase4 || !tablePresent) return;
+  if (!run.phase4) return;
+  if (!tablePresent) {
+    if (hadCodeSwapTable) await removeCodeSwapArtifacts(newVersion);
+    return;
+  }
   let restoredIdentity: Identity;
   try {
     const savedIdentity = await s3.send(
@@ -798,18 +811,7 @@ export const codeSwapComplete = async (createsRelease: boolean) => {
       );
     }
     if (run.phase4 && run.optOut) {
-      const { ecs } = await clients();
-      const service = stack.existingStackResources.find(
-        (resource) => resource.ResourceType === 'AWS::ECS::Service'
-      )?.PhysicalResourceId;
-      if (!service) throw new Error('Cannot confirm old code-swap service tasks have stopped.');
-      await waitForRetiredCodeSwapTasks(ecs, service);
-      await pruneCodeSwapArtifacts({
-        s3,
-        bucket: artifacts.deploymentBucketName,
-        currentRevision: stack.nextVersion,
-        optOut: true
-      });
+      if (hadCodeSwapTable) await removeCodeSwapArtifacts(stack.nextVersion);
     } else if (run.phase4) {
       await pruneArtifacts();
     }
