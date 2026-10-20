@@ -46763,6 +46763,13 @@ API keys are useful for non-interactive automation where you do not want to rely
 
 Use API keys when you need non-interactive authentication. For local development where a browser is available, [`stacktape login`](/cli/login) handles authentication for you, so you do not need to create and rotate a Console API key manually.
 
+
+> **Tip:** The keys on this page are personal: they act as you, with your role, projects and AWS accounts, and they stop working
+when you leave the organization. For CI, Owners and Admins create an
+[organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page instead.
+It belongs to the organization and keeps working when people leave.
+
+
 ## Creating an API key
 
 Open **API keys** from the profile menu in the Stacktape Console. Click **New API key** to open the creation form.
@@ -46823,6 +46830,10 @@ API keys are intended for CLI and CI/CD authentication. After creating a key, co
 ## Permissions
 
 Managing API keys requires the `api-keys:manage-own` permission. Users without this permission are redirected to `/overview` when they navigate to the API keys page. See [Team and access control](/stacktape-console/team-and-access-control) for details on managing user permissions.
+
+A key can do what its owner can. A Developer's or Viewer's key reaches only the projects and AWS accounts chosen for
+them on the Members page; asking it for credentials in another AWS account fails with "Your access does not include
+the AWS account".
 
 ## Best practices
 
@@ -47629,136 +47640,145 @@ Create separate organizations when you need distinct team boundaries — for exa
 Source: `apps/docs/content/stacktape-console/team-and-access-control.mdx`
 Route: `/stacktape-console/team-and-access-control`
 
-The **Members** page in the Organization group of the Stacktape Console controls who has access to your organization and what they can do. Invite members, assign roles that determine each person's permissions, resend or cancel invitations, revoke API keys, and remove members when they leave. The page requires the `members:view` permission.
+The **Members** page in the Organization group of the Stacktape Console controls who can use your organization and
+what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, give CI an
+organization key that does not belong to a person, and see what stops working before you remove someone.
 
 ## Overview
 
-The Members page lists the human members of your organization in a table with the columns Name, Email, Role, Status, Two-factor and Added, plus a row actions menu. Internal service accounts are filtered out, so you only see real members.
+The page has up to four parts:
 
-## Roles and permissions
+- **Two-factor sign-in** (Owners and Admins): whether members who sign in with a password must also use an
+  authenticator app.
+- **People**: everyone who has joined, with their role, what a Developer or Viewer reaches, two-factor status, when
+  they were last active and when they joined. Search by name or email, filter by role, or show only members without
+  two-factor or inactive for 30 days or more.
+- **Invitations**: invitations that have not been accepted yet, who sent them, and when they expire.
+- **Organization keys** (Owners and Admins): API keys that belong to the organization, for CI.
 
-Every member has a role that determines which actions they can perform. The Members page shows each member's role as a colored badge. Four permissions control the actions on this page:
+Click a member's name to open their page. Owners and Admins can open anyone's page; Developers and Viewers can open
+their own.
 
-| Permission | Controls |
-|-----------|----------|
-| `members:invite` | Inviting new members and resending invitations |
-| `members:remove` | Removing members and cancelling invitations |
-| `members:update-role` | Editing a member's role |
-| `api-keys:revoke-all` | Revoking all of a member's API keys |
+## Roles
 
-When your role has none of these permissions, the row actions menu does not appear. When it has some of them, the menu appears and the actions you lack are disabled. Admins never see the row actions menu on Owner rows, whatever their permissions.
+| Role | Can do | Reaches |
+|------|--------|---------|
+| Owner | Everything, including deleting the organization, billing and appointing other Owners | Every project and every connected AWS account |
+| Admin | Everything except deleting the organization | Every project and every connected AWS account |
+| Developer | Deploy, delete non-production stages, manage secrets and parameters | Only the projects and AWS accounts chosen for them |
+| Viewer | Read projects, deployments, logs, incidents and members | Only the projects and AWS accounts chosen for them |
 
-## Walkthrough: inviting a member
+## Project and AWS account access
 
-1. In the Stacktape Console, open **Members** in the Organization group.
-2. Click **Invite member** in the top-right corner to open the invite form.
-3. Complete the form and submit the invitation.
+A Developer or Viewer has two lists, set when you invite them and changed with **Edit access**:
 
-The new member appears in the table with the status **Invited** and, when known, who invited them. Once they accept, the table shows their account status instead.
-
-The **Invite member** button is disabled in three situations, each with its own tooltip:
-
-- **Your role lacks the `members:invite` permission.** The tooltip reads "You do not have permission to invite members."
-- **You are in a personal organization.** The tooltip explains that personal organizations do not support additional members and asks you to create another organization.
-- **Your organization has reached its member limit.** The tooltip asks you to upgrade your plan.
-
-
-> **Warning:** You cannot invite members to a personal (default) organization. Create another organization first, then invite your team there.
-
-
-## Common tasks
-
-### Editing a member's role
-
-Open the member's row actions menu and choose **Edit member** to change their role. The action requires `members:update-role`.
-
-### Removing a member
-
-Open the member's row actions menu and choose **Remove member**. The confirmation dialog warns that the member loses access to the organization's projects immediately. For a pending invitation the action is **Cancel invitation**, which stops the invitation link from working. Both require `members:remove`.
-
-### Resending an invitation
-
-For a member who has not accepted yet, open the row actions menu and choose **Resend invitation**. The Added column then shows when the invitation was last sent again. The action requires `members:invite`.
-
-### Revoking a member's API keys
-
-Open the member's row actions menu and choose **Revoke all API keys**. The confirmation dialog states: "This will immediately invalidate all their active API keys in this organization." Once confirmed, all of that member's [API keys](/stacktape-console/api-keys) in the organization are revoked. The action requires `api-keys:revoke-all` and is not available for pending invitations.
+- **Projects** decide which projects they see in the Console and which projects the CLI lets them deploy.
+- **AWS accounts** decide where Stacktape gives them AWS access: CLI credentials for deploys, scripts and stack
+  commands, deployments started from the Console, and the Console pages that read AWS directly (logs, metrics,
+  secrets, parameters, debug sessions, redeploys and rollbacks, Investigate and Fix with AI).
 
 
-> **Tip:** Removing a member and revoking their API keys are separate actions with separate confirmation dialogs. When offboarding a member, revoke their API keys to invalidate programmatic credentials, then remove them.
+> **Warning:** AWS access always covers the whole account. A Developer given the account `production` for the project `shop` can,
+with the credentials the CLI receives, also reach other projects' stacks in `production`. Give a person an account
+only if they may act in all of it. Agencies with one AWS account per client get a clean boundary by giving each
+person only their clients' accounts.
 
 
-### Checking member status and two-factor authentication
+A Developer with no AWS accounts can still see their projects in the Console, but the CLI refuses to deploy, and the
+pages that read AWS say that their access does not include the account. Owners and Admins always reach every account.
 
-Two columns describe each member's account:
+## Inviting members
 
-- **Status** shows "Invited" for members who have not accepted their invitation. Other members show their account status: Active, Active (Google), Email not confirmed, Invitation pending, Password reset required, Archived, Compromised or Unknown.
-- **Two-factor** shows "On" when the member has multi-factor authentication configured, "Off" otherwise, and "Via Google" for members who sign in only with Google. It is empty for pending invitations.
+1. Open **Members** and click **Invite members**.
+2. Enter one or more email addresses, separated by commas or new lines (up to 20 at once).
+3. Choose a role. For a Developer or Viewer, choose their projects and AWS accounts.
+4. Click **Send invitations**.
 
-Each member manages their own password and two-factor settings. See [Account Settings](/stacktape-console/account-settings).
+Someone who already has a Stacktape account becomes a member at once. Anyone else gets an email and appears under
+**Invitations** until they sign up. An address that is already a member, or that could not be invited, stays in the
+field with the reason, so the rest are not lost.
 
-## Member limits
+An invitation works for 14 days after its email last went out. **Resend invitation** sends it again and starts the
+14 days again; an expired invitation can be resent the same way. **Copy invite link** copies the sign-up link to
+share another way; it only works for the invited address. **Cancel invitation** stops the link from working.
 
-The maximum number of members depends on the organization type and subscription plan. The Console disables the **Invite member** button when the member count reaches that maximum.
+Personal organizations have exactly one member. To work with others, create a team organization; team organizations
+have no member limit.
 
-Personal organizations cannot invite additional members. For other organizations, the limit depends on the subscription plan. See [Billing and Subscription](/stacktape-console/billing-and-subscription) for your plan's limits and upgrade options.
+## Organization keys for CI
+
+A personal [API key](/stacktape-console/api-keys) acts as the person who created it and stops working when they leave
+the organization. CI that uses one breaks when that person is removed. An organization key belongs to the
+organization instead:
+
+1. In **Organization keys**, click **New organization key**.
+2. Name it after where it runs, for example `github-actions`.
+3. Choose **Developer** with the projects and AWS accounts the pipeline deploys, or **Admin** for everything.
+4. Copy the key from the next dialog; it is shown only once. Store it as the `STACKTAPE_API_KEY` secret of your CI.
+
+The list shows who created each key and when it was last used. Revoking a key stops every pipeline that uses it at
+once. Organization keys cannot create organizations or connect AI subscriptions, which belong to people.
+
+## Requiring two-factor sign-in
+
+Owners and Admins can require two-factor sign-in with **Require** in the Two-factor sign-in row. The confirmation lists
+the members who sign in with a password only. After that, those members see only a screen that sends them to
+[Account Settings](/stacktape-console/account-settings) to add an authenticator app; the rest of the organization opens
+again as soon as they do. Signing in with Google counts as two-factor. API keys, including the CLI and CI, keep
+working.
+
+You need two-factor sign-in on your own account before you can require it.
+
+## Removing a member
+
+Open the member's row menu, or their page, and choose **Remove**. The dialog lists what stops working with them:
+
+- their personal API keys, with when each was last used,
+- their own AI subscriptions for incident runs,
+- their Slack link.
+
+If one of their keys was used in the last 7 days, the dialog says so, because CI may depend on it, and offers to
+create an organization key first. Stacks they deployed keep running, their deployments stay in the history, and
+organization keys keep working, including ones they created.
+
+**Revoke API keys** in the row menu revokes a member's personal keys without removing them.
+
+## Last active
+
+The Last active column shows the most recent of three times, listed separately when you hover it and on the member's
+page:
+
+- **Console**: their last visit, recorded at most once an hour.
+- **CLI**: the last request with one of their personal API keys.
+- **Last deploy**: the last deploy they started.
 
 ## Troubleshooting
 
-### "You do not have permission to invite members"
+### "Your access does not include the AWS account"
 
-Your role does not include the `members:invite` permission. Ask someone with that permission to invite the member, or someone with `members:update-role` to change your role.
+The member is a Developer or Viewer and the account is not in their AWS accounts. An Owner or Admin adds it with
+**Edit access** on the Members page. The CLI shows the same reason, and `stacktape` lists only the accounts the member
+can use.
 
-### Invite button disabled in a non-personal organization
+### The CLI stopped deploying for a Developer after an upgrade
 
-Your organization has reached the maximum member count for its subscription plan. Check [Billing and Subscription](/stacktape-console/billing-and-subscription) for your current plan and upgrade options.
+Developers and Viewers reach only the AWS accounts chosen for them. When this was introduced, each of them was given
+the accounts their projects had deployed to; an account their projects never used must be added with **Edit access**.
 
-### No row actions for a member
+### Invite members is disabled
 
-Either your role has none of the four member permissions, or you hold the Admin role and the member is an Owner.
+Either your role cannot invite (only Owners and Admins can), or this is a personal organization.
 
-### Member shows "Invited" for a long time
+### An invitation shows Expired
 
-The member has not accepted the invitation. The email may have been missed or filtered. Use **Resend invitation** from the row actions menu.
-
-### Member shows "Active (Google)"
-
-The member signs in with Google rather than an email and password. Their Two-factor column shows "Via Google" because Google handles the second factor.
+Its 14 days passed. Choose **Resend invitation**; the person can sign up for 14 more days.
 
 ## Related features
 
-- [Account Settings](/stacktape-console/account-settings): manage your personal account, password and two-factor authentication
-- [API Keys](/stacktape-console/api-keys): create and manage API keys for CLI and CI/CD authentication
-- [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages): how projects and stages are organized within an organization
-- [Billing and Subscription](/stacktape-console/billing-and-subscription): subscription plan and member limits
-- [Guardrails](/guardrails/overview): organization-wide deployment rules
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console): automated deployments from your repositories
-
-## FAQ
-
-### Can an Admin remove or edit an Owner?
-
-No. Admins do not see the row actions menu on Owner rows, regardless of their permissions.
-
-### Is removing a member the same as revoking their API keys?
-
-No. They are two independent actions, each with its own confirmation dialog. Removing a member removes them from the organization. Revoking API keys invalidates their programmatic credentials. For a complete offboarding, revoke the API keys, then remove the member.
-
-### Can I enforce two-factor authentication for all members?
-
-No. The Members page shows each member's two-factor status but has no organization-wide enforcement setting. Each member turns it on in their own [Account Settings](/stacktape-console/account-settings).
-
-### Why is a member stuck on "Invited"?
-
-The member has not accepted the invitation yet; the table shows their account status only after they do. If the email was missed, choose **Resend invitation** in the row actions menu.
-
-### Why can't I invite members to my organization?
-
-If the **Invite member** button is disabled, its tooltip names one of three reasons: your role lacks `members:invite`, you are in a personal organization, or your organization has reached its member limit. See [Billing and Subscription](/stacktape-console/billing-and-subscription) for upgrade options.
-
-### How do I choose the right role for a member?
-
-Assign the least-privileged role that lets the member do their job. Owners have every permission. Admins have everything except deleting the organization. Developers can deploy, delete non-production stages and manage secrets and parameters. Viewers have read-only access. To change a role, choose **Edit member** in the member's row actions menu.
+- [Account Settings](/stacktape-console/account-settings): password and two-factor authentication
+- [API Keys](/stacktape-console/api-keys): personal keys for the CLI
+- [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): what Stacktape can do in an account
+- [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages)
 
 ---
 
