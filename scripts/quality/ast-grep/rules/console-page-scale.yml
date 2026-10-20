@@ -1,0 +1,39 @@
+id: console-page-scale
+language: Tsx
+severity: error
+message: >-
+  Console pages take sizes from the scale: `fontSize.*`, `space(...)` from `styles/tokens.ts` and the radii in
+  `styles/surfaces.ts`. Literal font sizes, gaps, paddings and radii are how pages ended up with 22 font sizes.
+note: >-
+  Only 0, `inherit` and `50%` (circles) are allowed as literals. Styles live in `.tsx` files, so the rule reads those. A
+  size the scale lacks is a design-token change. Options of a chart library that happen to use these names take an
+  `// ast-grep-ignore: console-page-scale` comment.
+rule:
+  any:
+    - kind: number
+      regex: '^(0*[1-9]|0*\.\d*[1-9])'
+    - kind: string
+      regex: '\d(px|rem|em)\b|^.\s*0*[1-9]\d*(\.\d+)?\s*.$'
+    - kind: template_string
+      regex: '\d(px|rem|em)\b'
+  # A number passed to a call (`space(8)`) is a scale stop, and one in arithmetic (`depth * 16`) is computed.
+  not:
+    inside:
+      any:
+        - kind: arguments
+        - kind: binary_expression
+      stopBy:
+        kind: pair
+  # The nearest property decides, so `padding: { left: 4 }` (a chart library's options) is not a CSS padding.
+  inside:
+    kind: pair
+    stopBy:
+      kind: pair
+    has:
+      field: key
+      regex: '^[''"]?(fontSize|gap|rowGap|columnGap|padding\w*|borderRadius|border\w+Radius)[''"]?$'
+files:
+  - apps/console/ui/src/pages/**/*.tsx
+ignores:
+  - '**/*.test.ts'
+  - '**/*.test.tsx'

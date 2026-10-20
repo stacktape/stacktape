@@ -1458,8 +1458,8 @@
     box-sizing: border-box;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: var(--stp-space-12);
+    padding: var(--stp-space-12) var(--stp-space-16);
     border: 1px solid rgb(var(--stp-alert-rgb) / 0.35);
     border-radius: var(--stp-radius-large);
     background: var(--stp-surface-element);
@@ -1468,6 +1468,11 @@
     text-align: left;
     /* The tinted border and the icon carry the tone; no accent bar. */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Stacked notices keep one gap, whatever their containers' own spacing. */
+  .stp-ui-alert + .stp-ui-alert {
+    margin-top: var(--stp-space-12);
   }
 
   .stp-ui-alert--action {
@@ -1513,8 +1518,8 @@
 
   .stp-ui-alert__actions {
     display: flex;
-    gap: 8px;
-    margin-top: 10px;
+    gap: var(--stp-space-8);
+    margin-top: var(--stp-space-8);
   }
 
   .stp-ui-alert__dismiss {
