@@ -22,12 +22,16 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await analyzeAndReview(page);
 
   await expect(page.getByText('A Next.js app, using a Postgres database.')).toBeVisible();
-  // The fact under each choice card must leave the description its width (it once squeezed it to one word a line).
+  // Options are rows: one line of title, one of consequence, the price difference at the right.
   const card = page.getByRole('radio', { name: /Stay online/ });
-  expect((await card.boundingBox())!.height).toBeLessThan(200);
+  expect((await card.boundingBox())!.height).toBeLessThan(90);
   // Each other option says what it changes the monthly price by, priced the same way as the total.
   await expect(card).toContainText(/\+\$\d+\/mo/);
-  await expect(page.getByRole('radio', { name: /Restart it/ })).toContainText('Current choice');
+  // The selected row says so with its ring, not with a label repeating the price column.
+  await expect(page.getByRole('radio', { name: /Restart it/ })).not.toContainText(/\$/);
+  // The price is stated once, with its terms under it; not again under the editor frame.
+  await expect(page.getByText(/^At AWS list prices in eu-west-1\./)).toHaveCount(1);
+  await expect(page.getByText(/^\$\d+\/mo \+ pay-per-use costs, at AWS list prices/)).toHaveCount(0);
 
   // A changed choice is recomposed by the CLI and lands in the file that will be saved.
   await page.getByRole('radio', { name: /Only this private network/ }).click();
@@ -53,6 +57,8 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await expect(page.getByText(/^Saved stacktape\.yml with 3 resources/)).toBeVisible();
   await expect(page.getByRole('radio', { name: /Only this private network/ })).toHaveCount(0);
   await expect(page.locator('.wizard-rail [aria-current="step"]')).toContainText('Deploy');
+  // Where the run is and how long it has taken sit on the progress panel, with the phases.
+  await expect(page.getByText(/^Deploying · dev, us-east-1 · \d+s$/)).toBeVisible();
   // Opened again during the deploy, the review reads but does not change the file the deploy uses.
   await page.getByRole('button', { name: 'Show the review' }).click();
   await expect(page.getByText('these choices are locked until it finishes')).toBeVisible();
@@ -93,7 +99,7 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   await expect(page.locator('.wizard-setting-list')).toContainText('CACHE_DATABASE_PATH');
   await expect(page.locator('.wizard-setting-list')).not.toContainText('VITEST');
   await page.getByRole('button', { name: 'Change' }).click();
-  await page.getByRole('button', { name: /only a cache/ }).click();
+  await page.getByRole('radio', { name: /only a cache/ }).click();
   await expect(page.locator('.wizard-source')).not.toContainText('efs-filesystem');
   await expect(page.locator('.wizard-source')).toContainText('file:/tmp/data.db');
   await saveAndCheckTarget(page);
@@ -120,6 +126,16 @@ test('secrets the deploy needs are listed with their commands, and an empty repo
   const brokers = await startWizard({ project: 'go-clean-template' });
   await page.goto(brokers.url);
   await analyzeAndReview(page);
+  // What Stacktape creates and what it does not are two sentences; a broker it does not create has one
+  // note that names its secret, not a second note saying the same thing.
+  await expect(
+    page.getByText(
+      /^A Fiber app, using a Postgres database\. It also needs a RabbitMQ broker and a NATS server, which Stacktape does not create\./
+    )
+  ).toBeVisible();
+  await expect(page.getByText('2 more things')).toBeVisible();
+  await expect(page.getByText(/through the rmq_url secret, which you create before deploying/)).toBeVisible();
+  await expect(page.getByText(/points at something we are not creating/)).toHaveCount(0);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
   await expect(page.getByText('stacktape secret:set --secretName rmq_url --region eu-west-1')).toBeVisible();
   await expect(page.getByText('stacktape secret:set --secretName nats_url --region eu-west-1')).toBeVisible();
@@ -152,15 +168,26 @@ test('a deploy button that cannot be pressed says why, and success leads with ea
 }) => {
   const wizard = await startWizard({ project: 'full-stack-fastapi', account: 'signed-out' });
   await page.goto(wizard.url);
-  // The rail names the steps; ones not reached yet are not links to sections that do not exist.
+  // The rail names the steps; ones not reached yet are not links to sections that do not exist. The page
+  // title is the only title: the band carries no label of its own.
   await expect(page.locator('.wizard-rail a')).toHaveCount(1);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
   await analyzeAndReview(page);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
+  // Finished bands are checked recap lines; the one action sits in the plan panel, above the optional rows.
+  await expect(page.locator('.wizard-section-check')).toHaveCount(3);
   const action = page.getByRole('button', { name: 'Check exact AWS target' });
+  const tryOut = page.getByRole('button', { name: 'Build and start it here' });
+  expect((await action.boundingBox())!.y).toBeLessThan((await tryOut.boundingBox())!.y);
   await expect(action).toBeDisabled();
   await expect(action).toHaveAccessibleDescription('Sign in to Stacktape above before deploying.');
-  await action.hover({ force: true });
-  await expect(page.locator('.stp-ui-tooltip')).toHaveText('Sign in to Stacktape above before deploying.');
+  // The band scrolls itself into view when it arrives; hover again if that moved the pointer off the button.
+  await expect(async () => {
+    await action.hover({ force: true });
+    await expect(page.locator('.stp-ui-tooltip')).toHaveText('Sign in to Stacktape above before deploying.', {
+      timeout: 1_000
+    });
+  }).toPass();
 
   // Switch the panel from creating an account to signing in, then sign in.
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
