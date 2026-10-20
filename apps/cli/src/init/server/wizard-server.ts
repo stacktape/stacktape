@@ -73,6 +73,8 @@ export type WizardDeployment = {
   region: string;
   /** The command that was run, so anyone can reproduce or resume it in a terminal. */
   commandLine: string;
+  /** When this attempt began. The event list is capped, so its first entry cannot say. */
+  startedAt?: string;
   events: unknown[];
   /** Output that was not part of the protocol: stderr, and anything unparseable. */
   lines: string[];

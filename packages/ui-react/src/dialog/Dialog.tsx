@@ -21,6 +21,9 @@ export type DialogProps = {
   bodyStyle?: CSSProperties;
 };
 
+/** Controls a person types into or picks from; the first one gets the focus when the dialog opens. */
+const fieldSelector =
+  'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)';
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -62,12 +65,10 @@ export function Dialog({
 
     const focusFrame = requestAnimationFrame(() => {
       const dialog = dialogRef.current;
-      // The first control of the content, not the close button, which would open every dialog with a ring on "x".
-      (
-        dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__body :is(${focusableSelector})`) ??
-        dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__actions :is(${focusableSelector})`) ??
-        dialog
-      )?.focus();
+      // The first field of a form, so typing can start at once. A dialog without one focuses itself: focusing its
+      // first button, tab or close "x" would open it with a focus ring on something nobody chose. Tab then reaches the
+      // first control.
+      (dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__body :is(${fieldSelector})`) ?? dialog)?.focus();
     });
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -88,7 +89,13 @@ export function Dialog({
       if (!first || !last) {
         event.preventDefault();
         dialog.focus();
-      } else if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+      } else if (
+        event.shiftKey &&
+        // The dialog itself holds the focus right after opening; going back from it wraps to the last control.
+        (document.activeElement === first ||
+          document.activeElement === dialog ||
+          !dialog.contains(document.activeElement))
+      ) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {

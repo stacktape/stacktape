@@ -123,9 +123,11 @@ export function SignInPanel({
           Run <span className="wizard-code text-[var(--stp-text-primary)]">stacktape login</span> in a terminal, then
           come back here.
         </p>
-        <Button className="w-full" isLoading={isRechecking} onClick={onRecheck} variant="secondary">
-          Check again
-        </Button>
+        <div>
+          <Button isLoading={isRechecking} onClick={onRecheck} variant="secondary">
+            Check again
+          </Button>
+        </div>
       </div>
     );
   }
