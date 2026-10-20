@@ -374,7 +374,8 @@ const cleanup = async (state: State, owned: Owned) => {
         tags.Tags?.some(
           (tag) =>
             (tag.Key === 'code-swap-benchmark-owner' && tag.Value === owned.owner) ||
-            (tag.Key === 'stacktape:code-swap-owner' && tag.Value === `${owned.name}-bench`)
+            (tag.Key === 'stacktape:code-swap-owner' &&
+              (tag.Value === owned.owner || tag.Value === `${owned.name}-bench`))
         ),
         'Table ownership mismatch.'
       );
