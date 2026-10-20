@@ -67,7 +67,18 @@ const createProject = async (
 };
 
 /** Builds the image of `root` and returns the stage of the Dockerfile Docker was given that the image runs. */
-const buildRuntimeStage = async (root: string, { includeFiles }: { includeFiles?: string[] } = {}) => {
+const buildRuntimeStage = async (
+  root: string,
+  {
+    includeFiles,
+    imageExtension,
+    existingDigests = []
+  }: {
+    includeFiles?: string[];
+    imageExtension?: Parameters<typeof buildJsBundleImage>[0]['imageExtension'];
+    existingDigests?: string[];
+  } = {}
+) => {
   let dockerfile: string | undefined;
   const buildDockerImage: BuildDockerImage = async ({ buildContextPath, dockerfilePath }) => {
     dockerfile = await readFile(join(buildContextPath, dockerfilePath ?? 'Dockerfile'), 'utf8');
@@ -78,7 +89,8 @@ const buildRuntimeStage = async (root: string, { includeFiles }: { includeFiles?
     cwd: root,
     entryfilePath: join(root, 'src', 'index.ts'),
     distFolderPath: join(root, '.stacktape', 'dist'),
-    existingDigests: [],
+    existingDigests,
+    ...(imageExtension && { imageExtension }),
     invocationId: 'test',
     progressLogger,
     minify: false,
@@ -123,4 +135,34 @@ describe('js-bundle image runtime tools', () => {
 
     expect(await buildRuntimeStage(root)).not.toContain('apk add');
   });
+});
+
+test('returning to cached image source still rebuilds against the current overlay identity', async () => {
+  const root = await createProject({ name: 'ms', version: '2.1.3' });
+  const sourcePath = join(root, 'src', 'index.ts');
+  const original = await readFile(sourcePath, 'utf8');
+  const built: string[] = [];
+  let current: string[] = [];
+  const build = async () => {
+    await buildRuntimeStage(root, {
+      existingDigests: [...built],
+      imageExtension: {
+        digestInput: { supervisor: 'pinned' },
+        existingDigests: current,
+        transform: async ({ dockerfileContents, packagingDigest }) => {
+          built.push(packagingDigest);
+          return dockerfileContents;
+        }
+      }
+    });
+    current = [built.at(-1)!];
+  };
+  await build();
+  await writeFile(sourcePath, original + '\nconsole.log("new code");\n');
+  await build();
+  await writeFile(sourcePath, original);
+  await build();
+  expect(built).toHaveLength(3);
+  expect(built[0]).not.toBe(built[1]);
+  expect(built[2]).toBe(built[0]);
 });

@@ -63,6 +63,7 @@ import {
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 
+import { codeSwapIntegration } from '../code-swap/integration';
 import { buildJsBundleImage } from '@stacktape/packaging/buildpacks/js-bundle-image';
 import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
 import { buildGoLambda } from '@stacktape/packaging/buildpacks/go-lambda-buildpack';
@@ -1800,6 +1801,7 @@ export class PackagingManager {
           distFolderPath,
           additionalDigestInput,
           devMode,
+          imageExtension: devMode ? undefined : await codeSwapIntegration.imageExtension(workloadName),
           runtimeTools: imageRuntimeTools
         })
       );

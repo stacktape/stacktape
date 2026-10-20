@@ -28,6 +28,7 @@ import {
   filter,
   headersPreset,
   fullDeploy,
+  recoverOperation,
   headless,
   noBrowser,
   codingAgent,
@@ -113,6 +114,7 @@ export const commandDefinitions = {
 
 If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (usually \`stacktape.ts\`, with \`stacktape.yml\` still supported) in the current directory, or you can specify a path using the \`--configPath\` option.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -197,6 +199,7 @@ This command only updates the script's source code. To update environment variab
 
 This action is irreversible and will permanently remove all resources in the stack. Be sure to back up any data you want to keep. If you don't provide a configuration file, \`beforeDelete\` hooks will not be executed.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -358,6 +361,7 @@ Use \`--listVersions\` to see available versions. Specify a target with \`--targ
 
 For recovering from \`UPDATE_FAILED\` state, use \`cf:rollback\` instead.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,

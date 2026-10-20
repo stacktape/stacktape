@@ -1,3 +1,5 @@
+import { codeSwapRollbackComplete } from '@domain-services/code-swap/runtime';
+import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { stpErrors } from '@errors';
 import { configManager } from '@domain-services/config-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -159,6 +161,7 @@ const checkRollbackSafety = ({
 
 export const commandRollback = async () => {
   const operation = await initializeRollbackOperation();
+  if (!operation.args.listVersions) await codeSwapOperation('rollback');
   await configManager.loadGlobalConfig();
   configManager.validateGuardrails({ hasConfig: !!configManager.config });
   const { args, deployedStackOverview, deploymentArtifacts, progress, stack, stackContext, tui } = operation;
@@ -232,6 +235,7 @@ export const executeRollbackOperation = async ({
     await recordSourceMapActivation(sourceMapManifest);
   }
 
+  await codeSwapRollbackComplete(newVersion, targetVersion, Boolean(template.Resources.StacktapeCodeSwapTable));
   // Restore bucket-synced content if versioning manifests are available
   try {
     await deploymentArtifacts.restoreBucketSyncFromManifest(targetVersion);

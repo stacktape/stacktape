@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { ECSClient, DescribeTaskDefinitionCommand } from '@aws-sdk/client-ecs';
-import type { BenchmarkRun } from './benchmark-run';
-import { acquireLock, removeLock, readLock } from './operation-lock';
-import { readReleaseRecord } from './release-record';
+import type { BenchmarkRun } from '../../src/domain/code-swap/benchmark-run';
+import { acquireLock, removeLock, readLock } from '../../src/domain/code-swap/operation-lock';
+import { readReleaseRecord } from '../../src/domain/code-swap/release-record';
 import type { State, Owned } from './run';
 
 type Harness = Pick<
@@ -109,7 +109,7 @@ export const qualifyPhase4 = async (
     run.mode = 'image';
     run.optOut = optOut;
     run.result = join(owned.directory, `${label}-result.json`);
-    await configure(owned, run.memory, count);
+    await configure(owned, run.memory as 512 | 1024, count);
     const expected = optOut ? (await version()).revision : label;
     if (!optOut)
       await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = ${JSON.stringify(label)};\n`);

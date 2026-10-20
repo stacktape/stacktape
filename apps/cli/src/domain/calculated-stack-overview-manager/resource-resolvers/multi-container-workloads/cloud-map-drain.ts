@@ -1,3 +1,4 @@
+import { benchmarkOmitsDrain } from '@domain-services/code-swap/ecs-policy';
 import type { ContainerDefinition } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 
@@ -10,12 +11,14 @@ export const CLOUD_MAP_DRAIN_CONTAINER_NAME = 'stp-cloudmap-drain';
  * check or delay the new application, and the application's own stopTimeout remains available for in-flight work.
  */
 export const needsCloudMapDrain = (workload: StpContainerWorkload): boolean =>
+  !benchmarkOmitsDrain() &&
   workload.containers.some(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));
 
 export const getCloudMapDrainContainer = (
   workload: StpContainerWorkload,
   image: string
 ): ContainerDefinition | undefined => {
+  if (benchmarkOmitsDrain()) return undefined;
   const servers = workload.containers.filter(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));
   if (!servers.length) return undefined;
   return {

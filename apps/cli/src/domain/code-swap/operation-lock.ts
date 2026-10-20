@@ -1,7 +1,7 @@
 // Benchmark-only exclusion. Replace this with the general release guard when that work lands.
 import { DeleteItemCommand, GetItemCommand, PutItemCommand, type DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { z } from 'zod';
-import { CliError } from '../../src/utils/errors';
+import { CliError } from '../../utils/errors';
 
 const holderSchema = z.strictObject({
   invocationId: z.string().min(1),

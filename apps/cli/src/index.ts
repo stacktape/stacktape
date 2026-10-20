@@ -127,6 +127,10 @@ export const runCommand = async (opts: RunCommandOptions) => {
     endGlobalState();
     await commandLifecycle.init();
     const command = globalStateManager.command;
+    if (['deploy', 'delete', 'rollback', 'package', 'synth', 'diff', 'validate'].includes(command)) {
+      const { installCodeSwap } = await import('./domain/code-swap/install');
+      installCodeSwap();
+    }
     const showsNotices = !commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl';
     await announcementsManager.init({ enabled: showsNotices });
     initAgentMode();

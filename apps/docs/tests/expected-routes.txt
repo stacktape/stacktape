@@ -81,6 +81,7 @@
 /configuration/secrets
 /configuration/stages-and-environments
 /configuration/variables-and-reuse
+/deployment-and-lifecycle/code-swap
 /deployment-and-lifecycle/deploy-time-parameters
 /deployment-and-lifecycle/deploying-stacks
 /deployment-and-lifecycle/deployment-scripts-and-hooks

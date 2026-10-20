@@ -16,6 +16,17 @@ type WebServiceProps = {
   alarms?: Array<WebServiceAlarms>;
   /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */
   cdn?: CdnConfiguration;
+  /** Update code inside running containers when eligible. Off by default, including production.
+
+Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+without configured health checks or side containers. The application must honor PORT.
+Autoscaling maximum plus deployment surge must fit within 10 tasks.
+
+Old and new processes share task memory during the switch. A sudden memory increase can
+fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.
+Dependency, environment, runtime and configuration changes also use image deploys.
+See [https://docs.stacktape.com/deployment-and-lifecycle/code-swap/](https://docs.stacktape.com/deployment-and-lifecycle/code-swap/) for limits and recovery. */
+  codeSwap?: boolean;
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
   /** CORS settings. Overrides any CORS headers from your application. */
@@ -314,6 +325,23 @@ export default defineConfig(() => {
   };
 });
 ```
+
+## Property: `codeSwap`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Update code inside running containers when eligible. Off by default, including production.
+
+Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+without configured health checks or side containers. The application must honor PORT.
+Autoscaling maximum plus deployment surge must fit within 10 tasks.
+
+Old and new processes share task memory during the switch. A sudden memory increase can
+fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.
+Dependency, environment, runtime and configuration changes also use image deploys.
+See [https://docs.stacktape.com/deployment-and-lifecycle/code-swap/](https://docs.stacktape.com/deployment-and-lifecycle/code-swap/) for limits and recovery.
 
 ## Property: `connectTo`
 

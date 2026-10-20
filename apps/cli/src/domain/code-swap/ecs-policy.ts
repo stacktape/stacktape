@@ -1,6 +1,8 @@
+import { codeSwapIntegration } from './integration';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import type { StpContainerWorkload } from '../../src/domain/config-manager/resolved-types/multi-container-workloads';
+import type { StpContainerWorkload } from '../config-manager/resolved-types/multi-container-workloads';
+import { unsupportedReason } from './eligibility';
 import { capacityWithOverrides, supervisorHealthCheck, supervisorStopBudget } from './ecs-budget';
 import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { ContainerDefinition, KeyValuePair } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
@@ -10,9 +12,11 @@ export const resolveStatusRole = (
   roleId: string
 ) => {
   for (const container of definition.Properties.ContainerDefinitions as ContainerDefinition[]) {
+    if (container.Essential === false) continue;
     const environment = container.Environment as KeyValuePair[] | undefined;
     const role = environment?.find((entry) => entry.Name === 'STP_BENCH_ROLE_ID');
     if (role) role.Value = roleId;
+    else container.Environment = [...(environment ?? []), { Name: 'STP_BENCH_ROLE_ID', Value: roleId }];
   }
 };
 
@@ -32,23 +36,34 @@ export const benchmarkOmitsDrain = () => {
   const path = process.env.STP_CODE_SWAP_BENCH_RUN;
   return Boolean(path && !phase3Run.parse(JSON.parse(readFileSync(path, 'utf8'))).optOut && !benchmarkHasPhase3());
 };
-export const benchmarkContainerPolicy = (
+export const codeSwapContainerPolicy = (
   workload: StpContainerWorkload,
   container: StpContainerWorkload['containers'][number],
   overrides?: unknown,
-  scalingOverrides?: unknown
+  scalingOverrides?: unknown,
+  serviceCount = 1
 ) => {
-  if (!benchmarkHasPhase3()) return {};
+  if (!workload.codeSwap && !benchmarkHasPhase3()) return {};
+  if (codeSwapIntegration.imageHasSupervisor === false) return {};
+  if (workload.codeSwap && unsupportedReason(workload, serviceCount)) return {};
   if (workload.containers.length !== 1 || container.internalHealthCheck || container.essential === false)
     throw new Error('Phase 3 qualifies one essential application without authored checks.');
   if (workload.resources.instanceTypes || container.packaging?.type !== 'js-bundle')
     throw new Error('Phase 3 qualifies Node Fargate js-bundle only.');
   // The owned harness has one service. Reject other composition rather than
   // pretending a per-service calculation enforces a stack-wide total.
-  if (workload.name !== 'api') throw new Error('Phase 3 benchmark supports only its owned api service.');
-  const run = phase3Run.parse(JSON.parse(readFileSync(process.env.STP_CODE_SWAP_BENCH_RUN!, 'utf8')));
+  if (!workload.codeSwap && workload.name !== 'api') throw new Error('Benchmark supports only its owned api service.');
+  const run = process.env.STP_CODE_SWAP_BENCH_RUN
+    ? phase3Run.parse(JSON.parse(readFileSync(process.env.STP_CODE_SWAP_BENCH_RUN, 'utf8')))
+    : { mode: 'swap', readinessControl: true };
   const capacity = capacityWithOverrides(
-    { name: workload.name, maximum: workload.scaling.maxInstances, maximumPercent: 200, scalingOverrides },
+    {
+      name: workload.name,
+      maximum: workload.scaling.maxInstances,
+      minimum: workload.scaling.minInstances,
+      maximumPercent: 200,
+      scalingOverrides
+    },
     overrides
   );
   if (run.readinessControl === false && run.mode !== 'image')

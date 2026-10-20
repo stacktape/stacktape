@@ -43,6 +43,7 @@ export const normalizeCliError = (value: unknown): HandledError => {
 
 class ApplicationManager {
   cleanUpHooks: CleanupHookFunction[] = [];
+  finalCleanUpHooks: (() => Promise<void>)[] = [];
   isInitialized = false;
   isErrored: boolean;
   // by SIGINT, etc.
@@ -223,6 +224,13 @@ class ApplicationManager {
         ]),
       { hooks: this.cleanUpHooks.length, deleteTemp: Boolean(shouldCleanTemp) }
     );
+    for (const hook of this.finalCleanUpHooks) {
+      try {
+        await hook();
+      } catch (error) {
+        promiseResults.push({ status: 'rejected', reason: error });
+      }
+    }
     const cleanupErrorMessages: string[] = [];
     promiseResults.forEach((result) => {
       if (result.status === 'rejected') {

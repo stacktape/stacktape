@@ -14821,6 +14821,7 @@
         "resources",
         "alarms",
         "cdn",
+        "codeSwap",
         "connectTo",
         "cors",
         "customDomains",
@@ -14858,6 +14859,7 @@
         "config-reference:WebServiceProps#property-cdn",
         "config-reference:WebServiceProps#example-1-yaml-4",
         "config-reference:WebServiceProps#example-2-typescript-4",
+        "config-reference:WebServiceProps#property-codeswap",
         "config-reference:WebServiceProps#property-connectto",
         "config-reference:WebServiceProps#example-1-yaml-5",
         "config-reference:WebServiceProps#example-2-typescript-5",
@@ -17572,6 +17574,26 @@
       ]
     },
     {
+      "id": "page:/deployment-and-lifecycle/code-swap",
+      "title": "In-place code swap",
+      "route": "/deployment-and-lifecycle/code-swap",
+      "sourcePath": "apps/docs/content/deployment-and-lifecycle/code-swap.mdx",
+      "outputPath": "pages/deployment-and-lifecycle/code-swap.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "deployment-and-lifecycle",
+        "code-swap"
+      ],
+      "chunks": [
+        "page:/deployment-and-lifecycle/code-swap#in-place-code-swap",
+        "page:/deployment-and-lifecycle/code-swap#supported-services",
+        "page:/deployment-and-lifecycle/code-swap#memory-and-request-failures",
+        "page:/deployment-and-lifecycle/code-swap#completion-and-fallback",
+        "page:/deployment-and-lifecycle/code-swap#rollback-disabling-and-interrupted-deploys"
+      ]
+    },
+    {
       "id": "page:/deployment-and-lifecycle/deploy-time-parameters",
       "title": "Deploy-Time Parameters",
       "route": "/deployment-and-lifecycle/deploy-time-parameters",
@@ -20218,7 +20240,8 @@
         "page:/resources/compute/web-service#api-reference",
         "page:/resources/compute/web-service#definition-webserviceprops",
         "page:/resources/compute/web-service#referenceable-parameters",
-        "page:/resources/compute/web-service#referenceable-parameters-web-service"
+        "page:/resources/compute/web-service#referenceable-parameters-web-service",
+        "page:/resources/compute/web-service#in-place-code-swap"
       ]
     },
     {

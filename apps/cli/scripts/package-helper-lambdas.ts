@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { buildSupervisor } from './code-swap/build-supervisor';
 import {
   DIST_FOLDER_PATH,
   CLI_BUILD_DIST_FOLDER_PATH,
@@ -92,6 +93,7 @@ export const packageHelperLambdas = async ({
     await remove(join(lambdasDistFolderPath, name));
   }
 
+  await buildSupervisor(lambdasDistFolderPath);
   logSuccess('Helper lambdas packaged successfully.');
 };
 

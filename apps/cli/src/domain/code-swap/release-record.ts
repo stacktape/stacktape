@@ -78,3 +78,37 @@ export const incompleteHistoryVersions = (record: SwapRecord | undefined) =>
   [...new Set([record?.Proposed?.Revision, record?.Committed?.Revision])].filter((version): version is string =>
     Boolean(version && version !== record?.HistoryVersion)
   );
+
+// Ordinary release history owns the window. Bundle references can cross revisions after rollback.
+export const obsoleteCodeSwapKeys = (
+  keys: string[],
+  retainedRevisions: string[],
+  protectedBundleKeys: string[] = [],
+  currentRevision = retainedRevisions.toSorted().at(-1),
+  currentAttemptId?: string
+) => {
+  const retained = new Set(retainedRevisions);
+  const protectedKeys = new Set(protectedBundleKeys);
+  return keys.filter((key) => {
+    if (protectedKeys.has(key)) return false;
+    const revision = /^code-swap\/api\/(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(key)?.[1];
+    if (revision === currentRevision && currentAttemptId) {
+      if (key.startsWith('code-swap/api/bundles/')) return true;
+      if (key.startsWith('code-swap/api/attempts/'))
+        return key !== `code-swap/api/attempts/${currentRevision}-${currentAttemptId}.json`;
+    }
+    return Boolean(revision && currentRevision && revision <= currentRevision && !retained.has(revision));
+  });
+};
+
+type AttemptStatus = { revision: string; state: string; timings: Record<string, unknown> };
+export const allTasksObservedAttempt = (statuses: AttemptStatus[], count: number, revision: string) =>
+  statuses.length === count && statuses.every((status) => status.revision === revision);
+export const allCandidatesCleaned = (statuses: AttemptStatus[], count: number, revision: string) =>
+  allTasksObservedAttempt(statuses, count, revision) &&
+  statuses.every(
+    (status) =>
+      status.state === 'complete' ||
+      status.state === 'refused' ||
+      (status.timings.candidateReaped === true && ['failed', 'aborted'].includes(status.state))
+  );

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import { buildSupervisor } from './build-supervisor';
-import { benchmarkBaseInputs } from './base-inputs';
+import { codeSwapBaseInputs } from '../../src/domain/code-swap/base-inputs';
 
 // Real public-subpath consumer: bundle installed packages, apply with the built Go extractor, execute with Node.
 const main = async () => {
@@ -21,7 +21,7 @@ const main = async () => {
     const source = join(root, 'source.mjs'),
       output = join(root, 'output');
     await mkdir(output);
-    const base = benchmarkBaseInputs({
+    const base = codeSwapBaseInputs({
       manifest: await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
       lock: await readFile(new URL('../../pnpm-lock.yaml', import.meta.url), 'utf8'),
       authored: JSON.stringify({ resources: { api: { environment: { MODE: 'test' } } } }),

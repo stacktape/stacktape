@@ -21,8 +21,8 @@ if (import.meta.main) {
     })
     .finally(async () => {
       try {
-        const { benchmarkFinish } = await import('./lifecycle-hooks');
-        await benchmarkFinish();
+        const { codeSwapFinish } = await import('../../src/domain/code-swap/lifecycle-hooks');
+        await codeSwapFinish();
       } catch (error) {
         console.error(error instanceof Error ? error.message : 'Could not release the code-swap lock.');
         process.exitCode = 1;

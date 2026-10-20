@@ -8,53 +8,11 @@ const replaceOnce = (source: string, before: string, after: string) => {
   if (source.split(before).length !== 2) throw new Error(`Benchmark hook no longer matches: ${before}`);
   return source.replace(before, after);
 };
-// Only this explicit build connects prototype code. Release/dev builds never install this plugin.
+// Benchmark builds add timing transport only. Customer activation lives in ordinary CLI source.
 export const benchmarkBuildPlugin = (): BunPlugin => ({
   name: 'owned-code-swap-benchmark',
   setup(build) {
-    const runtime = resolve('scripts/code-swap/runtime.ts');
     const tracing = resolve('scripts/code-swap/trace.ts');
-    const lifecycle = resolve('scripts/code-swap/lifecycle-hooks.ts');
-    build.onLoad({ filter: /multi-container-workloads[\\/]cloud-map-drain\.ts$/ }, async ({ path }) => {
-      let contents =
-        `import { benchmarkOmitsDrain } from ${JSON.stringify(resolve('scripts/code-swap/ecs-policy.ts'))};\n` +
-        (await readFile(path, 'utf8'));
-      contents = replaceOnce(
-        contents,
-        "workload.containers.some(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));",
-        "!benchmarkOmitsDrain() && workload.containers.some(({ events }) => events?.some(({ type }) => type === 'http-api-gateway'));"
-      );
-      contents = replaceOnce(
-        contents,
-        '  const servers = workload.containers.filter(',
-        '  if (benchmarkOmitsDrain()) return undefined;\n  const servers = workload.containers.filter('
-      );
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /multi-container-workloads[\\/]utils\.ts$/ }, async ({ path }) => {
-      let contents =
-        `import { benchmarkContainerPolicy } from ${JSON.stringify(resolve('scripts/code-swap/ecs-policy.ts'))};\n` +
-        (await readFile(path, 'utf8'));
-      contents = replaceOnce(
-        contents,
-        '      LogConfiguration: isLoggingEnabled',
-        '      ...benchmarkContainerPolicy(workload, container, configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.ecsService(workload.name, false)], configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.autoScalingTarget(workload.name)]),\n      LogConfiguration: isLoggingEnabled'
-      );
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /cloudformation-stack-manager[\\/]index\.ts$/ }, async ({ path }) => ({
-      contents:
-        `import { benchmarkPrimeIdentity } from ${JSON.stringify(runtime)};\nimport { benchmarkNextVersion } from ${JSON.stringify(lifecycle)};\n` +
-        replaceOnce(
-          (await readFile(path, 'utf8')).replace(
-            'return this.#nextVersionAfterRefetch ?? getNextVersionString(this.lastVersion);',
-            'return this.#nextVersionAfterRefetch ?? benchmarkNextVersion(getNextVersionString(this.lastVersion));'
-          ),
-          '      this.#getDetailOfSelectedResources(this.existingStackResources),',
-          '      this.#getDetailOfSelectedResources(this.existingStackResources),\n      benchmarkPrimeIdentity(),'
-        ),
-      loader: 'ts'
-    }));
     build.onLoad({ filter: /tui-manager[\\/]output[\\/]jsonl\.ts$/ }, async ({ path }) => ({
       contents:
         `import { trace } from ${JSON.stringify(tracing)};\n` +
@@ -91,131 +49,6 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
         replaceOnce(await readFile(path, 'utf8'), 'return await fetch(url,', 'return await measuredConsoleFetch(url,'),
       loader: 'ts'
     }));
-    build.onLoad(
-      { filter: /packages[\\/]packaging[\\/]src[\\/]buildpacks[\\/]js-bundle-image\.ts$/ },
-      async ({ path }) => {
-        let contents = await readFile(path, 'utf8');
-        contents =
-          `import { benchmarkImage, benchmarkImageName, benchmarkBuildInputs } from ${JSON.stringify(runtime)};\n` +
-          contents;
-        contents = replaceOnce(contents, 'imageTag: name,', 'imageTag: await benchmarkImageName(name),');
-        contents = replaceOnce(
-          contents,
-          'additionalDigestInput: objectHash({',
-          'additionalDigestInput: objectHash({ ...(await benchmarkBuildInputs()),'
-        );
-        contents = replaceOnce(
-          contents,
-          'outcome,\n    imageName: name,',
-          'outcome,\n    imageName: await benchmarkImageName(name),'
-        );
-        contents = replaceOnce(
-          contents,
-          'const dockerfileContents = await createEsDockerFile(',
-          'let dockerfileContents = await createEsDockerFile('
-        );
-        contents = replaceOnce(
-          contents,
-          "await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });",
-          "dockerfileContents = await benchmarkImage({ dockerfileContents, buildContextPath, runtime, nodeVersion, nodeTarget, minify, dockerBuildOutputArchitecture, languageSpecificBundleOutput });\nawait progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });"
-        );
-        return { contents, loader: 'ts' };
-      }
-    );
-    build.onLoad({ filter: /commands[\\/]_utils[\\/]cw-deployment\.ts$/ }, async ({ path }) => {
-      let contents = await readFile(path, 'utf8');
-      contents = `import { benchmarkSwap, benchmarkResolveRole } from ${JSON.stringify(runtime)};\n` + contents;
-      contents = replaceOnce(
-        contents,
-        'const updateWorkloadLogger = operationReporter.createChildLogger({',
-        'if (await benchmarkSwap({ workload, ecsServiceArn, newCfTaskDefinition, blueGreen, ecsTaskDefinition, ecsService })) return {};\nawait benchmarkResolveRole(newCfTaskDefinition);\nconst updateWorkloadLogger = operationReporter.createChildLogger({'
-      );
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /commands[\\/]deploy[\\/]index\.ts$/ }, async ({ path }) => {
-      let contents = await readFile(path, 'utf8');
-      contents = `import { benchmarkComplete, benchmarkBootstrapBucket } from ${JSON.stringify(runtime)};\n` + contents;
-      contents = `import { benchmarkOperation } from ${JSON.stringify(lifecycle)};\n` + contents;
-      contents = replaceOnce(
-        contents,
-        '  config.validateGuardrails({ hasConfig: true });',
-        "  await benchmarkOperation('deploy');\n  config.validateGuardrails({ hasConfig: true });"
-      );
-      contents = replaceOnce(
-        contents,
-        'await stack.createResourcesForArtifacts();',
-        'await stack.createResourcesForArtifacts();\nawait benchmarkBootstrapBucket();'
-      );
-      contents = replaceOnce(
-        contents,
-        'await notification.waitForQueuedEvents();',
-        'await notification.waitForQueuedEvents();\nawait benchmarkComplete();'
-      );
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /commands[\\/](?:rollback|delete)[\\/]index\.ts$/ }, async ({ path }) => {
-      let contents = await readFile(path, 'utf8');
-      const operation = /rollback[\\/]/.test(path) ? 'rollback' : 'delete';
-      contents = `import { benchmarkOperation } from ${JSON.stringify(lifecycle)};\n` + contents;
-      if (operation === 'rollback') {
-        contents = `import { benchmarkRollbackComplete } from ${JSON.stringify(runtime)};\n` + contents;
-        contents = replaceOnce(
-          contents,
-          '  // Restore bucket-synced content if versioning manifests are available',
-          '  await benchmarkRollbackComplete(newVersion, targetVersion, Boolean(template.Resources.StacktapeCodeSwapTable));\n  // Restore bucket-synced content if versioning manifests are available'
-        );
-      }
-      const marker =
-        operation === 'rollback' ? '  await configManager.loadGlobalConfig();' : '  await config.loadGlobalConfig();';
-      contents = replaceOnce(contents, marker, `  await benchmarkOperation('${operation}');\n${marker}`);
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /template-manager[\\/]finalize\.ts$/ }, async ({ path }) => ({
-      contents:
-        `import { benchmarkTemplate } from ${JSON.stringify(lifecycle)};\n` +
-        replaceOnce(
-          await readFile(path, 'utf8'),
-          '  stampLambdaVersionPublishers(templateManager.template);',
-          '  await benchmarkTemplate(templateManager.template);\n  stampLambdaVersionPublishers(templateManager.template);'
-        ),
-      loader: 'ts'
-    }));
-    build.onLoad({ filter: /aws[\\/]cloudformation-stacks\.ts$/ }, async ({ path }) => {
-      let contents =
-        `import { benchmarkTeardownAccepted } from ${JSON.stringify(lifecycle)};\n` + (await readFile(path, 'utf8'));
-      contents = replaceOnce(
-        contents,
-        '.then((result) => ({ ...result, skipped: false as const }))',
-        '.then((result) => benchmarkTeardownAccepted({ ...result, skipped: false as const }, stackParams.StackName))'
-      );
-      contents = replaceOnce(
-        contents,
-        '.send(new DeleteStackCommand({ StackName: stackName, RoleARN: roleArn }))',
-        '.send(new DeleteStackCommand({ StackName: stackName, RoleARN: roleArn })).then((result) => benchmarkTeardownAccepted(result, stackName))'
-      );
-      return { contents, loader: 'ts' };
-    });
-    build.onLoad({ filter: /deployment-artifact-manager[\\/]index\.ts$/ }, async ({ path }) => {
-      let contents = await readFile(path, 'utf8');
-      contents = `import { benchmarkReleaseIdentity } from ${JSON.stringify(runtime)};\n` + contents;
-      contents = `import { benchmarkRollbackTemplate } from ${JSON.stringify(lifecycle)};\n` + contents;
-      contents = replaceOnce(
-        contents,
-        '    const template = await this.getTemplate({ version: sourceVersion });',
-        '    const template = await this.getTemplate({ version: sourceVersion });\n    benchmarkRollbackTemplate(template);'
-      );
-      contents = replaceOnce(
-        contents,
-        '      if (s3Key.startsWith(SOURCE_MAP_KEY_PREFIX)) {',
-        "      if (s3Key.startsWith('code-swap/')) { this.previousObjects.push({ s3Key, name: 'code-swap', version: 'v999999', digest: null, type: 'user-lambda' }); return; }\n      if (s3Key.startsWith(SOURCE_MAP_KEY_PREFIX)) {"
-      );
-      contents = replaceOnce(
-        contents,
-        'JSON.stringify({ version, invocationId: globalStateManager.invocationId })',
-        'JSON.stringify({ version, invocationId: globalStateManager.invocationId, codeSwapBenchmark: benchmarkReleaseIdentity() })'
-      );
-      return { contents, loader: 'ts' };
-    });
   }
 });
 export const buildBenchmarkCli = async (outputDirectory: string) => {

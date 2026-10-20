@@ -1,3 +1,5 @@
+import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
   recordSecurityReport,
   deleteUndeployedStage
@@ -92,6 +94,15 @@ export const commandDeploy = async () => {
     });
   }
   if (runner === 'ec2') {
+    if (globalStateManager.args.recoverOperation) {
+      throw new CliError({
+        category: 'DEPLOYMENT',
+        code: 'CODE_SWAP_RECOVERY_LOCAL_RUNNER_REQUIRED',
+        message: 'Recover the code-swap operation with the local runner.',
+        hints:
+          'Stop the previous invocation, wait for its AWS changes to finish, then run again with --runner local and --recoverOperation.'
+      });
+    }
     return deployWithEc2Runner();
   }
   return deployLocally(initTargetExpectation);
@@ -176,6 +187,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     });
   }
 
+  await codeSwapOperation('deploy');
   config.validateGuardrails({ hasConfig: true });
   // Evaluated before the build so the findings sit next to the other pre-deploy notes; reported only after the
   // deployment succeeds, because they describe the configuration that is then actually running.
@@ -290,6 +302,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       }
     }
   }
+  if (!fastDeployPlan) await codeSwapUseImage();
   // A fast deployment that changes nothing creates no release. Synced bucket content may have changed, and its restore
   // manifest belongs to a release of its own.
   const createsRelease =
@@ -565,6 +578,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   await notification.waitForQueuedEvents();
+  await codeSwapComplete(createsRelease);
 
   return {
     stackInfo: detailedStackInfoSensitive,
