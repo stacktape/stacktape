@@ -129,7 +129,6 @@ func TestReadinessUsesLiveFreshCheckedGeneration(t *testing.T) {
 	defer func() {
 		current.Store(nil)
 		checked.Store(nil)
-		admitted.Store(false)
 		desiredRevision.Store(nil)
 		stopping.Store(false)
 	}()
@@ -142,7 +141,6 @@ func TestReadinessUsesLiveFreshCheckedGeneration(t *testing.T) {
 		}
 	}
 	assertReady(false)
-	admitted.Store(true)
 	checked.Store(&checkedGeneration{u, time.Now(), true})
 	assertReady(true)
 	checked.Store(&checkedGeneration{u, time.Now().Add(-8 * time.Second), true})

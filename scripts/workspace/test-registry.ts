@@ -1891,6 +1891,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
       'apps/console/ui/src/components/CompoundViews/StackOperationProgress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
+      'apps/console/ui/src/components/Misc/MiddleTruncate.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/resolved-config-display.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
@@ -2029,6 +2031,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-members.test.ts',
@@ -2040,7 +2043,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
-      'apps/console/ui/e2e/isolated-observability-volume.test.ts'
+      'apps/console/ui/e2e/isolated-secrets.test.ts',
+      'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2569,6 +2574,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-members.test.ts',
@@ -2580,7 +2586,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
+      'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -2607,6 +2615,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
       'apps/console/ui/src/components/CompoundViews/StackOperationProgress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
+      'apps/console/ui/src/components/Misc/MiddleTruncate.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
@@ -3560,8 +3570,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/run.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
-      'apps/cli/scripts/code-swap/run.ts'
+      'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
+      'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
     ],
     lanes: [
       'code-swap-artifacts',
@@ -5073,6 +5085,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
+      'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
@@ -5410,6 +5423,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/issue-triage.test.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/issues.spec.ts'
     ],
     lanes: [
@@ -5587,6 +5601,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts'
     ],
@@ -5683,6 +5698,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
       'apps/console/ui/src/components/CompoundViews/StackOperationProgress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
+      'apps/console/ui/src/components/Misc/MiddleTruncate.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',

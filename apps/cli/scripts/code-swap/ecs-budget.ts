@@ -16,7 +16,13 @@ export const supervisorHealthCheck = {
   Retries: 3,
   StartPeriod: 150
 };
-export type CapacityService = { name: string; maximum: number; maximumPercent: number };
+export type CapacityService = {
+  name: string;
+  maximum: number;
+  maximumPercent: number;
+  overrides?: unknown;
+  scalingOverrides?: unknown;
+};
 export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityService) => {
   if (
     !Number.isInteger(maximum) ||
@@ -38,8 +44,57 @@ export const serviceCapacity = ({ name, maximum, maximumPercent }: CapacityServi
   return { tasks, pollers: tasks + maximum };
 };
 export const declaredCapacity = (services: CapacityService[]) => {
-  const budgets = services.map((service) => ({ name: service.name, ...serviceCapacity(service) }));
+  const budgets = services.map((service) => ({
+    name: service.name,
+    ...capacityWithOverrides(service, service.overrides)
+  }));
   const total = budgets.reduce((sum, budget) => sum + (budget.pollers ?? 0), 0);
   if (total > 500) throw new Error('Code swap exceeds 500 declared pollers per stack; use image deploys.');
   return { budgets, total, limit: 500 };
+};
+
+// Read the authored ECS service overrides as well as the defaulted scaling config.
+export const capacityWithOverrides = (service: CapacityService, overrides: unknown) => {
+  const scaling = service.scalingOverrides;
+  if (scaling !== undefined && (!scaling || typeof scaling !== 'object' || Array.isArray(scaling)))
+    return serviceCapacity({ ...service, maximum: NaN });
+  if (
+    scaling &&
+    Object.keys(scaling).some(
+      (key) => key === 'ScheduledActions' || key.startsWith('ScheduledActions.') || key.startsWith('MaxCapacity.')
+    )
+  )
+    return serviceCapacity({ ...service, maximum: NaN });
+  const scalingMaximum = (scaling as Record<string, unknown> | undefined)?.MaxCapacity ?? service.maximum;
+  if (typeof scalingMaximum !== 'number' || !Number.isInteger(scalingMaximum) || scalingMaximum < 1)
+    return serviceCapacity({ ...service, maximum: NaN });
+  const effective = { ...service, maximum: Math.max(service.maximum, scalingMaximum) };
+  if (overrides === undefined) return serviceCapacity(effective);
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides))
+    return serviceCapacity({ ...service, maximum: NaN });
+  const values = overrides as Record<string, unknown>;
+  if (
+    Object.keys(values).some(
+      (key) =>
+        key.startsWith('DesiredCount.') ||
+        key.startsWith('DeploymentConfiguration.MaximumPercent.') ||
+        key === 'DeploymentController' ||
+        key.startsWith('DeploymentController.') ||
+        key === 'DeploymentConfiguration.Strategy'
+    )
+  )
+    return serviceCapacity({ ...service, maximum: NaN });
+  const deployment = values.DeploymentConfiguration;
+  const nested =
+    deployment && typeof deployment === 'object' && !Array.isArray(deployment)
+      ? (deployment as Record<string, unknown>).MaximumPercent
+      : undefined;
+  const maximumPercent = values['DeploymentConfiguration.MaximumPercent'] ?? nested ?? service.maximumPercent;
+  const desired = values.DesiredCount ?? service.maximum;
+  return serviceCapacity({
+    ...service,
+    maximum: typeof desired === 'number' ? Math.max(effective.maximum, desired) : NaN,
+    maximumPercent:
+      deployment !== undefined && nested === undefined ? NaN : typeof maximumPercent === 'number' ? maximumPercent : NaN
+  });
 };
