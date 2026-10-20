@@ -1,5 +1,5 @@
-// Source-only, unsigned/unfenced phase-1 experiment. This module is reachable only through build-cli.ts's plugin.
-import { readFile, writeFile } from 'node:fs/promises';
+// Source-only code-swap lifecycle experiment. This module is reachable only through build-cli.ts's plugin.
+import { access, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { DynamoDBClient, GetItemCommand, PutItemCommand, BatchGetItemCommand } from '@aws-sdk/client-dynamodb';
 import {
@@ -9,7 +9,7 @@ import {
   ListTasksCommand,
   DescribeTasksCommand
 } from '@aws-sdk/client-ecs';
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
@@ -17,27 +17,30 @@ import type { LanguageSpecificBundleOutput } from '@stacktape/packaging/runtime-
 import type { getECSHotswapInformation } from '../../src/commands/_utils/cw-deployment';
 import { awsClientConfig, createAwsClientContext } from '../../src/aws/context';
 import { z } from 'zod';
+import { runSchema } from './benchmark-run';
 import { benchmarkDockerfile } from './image';
+import { resolveStatusRole } from './ecs-policy';
 import { benchmarkBaseInputs } from './base-inputs';
 import { trace, traceAsync } from './trace';
 import { serviceCapacity, declaredCapacity } from './ecs-budget';
 import { parse as parseYaml } from 'yaml';
 import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import {
+  readReleaseRecord,
+  writeReleaseRecord,
+  interruptedSwapReason,
+  incompleteHistoryVersions,
+  type SwapRecord
+} from './release-record';
+import {
+  recoveredOperation,
+  releaseRecordAtStart,
+  hadCodeSwapTable,
+  benchmarkTrackPreparation
+} from './lifecycle-hooks';
+import { createHash } from 'node:crypto';
 
-export const runSchema = z.object({
-  name: z.string().regex(/^v4swap-[a-z0-9-]+$/),
-  owner: z.string().min(8),
-  table: z.string(),
-  mode: z.enum(['swap', 'image']),
-  phase3: z.boolean().optional(),
-  readinessControl: z.boolean().optional(),
-  supervisor: z.string(),
-  result: z.string(),
-  memory: z.union([z.literal(512), z.literal(1024)]),
-  count: z.union([z.literal(1), z.literal(2)])
-});
-export type BenchmarkRun = z.infer<typeof runSchema>;
 const identitySchema = z.object({
   baseDigest: z.string(),
   codeDigest: z.string(),
@@ -59,6 +62,8 @@ let identity: Identity | undefined;
 let result: Record<string, unknown> = {};
 let prepare: Promise<{ ids: string[]; statuses: Status[]; service: string; cluster: string }> | undefined;
 let preparationError: unknown;
+let recordTaskDefinition: string | undefined;
+let releaseRecord: SwapRecord | undefined;
 let clientsPromise: ReturnType<typeof initialize> | undefined;
 const initialize = async () => {
   if (!process.env.STP_CODE_SWAP_BENCH_RUN) throw new Error('Missing owned benchmark run file.');
@@ -96,12 +101,97 @@ const initialize = async () => {
 };
 const clients = () => (clientsPromise ??= initialize());
 export const benchmarkImageName = async (name: string) => `${(await clients()).run.name}-${name}`;
+export const benchmarkBuildInputs = async () => {
+  const { run, stack, global } = await clients();
+  if (!run.phase4) return {};
+  const { configManager } = await import('../../src/domain/config-manager');
+  const grace =
+    configManager.allContainerWorkloads.find((item) => item.name === 'api')?.containers[0]?.stopTimeout ?? 2;
+  const enabled = !run.optOut && !(await benchmarkCapacity()).reason;
+  return {
+    codeSwapBenchmark: {
+      enabled,
+      grace,
+      // A cached image build must still execute the lifecycle hooks when repairing an interrupted swap.
+      imageRevision:
+        run.mode === 'image' ||
+        global.args.fullDeploy ||
+        interruptedSwapReason(releaseRecordAtStart, recoveredOperation)
+          ? stack.nextVersion
+          : undefined,
+      supervisor: enabled
+        ? createHash('sha256')
+            .update(await readFile(run.supervisor))
+            .digest('hex')
+        : null
+    }
+  };
+};
+
 const put = async (data: Record<string, unknown>) => {
-  const { ddb, run } = await clients();
-  await ddb.send(
-    new PutItemCommand({ TableName: run.table, Item: { pk: { S: 'release#node' }, data: { S: JSON.stringify(data) } } })
-  );
+  const { ddb, run, stack, global } = await clients();
+  if (run.phase4) {
+    if (!hadCodeSwapTable) return; // Initial opt-in: CFN has not created the table yet, including on an existing stack.
+    if (!recordTaskDefinition) {
+      const service = stack.existingStackResources.find(
+        (r) => r.ResourceType === 'AWS::ECS::Service'
+      )!.PhysicalResourceId;
+      recordTaskDefinition = (await newServiceState(service)).taskDefinition!;
+    }
+    releaseRecord ??= await readReleaseRecord(ddb, run.table);
+    const bundle = data.Revision
+      ? {
+          Revision: String(data.Revision),
+          Key: String(data.Key),
+          Sha256: String(data.Sha256),
+          Size: Number(data.Size)
+        }
+      : undefined;
+    const phase = z.enum(['prepare', 'commit', 'abort']).parse(data.Phase);
+    const next: SwapRecord = {
+      Seq: (releaseRecord?.Seq ?? 0) + 1,
+      TaskDefinition: recordTaskDefinition,
+      Committed: phase === 'commit' ? bundle! : (releaseRecord?.Committed ?? null),
+      Proposed: phase === 'prepare' ? { ...bundle!, Attempt: global.invocationId } : null,
+      HistoryVersion: releaseRecord?.HistoryVersion ?? null,
+      Attempt: bundle ? global.invocationId : (releaseRecord?.Attempt ?? null),
+      Phase: phase,
+      ...bundle
+    };
+    await writeReleaseRecord(ddb, run.table, releaseRecord, next);
+    releaseRecord = next;
+  } else {
+    await ddb.send(
+      new PutItemCommand({
+        TableName: run.table,
+        Item: { pk: { S: 'release#node' }, data: { S: JSON.stringify(data) } }
+      })
+    );
+  }
   trace(`signal:${data.Phase}`);
+};
+const newServiceState = async (service: string) => {
+  const { ecs } = await clients();
+  return (await ecs.send(new DescribeServicesCommand({ services: [service], cluster: service.split('/')[1] })))
+    .services![0]!;
+};
+const faultCheckpoint = async (point: 'before-proposal' | 'after-commit') => {
+  const { run, global } = await clients();
+  if (run.fault !== point) return;
+  await writeFile(`${run.result}.checkpoint`, JSON.stringify({ point, invocationId: global.invocationId }));
+  // Owned kill test only. A missed kill eventually fails rather than hanging forever.
+  const deadline = Date.now() + 300000;
+  while (Date.now() < deadline) {
+    if (
+      await access(`${run.result}.continue`).then(
+        () => true,
+        () => false
+      )
+    )
+      return;
+    await Bun.sleep(100);
+  }
+  throw new Error(`Fault checkpoint ${point} was not killed.`);
 };
 let checkedStatusRoleId: string | undefined;
 let declaredMaximum = 0;
@@ -118,6 +208,7 @@ const fleet = async (service: string, cluster: string) => {
   });
   if (liveCapacity.reason) throw new Error(liveCapacity.reason);
   const primary = response.services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
+  if (primary?.taskDefinition) recordTaskDefinition = primary.taskDefinition;
   if (!primary || primary.runningCount !== run.count || response.services?.[0]?.desiredCount !== run.count)
     throw new Error('PRIMARY is not fully running.');
   const listedIds = (list.taskArns ?? []).map((arn) => arn.split('/').at(-1)!).toSorted();
@@ -196,15 +287,19 @@ let roleLookup: Promise<void> | undefined;
 export const benchmarkPrimeIdentity = () => {
   if (!process.env.STP_CODE_SWAP_BENCH_RUN) return Promise.resolve();
   return (roleLookup ??= (async () => {
-    const { run, stack, iam } = await clients();
+    const { run, stack } = await clients();
     if (!run.phase3 || stack.stackActionType === 'create') return;
     if ((await benchmarkCapacity()).reason) return;
-    const role = stack.existingStackResources.find(
-      (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
-    )?.PhysicalResourceId;
-    if (!role) throw new Error('Missing benchmark task role.');
-    checkedStatusRoleId = (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
+    checkedStatusRoleId = await lookupTaskRoleId();
   })());
+};
+const lookupTaskRoleId = async () => {
+  const { stack, iam } = await clients();
+  const role = stack.existingStackResources.find(
+    (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole('api')
+  )?.PhysicalResourceId;
+  if (!role) throw new Error('Missing benchmark task role.');
+  return (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
 };
 export const benchmarkImage = async (input: {
   dockerfileContents: string;
@@ -218,6 +313,26 @@ export const benchmarkImage = async (input: {
 }) => {
   trace('benchmarkImage:start');
   const { run, global, artifacts, stack, s3 } = await clients();
+  if (run.optOut) {
+    result = { mode: 'image', optOut: true };
+    return input.dockerfileContents;
+  }
+  if (run.phase4 && stack.stackActionType !== 'create') releaseRecord = releaseRecordAtStart;
+  const recoveryReason = interruptedSwapReason(releaseRecord, recoveredOperation);
+  if (recoveryReason && releaseRecord?.Attempt && incompleteHistoryVersions(releaseRecord).length) {
+    const interruptedVersion = releaseRecord.Proposed?.Revision ?? releaseRecord.Committed?.Revision;
+    const attemptKey = `code-swap/api/attempts/${interruptedVersion}-${releaseRecord.Attempt}.json`;
+    const attempt = await s3.send(new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: attemptKey }));
+    const saved = z.record(z.string(), z.unknown()).parse(JSON.parse(await attempt.Body!.transformToString()));
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: artifacts.deploymentBucketName,
+        Key: attemptKey,
+        Body: JSON.stringify({ ...saved, outcome: 'interrupted', repairedBy: global.invocationId })
+      })
+    );
+  }
+
   const capacity = await benchmarkCapacity();
   if (capacity.reason) {
     result = { mode: 'image', fallback: 'task_cap_exceeded', reason: capacity.reason };
@@ -233,6 +348,10 @@ export const benchmarkImage = async (input: {
       ? s3
           .send(new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' }))
           .then(async (response) => identitySchema.parse(JSON.parse(await response.Body!.transformToString())))
+          .catch((error: unknown) => {
+            if (error instanceof Error && error.name === 'NoSuchKey') return undefined;
+            throw error;
+          })
       : undefined;
   // Start independent reads together; every result is awaited before it is used.
   identityLookup.catch(() => {});
@@ -276,18 +395,38 @@ export const benchmarkImage = async (input: {
   result = { revision, mode: 'image', identity, initial: stack.stackActionType === 'create' };
   // The image uses the same real bundler output, entrypoint and dependencies as the ordinary js-bundle image.
   const rendered = await benchmarkDockerfile(input.buildContextPath, input.dockerfileContents, run.supervisor);
+  const { configManager } = await import('../../src/domain/config-manager');
+  const authoredGrace =
+    configManager.allContainerWorkloads.find((item) => item.name === 'api')?.containers[0]?.stopTimeout ?? 2;
   const dockerfile = async () => {
     await identityLookup;
     return (
       rendered +
-      `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
+      `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
     );
   };
-  if (stack.stackActionType === 'create' || run.mode === 'image') {
+  if (
+    stack.stackActionType === 'create' ||
+    (run.phase4 && !hadCodeSwapTable) ||
+    run.mode === 'image' ||
+    global.args.fullDeploy ||
+    recoveryReason
+  ) {
+    if (recoveryReason) result.fallback = recoveryReason;
     await put({ Phase: 'abort' });
     return dockerfile();
   }
   const head = await headLookup!;
+  if (!head) {
+    result.fallback = 'base_changed';
+    await put({ Phase: 'abort' });
+    return dockerfile();
+  }
+  if (run.phase4 && head.revision !== releaseRecord?.HistoryVersion) {
+    result.fallback = 'interrupted_swap_image_repair';
+    await put({ Phase: 'abort' });
+    return dockerfile();
+  }
   if (head.baseDigest !== identity.baseDigest) {
     result.fallback = 'base_changed';
     await put({ Phase: 'abort' });
@@ -298,7 +437,7 @@ export const benchmarkImage = async (input: {
   const cluster = service.split('/')[1];
   // Prepare runs beside the actual Docker build/ECR push; commit remains in updateEcsService after the upload gate.
   prepare = (async () => {
-    const [fleetCheck, upload, roleCheck] = await Promise.allSettled([
+    const [fleetCheck, upload, roleCheck, attempt] = await Promise.allSettled([
       traceAsync('prepareFleet', () => fleet(service, cluster)),
       traceAsync('bundleUpload', async () => {
         await s3.send(
@@ -311,22 +450,40 @@ export const benchmarkImage = async (input: {
         );
         trace('bundleUploaded');
       }),
-      identityLookup
+      identityLookup,
+      run.phase4
+        ? s3.send(
+            new PutObjectCommand({
+              Bucket: artifacts.deploymentBucketName,
+              Key: `code-swap/api/attempts/${revision}-${global.invocationId}.json`,
+              Body: JSON.stringify({
+                revision,
+                invocationId: global.invocationId,
+                outcome: 'incomplete',
+                baseline: head,
+                candidate: identity
+              })
+            })
+          )
+        : Promise.resolve()
     ]);
     // Finish every prerequisite before any fallback; a failed check never publishes prepare.
     if (fleetCheck.status === 'rejected') throw fleetCheck.reason;
     if (upload.status === 'rejected') throw upload.reason;
     if (roleCheck.status === 'rejected') throw roleCheck.reason;
+    if (attempt.status === 'rejected') throw attempt.reason;
     const before = fleetCheck.value;
     result.tasks = before.ids;
     result.primary = before.primary;
     trace('preparePrerequisitesReady');
+    await faultCheckpoint('before-proposal');
     await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
     const prepared = await waitStatus(before.ids, revision, 'prepared');
     trace('allPrepared');
     result.prepared = prepared;
     return { ids: before.ids, statuses: prepared, service, cluster };
   })();
+  if (run.phase4) benchmarkTrackPreparation(prepare);
   // Handle rejection immediately, then propagate it at the image gate.
   prepare.catch((error) => {
     preparationError = error;
@@ -354,6 +511,7 @@ export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHots
       Size: identity!.size,
       Phase: 'commit'
     });
+    await faultCheckpoint('after-commit');
     const completed = await waitStatus(ids, identity!.revision, 'complete');
     trace('allComplete');
     if (JSON.stringify((await fleet(service, cluster)).ids) !== JSON.stringify(ids))
@@ -401,6 +559,16 @@ export const benchmarkSwap = async (update: Awaited<ReturnType<typeof getECSHots
     return false;
   }
 };
+// CloudFormation resolves RoleId for full deployments; direct ECS registration needs the actual value.
+export const benchmarkResolveRole = async (
+  definition: Awaited<ReturnType<typeof getECSHotswapInformation>>['newCfTaskDefinition']
+) => {
+  const { run } = await clients();
+  if (!run.phase4 || run.optOut) return;
+  await benchmarkPrimeIdentity();
+  // Over-cap services skip the swap preflight but still need the RoleId for the image fallback.
+  resolveStatusRole(definition, checkedStatusRoleId ?? (await lookupTaskRoleId()));
+};
 export const benchmarkBootstrapBucket = async () => {
   const { run, artifacts } = await clients();
   const { awsSdkManager: aws } = await import('../../src/utils/aws-sdk-manager');
@@ -447,9 +615,66 @@ export const benchmarkBootstrapBucket = async () => {
   throw new Error(`Initial artifact upload did not become available: ${lastError}`);
 };
 export const benchmarkReleaseIdentity = () => ({ identity, mode: result.mode, fallback: result.fallback });
+const recordImageBaseline = async (version: string) => {
+  const { run, stack, ddb } = await clients();
+  const previous = await readReleaseRecord(ddb, run.table);
+  const service = stack.existingStackResources.find((r) => r.ResourceType === 'AWS::ECS::Service')!.PhysicalResourceId;
+  await writeReleaseRecord(ddb, run.table, previous, {
+    Seq: (previous?.Seq ?? 0) + 1,
+    TaskDefinition: (await newServiceState(service)).taskDefinition!,
+    Committed: null,
+    Proposed: null,
+    HistoryVersion: version,
+    Attempt: null,
+    Phase: 'abort'
+  });
+};
+export const benchmarkRollbackComplete = async (newVersion: string, targetVersion: string, tablePresent = true) => {
+  if (!process.env.STP_CODE_SWAP_BENCH_RUN) return;
+  const { run, s3, artifacts } = await clients();
+  if (!run.phase4 || !tablePresent) return;
+  let restoredIdentity: Identity;
+  try {
+    const savedIdentity = await s3.send(
+      new GetObjectCommand({
+        Bucket: artifacts.deploymentBucketName,
+        Key: `code-swap/api/releases/${targetVersion}.json`
+      })
+    );
+    restoredIdentity = identitySchema.parse(JSON.parse(await savedIdentity.Body!.transformToString()));
+  } catch (error) {
+    if (!(error instanceof Error && error.name === 'NoSuchKey')) throw error;
+    // An image-only release above the task cap has no overlay identity.
+    await recordImageBaseline(newVersion);
+    await s3.send(new DeleteObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' }));
+    return;
+  }
+  await recordImageBaseline(newVersion);
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: artifacts.deploymentBucketName,
+      Key: `code-swap/api/releases/${newVersion}.json`,
+      Body: JSON.stringify({ ...restoredIdentity, revision: newVersion })
+    })
+  );
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: artifacts.deploymentBucketName,
+      Key: 'code-swap/api/head.json',
+      Body: JSON.stringify({ ...restoredIdentity, revision: newVersion }),
+      ContentType: 'application/json'
+    })
+  );
+};
 export const benchmarkComplete = async () => {
   if (!identity) {
-    const { run } = await clients();
+    const { run, stack, s3, artifacts } = await clients();
+    if (run.phase4 && !run.optOut && result.mode === 'image') {
+      await recordImageBaseline(stack.nextVersion);
+      await s3.send(
+        new DeleteObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' })
+      );
+    }
     await writeFile(run.result, JSON.stringify(result, null, 2));
     return;
   }
@@ -503,6 +728,38 @@ export const benchmarkComplete = async () => {
       if (actual?.image !== app.Image) throw new Error('Full image history differs from the deployed task image.');
       result.fullImageHistory = { version: identity.revision, image: app.Image };
     }
+  }
+  if (run.phase4) {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: artifacts.deploymentBucketName,
+        Key: `code-swap/api/releases/${identity.revision}.json`,
+        Body: JSON.stringify(identity)
+      })
+    );
+  }
+  if (run.phase4) {
+    const { ddb } = await clients();
+    const previous = await readReleaseRecord(ddb, run.table);
+    if (result.mode === 'swap' && (previous?.Committed?.Revision !== identity.revision || previous.Proposed))
+      throw new Error('Committed code changed before history finalization.');
+    const service = stack.existingStackResources.find(
+      (r) => r.ResourceType === 'AWS::ECS::Service'
+    )!.PhysicalResourceId;
+    const currentDefinition = (await newServiceState(service)).taskDefinition!;
+    const next: SwapRecord =
+      result.mode === 'swap'
+        ? { ...previous!, Seq: previous!.Seq + 1, HistoryVersion: identity.revision }
+        : {
+            Seq: (previous?.Seq ?? 0) + 1,
+            TaskDefinition: currentDefinition,
+            Committed: null,
+            Proposed: null,
+            HistoryVersion: identity.revision,
+            Attempt: null,
+            Phase: 'abort'
+          };
+    await writeReleaseRecord(ddb, run.table, previous, next);
   }
   await s3.send(
     new PutObjectCommand({

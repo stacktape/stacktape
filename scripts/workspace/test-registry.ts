@@ -38,7 +38,8 @@ export const lanes: readonly Lane[] = [
       'scripts/code-swap/build-cli.spec.ts',
       'scripts/code-swap/analyze.spec.ts',
       'scripts/code-swap/transport.spec.ts',
-      'scripts/code-swap/ecs-budget.spec.ts'
+      'scripts/code-swap/ecs-budget.spec.ts',
+      'scripts/code-swap/lifecycle.spec.ts'
     ],
     level: 'process',
     tier: 'pr',
@@ -46,7 +47,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
-      'apps/cli/scripts/code-swap/ecs-budget.spec.ts'
+      'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
+      'apps/cli/scripts/code-swap/lifecycle.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
@@ -3580,6 +3582,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/transport.spec.ts',
       'apps/cli/scripts/code-swap/run.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
+      'apps/cli/scripts/code-swap/lifecycle.spec.ts',
+      'apps/cli/scripts/code-swap/supervisor/lifecycle_test.go',
       'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
       'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
     ],
