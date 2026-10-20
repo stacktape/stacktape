@@ -75,25 +75,32 @@ export function GuideRail({ steps, openedIds = NONE_OPENED }: { steps: Step[]; o
               key={step.id}
               {...(current ? { 'aria-current': 'step' as const } : {})}
             >
-              <a
-                aria-disabled={!arrived}
-                href={arrived ? `#section-${step.id}` : undefined}
-                onClick={(event) => {
-                  if (!arrived) event.preventDefault();
-                }}
-              >
-                <span aria-hidden className="wizard-rail-marker">
-                  {step.status === 'done' ? '✓' : ''}
+              {/* A step not reached yet is a name, not a link: there is nothing to jump to. */}
+              {arrived ? (
+                <a href={`#section-${step.id}`}>
+                  <RailEntry step={step} />
+                </a>
+              ) : (
+                <span className="wizard-rail-entry">
+                  <RailEntry step={step} />
                 </span>
-                <span className="wizard-rail-label">
-                  {step.title}
-                  {step.summary !== undefined && <span className="wizard-rail-summary">{step.summary}</span>}
-                </span>
-              </a>
+              )}
             </li>
           );
         })}
       </ol>
     </nav>
+  );
+}
+
+function RailEntry({ step }: { step: Step }) {
+  return (
+    <>
+      <span aria-hidden className="wizard-rail-marker">
+        {step.status === 'done' ? '✓' : ''}
+      </span>
+      {/* The facts of a finished step are on its line in the page, next to the rail. */}
+      <span>{step.title}</span>
+    </>
   );
 }

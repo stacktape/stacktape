@@ -145,3 +145,39 @@ test('a stack left behind by a failed first deploy says how to clear it, and can
   // After cleaning up, the developer checks again from the same button; it is never a dead end.
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
 });
+
+test('a deploy button that cannot be pressed says why, and success leads with each public address', async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'full-stack-fastapi', account: 'signed-out' });
+  await page.goto(wizard.url);
+  // The rail names the steps; ones not reached yet are not links to sections that do not exist.
+  await expect(page.locator('.wizard-rail a')).toHaveCount(1);
+  await analyzeAndReview(page);
+  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
+  const action = page.getByRole('button', { name: 'Check exact AWS target' });
+  await expect(action).toBeDisabled();
+  await expect(action).toHaveAccessibleDescription('Sign in to Stacktape above before deploying.');
+  await action.hover({ force: true });
+  await expect(page.locator('.stp-ui-tooltip')).toHaveText('Sign in to Stacktape above before deploying.');
+
+  // Switch the panel from creating an account to signing in, then sign in.
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByLabel('Email').fill('dev@acme.io');
+  await page.getByLabel('Password', { exact: true }).fill('correct-password');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(action).toBeEnabled({ timeout: 10_000 });
+  await action.click();
+  await page.getByRole('button', { name: 'Create new stack' }).click();
+  await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
+
+  const live = page.getByRole('region', { name: 'Live' });
+  await expect(live).toContainText('fastapiBackend');
+  await expect(live).toContainText('fastapiFrontend');
+  await expect(live.getByRole('link', { name: 'Open' })).toHaveCount(2);
+  // The finished steps are one line; the live addresses lead.
+  await expect(page.locator('.wizard-phase')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Show the \d deploy steps$/ }).click();
+  await expect(page.locator('.wizard-phase.is-done')).toHaveCount(5);
+});

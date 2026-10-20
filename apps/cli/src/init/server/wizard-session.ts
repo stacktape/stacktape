@@ -184,7 +184,7 @@ export const startWizardSession = async ({
     onEvent: (event: unknown) => void;
     onLine: (line: string) => void;
     onCommand: (commandLine: string) => void;
-  }) => Promise<{ ok: boolean; code: string; message: string; urls?: string[] }>;
+  }) => Promise<{ ok: boolean; code: string; message: string; urls?: Array<{ resourceName: string; url: string }> }>;
   /** Probe in a child that resolves the same connected account/profile as the deploy child. */
   inspectDeployTarget?: (input: {
     configFile: { path: string; filename: string };
