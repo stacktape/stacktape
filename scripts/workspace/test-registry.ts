@@ -2046,6 +2046,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
@@ -2590,6 +2592,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
@@ -5454,7 +5458,8 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/ui/e2e/isolated-incident-triage.test.ts'
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts',
+      'apps/console/ui/e2e/isolated-incident-page.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
@@ -5640,6 +5645,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/alerts-database.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
