@@ -149,6 +149,8 @@ export type WizardState = {
     stage: string;
     region: string;
     commandLine: string;
+    /** When this attempt began; the event list is capped, so its first entry cannot say. */
+    startedAt?: string;
     events: unknown[];
     lines: string[];
     outcome?: { ok: boolean; code: string; message: string };

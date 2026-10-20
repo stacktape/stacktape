@@ -149,9 +149,10 @@ export function DeployStep({
       awsAccount: state.awsAccount
     };
     const redeployCommand = stackCommand('deploy', target);
-    // The stream's own timestamps, so the duration is the deploy's and not the page's.
+    // The session's own timestamps, so the duration is the deploy's and not the page's. The event
+    // list is capped, so its first entry is only a fallback for a CLI that predates `startedAt`.
     const events = deployment.events as DeployEvent[];
-    const startedAt = events[0]?.ts;
+    const startedAt = deployment.startedAt ?? events[0]?.ts;
     const endedAt = events.at(-1)?.ts;
     const deleteCommand = stackCommand('delete', target);
     const retryTarget =
