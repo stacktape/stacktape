@@ -168,6 +168,7 @@ test('surge must permit a replacement at the smallest configured fleet too', () 
   const service = { name: 'api', minimum: 1, maximum: 7, maximumPercent: 150 };
   expect(capacityWithOverrides(service, undefined).reason).toContain('surge');
   expect(capacityWithOverrides({ ...service, minimum: 2 }, undefined).tasks).toBe(10);
+  expect(capacityWithOverrides({ ...service, minimum: 2 }, { DesiredCount: 1 }).reason).toContain('surge');
   expect(
     capacityWithOverrides({ ...service, minimum: 2, scalingOverrides: { MinCapacity: 1 } }, undefined).reason
   ).toContain('surge');

@@ -127,6 +127,7 @@ export const capacityWithOverrides = (service: CapacityService, overrides: unkno
   return serviceCapacity({
     ...service,
     maximum: typeof desired === 'number' ? Math.max(effective.maximum, desired) : NaN,
+    minimum: typeof desired === 'number' ? Math.min(effective.minimum, desired) : NaN,
     minimumHealthyPercent: typeof minimumHealthyPercent === 'number' ? minimumHealthyPercent : NaN,
     maximumPercent:
       deployment !== undefined && nested === undefined ? NaN : typeof maximumPercent === 'number' ? maximumPercent : NaN
