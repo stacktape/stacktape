@@ -1062,10 +1062,22 @@ export const composeConfig = ({
         // The kept-external branch above says this better, naming the provider it is leaving alone.
         !gaps.some((gap) => gap.subject === `${service.name}.${variable.name}`)
       ) {
-        gaps.push({
-          subject: `${service.name}.${variable.name}`,
-          message: `${variable.name} points at something we are not creating, so put its value in the ${variable.name.toLowerCase()} secret before deploying.`
-        });
+        // A dependency Stacktape does not create already has its own note ("Your app needs a RabbitMQ
+        // broker..."); that note names the secret instead of a second note saying the same thing.
+        const unsupportedNote = gaps.find(
+          (gap) => gap.subject === variable.dependencyName && gap.message.includes('through the secret below')
+        );
+        if (unsupportedNote !== undefined) {
+          unsupportedNote.message = unsupportedNote.message.replace(
+            'through the secret below.',
+            `through the ${variable.name.toLowerCase()} secret, which you create before deploying.`
+          );
+        } else {
+          gaps.push({
+            subject: `${service.name}.${variable.name}`,
+            message: `${variable.name} points at something we are not creating, so put its value in the ${variable.name.toLowerCase()} secret before deploying.`
+          });
+        }
       }
       if (variable.role === 'build-time') {
         gaps.push({

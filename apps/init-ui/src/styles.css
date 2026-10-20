@@ -230,10 +230,6 @@
     opacity: 1;
   }
 
-  .wizard-section-header {
-    margin-bottom: 20px;
-  }
-
   /* A finished band: its name, what came of it, and a way back in, on one row. The bands behind you
    * stack tightly so the one you are on starts near the top of the screen. */
   .wizard-section.is-collapsed {
@@ -244,23 +240,40 @@
     padding-bottom: 56px;
   }
 
+  /* The band you are on starts a little apart from the recap lines above it. */
+  .wizard-section.is-collapsed + .wizard-section:not(.is-collapsed) {
+    padding-top: 12px;
+  }
+
   .wizard-section-summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  /* The mark a finished step wears in the rail, so the recap lines and the rail read as one list. */
+  .wizard-section-check {
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr);
-    align-items: baseline;
-    gap: 16px;
+    place-items: center;
+    width: 13px;
+    height: 13px;
+    margin-top: 5px;
+    flex: none;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--stp-color-brand) 70%, var(--stp-surface-page, #161c1c));
+    color: var(--stp-surface-page, #161c1c);
+    font-size: 0.55rem;
+    font-weight: 800;
+    line-height: 1;
   }
 
   /* The way back in follows the sentence it belongs to, as the Analyze line's own disclosure does. */
   .wizard-section-summary-text {
     display: flex;
+    min-width: 0;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 4px 16px;
-  }
-
-  .wizard-section-summary .wizard-step-label {
-    line-height: 1.55;
   }
 
   .wizard-section-reopened {
@@ -274,16 +287,9 @@
     font-size: 0.9rem;
   }
 
-  .wizard-section-title {
-    margin: 8px 0 0;
-    font-size: 1.35rem;
-    font-weight: 640;
-    letter-spacing: -0.01em;
-  }
-
   .wizard-section-heading {
     margin: 0 0 8px;
-    font-size: 1rem;
+    font-size: 1.08rem;
     font-weight: 620;
   }
 
@@ -388,12 +394,25 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* A fixed-height stage for the editor frame, so switching tabs never reflows the page below it. */
+  /* The frame takes the height its view needs. The diagram is a stage and keeps a fixed one; the
+   * resource list is a list and grows with its rows (two resources in a 560 px frame left most of it
+   * empty); the file is a code block, capped and scrolled like every code block. */
   .wizard-editor .stp-config-editor {
-    height: min(64vh, 560px);
     border-radius: var(--stp-radius-large);
     background: rgba(255, 255, 255, 0.02);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .wizard-editor[data-view='diagram'] .stp-config-editor {
+    height: min(64vh, 560px);
+  }
+
+  .wizard-editor[data-view='tree'] .stp-config-editor {
+    min-height: 200px;
+  }
+
+  .wizard-editor[data-view='source'] .stp-config-editor {
+    max-height: min(70vh, 640px);
   }
 
   .wizard-editor .stp-config-editor__panel {
@@ -497,62 +516,56 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Choice cards carry a trailing fact ("Lower cost"). Beside the text it takes the width the
-   * description needs, and a three-wide row squeezed the description to one word per line, so here
-   * the fact sits under the description instead. */
   /* Four models fit one row of the column; the shared 200 px basis wrapped the fourth alone. */
   .wizard-model-cards {
     --stp-selection-card-basis: 170px;
   }
 
-  /* ── Decisions ─────────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-decision {
-    padding: 14px 16px;
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    transition:
-      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
-      opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  /* The ones that bite later get an accent edge — one hairline, not a colour wash, because they are
-   * worth a glance rather than an alarm. */
-  .wizard-decision.is-notable {
-    box-shadow:
-      inset 3px 0 0 color-mix(in srgb, var(--stp-color-brand) 70%, transparent),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  }
-
-  .wizard-decision.is-busy {
-    opacity: 0.6;
-  }
-
-  .wizard-decision-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-  }
-
-  .wizard-decision-summary {
+  /* A question above its options, in the same voice as a row title and its description. */
+  .wizard-question {
     margin: 0;
-    font-weight: 560;
+    font-size: 0.95rem;
+    font-weight: 600;
   }
 
-  .wizard-decision-detail {
-    margin: 4px 0 0;
+  .wizard-question-lede {
+    margin: 2px 0 0;
     max-width: var(--wizard-measure);
     font-size: 0.9rem;
     color: var(--stp-text-muted);
   }
 
+  /* Options as rows: a title line, a consequence, the price difference at the right. */
+  .wizard-choice-rows {
+    --stp-selection-card-gap: 8px;
+    --stp-selection-card-padding: 12px 16px;
+  }
+
+  .wizard-choice-rows .stp-ui-selection-card__meta {
+    align-self: center;
+    min-width: 104px;
+    text-align: right;
+  }
+
+  .wizard-choice-rows .stp-ui-selection-card__description {
+    max-width: 60ch;
+  }
+
+  /* A small heading for a group of controls, where the group's name is otherwise only in the tree. */
+  .wizard-group-label {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--stp-text-subtle);
+  }
+
+  /* ── Decisions ─────────────────────────────────────────────────────────────────────────────── */
+
+  /* The other options of a decision, opened from its row. */
   .wizard-decision-options {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 14px;
     animation: wizard-expand var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
@@ -601,37 +614,33 @@
 
   /* ── Before you deploy ───────────────────────────────────────────────────────────────────────── */
 
-  .wizard-checklist {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 16px;
-  }
-
-  .wizard-checklist-item + .wizard-checklist-item {
-    padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-checklist-title {
-    margin: 0;
-    font-size: 0.92rem;
-    font-weight: 600;
-  }
-
-  .wizard-checklist-detail {
-    margin: 2px 0 0;
-    max-width: var(--wizard-measure);
-    color: var(--stp-text-muted);
-    font-size: 0.9rem;
-  }
-
+  /* Names the developer will type: one chip each, wrapping, so eight of them are eight things. */
   .wizard-variable-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 14px;
-    margin: 8px 0 0;
-    font-size: 0.85rem;
+    gap: 6px 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-variable-list li {
+    padding: 2px 8px;
+    border-radius: var(--stp-radius-small);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Counted things, listed as such. */
+  .wizard-plain-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0 0 0 18px;
+    list-style: disc;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-muted);
+    font-size: 0.9rem;
   }
 
   /* Names in one column and where the code reads them in the next, so both line up. */
@@ -639,7 +648,7 @@
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
     gap: 4px 16px;
-    margin: 8px 0 0;
+    margin: 0;
     padding: 0;
     list-style: none;
     font-size: 0.85rem;
@@ -647,6 +656,13 @@
 
   .wizard-setting-list li {
     display: contents;
+  }
+
+  .wizard-setting-list code {
+    justify-self: start;
+    padding: 2px 8px;
+    border-radius: var(--stp-radius-small);
+    background: rgba(255, 255, 255, 0.05);
   }
 
   .wizard-setting-where {
@@ -662,9 +678,11 @@
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   }
 
+  /* Relative to the text around it: an inline name in a sentence sits 1 px under its neighbours,
+   * not 3 px, and a name in small print scales with the small print. */
   .wizard-code {
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 0.82rem;
+    font-size: 0.92em;
   }
 
   .wizard-link {
@@ -721,14 +739,10 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    padding: 20px 24px 22px;
+    padding: 16px 20px 18px;
     border-radius: var(--stp-radius-large);
     background: rgba(255, 255, 255, 0.02);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-target .wizard-section-heading {
-    margin: 0;
   }
 
   .wizard-target-fields {
@@ -767,6 +781,19 @@
 
   .wizard-row {
     padding: 16px 20px;
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-row.is-busy {
+    opacity: 0.6;
+  }
+
+  .wizard-row-done {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--stp-text-muted);
+    font-size: 0.9rem;
   }
 
   .wizard-row + .wizard-row {
@@ -775,13 +802,14 @@
 
   .wizard-row-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 24px;
   }
 
   .wizard-row-title {
     margin: 0;
+    font-size: 0.95rem;
     font-weight: 600;
   }
 
@@ -792,8 +820,14 @@
     font-size: 0.9rem;
   }
 
+  /* A 35 px control centred on the 23 px title line. */
   .wizard-row-action {
     flex: none;
+    margin-top: -6px;
+  }
+
+  .wizard-row-action.wizard-row-done {
+    margin-top: 0;
   }
 
   .wizard-row-body {
@@ -806,7 +840,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 20px 24px;
+    padding: 16px 20px;
     border-radius: var(--stp-radius-large);
     background: rgba(255, 255, 255, 0.02);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -827,6 +861,19 @@
     height: 8px;
     border-radius: 999px;
     background: var(--stp-color-brand);
+  }
+
+  .wizard-live-dot.is-running {
+    animation: wizard-breathe 1.6s ease-in-out infinite;
+  }
+
+  .wizard-live-dot.is-failed {
+    background: var(--stp-status-error);
+  }
+
+  /* The status line of a stopped deploy is grey, not brand. */
+  .wizard-live-status:has(.is-failed) {
+    color: var(--stp-text-primary);
   }
 
   .wizard-live-urls {
@@ -860,9 +907,16 @@
     overflow-wrap: anywhere;
   }
 
-  /* One line per checked service: a mark, its name, what happened. */
+  /* One block per checked service: a mark and its name on one line, what happened under them. */
   .wizard-check {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .wizard-check-head {
+    display: flex;
+    align-items: center;
     gap: 10px;
   }
 
@@ -871,7 +925,6 @@
     place-items: center;
     width: 17px;
     height: 17px;
-    margin-top: 3px;
     flex: none;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.1);
@@ -1084,6 +1137,7 @@
   }
 
   .wizard-phase-label {
+    font-size: 0.95rem;
     font-weight: 600;
   }
 
@@ -1143,7 +1197,7 @@
 
   .wizard-log {
     max-height: 340px;
-    margin: 10px 0 0;
+    margin: 12px 0 0;
     padding: 14px 16px;
     overflow: auto;
     border-radius: var(--stp-radius-large);

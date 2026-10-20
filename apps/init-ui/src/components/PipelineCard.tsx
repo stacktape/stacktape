@@ -49,14 +49,8 @@ export function PipelineCard({
             {written.authSummary}
           </>
         }
-        title={
-          <>
-            <span aria-hidden className="wizard-check-mark is-passed">
-              ✓
-            </span>
-            Deploy on every push
-          </>
-        }
+        isDone
+        title="Deploy on every push"
       >
         {written.existingPath !== undefined && (
           <Alert className="mb-3" tone="info" title="You already had a pipeline">
@@ -91,8 +85,7 @@ export function PipelineCard({
       description={
         <>
           This project pushes to {HOST_NAMES[host!] ?? host}. The pipeline deploys{' '}
-          <span className="wizard-code">{stage}</span> whenever the default branch changes. It names the credentials it
-          needs and never creates any.
+          <span className="wizard-code">{stage}</span> whenever the default branch changes.
         </>
       }
       title="Deploy on every push"

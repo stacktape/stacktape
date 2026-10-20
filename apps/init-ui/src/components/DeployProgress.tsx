@@ -6,6 +6,23 @@ import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import type { DeployModel } from '../deploy-model';
 import { CopyableCommand } from './CopyableCommand';
 import { FailureExplanationText } from './FailureExplanation';
+import { Row } from './RowList';
+
+/** "2m 14s" since the first event, ticking while the deploy runs and frozen once it has ended. */
+function useElapsed(startedAt: string | undefined, endedAt: string | undefined): string | undefined {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (startedAt === undefined || endedAt !== undefined) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt, endedAt]);
+  if (startedAt === undefined) return undefined;
+  const start = Date.parse(startedAt);
+  const end = endedAt === undefined ? now : Date.parse(endedAt);
+  if (Number.isNaN(start) || Number.isNaN(end)) return undefined;
+  const seconds = Math.max(0, Math.round((end - start) / 1000));
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
 
 /**
  * A deploy, while it happens.
@@ -29,6 +46,8 @@ export function DeployProgress({
   commandLine,
   keptPartialProgress,
   where,
+  startedAt,
+  endedAt,
   actions
 }: {
   model: DeployModel;
@@ -42,6 +61,10 @@ export function DeployProgress({
   repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
   /** The failed attempt left its progress standing — resources that exist are resources that bill. */
   keptPartialProgress?: boolean;
+  /** When the CLI reported its first event, so the page can say how long the deploy has taken. */
+  startedAt?: string;
+  /** The last event, once the deploy has ended; the duration stops with it. */
+  endedAt?: string;
   /** What to do next, right under the outcome rather than after the log. */
   actions?: ReactNode;
 }) {
@@ -51,10 +74,14 @@ export function DeployProgress({
   // After success the steps are history: one line that opens them, so the live app leads the page.
   const finished = status === 'succeeded';
   const logRef = useRef<HTMLPreElement>(null);
+  const elapsed = useElapsed(startedAt, endedAt);
 
+  // Follows the tail while the deploy runs; a finished log opens at its first line.
   useEffect(() => {
-    if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [model.log.length, showLog]);
+    if (showLog && (status === 'running' || status === 'repairing')) {
+      logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+    }
+  }, [model.log.length, showLog, status]);
 
   // What the repairs rewrote, by resource name — diffed by the CLI, never the agent's words. Names
   // let the success and failure messages say *where* the deployed file differs from the reviewed one.
@@ -77,7 +104,9 @@ export function DeployProgress({
         <section aria-label="Live" className="wizard-live">
           <p className="wizard-live-status">
             <span aria-hidden className="wizard-live-dot" />
-            Live <span className="text-[var(--stp-text-subtle)]">· {where}</span>
+            <span>
+              Live <span className="text-[var(--stp-text-subtle)]">· {where}</span>
+            </span>
           </p>
           {urls.length > 0 ? (
             <ul className="wizard-live-urls">
@@ -133,79 +162,83 @@ export function DeployProgress({
 
       {actions}
 
-      {(status === 'failed' || status === 'repairing') && explanations.length > 0 && (
-        <section>
-          <button className="wizard-disclosure" onClick={() => setShowOriginalError(!showOriginalError)} type="button">
-            {showOriginalError ? 'Hide' : 'Show'} the original error
-          </button>
-          {showOriginalError && <pre className="wizard-log">{outcome?.message}</pre>}
-        </section>
-      )}
-
       {(!finished || showSteps) && (
-        <ol className="wizard-phases">
-          {model.phases.map((phase) => (
-            <li className={`wizard-phase is-${phase.status}`} key={phase.id}>
-              <span className="wizard-phase-marker" aria-hidden>
-                {phase.status === 'done' ? '✓' : phase.status === 'failed' ? '✕' : ''}
+        <section aria-label="Deploy steps" className="wizard-live">
+          {!finished && (
+            <p className="wizard-live-status">
+              <span aria-hidden className={`wizard-live-dot${status === 'failed' ? ' is-failed' : ' is-running'}`} />
+              <span>
+                {status === 'failed' ? 'Stopped' : status === 'repairing' ? 'Fixing' : 'Deploying'}{' '}
+                <span className="text-[var(--stp-text-subtle)]">
+                  · {where}
+                  {elapsed !== undefined && ` · ${elapsed}`}
+                </span>
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="wizard-phase-label">{phase.label}</span>
-                  {phase.cloudformation !== undefined && phase.cloudformation.total > 0 && (
-                    <span className="text-[0.85rem] text-[var(--stp-text-subtle)]">
-                      {phase.cloudformation.completed} of {phase.cloudformation.total}
-                    </span>
+            </p>
+          )}
+          <ol className="wizard-phases">
+            {model.phases.map((phase) => (
+              <li className={`wizard-phase is-${phase.status}`} key={phase.id}>
+                <span className="wizard-phase-marker" aria-hidden>
+                  {phase.status === 'done' ? '✓' : phase.status === 'failed' ? '✕' : ''}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="wizard-phase-label">{phase.label}</span>
+                    {phase.cloudformation !== undefined && phase.cloudformation.total > 0 && (
+                      <span className="text-[0.85rem] text-[var(--stp-text-subtle)]">
+                        {phase.cloudformation.completed} of {phase.cloudformation.total}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* CloudFormation's message is the same count as the figure beside the label. */}
+                  {phase.status === 'running' && phase.message !== '' && phase.cloudformation === undefined && (
+                    <p className="wizard-phase-message">{phase.message}</p>
+                  )}
+
+                  {phase.cloudformation !== undefined && phase.status === 'running' && (
+                    <>
+                      <div
+                        aria-valuemax={100}
+                        aria-valuemin={0}
+                        aria-valuenow={Math.round(phase.cloudformation.percent)}
+                        className="wizard-meter"
+                        // A native `progress` cannot be given the shape this needs (a hairline track with
+                        // a brand-coloured fill) without fighting three browsers' built-in appearances.
+                        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above.
+                        role="progressbar"
+                      >
+                        <span style={{ width: `${Math.max(2, Math.min(100, phase.cloudformation.percent))}%` }} />
+                      </div>
+                      {phase.cloudformation.inProgress.length > 0 && (
+                        <ul className="wizard-resource-list">
+                          {phase.cloudformation.inProgress.slice(0, 6).map((resource) => (
+                            <li key={resource}>
+                              <span className="wizard-pulse" aria-hidden />
+                              <span className="wizard-code">{resource}</span>
+                            </li>
+                          ))}
+                          {phase.cloudformation.inProgress.length > 6 && (
+                            <li className="text-[var(--stp-text-subtle)]">
+                              and {phase.cloudformation.inProgress.length - 6} more
+                            </li>
+                          )}
+                        </ul>
+                      )}
+                    </>
                   )}
                 </div>
-
-                {/* CloudFormation's message is the same count as the figure beside the label. */}
-                {phase.status === 'running' && phase.message !== '' && phase.cloudformation === undefined && (
-                  <p className="wizard-phase-message">{phase.message}</p>
-                )}
-
-                {phase.cloudformation !== undefined && phase.status === 'running' && (
-                  <>
-                    <div
-                      aria-valuemax={100}
-                      aria-valuemin={0}
-                      aria-valuenow={Math.round(phase.cloudformation.percent)}
-                      className="wizard-meter"
-                      // A native `progress` cannot be given the shape this needs (a hairline track with
-                      // a brand-coloured fill) without fighting three browsers' built-in appearances.
-                      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above.
-                      role="progressbar"
-                    >
-                      <span style={{ width: `${Math.max(2, Math.min(100, phase.cloudformation.percent))}%` }} />
-                    </div>
-                    {phase.cloudformation.inProgress.length > 0 && (
-                      <ul className="wizard-resource-list">
-                        {phase.cloudformation.inProgress.slice(0, 6).map((resource) => (
-                          <li key={resource}>
-                            <span className="wizard-pulse" aria-hidden />
-                            <span className="wizard-code">{resource}</span>
-                          </li>
-                        ))}
-                        {phase.cloudformation.inProgress.length > 6 && (
-                          <li className="text-[var(--stp-text-subtle)]">
-                            and {phase.cloudformation.inProgress.length - 6} more
-                          </li>
-                        )}
-                      </ul>
-                    )}
-                  </>
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {status === 'running' && model.phases.length === 0 && (
-        <div className="flex items-center gap-3 text-[var(--stp-text-muted)]">
-          <Spinner />
-          <span>Starting the deploy…</span>
-        </div>
+              </li>
+            ))}
+          </ol>
+          {status === 'running' && model.phases.length === 0 && (
+            <div className="flex items-center gap-3 text-[var(--stp-text-muted)]">
+              <Spinner />
+              <span>Starting the deploy…</span>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Once the deploy has failed, its error is in the outcome above and in the full log. */}
@@ -226,6 +259,7 @@ export function DeployProgress({
         </section>
       )}
 
+      {/* Everything the deploy printed, behind one row of disclosures. */}
       <section>
         <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
           {finished && (
@@ -238,25 +272,46 @@ export function DeployProgress({
               {showSteps ? 'Hide' : 'Show'} the {model.phases.length} deploy steps
             </button>
           )}
-          <button className="wizard-disclosure" onClick={() => setShowLog(!showLog)} type="button">
+          {(status === 'failed' || status === 'repairing') && explanations.length > 0 && (
+            <button
+              aria-expanded={showOriginalError}
+              className="wizard-disclosure"
+              onClick={() => setShowOriginalError(!showOriginalError)}
+              type="button"
+            >
+              {showOriginalError ? 'Hide' : 'Show'} the original error
+            </button>
+          )}
+          <button
+            aria-expanded={showLog}
+            className="wizard-disclosure"
+            onClick={() => setShowLog(!showLog)}
+            type="button"
+          >
             {showLog ? 'Hide' : 'Show'} the full log ({model.log.length} lines)
           </button>
         </div>
+        {showOriginalError && (
+          <pre aria-label="The original error" className="wizard-log">
+            {outcome?.message}
+          </pre>
+        )}
         {showLog && (
-          <pre className="wizard-log" ref={logRef}>
+          <pre aria-label="The full log" className="wizard-log" ref={logRef}>
             {model.log.join('\n')}
           </pre>
         )}
       </section>
 
       {status === 'failed' && commandLine !== '' && (
-        <section>
-          <h3 className="wizard-section-heading">Try again from your terminal</h3>
-          <p className="wizard-lede mb-3">
-            The same command, with the full output in front of you. Nothing in the wizard needs to be redone.
-          </p>
-          <CopyableCommand command={commandLine} />
-        </section>
+        <ul aria-label="Try again from your terminal" className="wizard-rows">
+          <Row
+            description="The same command, with the full output in front of you. Nothing in the wizard needs to be redone."
+            title="Try again from your terminal"
+          >
+            <CopyableCommand command={commandLine} />
+          </Row>
+        </ul>
       )}
     </div>
   );
