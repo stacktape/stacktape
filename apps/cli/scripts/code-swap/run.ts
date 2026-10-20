@@ -50,6 +50,7 @@ import { hostClockMs } from './trace';
 import type { BenchmarkRun } from '../../src/domain/code-swap/benchmark-run';
 
 const customerPath = process.argv.includes('--customer-path');
+const retentionOnly = customerPath && process.argv.includes('--retention-only');
 const ACCOUNT = '597581086285',
   REGION = 'eu-west-1',
   PROFILE = 'stacktape-e2e';
@@ -1029,7 +1030,7 @@ const main = async () => {
           if (customerPath) {
             const swaps = [];
             const baselineSource = await readFile(join(owned.directory, 'revision.mjs'), 'utf8');
-            for (let i = 1; i <= 2; i++) {
+            for (let i = 1; i <= (retentionOnly ? 1 : 2); i++) {
               const outcome = await edit(
                 state,
                 owned,
@@ -1043,14 +1044,29 @@ const main = async () => {
             }
             const path = join(owned.directory, 'stacktape.json');
             const config = JSON.parse(await readFile(path, 'utf8'));
-            config.resources.api.properties.environment = [{ name: 'PHASE5_BASE_CHANGE', value: '1' }];
-            await save(path, config);
-            const fallback = await edit(state, owned, run, url, 3);
-            assert(
-              (fallback.details as { mode?: string; fallback?: string })?.mode === 'image',
-              'Expected an image fallback.'
-            );
-            await save(join(owned.directory, 'customer-proof.json'), { swaps, fallback });
+            if (retentionOnly) {
+              const before = await s3.send(new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/' }));
+              assert((before.KeyCount ?? 0) > 0, 'Swap did not create code-swap artifacts.');
+              delete config.resources.api.properties.codeSwap;
+              await save(path, config);
+              await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'opt-out.log'));
+              const after = await s3.send(new ListObjectsV2Command({ Bucket: owned.bucket, Prefix: 'code-swap/' }));
+              assert((after.KeyCount ?? 0) === 0, 'Opt-out left code-swap artifacts behind.');
+              await save(join(owned.directory, 'retention-proof.json'), {
+                swaps,
+                before: before.KeyCount,
+                after: after.KeyCount
+              });
+            } else {
+              config.resources.api.properties.environment = [{ name: 'PHASE5_BASE_CHANGE', value: '1' }];
+              await save(path, config);
+              const fallback = await edit(state, owned, run, url, 3);
+              assert(
+                (fallback.details as { mode?: string; fallback?: string })?.mode === 'image',
+                'Expected an image fallback.'
+              );
+              await save(join(owned.directory, 'customer-proof.json'), { swaps, fallback });
+            }
           } else if (owned.phase4 && process.argv.includes('--phase4-only')) {
             await qualifyPhase4(state, owned, run, url, {
               clients,

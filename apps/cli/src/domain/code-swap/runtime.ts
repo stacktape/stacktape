@@ -1,4 +1,5 @@
 import { codeSwapIntegration } from './integration';
+import { pruneCodeSwapArtifacts, waitForRetiredCodeSwapTasks } from './artifacts';
 // Opt-in code-swap deployment lifecycle.
 import { access, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,14 +18,7 @@ import {
   ListTasksCommand,
   DescribeTasksCommand
 } from '@aws-sdk/client-ecs';
-import {
-  S3Client,
-  GetObjectCommand,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-  DeleteObjectsCommand
-} from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import {
   ServiceDiscoveryClient,
   GetServiceCommand,
@@ -54,7 +48,6 @@ import {
   writeReleaseRecord,
   interruptedSwapReason,
   incompleteHistoryVersions,
-  obsoleteCodeSwapKeys,
   allTasksObservedAttempt,
   allCandidatesCleaned,
   type SwapRecord
@@ -791,7 +784,11 @@ export const codeSwapRollbackComplete = async (newVersion: string, targetVersion
 export const codeSwapComplete = async (createsRelease: boolean) => {
   if (!createsRelease) return;
   if (!(await getCodeSwapRun())) return;
-  if (result.mode === 'unchanged') return;
+  if (result.mode === 'unchanged') {
+    // An infrastructure-only release advances ordinary retention while preserving the serving overlay.
+    await pruneArtifacts();
+    return;
+  }
   if (!identity) {
     const { run, stack, s3, artifacts } = await clients();
     if (run.phase4 && !run.optOut && result.mode === 'image') {
@@ -799,6 +796,22 @@ export const codeSwapComplete = async (createsRelease: boolean) => {
       await s3.send(
         new DeleteObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' })
       );
+    }
+    if (run.phase4 && run.optOut) {
+      const { ecs } = await clients();
+      const service = stack.existingStackResources.find(
+        (resource) => resource.ResourceType === 'AWS::ECS::Service'
+      )?.PhysicalResourceId;
+      if (!service) throw new Error('Cannot confirm old code-swap service tasks have stopped.');
+      await waitForRetiredCodeSwapTasks(ecs, service);
+      await pruneCodeSwapArtifacts({
+        s3,
+        bucket: artifacts.deploymentBucketName,
+        currentRevision: stack.nextVersion,
+        optOut: true
+      });
+    } else if (run.phase4) {
+      await pruneArtifacts();
     }
     if (run.result) await writeFile(run.result, JSON.stringify(result, null, 2));
     if (result.mode) await reportResult();
@@ -914,8 +927,7 @@ export const codeSwapComplete = async (createsRelease: boolean) => {
   }
   // Until the final reconciliation passes, recovery must still see an unfinished committed attempt.
   await finalizeHistory();
-  await pruneArtifacts(identity.revision);
-  await pruneStoppedStatuses();
+  await pruneArtifacts();
   await reportResult();
   if (run.result)
     await writeFile(
@@ -977,34 +989,26 @@ export const codeSwapImageExtension = async (workloadName: string) => {
   };
 };
 
-const pruneArtifacts = async (currentRevision: string) => {
-  const { s3, artifacts, global } = await clients();
-  const keys: string[] = [];
-  let token: string | undefined;
-  do {
-    const page = await s3.send(
-      new ListObjectsV2Command({
-        Bucket: artifacts.deploymentBucketName,
-        Prefix: 'code-swap/api/',
-        ContinuationToken: token
-      })
-    );
-    keys.push(...(page.Contents ?? []).flatMap((item) => (item.Key ? [item.Key] : [])));
-    token = page.NextContinuationToken;
-  } while (token);
-  const obsolete = obsoleteCodeSwapKeys(keys, artifacts.maxArtifactVersionsToKeep, currentRevision, {
-    bundleKey: identity!.key,
-    attemptId: global.invocationId
-  });
-  for (let start = 0; start < obsolete.length; start += 1000) {
-    const response = await s3.send(
-      new DeleteObjectsCommand({
-        Bucket: artifacts.deploymentBucketName,
-        Delete: { Objects: obsolete.slice(start, start + 1000).map((Key) => ({ Key })) }
-      })
-    );
-    if (response.Errors?.length) throw new Error('Could not remove obsolete code-swap artifacts.');
+const pruneArtifacts = async () => {
+  const { s3, artifacts, ddb, run, ecs, stack, global } = await clients();
+  if (result.mode === 'image') {
+    const service = stack.existingStackResources.find(
+      (resource) => resource.ResourceType === 'AWS::ECS::Service'
+    )!.PhysicalResourceId;
+    // A bootstrapping old task may have read the previous record before it could write a status row.
+    await waitForRetiredCodeSwapTasks(ecs, service);
   }
+  const protectedRevisions = await pruneStoppedStatuses();
+  const record = run.phase4 ? await readReleaseRecord(ddb, run.table) : undefined;
+  const bundles = [record?.Committed, record?.Proposed].filter((bundle) => bundle !== null && bundle !== undefined);
+  await pruneCodeSwapArtifacts({
+    s3,
+    bucket: artifacts.deploymentBucketName,
+    currentRevision: identity?.revision ?? stack.nextVersion,
+    currentAttemptId: global.invocationId,
+    protectedRevisions: [...protectedRevisions, ...bundles.map((bundle) => bundle.Revision)],
+    protectedBundleKeys: bundles.map((bundle) => bundle.Key)
+  });
 };
 
 const pruneStoppedStatuses = async () => {
@@ -1012,6 +1016,7 @@ const pruneStoppedStatuses = async () => {
   const service = stack.existingStackResources.find(
     (resource) => resource.ResourceType === 'AWS::ECS::Service'
   )!.PhysicalResourceId;
+  const protectedRevisions: string[] = [];
   let cursor: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> | undefined;
   do {
     const page = await ddb.send(
@@ -1019,7 +1024,8 @@ const pruneStoppedStatuses = async () => {
         TableName: run.table,
         ConsistentRead: true,
         ExclusiveStartKey: cursor,
-        ProjectionExpression: 'pk',
+        ProjectionExpression: 'pk, #data',
+        ExpressionAttributeNames: { '#data': 'data' },
         FilterExpression: 'begins_with(pk, :prefix)',
         ExpressionAttributeValues: { ':prefix': { S: 'status#node#' } }
       })
@@ -1039,16 +1045,21 @@ const pruneStoppedStatuses = async () => {
           )
         );
       });
+      for (const key of batch.filter((key) => !stopped.includes(key))) {
+        const item = page.Items!.find((item) => item.pk?.S === key)!;
+        protectedRevisions.push(statusSchema.parse(JSON.parse(item.data!.S!)).revision);
+      }
       if (stopped.length) {
-        const response = await ddb.send(
+        await ddb.send(
           new BatchWriteItemCommand({
             RequestItems: { [run.table]: stopped.map((key) => ({ DeleteRequest: { Key: { pk: { S: key } } } })) }
           })
         );
         // A later successful deploy can retry throttled cleanup. Never expire live task evidence.
-        if (Object.keys(response.UnprocessedItems ?? {}).length) break;
+        // Keep scanning: throttled stopped-row deletion must not hide later live-task references.
       }
     }
     cursor = page.LastEvaluatedKey;
   } while (cursor);
+  return protectedRevisions;
 };

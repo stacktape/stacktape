@@ -60,7 +60,9 @@ The qualification harness lives in `apps/cli/scripts/code-swap`. Its build plugi
 CLI; customer activation uses `web-service.properties.codeSwap`, off by default in every stage, including production.
 `--customer-path --configurations 1024-1` creates a fresh stack through that public property, runs two code swaps under
 traffic and an environment-change image fallback, then deletes and verifies the exact owned resources. It uses no
-benchmark activation file. Runtime code is owned by `apps/cli/src/domain/code-swap`; supervisor source and its pinned Go
+benchmark activation file. For the shorter artifact-retention check, add `--retention-only`: it performs one code-only
+swap, deploys with `codeSwap` removed, verifies that the service's `code-swap/` objects are gone, and runs the same
+resource cleanup verifier. Runtime code is owned by `apps/cli/src/domain/code-swap`; supervisor source and its pinned Go
 builder remain beside the qualification harness. An active benchmark run omits the separate Cloud Map drain sidecar
 because its supervisor owns the cached-routing allowance. Ordinary builds and inactive benchmark commands retain main's
 sidecar behavior. This keeps the qualification single-container; it does not establish compatibility with arbitrary
@@ -270,4 +272,7 @@ qualification.
 Before the first publication exposing code swap, ship the pinned supervisor/SBOM, cap/readiness/stop template, protected
 record policies and runner permissions together. The existing private v4 launch action owns publication timing. Complete
 only when the extracted release and selected runner pass protected opt-in, eligible swap, over-cap image fallback and
-ordinary rollback on a disposable non-production stack. These benchmark PRs authorize no publication.
+ordinary rollback on a disposable non-production stack. Before that publication, the CLI/release owner must also qualify
+bounded artifact retention and opt-out cleanup using `--customer-path --retention-only --configurations 1024-1`. The
+owning code is `apps/cli/src/domain/code-swap/artifacts.ts`; completion requires an empty `code-swap/` prefix after
+opt-out and verified deletion of the owned stack and resources. These benchmark PRs authorize no publication.

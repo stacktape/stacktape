@@ -303,27 +303,43 @@ test('table creation follows task protection, and opt-out retains the Deny while
   }
 });
 
-test('retention bounds old bundles and attempts without deleting the current bootstrap bundle', async () => {
+test('retention follows ordinary releases and protects head, rollback references and live tasks', async () => {
   const { obsoleteCodeSwapKeys } = await import('../../src/domain/code-swap/release-record');
   const keys = [
     'code-swap/api/head.json',
     'unrelated/object',
-    ...['v000001', 'v000002', 'v000003'].flatMap((version) => [
+    ...['v000001', 'v000002', 'v000003', 'v000004'].flatMap((version) => [
       `code-swap/api/bundles/${version}-hash.tgz`,
       `code-swap/api/attempts/${version}-invocation.json`,
       `code-swap/api/releases/${version}.json`
     ])
   ];
-  expect(obsoleteCodeSwapKeys(keys, 1, 'v000001')).toEqual([]);
-  expect(obsoleteCodeSwapKeys(keys, 2, 'v000002')).toEqual([]);
-  expect(obsoleteCodeSwapKeys(keys, 2, 'v000003').sort()).toEqual(keys.filter((key) => key.includes('v000001')).sort());
-  const abandoned = ['code-swap/api/bundles/v000003-abandoned.tgz', 'code-swap/api/attempts/v000003-declined.json'];
+  // Ordinary image-only releases have advanced the window beyond every overlay release.
+  expect(obsoleteCodeSwapKeys(keys, ['v000005'])).toEqual(keys.slice(2));
+  expect(obsoleteCodeSwapKeys(keys, [], [], 'v000002')).toEqual(keys.filter((key) => /v00000[12]/.test(key)));
+  const abandoned = ['code-swap/api/bundles/v000004-abandoned.tgz', 'code-swap/api/attempts/v000004-abandoned.json'];
   expect(
-    obsoleteCodeSwapKeys([...keys, ...abandoned], 3, 'v000003', {
-      bundleKey: 'code-swap/api/bundles/v000003-hash.tgz',
-      attemptId: 'invocation'
-    }).sort()
-  ).toEqual(abandoned.sort());
+    obsoleteCodeSwapKeys(
+      [...keys, ...abandoned],
+      ['v000001', 'v000002', 'v000003', 'v000004'],
+      ['code-swap/api/bundles/v000004-hash.tgz'],
+      'v000004',
+      'invocation'
+    )
+  ).toEqual(abandoned);
+  // A retained rollback release references a bundle created by an older release.
+  const protectedBundles = ['code-swap/api/bundles/v000001-hash.tgz'];
+  expect(obsoleteCodeSwapKeys(keys, ['v000003', 'v000004'], protectedBundles)).toEqual([
+    'code-swap/api/attempts/v000001-invocation.json',
+    'code-swap/api/releases/v000001.json',
+    ...keys.filter((key) => key.includes('v000002'))
+  ]);
+  // The caller also retains current head and running-task revisions outside the ordinary window.
+  expect(obsoleteCodeSwapKeys(keys, ['v000001', 'v000002', 'v000004'])).toEqual(
+    keys.filter((key) => key.includes('v000003'))
+  );
+  expect(obsoleteCodeSwapKeys(keys, [], protectedBundles, 'v000004')).toContain('code-swap/api/releases/v000001.json');
+  expect(obsoleteCodeSwapKeys(keys, [], protectedBundles, 'v000004')).not.toContain(protectedBundles[0]);
 });
 
 test('a refusal waits for every task to observe this attempt, and old completion never proves cleanup', async () => {
@@ -355,4 +371,103 @@ test('a no-op image-only deploy never finalizes a release number that was not cr
     if (previous === undefined) delete process.env.STP_CODE_SWAP_BENCH_RUN;
     else process.env.STP_CODE_SWAP_BENCH_RUN = previous;
   }
+});
+
+test('artifact cleanup uses the ordinary window, preserves cross-release bundles, and empties opt-out prefixes', async () => {
+  const { pruneCodeSwapArtifacts } = await import('../../src/domain/code-swap/artifacts');
+  const { ListObjectsV2Command, GetObjectCommand, DeleteObjectsCommand } = await import('@aws-sdk/client-s3');
+  const objects = new Map<string, string>([
+    ['cf-template/v000010.yml', 'template'],
+    ['unrelated/object', 'keep'],
+    ['code-swap/api/head.json', JSON.stringify({ revision: 'v000009', key: 'code-swap/api/bundles/v000009-head.tgz' })],
+    [
+      'code-swap/api/releases/v000010.json',
+      JSON.stringify({ revision: 'v000010', key: 'code-swap/api/bundles/v000001-rollback.tgz' })
+    ],
+    ['code-swap/api/bundles/v000001-rollback.tgz', 'rollback'],
+    ['code-swap/api/bundles/v000009-head.tgz', 'head'],
+    ['code-swap/api/bundles/v000002-live.tgz', 'live task'],
+    ['code-swap/api/attempts/v000002-live.json', 'live task'],
+    ['code-swap/api/bundles/v000003-obsolete.tgz', 'old'],
+    ['code-swap/api/releases/v000003.json', 'old'],
+    ['code-swap/api/attempts/v000003-old.json', 'old']
+  ]);
+  const s3 = {
+    send: async (command: unknown) => {
+      if (command instanceof ListObjectsV2Command) {
+        // Force pagination even for this small fixture.
+        const keys = [...objects.keys()];
+        return {
+          Contents: (command.input.ContinuationToken ? keys.slice(3) : keys.slice(0, 3)).map((Key) => ({ Key })),
+          ...(!command.input.ContinuationToken && { NextContinuationToken: 'next' })
+        };
+      }
+      if (command instanceof GetObjectCommand) {
+        const body = objects.get(command.input.Key!);
+        if (body === undefined) throw new Error('Missing object');
+        return { Body: { transformToString: async () => body } };
+      }
+      if (command instanceof DeleteObjectsCommand) {
+        for (const { Key } of command.input.Delete!.Objects!) objects.delete(Key!);
+        return {};
+      }
+      throw new Error('Unexpected S3 command');
+    }
+  } as unknown as Pick<import('@aws-sdk/client-s3').S3Client, 'send'>;
+  await pruneCodeSwapArtifacts({ s3, bucket: 'test', currentRevision: 'v000010', protectedRevisions: ['v000002'] });
+  expect([...objects.keys()].filter((key) => key.includes('v000003'))).toEqual([]);
+  expect(objects.has('code-swap/api/bundles/v000001-rollback.tgz')).toBe(true);
+  expect(objects.has('code-swap/api/bundles/v000009-head.tgz')).toBe(true);
+  expect(objects.has('code-swap/api/bundles/v000002-live.tgz')).toBe(true);
+  // A failed record read must stop deletion altogether.
+  objects.set('code-swap/api/releases/v000010.json', 'broken');
+  const before = [...objects.keys()];
+  await expect(pruneCodeSwapArtifacts({ s3, bucket: 'test', currentRevision: 'v000010' })).rejects.toThrow();
+  expect([...objects.keys()]).toEqual(before);
+  // Once old tasks have stopped, opt-out deletes even unknown/abandoned deep objects.
+  objects.set('code-swap/api/unknown/deep/key', 'old');
+  await pruneCodeSwapArtifacts({ s3, bucket: 'test', currentRevision: 'v000010', optOut: true });
+  expect([...objects.keys()]).toEqual(['cf-template/v000010.yml', 'unrelated/object']);
+});
+
+test('opt-out waits for draining task revisions and refuses uncertain task evidence', async () => {
+  const { waitForRetiredCodeSwapTasks } = await import('../../src/domain/code-swap/artifacts');
+  const { DescribeServicesCommand, ListTasksCommand, DescribeTasksCommand } = await import('@aws-sdk/client-ecs');
+  let oldStatus = 'DEACTIVATING';
+  let uncertain = false;
+  let observedDrain = false;
+  const ecs = {
+    send: async (command: unknown) => {
+      if (command instanceof DescribeServicesCommand) return { services: [{ taskDefinition: 'new' }] };
+      if (command instanceof ListTasksCommand)
+        return { taskArns: command.input.desiredStatus === 'STOPPED' ? ['old'] : ['new'] };
+      if (command instanceof DescribeTasksCommand) {
+        if (uncertain) return { failures: [{ arn: 'old', reason: 'MISSING' }] };
+        const old = command.input.tasks![0] === 'old';
+        if (old && !observedDrain) {
+          observedDrain = true;
+          queueMicrotask(() => {
+            oldStatus = 'STOPPED';
+          });
+        }
+        return {
+          tasks: [
+            {
+              taskArn: old ? 'old' : 'new',
+              taskDefinitionArn: old ? 'old' : 'new',
+              lastStatus: old ? oldStatus : 'RUNNING'
+            }
+          ]
+        };
+      }
+      throw new Error('Unexpected ECS command');
+    }
+  } as unknown as Pick<import('@aws-sdk/client-ecs').ECSClient, 'send'>;
+  await waitForRetiredCodeSwapTasks(ecs, 'arn:aws:ecs:eu-west-1:123:service/cluster/api');
+  expect(observedDrain).toBe(true);
+  expect(oldStatus).toBe('STOPPED');
+  uncertain = true;
+  await expect(waitForRetiredCodeSwapTasks(ecs, 'arn:aws:ecs:eu-west-1:123:service/cluster/api')).rejects.toThrow(
+    'Could not confirm'
+  );
 });

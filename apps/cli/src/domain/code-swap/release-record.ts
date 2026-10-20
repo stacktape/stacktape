@@ -79,28 +79,25 @@ export const incompleteHistoryVersions = (record: SwapRecord | undefined) =>
     Boolean(version && version !== record?.HistoryVersion)
   );
 
-// Keep current bootstrap identity even if image-history retention is configured to zero.
+// Ordinary release history owns the window. Bundle references can cross revisions after rollback.
 export const obsoleteCodeSwapKeys = (
   keys: string[],
-  keep: number,
-  currentRevision: string,
-  current?: { bundleKey: string; attemptId: string }
+  retainedRevisions: string[],
+  protectedBundleKeys: string[] = [],
+  currentRevision = retainedRevisions.toSorted().at(-1),
+  currentAttemptId?: string
 ) => {
-  const revisionOf = (key: string) => /^code-swap\/api\/(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(key)?.[1];
-  const revisions = [
-    ...new Set(
-      keys.map(revisionOf).filter((revision): revision is string => Boolean(revision && revision <= currentRevision))
-    )
-  ].sort();
-  const retained = new Set([...revisions.slice(-Math.max(1, keep)), currentRevision]);
+  const retained = new Set(retainedRevisions);
+  const protectedKeys = new Set(protectedBundleKeys);
   return keys.filter((key) => {
-    const revision = revisionOf(key);
-    if (current && revision === currentRevision) {
-      if (key.startsWith('code-swap/api/bundles/')) return key !== current.bundleKey;
+    if (protectedKeys.has(key)) return false;
+    const revision = /^code-swap\/api\/(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(key)?.[1];
+    if (revision === currentRevision && currentAttemptId) {
+      if (key.startsWith('code-swap/api/bundles/')) return true;
       if (key.startsWith('code-swap/api/attempts/'))
-        return key !== `code-swap/api/attempts/${currentRevision}-${current.attemptId}.json`;
+        return key !== `code-swap/api/attempts/${currentRevision}-${currentAttemptId}.json`;
     }
-    return revision && revision < currentRevision && !retained.has(revision);
+    return Boolean(revision && currentRevision && revision <= currentRevision && !retained.has(revision));
   });
 };
 

@@ -567,7 +567,10 @@ class DeploymentArtifactManager {
   getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] =>
     selectObsoleteArtifacts({
       // Helpers survive release retention so running tasks and rollbacks can still pull them.
-      artifacts: previousItems.filter(({ tag }) => !tag?.startsWith('stp-cloudmap-drain-')),
+      // Code-swap artifacts are collected after history finalization, with live-task and rollback references.
+      artifacts: previousItems.filter(
+        ({ tag, s3Key }) => !tag?.startsWith('stp-cloudmap-drain-') && !s3Key?.startsWith('code-swap/')
+      ),
       usage: {
         uploadedObjects: this.successfullyCreatedObjects,
         uploadedImages: this.successfullyUploadedImages,
@@ -926,7 +929,7 @@ class DeploymentArtifactManager {
     objects.forEach((object) => {
       const s3Key = object.Key;
       if (s3Key.startsWith('code-swap/')) {
-        this.previousObjects.push({ s3Key, name: 'code-swap', version: 'v999999', digest: null, type: 'user-lambda' });
+        this.previousObjects.push({ s3Key, name: 'code-swap', version: null, digest: null, type: 'user-lambda' });
         return;
       }
       if (s3Key.startsWith(SOURCE_MAP_KEY_PREFIX)) {
