@@ -62,7 +62,12 @@ export function Dialog({
 
     const focusFrame = requestAnimationFrame(() => {
       const dialog = dialogRef.current;
-      (dialog?.querySelector<HTMLElement>(focusableSelector) ?? dialog)?.focus();
+      // The first control of the content, not the close button, which would open every dialog with a ring on "x".
+      (
+        dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__body :is(${focusableSelector})`) ??
+        dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__actions :is(${focusableSelector})`) ??
+        dialog
+      )?.focus();
     });
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -122,6 +127,7 @@ export function Dialog({
         open
         ref={dialogRef}
         style={style}
+        tabIndex={-1}
       >
         <button aria-label="Close dialog" className="stp-ui-dialog__close" onClick={close} type="button">
           <BiX aria-hidden="true" size={28} />

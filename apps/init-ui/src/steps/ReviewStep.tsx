@@ -398,10 +398,15 @@ export function ReviewStep({
   const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type)).filter(
     (key) => !inertChoices.has(key)
   );
-  const automaticAlarmCount = resources.reduce((count, [, resource]) => {
+  // What each alarm watches, in the words the file gives it, so "monitoring" is not read as more than it is.
+  const automaticAlarms = resources.flatMap(([, resource]) => {
     const alarms = resource.properties.alarms;
-    return count + (Array.isArray(alarms) ? alarms.length : 0);
-  }, 0);
+    return Array.isArray(alarms)
+      ? alarms.map((alarm: { description?: unknown }) =>
+          typeof alarm.description === 'string' ? alarm.description : 'A production problem'
+        )
+      : [];
+  });
 
   if (resources.length === 0) {
     const usedAgent = state.choice !== undefined && state.choice.agentId !== 'none';
@@ -599,12 +604,21 @@ export function ReviewStep({
         </section>
       )}
 
-      {automaticAlarmCount > 0 && (
-        <Alert tone="info" title="Monitoring is already included">
-          {automaticAlarmCount === 1
-            ? 'One alarm watches for a sustained production problem. It ignores a single noisy sample.'
-            : `${automaticAlarmCount} alarms watch for sustained production problems. They ignore a single noisy sample.`}{' '}
-          Alerts are listed in the Stacktape Console; connect a Slack or email channel there to get notified.
+      {automaticAlarms.length > 0 && (
+        <Alert
+          tone="info"
+          title={
+            automaticAlarms.length === 1 ? 'One alarm is included' : `${automaticAlarms.length} alarms are included`
+          }
+        >
+          <ul className="m-0 mb-2 list-disc pl-5">
+            {automaticAlarms.map((description, index) => (
+              // oxlint-disable-next-line react/no-array-index-key -- two resources can have the same alarm.
+              <li key={index}>{description}</li>
+            ))}
+          </ul>
+          {automaticAlarms.length === 1 ? 'It ignores' : 'They ignore'} a single noisy sample. Alerts are listed in the
+          Stacktape Console; connect a Slack or email channel there to get notified.
         </Alert>
       )}
 

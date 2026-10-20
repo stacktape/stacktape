@@ -1000,7 +1000,7 @@
 
   .stp-ui-radio-group__legend {
     margin-bottom: 5px;
-    padding: 0;
+    padding: 0 0 0 var(--stp-field-inset, 0);
     color: var(--stp-text-primary);
     font-size: 13px;
     font-weight: 700;
@@ -1085,14 +1085,15 @@
     color: var(--stp-text-primary);
   }
 
-  /* Text fields and selects share one label recipe: same size, same line box, flush with the
-   * control's left edge and the same distance above it, so a row of mixed fields lines up. */
+  /* Text fields and selects share one label recipe: same size, same line box and the same distance above the
+   * control, so a row of mixed fields lines up. `--stp-field-inset` moves labels, help text and errors in to where
+   * the field's content starts; flush with a rounded field, a label reads as starting before it. */
   .stp-ui-text-field__label {
     display: inline-flex;
     align-items: center;
     gap: 5px;
     min-height: 18px;
-    margin: 0 0 5px;
+    margin: 0 0 5px var(--stp-field-inset, 0);
     font-size: 13px;
     font-weight: 700;
     line-height: 18px;
@@ -1174,7 +1175,7 @@
   /* Help text and errors read as a sentence under the field, so they start where the field starts. */
   .stp-ui-text-field__message-slot {
     min-height: 20px;
-    padding-top: 3px;
+    padding: 3px 0 0 var(--stp-field-inset, 0);
     text-align: left;
   }
 
@@ -1209,6 +1210,7 @@
     gap: 8px;
     min-height: 18px;
     margin-bottom: 5px;
+    padding-left: var(--stp-field-inset, 0);
   }
 
   .stp-ui-select__label {
@@ -1225,6 +1227,13 @@
     color: var(--stp-text-faint);
     font-size: 12px;
     font-weight: 500;
+  }
+
+  .stp-ui-select__inline-label {
+    flex: none;
+    color: var(--stp-text-muted);
+    font-weight: 500;
+    white-space: nowrap;
   }
 
   .stp-ui-select__leading,
@@ -1253,7 +1262,7 @@
 
   .stp-ui-select__message-slot {
     min-height: 20px;
-    padding-top: 3px;
+    padding: 3px 0 0 var(--stp-field-inset, 0);
     text-align: left;
   }
 
@@ -1341,6 +1350,8 @@
     min-height: 0;
     padding: var(--stp-dialog-padding, 28px);
     overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--stp-text-subtle) transparent;
     /* A shadow at the bottom edge while more content is below, so a scrolled body never looks as if
      * it ends mid-sentence above the actions. The cover scrolls with the content and hides the
      * shadow once the end is reached. */

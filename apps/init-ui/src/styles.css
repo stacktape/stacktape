@@ -52,6 +52,12 @@
     scroll-behavior: smooth;
   }
 
+  /* Tabbing into a field selects its value; the browser's own bright blue is in no palette. */
+  ::selection {
+    background: color-mix(in srgb, var(--stp-color-brand) 32%, transparent);
+    color: var(--stp-text-primary);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     html {
       scroll-behavior: auto;
@@ -124,7 +130,8 @@
     list-style: none;
   }
 
-  .wizard-rail-step a {
+  .wizard-rail-step a,
+  .wizard-rail-entry {
     position: relative;
     display: flex;
     align-items: flex-start;
@@ -136,18 +143,22 @@
     transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
-  .wizard-rail-step[aria-disabled='true'] a,
-  .wizard-rail-step a[aria-disabled='true'] {
-    cursor: default;
-    opacity: 0.5;
+  /* Not reached yet: readable, but quieter than the steps behind you. */
+  .wizard-rail-step.is-todo .wizard-rail-entry {
+    color: var(--stp-text-subtle);
+  }
+
+  .wizard-rail-step.is-todo .wizard-rail-marker {
+    background: rgba(255, 255, 255, 0.08);
   }
 
   /* The connector, drawn from each marker to the next. Stops at the last step rather than trailing
    * off into nothing, which would imply a fifth band. */
-  .wizard-rail-step:not(:last-child) a::before {
+  .wizard-rail-step:not(:last-child) a::before,
+  .wizard-rail-step:not(:last-child) .wizard-rail-entry::before {
     content: '';
     position: absolute;
-    left: 5px;
+    left: 6px;
     top: 26px;
     bottom: 4px;
     width: 1px;
@@ -157,34 +168,23 @@
   .wizard-rail-marker {
     display: grid;
     place-items: center;
-    width: 11px;
-    height: 11px;
-    margin-top: 6px;
+    width: 13px;
+    height: 13px;
+    margin-top: 5px;
     flex: none;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.14);
-    font-size: 0.5rem;
+    font-size: 0.55rem;
     font-weight: 800;
-    color: transparent;
-    transition:
-      background var(--stp-motion-duration-base) var(--stp-motion-easing),
-      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
-      transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+    line-height: 1;
+    color: var(--stp-surface-page, #161c1c);
+    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
-  .wizard-rail-label {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .wizard-rail-summary {
-    color: var(--stp-text-subtle);
-    font-size: 0.75rem;
-  }
-
+  /* Finished: a check on the brand colour. Upcoming: a quiet grey dot. Current: a solid dot and a bold
+   * label, with no glow or scale. */
   .wizard-rail-step.is-done .wizard-rail-marker {
-    background: color-mix(in srgb, var(--stp-color-brand) 55%, transparent);
+    background: color-mix(in srgb, var(--stp-color-brand) 70%, var(--stp-surface-page, #161c1c));
   }
 
   .wizard-rail-step.is-done a {
@@ -199,12 +199,16 @@
 
   .wizard-rail-step.is-current .wizard-rail-marker {
     background: var(--stp-color-brand);
-    transform: scale(1.35);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--stp-color-brand) 16%, transparent);
   }
 
-  .wizard-rail-step a:hover {
+  .wizard-rail-step a[href]:hover {
     color: var(--stp-text-primary);
+  }
+
+  .wizard-rail-step a:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: 2px;
+    border-radius: var(--stp-radius-small);
   }
 
   /* ── Sections ──────────────────────────────────────────────────────────────────────────────── */
@@ -703,9 +707,196 @@
     outline-offset: var(--stp-focus-outline-offset);
   }
 
+  /* Inline text: the ring stands off the glyphs instead of cutting through the underline. */
   .wizard-disclosure:focus-visible,
   .wizard-link:focus-visible {
+    outline-offset: 3px;
     border-radius: var(--stp-radius-small);
+  }
+
+  /* ── Where it deploys ───────────────────────────────────────────────────────────────────────── */
+
+  /* The target is one thing, not three headings: who deploys, to which account, region and stage. */
+  .wizard-target {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px 24px 22px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-target .wizard-section-heading {
+    margin: 0;
+  }
+
+  .wizard-target-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-target-note {
+    margin: -6px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-subtle);
+    font-size: 0.82rem;
+  }
+
+  /* A disabled button gets no pointer events; this wrapper carries its explanation on hover and focus. */
+  .wizard-disabled-reason {
+    display: inline-flex;
+    border-radius: var(--stp-radius-large);
+    cursor: not-allowed;
+  }
+
+  /* ── Rows: optional extras and next steps ──────────────────────────────────────────────────── */
+
+  .wizard-rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-row {
+    padding: 16px 20px;
+  }
+
+  .wizard-row + .wizard-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .wizard-row-title {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .wizard-row-text {
+    margin: 2px 0 0;
+    max-width: 60ch;
+    color: var(--stp-text-muted);
+    font-size: 0.9rem;
+  }
+
+  .wizard-row-action {
+    flex: none;
+  }
+
+  .wizard-row-body {
+    margin-top: 12px;
+  }
+
+  /* ── It's live ─────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-live {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 24px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-live-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--stp-color-brand);
+  }
+
+  .wizard-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--stp-color-brand);
+  }
+
+  .wizard-live-urls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-live-urls li {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .wizard-live-name {
+    display: block;
+    color: var(--stp-text-subtle);
+    font-size: 0.82rem;
+  }
+
+  /* Wrapped, never cut: the end of a generated hostname is what tells two services apart. */
+  .wizard-live-url {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  /* One line per checked service: a mark, its name, what happened. */
+  .wizard-check {
+    display: flex;
+    gap: 10px;
+  }
+
+  .wizard-check-mark {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    margin-top: 3px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--stp-surface-page, #161c1c);
+  }
+
+  .wizard-row-title .wizard-check-mark {
+    display: inline-grid;
+    margin: 0 8px 0 0;
+    vertical-align: -2px;
+  }
+
+  .wizard-check-mark.is-passed {
+    background: var(--stp-color-brand);
+  }
+
+  .wizard-check-mark.is-failed {
+    background: var(--stp-status-error);
+  }
+
+  .wizard-check-mark.is-inconclusive,
+  .wizard-check-mark.is-skipped {
+    color: var(--stp-text-primary);
   }
 
   /* ── Signing in ────────────────────────────────────────────────────────────────────────────── */
@@ -763,6 +954,12 @@
   .wizard-facts dd {
     margin: 0;
     color: var(--stp-text-primary);
+    font-size: 0.92rem;
+  }
+
+  .wizard-facts dd.wizard-code {
+    font-size: 0.86rem;
+    line-height: 1.55rem;
   }
 
   .wizard-input {
@@ -1001,15 +1198,13 @@
       gap: 18px;
     }
 
-    .wizard-rail-step a {
+    .wizard-rail-step a,
+    .wizard-rail-entry {
       padding: 0;
     }
 
-    .wizard-rail-step:not(:last-child) a::before {
-      display: none;
-    }
-
-    .wizard-rail-summary {
+    .wizard-rail-step:not(:last-child) a::before,
+    .wizard-rail-step:not(:last-child) .wizard-rail-entry::before {
       display: none;
     }
   }
