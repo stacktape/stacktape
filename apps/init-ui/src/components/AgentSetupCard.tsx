@@ -1,3 +1,4 @@
+import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import type { WizardState } from '../session';
 import { CopyableCommand } from './CopyableCommand';
@@ -30,14 +31,8 @@ export function AgentSetupCard({
             <span className="text-[var(--stp-text-primary)]">“Use Stacktape to show what this project deploys.”</span>
           </>
         }
-        title={
-          <>
-            <span aria-hidden className="wizard-check-mark is-passed">
-              ✓
-            </span>
-            {title}
-          </>
-        }
+        isDone
+        title={title}
       />
     );
   }
@@ -57,13 +52,17 @@ export function AgentSetupCard({
       }
       title={title}
     >
+      {/* The terminal command is the way past a failure, so it appears with one; before that the
+          button is the whole offer. */}
       {status === 'failed' && (
-        <p className="m-0 mb-3 text-[0.9rem]">
-          <strong>{label} was not connected.</strong> <span className="text-[var(--stp-text-muted)]">{detail}</span>
-        </p>
+        <div className="flex flex-col gap-3">
+          <Alert tone="danger" title={`${label} was not connected`}>
+            {detail}
+          </Alert>
+          <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">Or run the same setup in a terminal:</p>
+          <CopyableCommand command={command} />
+        </div>
       )}
-      <p className="m-0 mb-2 text-[0.9rem] text-[var(--stp-text-muted)]">Or run the same setup in a terminal:</p>
-      <CopyableCommand command={command} />
     </Row>
   );
 }

@@ -694,8 +694,13 @@ export const startWizardSession = async ({
           throw new Error('That is not one of the models offered for this agent.');
         }
         // Idempotent rather than an error: a double-click, or a second tab, should not fail — and
-        // must certainly not run the analysis twice on one subscription.
-        if (running || start === undefined || composition !== undefined) {
+        // must certainly not run the analysis twice on one subscription. An analysis that found nothing
+        // is the one exception: the page offers to read the project again, with an agent this time.
+        if (
+          running ||
+          start === undefined ||
+          (composition !== undefined && Object.keys(composition.config.resources).length > 0)
+        ) {
           return;
         }
 
@@ -823,7 +828,15 @@ export const startWizardSession = async ({
           return;
         }
 
-        deployment = { status: 'running', stage, region, commandLine: '', events: [], lines: [] };
+        deployment = {
+          status: 'running',
+          stage,
+          region,
+          commandLine: '',
+          startedAt: new Date().toISOString(),
+          events: [],
+          lines: []
+        };
         publish(buildState());
 
         // A deploy emits hundreds of events in bursts. Publishing each one would send the whole
