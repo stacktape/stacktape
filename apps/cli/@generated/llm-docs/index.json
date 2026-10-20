@@ -15832,6 +15832,7 @@
         "page:/cli/deploy#deploy-everything-through-cloudformation",
         "page:/cli/deploy#non-interactive-deploy-in-ci-cd",
         "page:/cli/deploy#preview-changes-before-deploying",
+        "page:/cli/deploy#free-plan-cost-limit",
         "page:/cli/deploy#dev-stacks-cannot-be-deployed",
         "page:/cli/deploy#related-commands"
       ]
@@ -22315,6 +22316,7 @@
         "page:/stacktape-console/billing-and-subscription#free-plan",
         "page:/stacktape-console/billing-and-subscription#flexible-plan",
         "page:/stacktape-console/billing-and-subscription#enterprise-plan",
+        "page:/stacktape-console/billing-and-subscription#free-plan-cost-limit",
         "page:/stacktape-console/billing-and-subscription#walkthrough-upgrading-to-the-flexible-plan",
         "page:/stacktape-console/billing-and-subscription#common-tasks",
         "page:/stacktape-console/billing-and-subscription#viewing-invoices",

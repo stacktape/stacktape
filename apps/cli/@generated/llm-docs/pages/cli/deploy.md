@@ -170,6 +170,23 @@ Use [`diff`](/cli/diff) to see what a deploy would modify without actually apply
 stacktape diff --stage production --region us-east-1
 ```
 
+## Free plan cost limit
+
+A Free organization cannot deploy once its managed AWS costs for the current calendar month (UTC) are above $100. The
+deploy stops before it touches AWS with a `Free Plan Limit Reached` error that shows this month's costs, the limit and
+the link to upgrade:
+
+```text
+[x] Free Plan Limit Reached
+
+Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are
+$142.17 in October 2026 (UTC), above the plan's limit of $100 a month.
+```
+
+Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys resume when the next month starts.
+[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working, and running infrastructure is not affected. See
+[Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for what counts.
+
 ## Dev stacks cannot be deployed
 
 Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).

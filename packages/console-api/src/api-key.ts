@@ -520,6 +520,14 @@ export type AwsAccountCredentialsResponse = {
 export type CanDeployResponse = {
   canDeploy: boolean;
   message?: string;
+  /** Present when a Free organization's managed AWS costs this calendar month (UTC) passed the plan's limit. */
+  freePlanLimit?: {
+    monthToDateCostsUsd: number;
+    limitUsd: number;
+    /** `2026-10` */
+    month: string;
+    upgradeUrl: string;
+  };
 };
 
 export type DefaultDomainsInfoResponse = {
