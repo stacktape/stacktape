@@ -480,6 +480,8 @@ export type CurrentUserAndOrgDataResponse = {
   }>;
   permissions: string[];
   isProjectScoped: boolean;
+  /** The member reaches only the AWS accounts assigned to them; `connectedAwsAccounts` lists only those. */
+  isAwsAccountScoped?: boolean;
 };
 
 export type Ec2DeployFromCliResponse = {
