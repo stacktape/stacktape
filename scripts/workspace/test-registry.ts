@@ -2034,6 +2034,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -2574,6 +2575,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -5032,6 +5034,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
+      'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts'
