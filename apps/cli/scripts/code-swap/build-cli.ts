@@ -32,20 +32,25 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
     });
     build.onLoad({ filter: /multi-container-workloads[\\/]utils\.ts$/ }, async ({ path }) => {
       let contents =
-        `import { benchmarkContainerPolicy, benchmarkHasPhase3 } from ${JSON.stringify(resolve('scripts/code-swap/ecs-policy.ts'))};\n` +
+        `import { benchmarkContainerPolicy } from ${JSON.stringify(resolve('scripts/code-swap/ecs-policy.ts'))};\n` +
         (await readFile(path, 'utf8'));
       contents = replaceOnce(
         contents,
         '      LogConfiguration: isLoggingEnabled',
-        '      ...benchmarkContainerPolicy(workload, container),\n      LogConfiguration: isLoggingEnabled'
-      );
-      contents = replaceOnce(
-        contents,
-        ": cfnResource('AWS::ECS::Service', serviceProps);",
-        ": cfnResource('AWS::ECS::Service', serviceProps);\n  if(benchmarkHasPhase3()) service.DependsOn = [...((service.DependsOn as string[]) || []),'SwapCapacityStream','SwapCapacityStoppedPermission'];"
+        '      ...benchmarkContainerPolicy(workload, container, configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.ecsService(workload.name, false)], configManager.config.resources[workload.name]?.overrides?.[cfLogicalNames.autoScalingTarget(workload.name)]),\n      LogConfiguration: isLoggingEnabled'
       );
       return { contents, loader: 'ts' };
     });
+    build.onLoad({ filter: /cloudformation-stack-manager[\\/]index\.ts$/ }, async ({ path }) => ({
+      contents:
+        `import { benchmarkPrimeIdentity } from ${JSON.stringify(runtime)};\n` +
+        replaceOnce(
+          await readFile(path, 'utf8'),
+          '      this.#getDetailOfSelectedResources(this.existingStackResources),',
+          '      this.#getDetailOfSelectedResources(this.existingStackResources),\n      benchmarkPrimeIdentity(),'
+        ),
+      loader: 'ts'
+    }));
     build.onLoad({ filter: /tui-manager[\\/]output[\\/]jsonl\.ts$/ }, async ({ path }) => ({
       contents:
         `import { trace } from ${JSON.stringify(tracing)};\n` +

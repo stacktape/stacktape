@@ -3558,8 +3558,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/run.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
-      'apps/cli/scripts/code-swap/run.ts'
+      'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
+      'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
     ],
     lanes: [
       'code-swap-artifacts',

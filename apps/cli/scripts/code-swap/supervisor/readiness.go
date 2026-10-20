@@ -19,7 +19,6 @@ type checkedGeneration struct {
 }
 
 var checked atomic.Pointer[checkedGeneration]
-var admitted atomic.Bool
 var desiredRevision atomic.Pointer[string]
 
 func readinessSocket() string {
@@ -32,7 +31,7 @@ func ready() bool {
 	u := current.Load()
 	c := checked.Load()
 	desired := desiredRevision.Load()
-	return admitted.Load() && !stopping.Load() && u != nil && !u.exited.Load() && c != nil && c.generation == u && c.passed && time.Since(c.at) <= 7*time.Second && (desired == nil || *desired == u.revision)
+	return !stopping.Load() && u != nil && !u.exited.Load() && c != nil && c.generation == u && c.passed && time.Since(c.at) <= 7*time.Second && (desired == nil || *desired == u.revision)
 }
 func readinessCommand() error {
 	client := &http.Client{Timeout: time.Second, Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
