@@ -45,7 +45,8 @@ export const PERMISSIONS = [
   'debug:interactive-sessions',
   'api-keys:manage-own',
   'api-keys:view-all',
-  'api-keys:revoke-all'
+  'api-keys:revoke-all',
+  'api-keys:manage-organization'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -75,7 +76,8 @@ const ROLE_PERMISSIONS: Record<Exclude<ConsoleRole, 'MEMBER'>, ReadonlySet<Permi
     'security:view',
     'security:manage',
     'debug:interactive-sessions',
-    'api-keys:manage-own'
+    'api-keys:manage-own',
+    'members:view'
   ]),
   VIEWER: new Set([
     'projects:view',

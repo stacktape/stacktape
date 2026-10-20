@@ -348,21 +348,45 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
   e65({
     accountName,
     organizationName,
-    connectedAwsAccounts
+    connectedAwsAccounts,
+    isAwsAccountScoped
   }: {
     accountName: string;
     organizationName: string;
     connectedAwsAccounts: GlobalStateConnectedAwsAccount[];
+    isAwsAccountScoped?: boolean;
   }): ReturnedError {
     return {
       type: 'AWS_ACCOUNT',
-      message: `There is no AWS account named ${bold(
-        accountName
-      )} connected to your organization ${bold(organizationName)}.`,
-      hint: [`Available AWS accounts: ${connectedAwsAccounts?.map(({ name }) => bold(name)).join(', ') || 'none'}`]
+      message: isAwsAccountScoped
+        ? `You don't have access to an AWS account named ${bold(accountName)} in your organization ${bold(organizationName)}.`
+        : `There is no AWS account named ${bold(accountName)} connected to your organization ${bold(organizationName)}.`,
+      hint: [
+        `Available AWS accounts: ${connectedAwsAccounts?.map(({ name }) => bold(name)).join(', ') || 'none'}`,
+        ...(isAwsAccountScoped
+          ? [
+              'Your role reaches only the AWS accounts assigned to you. An Owner or Admin can add one on the Members page.'
+            ]
+          : [])
+      ]
     };
   },
-  e66({ organizationName }: { organizationName: string }): ReturnedError {
+  e66({
+    organizationName,
+    isAwsAccountScoped
+  }: {
+    organizationName: string;
+    isAwsAccountScoped?: boolean;
+  }): ReturnedError {
+    if (isAwsAccountScoped) {
+      return {
+        type: 'AWS_ACCOUNT',
+        message: `You don't have access to any AWS account in your organization ${bold(organizationName)}.`,
+        hint: [
+          'Your role reaches only the AWS accounts assigned to you. An Owner or Admin can add one on the Members page.'
+        ]
+      };
+    }
     return {
       type: 'AWS_ACCOUNT',
       message: `There is no AWS account connected to your organization ${bold(organizationName)}.`,
