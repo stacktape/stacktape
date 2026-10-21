@@ -267,7 +267,7 @@ export const runBytecodeQualification = async ({
     check(
       `${variant}: --help`,
       helpRun.exitCode === 0 &&
-        ['Available commands:', 'deploy', 'delete', 'package'].every((text) => helpRun.output.includes(text)),
+        ['Daily:', 'deploy', 'delete', 'package'].every((text) => helpRun.output.includes(text)),
       `${helpRun.output.split('\n').length} lines`
     );
     const defaultsRun = await run(variant, ['defaults:list']);
