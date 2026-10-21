@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestInterruptedProposalBootstrapsCommittedCodeAndForeignRevisionUsesImage(t *testing.T) {
 	r := record{Seq: 12, TaskDefinition: "arn:aws:ecs:eu-west-1:123456789012:task-definition/api:4", Phase: "prepare", Revision: "candidate",
@@ -17,5 +21,32 @@ func TestInterruptedProposalBootstrapsCommittedCodeAndForeignRevisionUsesImage(t
 	baseline := bootstrapIdentity(r, "api:4")
 	if baseline.Revision != "" || baseline.Phase != "abort" {
 		t.Fatalf("proposal executed during bootstrap: %+v", baseline)
+	}
+}
+
+func TestStatusWritesRetryAndNeverPanic(t *testing.T) {
+	oldPut, oldDelays := putItem, statusRetryDelays
+	statusRetryDelays = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}
+	defer func() { putItem, statusRetryDelays = oldPut, oldDelays }()
+
+	attempts := 0
+	putItem = func(map[string]any) error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("dynamodb PutItem: 500 InternalServerError")
+		}
+		return nil
+	}
+	if err := status("prepared", "v000002", map[string]any{}, ""); err != nil || attempts != 3 {
+		t.Fatalf("transient failure not retried: attempts=%d err=%v", attempts, err)
+	}
+
+	attempts = 0
+	putItem = func(map[string]any) error {
+		attempts++
+		return errors.New("dynamodb PutItem: 400 ThrottlingException")
+	}
+	if err := status("complete", "v000002", map[string]any{}, ""); err == nil || attempts != 4 {
+		t.Fatalf("persistent failure: attempts=%d err=%v", attempts, err)
 	}
 }
