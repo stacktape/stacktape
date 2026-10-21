@@ -1,5 +1,5 @@
 import { codeSwapRollbackComplete } from '@domain-services/code-swap/runtime';
-import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { stpErrors } from '@errors';
 import { configManager } from '@domain-services/config-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -222,6 +222,7 @@ export const executeRollbackOperation = async ({
   });
 
   try {
+    codeSwapBeginMutation();
     await stack.deployStackForRollback(templateUrl);
     await deploymentArtifacts.tagRestoredFunctions();
     spinner.success({ text: `Stack rolled back to ${targetVersion} (deployed as ${newVersion})` });
