@@ -3591,6 +3591,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/run.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
       'apps/cli/scripts/code-swap/lifecycle.spec.ts',
+      'apps/cli/src/domain/code-swap/runtime.spec.ts',
       'apps/cli/scripts/code-swap/supervisor/lifecycle_test.go',
       'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
       'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
