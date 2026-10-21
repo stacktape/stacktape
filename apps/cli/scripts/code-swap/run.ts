@@ -424,6 +424,10 @@ const cleanup = async (state: State, owned: Owned) => {
         nextToken = definitions.nextToken;
       } while (nextToken);
     }
+  }
+  // Request deletion for every service before waiting; ECS can retain each family's revisions for an hour.
+  for (const serviceName of owned.services ?? ['api']) {
+    const family = awsResourceNames.ecsTaskDefinitionFamily(serviceName, `${owned.name}-bench`);
     // ECS retains DELETE_IN_PROGRESS revisions while recently stopped tasks still reference them.
     // Keep exact-family recovery state until every revision is absent, rather than treating acceptance as deletion.
     const revisionDeadline = performance.now() + 70 * 60 * 1000;

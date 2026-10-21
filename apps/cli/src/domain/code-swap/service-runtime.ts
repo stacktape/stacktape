@@ -1157,7 +1157,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
           !requirements.includes('--hash=sha256:') ||
           !plan.deploy?.startCommand ||
           !/^(?:uvicorn|gunicorn|python(?:3(?:\.\d+)?)?)(?:\s|$)/.test(plan.deploy.startCommand) ||
-          /[;&|`\n\r]|\$\(|(?:^|\s)\/app(?:\/|\s|$)/.test(plan.deploy.startCommand) ||
+          /[;&|`\n\r]|\$\(|\/app(?:\/|\b)/.test(plan.deploy.startCommand) ||
           props?.buildCommand ||
           props?.installCommand ||
           props?.railpackConfig ||
