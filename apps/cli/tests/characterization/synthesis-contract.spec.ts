@@ -2197,13 +2197,13 @@ test('the public codeSwap opt-in adds the protected runtime while ordinary synth
     codeSwapIntegration.template = async () => {};
     const baseline = structuredClone(await fixture());
     installCodeSwap();
-    codeSwapIntegration.imageHasSupervisor = undefined;
+    codeSwapIntegration.imageHasSupervisor = new Map();
     expect(await fixture()).toEqual(baseline);
     expect(await fixture(false)).toEqual(baseline);
     const enabled = await fixture(true);
     expect(enabled.Resources.StacktapeCodeSwapTable).toMatchObject({
       Type: 'AWS::DynamoDB::Table',
-      Metadata: { CodeSwapService: 'orders' }
+      Metadata: { CodeSwapServices: ['orders'] }
     });
     const definition = JSON.stringify(enabled.Resources[cfLogicalNames.ecsTaskDefinition('orders')]);
     expect(definition).toContain('/stacktape-supervisor');
@@ -2214,7 +2214,7 @@ test('the public codeSwap opt-in adds the protected runtime while ordinary synth
     await expect(fixture(true, undefined, 6)).rejects.toThrow('final template cannot run');
     previousTable = enabled.Resources.StacktapeCodeSwapTable;
     const optingOut = await fixture(true, undefined, undefined, true);
-    expect(optingOut.Resources.StacktapeCodeSwapTable).toBeUndefined();
+    expect(optingOut.Resources.StacktapeCodeSwapTable).toBeDefined();
     for (const name of ['orders', 'billing']) {
       expect(JSON.stringify(optingOut.Resources[cfLogicalNames.ecsTaskRole(name)])).toContain(
         'code-swap-table-protection'

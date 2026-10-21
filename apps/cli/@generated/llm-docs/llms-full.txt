@@ -7779,7 +7779,7 @@ In agent mode (for CI/CD pipelines or AI coding assistants), provide all values 
 stacktape secret:set --region eu-west-1 --secretName my-api-key --secretValue sk-abc123 --agent
 ```
 
-To store the contents of a file as a secret (stored as JSON in Secrets Manager):
+To store the contents of a file as the secret value, exactly as they are in the file:
 
 ```bash
 stacktape secret:set --region eu-west-1 --secretName firebase-creds --secretFile ./firebase-service-account.json --agent
@@ -7817,7 +7817,7 @@ stacktape secret:set --region eu-west-1 --secretName my-api-key --secretValue ne
 | `--region` | **(required)** AWS region where the secret is stored. |
 | `--secretName` | Name of the secret in AWS Secrets Manager. Required in agent mode; prompted in interactive mode. |
 | `--secretValue` | The value to store. Mutually exclusive with `--secretFile`. |
-| `--secretFile` | Path to a file whose contents are stored as JSON. Mutually exclusive with `--secretValue`. |
+| `--secretFile` | Path to a file whose contents are stored as the secret value. Mutually exclusive with `--secretValue`. |
 | `--forceUpdate` | Overwrite an existing secret without confirmation. Only relevant in agent mode. |
 | `--agent` | Run in non-interactive mode with JSONL output. Requires `--secretName` and one of `--secretValue` or `--secretFile`. |
 
@@ -12615,11 +12615,15 @@ Deploy as usual with `stacktape deploy --stage production --region eu-west-1`. T
 
 ## Supported services
 
-The first release supports **one container service per stack**: a Node.js `js-bundle` web service on x86 Fargate, behind the default HTTP API Gateway. Dependencies must be fully bundled. The app must listen on `process.env.PORT`, allow a writable working directory, and keep child processes under its process tree. State that must survive a deploy belongs outside the process and its local release directory.
+Supports several opted-in web services per stack on x86 Fargate, behind the default HTTP API Gateway. Node.js uses `js-bundle` packaging. Dependencies are bundled or kept in an independent generated install in the image; a change to that installed image uses an image deploy. Python uses the standard `buildpack` path with a complete transitive `requirements.txt` lock: every dependency must use `==` and SHA-256 hashes. Generate it with `uv pip compile requirements.in --generate-hashes --output-file requirements.txt`. The build enforces `--require-hashes`; an incomplete lock falls back to an image deploy with a CLI explanation. Python swap identity includes a hash of the installed virtualenv, interpreter and system libraries, so a changed installed environment requires an image deploy. Python source swaps run without local/URL dependencies, custom build/install commands or custom Railpack configuration. The startup command must directly run `uvicorn`, `gunicorn` or `python`, without shell command chains or an absolute `/app` source path. Other Python dependency managers and packaging paths use images. Python and Node.js with installed dependencies currently require local Docker caching; a registry-cache builder uses images. The app must listen on `PORT`, allow a writable working directory, and keep child processes under its process tree. State that must survive a deploy belongs outside the process and its local release directory.
 
-Configured `internalHealthCheck`, ALB/NLB, blue/green deployments, side containers, tracing sidecars, remote sessions, EC2, arm64, native external dependencies, custom Dockerfiles, prebuilt images, Bun, Deno and Python use image deploys. Remove the opt-in if you only need image deploys. Unsupported combinations do not inherit the qualified runtime's guarantees.
+Configured `internalHealthCheck`, ALB/NLB, blue/green deployments, side containers, tracing sidecars, remote sessions, EC2, arm64, source-dependent dependency installs, custom Dockerfiles, prebuilt images, Bun and Deno use image deploys. Remove the opt-in if you only need image deploys. Unsupported combinations do not inherit the qualified runtime's guarantees.
 
-The service's autoscaling maximum, scheduled overrides and deployment surge must fit within **10 simultaneous tasks**. Unknown bounds use images. `minimumHealthyPercent` must be 100, and surge must allow at least one replacement. With the default 200% maximum, use `maxInstances: 5` or fewer. A ten-task desired count with no room for a replacement uses images, even before the first swap. No coordinator admits larger fleets. A custom CloudFormation transform that invalidates the protected role or capacity checks is refused before deployment; correct it or remove the opt-in.
+Each service's autoscaling maximum, scheduled overrides and deployment surge must fit within **10 simultaneous tasks**. Unknown bounds use images. `minimumHealthyPercent` must be 100, and surge must allow at least one replacement. With the default 200% maximum, use `maxInstances: 5` or fewer. A ten-task desired count with no room for a replacement uses images, even before the first swap. No coordinator admits larger fleets. A custom CloudFormation transform that invalidates the protected role or capacity checks is refused before deployment; correct it or remove the opt-in.
+
+Python bundles the source and assets selected by the buildpack, using the same exclusions as its image. The image keeps the interpreter and virtualenv; each activation starts the buildpack's command from the new release directory. Read application files relative to that working directory. An absolute `/app/...` path still reads the image's files. Python projects that install their own source or compile it during a build use images.
+
+A deploy prepares every changed service before switching any. If a changed service cannot swap, all changed services use image deploys. A failure during switching also converges all changed services through images. Unchanged services keep their tasks and serving code during ordinary code deploys. Explicit interrupted-operation recovery can replace every opted-in service to repair the stack. Services switch independently after preparation; there is no atomic switch across their public endpoints. Keep ordinary API compatibility between service versions.
 
 ## Memory and request failures
 
@@ -12633,7 +12637,7 @@ An unknown or unreadable peak, an unsupported memory layout, or a failed screen 
 
 ## Completion and fallback
 
-A small supervisor owns the HTTP port, starts the candidate, verifies proxy reachability, switches new requests, then waits for the old process to drain and exit. Without an authored application check, **any complete HTTP response, including 500, counts as reachability**. There is no default application health check and no fixed observation window.
+A small supervisor owns the HTTP port, starts the candidate, verifies proxy reachability, switches new requests, then waits for the old process to drain and exit. The old process gets up to **65 seconds** to finish requests that were already in flight, the same time an image deploy allows (35 s routing drain plus the 30 s default stop timeout). It receives `SIGTERM` as soon as its last request finishes, so a swap with no open requests does not wait. Requests still open after 65 seconds are closed. The application then has its `stopTimeout` (default 2 s) to exit before it is killed. Without an authored application check, **any complete HTTP response, including 500, counts as reachability**. There is no default application health check and no fixed observation window.
 
 The CLI reports success only after every current task completes, the fleet remains healthy and routable, old process trees exit, and release history is durable. Candidate failure, OOM, task replacement or fleet changes prevent swap success and trigger image convergence. If candidate cleanup cannot be confirmed, the command fails and keeps the operation lock; use the recovery procedure below. A later crash is an ordinary application incident; use your existing monitoring and rollback procedure.
 
@@ -12645,7 +12649,7 @@ Use [`stacktape rollback`](/deployment-and-lifecycle/rollbacks) to deploy a reta
 
 Set `codeSwap: false` or remove it, then deploy, to return to image-only operation. [`stacktape delete`](/cli/delete) also removes the runtime table and code bundles.
 
-Deploy, rollback, opt-out and delete share one operation lock once the stack is opted in. A killed CLI leaves the lock held. The next command names its holder. Stop that invocation, verify that every AWS change it started has finished, then run the command again with `--recoverOperation <invocation-id>` using the local runner. For deploy, add `--runner local` if you normally use an EC2 runner. Recovery repairs an interrupted swap through an image deploy; it never reports the interrupted attempt as a successful swap.
+Deploy, rollback, opt-out and delete share one operation lock once the stack is opted in. If you interrupt the CLI (Ctrl+C, or a cancelled CI job) before it starts changing the stack, it aborts any prepared swap and releases the lock. After it has started changing the stack, and whenever the CLI is killed, the lock stays held. The next command names its holder. Stop that invocation, verify that every AWS change it started has finished, then run the command again with `--recoverOperation <invocation-id>` using the local runner. For deploy, add `--runner local` if you normally use an EC2 runner. Recovery repairs an interrupted swap through an image deploy; it never reports the interrupted attempt as a successful swap.
 
 The application has permission to write its own supervisor status. A malicious application can forge its own completion and cause a false success report. It cannot write the release record, lock, or another task's status. Code bundles, images, release records and task status stay in your AWS account; this feature adds no external data service.
 
@@ -88062,7 +88066,8 @@ Security scanning of this stack's configuration on every deployment.
 Enabled by default for every stage. The findings appear in the deploy output and in the Security section of
 the Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn
 scanning off for a stack, or limit it to selected stages, when a stack must not report anything. An
-organization administrator can also disable it for all projects in the Console.
+organization administrator can also choose per AWS account, in the Console's security settings, to skip the
+dependency checks or turn scanning off; that choice applies to every stack deployed into the account.
 
 ### Example 1 (yaml)
 
@@ -127995,9 +128000,11 @@ type WebServiceProps = {
   cdn?: CdnConfiguration;
   /** Update code inside running containers when eligible. Off by default, including production.
 
-Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
 without configured health checks or side containers. The application must honor PORT.
-Autoscaling maximum plus deployment surge must fit within 10 tasks.
+Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
+All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
+or custom build/install steps; other Python packaging uses images.
 
 Old and new processes share task memory during the switch. A sudden memory increase can
 fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.
@@ -128311,9 +128318,11 @@ export default defineConfig(() => {
 
 Update code inside running containers when eligible. Off by default, including production.
 
-Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
 without configured health checks or side containers. The application must honor PORT.
-Autoscaling maximum plus deployment surge must fit within 10 tasks.
+Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
+All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
+or custom build/install steps; other Python packaging uses images.
 
 Old and new processes share task memory during the switch. A sudden memory increase can
 fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.

@@ -60,6 +60,7 @@ export const buildJsBundleImage = async ({
         minify: boolean;
         dockerBuildOutputArchitecture: string;
         languageSpecificBundleOutput: LanguageSpecificBundleOutput;
+        nodeBaseDigest?: string;
       }) => Promise<string>;
     };
     requiresGlibcBinaries: boolean;
@@ -179,6 +180,28 @@ export const buildJsBundleImage = async ({
     },
     buildContextPath
   });
+  let nodeBaseDigest: string | undefined;
+  if (
+    imageExtension &&
+    !cacheFromRef &&
+    !cacheToRef &&
+    (languageSpecificBundleOutput.es?.externalDependencies?.length ?? 0) > 0 &&
+    dockerfileContents.includes('COPY . /app\nCOPY --from=deps /install-dir/package.json /app/package.json')
+  ) {
+    // This generated install reads only its manifest. Its actual image ID covers the runtime and installed bytes,
+    // including changed transitive packages, without the application's changing source layer.
+    const base = await buildGeneratedDockerImage({
+      dockerfileContents: dockerfileContents.replace('COPY . /app\n', ''),
+      buildDockerImage,
+      imageTag: `${name}-code-swap-base`,
+      buildContextPath,
+      dockerBuildOutputArchitecture,
+      cacheFromRef,
+      cacheToRef
+    });
+    nodeBaseDigest = base.id;
+    dockerfileContents = `FROM ${name}-code-swap-base\nCOPY . /app\nWORKDIR /app\nENV NODE_ENV=production\nCMD ["node", "index.js"]\n`;
+  }
   if (imageExtension)
     dockerfileContents = await imageExtension.transform({
       packagingDigest: digest,
@@ -189,7 +212,8 @@ export const buildJsBundleImage = async ({
       nodeTarget,
       minify,
       dockerBuildOutputArchitecture: dockerBuildOutputArchitecture ?? 'linux/amd64',
-      languageSpecificBundleOutput
+      languageSpecificBundleOutput,
+      ...(nodeBaseDigest && { nodeBaseDigest })
     });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 

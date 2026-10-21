@@ -3,6 +3,7 @@
  * uses. It answers the few procedures a stack operation needs, records every call, and refuses anything else with a
  * tRPC `NOT_FOUND` error so an unexpected dependency on the Console shows up in the test instead of hanging.
  */
+import type { SecurityScanningLevel } from '@stacktape/console-api/security';
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
@@ -46,7 +47,7 @@ export const startControlPlaneFake = async ({
   projectName,
   permissions = ['deployments:delete-non-production', 'deployments:delete-production', 'deployments:deploy'],
   awsAccountId = FAKE_AWS_ACCOUNT_ID,
-  securityScanningEnabled = false,
+  securityScanning = 'OFF',
   connectedAwsAccounts,
   awsAccountCredentials,
   freePlanLimit
@@ -55,7 +56,8 @@ export const startControlPlaneFake = async ({
   permissions?: string[];
   /** The connected account's ID; the CLI compares it with STS, so an emulator-backed run passes the emulator's. */
   awsAccountId?: string;
-  securityScanningEnabled?: boolean;
+  /** Every connected account's scanning level; off keeps runs from downloading Trivy. */
+  securityScanning?: SecurityScanningLevel;
   /** Replaces the single default connection, for scenarios that choose between accounts. */
   connectedAwsAccounts?: Array<{ name: string; awsAccountId: string; connectionMode: 'BASIC' | 'PRIVILEGED' }>;
   /** Answers `awsAccountCredentials` for privileged connections with these keys per account name. */
@@ -73,7 +75,6 @@ export const startControlPlaneFake = async ({
         id: 'org-cli-process',
         name: 'CLI process organization',
         role: 'OWNER',
-        securityScanningEnabled,
         issuesEnabled: false
       },
       connectedAwsAccounts: (
@@ -84,6 +85,7 @@ export const startControlPlaneFake = async ({
         state: 'ACTIVE',
         primaryRegions: ['eu-west-1'],
         defaultRegion: 'eu-west-1',
+        securityScanning,
         ...account
       })),
       projects: [

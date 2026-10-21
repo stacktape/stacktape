@@ -8,7 +8,7 @@ import { awsClientConfig, createAwsClientContext } from '../../aws/context';
 import { acquireLock, recoverLock, removeLock, tableGoneDuringDelete } from './operation-lock';
 import { taskTableProtection } from './permissions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getCodeSwapRun } from './configuration';
+import { getCodeSwapRuns } from './configuration';
 import { unsupportedReason } from './eligibility';
 import { incompleteHistoryVersions, readReleaseRecord, type SwapRecord } from './release-record';
 import { getCfTemplateS3Key, getStpTemplateS3Key } from '../deployment-artifact-manager/artifact-names';
@@ -21,18 +21,21 @@ let held:
       invocationId: string;
       stackName: string;
       stackId: string;
-      service: string;
+      services: { service: string; recordService: string }[];
       arn: string;
     }
   | undefined;
 let teardownRequested = false;
 let teardownAccepted = false;
 let interrupted = false;
-let pendingPreparation: Promise<unknown> | undefined;
+let retainLock = false;
+let mutationStarted = false;
+const pendingPreparations: Promise<unknown>[] = [];
 export let recoveredOperation = false;
-export let releaseRecordAtStart: SwapRecord | undefined;
+export const releaseRecordsAtStart = new Map<string, SwapRecord | undefined>();
 export let hadCodeSwapTable = false;
 let versionFloor = 'v000000';
+let codeSwapNextVersionFloor = versionFloor;
 export const codeSwapNextVersion = (version: string) =>
   version > versionFloor ? version : `v${String(Number(versionFloor.slice(1)) + 1).padStart(6, '0')}`;
 
@@ -102,7 +105,7 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
     table: tableName,
     invocationId: global.invocationId,
     stackName: global.targetStack.stackName,
-    service: typeof table.Metadata?.CodeSwapService === 'string' ? table.Metadata.CodeSwapService : 'api',
+    services: (await getCodeSwapRuns()).map(({ service, recordService }) => ({ service, recordService })),
     arn: `arn:aws:dynamodb:${global.region}:${global.targetAwsAccount.awsAccountId}:table/${tableName}`,
     stackId: stack.existingStackDetails.StackId
   };
@@ -112,40 +115,53 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
   applicationManager.registerCleanUpHook(async (outcome) => {
     interrupted ||= Boolean(outcome?.interrupted);
   });
-  const record = await readReleaseRecord(ddb, tableName);
-  if (record?.HistoryVersion && stack.lastVersion && record.HistoryVersion > stack.lastVersion)
-    throw new Error(
-      'Another release finished while this operation initialized. Run the command again with fresh stack state.'
-    );
-  releaseRecordAtStart = record;
-  versionFloor =
-    [record?.Committed?.Revision, record?.Proposed?.Revision, record?.HistoryVersion]
-      .filter((version): version is string => Boolean(version && /^v\d{6}$/.test(version)))
-      .sort()
-      .at(-1) ?? versionFloor;
-  // SIGKILL can land between the ordinary history uploads and our final record write. Such an attempt is not a release.
-  const incomplete = incompleteHistoryVersions(record);
-  if (incomplete.length) {
-    const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
-    const keys = incomplete.flatMap((version) => [
-      getCfTemplateS3Key(version),
-      getStpTemplateS3Key(version),
-      `fast-release/${version}.json`
-    ]);
-    await artifacts.deleteObjectsFromDeploymentBucket(keys);
-    artifacts.previousObjects = artifacts.previousObjects.filter(({ s3Key }) => !keys.includes(s3Key));
+  for (const run of await getCodeSwapRuns()) {
+    const record = await readReleaseRecord(ddb, tableName, run.recordService);
+    if (record?.HistoryVersion && stack.lastVersion && record.HistoryVersion > stack.lastVersion)
+      throw new Error(
+        'Another release finished while this operation initialized. Run the command again with fresh stack state.'
+      );
+    releaseRecordsAtStart.set(run.recordService, record);
+    versionFloor =
+      [record?.Committed?.Revision, record?.Proposed?.Revision, record?.HistoryVersion]
+        .filter((version): version is string => Boolean(version && /^v\d{6}$/.test(version)))
+        .sort()
+        .at(-1) ?? versionFloor;
+    versionFloor = versionFloor > codeSwapNextVersionFloor ? versionFloor : codeSwapNextVersionFloor;
+    codeSwapNextVersionFloor = versionFloor;
+    // SIGKILL can land between the ordinary history uploads and our final record write. Such an attempt is not a release.
+    const incomplete = incompleteHistoryVersions(record);
+    if (incomplete.length) {
+      const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
+      const keys = incomplete.flatMap((version) => [
+        getCfTemplateS3Key(version),
+        getStpTemplateS3Key(version),
+        `fast-release/${version}.json`
+      ]);
+      await artifacts.deleteObjectsFromDeploymentBucket(keys);
+      artifacts.previousObjects = artifacts.previousObjects.filter(({ s3Key }) => !keys.includes(s3Key));
+    }
   }
 };
 
+export const codeSwapInterrupted = () => interrupted;
+
+// Commands call this right before they change CloudFormation stacks or running services. An interruption before
+// that point aborts any prepared swap and releases the lock; after it, recovery must confirm the AWS changes finished.
+export const codeSwapBeginMutation = () => {
+  if (interrupted) throw new Error('The operation was interrupted before it changed the stack.');
+  mutationStarted = true;
+};
+
 export const codeSwapTrackPreparation = (work: Promise<unknown>) => {
-  pendingPreparation = work;
+  pendingPreparations.push(work);
 };
 
 // The entrypoint calls this after the ordinary cleanup hooks (which run concurrently) have all finished.
 export const codeSwapFinish = async () => {
-  if (interrupted) return;
-  if (pendingPreparation) await Promise.allSettled([pendingPreparation]);
-  pendingPreparation = undefined;
+  if (retainLock || (interrupted && mutationStarted)) return;
+  await Promise.allSettled(pendingPreparations);
+  pendingPreparations.length = 0;
   await codeSwapIntegration.abortPreparation();
   if (!held) return;
   const lock = held;
@@ -162,143 +178,163 @@ export const codeSwapTeardownAccepted = <T>(result: T, stackName?: string): T =>
 };
 
 export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
-  const run = await getCodeSwapRun();
-  if (!run) return;
-  if (!run.phase4) return;
-  if (run.optOut) {
-    const { templateManager } = await import('../template-manager');
-    if (
-      !process.env.STP_CODE_SWAP_BENCH_RUN &&
-      !templateManager.oldTemplate.Resources[TABLE_LOGICAL_ID] &&
-      !template.Resources[TABLE_LOGICAL_ID]
-    )
-      return;
-    teardownRequested = true;
-  }
-  const { globalStateManager: global } = await import('../../app/global-state-manager');
-  const arn = `arn:aws:dynamodb:${global.region}:${global.targetAwsAccount.awsAccountId}:table/${run.table}`;
-  if (!run.optOut)
-    template.Resources[TABLE_LOGICAL_ID] = {
-      Type: 'AWS::DynamoDB::Table',
-      DependsOn: cfLogicalNames.ecsTaskRole(run.service),
-      Metadata: { CodeSwapService: run.service },
-      Properties: {
-        TableName: run.table,
-        BillingMode: 'PAY_PER_REQUEST',
-        KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
-        AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
-        Tags: [{ Key: 'stacktape:code-swap-owner', Value: run.owner }]
-      }
-    };
-  const { configManager } = await import('../config-manager');
-  const services = new Set([
-    run.service,
-    ...(run.optOut && configManager.config ? configManager.allContainerWorkloads.map((workload) => workload.name) : [])
-  ]);
-  for (const serviceName of services) {
-    // A removed service keeps its existing Deny until CloudFormation deletes its role.
-    if (run.optOut && !template.Resources[cfLogicalNames.ecsTaskDefinition(serviceName)]) continue;
-    protectTaskRole(template, arn, serviceName);
-  }
-  if (run.optOut) return;
-  const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
-  const role = template.Resources[cfLogicalNames.ecsTaskRole(run.service)];
-  const props = z
-    .object({ Policies: z.array(z.unknown()).optional() })
-    .loose()
-    .parse(role.Properties);
-  role.Properties = {
-    ...role.Properties,
-    Policies: [
-      ...(props.Policies ?? []),
-      {
-        PolicyName: 'code-swap-runtime',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: ['dynamodb:GetItem'],
-              Resource: arn,
-              Condition: { 'ForAllValues:StringEquals': { 'dynamodb:LeadingKeys': ['release#node'] } }
-            },
-            {
-              Effect: 'Allow',
-              Action: ['dynamodb:PutItem'],
-              Resource: arn,
-              Condition: { 'ForAllValues:StringEquals': { 'dynamodb:LeadingKeys': ['status#node#${aws:userid}'] } }
-            },
-            {
-              Effect: 'Allow',
-              Action: ['s3:GetObject'],
-              Resource: `arn:aws:s3:::${artifacts.deploymentBucketName}/code-swap/api/bundles/*`
-            }
-          ]
-        }
-      }
-    ]
-  };
-  const definition = template.Resources[cfLogicalNames.ecsTaskDefinition(run.service)];
-  const containers = z
-    .array(z.object({ Environment: z.array(z.unknown()).optional() }).loose())
-    .parse((definition.Properties as Record<string, unknown>)?.ContainerDefinitions);
-  const app = containers[0]!;
-  const { imageHasSupervisor } = codeSwapIntegration;
-  if (imageHasSupervisor !== false) {
-    const { configManager } = await import('../config-manager');
-    const workload = configManager.allContainerWorkloads.find((item) => item.name === run.service);
-    if (workload) {
-      const actualService = template.Resources[cfLogicalNames.ecsService(run.service, false)];
-      const actualScaling = template.Resources[cfLogicalNames.autoScalingTarget(run.service)];
-      const capacity = capacityWithOverrides(
-        {
-          name: run.service,
-          maximum: workload.scaling.maxInstances,
-          minimum: workload.scaling.minInstances,
-          maximumPercent: 200,
-          scalingOverrides: actualScaling?.Properties
+  const runs = await getCodeSwapRuns();
+  if (!runs.length) return;
+  const enabled = runs.filter((run) => !run.optOut);
+  for (const run of runs) {
+    if (!run.phase4) return;
+    if (!enabled.length) {
+      const { templateManager } = await import('../template-manager');
+      if (
+        !process.env.STP_CODE_SWAP_BENCH_RUN &&
+        !templateManager.oldTemplate.Resources[TABLE_LOGICAL_ID] &&
+        !template.Resources[TABLE_LOGICAL_ID]
+      )
+        return;
+      teardownRequested = true;
+    }
+    const { globalStateManager: global } = await import('../../app/global-state-manager');
+    const arn = `arn:aws:dynamodb:${global.region}:${global.targetAwsAccount.awsAccountId}:table/${run.table}`;
+    if (!run.optOut)
+      template.Resources[TABLE_LOGICAL_ID] = {
+        Type: 'AWS::DynamoDB::Table',
+        DependsOn: enabled.map((item) => cfLogicalNames.ecsTaskRole(item.service)),
+        Metadata: {
+          CodeSwapServices: enabled.map((item) => item.service),
+          ...(runs.find((item) => item.recordService === 'node' && item.artifactService === 'api')
+            ? {
+                CodeSwapService: runs.find((item) => item.recordService === 'node' && item.artifactService === 'api')!
+                  .service
+              }
+            : {})
         },
-        actualService?.Properties
-      );
-      if (capacity.reason)
-        throw new CliError({
-          category: 'CONFIG_VALIDATION',
-          code: 'CODE_SWAP_FINAL_TEMPLATE_UNSUPPORTED',
-          message: `The final template cannot run the code-swap supervisor: ${capacity.reason}`,
-          hints: 'Remove codeSwap or correct the capacity transform before deploying.'
-        });
-    }
-  }
-  // A cached bundle skips the transform; a supervisor command in the image's cached template remains valid.
-  if (imageHasSupervisor === false) {
+        Properties: {
+          TableName: run.table,
+          BillingMode: 'PAY_PER_REQUEST',
+          KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
+          Tags: [{ Key: 'stacktape:code-swap-owner', Value: run.owner }]
+        }
+      };
     const { configManager } = await import('../config-manager');
-    const container = configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0];
-    if (container && !process.env.STP_CODE_SWAP_BENCH_RUN) {
-      delete app.HealthCheck;
-      app.StopTimeout = container.stopTimeout ?? 30;
+    const services = new Set([
+      run.service,
+      ...(configManager.config ? configManager.allContainerWorkloads.map((workload) => workload.name) : [])
+    ]);
+    for (const serviceName of services) {
+      // A removed service keeps its existing Deny until CloudFormation deletes its role.
+      if (run.optOut && !template.Resources[cfLogicalNames.ecsTaskDefinition(serviceName)]) continue;
+      protectTaskRole(
+        template,
+        arn,
+        serviceName,
+        runs.find((item) => item.service === serviceName)?.recordService ?? `service:${serviceName}`
+      );
     }
-  }
+    if (run.optOut) continue;
+    const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
+    const role = template.Resources[cfLogicalNames.ecsTaskRole(run.service)];
+    const props = z
+      .object({ Policies: z.array(z.unknown()).optional() })
+      .loose()
+      .parse(role.Properties);
+    role.Properties = {
+      ...role.Properties,
+      Policies: [
+        ...(props.Policies ?? []),
+        {
+          PolicyName: 'code-swap-runtime',
+          PolicyDocument: {
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: ['dynamodb:GetItem'],
+                Resource: arn,
+                Condition: { 'ForAllValues:StringEquals': { 'dynamodb:LeadingKeys': [`release#${run.recordService}`] } }
+              },
+              {
+                Effect: 'Allow',
+                Action: ['dynamodb:PutItem'],
+                Resource: arn,
+                Condition: {
+                  'ForAllValues:StringEquals': {
+                    'dynamodb:LeadingKeys': [`status#${run.recordService}#\${aws:userid}`]
+                  }
+                }
+              },
+              {
+                Effect: 'Allow',
+                Action: ['s3:GetObject'],
+                Resource: `arn:aws:s3:::${artifacts.deploymentBucketName}/code-swap/${run.artifactService}/bundles/*`
+              }
+            ]
+          }
+        }
+      ]
+    };
+    const definition = template.Resources[cfLogicalNames.ecsTaskDefinition(run.service)];
+    const containers = z
+      .array(z.object({ Environment: z.array(z.unknown()).optional() }).loose())
+      .parse((definition.Properties as Record<string, unknown>)?.ContainerDefinitions);
+    const app = containers[0]!;
+    const imageHasSupervisor = codeSwapIntegration.imageHasSupervisor.get(run.service);
+    if (imageHasSupervisor !== false) {
+      const { configManager } = await import('../config-manager');
+      const workload = configManager.allContainerWorkloads.find((item) => item.name === run.service);
+      if (workload) {
+        const actualService = template.Resources[cfLogicalNames.ecsService(run.service, false)];
+        const actualScaling = template.Resources[cfLogicalNames.autoScalingTarget(run.service)];
+        const capacity = capacityWithOverrides(
+          {
+            name: run.service,
+            maximum: workload.scaling.maxInstances,
+            minimum: workload.scaling.minInstances,
+            maximumPercent: 200,
+            scalingOverrides: actualScaling?.Properties
+          },
+          actualService?.Properties
+        );
+        if (capacity.reason)
+          throw new CliError({
+            category: 'CONFIG_VALIDATION',
+            code: 'CODE_SWAP_FINAL_TEMPLATE_UNSUPPORTED',
+            message: `The final template cannot run the code-swap supervisor: ${capacity.reason}`,
+            hints: 'Remove codeSwap or correct the capacity transform before deploying.'
+          });
+      }
+    }
+    // A cached bundle skips the transform; a supervisor command in the image's cached template remains valid.
+    if (imageHasSupervisor === false) {
+      const { configManager } = await import('../config-manager');
+      const container = configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0];
+      if (container && !process.env.STP_CODE_SWAP_BENCH_RUN) {
+        delete app.HealthCheck;
+        app.StopTimeout = container.stopTimeout ?? 30;
+      }
+    }
 
-  app.Environment = (app.Environment ?? []).filter(
-    (value) => !(value && typeof value === 'object' && 'Name' in value && value.Name === 'STP_BENCH_ROLE_ID')
-  );
-  if (imageHasSupervisor !== false)
-    app.Environment.push({
-      Name: 'STP_BENCH_ROLE_ID',
-      Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole(run.service), 'RoleId'] }
-    });
-  definition.Properties = { ...definition.Properties, ContainerDefinitions: containers };
-  const service = template.Resources[cfLogicalNames.ecsService(run.service, false)];
-  service.DependsOn = [
-    ...new Set([
-      ...(Array.isArray(service.DependsOn) ? service.DependsOn : service.DependsOn ? [service.DependsOn] : []),
-      TABLE_LOGICAL_ID
-    ])
-  ];
+    app.Environment = (app.Environment ?? []).filter(
+      (value) => !(value && typeof value === 'object' && 'Name' in value && value.Name === 'STP_BENCH_ROLE_ID')
+    );
+    if (imageHasSupervisor !== false)
+      app.Environment.push({
+        Name: 'STP_BENCH_ROLE_ID',
+        Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole(run.service), 'RoleId'] }
+      });
+    definition.Properties = { ...definition.Properties, ContainerDefinitions: containers };
+    const service = template.Resources[cfLogicalNames.ecsService(run.service, false)];
+    service.DependsOn = [
+      ...new Set([
+        ...(Array.isArray(service.DependsOn) ? service.DependsOn : service.DependsOn ? [service.DependsOn] : []),
+        TABLE_LOGICAL_ID
+      ])
+    ];
+  }
 };
 
 // Keep the Deny on the retained role through opt-out. Removing it early would expose a still-running app's table.
-const protectTaskRole = (template: CloudFormationTemplate, arn: string, service: string) => {
+const protectTaskRole = (template: CloudFormationTemplate, arn: string, service: string, recordService = 'node') => {
   const roleName = cfLogicalNames.ecsTaskRole(service);
   const definitionName = cfLogicalNames.ecsTaskDefinition(service);
   const serviceName = cfLogicalNames.ecsService(service, false);
@@ -330,7 +366,7 @@ const protectTaskRole = (template: CloudFormationTemplate, arn: string, service:
     PolicyName: 'code-swap-table-protection',
     PolicyDocument: {
       Version: '2012-10-17',
-      Statement: taskTableProtection(arn)
+      Statement: taskTableProtection(arn, recordService)
     }
   });
   role.Properties = { ...role.Properties, Policies: policies };
@@ -339,6 +375,14 @@ const protectTaskRole = (template: CloudFormationTemplate, arn: string, service:
 export const codeSwapRollbackTemplate = (template: CloudFormationTemplate) => {
   if (held && !template.Resources[TABLE_LOGICAL_ID]) {
     teardownRequested = true;
-    protectTaskRole(template, held.arn, held.service);
+    for (const { service, recordService } of held.services) {
+      if (template.Resources[cfLogicalNames.ecsTaskDefinition(service)])
+        protectTaskRole(template, held.arn, service, recordService);
+    }
   }
+};
+
+// A failed final reconciliation must remain recoverable even if another service finalized its row.
+export const retainCodeSwapLock = () => {
+  retainLock = true;
 };

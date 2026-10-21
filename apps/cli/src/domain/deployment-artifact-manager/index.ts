@@ -48,7 +48,12 @@ import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
-import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
+import {
+  keepImagesOfRunningServices,
+  keepLayersOfRetainedReleases,
+  selectObsoleteArtifacts,
+  type StoredArtifact
+} from './retention';
 import {
   buildRepublishedLayerS3Key,
   getDeployedSharedLayers,
@@ -430,7 +435,11 @@ class DeploymentArtifactManager {
       ecsServiceTaskDefinition?.containerDefinitions?.some(({ image }) => {
         if (!image?.startsWith(`${this.repositoryUrl}:`)) return false;
         const running = parseImageTag(image.slice(this.repositoryUrl.length + 1));
-        return running.jobName === jobName && running.digest !== digest;
+        return (
+          running.jobName === jobName &&
+          running.digest !== digest &&
+          !codeSwapIntegration.imageMatchesRunningCode(jobName, digest, ecsServiceTaskDefinition.taskDefinitionArn)
+        );
       })
     );
 
@@ -582,6 +591,20 @@ class DeploymentArtifactManager {
       }
     });
 
+  /**
+   * Images that running services still use. After a code swap, a service keeps its older task revision, whose image can
+   * fall out of the retention window; deleting it would make replacement and scale-out tasks fail to pull.
+   */
+  #withoutLiveImages = async <T extends { tag: string; dockerDigest: string }>(obsolete: T[]) =>
+    obsolete.length
+      ? keepImagesOfRunningServices({
+          obsolete,
+          liveImages: await codeSwapIntegration.liveImages(),
+          repositoryUrl: this.repositoryUrl,
+          storedImages: this.previousImages
+        })
+      : obsolete;
+
   /** See `keepLayersOfRetainedReleases`. The retained templates are read only when a layer is about to go. */
   #withoutLayersOfRetainedReleases = async <T extends { s3Key: string; name: string }>(obsolete: T[]) => {
     const obsoleteLayers = obsolete.filter(({ name }) => name.startsWith('shared-layer-'));
@@ -605,7 +628,7 @@ class DeploymentArtifactManager {
   };
 
   deleteAllObsoleteArtifacts = async () => {
-    const obsoleteImages = this.getObsoleteItems(this.previousImages);
+    const obsoleteImages = await this.#withoutLiveImages(this.getObsoleteItems(this.previousImages));
     const obsoleteObjects = await this.#withoutLayersOfRetainedReleases(this.getObsoleteItems(this.previousObjects));
     const deletedKeys = new Set(obsoleteObjects.map(({ s3Key }) => s3Key));
     const obsoleteSourceMapKeys = selectObsoleteSourceMapKeys({

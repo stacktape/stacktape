@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { DeploymentArtifactUsage } from './retention';
-import { keepLayersOfRetainedReleases, selectObsoleteArtifacts } from './retention';
+import { keepImagesOfRunningServices, keepLayersOfRetainedReleases, selectObsoleteArtifacts } from './retention';
 
 const noUsage: DeploymentArtifactUsage = {
   uploadedObjects: [],
@@ -86,5 +86,44 @@ describe('shared layers of retained releases', () => {
     });
 
     expect(namesOf(kept)).toEqual(['shared-layer-1/a1.zip']);
+  });
+});
+
+describe('images of running services', () => {
+  const repositoryUrl = '123456789012.dkr.ecr.eu-west-1.amazonaws.com/repo';
+  // After several code swaps the service still runs the v000003 image, now outside the retention window.
+  const stored = [
+    { tag: 'api--v000003--aaa', dockerDigest: 'sha256:running' },
+    { tag: '', dockerDigest: 'sha256:running' },
+    { tag: 'api--v000004--bbb', dockerDigest: 'sha256:old' },
+    { tag: '', dockerDigest: 'sha256:orphan' }
+  ];
+
+  test('keeps the image a running task revision pulls, including its untagged digest entry', () => {
+    expect(
+      keepImagesOfRunningServices({
+        obsolete: stored,
+        liveImages: [`${repositoryUrl}:api--v000003--aaa`, 'public.ecr.aws/other:tag'],
+        repositoryUrl,
+        storedImages: stored
+      })
+    ).toEqual([
+      { tag: 'api--v000004--bbb', dockerDigest: 'sha256:old' },
+      { tag: '', dockerDigest: 'sha256:orphan' }
+    ]);
+  });
+
+  test('keeps an image referenced by digest and deletes everything when nothing runs from the repository', () => {
+    expect(
+      keepImagesOfRunningServices({
+        obsolete: stored,
+        liveImages: [`${repositoryUrl}@sha256:orphan`],
+        repositoryUrl,
+        storedImages: stored
+      }).map(({ dockerDigest }) => dockerDigest)
+    ).toEqual(['sha256:running', 'sha256:running', 'sha256:old']);
+    expect(
+      keepImagesOfRunningServices({ obsolete: stored, liveImages: [], repositoryUrl, storedImages: stored })
+    ).toEqual(stored);
   });
 });

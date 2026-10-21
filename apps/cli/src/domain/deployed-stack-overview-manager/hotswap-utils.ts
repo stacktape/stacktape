@@ -115,8 +115,10 @@ const pickComparedContainerProperties = (container: ContainerDefinition): Contai
  */
 export const compareEcsTaskDefinitions = ({
   calculatedTaskDefinition,
-  currentTaskDefinition
+  currentTaskDefinition,
+  ignoreImages = false
 }: {
+  ignoreImages?: boolean;
   calculatedTaskDefinition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
   currentTaskDefinition: SdkTaskDefinition;
 }) => {
@@ -126,5 +128,13 @@ export const compareEcsTaskDefinitions = ({
     ) as ContainerDefinition[]
   ).map(pickComparedContainerProperties);
   const currentContainers = currentTaskDefinition.containerDefinitions.map(pickComparedContainerProperties);
-  return { needsUpdate: !isEqual(calculatedContainers, currentContainers) };
+  const normalize = (containers: ReturnType<typeof pickComparedContainerProperties>[]) =>
+    orderBy(
+      containers.map(({ image, ...container }) => ({
+        ...container,
+        image: ignoreImages && container.essential !== false ? undefined : image
+      })),
+      ['name']
+    );
+  return { needsUpdate: !isEqual(normalize(calculatedContainers), normalize(currentContainers)) };
 };

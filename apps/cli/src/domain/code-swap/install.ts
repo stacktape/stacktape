@@ -1,5 +1,12 @@
 import { codeSwapIntegration } from './integration';
-import { codeSwapImageExtension, codeSwapReleaseIdentity, abortCodeSwapPreparation } from './runtime';
+import {
+  codeSwapImageExtension,
+  codeSwapImageMatchesRunningCode,
+  codeSwapLiveImages,
+  codeSwapPythonExtension,
+  codeSwapReleaseIdentity,
+  abortCodeSwapPreparation
+} from './runtime';
 import {
   codeSwapNextVersion,
   codeSwapTemplate,
@@ -8,7 +15,10 @@ import {
 } from './lifecycle-hooks';
 
 export const installCodeSwap = () => {
+  codeSwapIntegration.imageMatchesRunningCode = codeSwapImageMatchesRunningCode;
+  codeSwapIntegration.liveImages = codeSwapLiveImages;
   codeSwapIntegration.abortPreparation = abortCodeSwapPreparation;
+  codeSwapIntegration.pythonExtension = codeSwapPythonExtension;
   codeSwapIntegration.imageExtension = codeSwapImageExtension;
   codeSwapIntegration.releaseIdentity = codeSwapReleaseIdentity;
   codeSwapIntegration.nextVersion = codeSwapNextVersion;

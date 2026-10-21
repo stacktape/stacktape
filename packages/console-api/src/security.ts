@@ -22,6 +22,14 @@ export const SECURITY_FINDING_STATUSES = ['OPEN', 'RESOLVED', 'IGNORED'] as cons
 export type SecurityFindingStatus = (typeof SECURITY_FINDING_STATUSES)[number];
 
 /** Sorting and threshold order: a lower rank is more severe. */
+/**
+ * What a deploy into a connected AWS account is checked for, chosen per account in the Console. Configuration checks
+ * evaluate the resolved config in the CLI; dependency checks also record the deployed packages for the Console to grade.
+ */
+export const SECURITY_SCANNING_LEVELS = ['CONFIGURATION_AND_DEPENDENCIES', 'CONFIGURATION', 'OFF'] as const;
+export type SecurityScanningLevel = (typeof SECURITY_SCANNING_LEVELS)[number];
+export const securityScanningLevelSchema = z.enum(SECURITY_SCANNING_LEVELS);
+
 export const SECURITY_SEVERITY_RANK: Record<SecurityFindingSeverity, number> = {
   CRITICAL: 0,
   HIGH: 1,
@@ -254,7 +262,7 @@ export type SecurityExposureEntry = z.infer<typeof securityExposureEntrySchema>;
 
 export type RecordSecurityReportResponse = {
   accepted: boolean;
-  /** Present when the report was not applied. */
+  /** Present when the report was not applied. `disabled-by-organization`: scanning is off for the deployment's account. */
   reason?: 'operation-not-found' | 'operation-not-a-deployment' | 'disabled-by-organization' | 'stack-deleted';
   opened: number;
   reopened: number;
