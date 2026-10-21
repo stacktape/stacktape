@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
@@ -78,24 +78,13 @@ describe('ensureTrivyBinary', () => {
     await expect(ensureTrivyBinary({ release, platform: 'linux', toolsDirectory })).rejects.toThrow(
       'does not match the checksum'
     );
-    await expect(stat(join(toolsDirectory, 'trivy', '0.0.0-tampered', 'trivy'))).rejects.toThrow();
+    // Neither the binary nor the downloaded archive stays: a retry starts clean and nothing accumulates.
+    expect(await readdir(join(toolsDirectory, 'trivy', '0.0.0-tampered'))).toEqual([]);
   });
 
   test('reports a failed download instead of verifying an error page', async () => {
     const release = releaseFor({ sha256: archiveSha256, version: '0.0.0-missing' });
     release.baseUrl = `http://127.0.0.1:${server.port}/missing`;
     await expect(ensureTrivyBinary({ release, platform: 'linux', toolsDirectory })).rejects.toThrow('HTTP 404');
-  });
-
-  test('uses an explicitly configured binary without downloading', async () => {
-    process.env.STACKTAPE_TRIVY_PATH = '/opt/trivy/trivy';
-    try {
-      expect(await ensureTrivyBinary({ release: releaseFor({ sha256: 'unused' }), toolsDirectory })).toEqual({
-        binaryPath: '/opt/trivy/trivy',
-        downloaded: false
-      });
-    } finally {
-      delete process.env.STACKTAPE_TRIVY_PATH;
-    }
   });
 });

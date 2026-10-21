@@ -19,7 +19,7 @@ const collector = (status = 200) => {
     }
   });
 
-  const run = async (mode: 'completion' | 'init' | 'exception', disabled = false) => {
+  const run = async (mode: 'completion' | 'failure' | 'init' | 'exception', disabled = false) => {
     const child = Bun.spawn(
       [
         process.execPath,
@@ -70,11 +70,15 @@ test('command completion sends argument keys without values, while opt-out sends
     expect(event.event).toBe('cli_command_completed');
     expect(event.properties).toMatchObject({
       app: 'cli',
+      app_version: 'dev',
       environment: 'test',
       command: 'version',
       outcome: 'success',
-      args_keys: ['apiKey', 'projectName', 'stage']
+      args_keys: ['apiKey', 'projectName', 'stage'],
+      // Nobody has logged in: no person profile for the anonymous machine identity.
+      $process_person_profile: false
     });
+    expect(event.properties.error_code).toBeUndefined();
     for (const value of [
       'synthetic-api-key-value',
       'synthetic-private-project-value',
@@ -82,6 +86,12 @@ test('command completion sends argument keys without values, while opt-out sends
     ]) {
       expect(requests[0]!.body).not.toContain(value);
     }
+    requests.length = 0;
+    expect(await run('failure')).toBe('command-completed');
+    expect(JSON.parse(requests[0]!.body).batch[0].properties).toMatchObject({
+      outcome: 'error',
+      error_code: 'DEPLOY_FAILED'
+    });
     requests.length = 0;
     expect(await run('completion', true)).toBe('command-completed');
     expect(requests).toHaveLength(0);
@@ -103,11 +113,20 @@ test('unexpected CLI errors send a useful exception envelope without user or cre
       'Failed for [redacted:email]@example.com in account [REDACTED_AWS_ACCOUNT_ID] with token=[REDACTED] at /home/[user]/app'
     );
     expect(event.properties).toMatchObject({
+      app_version: 'dev',
       error_tracking_id: JSON.parse(requests[0]!.body).batch[0].properties.error_tracking_id,
       platform: process.platform,
       arch: process.arch,
-      runtime_version: `bun ${process.versions.bun}`
+      runtime_version: `bun ${process.versions.bun}`,
+      $process_person_profile: false
     });
+    // Executable frames keep their fixed path whatever the working directory, so the source map resolves them.
+    const frames = event.properties.$exception_list[0].stacktrace.frames;
+    expect(frames).toHaveLength(2);
+    expect(frames.map((frame: { filename: string }) => frame.filename)).toEqual([
+      '/$bunfs/root/stacktape',
+      '/$bunfs/root/stacktape'
+    ]);
     for (const value of ['user@example.com', '123456789012', 'secret-value', 'synthetic-user']) {
       expect(requests[0]!.body).not.toContain(value);
     }
@@ -126,6 +145,9 @@ test('init sends categories and measured outcomes without repository content, an
     expect(event.properties).toMatchObject({
       app: 'cli',
       environment: 'test',
+      reached: 'deploy_failed',
+      deploy_error_code: 'DEPLOY_FAILED',
+      repairs: [true, false],
       verification: 'inconclusive',
       verification_passed_services: 1,
       verification_skipped_services: 1,
@@ -145,7 +167,9 @@ test('init sends categories and measured outcomes without repository content, an
       'private result text',
       'customerResourceName',
       'private-worker-name',
-      'privateWorkerResource'
+      'privateWorkerResource',
+      'private failure message',
+      'private log line'
     ]) {
       expect(requests[0]!.body).not.toContain(value);
     }

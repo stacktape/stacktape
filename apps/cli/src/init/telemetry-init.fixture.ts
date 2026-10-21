@@ -26,6 +26,19 @@ const state = {
     databaseAccess: 'private'
   },
   configFile: { path: '/private/repository/stacktape.yml', filename: 'stacktape.yml', format: 'yaml' },
+  deployment: {
+    status: 'failed',
+    stage: 'dev',
+    region: 'eu-west-1',
+    commandLine: 'stacktape deploy --stage dev --projectName customer-project-name',
+    events: [],
+    lines: ['private log line'],
+    outcome: { ok: false, code: 'DEPLOY_FAILED', message: 'private failure message' },
+    repairs: [
+      { attempt: 1, applied: true, changedResources: ['customerResourceName'] },
+      { attempt: 2, applied: false }
+    ]
+  },
   facts: {
     services: [
       {
