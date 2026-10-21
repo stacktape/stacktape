@@ -1804,6 +1804,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts'
     ],
     requires: ['console'],
@@ -2056,7 +2057,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts',
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
-      'apps/console/ui/e2e/isolated-metric-charts.test.ts'
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts',
+      'apps/console/ui/e2e/isolated-errors.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2552,6 +2554,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
       'apps/console/api/scripts/remote-session-aws.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
@@ -2596,6 +2599,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-errors.test.ts',
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
@@ -5167,6 +5171,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
       'apps/console/ui/e2e/runners-live.spec.ts',
       'apps/console/ui/e2e/runners.spec.ts',
@@ -5931,6 +5936,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Misc/DetailHeader.tsx',
       'apps/console/ui/src/components/Misc/DropdownMenu.tsx',
       'apps/console/ui/src/AppContent.tsx',
+      'apps/console/ui/src/Router.tsx',
+      'apps/console/ui/src/RouteErrorBoundary.tsx',
+      'apps/console/ui/src/services/queryClient.ts',
       'packages/ui-react/src/select/**',
       'packages/ui-react/src/tabs/**'
     ],
@@ -5938,7 +5946,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
       'packages/design-tokens/src/tokens.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
-      'apps/console/ui/e2e/isolated-shell.test.ts'
+      'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-errors.test.ts'
     ],
     lanes: [
       'design-tokens-test',
