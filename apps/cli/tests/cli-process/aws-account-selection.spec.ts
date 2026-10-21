@@ -98,7 +98,7 @@ const runDelete = async ({
   awsEndpoint: string;
   environment?: Record<string, string>;
   args?: string[];
-  command?: 'delete' | 'deploy';
+  command?: 'delete' | 'deploy' | 'dev';
 }) => {
   const home = await mkdtemp(join(tmpdir(), 'stacktape-account-selection-'));
   cleanups.push(() => rm(home, { recursive: true, force: true }));
@@ -123,7 +123,8 @@ const runDelete = async ({
       projectName,
       '--currentWorkingDirectory',
       join(home, 'project'),
-      '--autoConfirmOperation',
+      // Dev mode never asks for confirmation, so it has no such option.
+      ...(command === 'dev' ? [] : ['--autoConfirmOperation']),
       '--outputFormat',
       'jsonl',
       ...args
@@ -262,6 +263,19 @@ describe('Free plan cost limit', () => {
     expect(run.stdout).toContain('limit of $100 a month');
     expect(run.stdout).toContain(overLimit.upgradeUrl);
     expect(run.stdout).toContain('Deleting and rolling back stages still work');
+    expect(aws.requests.filter(({ action }) => action !== 'GetCallerIdentity')).toEqual([]);
+  });
+
+  test('dev mode is refused the same way before it prompts, creates or deploys anything', async () => {
+    const controlPlane = await startConsole([connected.production], overLimit);
+    const aws = await startAwsFake();
+    const run = await runDelete({ controlPlane, awsEndpoint: aws.endpoint, command: 'dev' });
+
+    expect(run.exitCode, run.stdout + run.stderr).not.toBe(0);
+    expect(run.error?.code, run.stdout).toBe('FREE_PLAN_LIMIT_E502');
+    expect(run.stdout).toContain('Deploys are paused');
+    expect(run.stdout).toContain('$142.17');
+    expect(run.stdout).toContain(overLimit.upgradeUrl);
     expect(aws.requests.filter(({ action }) => action !== 'GetCallerIdentity')).toEqual([]);
   });
 

@@ -15915,6 +15915,7 @@
         "page:/cli/dev#when-should-i-use-stacktape-dev-vs-stacktape-deploy",
         "page:/cli/dev#how-can-i-connect-to-a-real-deployed-database-instead-of-the-local-one",
         "page:/cli/dev#what-is-agent-mode-and-when-should-i-use-it",
+        "page:/cli/dev#why-does-stacktape-dev-stop-with-free-plan-limit-reached",
         "page:/cli/dev#related-commands"
       ]
     },

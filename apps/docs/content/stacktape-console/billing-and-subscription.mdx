@@ -53,7 +53,8 @@ A Free organization can deploy while its managed AWS costs for the current calen
   stacks, summed over all AWS accounts connected to the organization, from the AWS billing data Stacktape reads. Other
   resources in your AWS accounts do not count. The Costs page shows the same numbers.
 - **What pauses.** Every new deploy: `stacktape deploy`, including code-only (fast) deploys, remote and runner deploys,
-  deploys after a Git push and deploys started from the Console. A deploy that already started finishes normally.
+  deploys after a Git push and deploys started from the Console. `stacktape dev` does not start either, because it
+  deploys and updates a dev stack. A deploy that already started finishes normally.
 - **What keeps working.** Your running infrastructure is never touched. Deleting stages, rolling back, running scripts
   and the rest of the Console keep working.
 - **How it lifts.** Upgrading to the Flexible plan lifts it immediately. Without an upgrade, deploys resume when the next
@@ -63,7 +64,7 @@ A Free organization can deploy while its managed AWS costs for the current calen
 
 Every Free organization sees this month's managed AWS costs against the limit in the sidebar of the Console. While
 deploys are paused, every Console page opens with an upgrade notice, which you can close to keep reading. Members who
-cannot change the plan see which Owners and Admins can. The CLI stops a refused deploy before it touches AWS and prints
+cannot change the plan see which Owners and Admins can. The CLI stops a refused deploy or dev session before it touches AWS and prints
 the costs, the limit and the link to the Subscription Plans page.
 
 ## Walkthrough: upgrading to the Flexible plan
@@ -143,7 +144,7 @@ Users with the `org:manage-billing` permission see the upgrade and downgrade con
 
 ### What happens if I exceed the Free plan's $100/month limit?
 
-Deploys pause. Stacktape refuses new deploys of the organization until it upgrades to the Flexible plan or the next calendar month starts. Your running infrastructure is not touched, and deleting or rolling back stages still works. See [Free plan cost limit](#free-plan-cost-limit).
+Deploys pause. Stacktape refuses new deploys and `stacktape dev` sessions of the organization until it upgrades to the Flexible plan or the next calendar month starts. Your running infrastructure is not touched, and deleting or rolling back stages still works. See [Free plan cost limit](#free-plan-cost-limit).
 
 ### Can I downgrade from Flexible to Free?
 

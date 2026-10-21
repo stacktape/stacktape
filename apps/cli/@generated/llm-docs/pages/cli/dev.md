@@ -200,6 +200,15 @@ Use `--remoteResources` with a comma-separated list of resource names (for examp
 
 Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server for programmatic control. It uses JSONL output and disables the interactive terminal UI. Use agent mode when integrating with AI coding agents, automation tools, or any workflow that needs to control dev mode programmatically. Stop a running agent with [`dev:stop`](/cli/dev-stop).
 
+### Why does `stacktape dev` stop with "Free Plan Limit Reached"?
+
+Dev mode deploys and updates a dev stack in your AWS account, so it follows the same
+[Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) as
+[`stacktape deploy`](/cli/deploy#free-plan-cost-limit). When a Free organization's managed AWS costs this month are
+above $100, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
+to the Flexible plan lifts the limit immediately. Running infrastructure is not affected, and
+[`dev:stop`](/cli/dev-stop) and [`delete`](/cli/delete) keep working.
+
 ## Related commands
 
 - [`dev:stop`](/cli/dev-stop) — stop a running dev agent

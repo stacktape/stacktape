@@ -606,6 +606,10 @@ export const initializeStackServicesForDevPhase1 = async () => {
   }
 
   await globalStateManager.loadUserCredentials();
+  // Dev mode deploys and updates a dev stack, so it follows the deploy rules: a Free organization over its monthly
+  // limit cannot start it. This runs before anything is prompted, created or deployed; `dev:stop` stays available.
+  const subscription = await stacktapeTrpcApiManager.apiClient.canDeploy();
+  if (!subscription.canDeploy) throw stpErrors.e502(subscription);
   awsSdkManager.init({
     credentials: () => globalStateManager.credentials,
     region: globalStateManager.region,
