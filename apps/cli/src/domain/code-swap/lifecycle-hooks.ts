@@ -28,6 +28,8 @@ let held:
 let teardownRequested = false;
 let teardownAccepted = false;
 let interrupted = false;
+let retainLock = false;
+let mutationStarted = false;
 const pendingPreparations: Promise<unknown>[] = [];
 export let recoveredOperation = false;
 export const releaseRecordsAtStart = new Map<string, SwapRecord | undefined>();
@@ -142,13 +144,22 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
   }
 };
 
+export const codeSwapInterrupted = () => interrupted;
+
+// Commands call this right before they change CloudFormation stacks or running services. An interruption before
+// that point aborts any prepared swap and releases the lock; after it, recovery must confirm the AWS changes finished.
+export const codeSwapBeginMutation = () => {
+  if (interrupted) throw new Error('The operation was interrupted before it changed the stack.');
+  mutationStarted = true;
+};
+
 export const codeSwapTrackPreparation = (work: Promise<unknown>) => {
   pendingPreparations.push(work);
 };
 
 // The entrypoint calls this after the ordinary cleanup hooks (which run concurrently) have all finished.
 export const codeSwapFinish = async () => {
-  if (interrupted) return;
+  if (retainLock || (interrupted && mutationStarted)) return;
   await Promise.allSettled(pendingPreparations);
   pendingPreparations.length = 0;
   await codeSwapIntegration.abortPreparation();
@@ -373,5 +384,5 @@ export const codeSwapRollbackTemplate = (template: CloudFormationTemplate) => {
 
 // A failed final reconciliation must remain recoverable even if another service finalized its row.
 export const retainCodeSwapLock = () => {
-  interrupted = true;
+  retainLock = true;
 };

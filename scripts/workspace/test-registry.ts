@@ -1110,8 +1110,6 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/cli/scripts/release/candidate-assets.spec.ts',
-      'apps/cli/scripts/release/checksums.spec.ts',
-      'apps/cli/scripts/release/trigger-release.spec.ts',
       'apps/cli/scripts/release/validate-release-input.spec.ts',
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
@@ -1180,9 +1178,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
       'apps/cli/scripts/release/candidate-assets.spec.ts',
-      'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
-      'apps/cli/scripts/release/trigger-release.spec.ts',
       'apps/cli/scripts/release/validate-release-input.spec.ts',
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/release-workflow.spec.ts',
@@ -1803,7 +1799,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/poll-status.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -2279,10 +2274,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
       'apps/cli/scripts/real-aws/packaging-canary.spec.ts',
       'apps/cli/scripts/release-workflow.spec.ts',
-      'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
-      'apps/cli/scripts/release/trigger-release.spec.ts',
       'apps/cli/scripts/release/validate-release-input.spec.ts',
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/run-source-tests.spec.ts',
@@ -2546,14 +2539,12 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/github-private-key.test.ts',
       'apps/console/api/src/services/github-repository-pagination.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts',
 
       'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
       'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/poll-status.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -2679,6 +2670,7 @@ export const lanes: readonly Lane[] = [
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
+      'packages/analytics/src/web.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -3486,23 +3478,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts'
     ],
     requires: [],
-    release: 'every-candidate'
-  },
-  {
-    id: 'console-incident-rules',
-    command: [
-      'pnpm',
-      '--filter',
-      '@stacktape/console-api-app',
-      'exec',
-      'bun',
-      'test',
-      'src/services/incident-engine.test.ts'
-    ],
-    level: 'focused',
-    tier: 'pr',
-    tests: ['apps/console/api/src/services/incident-engine.test.ts'],
-    requires: ['console'],
     release: 'every-candidate'
   },
   {
@@ -4793,11 +4768,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/install-scripts/windows.spec.ts',
       'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
-      'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
-      'apps/cli/scripts/release/trigger-release.spec.ts',
       'apps/cli/scripts/release/validate-release-input.spec.ts',
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/src/utils/bin-executable.spec.ts',
@@ -5172,7 +5145,6 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/poll-status.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -5483,13 +5455,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts',
       'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
-      'console-incident-rules',
       'console-api',
       'console-api-2',
       'console-database-incidents',
@@ -5918,7 +5888,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/telemetry.spec.ts',
       'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
-      'packages/analytics/src/privacy.test.ts'
+      'packages/analytics/src/privacy.test.ts',
+      'packages/analytics/src/web.test.ts'
     ],
     lanes: ['analytics-test', 'analytics-cli', 'analytics-console', 'cli', 'cli-2', 'cli-3']
   },
