@@ -1716,6 +1716,7 @@ export class PackagingManager {
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
+        imageExtension: devMode ? undefined : await codeSwapIntegration.pythonExtension(workloadName),
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare,
         pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage
       });

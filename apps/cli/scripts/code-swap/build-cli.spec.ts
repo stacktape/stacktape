@@ -22,7 +22,7 @@ test('ordinary builds include customer code swap while timing transport stays be
       expect(result.success).toBe(true);
       return result.outputs[0]!.text();
     };
-    const [ordinary, outputs] = await Promise.all([build(), buildBenchmarkCli(join(directory, 'benchmark'))]);
+    const [ordinary, outputs] = await Promise.all([build(), buildBenchmarkCli(join(directory, 'benchmark'), false)]);
     const benchmark = (
       await Promise.all(outputs.filter((output) => output.path.endsWith('.js')).map((output) => output.text()))
     ).join('\n');

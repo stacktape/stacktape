@@ -106,6 +106,13 @@ plugin. Qualify Windows-host packaging on Windows and execute its archives in th
 host does not qualify another target. Authenticated hosted-login/provider browser acceptance remains a separately
 reserved shared-dev run; these local lanes do not claim to cover hosted identity or provider installation.
 
+Before publishing Python code-swap support, qualify the extracted candidate and selected runner with a complete
+transitive hash lock. Confirm that incomplete pins or hashes use an image with a CLI explanation, five source edits swap
+without request failures, and a dependency change deploys an image. The implementation is owned by CLI
+`domain/code-swap/python.ts` and `packaging/image/railpack.ts`; the guarded source scenario is
+`scripts/code-swap/extension.ts container-python --customer-path --dependency-only`. Verify deletion of the exact owned
+stack, artifacts and task definitions before marking qualification complete.
+
 Then run the live canaries sequentially in the disposable `stacktape-e2e` account (`597581086285`), following the
 [live AWS guards](testing/live-aws.md) and [recovery procedure](../apps/cli/scripts/real-aws/README.md). Inject
 credentials into the environment without recording them. Set all required guard variables from that procedure, including

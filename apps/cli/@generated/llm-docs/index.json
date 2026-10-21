@@ -15121,7 +15121,7 @@
         "page:/ci-cd-and-gitops/build-runners#runner-configuration",
         "page:/ci-cd-and-gitops/build-runners#instance-types",
         "page:/ci-cd-and-gitops/build-runners#runner-region",
-        "page:/ci-cd-and-gitops/build-runners#organization-install-commands",
+        "page:/ci-cd-and-gitops/build-runners#setup-commands",
         "page:/ci-cd-and-gitops/build-runners#lifecycle-and-cost",
         "page:/ci-cd-and-gitops/build-runners#build-caches",
         "page:/ci-cd-and-gitops/build-runners#faq",

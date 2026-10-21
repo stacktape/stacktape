@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const runSchema = z.object({
   name: z.string(),
   service: z.string().default('api'),
+  recordService: z.string().default('node'),
+  artifactService: z.string().default('api'),
   owner: z.string().min(8),
   table: z.string(),
   mode: z.enum(['swap', 'image']),

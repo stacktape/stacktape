@@ -430,7 +430,11 @@ class DeploymentArtifactManager {
       ecsServiceTaskDefinition?.containerDefinitions?.some(({ image }) => {
         if (!image?.startsWith(`${this.repositoryUrl}:`)) return false;
         const running = parseImageTag(image.slice(this.repositoryUrl.length + 1));
-        return running.jobName === jobName && running.digest !== digest;
+        return (
+          running.jobName === jobName &&
+          running.digest !== digest &&
+          !codeSwapIntegration.imageMatchesRunningCode(jobName, digest, ecsServiceTaskDefinition.taskDefinitionArn)
+        );
       })
     );
 
