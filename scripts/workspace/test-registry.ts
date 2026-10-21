@@ -2523,7 +2523,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
-      'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
@@ -2561,7 +2560,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
       'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/api/stacktape.test.ts',
@@ -5712,7 +5710,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/scripts/observability-readers.test.ts',
-      'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
@@ -5803,7 +5800,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
-      'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
