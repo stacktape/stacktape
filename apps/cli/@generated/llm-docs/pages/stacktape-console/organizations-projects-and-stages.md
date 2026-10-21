@@ -14,7 +14,7 @@ The Console structures work in three nested levels. An organization sits at the 
 
 An organization groups related projects, team members, and settings. In the Console, everything you see is scoped to the currently selected organization — projects, costs, alarms, and team settings all belong to the active organization. Switching organizations shows a different set of projects.
 
-Organization-level build runner settings store additional commands that run while preparing EC2 deployment jobs.
+An organization's setup commands run before every deployment on a build runner, for every project.
 
 You can manage organizations from the CLI with [`stacktape org:create`](/cli/org-create) and [`stacktape org:list`](/cli/org-list).
 
@@ -79,13 +79,10 @@ Click a project card to open the project view. The left sidebar orders entries a
 
 ### Configuring build runners
 
-Organization-level build runner settings store additional build commands on the selected organization. In the Console, navigate to **Projects**, click the gear icon in the page header, and select **Configure runner settings**. This option is visible only to users with the `org:manage-runner-settings` permission.
-
-The settings form lets you configure:
-
-- **Additional runner build commands** — one command per line, run while preparing deployment jobs for projects in the organization
-
-Keep these commands deterministic and pin installed tool versions. They execute as privileged build configuration, so do not print credentials or other secrets. Configure the EC2 instance type separately for each project from its runner settings.
+The **Runners** page lists the build runner of each project. Below the list, owners and admins (the
+`org:manage-runner-settings` permission) edit the **Setup commands** that every project's deployments run before
+building. Each runner's **Settings** tab holds the project's own instance size, build cache limit, idle behavior, setup
+commands and GitHub Actions settings.
 
 See [Build runners](/ci-cd-and-gitops/build-runners) for details on runner lifecycle, instance sizing, and caching.
 
@@ -125,7 +122,7 @@ The Stacktape Console uses roles and permissions to control what team members ca
 | `projects:delete` | Deleting a project (shown inside the project settings dropdown, which requires `projects:update-settings`) |
 | `projects:update-settings` | Accessing project settings (Git deployments, runner config, GitHub Actions runner) |
 | `deployments:delete-non-production` | Controls delete and dismiss actions on stage entries in the project sidebar |
-| `org:manage-runner-settings` | Configuring organization-level build runner settings |
+| `org:manage-runner-settings` | Editing the setup commands every project runs |
 
 Users without the required permission do not see the corresponding UI controls — for example, the project settings gear icon is hidden from users who lack `projects:update-settings`.
 
