@@ -23,11 +23,10 @@ export const commandSecretSet = async () => {
 
     let secretString: string;
     if (args.secretFile) {
-      const fileContent = await loadRawFileContent({
+      secretString = await loadRawFileContent({
         filePath: args.secretFile,
         workingDir
       });
-      secretString = JSON.stringify(fileContent);
     } else {
       secretString = args.secretValue;
     }
@@ -66,13 +65,12 @@ export const commandSecretSet = async () => {
   } else {
     const filePath = await tuiManager.promptText({
       message: 'Path to file:',
-      description: '(file content will be stored as JSON in the secret)'
+      description: '(the file content is stored as the secret value)'
     });
-    const fileContent = await loadRawFileContent({
+    secretString = await loadRawFileContent({
       filePath,
       workingDir
     });
-    secretString = JSON.stringify(fileContent);
   }
   await createNamedSecret({ agentMode, forceUpdate: false, region, secretName, secretValue: secretString });
 
