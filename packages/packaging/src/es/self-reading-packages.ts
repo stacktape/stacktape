@@ -29,8 +29,8 @@ const PACKAGES_READING_OWN_FILES = new Set([
 const SCRIPT_EXTENSIONS = ['.js', '.cjs', '.mjs'];
 /**
  * Code, type, source map, configuration and documentation files: a package that ships only these has no data of its
- * own. JSON counts as code here: packages `require` their JSON data, which bundles. Counting it would send packages
- * such as es-abstract, which load hundreds of modules and read nothing, through the slower check.
+ * own. JSON counts as code here: literal JSON imports bundle; computed imports are checked in entry points.
+ * Counting it would send packages such as es-abstract, which load hundreds of modules and read nothing, through the slower check.
  */
 const CODE_AND_DOCUMENT_EXTENSIONS = new Set(
   '.js .cjs .mjs .jsx .ts .cts .mts .tsx .json .map .flow .coffee .md .markdown .txt .yml .yaml .lock .gyp .gypi .c .cc .cpp .h .hpp .sh .cmd .ps1 .bat'.split(
@@ -45,6 +45,8 @@ const MAX_FILES = 2000;
 const OWN_LOCATION = /\b(?:__dirname|__filename|import\.meta\.(?:url|dirname|filename))\b/;
 /** `require.resolve('./x')` or `require.resolve('../x')`: a path in the package, which a bundle bakes in as absolute. */
 const RELATIVE_REQUIRE_RESOLVE = /\brequire\.resolve\s*\(\s*(['"])(\.\.?\/[^'"\n]+)\1/g;
+// Bun leaves computed relative requires in the output. Keep their installed directory so Node can resolve them.
+const COMPUTED_RELATIVE_REQUIRE = /\brequire\s*\(\s*(['"])(\.\.?\/[^'"\n]*)\1\s*\+/g;
 const FS_READ = /\b(?:readFileSync|readFile|createReadStream|readdirSync|readdir|openSync)\s*\(/;
 const RELATIVE_IMPORT = /(?:\brequire\s*\(\s*|\bimport\s*\(\s*|\bfrom\s*|\bimport\s+)(['"])(\.\.?\/[^'"\n]*)\1/g;
 /** A string literal that looks like a path to something named: a name with a slash or a file extension. */
@@ -115,10 +117,14 @@ const getEntryScripts = async (packageRoot: string) => {
     .filter((script): script is string => script !== undefined);
 };
 
-/** Whether a file builds a path from its own location, reads with `fs`, and names a file the package ships. */
+/** Whether a file reads a package asset with `fs` or a computed relative require. */
 const readsPackageFile = (packageRoot: string, script: string, contents: string) => {
-  if (!FS_READ.test(contents)) return false;
   const directory = dirname(script);
+  for (const [, , prefix] of contents.matchAll(COMPUTED_RELATIVE_REQUIRE)) {
+    const target = prefix && resolve(directory, prefix);
+    if (target && (target === packageRoot || isInside(packageRoot, target)) && existsSync(target)) return true;
+  }
+  if (!FS_READ.test(contents)) return false;
   // uglify-js finds the sources it reads with `require.resolve`; a bundle has neither the path nor the files.
   for (const [, , specifier] of contents.matchAll(RELATIVE_REQUIRE_RESOLVE)) {
     const target = specifier && resolve(directory, specifier);
