@@ -1,3 +1,4 @@
+import { createFetchHandler } from '../../src/aws/fetch-handler';
 /**
  * Real-AWS timing of a code-only container deploy: the fast path that registers a task definition and calls
  * UpdateService directly instead of updating the CloudFormation stack.
@@ -77,6 +78,7 @@ type Options = {
   reportFile?: string;
   measurements: number;
   label: string;
+  httpApiOnly: boolean;
 };
 type State = {
   accountId: string;
@@ -169,12 +171,19 @@ export const resolveOptions = (env: Environment = process.env): Options => {
     stateFile,
     measurements,
     label,
+    httpApiOnly: env[`${PREFIX}HTTP_API_ONLY`] === '1',
     ...(reportFile && { reportFile })
   };
 };
 
 const createClients = ({ profile, region }: Options): Clients => {
-  const config = { credentials: fromIni({ profile }), region, maxAttempts: 6, ignoreConfiguredEndpointUrls: true };
+  const config = {
+    credentials: fromIni({ profile }),
+    region,
+    maxAttempts: 6,
+    ignoreConfiguredEndpointUrls: true,
+    requestHandler: createFetchHandler({ requestTimeout: 15_000 })
+  };
   return {
     cloudFormation: new CloudFormationClient(config),
     ecr: new ECRClient(config),
@@ -185,16 +194,6 @@ const createClients = ({ profile, region }: Options): Clients => {
     serviceDiscovery: new ServiceDiscoveryClient(config),
     sts: new STSClient(config)
   };
-};
-
-/** Whether `apps/cli/.env.local` sets a non-empty API key. Only the answer leaves this function, never the value. */
-const hasDevApiKey = async () => {
-  const content = await readFile(join(CLI_DIRECTORY, '.env.local'), 'utf8').catch(() => '');
-  const value = content
-    .match(/^\s*STACKTAPE_API_KEY\s*=\s*(.*)$/m)?.[1]
-    ?.trim()
-    .replace(/^(["'])(.*)\1$/, '$2');
-  return Boolean(value);
 };
 
 const describeStack = async (client: CloudFormationClient, stackName: string): Promise<Stack | undefined> => {
@@ -358,12 +357,12 @@ const runStackCommand = (options: Options, state: State, command: 'deploy' | 'de
     ]
   });
 
-const prepareWorkDirectory = async (directory: string, owner: string) => {
+const prepareWorkDirectory = async (directory: string, owner: string, httpApiOnly: boolean) => {
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
   await cp(FIXTURE_DIRECTORY, directory, { recursive: true, force: true });
   const configPath = join(directory, 'stacktape.yml');
-  const config = await readFile(configPath, 'utf8');
+  const config = await readFile(httpApiOnly ? join(directory, 'stacktape-http-only.yml') : configPath, 'utf8');
   await writeFile(configPath, config.replace(/(name: stacktape-canary-owner\n\s+value: )local/, `$1${owner}`));
 };
 
@@ -385,16 +384,16 @@ const resolveServiceTargets = async (clients: Clients, options: Options, stackNa
     resources.find(({ LogicalResourceId }) => LogicalResourceId === logicalId)?.PhysicalResourceId;
   const ofType = (type: string) => resources.filter(({ ResourceType }) => ResourceType === type);
   const loadBalancerArn = ofType('AWS::ElasticLoadBalancingV2::LoadBalancer')[0]?.PhysicalResourceId;
-  assert(loadBalancerArn, 'The stack has no load balancer.');
-  const { LoadBalancers } = await clients.elb.send(
-    new DescribeLoadBalancersCommand({ LoadBalancerArns: [loadBalancerArn] })
-  );
+  assert(loadBalancerArn || options.httpApiOnly, 'The stack has no load balancer.');
+  const { LoadBalancers } = loadBalancerArn
+    ? await clients.elb.send(new DescribeLoadBalancersCommand({ LoadBalancerArns: [loadBalancerArn] }))
+    : {};
   // The HTTP listener redirects to HTTPS, and the HTTPS listener serves a certificate for no name of the load balancer.
   const albUrl = `https://${LoadBalancers?.[0]?.DNSName}/`;
   const apiId = ofType('AWS::ApiGatewayV2::Api')[0]?.PhysicalResourceId;
   assert(apiId, 'The stack has no HTTP API.');
   const apiUrl = `https://${apiId}.execute-api.${options.region}.amazonaws.com/`;
-  return SERVICES.map((name): ServiceTarget => {
+  return (options.httpApiOnly ? (['apiweb'] as const) : SERVICES).map((name): ServiceTarget => {
     const serviceArn = physical(cfLogicalNames.ecsService(name, false));
     assert(serviceArn, `The stack has no ECS service for ${name}.`);
     const targetGroupArns = ofType('AWS::ElasticLoadBalancingV2::TargetGroup')
@@ -434,7 +433,14 @@ type ServiceObservation = {
   oldTargetsGoneAt?: number;
   /** When Cloud Map stopped listing every old task as an instance. */
   oldInstancesGoneAt?: number;
-  probes: { at: number; release?: string; error?: string }[];
+  probes: {
+    at: number;
+    release?: string;
+    awsNow?: number;
+    gatewayDate?: string | null;
+    requestId?: string | null;
+    error?: string;
+  }[];
 };
 
 const firstTime = (map: Map<string, number>, key: string, at: number) => {
@@ -443,8 +449,8 @@ const firstTime = (map: Map<string, number>, key: string, at: number) => {
 const ipOf = (task: Task) =>
   task.attachments?.flatMap(({ details }) => details ?? []).find(({ name }) => name === 'privateIPv4Address')?.value;
 
-const listServiceTasks = async (clients: Clients, target: ServiceTarget) => {
-  const arns: string[] = [];
+const listServiceTasks = async (clients: Clients, target: ServiceTarget, knownTaskArns: Iterable<string> = []) => {
+  const arns: string[] = [...knownTaskArns];
   for (const desiredStatus of ['RUNNING', 'STOPPED'] as const) {
     const { taskArns } = await clients.ecs.send(
       new ListTasksCommand({ cluster: target.cluster, serviceName: target.serviceArn.split('/').at(-1), desiredStatus })
@@ -453,7 +459,7 @@ const listServiceTasks = async (clients: Clients, target: ServiceTarget) => {
   }
   if (!arns.length) return [];
   const { tasks } = await clients.ecs.send(
-    new DescribeTasksCommand({ cluster: target.cluster, tasks: arns.slice(0, 100) })
+    new DescribeTasksCommand({ cluster: target.cluster, tasks: [...new Set(arns)].slice(0, 100) })
   );
   return tasks ?? [];
 };
@@ -527,7 +533,7 @@ const observeService = (
           );
           if (serviceDeployment?.status === 'SUCCESSFUL') observation.serviceDeploymentSuccessfulAt ??= at;
         }
-        const tasks = await listServiceTasks(clients, target);
+        const tasks = await listServiceTasks(clients, target, new Set([...before.taskArns, ...observation.taskArns]));
         const taskAt = Date.now();
         for (const task of tasks) {
           if (!task.taskArn) continue;
@@ -577,9 +583,16 @@ const observeService = (
           tls: { rejectUnauthorized: false }
         });
         const body = await response.text();
-        const parsed = response.ok ? (JSON.parse(body) as { release?: string }) : undefined;
+        const parsed = response.ok ? (JSON.parse(body) as { release?: string; awsNow?: number }) : undefined;
         observation.probes.push(
-          parsed?.release ? { at, release: parsed.release } : { at, error: `HTTP ${response.status}` }
+          parsed?.release
+            ? { at, release: parsed.release, awsNow: parsed.awsNow }
+            : {
+                at,
+                error: `HTTP ${response.status}`,
+                gatewayDate: response.headers.get('date'),
+                requestId: response.headers.get('apigw-requestid')
+              }
         );
       } catch (error) {
         observation.probes.push({ at, error: String(error).slice(0, 120) });
@@ -733,11 +746,41 @@ const measure = async ({
   const befores = await Promise.all(targets.map((target) => snapshotService(clients, target)));
   const observers = targets.map((target, index) => observeService(clients, target, befores[index]!, release));
   try {
+    const publicReady = () =>
+      observers.every(({ observation }) => {
+        const recent = observation.probes.slice(-8);
+        return recent.length === 8 && recent.every(({ release, error }) => release && !error);
+      });
+    const warmupDeadline = Date.now() + 60_000;
+    while (!publicReady() && Date.now() < warmupDeadline) await sleep(250);
+    assert(publicReady(), 'The existing public service did not answer reliably before the measured deploy.');
+    const cliLaunchAt = Date.now();
     const { records, exitedAt } = await runStackCommand(options, state, 'deploy', `container-canary-${release}`);
-    const cliStartedAt = records[0]?.at ?? exitedAt;
+    const cliStartedAt = cliLaunchAt;
     const settleDeadline = Date.now() + SETTLE_TIMEOUT_MS;
     while (Date.now() < settleDeadline && !observers.every(({ settled }) => settled())) await sleep(1000);
+    const retirementSettled = observers.every(({ settled }) => settled());
     await Promise.all(observers.map(({ stop }) => stop()));
+    if (options.reportFile && options.httpApiOnly) {
+      // Preserve application/AWS timestamps and individual failures, including the whole retirement period.
+      // Local clock readings locate CLI events; do not use a laptop's monotonic clock for AWS elapsed time.
+      await writeFile(
+        `${options.reportFile}.${release}.evidence.json`,
+        JSON.stringify({
+          cliStartedAt,
+          cliDoneAt: exitedAt,
+          records,
+          observations: observers.map(({ observation }) => ({
+            ...observation,
+            taskArns: [...observation.taskArns],
+            oldTaskArns: [...observation.oldTaskArns],
+            tasks: [...observation.tasks],
+            firstSeen: [...observation.firstSeen]
+          }))
+        })
+      );
+    }
+    assert(retirementSettled, 'The old tasks did not stop and settle before the observation deadline.');
     const fastPath = records.some(({ eventType }) => eventType === 'HOTSWAP_UPDATE');
     const services = targets.map((target, index) =>
       summarizeService({
@@ -871,9 +914,11 @@ export const runContainerFastDeployCanary = async ({
     ...existingReport,
     measurements: Array.isArray(existingReport?.measurements) ? existingReport.measurements : []
   };
+  delete report.error;
+  delete report.cleanupError;
   const writeReport = () =>
     options.reportFile ? writeFile(options.reportFile, `${JSON.stringify(report, null, 2)}\n`) : Promise.resolve();
-  let deployAttempted = reuse;
+  let deployAttempted = false;
   let bodyError: unknown;
   let cleanupError: unknown;
   const onSignal = (signal: NodeJS.Signals) => stopActiveChild(signal);
@@ -889,13 +934,13 @@ export const runContainerFastDeployCanary = async ({
       report.cleanup = await cleanup(clients, options, stackName);
       return;
     }
-    assert(await hasDevApiKey(), 'apps/cli/.env.local sets no STACKTAPE_API_KEY.');
     let state: State;
     if (reuse) {
       state = await readState(options, stackName);
       const stack = await describeStack(clients.cloudFormation, stackName);
       assert(stack, `${stackName} does not exist; run without --reuse first.`);
       assertOwned(stack, options, state);
+      deployAttempted = true;
     } else {
       const run = options.owner.replace(/[^\w-]/g, '-');
       const awsAccountName = await resolveAwsAccountName(options, `container-canary-whoami-${run}`);
@@ -915,7 +960,7 @@ export const runContainerFastDeployCanary = async ({
         measurementsDone: 0
       };
       await writeState(options, state);
-      await prepareWorkDirectory(state.workDirectory, options.owner);
+      await prepareWorkDirectory(state.workDirectory, options.owner, options.httpApiOnly);
       // A rejected preflight above authorizes no cleanup; from here on, cleanup always runs.
       deployAttempted = true;
       const createdAt = Date.now();

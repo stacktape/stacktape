@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
-import { readdir, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readdir, stat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { loadHelperLambdaDetailsFromDir } from '../src/utils/helper-lambdas';
@@ -18,6 +19,14 @@ export const verifyHelperLambdaArtifacts = async ({
 }: {
   helperLambdasDir?: string;
 } = {}) => {
+  const supervisor = await readFile(join(helperLambdasDir, 'stacktape-supervisor'));
+  assert.equal(supervisor.subarray(0, 4).toString('hex'), '7f454c46', 'supervisor must be the Linux runtime binary');
+  const sbom: unknown = JSON.parse(await readFile(join(helperLambdasDir, 'stacktape-supervisor.spdx.json'), 'utf8'));
+  const hash = createHash('sha256').update(supervisor).digest('hex');
+  assert.ok(
+    JSON.stringify(sbom).includes(`"checksumValue":"${hash}"`),
+    'supervisor SBOM must describe the shipped binary'
+  );
   const details = await loadHelperLambdaDetailsFromDir({ helperLambdasDir });
   assert.deepEqual(Object.keys(details).sort(), [...requiredHelperLambdas].sort());
   const archiveNames = (await readdir(helperLambdasDir)).filter((fileName) => fileName.endsWith('.zip'));

@@ -186,6 +186,14 @@ export class AwsS3 {
     return uploadCommand.done().catch(errorHandler);
   };
 
+  getObjectBytes = async ({ bucketName, s3Key }: { bucketName: string; s3Key: string }): Promise<Uint8Array> => {
+    const response = await this.#createClient()
+      .send(new GetObjectCommand({ Bucket: bucketName, Key: s3Key }))
+      .catch(this.#getErrorHandler('Failed to read a deployment artifact.'));
+    if (!response.Body) throw new Error('The deployment artifact has no body.');
+    return response.Body.transformToByteArray();
+  };
+
   getObjectText = async ({
     bucketName,
     s3Key,

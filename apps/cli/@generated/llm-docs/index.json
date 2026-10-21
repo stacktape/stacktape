@@ -7721,7 +7721,7 @@
         "cloudformationRoleArn",
         "disableAutoRollback",
         "disableS3TransferAcceleration",
-        "issues",
+        "errorTracking",
         "monitoringTimeAfterDeploymentInMinutes",
         "previousVersionsToKeep",
         "publishEventsToArn",
@@ -7741,7 +7741,7 @@
         "config-reference:DeploymentConfig#property-disables3transferacceleration",
         "config-reference:DeploymentConfig#example-1-yaml-3",
         "config-reference:DeploymentConfig#example-2-typescript-3",
-        "config-reference:DeploymentConfig#property-issues",
+        "config-reference:DeploymentConfig#property-errortracking",
         "config-reference:DeploymentConfig#example-1-yaml-4",
         "config-reference:DeploymentConfig#example-2-typescript-4",
         "config-reference:DeploymentConfig#property-monitoringtimeafterdeploymentinminutes",
@@ -7871,6 +7871,30 @@
       ]
     },
     {
+      "id": "config-reference:ErrorTrackingConfig",
+      "title": "ErrorTrackingConfig API Reference",
+      "route": "/config-reference/helpers",
+      "sourcePath": "packages/config/src/shared.ts",
+      "outputPath": "config-reference/helpers/errortrackingconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "ErrorTrackingConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "ErrorTrackingConfig",
+        "enabled",
+        "stages"
+      ],
+      "chunks": [
+        "config-reference:ErrorTrackingConfig#errortrackingconfig-api-reference",
+        "config-reference:ErrorTrackingConfig#typescript-definition",
+        "config-reference:ErrorTrackingConfig#property-enabled",
+        "config-reference:ErrorTrackingConfig#property-stages",
+        "config-reference:ErrorTrackingConfig#example-1-yaml"
+      ]
+    },
+    {
       "id": "config-reference:Hooks",
       "title": "Hooks API Reference",
       "route": "/config-reference/helpers",
@@ -7919,30 +7943,6 @@
         "config-reference:Hooks#property-beforedev",
         "config-reference:Hooks#example-1-yaml-8",
         "config-reference:Hooks#example-2-typescript-8"
-      ]
-    },
-    {
-      "id": "config-reference:IssuesConfig",
-      "title": "IssuesConfig API Reference",
-      "route": "/config-reference/helpers",
-      "sourcePath": "packages/config/src/shared.ts",
-      "outputPath": "config-reference/helpers/issuesconfig.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "IssuesConfig"
-      ],
-      "tags": [
-        "config-reference",
-        "IssuesConfig",
-        "enabled",
-        "stages"
-      ],
-      "chunks": [
-        "config-reference:IssuesConfig#issuesconfig-api-reference",
-        "config-reference:IssuesConfig#typescript-definition",
-        "config-reference:IssuesConfig#property-enabled",
-        "config-reference:IssuesConfig#property-stages",
-        "config-reference:IssuesConfig#example-1-yaml"
       ]
     },
     {
@@ -14821,6 +14821,7 @@
         "resources",
         "alarms",
         "cdn",
+        "codeSwap",
         "connectTo",
         "cors",
         "customDomains",
@@ -14858,6 +14859,7 @@
         "config-reference:WebServiceProps#property-cdn",
         "config-reference:WebServiceProps#example-1-yaml-4",
         "config-reference:WebServiceProps#example-2-typescript-4",
+        "config-reference:WebServiceProps#property-codeswap",
         "config-reference:WebServiceProps#property-connectto",
         "config-reference:WebServiceProps#example-1-yaml-5",
         "config-reference:WebServiceProps#example-2-typescript-5",
@@ -15830,6 +15832,7 @@
         "page:/cli/deploy#deploy-everything-through-cloudformation",
         "page:/cli/deploy#non-interactive-deploy-in-ci-cd",
         "page:/cli/deploy#preview-changes-before-deploying",
+        "page:/cli/deploy#free-plan-cost-limit",
         "page:/cli/deploy#dev-stacks-cannot-be-deployed",
         "page:/cli/deploy#related-commands"
       ]
@@ -15912,6 +15915,7 @@
         "page:/cli/dev#when-should-i-use-stacktape-dev-vs-stacktape-deploy",
         "page:/cli/dev#how-can-i-connect-to-a-real-deployed-database-instead-of-the-local-one",
         "page:/cli/dev#what-is-agent-mode-and-when-should-i-use-it",
+        "page:/cli/dev#why-does-stacktape-dev-stop-with-free-plan-limit-reached",
         "page:/cli/dev#related-commands"
       ]
     },
@@ -15976,6 +15980,92 @@
         "page:/cli/domain-add#do-i-need-to-run-this-command-in-every-region",
         "page:/cli/domain-add#is-there-a-cost-for-adding-a-domain",
         "page:/cli/domain-add#can-i-use-a-domain-registered-outside-aws"
+      ]
+    },
+    {
+      "id": "page:/cli/errors-ignore",
+      "title": "errors:ignore",
+      "route": "/cli/errors-ignore",
+      "sourcePath": "apps/docs/content/cli/errors-ignore.mdx",
+      "outputPath": "pages/cli/errors-ignore.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "errors-ignore"
+      ],
+      "chunks": [
+        "page:/cli/errors-ignore#errors-ignore",
+        "page:/cli/errors-ignore#usage",
+        "page:/cli/errors-ignore#flags-reference",
+        "page:/cli/errors-ignore#cli-options-stacktape-errors-ignore",
+        "page:/cli/errors-ignore#examples",
+        "page:/cli/errors-ignore#when-to-ignore-vs-resolve",
+        "page:/cli/errors-ignore#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/errors-list",
+      "title": "errors:list",
+      "route": "/cli/errors-list",
+      "sourcePath": "apps/docs/content/cli/errors-list.mdx",
+      "outputPath": "pages/cli/errors-list.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "errors-list"
+      ],
+      "chunks": [
+        "page:/cli/errors-list#errors-list",
+        "page:/cli/errors-list#usage",
+        "page:/cli/errors-list#flags-reference",
+        "page:/cli/errors-list#cli-options-stacktape-errors-list",
+        "page:/cli/errors-list#examples",
+        "page:/cli/errors-list#output",
+        "page:/cli/errors-list#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/errors-reopen",
+      "title": "errors:reopen",
+      "route": "/cli/errors-reopen",
+      "sourcePath": "apps/docs/content/cli/errors-reopen.mdx",
+      "outputPath": "pages/cli/errors-reopen.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "errors-reopen"
+      ],
+      "chunks": [
+        "page:/cli/errors-reopen#errors-reopen",
+        "page:/cli/errors-reopen#usage",
+        "page:/cli/errors-reopen#examples",
+        "page:/cli/errors-reopen#arguments-reference",
+        "page:/cli/errors-reopen#cli-options-stacktape-errors-reopen",
+        "page:/cli/errors-reopen#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/errors-resolve",
+      "title": "errors:resolve",
+      "route": "/cli/errors-resolve",
+      "sourcePath": "apps/docs/content/cli/errors-resolve.mdx",
+      "outputPath": "pages/cli/errors-resolve.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "errors-resolve"
+      ],
+      "chunks": [
+        "page:/cli/errors-resolve#errors-resolve",
+        "page:/cli/errors-resolve#usage",
+        "page:/cli/errors-resolve#flags-reference",
+        "page:/cli/errors-resolve#cli-options-stacktape-errors-resolve",
+        "page:/cli/errors-resolve#examples",
+        "page:/cli/errors-resolve#related-commands"
       ]
     },
     {
@@ -16237,92 +16327,6 @@
         "page:/cli/init#what-happens-when-the-deploy-fails",
         "page:/cli/init#does-init-deploy-anything",
         "page:/cli/init#will-init-overwrite-files-in-my-project"
-      ]
-    },
-    {
-      "id": "page:/cli/issues-ignore",
-      "title": "issues:ignore",
-      "route": "/cli/issues-ignore",
-      "sourcePath": "apps/docs/content/cli/issues-ignore.mdx",
-      "outputPath": "pages/cli/issues-ignore.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "issues-ignore"
-      ],
-      "chunks": [
-        "page:/cli/issues-ignore#issues-ignore",
-        "page:/cli/issues-ignore#usage",
-        "page:/cli/issues-ignore#flags-reference",
-        "page:/cli/issues-ignore#cli-options-stacktape-issues-ignore",
-        "page:/cli/issues-ignore#examples",
-        "page:/cli/issues-ignore#when-to-ignore-vs-resolve",
-        "page:/cli/issues-ignore#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/issues-list",
-      "title": "issues:list",
-      "route": "/cli/issues-list",
-      "sourcePath": "apps/docs/content/cli/issues-list.mdx",
-      "outputPath": "pages/cli/issues-list.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "issues-list"
-      ],
-      "chunks": [
-        "page:/cli/issues-list#issues-list",
-        "page:/cli/issues-list#usage",
-        "page:/cli/issues-list#flags-reference",
-        "page:/cli/issues-list#cli-options-stacktape-issues-list",
-        "page:/cli/issues-list#examples",
-        "page:/cli/issues-list#output",
-        "page:/cli/issues-list#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/issues-reopen",
-      "title": "issues:reopen",
-      "route": "/cli/issues-reopen",
-      "sourcePath": "apps/docs/content/cli/issues-reopen.mdx",
-      "outputPath": "pages/cli/issues-reopen.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "issues-reopen"
-      ],
-      "chunks": [
-        "page:/cli/issues-reopen#issues-reopen",
-        "page:/cli/issues-reopen#usage",
-        "page:/cli/issues-reopen#examples",
-        "page:/cli/issues-reopen#arguments-reference",
-        "page:/cli/issues-reopen#cli-options-stacktape-issues-reopen",
-        "page:/cli/issues-reopen#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/issues-resolve",
-      "title": "issues:resolve",
-      "route": "/cli/issues-resolve",
-      "sourcePath": "apps/docs/content/cli/issues-resolve.mdx",
-      "outputPath": "pages/cli/issues-resolve.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "issues-resolve"
-      ],
-      "chunks": [
-        "page:/cli/issues-resolve#issues-resolve",
-        "page:/cli/issues-resolve#usage",
-        "page:/cli/issues-resolve#flags-reference",
-        "page:/cli/issues-resolve#cli-options-stacktape-issues-resolve",
-        "page:/cli/issues-resolve#examples",
-        "page:/cli/issues-resolve#related-commands"
       ]
     },
     {
@@ -17571,6 +17575,26 @@
       ]
     },
     {
+      "id": "page:/deployment-and-lifecycle/code-swap",
+      "title": "In-place code swap",
+      "route": "/deployment-and-lifecycle/code-swap",
+      "sourcePath": "apps/docs/content/deployment-and-lifecycle/code-swap.mdx",
+      "outputPath": "pages/deployment-and-lifecycle/code-swap.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "deployment-and-lifecycle",
+        "code-swap"
+      ],
+      "chunks": [
+        "page:/deployment-and-lifecycle/code-swap#in-place-code-swap",
+        "page:/deployment-and-lifecycle/code-swap#supported-services",
+        "page:/deployment-and-lifecycle/code-swap#memory-and-request-failures",
+        "page:/deployment-and-lifecycle/code-swap#completion-and-fallback",
+        "page:/deployment-and-lifecycle/code-swap#rollback-disabling-and-interrupted-deploys"
+      ]
+    },
+    {
       "id": "page:/deployment-and-lifecycle/deploy-time-parameters",
       "title": "Deploy-Time Parameters",
       "route": "/deployment-and-lifecycle/deploy-time-parameters",
@@ -18055,6 +18079,7 @@
       "chunks": [
         "page:/getting-started/upgrading-from-v3#upgrading-from-v3",
         "page:/getting-started/upgrading-from-v3#deployed-stacks",
+        "page:/getting-started/upgrading-from-v3#error-tracking-names",
         "page:/getting-started/upgrading-from-v3#target-aws-account",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
         "page:/getting-started/upgrading-from-v3#packaging",
@@ -18735,10 +18760,7 @@
         "page:/observability/alarms#notification-targets",
         "page:/observability/alarms#alarm-description",
         "page:/observability/alarms#history-tracking",
-        "page:/observability/alarms#global-alarm-rules",
-        "page:/observability/alarms#scoping-rules-to-projects-and-stages",
-        "page:/observability/alarms#how-global-and-inline-alarms-interact",
-        "page:/observability/alarms#disabling-global-alarms-on-specific-resources",
+        "page:/observability/alarms#migrating-legacy-console-alarm-rules",
         "page:/observability/alarms#viewing-alarm-states",
         "page:/observability/alarms#cli",
         "page:/observability/alarms#console",
@@ -18749,10 +18771,10 @@
         "page:/observability/alarms#how-much-do-cloudwatch-alarms-cost",
         "page:/observability/alarms#can-i-set-different-alarm-thresholds-for-production-vs-development",
         "page:/observability/alarms#how-do-i-avoid-false-alarms-from-short-traffic-spikes",
-        "page:/observability/alarms#what-is-the-difference-between-inline-alarms-and-global-alarm-rules",
+        "page:/observability/alarms#where-do-i-change-an-alarm-rule",
         "page:/observability/alarms#can-i-alarm-on-custom-cloudwatch-metrics-from-my-application",
         "page:/observability/alarms#how-do-i-test-that-my-alarms-work",
-        "page:/observability/alarms#when-should-i-use-alarms-vs-issues"
+        "page:/observability/alarms#when-should-i-use-alarms-vs-error-tracking"
       ]
     },
     {
@@ -18780,6 +18802,7 @@
         "page:/observability/alert-channels#webhook",
         "page:/observability/alert-channels#choosing-the-right-channel-type",
         "page:/observability/alert-channels#creating-a-channel-in-the-console",
+        "page:/observability/alert-channels#the-channel-page",
         "page:/observability/alert-channels#using-channels-with-rules",
         "page:/observability/alert-channels#deleting-a-channel",
         "page:/observability/alert-channels#faq",
@@ -18793,7 +18816,7 @@
     },
     {
       "id": "page:/observability/alert-history",
-      "title": "Alert History",
+      "title": "Sent Alerts",
       "route": "/observability/alert-history",
       "sourcePath": "apps/docs/content/observability/alert-history.mdx",
       "outputPath": "pages/observability/alert-history.md",
@@ -18804,21 +18827,54 @@
         "alert-history"
       ],
       "chunks": [
-        "page:/observability/alert-history#alert-history",
-        "page:/observability/alert-history#what-alert-history-tracks",
-        "page:/observability/alert-history#event-types",
-        "page:/observability/alert-history#severity-levels",
-        "page:/observability/alert-history#filtering-events",
-        "page:/observability/alert-history#delivery-tracking",
-        "page:/observability/alert-history#pagination",
-        "page:/observability/alert-history#when-the-table-is-empty",
-        "page:/observability/alert-history#alert-history-vs-individual-history-views",
+        "page:/observability/alert-history#sent-alerts",
+        "page:/observability/alert-history#columns",
+        "page:/observability/alert-history#delivery-details",
+        "page:/observability/alert-history#filters",
+        "page:/observability/alert-history#other-history-pages",
         "page:/observability/alert-history#faq",
-        "page:/observability/alert-history#when-should-i-use-alert-history-vs-the-source-specific-history-pages",
-        "page:/observability/alert-history#can-i-filter-alert-history-by-project-or-stage",
-        "page:/observability/alert-history#what-does-no-rules-matched-mean-in-the-delivery-column",
-        "page:/observability/alert-history#what-delivery-statuses-can-an-alert-have",
-        "page:/observability/alert-history#can-i-view-alert-history-from-the-cli"
+        "page:/observability/alert-history#an-alert-shows-1-of-3-failed-did-my-team-get-it",
+        "page:/observability/alert-history#why-is-an-event-i-expected-missing",
+        "page:/observability/alert-history#can-i-see-sent-alerts-from-the-cli"
+      ]
+    },
+    {
+      "id": "page:/observability/error-tracking",
+      "title": "Error tracking",
+      "route": "/observability/error-tracking",
+      "sourcePath": "apps/docs/content/observability/error-tracking.mdx",
+      "outputPath": "pages/observability/error-tracking.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "error-tracking"
+      ],
+      "chunks": [
+        "page:/observability/error-tracking#error-tracking",
+        "page:/observability/error-tracking#migrating-to-v4",
+        "page:/observability/error-tracking#when-to-use",
+        "page:/observability/error-tracking#when-not-to-use",
+        "page:/observability/error-tracking#turning-error-tracking-off-or-limiting-stages",
+        "page:/observability/error-tracking#what-leaves-your-aws-account",
+        "page:/observability/error-tracking#stack-traces-of-bundled-javascript",
+        "page:/observability/error-tracking#error-types",
+        "page:/observability/error-tracking#issue-statuses",
+        "page:/observability/error-tracking#viewing-issues-in-the-console",
+        "page:/observability/error-tracking#issue-table",
+        "page:/observability/error-tracking#filtering",
+        "page:/observability/error-tracking#managing-issues-from-the-cli",
+        "page:/observability/error-tracking#listing-issues",
+        "page:/observability/error-tracking#changing-issue-status",
+        "page:/observability/error-tracking#error-tracking-vs-logs-vs-alarms",
+        "page:/observability/error-tracking#limitations",
+        "page:/observability/error-tracking#faq",
+        "page:/observability/error-tracking#how-do-i-turn-error-tracking-off-for-a-stack",
+        "page:/observability/error-tracking#why-aren-t-my-issues-showing-up",
+        "page:/observability/error-tracking#does-issue-monitoring-add-cost",
+        "page:/observability/error-tracking#how-is-stacktape-error-tracking-different-from-sentry-or-datadog",
+        "page:/observability/error-tracking#what-happens-to-existing-issues-when-i-disable-monitoring",
+        "page:/observability/error-tracking#when-should-i-use-issues-vs-alarms-for-error-monitoring"
       ]
     },
     {
@@ -18875,44 +18931,6 @@
         "page:/observability/incidents#agent-handoff-bundle",
         "page:/observability/incidents#recovery-semantics",
         "page:/observability/incidents#related-cli-commands"
-      ]
-    },
-    {
-      "id": "page:/observability/issues",
-      "title": "Error tracking",
-      "route": "/observability/issues",
-      "sourcePath": "apps/docs/content/observability/issues.mdx",
-      "outputPath": "pages/observability/issues.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "observability",
-        "issues"
-      ],
-      "chunks": [
-        "page:/observability/issues#error-tracking",
-        "page:/observability/issues#when-to-use",
-        "page:/observability/issues#when-not-to-use",
-        "page:/observability/issues#turning-error-tracking-off-or-limiting-stages",
-        "page:/observability/issues#what-leaves-your-aws-account",
-        "page:/observability/issues#stack-traces-of-bundled-javascript",
-        "page:/observability/issues#error-types",
-        "page:/observability/issues#issue-statuses",
-        "page:/observability/issues#viewing-issues-in-the-console",
-        "page:/observability/issues#issue-table",
-        "page:/observability/issues#filtering",
-        "page:/observability/issues#managing-issues-from-the-cli",
-        "page:/observability/issues#listing-issues",
-        "page:/observability/issues#changing-issue-status",
-        "page:/observability/issues#error-tracking-vs-logs-vs-alarms",
-        "page:/observability/issues#limitations",
-        "page:/observability/issues#faq",
-        "page:/observability/issues#how-do-i-turn-error-tracking-off-for-a-stack",
-        "page:/observability/issues#why-aren-t-my-issues-showing-up",
-        "page:/observability/issues#does-issue-monitoring-add-cost",
-        "page:/observability/issues#how-is-stacktape-error-tracking-different-from-sentry-or-datadog",
-        "page:/observability/issues#what-happens-to-existing-issues-when-i-disable-monitoring",
-        "page:/observability/issues#when-should-i-use-issues-vs-alarms-for-error-monitoring"
       ]
     },
     {
@@ -19037,7 +19055,7 @@
     },
     {
       "id": "page:/observability/notifications",
-      "title": "Notifications",
+      "title": "Notification Rules",
       "route": "/observability/notifications",
       "sourcePath": "apps/docs/content/observability/notifications.mdx",
       "outputPath": "pages/observability/notifications.md",
@@ -19048,13 +19066,13 @@
         "notifications"
       ],
       "chunks": [
-        "page:/observability/notifications#notifications",
+        "page:/observability/notifications#notification-rules",
         "page:/observability/notifications#when-to-use-notifications",
         "page:/observability/notifications#when-not-to-use-notifications",
         "page:/observability/notifications#event-types",
         "page:/observability/notifications#managing-notification-rules",
         "page:/observability/notifications#scoping-notifications",
-        "page:/observability/notifications#alert-history",
+        "page:/observability/notifications#checking-what-was-sent",
         "page:/observability/notifications#notifications-vs-alarms-vs-budgets",
         "page:/observability/notifications#faq",
         "page:/observability/notifications#can-i-route-different-events-to-different-channels",
@@ -19084,14 +19102,14 @@
         "page:/observability/overview#alarms",
         "page:/observability/overview#error-tracking",
         "page:/observability/overview#alert-channels",
-        "page:/observability/overview#notifications",
-        "page:/observability/overview#alert-history",
+        "page:/observability/overview#notification-rules",
+        "page:/observability/overview#sent-alerts",
         "page:/observability/overview#log-forwarding",
         "page:/observability/overview#cli-vs-console",
         "page:/observability/overview#faq",
         "page:/observability/overview#can-i-use-datadog-or-another-external-platform-instead-of-cloudwatch",
         "page:/observability/overview#do-i-need-to-instrument-my-code-to-get-logs-and-metrics",
-        "page:/observability/overview#what-s-the-difference-between-alarms-defined-in-config-vs-the-console",
+        "page:/observability/overview#where-do-i-configure-alarms",
         "page:/observability/overview#how-does-issue-detection-differ-from-log-monitoring",
         "page:/observability/overview#why-isn-t-issue-detection-picking-up-my-errors",
         "page:/observability/overview#why-does-enabling-log-forwarding-disable-issue-detection-on-a-workload",
@@ -20223,7 +20241,8 @@
         "page:/resources/compute/web-service#api-reference",
         "page:/resources/compute/web-service#definition-webserviceprops",
         "page:/resources/compute/web-service#referenceable-parameters",
-        "page:/resources/compute/web-service#referenceable-parameters-web-service"
+        "page:/resources/compute/web-service#referenceable-parameters-web-service",
+        "page:/resources/compute/web-service#in-place-code-swap"
       ]
     },
     {
@@ -22298,6 +22317,7 @@
         "page:/stacktape-console/billing-and-subscription#free-plan",
         "page:/stacktape-console/billing-and-subscription#flexible-plan",
         "page:/stacktape-console/billing-and-subscription#enterprise-plan",
+        "page:/stacktape-console/billing-and-subscription#free-plan-cost-limit",
         "page:/stacktape-console/billing-and-subscription#walkthrough-upgrading-to-the-flexible-plan",
         "page:/stacktape-console/billing-and-subscription#common-tasks",
         "page:/stacktape-console/billing-and-subscription#viewing-invoices",
@@ -22459,29 +22479,19 @@
       "chunks": [
         "page:/stacktape-console/team-and-access-control#team-and-access-control",
         "page:/stacktape-console/team-and-access-control#overview",
-        "page:/stacktape-console/team-and-access-control#roles-and-permissions",
-        "page:/stacktape-console/team-and-access-control#walkthrough-inviting-a-member",
-        "page:/stacktape-console/team-and-access-control#common-tasks",
-        "page:/stacktape-console/team-and-access-control#editing-a-member-s-role",
+        "page:/stacktape-console/team-and-access-control#roles",
+        "page:/stacktape-console/team-and-access-control#project-and-aws-account-access",
+        "page:/stacktape-console/team-and-access-control#inviting-members",
+        "page:/stacktape-console/team-and-access-control#organization-keys-for-ci",
+        "page:/stacktape-console/team-and-access-control#requiring-two-factor-sign-in",
         "page:/stacktape-console/team-and-access-control#removing-a-member",
-        "page:/stacktape-console/team-and-access-control#resending-an-invitation",
-        "page:/stacktape-console/team-and-access-control#revoking-a-member-s-api-keys",
-        "page:/stacktape-console/team-and-access-control#checking-member-status-and-two-factor-authentication",
-        "page:/stacktape-console/team-and-access-control#member-limits",
+        "page:/stacktape-console/team-and-access-control#last-active",
         "page:/stacktape-console/team-and-access-control#troubleshooting",
-        "page:/stacktape-console/team-and-access-control#you-do-not-have-permission-to-invite-members",
-        "page:/stacktape-console/team-and-access-control#invite-button-disabled-in-a-non-personal-organization",
-        "page:/stacktape-console/team-and-access-control#no-row-actions-for-a-member",
-        "page:/stacktape-console/team-and-access-control#member-shows-invited-for-a-long-time",
-        "page:/stacktape-console/team-and-access-control#member-shows-active-google",
-        "page:/stacktape-console/team-and-access-control#related-features",
-        "page:/stacktape-console/team-and-access-control#faq",
-        "page:/stacktape-console/team-and-access-control#can-an-admin-remove-or-edit-an-owner",
-        "page:/stacktape-console/team-and-access-control#is-removing-a-member-the-same-as-revoking-their-api-keys",
-        "page:/stacktape-console/team-and-access-control#can-i-enforce-two-factor-authentication-for-all-members",
-        "page:/stacktape-console/team-and-access-control#why-is-a-member-stuck-on-invited",
-        "page:/stacktape-console/team-and-access-control#why-can-t-i-invite-members-to-my-organization",
-        "page:/stacktape-console/team-and-access-control#how-do-i-choose-the-right-role-for-a-member"
+        "page:/stacktape-console/team-and-access-control#your-access-does-not-include-the-aws-account",
+        "page:/stacktape-console/team-and-access-control#the-cli-stopped-deploying-for-a-developer-after-an-upgrade",
+        "page:/stacktape-console/team-and-access-control#invite-members-is-disabled",
+        "page:/stacktape-console/team-and-access-control#an-invitation-shows-expired",
+        "page:/stacktape-console/team-and-access-control#related-features"
       ]
     },
     {

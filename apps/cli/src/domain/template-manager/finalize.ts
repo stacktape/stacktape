@@ -1,3 +1,4 @@
+import { codeSwapIntegration } from '@domain-services/code-swap/integration';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
@@ -222,6 +223,7 @@ export const finalizeTemplate = async () => {
     resolveRuntime: true
   });
   // Last, so that each version publisher sees its function exactly as it will be deployed.
+  await codeSwapIntegration.template(templateManager.template);
   stampLambdaVersionPublishers(templateManager.template);
 
   validateInfrequentAccessSubscriptions({ candidateTemplate: templateManager.template });

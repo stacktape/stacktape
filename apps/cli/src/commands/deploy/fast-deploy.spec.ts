@@ -14,13 +14,180 @@ mock.module('../_utils/cw-deployment', () => ({
     finishedWhen: finishes.get(workload.name)
   })
 }));
+/** What the fast deployment did, in order: layer resolutions, function updates and the final cleanup. */
+const steps: { step: string; layerArns?: Record<number, string> }[] = [];
+let failLayerPublication = false;
+let preparationBarrier: Promise<void> | undefined;
+let onFunctionUpdate: ((name: string) => void) | undefined;
+mock.module('../_utils/shared-layer-transition', () => ({
+  prepareSharedLayerTransitions: async () => {
+    await preparationBarrier;
+    return new Map();
+  }
+}));
 mock.module('../_utils/fn-deployment', () => ({
   getLambdaFunctionHotswapInformation: () => ({}),
-  updateFunctionCode: async () => {}
+  getSharedLayerHotswapInformation: () => [],
+  findLambdaOutsideFastPathUsingLayers: () => undefined,
+  resolveSharedLayerVersions: async (layers: { layerNumber: number }[]) => {
+    steps.push({ step: `layers:${layers.map(({ layerNumber }) => layerNumber).join(',')}` });
+    if (failLayerPublication) throw new Error('the layer object is gone');
+    return new Map(layers.map(({ layerNumber }) => [layerNumber, `arn:layer:${layerNumber}`]));
+  },
+  updateFunctionCode: async ({
+    workloadName,
+    layerArns,
+    deferFinalTags
+  }: {
+    workloadName: string;
+    layerArns?: Map<number, string>;
+    deferFinalTags?: boolean;
+  }) => {
+    steps.push({
+      step: `function:${workloadName}`,
+      ...(layerArns ? { layerArns: Object.fromEntries(layerArns) } : {})
+    });
+    onFunctionUpdate?.(workloadName);
+    const tagUpdatedFunction = async () => {
+      steps.push({ step: `tag:${workloadName}` });
+    };
+    if (!deferFinalTags) return { updatedLayerArns: layerArns ? [...layerArns.values()] : undefined };
+    return { updatedLayerArns: layerArns ? [...layerArns.values()] : undefined, tagUpdatedFunction };
+  },
+  deleteSupersededSharedLayerVersions: async ({ knownLayerArns }: { knownLayerArns: Map<string, string[]> }) => {
+    steps.push({ step: `cleanup:${[...knownLayerArns.keys()].join(',')}` });
+  }
 }));
 let performFastDeploy: typeof import('./fast-deploy').performFastDeploy;
 beforeAll(async () => {
   ({ performFastDeploy } = await import('./fast-deploy'));
+});
+
+const lambda = (name: string, changedLayerNumbers: number[] = [], layerNumbers = changedLayerNumbers) =>
+  ({
+    workloadName: name,
+    lambdaResourceName: `stack-${name}`,
+    layers: layerNumbers.map((layerNumber) => ({ layerNumber })),
+    changedLayers: changedLayerNumbers.map((layerNumber) => ({ layerNumber }))
+  }) as unknown as FastDeployPlan['functions'][number];
+const progress = { startEvent: async () => {}, finishEvent: async () => {} };
+
+describe('a fast deployment with shared layers', () => {
+  test('leaves functions pending when release recording fails, and records the retry before confirming tags', async () => {
+    steps.length = 0;
+    const plan = { functions: [lambda('api')], services: [], layers: [] } as FastDeployPlan;
+    let failRecording = true;
+    const deploymentArtifacts = {
+      recordFastRelease: async () => {
+        steps.push({ step: 'release' });
+        if (failRecording) throw new Error('release storage unavailable');
+      },
+      deleteAllObsoleteArtifacts: async () => {
+        steps.push({ step: 'retention' });
+      }
+    };
+    await expect(
+      performFastDeploy({ plan, recordRelease: true, progress, deploymentArtifacts } as never)
+    ).rejects.toThrow('release storage unavailable');
+    expect(steps.map(({ step }) => step)).toEqual(['layers:', 'function:api', 'release']);
+    failRecording = false;
+    steps.length = 0;
+    await performFastDeploy({ plan, recordRelease: true, progress, deploymentArtifacts } as never);
+    expect(steps.map(({ step }) => step)).toEqual(['layers:', 'function:api', 'release', 'tag:api', 'retention']);
+  });
+
+  test('publishes the changed layers before any function and gives their versions to the functions that use them', async () => {
+    steps.length = 0;
+    const plan = {
+      functions: [lambda('api', [1]), lambda('worker', [], [1]), lambda('report', [0, 1])],
+      services: [],
+      layers: [{ layerNumber: 0 }, { layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    await performFastDeploy({ plan, recordRelease: false, progress, deploymentArtifacts: {} } as never);
+    expect(steps[0]).toEqual({ step: 'layers:0,1' });
+    expect(
+      steps
+        .slice(1, 4)
+        .map(({ step }) => step)
+        .toSorted()
+    ).toEqual(['function:api', 'function:report', 'function:worker']);
+    // A function whose own code alone changed keeps its layers; the others get every layer's version.
+    expect(steps.find(({ step }) => step === 'function:worker')!.layerArns).toBeUndefined();
+    expect(steps.find(({ step }) => step === 'function:api')!.layerArns).toEqual({
+      0: 'arn:layer:0',
+      1: 'arn:layer:1'
+    });
+    expect(steps.at(-1)).toEqual({ step: 'cleanup:stack-api,stack-report' });
+  });
+
+  test('layer-only consumers can update while a mixed edit still prepares its transition', async () => {
+    steps.length = 0;
+    let releasePreparation!: () => void;
+    preparationBarrier = new Promise((resolve) => {
+      releasePreparation = resolve;
+    });
+    let layerUpdated!: () => void;
+    const layerUpdate = new Promise<void>((resolve) => {
+      layerUpdated = resolve;
+    });
+    onFunctionUpdate = (name) => {
+      if (name === 'layer-only') layerUpdated();
+    };
+    const plan = {
+      functions: [
+        { ...lambda('mixed', [1]), codeChanged: true },
+        { ...lambda('layer-only', [1]), codeChanged: false }
+      ],
+      services: [],
+      layers: [{ layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    const deployment = performFastDeploy({ plan, recordRelease: false, progress, deploymentArtifacts: {} } as never);
+    try {
+      await layerUpdate;
+      expect(steps.some(({ step }) => step === 'function:layer-only')).toBe(true);
+      expect(steps.some(({ step }) => step === 'function:mixed')).toBe(false);
+    } finally {
+      releasePreparation();
+      await deployment;
+      preparationBarrier = undefined;
+      onFunctionUpdate = undefined;
+    }
+    expect(steps.some(({ step }) => step === 'function:mixed')).toBe(true);
+  });
+
+  test('changes no function when a layer cannot be published, and says so', async () => {
+    steps.length = 0;
+    failLayerPublication = true;
+    try {
+      const plan = {
+        functions: [lambda('api', [1])],
+        services: [],
+        layers: [{ layerNumber: 1 }]
+      } as unknown as FastDeployPlan;
+      const failure = await performFastDeploy({
+        plan,
+        recordRelease: false,
+        progress,
+        deploymentArtifacts: {}
+      } as never).catch((error: Error) => error);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toContain('Publishing the shared layers failed: the layer object is gone');
+      expect(steps.map(({ step }) => step)).toEqual(['layers:1']);
+    } finally {
+      failLayerPublication = false;
+    }
+  });
+
+  test('neither publishes nor cleans up when no function needs another layer', async () => {
+    steps.length = 0;
+    const plan = {
+      functions: [lambda('api', [], [1])],
+      services: [],
+      layers: [{ layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    await performFastDeploy({ plan, recordRelease: false, progress, deploymentArtifacts: {} } as never);
+    expect(steps.map(({ step }) => step)).toEqual(['layers:', 'function:api']);
+  });
 });
 
 const webService = (
@@ -40,29 +207,65 @@ const webService = (
     ]
   }) as unknown as StpContainerWorkload;
 
-const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish][]) => {
+const deploy = async (services: [StpContainerWorkload, RollingUpdateFinish, boolean?][]) => {
   hints.length = 0;
   for (const [workload, finishedWhen] of services) finishes.set(workload.name, finishedWhen);
-  const plan = { functions: [], services: services.map(([workload]) => ({ workload })) } as unknown as FastDeployPlan;
-  const progress = { startEvent: async () => {}, finishEvent: async () => {} };
+  const plan = {
+    functions: [],
+    services: services.map(([workload, , supervisor]) => ({
+      workload,
+      newCfTaskDefinition: {
+        Properties: {
+          ContainerDefinitions: workload.containers.map((container) => ({
+            Name: container.name,
+            Essential: container.essential,
+            HealthCheck: supervisor
+              ? { Command: ['CMD', '/stacktape-supervisor', 'readiness'] }
+              : container.internalHealthCheck
+                ? { Command: container.internalHealthCheck.healthCheckCommand }
+                : undefined
+          }))
+        }
+      }
+    })),
+    layers: []
+  } as unknown as FastDeployPlan;
   await performFastDeploy({ plan, recordRelease: false, progress, deploymentArtifacts: {} } as never);
   return hints;
 };
 
-describe('the hint after a fast deploy that waited for ECS to stop the old containers', () => {
+describe('the hint after a fast deploy without an application health check', () => {
   test('is printed once for web services behind an HTTP API without internalHealthCheck', async () => {
     const printed = await deploy([
-      [webService('api'), 'rollout-completed'],
+      [webService('api'), 'new-instances-discoverable'],
       [webService('admin'), 'rollout-completed'],
       [webService('web', { healthCheck: true }), 'new-instances-discoverable']
     ]);
 
     expect(printed).toEqual([
-      'The update of api, admin waited about 3 minutes for ECS to stop the old containers, although the new version ' +
-        'already served requests. Add internalHealthCheck to their containers so Stacktape finishes as soon as the new ' +
-        'version is healthy: https://docs.stacktape.com/resources/compute/web-service/#how-deploys-replace-containers'
+      'Application health is unchecked for api, admin. Add a one-line internalHealthCheck for failure detection ' +
+        'and automatic rollback: https://docs.stacktape.com/resources/compute/web-service/#health-checks'
     ]);
-    expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain('to its container');
+    expect((await deploy([[webService('api'), 'rollout-completed']]))[0]).toContain(
+      'Application health is unchecked for api.'
+    );
+  });
+
+  test('does not call a generated essential supervisor check unchecked', async () => {
+    expect(await deploy([[webService('api'), 'new-instances-discoverable', true]])).toEqual([]);
+    expect(await deploy([[webService('api'), 'rollout-completed', true]])).toEqual([]);
+  });
+
+  test('still warns when only a non-essential sidecar has a health check', async () => {
+    const workload = webService('api');
+    workload.containers.push({
+      name: 'telemetry',
+      essential: false,
+      internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
+    } as StpContainerWorkload['containers'][number]);
+    expect((await deploy([[workload, 'new-instances-discoverable']]))[0]).toContain(
+      'Application health is unchecked for api.'
+    );
   });
 
   test.each<[string, StpContainerWorkload, RollingUpdateFinish]>([

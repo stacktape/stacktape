@@ -75,7 +75,7 @@ stacktape alarms --stage prod --region eu-west-1 --agent
 
 - [`stacktape logs`](/cli/logs) — fetch and search logs from a deployed resource.
 - [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics for a deployed resource.
-- [`stacktape issues:list`](/cli/issues-list) — list detected runtime issues (errors) across your deployed functions and containers.
+- [`stacktape errors:list`](/cli/errors-list) — list detected runtime issues (errors) across your deployed functions and containers.
 
 ## FAQ
 

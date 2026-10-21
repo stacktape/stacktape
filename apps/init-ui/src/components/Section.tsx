@@ -8,14 +8,16 @@ import { useEffect, useRef, type ReactNode } from 'react';
  * you are looking at the previous one brings itself into view, so the page advances by itself and
  * you are never left reading something that has been superseded.
  *
- * A finished band shrinks to one line: its name and what came of it. The work is behind you, and
- * at full size it pushed the step you are on far down the page. Its content is one click away.
+ * A finished band shrinks to one checked line: what came of it, with the same mark the rail puts on
+ * the step. The work is behind you, and at full size it pushed the step you are on far down the
+ * page. Its content is one click away.
+ *
+ * The band you are on carries no label of its own: the page title names it and the rail marks it.
+ * A third label between those two was the same word a third time.
  */
 export function Section({
   id,
-  eyebrow,
-  title,
-  lede,
+  label,
   children,
   isActive,
   isMuted = false,
@@ -27,9 +29,8 @@ export function Section({
   scrollKey
 }: {
   id: string;
-  eyebrow: string;
-  title?: string;
-  lede?: string;
+  /** The step's name, for assistive technology; the rail shows it. */
+  label: string;
   children?: ReactNode;
   /** The section the run is currently on. Only this one scrolls itself into view. */
   isActive: boolean;
@@ -72,10 +73,12 @@ export function Section({
     .join(' ');
 
   return (
-    <section className={className} id={`section-${id}`} ref={element}>
+    <section aria-label={label} className={className} id={`section-${id}`} ref={element}>
       {collapsed ? (
         <header className="wizard-section-summary">
-          <p className="wizard-step-label">{eyebrow}</p>
+          <span aria-hidden className="wizard-section-check">
+            ✓
+          </span>
           <div className="wizard-section-summary-text">
             {summary}
             {onToggle !== undefined && (
@@ -91,13 +94,7 @@ export function Section({
             )}
           </div>
         </header>
-      ) : (
-        <header className="wizard-section-header">
-          <p className="wizard-step-label">{eyebrow}</p>
-          {title !== undefined && <h2 className="wizard-section-title">{title}</h2>}
-          {lede !== undefined && <p className="wizard-lede">{lede}</p>}
-        </header>
-      )}
+      ) : null}
       {(!collapsed || isExpanded) && children !== undefined && (
         <div className={collapsed ? 'wizard-section-reopened' : undefined} id={`section-${id}-content`}>
           {children}

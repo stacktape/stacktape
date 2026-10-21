@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { IssuesConfig, SecurityScanningConfig } from 'stacktape';
+import type { ErrorTrackingConfig, SecurityScanningConfig } from 'stacktape';
 
 type DeploymentConfig = {
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
@@ -12,8 +12,8 @@ type DeploymentConfig = {
   disableAutoRollback?: boolean;
   /** Disable faster uploads via S3 Transfer Acceleration. */
   disableS3TransferAcceleration?: boolean;
-  /** Issues: runtime errors read from this stack's logs and grouped in the Console. */
-  issues?: IssuesConfig;
+  /** Error tracking: runtime errors read from this stack's logs and grouped in the Console. */
+  errorTracking?: ErrorTrackingConfig;
   /** How long (in minutes) to monitor rollback alarms after deployment completes. */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /** How many old deployment artifacts (Lambda bundles, container images) to keep. */
@@ -172,21 +172,21 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `issues`
+## Property: `errorTracking`
 
 - Required: no
-- Type: `IssuesConfig`
+- Type: `ErrorTrackingConfig`
 
-Issues: runtime errors read from this stack's logs and grouped in the Console.
+Error tracking: runtime errors read from this stack's logs and grouped in the Console.
 
-On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+On by default for every stage. Turn it off here, or limit it to some stages. See `ErrorTrackingConfig` for what is sent
 and how sensitive text is masked.
 
 ### Example 1 (yaml)
 
 ```yaml
 deploymentConfig:
-  issues:
+  errorTracking:
     enabled: false
 resources:
   api:
@@ -204,7 +204,7 @@ resources:
 import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => ({
-  deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+  deploymentConfig: { errorTracking: { stages: ['production', 'staging'] } },
   resources: {
     api: new LambdaFunction({
       packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' })

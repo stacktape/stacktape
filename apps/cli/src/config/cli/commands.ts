@@ -28,6 +28,7 @@ import {
   filter,
   headersPreset,
   fullDeploy,
+  recoverOperation,
   headless,
   noBrowser,
   codingAgent,
@@ -113,6 +114,7 @@ export const commandDefinitions = {
 
 If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (usually \`stacktape.ts\`, with \`stacktape.yml\` still supported) in the current directory, or you can specify a path using the \`--configPath\` option.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -197,6 +199,7 @@ This command only updates the script's source code. To update environment variab
 
 This action is irreversible and will permanently remove all resources in the stack. Be sure to back up any data you want to keep. If you don't provide a configuration file, \`beforeDelete\` hooks will not be executed.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -358,6 +361,7 @@ Use \`--listVersions\` to see available versions. Specify a target with \`--targ
 
 For recovering from \`UPDATE_FAILED\` state, use \`cf:rollback\` instead.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -1060,8 +1064,8 @@ The command succeeds only after the incident remains RESOLVED for the stability 
     },
     requiredArgs: ['incidentId'] as const
   },
-  'issues:list': {
-    description: `Lists detected runtime issues (errors) across your deployed functions and containers.
+  'errors:list': {
+    description: `Lists detected runtime errors across your deployed functions and containers.
 
 Shows error message, type, function name, project/stage, occurrence count, and status. Filter by status, project, or stage.`,
     args: {
@@ -1075,7 +1079,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
     },
     requiredArgs: [] as const
   },
-  'issues:resolve': {
+  'errors:resolve': {
     description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,
     args: {
       logLevel: logLevel.optional(),
@@ -1085,7 +1089,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
     },
     requiredArgs: ['issueId'] as const
   },
-  'issues:ignore': {
+  'errors:ignore': {
     description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,
     args: {
       logLevel: logLevel.optional(),
@@ -1095,7 +1099,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
     },
     requiredArgs: ['issueId'] as const
   },
-  'issues:reopen': {
+  'errors:reopen': {
     description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,
     args: {
       logLevel: logLevel.optional(),

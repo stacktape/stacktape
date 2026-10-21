@@ -56,7 +56,7 @@ The ID of the issue to act on.`);
 
 export const issueStatus = z.enum(['OPEN', 'RESOLVED', 'IGNORED']).describe(`#### Issue Status Filter
 ---
-Filter issues by status (OPEN, RESOLVED, IGNORED).`);
+Filter tracked errors by status (OPEN, RESOLVED, IGNORED).`);
 
 export const incidentId = z.string().describe(`#### Incident ID
 ---
@@ -129,6 +129,12 @@ Controls where deployment build and packaging work runs.
 export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values
 ---
 If \`true\`, includes sensitive values in the output of commands such as \`info:stack\`, \`deploy\`, and \`param:get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+
+export const recoverOperation = z
+  .string()
+  .describe(
+    'Recover the named code-swap invocation after stopping it and settling its AWS changes. Repairs interrupted swaps with an image deploy.'
+  );
 
 export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---
@@ -623,6 +629,7 @@ export const allCliArgsSchema = z.object({
   newVersion: newVersion.optional(),
   projectDirectory: projectDirectory.optional(),
   initializeProjectTo: initializeProjectTo.optional(),
+  recoverOperation: recoverOperation.optional(),
   fullDeploy: fullDeploy.optional(),
   runner: deployRunner.optional(),
   disableLayerOptimization: disableLayerOptimization.optional(),

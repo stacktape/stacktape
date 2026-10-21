@@ -42,7 +42,7 @@ export function StartStep({
     const chosen = state.agents?.find((option) => option.id === state.choice?.agentId);
     return (
       <p className="wizard-recap">
-        {state.phase === 'analysing' ? 'Analyzing' : 'Analyzed'} with{' '}
+        {state.phase === 'analysing' ? 'Analyzing' : state.phase === 'failed' ? 'Started' : 'Analyzed'} with{' '}
         <strong>{chosen?.label ?? 'the built-in scanner'}</strong>.
       </p>
     );
@@ -50,6 +50,15 @@ export function StartStep({
 
   return (
     <div className="flex flex-col gap-7">
+      {state.repositoryPath !== undefined && (
+        <dl className="wizard-facts">
+          <div className="min-w-0">
+            <dt>Project</dt>
+            <dd className="wizard-code [overflow-wrap:anywhere]">{state.repositoryPath}</dd>
+          </div>
+        </dl>
+      )}
+
       <ol className="wizard-promises">
         <li>
           {agent !== undefined && agent.id !== 'none' ? (
@@ -67,24 +76,13 @@ export function StartStep({
         </li>
         <li>
           <strong>Nothing is created on AWS and nothing is billed.</strong> The result is one file in your project. AWS
-          only comes into it if you press Deploy at the end, and that step says so before it does anything.
+          only comes into it if you confirm a deploy at the end, and that step says so before it does anything.
         </li>
         <li>
           <strong>You will see everything before you commit to it.</strong> Every piece of infrastructure comes with the
           place in your own code that made us propose it, what it costs per month, and a way to change it.
         </li>
       </ol>
-
-      <p className="m-0 max-w-[var(--wizard-measure)] text-[0.82rem] text-[var(--stp-text-subtle)]">
-        We record anonymous outcome statistics (which frameworks were found, whether the deploy worked), never your
-        code, names or files. Set <span className="wizard-code">STP_DISABLE_TELEMETRY=1</span> to turn that off.
-      </p>
-
-      {state.repositoryPath !== undefined && (
-        <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">
-          Project to analyze: <span className="wizard-code text-[var(--stp-text-primary)]">{state.repositoryPath}</span>
-        </p>
-      )}
 
       <div className="flex items-center gap-4">
         <Button isLoading={isBusy} onClick={() => onStart(agentId, chosenModel)} variant="primary">
@@ -104,59 +102,76 @@ export function StartStep({
           </button>
 
           {showOptions && (
-            <div className="mt-4 flex flex-col gap-4">
-              <SelectionCardGroup
-                ariaLabel="Which agent reads the project"
-                direction="column"
-                onValueChange={(value) => {
-                  setAgentId(value);
-                  setModelId('default');
-                }}
-                value={agentId}
-                values={agents.map((option) => option.id)}
-              >
-                {agents.map((option) => (
-                  <SelectionCard
-                    description={option.description}
-                    isRecommended={option.recommended === true}
-                    isSelected={option.id === agentId}
-                    key={option.id}
-                    onSelect={(value) => {
-                      setAgentId(value);
-                      setModelId('default');
-                    }}
-                    title={option.label}
-                    value={option.id}
-                    {...(option.version === undefined ? {} : { meta: option.version })}
-                  />
-                ))}
-              </SelectionCardGroup>
-
-              {models.length > 1 && (
+            <div className="mt-4 flex flex-col gap-5">
+              <div>
+                <p className="wizard-group-label">Which agent reads the project</p>
                 <SelectionCardGroup
-                  ariaLabel="Which model the agent uses"
-                  className="wizard-model-cards"
-                  direction="row"
-                  onValueChange={setModelId}
-                  value={chosenModel}
-                  values={models.map((model) => model.id)}
+                  ariaLabel="Which agent reads the project"
+                  direction="column"
+                  onValueChange={(value) => {
+                    setAgentId(value);
+                    setModelId('default');
+                  }}
+                  value={agentId}
+                  values={agents.map((option) => option.id)}
                 >
-                  {models.map((model) => (
+                  {agents.map((option) => (
                     <SelectionCard
-                      description={model.description}
-                      isSelected={model.id === chosenModel}
-                      key={model.id}
-                      onSelect={setModelId}
-                      title={model.label}
-                      value={model.id}
+                      description={option.description}
+                      isRecommended={option.recommended === true}
+                      isSelected={option.id === agentId}
+                      key={option.id}
+                      onSelect={(value) => {
+                        setAgentId(value);
+                        setModelId('default');
+                      }}
+                      title={option.label}
+                      value={option.id}
+                      {...(option.version === undefined ? {} : { meta: versionLabel(option.version) })}
                     />
                   ))}
                 </SelectionCardGroup>
+              </div>
+
+              {models.length > 1 && (
+                <div>
+                  <p className="wizard-group-label">Which model it uses</p>
+                  <SelectionCardGroup
+                    ariaLabel="Which model the agent uses"
+                    className="wizard-model-cards"
+                    direction="row"
+                    onValueChange={setModelId}
+                    value={chosenModel}
+                    values={models.map((model) => model.id)}
+                  >
+                    {models.map((model) => (
+                      <SelectionCard
+                        description={model.description}
+                        isSelected={model.id === chosenModel}
+                        key={model.id}
+                        onSelect={setModelId}
+                        title={model.label}
+                        value={model.id}
+                      />
+                    ))}
+                  </SelectionCardGroup>
+                </div>
               )}
             </div>
           )}
         </div>
       )}
+
+      <p className="m-0 max-w-[var(--wizard-measure)] text-[0.82rem] text-[var(--stp-text-subtle)]">
+        Anonymous outcome statistics are recorded (which frameworks were found, whether the deploy worked), never your
+        code, names or files. <span className="wizard-code">STP_DISABLE_TELEMETRY=1</span> turns that off.
+      </p>
     </div>
   );
 }
+
+/** "2.1.296 (Claude Code)" and "codex-cli 0.98.0" are what the agents print; the card already names the agent. */
+export const versionLabel = (version: string): string => {
+  const number = /\d+\.\d+(?:\.\d+)?/.exec(version)?.[0];
+  return number === undefined ? version : `v${number}`;
+};
