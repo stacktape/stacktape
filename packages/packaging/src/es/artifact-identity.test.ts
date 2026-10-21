@@ -5,6 +5,40 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 describe('artifact identity', () => {
+  test('ambiguous input sets do not rename unrelated shared modules after a source edit', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stp-partial-stable-chunks-'));
+    try {
+      const build = async (label: string, value: string) => {
+        const directory = join(root, label);
+        await mkdir(directory);
+        const sources = {
+          'chunk-aaaaaaaa.js': `export const revision = "${value}";`,
+          'chunk-bbbbbbbb.js': 'export const left = 1;',
+          'chunk-cccccccc.js': 'export const right = 2;'
+        };
+        await Promise.all(Object.entries(sources).map(([name, code]) => writeFile(join(directory, name), code)));
+        return normalizeSplitBuildIdentity({
+          javascriptFiles: Object.keys(sources).map((name) => join(directory, name)),
+          projectRoot: root,
+          sourcesResolveFrom: directory,
+          chunkNaming: 'input-set',
+          chunkKeys: new Map([
+            ['chunk-aaaaaaaa', 'src/service.ts'],
+            ['chunk-bbbbbbbb', 'node_modules/dual/index.js'],
+            ['chunk-cccccccc', 'node_modules/dual/index.js']
+          ])
+        });
+      };
+      const old = await build('old', 'old');
+      const next = await build('next', 'new');
+      expect(next.get('chunk-aaaaaaaa')).toBe(old.get('chunk-aaaaaaaa'));
+      expect(new Set(next.values()).size).toBe(3);
+      expect(await build('elsewhere', 'new')).toEqual(next);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test('a dependency edit gives its importer a new filename, and both generations coexist without conflicts', async () => {
     const root = await mkdtemp(join(tmpdir(), 'stp-chunk-generations-'));
     try {

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { startTiming } from '@utils/timings';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
@@ -244,10 +243,7 @@ export const findLambdaOutsideFastPathUsingLayers = ({
  */
 export const resolveSharedLayerVersions = async (
   layers: SharedLayerHotswapInformation[],
-  {
-    parentEventType = 'HOTSWAP_UPDATE',
-    zipPath
-  }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS'; zipPath?: string } = {}
+  { parentEventType = 'HOTSWAP_UPDATE' }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS' } = {}
 ): Promise<Map<number, string>> => {
   const arns = new Map<number, string>();
   await Promise.all(
@@ -270,16 +266,14 @@ export const resolveSharedLayerVersions = async (
       });
       await logger.startEvent({ eventType: 'PUBLISH_LAYER_VERSION', description: 'Publishing layer version' });
       const endPublish = startTiming('fast-deploy:publish-layer', {
-        layer: layer.layerNumber,
-        local: Boolean(zipPath)
+        layer: layer.layerNumber
       });
       const { LayerVersionArn } = await awsSdkManager.lambda.publishLayerVersion({
         layerName: layer.layerName,
         description: describeFastDeploymentLayerVersion(layer.description, layer.identity),
         compatibleRuntimes: layer.compatibleRuntimes,
-        ...(zipPath
-          ? { zipFile: await readFile(zipPath) }
-          : { artifactBucketName: deploymentArtifactManager.deploymentBucketName, artifactS3Key: layer.s3Key })
+        artifactBucketName: deploymentArtifactManager.deploymentBucketName,
+        artifactS3Key: layer.s3Key
       });
       endPublish();
       await logger.finishEvent({ eventType: 'PUBLISH_LAYER_VERSION' });

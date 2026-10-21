@@ -202,16 +202,19 @@ export const normalizeSplitBuildIdentity = async ({
     );
   };
   const renames = new Map<string, string>();
-  const inputSets = [...keys.keys()].map((name) => chunkKeys.get(name));
-  const stable =
-    chunkNaming === 'input-set' &&
-    inputSets.every((key) => key !== undefined) &&
-    new Set(inputSets).size === inputSets.length;
+  // Bun can split one input set into several chunks. Only those ambiguous chunks need content names;
+  // disabling stable names for the entire build makes an unrelated shared edit replace every function ZIP.
+  const inputSetCounts = new Map<string, number>();
+  for (const name of keys.keys()) {
+    const key = chunkKeys.get(name);
+    if (key !== undefined) inputSetCounts.set(key, (inputSetCounts.get(key) ?? 0) + 1);
+  }
   const targets = new Set<string>();
   for (const [path, code] of codes) {
     const name = basename(path, '.js');
     if (!/^chunk-[a-z0-9]{8}$/.test(name)) continue;
     const inputSet = chunkKeys.get(name);
+    const stable = chunkNaming === 'input-set' && inputSet !== undefined && inputSetCounts.get(inputSet) === 1;
     const identity = stable ? `inputs:${inputSet}` : `${graphIdentity(name)}\0${keys.get(name)}\0${canonical(code)}`;
     const next = `chunk-${sha256(identity).slice(0, 8)}`;
     if (targets.has(next)) throw new Error('Two split chunks have the same normalized filename.');

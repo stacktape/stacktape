@@ -46,8 +46,7 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { readFile, stat } from 'node:fs/promises';
-import { LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES } from '@stacktape/packaging/artifact/lambda-limits';
+import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import {
@@ -740,7 +739,7 @@ class DeploymentArtifactManager {
     onSharedLayerUploaded
   }: {
     includeTemplates: boolean;
-    onSharedLayerUploaded?: (layerNumber: number, zipPath?: string) => void;
+    onSharedLayerUploaded?: (layerNumber: number) => void;
   }) => {
     const jobs: (() => Promise<any>)[] = [];
 
@@ -1129,9 +1128,7 @@ class DeploymentArtifactManager {
     return { jobName, imageTagWithUrl };
   };
 
-  uploadSharedLayer = async ({
-    onLayerUploaded
-  }: { onLayerUploaded?: (layerNumber: number, zipPath?: string) => void } = {}) => {
+  uploadSharedLayer = async ({ onLayerUploaded }: { onLayerUploaded?: (layerNumber: number) => void } = {}) => {
     // Skip if no pending layers
     const pendingLayer = this.packagingSource.getPendingSharedLayer();
     if (!pendingLayer) {
@@ -1187,15 +1184,13 @@ class DeploymentArtifactManager {
         layersToUpload.map(async (layer) => {
           const zipPath = `${layer.layerPath}.zip`;
           const s3Key = layer.s3Key;
-          // Publication can read this ZIP immediately; neither S3 nor source maps are on its critical path.
-          const directUpload = (await stat(zipPath)).size <= LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES;
-          if (directUpload) onLayerUploaded?.(layer.layerNumber, zipPath);
           const results = await Promise.allSettled([
             (async () => {
               await awsSdkManager.s3.uploadFile({ s3Key, filePath: zipPath, bucketName: this.deploymentBucketName });
               this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
-              // ZIP headers can push a near-budget incompressible layer over the inline limit. Publish those from S3.
-              if (!directUpload) onLayerUploaded?.(layer.layerNumber);
+              // The release needs this S3 object anyway. Let Lambda read it there instead of sending the same
+              // archive again as a base64 inline payload, which dominates publication time for realistic layers.
+              onLayerUploaded?.(layer.layerNumber);
               this.successfullyCreatedObjects.push({ s3Key, name: `shared-layer-${layer.layerNumber}` });
             })(),
             ...(layer.sourceMapsPath
