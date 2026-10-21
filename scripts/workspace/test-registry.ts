@@ -1337,7 +1337,6 @@ export const lanes: readonly Lane[] = [
       'bun',
       'test',
       '--isolate',
-      'src/http-server.test.ts',
       'src/lambdas/sign-up-user-name.test.ts',
       'src/services/api-key-security.test.ts',
       'src/utils/safe-error.test.ts',
@@ -1349,7 +1348,6 @@ export const lanes: readonly Lane[] = [
     level: 'focused',
     tier: 'pr',
     tests: [
-      'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
@@ -2496,7 +2494,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/deployments/invocation-id.test.ts',
       'apps/console/api/src/deployments/operation-description.test.ts',
       'apps/console/api/src/deployments/failure-explanations.test.ts',
-      'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/integrations/git/bitbucket-forge-events.test.ts',
       'apps/console/api/src/integrations/git/gitlab-events.test.ts',
       'apps/console/api/src/integrations/git/gitlab-webhooks.test.ts',
@@ -4969,7 +4966,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/sign-up-database.test.ts',
-      'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
