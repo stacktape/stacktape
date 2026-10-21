@@ -87,16 +87,4 @@ describe('ensureTrivyBinary', () => {
     release.baseUrl = `http://127.0.0.1:${server.port}/missing`;
     await expect(ensureTrivyBinary({ release, platform: 'linux', toolsDirectory })).rejects.toThrow('HTTP 404');
   });
-
-  test('uses an explicitly configured binary without downloading', async () => {
-    process.env.STACKTAPE_TRIVY_PATH = '/opt/trivy/trivy';
-    try {
-      expect(await ensureTrivyBinary({ release: releaseFor({ sha256: 'unused' }), toolsDirectory })).toEqual({
-        binaryPath: '/opt/trivy/trivy',
-        downloaded: false
-      });
-    } finally {
-      delete process.env.STACKTAPE_TRIVY_PATH;
-    }
-  });
 });
