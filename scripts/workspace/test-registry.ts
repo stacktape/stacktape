@@ -2544,7 +2544,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/github-private-key.test.ts',
       'apps/console/api/src/services/github-repository-pagination.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts',
 
       'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
       'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
@@ -3484,23 +3483,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts'
     ],
     requires: [],
-    release: 'every-candidate'
-  },
-  {
-    id: 'console-incident-rules',
-    command: [
-      'pnpm',
-      '--filter',
-      '@stacktape/console-api-app',
-      'exec',
-      'bun',
-      'test',
-      'src/services/incident-engine.test.ts'
-    ],
-    level: 'focused',
-    tier: 'pr',
-    tests: ['apps/console/api/src/services/incident-engine.test.ts'],
-    requires: ['console'],
     release: 'every-candidate'
   },
   {
@@ -5478,13 +5460,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts',
       'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
-      'console-incident-rules',
       'console-api',
       'console-api-2',
       'console-database-incidents',
