@@ -23,7 +23,7 @@ export type CliCommandCategory =
   | 'dev'
   | 'diagnostics'
   | 'docs'
-  | 'issues'
+  | 'errors'
   | 'local'
   | 'project'
   | 'secrets'
@@ -185,15 +185,15 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
   'domain:add': { category: 'config', safety: 'mutating' },
   'cf-module:update': { category: 'config', safety: 'mutating' },
 
-  incidents: { category: 'issues', safety: 'readOnly' },
-  'incidents:show': { category: 'issues', safety: 'readOnly' },
-  'incidents:watch': { category: 'issues', safety: 'readOnly' },
-  'incidents:ack': { category: 'issues', safety: 'mutating' },
-  'incidents:resolve': { category: 'issues', safety: 'mutating' },
-  'issues:list': { category: 'issues', safety: 'readOnly' },
-  'issues:resolve': { category: 'issues', safety: 'mutating' },
-  'issues:ignore': { category: 'issues', safety: 'mutating' },
-  'issues:reopen': { category: 'issues', safety: 'mutating' },
+  incidents: { category: 'errors', safety: 'readOnly' },
+  'incidents:show': { category: 'errors', safety: 'readOnly' },
+  'incidents:watch': { category: 'errors', safety: 'readOnly' },
+  'incidents:ack': { category: 'errors', safety: 'mutating' },
+  'incidents:resolve': { category: 'errors', safety: 'mutating' },
+  'errors:list': { category: 'errors', safety: 'readOnly' },
+  'errors:resolve': { category: 'errors', safety: 'mutating' },
+  'errors:ignore': { category: 'errors', safety: 'mutating' },
+  'errors:reopen': { category: 'errors', safety: 'mutating' },
 
   mcp: {
     category: 'docs',

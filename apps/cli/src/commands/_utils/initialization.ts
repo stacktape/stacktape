@@ -249,11 +249,17 @@ export const initializeStackOperationLifecycle = async ({
   let globalConfig: GlobalConfigResponse | undefined;
   if (requiresControlPlane) {
     await loadUserCredentials();
+    const subscriptionCheck = requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined;
     const [, subscription, fetchedGlobalConfig] = await settleAllBeforeThrowing([
       recordStackOperationStart(),
-      requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined,
+      subscriptionCheck,
       loadGlobalConfig ? stacktapeTrpcApiManager.apiClient.globalConfig() : undefined
-    ]);
+    ]).catch(async (error) => {
+      // The API also refuses to record a deploy it does not allow; the refusal's own explanation is the one to show.
+      const refusal = await subscriptionCheck?.catch(() => undefined);
+      if (refusal && !refusal.canDeploy) throw stpErrors.e502(refusal);
+      throw error;
+    });
     globalConfig = fetchedGlobalConfig;
 
     const userProvidedProjectName = globalStateManager.args.projectName;
@@ -266,7 +272,7 @@ export const initializeStackOperationLifecycle = async ({
     }
 
     if (subscription && !subscription.canDeploy) {
-      throw stpErrors.e502({ message: subscription.message });
+      throw stpErrors.e502(subscription);
     }
     await loadTargetStackContext({ skipRawConfig: skipRawConfigForTarget });
     assertCommandPermissions({
@@ -600,6 +606,10 @@ export const initializeStackServicesForDevPhase1 = async () => {
   }
 
   await globalStateManager.loadUserCredentials();
+  // Dev mode deploys and updates a dev stack, so it follows the deploy rules: a Free organization over its monthly
+  // limit cannot start it. This runs before anything is prompted, created or deployed; `dev:stop` stays available.
+  const subscription = await stacktapeTrpcApiManager.apiClient.canDeploy();
+  if (!subscription.canDeploy) throw stpErrors.e502(subscription);
   awsSdkManager.init({
     credentials: () => globalStateManager.credentials,
     region: globalStateManager.region,
@@ -830,7 +840,8 @@ const recordStackOperationStart = async () => {
           interrupted,
           error: err,
           // Tells the Console whether this deployment wired Issues for the stack, so it can show coverage.
-          issuesEnabled: globalStateManager.command === 'deploy' ? configManager.issuesEnabledForRecording : undefined
+          issuesEnabled:
+            globalStateManager.command === 'deploy' ? configManager.errorTrackingEnabledForRecording : undefined
         });
       });
     }

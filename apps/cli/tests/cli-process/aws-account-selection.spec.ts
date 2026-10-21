@@ -68,11 +68,13 @@ const startAwsFake = async () => {
 };
 
 const startConsole = async (
-  connectedAwsAccounts: Parameters<typeof startControlPlaneFake>[0]['connectedAwsAccounts']
+  connectedAwsAccounts: Parameters<typeof startControlPlaneFake>[0]['connectedAwsAccounts'],
+  freePlanLimit?: Parameters<typeof startControlPlaneFake>[0]['freePlanLimit']
 ) => {
   const controlPlane = await startControlPlaneFake({
     projectName,
     connectedAwsAccounts,
+    freePlanLimit,
     awsAccountCredentials: {
       production: { accessKeyId: consoleKeys.production, secretAccessKey: 'fake' },
       dev: { accessKeyId: consoleKeys.dev, secretAccessKey: 'fake' }
@@ -89,12 +91,14 @@ const runDelete = async ({
   controlPlane,
   awsEndpoint,
   environment = {},
-  args = []
+  args = [],
+  command = 'delete'
 }: {
   controlPlane: ControlPlaneFake;
   awsEndpoint: string;
   environment?: Record<string, string>;
   args?: string[];
+  command?: 'delete' | 'deploy' | 'dev';
 }) => {
   const home = await mkdtemp(join(tmpdir(), 'stacktape-account-selection-'));
   cleanups.push(() => rm(home, { recursive: true, force: true }));
@@ -110,7 +114,7 @@ const runDelete = async ({
       '--preload',
       join(cliRoot, 'scripts', 'network-guard-preload.ts'),
       join(cliRoot, 'scripts', 'dev.ts'),
-      'delete',
+      command,
       '--stage',
       'test',
       '--region',
@@ -119,7 +123,8 @@ const runDelete = async ({
       projectName,
       '--currentWorkingDirectory',
       join(home, 'project'),
-      '--autoConfirmOperation',
+      // Dev mode never asks for confirmation, so it has no such option.
+      ...(command === 'dev' ? [] : ['--autoConfirmOperation']),
       '--outputFormat',
       'jsonl',
       ...args
@@ -235,5 +240,53 @@ describe('AWS account selection by local credentials', () => {
     expect(credentialRequests(controlPlane)).toEqual(['production']);
     expect(run.stdout).toContain(`for account production (${PRODUCTION})`);
     expect(run.stdout).not.toContain('selected by');
+  });
+});
+
+describe('Free plan cost limit', () => {
+  const overLimit = {
+    monthToDateCostsUsd: 142.17,
+    limitUsd: 100,
+    month: '2026-10',
+    upgradeUrl: 'https://console.stacktape.com/subscription-plans'
+  };
+
+  test('a deploy is refused with the costs and the plans page before AWS is asked for anything', async () => {
+    const controlPlane = await startConsole([connected.production], overLimit);
+    const aws = await startAwsFake();
+    const run = await runDelete({ controlPlane, awsEndpoint: aws.endpoint, command: 'deploy' });
+
+    expect(run.exitCode, run.stdout + run.stderr).not.toBe(0);
+    expect(run.error?.code, run.stdout).toBe('FREE_PLAN_LIMIT_E502');
+    expect(run.stdout).toContain('Deploys are paused');
+    expect(run.stdout).toContain('$142.17');
+    expect(run.stdout).toContain('limit of $100 a month');
+    expect(run.stdout).toContain(overLimit.upgradeUrl);
+    expect(run.stdout).toContain('Deleting and rolling back stages still work');
+    expect(aws.requests.filter(({ action }) => action !== 'GetCallerIdentity')).toEqual([]);
+  });
+
+  test('dev mode is refused the same way before it prompts, creates or deploys anything', async () => {
+    const controlPlane = await startConsole([connected.production], overLimit);
+    const aws = await startAwsFake();
+    const run = await runDelete({ controlPlane, awsEndpoint: aws.endpoint, command: 'dev' });
+
+    expect(run.exitCode, run.stdout + run.stderr).not.toBe(0);
+    expect(run.error?.code, run.stdout).toBe('FREE_PLAN_LIMIT_E502');
+    expect(run.stdout).toContain('Deploys are paused');
+    expect(run.stdout).toContain('$142.17');
+    expect(run.stdout).toContain(overLimit.upgradeUrl);
+    expect(aws.requests.filter(({ action }) => action !== 'GetCallerIdentity')).toEqual([]);
+  });
+
+  test('a delete still runs while deploys are paused', async () => {
+    const controlPlane = await startConsole([connected.production], overLimit);
+    const aws = await startAwsFake();
+    const run = await runDelete({ controlPlane, awsEndpoint: aws.endpoint });
+
+    // The fake account has no stack, so the delete gets as far as looking for it.
+    expect(run.error?.code).toBe('NON_EXISTING_STACK_E32');
+    expect(aws.requests.map(({ action }) => action)).toContain('DescribeStacks');
+    expect(controlPlane.calls.map(({ procedure }) => procedure)).not.toContain('canDeploy');
   });
 });

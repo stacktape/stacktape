@@ -27,6 +27,99 @@ export type Slice = {
 
 export const lanes: readonly Lane[] = [
   {
+    id: 'code-swap-build-boundary',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'scripts/code-swap/build-cli.spec.ts',
+      'scripts/code-swap/analyze.spec.ts',
+      'scripts/code-swap/transport.spec.ts',
+      'scripts/code-swap/ecs-budget.spec.ts',
+      'scripts/code-swap/lifecycle.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/code-swap/build-cli.spec.ts',
+      'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
+      'apps/cli/scripts/code-swap/lifecycle.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'The ordinary CLI build cannot activate the unsigned benchmark path.'
+  },
+  {
+    id: 'code-swap-live-benchmark',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/run.ts'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/code-swap/run.ts'],
+    requires: ['docker', 'aws', 'network'],
+    release: 'affected-external-contract',
+    proves: 'Real source CLI edits and matched image deployments pass the measured Node serving gate.'
+  },
+  {
+    id: 'code-swap-runtime-safety',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/qualify.ts'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/code-swap/qualify.ts'],
+    requires: ['docker'],
+    release: 'affected-external-contract',
+    proves: 'The built capped image preserves drains, inherits OOM scores and reaps complete failed candidate trees.'
+  },
+  {
+    id: 'code-swap-fargate-safety',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/live-runtime.ts'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/code-swap/live-runtime.ts'],
+    requires: ['docker', 'aws', 'network'],
+    release: 'affected-external-contract',
+    proves: 'The same runtime failure scenarios pass on owned Fargate tasks with verified cleanup.'
+  },
+  {
+    id: 'code-swap-artifact-consumer',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/artifact-consumer.ts'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/code-swap/artifact-consumer.ts'],
+    requires: ['docker'],
+    release: 'affected-external-contract',
+    proves:
+      'Installed Node package consumers execute after deterministic archive application and invalidate image inputs.'
+  },
+  {
+    id: 'code-swap-artifacts',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'exec', 'bun', 'test', 'src/artifact/code-swap.test.ts'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['packages/packaging/src/artifact/code-swap.test.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Deterministic runnable code and base identities remain separate.'
+  },
+  {
+    id: 'code-swap-supervisor',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'scripts/code-swap/smoke.ts'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go'
+    ],
+    requires: ['docker'],
+    release: 'affected-external-contract',
+    proves: 'The pinned image applies a verified bundle and serves it through the real proxy.'
+  },
+  {
     id: 'agent-instructions',
     command: ['pnpm', 'check:instructions'],
     level: 'focused',
@@ -391,10 +484,14 @@ export const lanes: readonly Lane[] = [
       'src/utils/stack-info-map-diff.spec.ts',
       'src/commands/deploy/ec2-runner-config-path.spec.ts',
       'src/commands/deploy/fast-deploy.spec.ts',
+      'src/commands/_utils/container-health.spec.ts',
       'src/aws/cloudformation.spec.ts',
       'src/aws/ecs-contracts.spec.ts',
       'src/domain/shared-resource-stack-manager/index.spec.ts',
       'src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
+      'src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
+      'src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -407,10 +504,14 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/deploy/fast-deploy.spec.ts',
+      'apps/cli/src/commands/_utils/container-health.spec.ts',
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -1695,6 +1796,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/runner-propagation.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
@@ -1789,17 +1891,22 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
+      'apps/console/ui/src/components/CompoundViews/StackOperationProgress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
+      'apps/console/ui/src/components/Misc/MiddleTruncate.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/resolved-config-display.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
+      'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
+      'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
-      'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
@@ -1924,13 +2031,28 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
+      'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-members.test.ts',
+      'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-integrations.test.ts',
+      'apps/console/ui/e2e/isolated-money-pages.test.ts',
+      'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
-      'apps/console/ui/e2e/isolated-first-run-links.test.ts'
+      'apps/console/ui/e2e/isolated-first-run-links.test.ts',
+      'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-projects-volume.test.ts',
+      'apps/console/ui/e2e/isolated-secrets.test.ts',
+      'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2402,8 +2524,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
+      'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
+      'apps/console/api/src/services/domain-nameservers.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
       'apps/console/api/src/services/git-provider-oauth.test.ts',
       'apps/console/api/src/services/github-app-client.test.ts',
@@ -2421,6 +2545,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/runner-propagation.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
@@ -2454,13 +2579,28 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
+      'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-members.test.ts',
+      'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-integrations.test.ts',
+      'apps/console/ui/e2e/isolated-money-pages.test.ts',
+      'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
+      'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-projects-volume.test.ts',
+      'apps/console/ui/e2e/isolated-secrets.test.ts',
+      'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -2485,7 +2625,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
+      'apps/console/ui/src/components/CompoundViews/StackOperationProgress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
+      'apps/console/ui/src/components/Misc/MiddleTruncate.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
@@ -2494,7 +2637,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
+      'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
+      'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/IssuesPage/issue-presentation.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
@@ -2503,7 +2648,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
-      'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
@@ -3424,6 +3569,41 @@ export const lanes: readonly Lane[] = [
 
 export const slices: readonly Slice[] = [
   {
+    id: 'code-swap-foundations',
+    promise: 'Opt-in Node code replacement preserves artifact, process, release and image-fallback identities.',
+    status: 'active',
+    journeys: ['container-deploy'],
+    paths: [
+      'packages/packaging/src/artifact/code-swap.ts',
+      'apps/cli/scripts/code-swap/**',
+      'apps/cli/src/domain/code-swap/**'
+    ],
+    tests: [
+      'packages/packaging/src/artifact/code-swap.test.ts',
+      'apps/cli/scripts/code-swap/smoke.ts',
+      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/process_test.go',
+      'apps/cli/scripts/code-swap/build-cli.spec.ts',
+      'apps/cli/scripts/code-swap/analyze.spec.ts',
+      'apps/cli/scripts/code-swap/transport.spec.ts',
+      'apps/cli/scripts/code-swap/run.ts',
+      'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
+      'apps/cli/scripts/code-swap/lifecycle.spec.ts',
+      'apps/cli/scripts/code-swap/supervisor/lifecycle_test.go',
+      'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
+      'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
+    ],
+    lanes: [
+      'code-swap-artifacts',
+      'code-swap-supervisor',
+      'code-swap-build-boundary',
+      'code-swap-live-benchmark',
+      'code-swap-runtime-safety',
+      'code-swap-fargate-safety',
+      'code-swap-artifact-consumer'
+    ]
+  },
+  {
     id: 'S01',
     promise: 'Public config, CloudFormation types and schema agree.',
     status: 'active',
@@ -3845,8 +4025,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/aws-domains.spec.ts',
       'apps/cli/tests/characterization/nextjs-materialization.spec.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
+      'apps/console/api/src/services/domain-nameservers.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
+      'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/scripts/domains-ministack.test.ts',
+      'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/cli/tests/synthesis-families/endpoints.spec.ts',
       'apps/cli/scripts/real-aws/appsync-endpoint-canary.ts'
     ],
@@ -3905,6 +4088,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/ecs.ts',
       'apps/cli/src/aws/lambda.ts',
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer*.ts',
+      'apps/cli/src/commands/_utils/fn-deployment.ts',
+      'apps/cli/src/commands/_utils/shared-layer-transition.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.ts',
       'apps/cli/src/utils/stack-info-map-diff.ts',
       'apps/cli/tests/ministack/**',
@@ -3919,6 +4105,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/deploy/fast-deploy.spec.ts',
+      'apps/cli/src/commands/_utils/container-health.spec.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
@@ -3930,6 +4117,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
     ],
     lanes: [
@@ -4548,6 +4738,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J2'],
     paths: [
       'apps/cli/src/domain/deployment-artifact-manager/**',
+      'apps/cli/src/aws/ecr.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.ts',
       'packages/ministack/**',
@@ -4556,10 +4747,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
+      'apps/cli/src/aws/ecr.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/commands/_utils/source-map-manifest.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/source-maps.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/rollback-artifacts.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
     lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']
@@ -4821,8 +5014,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
+      'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
-      'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts'
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts'
     ],
     lanes: [
       'console-access-rules',
@@ -4835,6 +5029,7 @@ export const slices: readonly Slice[] = [
       'console-database-console-access',
       'console-database-sign-up',
       'console-browser-project-access',
+      'console-browser-isolated',
       'console-ui-test-e2e-project-access'
     ]
   },
@@ -4863,6 +5058,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
+      'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts'
@@ -4906,6 +5102,9 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/deployments/operation-description.test.ts',
       'apps/console/api/src/deployments/failure-explanations.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
+      'apps/console/ui/e2e/isolated-first-deploy.test.ts',
+      'apps/console/ui/e2e/isolated-projects-volume.test.ts',
+      'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
@@ -4961,6 +5160,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/runner-propagation.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
@@ -5236,11 +5436,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/issue-access.ts',
       'apps/console/api/src/issues/**',
       'apps/console/ui/src/pages/IssuesPage/**',
-      'apps/cli/src/commands/issues-*/**'
+      'apps/cli/src/commands/errors-*/**'
     ],
     tests: [
       'apps/console/api/scripts/issue-triage.test.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
+      'apps/console/ui/e2e/isolated-observability-volume.test.ts',
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/issues.spec.ts'
     ],
     lanes: [
@@ -5269,7 +5471,8 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/ui/e2e/isolated-incident-triage.test.ts'
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts',
+      'apps/console/ui/e2e/isolated-incident-page.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
@@ -5418,6 +5621,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts'
     ],
@@ -5448,11 +5652,14 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/messages/email-messages.ts',
       'apps/console/api/src/model-helpers/index.ts',
       'apps/console/ui/src/pages/AlertChannels/**',
-      'apps/console/ui/src/pages/AlertHistoryPage/**'
+      'apps/console/ui/src/pages/AlertHistoryPage/**',
+      'apps/console/ui/src/components/Monitoring/**'
     ],
     tests: [
       'apps/console/api/scripts/alerts-database.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
+      'apps/console/ui/src/pages/AlertChannels/rule-events.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
@@ -5510,7 +5717,10 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
+      'apps/console/ui/src/components/CompoundViews/StackOperationProgress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
+      'apps/console/ui/src/components/Misc/MiddleTruncate.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
@@ -5587,14 +5797,20 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/BudgetsPage/**',
       'apps/cli/src/domain/budget-manager/**',
       'apps/console/api/src/services/budget-alert-polling.ts',
+      'apps/console/api/src/budgets/**',
+      'apps/console/api/src/lambdas/handle-budget-notification.ts',
       'apps/console/api/src/services/currency-conversion.ts'
     ],
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
+      'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-organization-pages.test.ts',
+      'apps/console/ui/e2e/isolated-money-pages.test.ts',
+      'apps/console/ui/e2e/isolated-free-plan.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
     lanes: [
@@ -5707,12 +5923,23 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Misc/EmptyState.tsx',
       'apps/console/ui/src/components/Misc/ElevatedTable.tsx',
       'apps/console/ui/src/components/FormHelpers/ModalForm.tsx',
-      'apps/console/ui/src/components/Misc/ConfirmationModal.tsx'
+      'apps/console/ui/src/components/Misc/ConfirmationModal.tsx',
+      'apps/console/ui/src/components/Filters/**',
+      'apps/console/ui/src/components/Navigation/**',
+      'apps/console/ui/src/components/Header/Header.tsx',
+      'apps/console/ui/src/components/Misc/SummaryStrip.tsx',
+      'apps/console/ui/src/components/Misc/ProjectStage.tsx',
+      'apps/console/ui/src/components/Misc/DetailHeader.tsx',
+      'apps/console/ui/src/components/Misc/DropdownMenu.tsx',
+      'apps/console/ui/src/AppContent.tsx',
+      'packages/ui-react/src/select/**',
+      'packages/ui-react/src/tabs/**'
     ],
     tests: [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
       'packages/design-tokens/src/tokens.test.ts',
-      'apps/console/ui/e2e/isolated-consistency.test.ts'
+      'apps/console/ui/e2e/isolated-consistency.test.ts',
+      'apps/console/ui/e2e/isolated-shell.test.ts'
     ],
     lanes: [
       'design-tokens-test',
@@ -5840,6 +6067,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
+      'apps/cli/scripts/operations/lifecycle-hooks.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',

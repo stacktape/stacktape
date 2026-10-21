@@ -23,7 +23,7 @@ export function Evidence({ citations, label = 'Why' }: { citations: readonly Cit
     <div className="mt-4">
       <button
         aria-expanded={isOpen}
-        className="wizard-code text-[0.78rem] text-[var(--stp-text-subtle)] underline decoration-dotted underline-offset-4 hover:text-[var(--stp-text-muted)]"
+        className="wizard-disclosure"
         onClick={() => setIsOpen((open) => !open)}
         type="button"
       >

@@ -139,6 +139,11 @@ test('a failed script returns a nonzero exit and an actionable final result with
       })
     );
     expect(run.stdout).not.toContain('SCRIPT "fail" COMPLETED');
+    const plain = await fixture.run(['script:run', '--scriptName', 'fail', '--outputFormat', 'plain', ...targetArgs]);
+    expect(plain.exitCode).toBe(1);
+    // CI logs mark the final result; a failure never carries the success marker.
+    expect(plain.stdout).toContain('(SCRIPT_ERROR)');
+    expect(plain.stdout).not.toContain('[+]');
     expect(fixture.api.unexpected).toEqual([]);
     expect(fixture.aws.unexpected).toEqual([]);
   } finally {

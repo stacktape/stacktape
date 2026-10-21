@@ -5,14 +5,20 @@ const RELEASE = 'initial';
 
 const server = createServer((_request, response) => {
   response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-  response.end(JSON.stringify({ release: RELEASE }));
+  response.end(JSON.stringify({ release: RELEASE, awsNow: Date.now() }));
 }).listen(Number(process.env.PORT) || 3000, () => {
-  console.info(`listening, release ${RELEASE}`);
+  console.info(JSON.stringify({ event: 'listening', release: RELEASE, awsNow: Date.now() }));
 });
 
-// A load balancer or API Gateway can still send requests for up to 20 seconds after ECS asks the container to stop,
-// so it keeps serving for 25 seconds (the default stopTimeout is 30) before it closes.
+// Keep backend connections open while API Gateway may reuse them. This isolates retirement from idle socket races.
+server.keepAliveTimeout = 0;
+
+// Close immediately, as ordinary Node applications do. The platform must allow cached routing to expire before
+// delivering SIGTERM; an application-level sleep here would hide a regression in that protection.
 process.on('SIGTERM', () => {
-  console.info('SIGTERM received, closing in 25 seconds');
-  setTimeout(() => server.close(() => process.exit(0)), 25_000);
+  console.info(JSON.stringify({ event: 'SIGTERM', release: RELEASE, awsNow: Date.now() }));
+  server.close(() => {
+    console.info(JSON.stringify({ event: 'closed', release: RELEASE, awsNow: Date.now() }));
+    process.exit(0);
+  });
 });

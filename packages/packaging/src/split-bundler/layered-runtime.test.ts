@@ -7,7 +7,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -117,6 +117,19 @@ test('functions load their shared chunk from the layer mount and only ship the a
     installDependencies: async () => {},
     createPackagingError
   });
+  // Shared code and its shifted map are prepared once, but each consumer must receive identical complete bytes.
+  const sharedChunks = await readdir(join(root, 'functions', 'orders', 'chunks'));
+  expect(sharedChunks.some((name) => name.endsWith('.js.map'))).toBe(true);
+  await Promise.all(
+    sharedChunks.map(async (chunk) => {
+      const [orders, reports] = await Promise.all([
+        readFile(join(root, 'functions', 'orders', 'chunks', chunk)),
+        readFile(join(root, 'functions', 'reports', 'chunks', chunk))
+      ]);
+      expect(orders).toEqual(reports);
+      if (chunk.endsWith('.map')) expect(JSON.parse(orders.toString()).sourcesContent).toBeUndefined();
+    })
+  );
   const layerAssignment = assignChunksToLayers(split.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, minChunkSize: 1 });
   const { layerArtifacts } = await createLayerArtifacts({
     lambdaOutputs: split.lambdaOutputs,

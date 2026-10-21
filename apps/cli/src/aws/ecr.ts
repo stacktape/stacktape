@@ -1,5 +1,14 @@
+import { setTimeout as delay } from 'node:timers/promises';
+import { ExpectedError } from '@utils/errors';
+import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import type { ECRClient, ImageIdentifier } from '@aws-sdk/client-ecr';
 import {
+  BatchCheckLayerAvailabilityCommand,
+  CompleteLayerUploadCommand,
+  InitiateLayerUploadCommand,
+  UploadLayerPartCommand,
+  LayerAlreadyExistsException,
   BatchDeleteImageCommand,
   BatchGetImageCommand,
   GetAuthorizationTokenCommand,
@@ -11,6 +20,28 @@ import { chunkArray } from '@utils/misc';
 import { Buffer } from 'node:buffer';
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
+
+// Retry transport failures, including an interrupted body read, but never retry invalid image content.
+const readPublicRegistry = async (url: string, headers?: Record<string, string>): Promise<Buffer> => {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(url, { headers, signal: AbortSignal.timeout(60_000) });
+      if (response.ok) return Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await delay(attempt * 1_000);
+      continue;
+    }
+    // Release unsuccessful responses before retrying.
+    await response.body?.cancel();
+    if (attempt === 3 || (response.status !== 429 && response.status < 500)) {
+      throw new Error(`Public ECR request failed (${response.status}).`);
+    }
+    await delay(attempt * 1_000);
+  }
+  throw new Error('Public ECR request attempts exhausted.');
+};
 
 export class AwsEcr {
   readonly #createClient: () => ECRClient;
@@ -96,6 +127,106 @@ export class AwsEcr {
         if (error instanceof ImageAlreadyExistsException) return;
         errorHandler(error);
       });
+  };
+
+  /** Copy a small pinned public image into the deployment repository without a Docker daemon.
+   * A matching private tag is a cache hit: no public registry requests or layer transfers on later deploys.
+   */
+  copyPublicImage = async ({
+    repositoryName,
+    sourceRepository,
+    digest,
+    tag
+  }: {
+    repositoryName: string;
+    sourceRepository: string;
+    digest: string;
+    tag: string;
+  }): Promise<void> => {
+    try {
+      const client = this.#createClient();
+      const existing = await client.send(new BatchGetImageCommand({ repositoryName, imageIds: [{ imageTag: tag }] }));
+      if (existing.images?.[0]?.imageId?.imageDigest === digest) return;
+      if (existing.failures?.some(({ failureCode }) => failureCode !== 'ImageNotFound')) {
+        throw new Error('Failed to check cached drain image in private ECR.');
+      }
+      const tokenBytes = await readPublicRegistry(
+        'https://public.ecr.aws/token/?service=public.ecr.aws&scope=repository:' + sourceRepository + ':pull'
+      );
+      const { token } = z.object({ token: z.string() }).parse(JSON.parse(tokenBytes.toString()));
+      const read = async (path: string, expectedDigest: string) => {
+        const bytes = await readPublicRegistry(`https://public.ecr.aws/v2/${sourceRepository}/${path}`, {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.oci.image.manifest.v1+json'
+        });
+        if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== expectedDigest) {
+          throw new Error('Drain image download did not match its pinned SHA-256 digest.');
+        }
+        return bytes;
+      };
+      const manifestBytes = await read(`manifests/${digest}`, digest);
+      const descriptor = z.object({
+        digest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+        size: z
+          .number()
+          .int()
+          .positive()
+          .max(10 * 1024 * 1024)
+      });
+      const manifest = z
+        .object({
+          schemaVersion: z.literal(2),
+          mediaType: z.literal('application/vnd.oci.image.manifest.v1+json'),
+          config: descriptor,
+          layers: z.array(descriptor).max(10)
+        })
+        .parse(JSON.parse(manifestBytes.toString()));
+      // ECR requires the config blob as well as filesystem layers before accepting the manifest.
+      for (const blob of [manifest.config, ...manifest.layers]) {
+        const availability = await client.send(
+          new BatchCheckLayerAvailabilityCommand({ repositoryName, layerDigests: [blob.digest] })
+        );
+        if (availability.layers?.some(({ layerAvailability }) => layerAvailability === 'AVAILABLE')) continue;
+        const bytes = await read(`blobs/${blob.digest}`, blob.digest);
+        if (bytes.length !== blob.size) throw new Error('Drain image blob size did not match its manifest.');
+        const { uploadId } = await client.send(new InitiateLayerUploadCommand({ repositoryName }));
+        await client.send(
+          new UploadLayerPartCommand({
+            repositoryName,
+            uploadId,
+            partFirstByte: 0,
+            partLastByte: bytes.length - 1,
+            layerPartBlob: bytes
+          })
+        );
+        await client
+          .send(new CompleteLayerUploadCommand({ repositoryName, uploadId, layerDigests: [blob.digest] }))
+          .catch((error: unknown) => {
+            if (!(error instanceof LayerAlreadyExistsException)) throw error;
+          });
+      }
+      await client
+        .send(
+          new PutImageCommand({
+            repositoryName,
+            imageTag: tag,
+            imageDigest: digest,
+            imageManifest: manifestBytes.toString(),
+            imageManifestMediaType: manifest.mediaType
+          })
+        )
+        .catch((error: unknown) => {
+          if (!(error instanceof ImageAlreadyExistsException)) throw error;
+        });
+    } catch (cause) {
+      const error = new ExpectedError(
+        'AWS',
+        `Failed to copy the HTTP API drain image into ECR repository ${repositoryName}: ${cause instanceof Error ? cause.message : String(cause)}`,
+        'Deploy again to retry the copy. Check access to public.ecr.aws, that the deployment repository exists, and that the deployer role allows ECR image reads and pushes on it.'
+      );
+      error.cause = cause;
+      throw error;
+    }
   };
 
   getAuthorization = async () => {
