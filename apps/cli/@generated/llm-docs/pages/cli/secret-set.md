@@ -16,7 +16,7 @@ In agent mode (for CI/CD pipelines or AI coding assistants), provide all values 
 stacktape secret:set --region eu-west-1 --secretName my-api-key --secretValue sk-abc123 --agent
 ```
 
-To store the contents of a file as a secret (stored as JSON in Secrets Manager):
+To store the contents of a file as the secret value, exactly as they are in the file:
 
 ```bash
 stacktape secret:set --region eu-west-1 --secretName firebase-creds --secretFile ./firebase-service-account.json --agent
@@ -54,7 +54,7 @@ stacktape secret:set --region eu-west-1 --secretName my-api-key --secretValue ne
 | `--region` | **(required)** AWS region where the secret is stored. |
 | `--secretName` | Name of the secret in AWS Secrets Manager. Required in agent mode; prompted in interactive mode. |
 | `--secretValue` | The value to store. Mutually exclusive with `--secretFile`. |
-| `--secretFile` | Path to a file whose contents are stored as JSON. Mutually exclusive with `--secretValue`. |
+| `--secretFile` | Path to a file whose contents are stored as the secret value. Mutually exclusive with `--secretValue`. |
 | `--forceUpdate` | Overwrite an existing secret without confirmation. Only relevant in agent mode. |
 | `--agent` | Run in non-interactive mode with JSONL output. Requires `--secretName` and one of `--secretValue` or `--secretFile`. |
 
