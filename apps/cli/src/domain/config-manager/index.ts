@@ -126,7 +126,11 @@ import type { ConfigManagerInitContext, SecurityScanningContext } from './contex
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import { CliError } from '@utils/errors';
 import { canonicalizeEmailIdentity } from '@domain-services/email-sender-manager/identity';
-import { assessSecurityPosture } from './utils/security-posture';
+import {
+  assessSecurityPosture,
+  resolveSecurityScanningPolicy,
+  type SecurityScanningPolicy
+} from './utils/security-posture';
 
 /**
  * A CDN-capable resource whose `cdn` block is present, as proved by reading `cdn.enabled` off it. Only the block
@@ -1606,25 +1610,16 @@ export class ConfigManager {
   }
 
   /**
-   * Whether this stack's configuration is evaluated for security findings. The organization switch from the
-   * Console wins; then `deploymentConfig.securityScanning` decides per stack and stage. On by default.
+   * Whether this stack's configuration is evaluated for security findings, and whether its dependencies are recorded
+   * for the Console to check. The target AWS account's level in the Console wins; then `deploymentConfig.securityScanning`
+   * decides per stack and stage. Both are on by default.
    */
-  get securityScanningPolicy(): { enabled: boolean; reason: string } {
-    if (this.#securityScanning.organization?.securityScanningEnabled === false) {
-      return { enabled: false, reason: 'disabled for the whole organization in the Stacktape Console' };
-    }
-    const setting = this.deploymentConfig.securityScanning;
-    if (setting?.enabled === false) {
-      return { enabled: false, reason: 'disabled by `deploymentConfig.securityScanning.enabled`' };
-    }
-    const stage = this.stackContext.stage;
-    if (setting?.stages?.length && !setting.stages.includes(stage)) {
-      return {
-        enabled: false,
-        reason: `stage \`${stage}\` is not listed in \`deploymentConfig.securityScanning.stages\``
-      };
-    }
-    return { enabled: true, reason: setting ? 'enabled by `deploymentConfig.securityScanning`' : 'enabled by default' };
+  get securityScanningPolicy(): SecurityScanningPolicy {
+    return resolveSecurityScanningPolicy({
+      account: this.#securityScanning.awsAccount?.(),
+      setting: this.deploymentConfig.securityScanning,
+      stage: this.stackContext.stage
+    });
   }
 
   assessSecurityPosture = () =>

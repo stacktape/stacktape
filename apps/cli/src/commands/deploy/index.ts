@@ -377,10 +377,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const sourceMapManifest = await recordSourceMapsBeforeSwitch(template.getTemplate());
 
   // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
-  // CloudFormation works; it is uploaded and reported only after the deployment succeeds.
-  const securityInventoryPromise = securityAssessment
-    ? startSecurityInventory({ deploymentArtifacts, stackContext, version: releaseVersion, tui })
-    : null;
+  // CloudFormation works; it is uploaded and reported only after the deployment succeeds. The AWS account's Console
+  // setting can limit scanning to the configuration checks.
+  const securityInventoryPromise =
+    securityAssessment && config.securityScanningPolicy.dependencies
+      ? startSecurityInventory({ deploymentArtifacts, stackContext, version: releaseVersion, tui })
+      : null;
 
   // Release identity: stamped onto every event this operation reports, so the Console can associate
   // incidents and error-group resolutions with the release that produced them.
