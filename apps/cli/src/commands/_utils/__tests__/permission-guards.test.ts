@@ -86,9 +86,7 @@ test('owners and admins are unscoped, and incomplete admission context preserves
     })
   ).not.toThrow();
   checkError(() => assertCommandPermissions({ command: 'deploy' }), 'CLI_PERMISSION_DENIED', 'UNKNOWN');
-});
-
-test('commands with no deployment permission requirement remain usable', () => {
+  // Commands other than deploy and delete ask nothing of the role.
   expect(() =>
     assertCommandPermissions({ command: 'project:list', role: 'VIEWER', permissions: [], projects: [] })
   ).not.toThrow();
