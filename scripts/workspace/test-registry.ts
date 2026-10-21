@@ -2678,6 +2678,7 @@ export const lanes: readonly Lane[] = [
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
+      'packages/analytics/src/web.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -5915,7 +5916,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/telemetry.spec.ts',
       'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
-      'packages/analytics/src/privacy.test.ts'
+      'packages/analytics/src/privacy.test.ts',
+      'packages/analytics/src/web.test.ts'
     ],
     lanes: ['analytics-test', 'analytics-cli', 'analytics-console', 'cli', 'cli-2', 'cli-3']
   },
