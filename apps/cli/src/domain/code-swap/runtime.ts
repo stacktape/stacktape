@@ -113,5 +113,11 @@ export const codeSwapPythonExtension = async (name: string) => {
   return runtimes.get(name)?.codeSwapPythonExtension(name);
 };
 
+// A swap leaves the service on an older task revision, so its image can be older than the retention window.
+export const codeSwapLiveImages = async () => {
+  await initializeRuntimes();
+  return (await Promise.all([...runtimes.values()].map((runtime) => runtime.liveImages()))).flat();
+};
+
 export const codeSwapImageMatchesRunningCode = (jobName: string, digest: string, taskDefinition: string) =>
   [...runtimes.values()].some((runtime) => runtime.imageMatchesRunningCode(jobName, digest, taskDefinition));

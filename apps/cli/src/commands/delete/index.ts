@@ -1,4 +1,4 @@
-import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -151,6 +151,7 @@ export const executeDeleteOperation = async ({
     await lifecycle.registerHooks(config.hooks);
     await lifecycle.processHooks({ captureType: 'START' });
   }
+  codeSwapBeginMutation();
   await deploymentArtifacts.deleteAllArtifacts();
   await stack.deleteStack();
 

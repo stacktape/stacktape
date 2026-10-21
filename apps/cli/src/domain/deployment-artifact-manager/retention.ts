@@ -106,3 +106,33 @@ export const keepLayersOfRetainedReleases = <Artifact extends { s3Key: string }>
   );
   return obsolete.filter(({ s3Key }) => !referenced.has(s3Key));
 };
+
+/**
+ * The obsolete images a running service still uses. A code swap keeps the service on an older task revision, so its
+ * image can fall out of the window; deleting it would make replacement and scale-out tasks fail to pull. A running
+ * image is kept by tag, and its manifest digest is kept too, so the untagged entry behind it survives as well.
+ */
+export const keepImagesOfRunningServices = <Image extends { tag: string; dockerDigest: string }>({
+  obsolete,
+  liveImages,
+  repositoryUrl,
+  storedImages
+}: {
+  obsolete: Image[];
+  liveImages: string[];
+  repositoryUrl: string;
+  storedImages: { tag: string; dockerDigest: string }[];
+}): Image[] => {
+  const liveTags = new Set(
+    liveImages.flatMap((image) =>
+      image.startsWith(`${repositoryUrl}:`) ? [image.slice(repositoryUrl.length + 1)] : []
+    )
+  );
+  const liveDigests = new Set([
+    ...liveImages.flatMap((image) =>
+      image.startsWith(`${repositoryUrl}@`) ? [image.slice(repositoryUrl.length + 1)] : []
+    ),
+    ...storedImages.filter(({ tag }) => tag && liveTags.has(tag)).map(({ dockerDigest }) => dockerDigest)
+  ]);
+  return obsolete.filter(({ tag, dockerDigest }) => !(tag && liveTags.has(tag)) && !liveDigests.has(dockerDigest));
+};

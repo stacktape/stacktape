@@ -1,5 +1,8 @@
 // Opted-in workloads use this policy; authored application grace remains
 // distinct from the ECS container timeout and the separate Cloud Map drain.
+// Matches the supervisor: an old process finishes in-flight requests for at most the 35 s Cloud Map drain plus the
+// 30 s default stop timeout that an image deploy allows. The switch does not wait when no request is open.
+export const SWAP_DRAIN_SECONDS = 65;
 export const supervisorStopBudget = (grace = 2) => {
   if (!Number.isInteger(grace) || grace < 0) throw new Error('Invalid application shutdown grace.');
   const drain = grace;
