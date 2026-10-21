@@ -10,5 +10,8 @@ export const codeSwapDockerfile = async (context: string, dockerfile: string, su
   await mkdir(join(context, 'benchmark-app'));
   for (const entry of entries) await rename(join(context, entry), join(context, 'benchmark-app', entry));
   await copyFile(supervisor, join(context, 'stacktape-supervisor'));
-  return dockerfile.replace('COPY . /app', 'COPY stacktape-supervisor /stacktape-supervisor\nCOPY benchmark-app/ /app');
+  return dockerfile.replace(
+    'COPY . /app',
+    'COPY --chmod=755 stacktape-supervisor /stacktape-supervisor\nCOPY benchmark-app/ /app'
+  );
 };
