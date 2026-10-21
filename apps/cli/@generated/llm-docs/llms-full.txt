@@ -567,6 +567,10 @@ cache disk cost about **$8.80/month in Ireland**, using gp3's included IOPS and 
 cache growth increases storage costs. Preparing a runner also incurs a short, one-time EC2 charge. The Console's
 Runners page shows regional cost estimates. See [AWS EBS pricing](https://aws.amazon.com/ebs/pricing/).
 
+The disks stay billed until the runner is removed. Stacktape removes it, with its disks, build cache and IAM role, when
+you delete the project or the last Git deployment that uses its AWS account and region. A deployment that is already
+running finishes first. If the project's GitHub Actions runner uses the same account and region, the runner stays.
+
 ### Multiple configurations per branch
 
 When the handler receives multiple deployment configurations from `getActionsToPerform`, it starts them through `Promise.all`. If you have two configurations watching `main` that deploy to different regions or accounts, both deployments are started concurrently. This is useful for multi-region setups where a single merge to `main` deploys to both `us-east-1` and `eu-west-1`.
