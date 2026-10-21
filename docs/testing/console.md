@@ -1,37 +1,41 @@
 # Console testing
 
-Read the [test-selection policy](../testing.md) first. Use only the sections needed for the changed behavior. Run
-`pnpm test:doctor -- --for=console` before a shared-dev Console lane; it checks the dev AWS account, login and
-parameters. For the isolated browser/database lane, use the default `pnpm test:doctor`, which checks workspace tools
-only. The [Console development skill](../../.agents/skills/console-development/SKILL.md) owns local startup and
-recovery; the private [Console E2E guide](../../apps/console/e2e/README.md) owns test identities, fixture setup and
-scenario commands. The [isolated Console application](e2e.md#isolated-console-application) runs browser/API/database
-journeys without credentials; the shared-dev commands below remain the procedure for hosted identity and external
-integrations.
+Read the [test-selection policy](../testing.md) first, including its
+[fresh-worktree prerequisites](../testing.md#fresh-worktrees-and-heavy-lanes): every lane here needs the generated
+Prisma client. Use only the sections needed for the changed behavior. Run `pnpm test:doctor -- --for=console` before a
+shared-dev Console lane; it checks the dev AWS account, login and parameters. For the isolated browser/database lane,
+use the default `pnpm test:doctor`, which checks workspace tools only. The
+[Console development skill](../../.agents/skills/console-development/SKILL.md) owns local startup and recovery; the
+private [Console E2E guide](../../apps/console/e2e/README.md) owns test identities, fixture setup and scenario commands.
+The [isolated Console application](e2e.md#isolated-console-application) runs browser/API/database journeys without
+credentials; the shared-dev commands below remain the procedure for hosted identity and external integrations.
 
 ## Console API and PostgreSQL
 
-The Console API exposes a server factory so HTTP/tRPC adapter tests can use Fastify injection without binding a port.
-Use `pnpm --filter @stacktape/console-api-app test` for that lane. The current adapter test covers transport and error
-serialization using a small test router, not production authentication or every application route. Add a request through
-the relevant real router/context when changing those behaviors. Bun isolates test files so module mocks do not leak
-between suites; do not add mutable production call tables merely to work around mock leakage.
+`pnpm --filter @stacktape/console-api-app test` runs the Console API's offline rules and the Node contracts (package
+exports, migration history, migration adoption, dev provider parameters); the adoption cases skip without PostgreSQL.
+Routing, authentication and persistence are proved through the real router in the database suites below, not through a
+test router. Bun isolates test files so module mocks do not leak between suites; do not add mutable production call
+tables merely to work around mock leakage.
 
 Use `pnpm --filter @stacktape/console-api-app test:db` for schema adoption and migration changes. It starts an isolated
 PostgreSQL container, creates scratch databases, runs the real migration-adoption path and migration-to-schema diff, and
 verifies container removal in a `finally` block. The default selection covers migration/adoption only. Feature suites
-are available explicitly:
+are selected with one flag each; the flag table at the top of
+[the runner](../../apps/console/api/scripts/run-db-integration.ts) is the complete list:
 
 ```sh
 pnpm --filter @stacktape/console-api-app test:db --startup
 pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
+pnpm --filter @stacktape/console-api-app test:db --issue-triage
 pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --incident-journey
 pnpm --filter @stacktape/console-api-app test:db --alerts
 pnpm --filter @stacktape/console-api-app test:db --uptime
 pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --security
+pnpm --filter @stacktape/console-api-app test:db --security-settings
 pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --gitlab-lifecycle
@@ -41,9 +45,14 @@ pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
-pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --cli-console
+pnpm --filter @stacktape/console-api-app test:db --isolated-browser
+pnpm --filter @stacktape/console-api-app test:db --ui-capture
 ```
+
+`--isolated-browser` runs the [isolated Console application](e2e.md#isolated-console-application): it starts and stops
+the real local UI and API itself, so it needs neither dev credentials nor a shared-dev reservation. `--ui-capture` runs
+the opt-in interaction captures described there.
 
 `--startup` reads stage-scoped SecureString parameters through concurrent cold-start processes on MiniStack, then
 executes the built Prisma proxy against the disposable database. It checks committed CRUD and date filtering through
@@ -132,14 +141,6 @@ The billing suite sends Paddle Classic form events through the real webhook and 
 through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
 and telemetry providers. It never contacts Paddle or creates real charges.
 
-The isolated Console browser lane uses the same disposable database runner:
-
-```sh
-pnpm --filter @stacktape/console-api-app test:db --isolated-browser
-```
-
-It starts and stops the real local UI and API itself, so it needs neither dev credentials nor a shared-dev reservation.
-
 After a schema change passes locally, apply its committed migration with `pnpm migrate:console:dev` and test the
 affected Console flow. Production migration remains separately authorized.
 
@@ -227,10 +228,10 @@ application request does not trigger a hidden login retry. Cached state is disca
 saved to disk. Run `pnpm --filter @stacktape/console-ui test:e2e:sessions` and `test:e2e:privacy` after changing these
 helpers; both qualifiers are offline.
 
-There is no shared-dev authentication bypass. Synthetic identities belong to the planned isolated harness, not the live
-dev API. Shared-dev tests remain serialized under a reservation; session reuse does not isolate server-side data.
-Console login also does not authenticate GitHub/GitLab/Bitbucket provider sessions; follow the private guide for those
-callbacks and approvals.
+There is no shared-dev authentication bypass. Locally signed identities belong to the isolated harness, not the live dev
+API. Shared-dev tests remain serialized under a reservation; session reuse does not isolate server-side data. Console
+login also does not authenticate GitHub/GitLab/Bitbucket provider sessions; follow the private guide for those callbacks
+and approvals.
 
 For a UI-only change, one command starts the current UI, waits for it, runs authenticated Chromium navigation against
 the deployed dev API, and stops the UI afterward. It refuses to reuse an existing server:
@@ -250,9 +251,10 @@ STP_CONSOLE_E2E_CREDENTIAL_SOURCE=ssm pnpm --filter @stacktape/console-ui test:e
 Use `pnpm test:console:browser:offline` for the anonymous screens and the pages that answer their own API requests. It
 needs no credentials or reservation and is not a substitute for authenticated coverage. The dev-API and local-API modes
 both verify the running UI's API target before entering credentials; a local-API test cannot silently use the deployed
-dev API. The authenticated lane currently covers login and projects navigation, not complete feature acceptance. Missing
-credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and videos are disabled to avoid
-storing credentials, tokens, or private account data.
+dev API. The authenticated lane covers sign-in and sign-out, a Developer's denied connection authorization and session
+reuse across contexts, not complete feature acceptance. Missing credentials fail the lane instead of skipping it.
+Authenticated traces, screenshots, and videos are disabled to avoid storing credentials, tokens, or private account
+data.
 
 Authenticated automation uses a dedicated email/password user in the dev Cognito pool. Invite it to the existing dev
 Stacktape organization with Developer access to the intended test projects. For interactive development, the owner's

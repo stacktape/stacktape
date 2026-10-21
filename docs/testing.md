@@ -2,7 +2,7 @@
 
 Read this once when choosing tests, then open only the linked procedures you need. The [strategy](testing/strategy.md)
 explains target coverage, the [E2E guide](testing/e2e.md) lists helpers and conventions, and the
-[overhaul plan](testing/overhaul.md) coordinates the repository-wide testing work.
+[slice guide](testing/overhaul.md) explains the registry's slices and tiers and how to measure a slice with faults.
 
 ## Test end to end first
 
@@ -38,24 +38,54 @@ implementation.
 
 ## Run efficiently
 
-- Run `pnpm test:plan` (or `-- --since=<ref>`) and run the relevant lanes it suggests. Each command reports owning slice
-  IDs, level, tier and prerequisites. The [code registry](../scripts/workspace/test-registry.ts) owns promises, paths,
-  lanes and exact test ownership. Selection also follows direct Console suite imports. Missing private lanes are
-  labelled in public clones. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
+- Run `pnpm test:plan` (or `-- --since=<ref>`, or `-- --paths=<file>` to see who owns one file) and run the relevant
+  lanes it suggests. Each command reports owning slice IDs, level, tier and prerequisites. The
+  [code registry](../scripts/workspace/test-registry.ts) owns promises, paths, lanes and exact test ownership. Selection
+  also follows direct Console suite imports. Missing private lanes are labelled in public clones. Run `pnpm test:doctor`
+  before a long lane (`-- --for=console` for shared-dev Console work).
 - Public and integrated CI run `pnpm check:static` for instructions, docs, secrets, formatting, lint, workspace rules,
   generation, types, architecture, dead code and duplicates, then `pnpm test:ci` for the registry's fast, offline `pr`
   tests. Public Linux CI also validates synthesized templates with `cfn-lint`. Console rules run when initialized. Full
   suites, application builds, package-install qualification and browsers remain local/release work. `pnpm test:tools`
   checks ownership and rejects missing scripts, database flags and Playwright projects. Add new tests to their slice's
   exact `tests` list, or explicitly classify harness/policy tests as tooling.
+- While GitHub Actions is switched off for billing, run `pnpm test:ci` and the repository gate locally instead, and end
+  the first line of every commit message with `[skip ci]`.
 - Heavy lanes (packaging, corpus, Console database and browser, MiniStack) are not in per-PR CI. When `test:plan`
   selects a `change` lane for your slice, you run it. Candidate qualification also runs those lanes and the registry's
   `release` lanes. Journey tags group pre-release E2E work; slices own everyday selection.
 - Extend an existing scenario and its helpers before writing new setup code.
   [Existing helpers](testing/e2e.md#helpers-that-exist).
-- Run `pnpm check:public`, or `pnpm check:integrated` with Console initialized, before handoff.
+- Run `pnpm check:public`, or `pnpm check:integrated` with Console initialized, before handoff. Neither fits a
+  nine-minute foreground command on a loaded machine; run them in the background or as their individual steps.
 - Reuse earlier results while code, artifacts and environment are unchanged. Report what you tested and what you could
   not verify; no separate evidence report is needed.
+
+### Fresh worktrees and heavy lanes
+
+Lanes run package scripts outside Turbo's task graph, so a fresh worktree needs generated sources before most of them
+pass:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm --filter @stacktape/console-api-app generate   # Prisma client; every Console lane, the Console UI typecheck and check:architecture need it
+pnpm --filter @stacktape/ui-react build             # check:architecture resolves workspace imports against it
+pnpm --filter @stacktape/cli run build:dev-artifacts # helper Lambdas for init-e2e, the Console incident lanes and the source CLI
+```
+
+In some agent worktrees the Console is a plain checkout rather than a registered submodule, so `git submodule update`
+does nothing there. Before `pnpm test:tools`, compare `git -C apps/console rev-parse HEAD` with
+`git ls-tree HEAD apps/console` and check out the pointer by hand when they differ. Running `pnpm` inside the Console
+rewrites `apps/console/api/pnpm-lock.yaml`; revert it before committing. The generated
+`apps/cli/@generated/llm-docs/lexical-index.json` conflicts on most merges; take `main`'s copy and rerun
+`pnpm --filter @stacktape/cli generate`.
+
+Docker-heavy lanes (MiniStack, packaging, corpus, Console database and browser, containers) share one machine with other
+agents. Wrap each in `flock -w 3600 /tmp/stacktape-heavy-lane.lock <command>` so only one runs at a time, use unique
+container names and random ports, and never prune Docker or stop a container you did not start. Contention is the main
+cost: run the fast lanes first and take the lock only for what they miss, batch several runs under one hold, and narrow
+a rerun with `bun test --bail -t <pattern>`. A batch interrupted mid-run leaves its MiniStack container behind; remove
+only your own.
 
 ## Console
 
@@ -69,6 +99,10 @@ source CLI defaults to deployed dev even when a local API is running; select
 [Localhost login](testing/console.md#localhost-login) uses the existing dev test identities and the SSM-backed
 Playwright helper.
 
+Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
+assembled support-template `cfn-lint`. Install `cfn-lint==1.57.2` before running `pnpm test:ci` with Console present; CI
+installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.
+
 ### Shared dev reservation
 
 Follow the [reservation procedure](testing/console.md#shared-dev-reservation) before mutating shared dev or running
@@ -80,7 +114,3 @@ Normal tests must fail closed against live AWS. Development Console deployments,
 and explicitly named disposable stacks are already authorized. Follow the [live procedure](testing/live-aws.md) for
 account verification, ownership, cost and cleanup, including recovery after interruption. Production deployment,
 migration, publishing and credential rotation require explicit authorization. Never record secret values.
-
-Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
-assembled support-template `cfn-lint`. Install `cfn-lint==1.57.2` before running `pnpm test:ci` with Console present; CI
-installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.
