@@ -25,11 +25,15 @@ export const releaseRecordSchema = z.strictObject({
 export type SwapRecord = z.infer<typeof releaseRecordSchema>;
 type Client = Pick<DynamoDBClient, 'send'>;
 
-export const readReleaseRecord = async (ddb: Client, table: string): Promise<SwapRecord | undefined> => {
+export const readReleaseRecord = async (
+  ddb: Client,
+  table: string,
+  service = 'node'
+): Promise<SwapRecord | undefined> => {
   const { Item } = await ddb.send(
     new GetItemCommand({
       TableName: table,
-      Key: { pk: { S: 'release#node' } },
+      Key: { pk: { S: `release#${service}` } },
       ConsistentRead: true
     })
   );
@@ -43,7 +47,8 @@ export const writeReleaseRecord = async (
   ddb: Client,
   table: string,
   previous: SwapRecord | undefined,
-  next: SwapRecord
+  next: SwapRecord,
+  service = 'node'
 ) => {
   next = releaseRecordSchema.parse(next);
   if (next.Seq <= (previous?.Seq ?? 0)) throw new Error('Release sequence must strictly increase.');
@@ -52,7 +57,7 @@ export const writeReleaseRecord = async (
     await ddb.send(
       new PutItemCommand({
         TableName: table,
-        Item: { pk: { S: 'release#node' }, seq: { N: String(next.Seq) }, data: { S: body } },
+        Item: { pk: { S: `release#${service}` }, seq: { N: String(next.Seq) }, data: { S: body } },
         ConditionExpression: previous ? '#seq = :previous' : 'attribute_not_exists(pk)',
         ...(previous
           ? {
@@ -64,7 +69,7 @@ export const writeReleaseRecord = async (
     );
   } catch (error) {
     // Conditional retry failures do not prove the first write failed. Strong reads also handle SDK retries.
-    const stored = await readReleaseRecord(ddb, table);
+    const stored = await readReleaseRecord(ddb, table, service);
     if (!stored || JSON.stringify(stored) !== body) throw error;
   }
 };
@@ -85,17 +90,19 @@ export const obsoleteCodeSwapKeys = (
   retainedRevisions: string[],
   protectedBundleKeys: string[] = [],
   currentRevision = retainedRevisions.toSorted().at(-1),
-  currentAttemptId?: string
+  currentAttemptId?: string,
+  service = 'api'
 ) => {
   const retained = new Set(retainedRevisions);
   const protectedKeys = new Set(protectedBundleKeys);
   return keys.filter((key) => {
     if (protectedKeys.has(key)) return false;
-    const revision = /^code-swap\/api\/(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(key)?.[1];
+    const relative = key.startsWith(`code-swap/${service}/`) ? key.slice(`code-swap/${service}/`.length) : '';
+    const revision = /^(?:bundles|releases|attempts)\/(v\d{6})(?:[-.])/.exec(relative)?.[1];
     if (revision === currentRevision && currentAttemptId) {
-      if (key.startsWith('code-swap/api/bundles/')) return true;
-      if (key.startsWith('code-swap/api/attempts/'))
-        return key !== `code-swap/api/attempts/${currentRevision}-${currentAttemptId}.json`;
+      if (key.startsWith(`code-swap/${service}/bundles/`)) return true;
+      if (key.startsWith(`code-swap/${service}/attempts/`))
+        return key !== `code-swap/${service}/attempts/${currentRevision}-${currentAttemptId}.json`;
     }
     return Boolean(revision && currentRevision && revision <= currentRevision && !retained.has(revision));
   });

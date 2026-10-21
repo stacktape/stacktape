@@ -201,7 +201,11 @@ func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, er
 	port := 20000 + rand.Intn(12000)
 	// A native shell waits for tracing, then verifies its own score and execs
 	// the app without forking. Avoid a second Go runtime's threads at startup.
-	c := exec.Command("/bin/sh", "-c", `
+	argv := []string{"node", entry}
+	if command := os.Getenv("STP_CODE_SWAP_COMMAND"); command != "" {
+		argv = []string{"/bin/sh", "-c", "exec " + command}
+	}
+	args := append([]string{"-c", `
 read -r start <&3 || exit 126
 exec 3<&-
 printf '%s' "$1" > /proc/self/oom_score_adj || exit 126
@@ -209,7 +213,8 @@ read -r actual < /proc/self/oom_score_adj || exit 126
 [ "$actual" = "$1" ] || exit 126
 shift
 exec "$@"
-`, "code-swap-launch", strconv.Itoa(value), "node", entry)
+`, "code-swap-launch", strconv.Itoa(value)}, argv...)
+	c := exec.Command("/bin/sh", args...)
 	c.Dir = dir
 	c.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", port))
 	c.Stdout = os.Stdout
@@ -654,7 +659,10 @@ func main() {
 	if n, err := strconv.Atoi(os.Getenv("STP_BENCH_PORT")); err == nil {
 		proxyPort = n
 	}
-	app = "node"
+	app = os.Getenv("STP_CODE_SWAP_SERVICE")
+	if app == "" {
+		app = "node"
+	}
 	table = os.Getenv("STP_BENCH_TABLE")
 	bucket = os.Getenv("STP_BENCH_BUCKET")
 	baseline = os.Getenv("STP_BENCH_BASELINE")
