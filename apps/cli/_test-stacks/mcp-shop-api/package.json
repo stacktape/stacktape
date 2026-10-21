@@ -1,0 +1,13 @@
+{
+  "name": "shop-api",
+  "private": true,
+  "scripts": {
+    "deploy": "stacktape deploy --projectName shop-api --stage production --region eu-west-1",
+    "logs": "stacktape logs --projectName shop-api --stage production --region eu-west-1 --resourceName ordersApi"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.985.0",
+    "@aws-sdk/lib-dynamodb": "^3.985.0",
+    "hono": "^4.11.8"
+  }
+}
