@@ -2338,6 +2338,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts',
       'apps/cli/src/commands/mcp/mcp-server-stdio-eras.spec.ts',
+      'apps/cli/src/commands/mcp/cli-run-tool.spec.ts',
       'apps/cli/src/domain/coding-agent-setup/config-files.spec.ts',
       'apps/cli/src/domain/coding-agent-setup/setup.spec.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
@@ -4827,6 +4828,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/e2e-mcp/run-e2e.ts',
+      'apps/cli/scripts/e2e-mcp/run-real-tasks.ts',
       'apps/cli/scripts/generate-llm-docs.spec.ts',
       'apps/cli/scripts/llm-docs/corpus-generation.spec.ts',
       'apps/cli/scripts/test-mcp-executable.ts',
@@ -4837,6 +4839,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts',
       'apps/cli/src/commands/mcp/mcp-server-stdio-eras.spec.ts',
+      'apps/cli/src/commands/mcp/cli-run-tool.spec.ts',
       'apps/cli/src/domain/coding-agent-setup/config-files.spec.ts',
       'apps/cli/src/domain/coding-agent-setup/setup.spec.ts'
     ],

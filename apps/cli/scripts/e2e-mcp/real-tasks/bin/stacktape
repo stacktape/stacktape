@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# `stacktape` during the real-task suite, both on the agent's PATH and as the MCP server's CLI command
+# (STACKTAPE_MCP_CLI_COMMAND). It runs the source CLI with the bench settings, the way an installed CLI would run.
+# Calls made from the agent's shell are recorded in E2E_SHIM_LOG: they mean the agent bypassed the MCP tools.
+#
+# The source CLI only runs from apps/cli, so the caller's folder is passed as --currentWorkingDirectory.
+set -euo pipefail
+
+cli_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+bench="${MCP_BENCH_DIR:-$HOME/.cache/stacktape-mcp-bench}"
+caller_dir="$PWD"
+
+if [ -n "${E2E_SHIM_LOG:-}" ] && [ -z "${STACKTAPE_MCP_CHILD:-}" ]; then
+  python3 -I -c 'import json,sys,os; print(json.dumps({"cwd": os.getcwd(), "args": sys.argv[1:]}))' "$@" >> "$E2E_SHIM_LOG"
+fi
+
+args=("$@")
+has_cwd=false
+has_account=false
+for arg in "$@"; do
+  case "$arg" in
+    --currentWorkingDirectory | --currentWorkingDirectory=* | --cwd | --cwd=*) has_cwd=true ;;
+    --awsAccount | --awsAccount=* | --aa | --aa=*) has_account=true ;;
+  esac
+done
+# Only commands that read a project config take the folder argument.
+if [ "$has_cwd" = false ] && [ $# -gt 0 ] && grep -qx -- "$1" "$bench/commands-with-cwd.txt"; then
+  args+=(--currentWorkingDirectory "$caller_dir")
+fi
+if [ "$has_account" = false ] && [ $# -gt 0 ] && grep -qx -- "$1" "$bench/commands-with-aws-account.txt"; then
+  args+=(--awsAccount stacktape-e2e)
+fi
+
+set -a
+# shellcheck disable=SC1091
+. "$cli_root/.env.local"
+set +a
+export HOME="$bench/home"
+export DOTENV_CONFIG_QUIET=true
+cd "$cli_root"
+exec bun scripts/dev.ts "${args[@]}"

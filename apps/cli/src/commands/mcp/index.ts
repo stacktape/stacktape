@@ -25,6 +25,7 @@ import {
   buildCliPlan,
   formatProjectScanForOutput,
   requestDestructiveExecutionConfirmation,
+  resolveRunArgs,
   verifyDestructiveConfirmationState
 } from './cli-planning';
 import { handleDevToolAction } from './dev-tool';
@@ -285,7 +286,8 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
       inputSchema: z.object({
         action: z
           .enum(['scan', 'orient'])
-          .describe('Project operation. orient currently returns a scan plus stronger next actions.'),
+          .optional()
+          .describe('Project operation. Default: scan. orient currently returns a scan plus stronger next actions.'),
         cwd: z
           .string()
           .optional()
@@ -349,7 +351,9 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
         args: z
           .record(z.string(), z.unknown())
           .optional()
-          .describe('CLI arguments as an object using camelCase arg names'),
+          .describe(
+            "CLI arguments as an object using camelCase arg names. The top-level stage, region, projectName and similar fields work too; values here win. A missing projectName or region comes from the project's Stacktape package script."
+          ),
         category: z
           .enum([
             'account',
@@ -486,7 +490,26 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
         }
       }
 
-      const prepared = prepareCliRun({ command, args, confirm });
+      const runArgs = await resolveRunArgs({
+        command,
+        cwd,
+        args,
+        convenienceArgs: {
+          stage,
+          region,
+          projectName,
+          awsAccount,
+          configPath,
+          currentWorkingDirectory,
+          fullDeploy,
+          resourceName,
+          scriptName,
+          secretName,
+          secretValue,
+          secretFile
+        }
+      });
+      const prepared = prepareCliRun({ command, args: runArgs, confirm });
       if (!prepared.ok) {
         return toToolText(prepared);
       }

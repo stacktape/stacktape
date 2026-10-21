@@ -481,6 +481,13 @@ const validateMcpSpecificArgs = ({
   return undefined;
 };
 
+// The MCP server runs every command with --agent and reads its JSON output, so these output-mode arguments are not the
+// agent's to set; listing them only invites calls that break the run.
+const MCP_MANAGED_ARGS = new Set(['agent', 'outputFormat', 'ui', 'help']);
+
+const getMcpAllowedArgs = (command: StacktapeCommand) =>
+  getAllowedArgs(command).filter((argName) => !MCP_MANAGED_ARGS.has(argName));
+
 const getMcpRequiredArgs = (command: StacktapeCommand): readonly string[] => {
   const baseRequiredArgs = getRequiredArgs(command);
   if (command === 'secret:set') return ['region', 'secretName', 'secretValue or secretFile'];
@@ -540,8 +547,10 @@ export const describeCliCommand = (command: string) => {
     sensitiveOutput: policy.sensitiveOutput ?? false,
     unsupportedReason: policy.unsupportedReason,
     requiredArgs: getMcpRequiredArgs(command),
-    allowedArgs: getAllowedArgs(command),
-    args: getCommandInfo(command).args,
+    allowedArgs: getMcpAllowedArgs(command),
+    args: Object.fromEntries(
+      Object.entries(getCommandInfo(command).args).filter(([argName]) => !MCP_MANAGED_ARGS.has(argName))
+    ),
     // The SDK operation names aws:call accepts per service; inputs are the SDK command's own input shape as JSON.
     ...(command === 'aws:call' ? { acceptedOperations: AWS_READ_ONLY_OPERATIONS } : {})
   };
@@ -610,7 +619,7 @@ export const prepareCliRun = ({
     };
   }
 
-  const allowedArgs = new Set(getAllowedArgs(command));
+  const allowedArgs = new Set(getMcpAllowedArgs(command));
   const unknownArgs = Object.keys(normalizedArgs).filter((argName) => !allowedArgs.has(argName));
   if (unknownArgs.length > 0) {
     return {

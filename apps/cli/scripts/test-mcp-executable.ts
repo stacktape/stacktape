@@ -662,8 +662,7 @@ const verify = async () => {
       ['query:dynamodb', { stage: 'dev', region: 'eu-west-1', resourceName: 'data', operation: 'write' }],
       ['query:opensearch', { stage: 'dev', region: 'eu-west-1', resourceName: 'search', operation: 'write' }],
       ['secret:set', { region: 'eu-west-1', secretName: 'db.password' }],
-      ['secret:get', { region: 'eu-west-1' }],
-      ['package', { stage: 'dev', region: 'eu-west-1', configPath: 'stacktape.ts' }]
+      ['secret:get', { region: 'eu-west-1' }]
     ] as const) {
       assert.equal(
         (await call('stacktape_cli', { action: 'run', command, args, confirm: true })).code,
@@ -671,6 +670,19 @@ const verify = async () => {
         command
       );
     }
+    // A project's Stacktape package script supplies the project name; a folder without one still has to name it.
+    assert.equal(
+      (
+        await call('stacktape_cli', {
+          action: 'run',
+          command: 'package',
+          cwd: home,
+          args: { stage: 'dev', region: 'eu-west-1', configPath: 'stacktape.ts' },
+          confirm: true
+        })
+      ).code,
+      'VALIDATION_ERROR'
+    );
     assert.equal((await call('stacktape_incident', { action: 'show' })).code, 'VALIDATION_ERROR');
     assert.equal(
       (await call('stacktape_cli', { action: 'describe', command: 'aws:call' })).data?.requiresConfirmation,
