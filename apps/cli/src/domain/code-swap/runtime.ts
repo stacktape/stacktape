@@ -1,1067 +1,117 @@
-import { codeSwapIntegration } from './integration';
-import { pruneCodeSwapArtifacts, waitForRetiredCodeSwapTasks } from './artifacts';
-// Opt-in code-swap deployment lifecycle.
-import { access, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import {
-  DynamoDBClient,
-  GetItemCommand,
-  PutItemCommand,
-  BatchGetItemCommand,
-  ScanCommand,
-  BatchWriteItemCommand
-} from '@aws-sdk/client-dynamodb';
-import {
-  ECSClient,
-  DescribeServicesCommand,
-  DescribeTaskDefinitionCommand,
-  ListTasksCommand,
-  DescribeTasksCommand
-} from '@aws-sdk/client-ecs';
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import {
-  ServiceDiscoveryClient,
-  GetServiceCommand,
-  GetNamespaceCommand,
-  DiscoverInstancesCommand
-} from '@aws-sdk/client-servicediscovery';
-import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
-import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
-import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
-import type { LanguageSpecificBundleOutput } from '@stacktape/packaging/runtime-contracts';
-import type { getECSHotswapInformation } from '../../commands/_utils/cw-deployment';
-import { awsClientConfig, createAwsClientContext } from '../../aws/context';
-import { z } from 'zod';
-import { getCodeSwapRun } from './configuration';
-import { unsupportedReason } from './eligibility';
-import { codeSwapDockerfile } from './image';
-import { resolveStatusRole } from './ecs-policy';
-import { codeSwapBaseInputs } from './base-inputs';
-import { trace, traceAsync } from './trace';
-import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
-import { memoryFallbackReason, serviceCapacity, declaredCapacity } from './ecs-budget';
-import { parse as parseYaml } from 'yaml';
-import { getCfTemplateS3Key } from '../deployment-artifact-manager/artifact-names';
-import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import {
-  readReleaseRecord,
-  writeReleaseRecord,
-  interruptedSwapReason,
-  incompleteHistoryVersions,
-  allTasksObservedAttempt,
-  allCandidatesCleaned,
-  type SwapRecord
-} from './release-record';
-import {
-  recoveredOperation,
-  releaseRecordAtStart,
-  hadCodeSwapTable,
-  codeSwapTrackPreparation
-} from './lifecycle-hooks';
-import { createHash } from 'node:crypto';
-
-const identitySchema = z.object({
-  packagingDigest: z.string().optional(),
-  baseDigest: z.string(),
-  codeDigest: z.string(),
-  sha256: z.string(),
-  size: z.number(),
-  key: z.string(),
-  revision: z.string()
-});
-type Identity = z.infer<typeof identitySchema>;
-const statusSchema = z.object({
-  state: z.string(),
-  revision: z.string(),
-  task: z.string(),
-  timings: z.record(z.string(), z.unknown()),
-  reason: z.string().optional()
-});
-type Status = z.infer<typeof statusSchema>;
-let identity: Identity | undefined;
-let result: Record<string, unknown> = {};
-
-let prepare: Promise<{ ids: string[]; statuses: Status[]; service: string; cluster: string }> | undefined;
-let preparationError: unknown;
-let selectedWorkload: string | undefined;
-export const codeSwapPending = (workloadName: string) => Boolean(prepare && selectedWorkload === workloadName);
-let recordTaskDefinition: string | undefined;
-let releaseRecord: SwapRecord | undefined;
-let clientsPromise: ReturnType<typeof initialize> | undefined;
-const initialize = async () => {
-  const run = await getCodeSwapRun();
-  if (!run) throw new Error('Code swap is not enabled.');
-  const { globalStateManager: global } = await import('../../app/global-state-manager');
-  const { awsSdkManager: aws } = await import('../../utils/aws-sdk-manager');
-  if (
-    process.env.STP_CODE_SWAP_BENCH_RUN &&
-    (global.targetAwsAccount.awsAccountId !== '597581086285' ||
-      global.region !== 'eu-west-1' ||
-      global.targetStack.projectName !== run.name ||
-      global.targetStack.stage !== 'bench' ||
-      global.args.awsAccount !== 'stacktape-e2e')
-  )
-    throw new Error('Benchmark target mismatch.');
-  const context = createAwsClientContext({
-    credentials: aws.credentialsProvider,
-    region: aws.region,
-    plugins: [...aws.plugins]
-  });
-  const config = awsClientConfig(context);
-  if (
-    process.env.STP_CODE_SWAP_BENCH_RUN &&
-    (await new STSClient(config).send(new GetCallerIdentityCommand({}))).Account !== '597581086285'
-  )
-    throw new Error('Benchmark credentials mismatch.');
-  const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
-  const { stackManager: stack } = await import('../cloudformation-stack-manager');
-  return {
-    run,
-    global,
-    artifacts,
-    stack,
-    discovery: new ServiceDiscoveryClient(config),
-    iam: new IAMClient(config),
-    ddb: new DynamoDBClient(config),
-    ecs: new ECSClient(config),
-    s3: new S3Client(config)
-  };
-};
-const clients = () => (clientsPromise ??= initialize());
-export const codeSwapBuildInputs = async () => {
-  const { run, stack, global } = await clients();
-  if (!run.phase4) return {};
-  const { configManager } = await import('../config-manager');
-  const grace =
-    configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0]?.stopTimeout ?? 2;
-  const enabled = !run.optOut && !(await codeSwapCapacity()).reason;
-  return {
-    codeSwap: {
-      enabled,
-      grace,
-      plan: configManager.allContainerWorkloads.find((item) => item.name === run.service),
-      // A cached image build must still execute the lifecycle hooks when repairing an interrupted swap.
-      imageRevision:
-        run.mode === 'image' ||
-        global.args.fullDeploy ||
-        interruptedSwapReason(releaseRecordAtStart, recoveredOperation)
-          ? stack.nextVersion
-          : undefined,
-      supervisor: enabled
-        ? createHash('sha256')
-            .update(await readFile(run.supervisor))
-            .digest('hex')
-        : null
-    }
-  };
-};
-
-const put = async (data: Record<string, unknown>) => {
-  const { ddb, run, stack, global } = await clients();
-  if (run.phase4) {
-    if (!hadCodeSwapTable) return; // Initial opt-in: CFN has not created the table yet, including on an existing stack.
-    if (!recordTaskDefinition) {
-      const service = stack.existingStackResources.find(
-        (r) => r.ResourceType === 'AWS::ECS::Service'
-      )!.PhysicalResourceId;
-      recordTaskDefinition = (await newServiceState(service)).taskDefinition!;
-    }
-    releaseRecord ??= await readReleaseRecord(ddb, run.table);
-    const bundle = data.Revision
-      ? {
-          Revision: String(data.Revision),
-          Key: String(data.Key),
-          Sha256: String(data.Sha256),
-          Size: Number(data.Size)
-        }
-      : undefined;
-    const phase = z.enum(['prepare', 'commit', 'abort']).parse(data.Phase);
-    const next: SwapRecord = {
-      Seq: (releaseRecord?.Seq ?? 0) + 1,
-      TaskDefinition: recordTaskDefinition,
-      Committed: phase === 'commit' ? bundle! : (releaseRecord?.Committed ?? null),
-      Proposed: phase === 'prepare' ? { ...bundle!, Attempt: global.invocationId } : null,
-      HistoryVersion: releaseRecord?.HistoryVersion ?? null,
-      Attempt: bundle ? global.invocationId : (releaseRecord?.Attempt ?? null),
-      Phase: phase,
-      ...bundle
-    };
-    await writeReleaseRecord(ddb, run.table, releaseRecord, next);
-    releaseRecord = next;
-  } else {
-    await ddb.send(
-      new PutItemCommand({
-        TableName: run.table,
-        Item: { pk: { S: 'release#node' }, data: { S: JSON.stringify(data) } }
-      })
-    );
-  }
-  trace(`signal:${data.Phase}`);
-};
-const newServiceState = async (service: string) => {
-  const { ecs } = await clients();
-  return (await ecs.send(new DescribeServicesCommand({ services: [service], cluster: service.split('/')[1] })))
-    .services![0]!;
-};
-const faultCheckpoint = async (point: 'before-proposal' | 'after-commit') => {
-  const { run, global } = await clients();
-  if (run.fault !== point) return;
-  await writeFile(`${run.result}.checkpoint`, JSON.stringify({ point, invocationId: global.invocationId }));
-  // Owned kill test only. A missed kill eventually fails rather than hanging forever.
-  const deadline = Date.now() + 300000;
-  while (Date.now() < deadline) {
-    if (
-      await access(`${run.result}.continue`).then(
-        () => true,
-        () => false
-      )
-    )
-      return;
-    await Bun.sleep(100);
-  }
-  throw new Error(`Fault checkpoint ${point} was not killed.`);
-};
-let checkedStatusRoleId: string | undefined;
-let declaredMaximum = 0;
-const discoveryNames = new Map<string, { NamespaceName: string; ServiceName: string }>();
-const fleet = async (service: string, cluster: string) => {
-  const { ecs, run } = await clients();
-  const [response, list] = await Promise.all([
-    ecs.send(new DescribeServicesCommand({ services: [service], cluster })),
-    ecs.send(new ListTasksCommand({ cluster, serviceName: service.split('/').at(-1), desiredStatus: 'RUNNING' }))
-  ]);
-  const liveCapacity = serviceCapacity({
-    name: 'api',
-    maximum: Math.max(declaredMaximum, response.services?.[0]?.desiredCount ?? 0),
-    minimum: response.services?.[0]?.desiredCount,
-    minimumHealthyPercent: response.services?.[0]?.deploymentConfiguration?.minimumHealthyPercent ?? NaN,
-    maximumPercent: response.services?.[0]?.deploymentConfiguration?.maximumPercent ?? NaN
-  });
-  if (liveCapacity.reason) throw new Error(liveCapacity.reason);
-  const primary = response.services?.[0]?.deployments?.find(({ status }) => status === 'PRIMARY');
-  if (primary?.taskDefinition) recordTaskDefinition = primary.taskDefinition;
-  const desired = response.services?.[0]?.desiredCount ?? 0;
-  if (!primary || !desired || primary.runningCount !== desired) throw new Error('PRIMARY is not fully running.');
-  const listedIds = (list.taskArns ?? []).map((arn) => arn.split('/').at(-1)!).toSorted();
-  const tasks = await ecs.send(new DescribeTasksCommand({ cluster, tasks: list.taskArns ?? [] }));
-  if (
-    tasks.failures?.length ||
-    tasks.tasks?.length !== desired ||
-    tasks.tasks.some((task) => task.lastStatus !== 'RUNNING' || task.taskDefinitionArn !== primary.taskDefinition)
-  )
-    throw new Error('Unexpected fleet membership/revision.');
-  const ids = tasks.tasks.map(({ taskArn }) => taskArn!.split('/').at(-1)!).toSorted();
-  if (JSON.stringify(ids) !== JSON.stringify(listedIds)) throw new Error('Listed/described fleet mismatch.');
-  if (run.phase3) {
-    if (tasks.tasks.some((task) => task.healthStatus !== 'HEALTHY'))
-      throw new Error('Supervisor-checked PRIMARY is not healthy.');
-  }
-  if (run.phase3) {
-    const { discovery } = await clients();
-    const registries = response.services?.[0]?.serviceRegistries ?? [];
-    if (!registries.length) throw new Error('HTTP API discovery registry is missing.');
-    for (const registry of registries) {
-      const serviceId = registry.registryArn?.split('/').at(-1);
-      if (!serviceId) throw new Error('HTTP API discovery registry identity is missing.');
-      let names = discoveryNames.get(serviceId);
-      if (!names) {
-        const { Service } = await discovery.send(new GetServiceCommand({ Id: serviceId }));
-        const { Namespace } = await discovery.send(new GetNamespaceCommand({ Id: Service?.NamespaceId }));
-        if (!Service?.Name || !Namespace?.Name) throw new Error('HTTP API discovery identity is missing.');
-        names = {
-          NamespaceName: Namespace.Properties?.HttpProperties?.HttpName ?? Namespace.Name,
-          ServiceName: Service.Name
-        };
-        discoveryNames.set(serviceId, names);
-      }
-      const { Instances = [] } = await discovery.send(
-        new DiscoverInstancesCommand({ ...names, HealthStatus: 'HEALTHY', MaxResults: 100 })
-      );
-      if (
-        Instances.length !== ids.length ||
-        !ids.every((id) => Instances.some((instance) => instance.InstanceId === id))
-      )
-        throw new Error('PRIMARY tasks lost HTTP API routability.');
-    }
-  }
-  return { ids, primary: primary.id };
-};
-const statuses = async (ids: string[]) => {
-  const { ddb, run } = await clients();
-  let rolePrefix = '';
-  if (run.phase3) {
-    if (!checkedStatusRoleId) throw new Error('Status addressing requires a checked fleet preflight.');
-    rolePrefix = `${checkedStatusRoleId}:`;
-  }
-  const keys = ids.map((id) => ({ pk: { S: `status#node#${rolePrefix}${id}` } }));
-  const response = await ddb.send(
-    new BatchGetItemCommand({ RequestItems: { [run.table]: { Keys: keys, ConsistentRead: true } } })
-  );
-  if (Object.keys(response.UnprocessedKeys ?? {}).length) throw new Error('Unprocessed status reads.');
-  return (response.Responses?.[run.table] ?? []).map((item) => statusSchema.parse(JSON.parse(item.data!.S!)));
-};
-const waitStatus = async (ids: string[], revision: string, state: string) => {
-  const deadline = Date.now() + 90000;
-  let nextFleetCheck = Date.now() + 2000;
-  let stickyFailure: Error | undefined;
-  while (Date.now() < deadline) {
-    const found = await statuses(ids);
-    const failed = found.find((s) => s.revision === revision && s.state === 'failed');
-    if (failed?.timings.candidateReaped) stickyFailure ??= new Error(`Candidate failed: ${failed.reason}`);
-    const refused = found.find((s) => s.revision === revision && s.state === 'refused');
-    if (refused) {
-      const reason = refused.reason ?? 'prepare_refused';
-      result.fallback = reason;
-      result.refusal = refused;
-      stickyFailure ??= new Error(reason);
-    }
-    // Let every task observe the proposal before aborting, so a fast refusal cannot hide another task preparing.
-    if (stickyFailure && allTasksObservedAttempt(found, ids.length, revision)) throw stickyFailure;
-    if (
-      !stickyFailure &&
-      found.length === ids.length &&
-      found.every((s) => s.revision === revision && s.state === state)
-    )
-      return found;
-    if (result.tasks && Date.now() >= nextFleetCheck) {
-      const { stack } = await clients();
-      const service = stack.existingStackResources.find(
-        (resource) => resource.ResourceType === 'AWS::ECS::Service'
-      )!.PhysicalResourceId;
-      if (JSON.stringify((await fleet(service, service.split('/')[1])).ids) !== JSON.stringify(ids))
-        throw new Error('Fleet changed during code swap.');
-      nextFleetCheck = Date.now() + 2000;
-    }
-    await Bun.sleep(100);
-  }
-  throw new Error(`Timed out waiting for ${state}.`);
-};
-const codeSwapCapacity = async () => {
-  const { configManager } = await import('../config-manager');
-  const { run } = await clients();
-  const workload = configManager.allContainerWorkloads.find((workload) => workload.name === run.service);
-  if (!workload) throw new Error('Missing code-swap workload.');
-  const unsupported = unsupportedReason(workload, configManager.allContainerWorkloads.length);
-  if (!process.env.STP_CODE_SWAP_BENCH_RUN && unsupported)
-    return {
-      reason: `Code swap skipped for ${run.service}: ${unsupported}; using an image deploy.`,
-      tasks: 0,
-      pollers: 0
-    };
-  const capacity = declaredCapacity(
-    configManager.allContainerWorkloads.map((item) => {
-      const resource = configManager.config.resources[item.name];
-      return {
-        name: item.name,
-        maximum: item.scaling.maxInstances,
-        minimum: item.scaling.minInstances,
-        maximumPercent: 200,
-        scalingOverrides:
-          resource && 'overrides' in resource
-            ? resource.overrides?.[cfLogicalNames.autoScalingTarget(item.name)]
-            : undefined,
-        overrides:
-          resource && 'overrides' in resource
-            ? resource.overrides?.[cfLogicalNames.ecsService(item.name, false)]
-            : undefined
-      };
-    })
-  ).budgets.find((item) => item.name === workload.name)!;
-  return capacity;
-};
-let roleLookup: Promise<void> | undefined;
-export const codeSwapPrimeIdentity = () => {
-  // Identity is resolved during packaging after configuration has loaded.
-  return (roleLookup ??= (async () => {
-    const { run, stack } = await clients();
-    if (!run.phase3 || stack.stackActionType === 'create') return;
-    if ((await codeSwapCapacity()).reason) return;
-    checkedStatusRoleId = await lookupTaskRoleId();
+import { compareEcsTaskDefinitions } from '../deployed-stack-overview-manager/hotswap-utils';
+import { createServiceRuntime } from './service-runtime';
+import { getCodeSwapRuns } from './configuration';
+import { retainCodeSwapLock } from './lifecycle-hooks';
+type ServiceRuntime = ReturnType<typeof createServiceRuntime>;
+const runtimes = new Map<string, ServiceRuntime>();
+let runtimeInitialization: Promise<void> | undefined;
+const initializeRuntimes = () =>
+  (runtimeInitialization ??= (async () => {
+    for (const run of await getCodeSwapRuns()) runtimes.set(run.service, createServiceRuntime(run));
   })());
+export const codeSwapPending = (name: string): boolean => runtimes.get(name)?.codeSwapPending(name) ?? false;
+export const codeSwapImageExtension = async (name: string) => {
+  await initializeRuntimes();
+  return runtimes.get(name)?.codeSwapImageExtension(name);
 };
-const lookupTaskRoleId = async () => {
-  const { stack, iam, run } = await clients();
-  const role = stack.existingStackResources.find(
-    (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskRole(run.service)
-  )?.PhysicalResourceId;
-  if (!role) throw new Error('Missing managed code-swap task role.');
-  return (await iam.send(new GetRoleCommand({ RoleName: role }))).Role!.RoleId!;
-};
-export const codeSwapImage = async (input: {
-  packagingDigest: string;
-  dockerfileContents: string;
-  buildContextPath: string;
-  runtime: string;
-  nodeVersion: number;
-  nodeTarget: string;
-  minify: boolean;
-  dockerBuildOutputArchitecture: string;
-  languageSpecificBundleOutput: LanguageSpecificBundleOutput;
-}) => {
-  trace('codeSwapImage:start');
-  const { run, global, artifacts, stack, s3 } = await clients();
-  if (run.optOut) {
-    const { configManager } = await import('../config-manager');
-    const workload = configManager.allContainerWorkloads.find((item) => item.name === run.service);
-    result = {
-      mode: 'image',
-      optOut: true,
-      reason: workload && unsupportedReason(workload, configManager.allContainerWorkloads.length)
-    };
-    codeSwapIntegration.imageHasSupervisor = false;
-    return input.dockerfileContents;
-  }
-  if (run.phase4 && stack.stackActionType !== 'create') releaseRecord = releaseRecordAtStart;
-  const recoveryReason = interruptedSwapReason(releaseRecord, recoveredOperation);
-  if (recoveryReason && releaseRecord?.Attempt && incompleteHistoryVersions(releaseRecord).length) {
-    const interruptedVersion = releaseRecord.Proposed?.Revision ?? releaseRecord.Committed?.Revision;
-    const attemptKey = `code-swap/api/attempts/${interruptedVersion}-${releaseRecord.Attempt}.json`;
-    const attempt = await s3.send(new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: attemptKey }));
-    const saved = z.record(z.string(), z.unknown()).parse(JSON.parse(await attempt.Body!.transformToString()));
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: artifacts.deploymentBucketName,
-        Key: attemptKey,
-        Body: JSON.stringify({ ...saved, outcome: 'interrupted', repairedBy: global.invocationId })
-      })
-    );
-  }
-
-  const capacity = await codeSwapCapacity();
-  if (capacity.reason) {
-    codeSwapIntegration.imageHasSupervisor = false;
-    result = { mode: 'image', fallback: 'task_cap_exceeded', reason: capacity.reason };
-    const { tuiManager } = await import('../../app/tui-manager');
-    tuiManager.info(capacity.reason);
-    await put({ Phase: 'abort' });
-    return input.dockerfileContents;
-  }
-  declaredMaximum = capacity.pollers! - capacity.tasks!;
-  const identityLookup = codeSwapPrimeIdentity();
-  const headLookup =
-    stack.stackActionType !== 'create' && run.mode === 'swap'
-      ? s3
-          .send(new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' }))
-          .then(async (response) => identitySchema.parse(JSON.parse(await response.Body!.transformToString())))
-          .catch((error: unknown) => {
-            if (error instanceof Error && error.name === 'NoSuchKey') return undefined;
-            throw error;
-          })
-      : undefined;
-  // Start independent reads together; every result is awaited before it is used.
-  identityLookup.catch(() => {});
-  headLookup?.catch(() => {});
-  if (
-    input.runtime !== 'node' ||
-    input.dockerBuildOutputArchitecture !== 'linux/amd64' ||
-    input.languageSpecificBundleOutput.es?.externalDependencies?.length
-  ) {
-    codeSwapIntegration.imageHasSupervisor = false;
-    result = {
-      mode: 'image',
-      fallback: 'unsupported_packaging',
-      reason: 'only fully bundled Node.js on x86 Fargate is qualified'
-    };
-    return input.dockerfileContents;
-  }
-  const source = global.workingDir;
-  const [manifest, lock, authored, supervisor] = await Promise.all([
-    readFile(join(source, 'package.json'), 'utf8'),
-    Promise.all(
-      ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'].map(async (name) =>
-        readFile(join(source, name)).then(
-          (bytes) => `${name}:${bytes.toString('base64')}`,
-          () => ''
-        )
-      )
-    ).then((parts) => parts.join('\n')),
-    Promise.all([readFile(global.configPath, 'utf8'), import('../config-manager')]).then(
-      ([authored, { configManager }]) =>
-        JSON.stringify({
-          authored,
-          plan: configManager.allContainerWorkloads.find((item) => item.name === run.service)
-        })
-    ),
-    readFile(run.supervisor)
-  ]);
-  const bundle = await createCodeSwapBundle(
-    input.buildContextPath,
-    codeSwapBaseInputs({
-      manifest,
-      lock,
-      authored,
-      supervisor,
-      dockerfile: input.dockerfileContents,
-      runtime: input.runtime,
-      nodeVersion: input.nodeVersion,
-      nodeTarget: input.nodeTarget,
-      minify: input.minify,
-      architecture: input.dockerBuildOutputArchitecture
-    })
-  );
-  const revision = stack.nextVersion;
-  const key = `code-swap/api/bundles/${revision}-${bundle.sha256}.tgz`;
-  identity = {
-    packagingDigest: input.packagingDigest,
-    baseDigest: bundle.baseDigest,
-    codeDigest: bundle.codeDigest,
-    sha256: bundle.sha256,
-    size: bundle.size,
-    key,
-    revision
-  };
-  result = { revision, mode: 'image', identity, initial: stack.stackActionType === 'create' };
-  // The image uses the same real bundler output, entrypoint and dependencies as the ordinary js-bundle image.
-  codeSwapIntegration.imageHasSupervisor = true;
-  const rendered = await codeSwapDockerfile(input.buildContextPath, input.dockerfileContents, run.supervisor);
-  const { configManager } = await import('../config-manager');
-  const port =
-    configManager.allContainerWorkloads
-      .find((item) => item.name === run.service)
-      ?.containers[0]?.environment?.findLast((entry) => entry.name === 'PORT')?.value ?? 3000;
-  if (typeof port !== 'number' && (typeof port !== 'string' || !/^\d+$/.test(port)))
-    throw new Error('Code swap needs a resolved numeric PORT.');
-  const authoredGrace =
-    configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0]?.stopTimeout ?? 2;
-  const dockerfile = async () => {
-    await identityLookup;
-    return (
-      rendered +
-      `\nENV STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_PORT=${port} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
-    );
-  };
-  if (
-    stack.stackActionType === 'create' ||
-    (run.phase4 && !hadCodeSwapTable) ||
-    run.mode === 'image' ||
-    global.args.fullDeploy ||
-    recoveryReason
-  ) {
-    if (recoveryReason) result.fallback = recoveryReason;
-    await put({ Phase: 'abort' });
-    return dockerfile();
-  }
-  const head = await headLookup!;
-  if (!head) {
-    result.fallback = 'base_changed';
-    await put({ Phase: 'abort' });
-    return dockerfile();
-  }
-  if (run.phase4 && head.revision !== releaseRecord?.HistoryVersion) {
-    result.fallback = 'interrupted_swap_image_repair';
-    await put({ Phase: 'abort' });
-    return dockerfile();
-  }
-  if (head.baseDigest !== identity.baseDigest) {
-    result.fallback = 'base_changed';
-    await put({ Phase: 'abort' });
-    return dockerfile();
-  }
-  if (head.codeDigest === identity.codeDigest) {
-    result.mode = 'unchanged';
-    return dockerfile();
-  }
-  const service = stack.existingStackResources.find((r) => r.ResourceType === 'AWS::ECS::Service')!.PhysicalResourceId;
-  const cluster = service.split('/')[1];
-  // Prepare runs beside the actual Docker build/ECR push; commit remains in updateEcsService after the upload gate.
-  prepare = (async () => {
-    const [fleetCheck, upload, roleCheck, attempt] = await Promise.allSettled([
-      traceAsync('prepareFleet', () => fleet(service, cluster)),
-      traceAsync('bundleUpload', async () => {
-        await s3.send(
-          new PutObjectCommand({
-            Bucket: artifacts.deploymentBucketName,
-            Key: key,
-            Body: bundle.bytes,
-            ContentType: 'application/gzip'
-          })
-        );
-        trace('bundleUploaded');
-      }),
-      identityLookup,
-      run.phase4
-        ? s3.send(
-            new PutObjectCommand({
-              Bucket: artifacts.deploymentBucketName,
-              Key: `code-swap/api/attempts/${revision}-${global.invocationId}.json`,
-              Body: JSON.stringify({
-                revision,
-                invocationId: global.invocationId,
-                outcome: 'incomplete',
-                baseline: head,
-                candidate: identity
-              })
-            })
-          )
-        : Promise.resolve()
-    ]);
-    // Finish every prerequisite before any fallback; a failed check never publishes prepare.
-    if (fleetCheck.status === 'rejected') throw fleetCheck.reason;
-    if (upload.status === 'rejected') throw upload.reason;
-    if (roleCheck.status === 'rejected') throw roleCheck.reason;
-    if (attempt.status === 'rejected') throw attempt.reason;
-    const before = fleetCheck.value;
-    result.tasks = before.ids;
-    result.primary = before.primary;
-    trace('preparePrerequisitesReady');
-    await faultCheckpoint('before-proposal');
-    await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
-    const prepared = await waitStatus(before.ids, revision, 'prepared');
-    trace('allPrepared');
-    result.prepared = prepared;
-    return { ids: before.ids, statuses: prepared, service, cluster };
-  })();
-  if (run.phase4) codeSwapTrackPreparation(prepare);
-  // Handle rejection immediately, then propagate it at the image gate.
-  prepare.catch((error) => {
-    preparationError = error;
-  });
-  return dockerfile();
-};
-export const codeSwapSwap = async (update: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
-  trace('codeSwapSwap:start');
-  if (!prepare) return false;
-  try {
-    const { ids, service, cluster } = await prepare;
-    if (preparationError) throw preparationError;
-    if (
-      update.blueGreen ||
-      update.workload.containers.length !== 1 ||
-      update.workload.containers.some((c) => c.internalHealthCheck)
-    )
-      throw new Error('This workload cannot swap code.');
-    if (JSON.stringify((await traceAsync('commitFleet', () => fleet(service, cluster))).ids) !== JSON.stringify(ids))
-      throw new Error('Fleet changed before commit.');
-    await put({
-      Revision: identity!.revision,
-      Key: identity!.key,
-      Sha256: identity!.sha256,
-      Size: identity!.size,
-      Phase: 'commit'
-    });
-    await faultCheckpoint('after-commit');
-    const completed = await waitStatus(ids, identity!.revision, 'complete');
-    trace('allComplete');
-    if (JSON.stringify((await fleet(service, cluster)).ids) !== JSON.stringify(ids))
-      throw new Error('Fleet changed after commit.');
-    const { ddb, run } = await clients();
-    const committed = await ddb.send(
-      new GetItemCommand({ TableName: run.table, Key: { pk: { S: 'release#node' } }, ConsistentRead: true })
-    );
-    if (JSON.parse(committed.Item!.data!.S!).Revision !== identity!.revision)
-      throw new Error('Committed identity lost.');
-    result = { ...result, mode: 'swap', completed };
-    return true;
-  } catch (error) {
-    const capReason =
-      error instanceof Error && error.message.startsWith('Code swap skipped') ? error.message : undefined;
-    if (capReason) {
-      const { tuiManager } = await import('../../app/tui-manager');
-      tuiManager.info(capReason);
-    }
-    let memoryReason: string | undefined;
-    if (result.fallback === 'memory_screen') {
-      const refusal = z
-        .object({
-          timings: z.object({
-            memoryBefore: z.object({ peakBytes: z.number(), effectiveLimitBytes: z.number(), peakFile: z.string() })
-          })
-        })
-        .safeParse(result.refusal);
-      if (refusal.success) {
-        const { configManager } = await import('../config-manager');
-        const { run } = await clients();
-        const workload = configManager.allContainerWorkloads.find((item) => item.name === run.service);
-        memoryReason = memoryFallbackReason(
-          refusal.data.timings.memoryBefore,
-          ALLOWED_MEMORY_VALUES_FOR_CPU[workload?.resources.cpu ?? 0.25]
-        );
-      }
-    }
-    result = {
-      ...result,
-      mode: 'image',
-      fallback: capReason ? 'task_cap_exceeded' : (result.fallback ?? 'swap_failed'),
-      reason: capReason ?? memoryReason,
-      failure: String(error)
-    };
-    await put({ Phase: 'abort' });
-    await waitForCandidateCleanup();
-    prepare = undefined;
-    return false;
-  }
-};
-// CloudFormation resolves RoleId for full deployments; direct ECS registration needs the actual value.
 export const codeSwapResolveRole = async (
-  definition: Awaited<ReturnType<typeof getECSHotswapInformation>>['newCfTaskDefinition']
-) => {
-  if (!(await getCodeSwapRun())) return;
-  const { run } = await clients();
-  if (!run.phase4 || run.optOut || codeSwapIntegration.imageHasSupervisor === false) return;
-  await codeSwapPrimeIdentity();
-  // Over-cap services skip the swap preflight but still need the RoleId for the image fallback.
-  resolveStatusRole(definition, checkedStatusRoleId ?? (await lookupTaskRoleId()));
+  definition: import('@stacktape/cloudformation/resource').KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>,
+  name: string
+): Promise<void> => {
+  await initializeRuntimes();
+  await runtimes.get(name)?.codeSwapResolveRole(definition);
 };
-const waitForCandidateCleanup = async () => {
-  const expectedIds = result.tasks === undefined ? [] : z.array(z.string()).parse(result.tasks);
-  const deadline = Date.now() + 35000;
-  for (;;) {
-    const found = expectedIds.length ? await statuses(expectedIds) : [];
-    if (!expectedIds.length || allCandidatesCleaned(found, expectedIds.length, identity!.revision)) break;
-    if (Date.now() > deadline) throw new Error('Candidate cleanup not confirmed; refusing image fallback.');
-    await Bun.sleep(100);
+export const codeSwapSwap = async (update: Parameters<ServiceRuntime['codeSwapSwap']>[0]) =>
+  (await runtimes.get(update.workload.name)?.codeSwapSwap(update)) ?? false;
+const useImage = async (all: Iterable<Pick<ServiceRuntime, 'codeSwapUseImage'>>, fallback?: string) => {
+  const results = await Promise.allSettled([...all].map((runtime) => runtime.codeSwapUseImage(fallback)));
+  const failure = results.find((item) => item.status === 'rejected');
+  if (failure?.status === 'rejected') {
+    retainCodeSwapLock();
+    throw failure.reason;
   }
 };
-
-export const codeSwapUseImage = async () => {
-  if (!prepare) return;
-  await Promise.allSettled([prepare]);
-  await abortCodeSwapPreparation();
-  result = { ...result, mode: 'image', fallback: result.fallback ?? 'task_configuration_changed' };
-};
-
+export const codeSwapUseImage = () => useImage(runtimes.values());
 export const abortCodeSwapPreparation = async () => {
-  if (!prepare || result.mode === 'swap') return;
-  // A packaging/template failure after prepare must not leave an idle candidate behind when the lock is released.
-  await put({ Phase: 'abort' });
-  await waitForCandidateCleanup();
-  prepare = undefined;
+  const results = await Promise.allSettled([...runtimes.values()].map((runtime) => runtime.abortCodeSwapPreparation()));
+  const failure = results.find((item) => item.status === 'rejected');
+  if (failure?.status === 'rejected') {
+    retainCodeSwapLock();
+    throw failure.reason;
+  }
 };
-
-export const codeSwapReleaseIdentity = () =>
-  identity || result.mode ? { identity, mode: result.mode, fallback: result.fallback } : undefined;
-const recordImageBaseline = async (version: string) => {
-  const { run, stack, ddb } = await clients();
-  const previous = await readReleaseRecord(ddb, run.table);
-  const service = stack.existingStackResources.find((r) => r.ResourceType === 'AWS::ECS::Service')!.PhysicalResourceId;
-  await writeReleaseRecord(ddb, run.table, previous, {
-    Seq: (previous?.Seq ?? 0) + 1,
-    TaskDefinition: (await newServiceState(service)).taskDefinition!,
-    Committed: null,
-    Proposed: null,
-    HistoryVersion: version,
-    Attempt: null,
-    Phase: 'abort'
+export const codeSwapReleaseIdentity = () => {
+  const entries = [...runtimes].flatMap(([name, runtime]) => {
+    const identity = runtime.codeSwapReleaseIdentity();
+    return identity ? [[name, identity] as const] : [];
   });
+  return entries.length === 1
+    ? entries[0]![1]
+    : entries.length
+      ? { identity: Object.fromEntries(entries), mode: 'services', fallback: undefined }
+      : undefined;
 };
-const removeCodeSwapArtifacts = async (currentRevision: string) => {
-  const { ecs, stack, s3, artifacts } = await clients();
-  const service = stack.existingStackResources.find(
-    (resource) => resource.ResourceType === 'AWS::ECS::Service'
-  )?.PhysicalResourceId;
-  if (!service) throw new Error('Cannot confirm old code-swap service tasks have stopped.');
-  await waitForRetiredCodeSwapTasks(ecs, service);
-  await pruneCodeSwapArtifacts({ s3, bucket: artifacts.deploymentBucketName, currentRevision, optOut: true });
-};
-export const codeSwapRollbackComplete = async (newVersion: string, targetVersion: string, tablePresent = true) => {
-  if (!(await getCodeSwapRun())) return;
-  const { run, s3, artifacts } = await clients();
-  if (!run.phase4) return;
-  if (!tablePresent) {
-    if (hadCodeSwapTable) await removeCodeSwapArtifacts(newVersion);
-    return;
-  }
-  let restoredIdentity: Identity;
-  try {
-    const savedIdentity = await s3.send(
-      new GetObjectCommand({
-        Bucket: artifacts.deploymentBucketName,
-        Key: `code-swap/api/releases/${targetVersion}.json`
-      })
-    );
-    restoredIdentity = identitySchema.parse(JSON.parse(await savedIdentity.Body!.transformToString()));
-  } catch (error) {
-    if (!(error instanceof Error && error.name === 'NoSuchKey')) throw error;
-    // An image-only release above the task cap has no overlay identity.
-    await recordImageBaseline(newVersion);
-    await s3.send(new DeleteObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' }));
-    return;
-  }
-  await recordImageBaseline(newVersion);
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: artifacts.deploymentBucketName,
-      Key: `code-swap/api/releases/${newVersion}.json`,
-      Body: JSON.stringify({ ...restoredIdentity, revision: newVersion })
-    })
-  );
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: artifacts.deploymentBucketName,
-      Key: 'code-swap/api/head.json',
-      Body: JSON.stringify({ ...restoredIdentity, revision: newVersion }),
-      ContentType: 'application/json'
-    })
-  );
+export const codeSwapRollbackComplete = async (...args: Parameters<ServiceRuntime['codeSwapRollbackComplete']>) => {
+  await initializeRuntimes();
+  for (const runtime of runtimes.values()) await runtime.codeSwapRollbackComplete(...args);
 };
 export const codeSwapComplete = async (createsRelease: boolean) => {
-  if (!createsRelease) return;
-  if (!(await getCodeSwapRun())) return;
-  if (result.mode === 'unchanged') {
-    // An infrastructure-only release advances ordinary retention while preserving the serving overlay.
-    await pruneArtifacts();
-    return;
+  try {
+    for (const runtime of runtimes.values()) await runtime.codeSwapComplete(createsRelease);
+    if (createsRelease) await Promise.all([...runtimes.values()].map((runtime) => runtime.verify()));
+  } catch (error) {
+    retainCodeSwapLock();
+    throw error;
   }
-  if (!identity) {
-    const { run, stack, s3, artifacts } = await clients();
-    if (run.phase4 && !run.optOut && result.mode === 'image') {
-      await recordImageBaseline(stack.nextVersion);
-      await s3.send(
-        new DeleteObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' })
-      );
-    }
-    if (run.phase4 && run.optOut) {
-      if (hadCodeSwapTable) await removeCodeSwapArtifacts(stack.nextVersion);
-    } else if (run.phase4) {
-      await pruneArtifacts();
-    }
-    if (run.result) await writeFile(run.result, JSON.stringify(result, null, 2));
-    if (result.mode) await reportResult();
-    return;
-  }
-  const { run, s3, artifacts, stack } = await clients();
-  // Fast deploys record the overlay identity in their ordinary marker. A
-  // full CFN image deploy instead records its version and exact task image in
-  // the ordinary retained template; it has no fast-release marker.
-  if (!result.initial) {
-    let fastMarker: string | undefined;
-    try {
-      const marker = await s3.send(
-        new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: `fast-release/${stack.nextVersion}.json` })
-      );
-      fastMarker = await marker.Body!.transformToString();
-    } catch (error) {
-      if (!(error instanceof Error && error.name === 'NoSuchKey' && result.mode === 'image')) throw error;
-    }
-    if (fastMarker !== undefined) {
-      const stored = z
-        .object({ codeSwap: z.object({ identity: z.object({ codeDigest: z.string() }) }) })
-        .parse(JSON.parse(fastMarker));
-      if (stored.codeSwap.identity.codeDigest !== identity.codeDigest)
-        throw new Error('Ordinary release history did not record the code identity.');
-    } else {
-      if (stack.lastVersion !== identity.revision) throw new Error('Full image release version was not recorded.');
-      const stored = await s3.send(
-        new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: getCfTemplateS3Key(identity.revision) })
-      );
-      const template = z
-        .object({ Resources: z.record(z.string(), z.unknown()) })
-        .parse(parseYaml(await stored.Body!.transformToString()));
-      const definition = z
-        .object({
-          Properties: z.object({
-            ContainerDefinitions: z.array(
-              z.object({ Name: z.string(), Image: z.string(), Essential: z.boolean().optional() })
-            )
-          })
-        })
-        .parse(template.Resources[cfLogicalNames.ecsTaskDefinition(run.service)]);
-      const app = definition.Properties.ContainerDefinitions.find((container) => container.Essential !== false);
-      if (!app) throw new Error('Recorded image has no essential app.');
-      const taskDefinition = stack.existingStackResources.find(
-        (resource) => resource.LogicalResourceId === cfLogicalNames.ecsTaskDefinition(run.service)
-      )?.PhysicalResourceId;
-      if (!taskDefinition) throw new Error('Full image task definition is missing.');
-      const { ecs } = await clients();
-      const actual = (
-        await ecs.send(new DescribeTaskDefinitionCommand({ taskDefinition }))
-      ).taskDefinition?.containerDefinitions?.find((container) => container.name === app.Name);
-      if (actual?.image !== app.Image) throw new Error('Full image history differs from the deployed task image.');
-      result.fullImageHistory = { version: identity.revision, image: app.Image };
-    }
-  }
-  if (run.phase4) {
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: artifacts.deploymentBucketName,
-        Key: `code-swap/api/releases/${identity.revision}.json`,
-        Body: JSON.stringify(identity)
-      })
-    );
-  }
-  let finalizeHistory = async () => {};
-  if (run.phase4) {
-    const { ddb } = await clients();
-    const previous = await readReleaseRecord(ddb, run.table);
-    if (result.mode === 'swap' && (previous?.Committed?.Revision !== identity.revision || previous.Proposed))
-      throw new Error('Committed code changed before history finalization.');
-    const service = stack.existingStackResources.find(
-      (r) => r.ResourceType === 'AWS::ECS::Service'
-    )!.PhysicalResourceId;
-    const currentDefinition = (await newServiceState(service)).taskDefinition!;
-    const next: SwapRecord =
-      result.mode === 'swap'
-        ? { ...previous!, Seq: previous!.Seq + 1, HistoryVersion: identity.revision }
-        : {
-            Seq: (previous?.Seq ?? 0) + 1,
-            TaskDefinition: currentDefinition,
-            Committed: null,
-            Proposed: null,
-            HistoryVersion: identity.revision,
-            Attempt: null,
-            Phase: 'abort'
-          };
-    finalizeHistory = async () => {
-      await writeReleaseRecord(ddb, run.table, previous, next);
-    };
-  }
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: artifacts.deploymentBucketName,
-      Key: 'code-swap/api/head.json',
-      Body: JSON.stringify(identity),
-      ContentType: 'application/json'
-    })
-  );
-  if (result.mode === 'swap') {
-    const service = stack.existingStackResources.find(
-      (resource) => resource.ResourceType === 'AWS::ECS::Service'
-    )!.PhysicalResourceId;
-    const final = await fleet(service, service.split('/')[1]);
-    if (JSON.stringify(final.ids) !== JSON.stringify(result.tasks))
-      throw new Error('Fleet changed while recording release history.');
-    const fresh = await statuses(final.ids);
-    if (
-      fresh.length !== final.ids.length ||
-      fresh.some((status) => status.revision !== identity!.revision || status.state !== 'complete')
-    )
-      throw new Error('Task failed while recording release history.');
-  }
-  // Until the final reconciliation passes, recovery must still see an unfinished committed attempt.
-  await finalizeHistory();
-  await pruneArtifacts();
-  await reportResult();
-  if (run.result)
-    await writeFile(
-      run.result,
-      JSON.stringify(
-        { ...result, bucket: artifacts.deploymentBucketName, repository: artifacts.repositoryName },
-        null,
-        2
+};
+type ServiceUpdate = Parameters<ServiceRuntime['codeSwapSwap']>[0];
+type PreparedRuntime = Pick<ServiceRuntime, 'prepared' | 'codeSwapSwap' | 'codeSwapUseImage' | 'forceImage'>;
+// No service commits until every changed service has prepared. A later failure converges all changed services to images.
+export const prepareCodeSwapServices = async (
+  all: ReadonlyMap<string, PreparedRuntime>,
+  updates: ServiceUpdate[],
+  taskConfigurationChanged: (update: ServiceUpdate) => boolean
+) => {
+  if (!all.size || !updates.length) return;
+  const selected = updates.map((update) => all.get(update.workload.name));
+  const prepared = await Promise.allSettled(selected.map((runtime) => runtime?.prepared()));
+  const configurationChanged = updates.some(taskConfigurationChanged);
+  if (
+    configurationChanged ||
+    selected.some((runtime) => !runtime?.prepared()) ||
+    prepared.some((item) => item.status === 'rejected')
+  ) {
+    // Interpret refusals through the service's normal error path without committing any prepared sibling.
+    await Promise.allSettled(
+      prepared.flatMap((item, index) =>
+        item.status === 'rejected' ? [selected[index]!.codeSwapSwap(updates[index]!)] : []
       )
     );
-};
-
-const reportResult = async () => {
-  const { tuiManager } = await import('../../app/tui-manager');
-  const { run } = await clients();
-  if (result.mode === 'swap') {
-    tuiManager.info(
-      `Swapped code in ${run.service}; every task serves the new release and the old processes have exited.`
-    );
+    await useImage(all.values(), configurationChanged ? undefined : 'another_service_failed');
     return;
   }
-  const reasons: Record<string, string> = {
-    base_changed: 'dependencies, environment or base configuration changed',
-    task_configuration_changed: 'the resolved task or infrastructure configuration changed',
-    memory_screen: 'the kernel peak-memory screen refused a swap',
-    swap_failed: `candidate or fleet check failed (${result.failure})`,
-    interrupted_swap_image_repair: 'repairing an interrupted swap',
-    task_cap_exceeded: 'task capacity is outside the supported bounds'
-  };
-  const reason =
-    result.reason ??
-    reasons[String(result.fallback)] ??
-    result.fallback ??
-    (run.optOut ? 'code swap disabled' : 'initial opt-in');
-  tuiManager.info(`Image deploy for ${run.service}: ${reason}.`);
-};
-
-export const codeSwapImageExtension = async (workloadName: string) => {
-  const run = await getCodeSwapRun();
-  if (!run || run.service !== workloadName) return undefined;
-  const { stack, s3, artifacts } = await clients();
-  let currentDigest: string | undefined;
-  if (!run.optOut && stack.stackActionType !== 'create') {
-    try {
-      const head = await s3.send(
-        new GetObjectCommand({ Bucket: artifacts.deploymentBucketName, Key: 'code-swap/api/head.json' })
-      );
-      currentDigest = identitySchema.parse(JSON.parse(await head.Body!.transformToString())).packagingDigest;
-    } catch (error) {
-      if (!(error instanceof Error && error.name === 'NoSuchKey')) throw error;
-    }
+  const outcomes = await Promise.allSettled(updates.map((update, index) => selected[index]!.codeSwapSwap(update)));
+  if (outcomes.some((item) => item.status === 'rejected' || !item.value)) {
+    await useImage(all.values(), 'another_service_failed');
+    for (const runtime of selected) runtime?.forceImage();
   }
-  selectedWorkload = workloadName;
-  return {
-    digestInput: await codeSwapBuildInputs(),
-    // Historical cached images cannot establish the identity currently serving through an overlay.
-    existingDigests: currentDigest ? [currentDigest] : [],
-    transform: codeSwapImage
-  };
+};
+export const codeSwapPrepareServices = (updates: ServiceUpdate[]) =>
+  prepareCodeSwapServices(
+    runtimes,
+    updates,
+    (update) =>
+      compareEcsTaskDefinitions({
+        currentTaskDefinition: update.ecsTaskDefinition.currentState,
+        calculatedTaskDefinition: update.newCfTaskDefinition,
+        ignoreImages: true
+      }).needsUpdate
+  );
+
+export const codeSwapPythonExtension = async (name: string) => {
+  await initializeRuntimes();
+  return runtimes.get(name)?.codeSwapPythonExtension(name);
 };
 
-const pruneArtifacts = async () => {
-  const { s3, artifacts, ddb, run, ecs, stack, global } = await clients();
-  if (result.mode === 'image') {
-    const service = stack.existingStackResources.find(
-      (resource) => resource.ResourceType === 'AWS::ECS::Service'
-    )!.PhysicalResourceId;
-    // A bootstrapping old task may have read the previous record before it could write a status row.
-    await waitForRetiredCodeSwapTasks(ecs, service);
-  }
-  const protectedRevisions = await pruneStoppedStatuses();
-  const record = run.phase4 ? await readReleaseRecord(ddb, run.table) : undefined;
-  const bundles = [record?.Committed, record?.Proposed].filter((bundle) => bundle !== null && bundle !== undefined);
-  await pruneCodeSwapArtifacts({
-    s3,
-    bucket: artifacts.deploymentBucketName,
-    currentRevision: identity?.revision ?? stack.nextVersion,
-    currentAttemptId: global.invocationId,
-    protectedRevisions: [...protectedRevisions, ...bundles.map((bundle) => bundle.Revision)],
-    protectedBundleKeys: bundles.map((bundle) => bundle.Key)
-  });
-};
-
-const pruneStoppedStatuses = async () => {
-  const { ddb, ecs, run, stack } = await clients();
-  const service = stack.existingStackResources.find(
-    (resource) => resource.ResourceType === 'AWS::ECS::Service'
-  )!.PhysicalResourceId;
-  const protectedRevisions: string[] = [];
-  let cursor: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> | undefined;
-  do {
-    const page = await ddb.send(
-      new ScanCommand({
-        TableName: run.table,
-        ConsistentRead: true,
-        ExclusiveStartKey: cursor,
-        ProjectionExpression: 'pk, #data',
-        ExpressionAttributeNames: { '#data': 'data' },
-        FilterExpression: 'begins_with(pk, :prefix)',
-        ExpressionAttributeValues: { ':prefix': { S: 'status#node#' } }
-      })
-    );
-    const keys = (page.Items ?? []).flatMap((item) => (item.pk?.S ? [item.pk.S] : []));
-    for (let start = 0; start < keys.length; start += 10) {
-      const batch = keys.slice(start, start + 10);
-      const tasks = await ecs.send(
-        new DescribeTasksCommand({ cluster: service.split('/')[1], tasks: batch.map((key) => key.split(':').at(-1)!) })
-      );
-      const stopped = batch.filter((key) => {
-        const id = key.split(':').at(-1)!;
-        return (
-          tasks.tasks?.some((task) => task.taskArn?.endsWith(`/${id}`) && task.lastStatus === 'STOPPED') ||
-          tasks.failures?.some(
-            (failure) => (failure.arn === id || failure.arn?.endsWith(`/${id}`)) && failure.reason === 'MISSING'
-          )
-        );
-      });
-      for (const key of batch.filter((key) => !stopped.includes(key))) {
-        const item = page.Items!.find((item) => item.pk?.S === key)!;
-        protectedRevisions.push(statusSchema.parse(JSON.parse(item.data!.S!)).revision);
-      }
-      if (stopped.length) {
-        await ddb.send(
-          new BatchWriteItemCommand({
-            RequestItems: { [run.table]: stopped.map((key) => ({ DeleteRequest: { Key: { pk: { S: key } } } })) }
-          })
-        );
-        // A later successful deploy can retry throttled cleanup. Never expire live task evidence.
-        // Keep scanning: throttled stopped-row deletion must not hide later live-task references.
-      }
-    }
-    cursor = page.LastEvaluatedKey;
-  } while (cursor);
-  return protectedRevisions;
-};
+export const codeSwapImageMatchesRunningCode = (jobName: string, digest: string, taskDefinition: string) =>
+  [...runtimes.values()].some((runtime) => runtime.imageMatchesRunningCode(jobName, digest, taskDefinition));

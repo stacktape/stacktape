@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import {
   getTriggerOfUnchangedDeploymentScript,
+  compareEcsTaskDefinitions,
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
   isImageOnlyTaskDefinitionChange
@@ -188,4 +189,59 @@ describe('shared chunk layers', () => {
     expect(isContentOnlyLayerChange(diff.resources.changes.StpSharedChunkLayer1LayerVersion!)).toBe(true);
     expect(isCodeOnlyFunctionChange(diff.resources.changes.ApiFunction!)).toBe(true);
   });
+});
+
+test('ECS container ordering does not turn an image-only update into a task configuration change', () => {
+  const current = {
+    containerDefinitions: [
+      { name: 'stp-cloudmap-drain', image: 'drain:1', essential: false },
+      {
+        name: 'service-container',
+        image: 'app:1',
+        essential: true,
+        environment: [{ name: 'MODE', value: 'production' }]
+      }
+    ]
+  };
+  const calculated: Parameters<typeof compareEcsTaskDefinitions>[0]['calculatedTaskDefinition'] = {
+    Type: 'AWS::ECS::TaskDefinition',
+    Properties: {
+      ContainerDefinitions: [
+        {
+          Name: 'service-container',
+          Image: 'app:2',
+          Essential: true,
+          Environment: [{ Name: 'MODE', Value: 'production' }]
+        },
+        { Name: 'stp-cloudmap-drain', Image: 'drain:1', Essential: false }
+      ]
+    }
+  };
+  expect(
+    compareEcsTaskDefinitions({
+      currentTaskDefinition: current,
+      calculatedTaskDefinition: calculated,
+      ignoreImages: true
+    }).needsUpdate
+  ).toBe(false);
+  expect(
+    compareEcsTaskDefinitions({ currentTaskDefinition: current, calculatedTaskDefinition: calculated }).needsUpdate
+  ).toBe(true);
+  current.containerDefinitions[0]!.image = 'drain:2';
+  expect(
+    compareEcsTaskDefinitions({
+      currentTaskDefinition: current,
+      calculatedTaskDefinition: calculated,
+      ignoreImages: true
+    }).needsUpdate
+  ).toBe(true);
+  current.containerDefinitions[0]!.image = 'drain:1';
+  current.containerDefinitions[1]!.environment![0]!.value = 'changed';
+  expect(
+    compareEcsTaskDefinitions({
+      currentTaskDefinition: current,
+      calculatedTaskDefinition: calculated,
+      ignoreImages: true
+    }).needsUpdate
+  ).toBe(true);
 });

@@ -46,7 +46,7 @@ export const developerIdentity = ({
   accountId?: string;
 }): CurrentUserAndOrgDataResponse => ({
   user: { id: 'user_operations', name: 'Operations Tester', email: 'operations@example.test' },
-  organization: { id: 'org_operations', name: 'Operations Org', role, securityScanningEnabled: false },
+  organization: { id: 'org_operations', name: 'Operations Org', role },
   connectedAwsAccounts: [
     {
       id: 'acc_operations',
@@ -56,7 +56,8 @@ export const developerIdentity = ({
       state: 'ACTIVE',
       primaryRegions: ['eu-west-1'],
       defaultRegion: 'eu-west-1',
-      connectionMode: 'BASIC'
+      connectionMode: 'BASIC',
+      securityScanning: 'OFF'
     }
   ],
   projects: [

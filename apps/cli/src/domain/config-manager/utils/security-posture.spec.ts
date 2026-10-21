@@ -2,7 +2,12 @@ import type { StackContext } from '@domain-services/stack-context';
 import { describe, expect, test } from 'bun:test';
 import { ConfigManager } from '../index';
 import type { StacktapeConfig } from '@stacktape/config';
-import { assessSecurityPosture, detectSecretLikeValue, summarizeSecurityFindings } from './security-posture';
+import {
+  assessSecurityPosture,
+  detectSecretLikeValue,
+  resolveSecurityScanningPolicy,
+  summarizeSecurityFindings
+} from './security-posture';
 
 const stackContext: StackContext = {
   accountId: '123456789012',
@@ -448,5 +453,46 @@ describe('secret detection in raw configuration', () => {
     });
     expect(finding?.remediation).toContain('`stacktape secret:set`');
     expect(JSON.stringify(finding)).not.toContain(secretValue);
+  });
+});
+
+describe('security scanning policy', () => {
+  const account = (securityScanning?: 'CONFIGURATION_AND_DEPENDENCIES' | 'CONFIGURATION' | 'OFF') => ({
+    name: 'client-production',
+    securityScanning
+  });
+
+  test('the AWS account level from the Console wins over the config, and limits dependency checks', () => {
+    expect(
+      resolveSecurityScanningPolicy({ account: account('OFF'), setting: { enabled: true }, stage: 'production' })
+    ).toEqual({
+      enabled: false,
+      dependencies: false,
+      reason: 'turned off for AWS account `client-production` in the Stacktape Console'
+    });
+    expect(
+      resolveSecurityScanningPolicy({ account: account('CONFIGURATION'), setting: undefined, stage: 'dev' })
+    ).toMatchObject({ enabled: true, dependencies: false });
+    expect(
+      resolveSecurityScanningPolicy({
+        account: account('CONFIGURATION_AND_DEPENDENCIES'),
+        setting: undefined,
+        stage: 'dev'
+      })
+    ).toMatchObject({ enabled: true, dependencies: true });
+  });
+
+  test('without a Console level, the config decides per stage and both checks run by default', () => {
+    expect(resolveSecurityScanningPolicy({ account: undefined, setting: undefined, stage: 'dev' })).toEqual({
+      enabled: true,
+      dependencies: true,
+      reason: 'enabled by default'
+    });
+    expect(
+      resolveSecurityScanningPolicy({ account: account(), setting: { stages: ['production'] }, stage: 'dev' })
+    ).toMatchObject({ enabled: false, dependencies: false });
+    expect(
+      resolveSecurityScanningPolicy({ account: account('CONFIGURATION'), setting: { enabled: false }, stage: 'dev' })
+    ).toMatchObject({ enabled: false, reason: 'disabled by `deploymentConfig.securityScanning.enabled`' });
   });
 });

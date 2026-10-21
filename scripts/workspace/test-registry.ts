@@ -39,7 +39,8 @@ export const lanes: readonly Lane[] = [
       'scripts/code-swap/analyze.spec.ts',
       'scripts/code-swap/transport.spec.ts',
       'scripts/code-swap/ecs-budget.spec.ts',
-      'scripts/code-swap/lifecycle.spec.ts'
+      'scripts/code-swap/lifecycle.spec.ts',
+      'src/domain/code-swap/runtime.spec.ts'
     ],
     level: 'process',
     tier: 'pr',
@@ -48,7 +49,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
-      'apps/cli/scripts/code-swap/lifecycle.spec.ts'
+      'apps/cli/scripts/code-swap/lifecycle.spec.ts',
+      'apps/cli/src/domain/code-swap/runtime.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
@@ -1721,6 +1723,17 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-security']
   },
   {
+    id: 'console-database-security-settings',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--security-settings'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/security-settings-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves: 'Per-account security scanning levels through the real Console-session and API-key procedures.',
+    selections: ['console-database-security-settings']
+  },
+  {
     id: 'console-database-issue-triage',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'run', 'test:db', '--issue-triage'],
     level: 'api-db',
@@ -2035,6 +2048,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
@@ -2055,7 +2069,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts',
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
-      'apps/console/ui/e2e/isolated-metric-charts.test.ts'
+      'apps/console/ui/e2e/isolated-metric-charts.test.ts',
+      'apps/console/ui/e2e/isolated-errors.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2523,7 +2538,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
-      'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
@@ -2562,7 +2576,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
       'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/api/stacktape.test.ts',
@@ -2596,6 +2609,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-errors.test.ts',
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
@@ -2603,6 +2617,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -3591,6 +3606,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/run.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
       'apps/cli/scripts/code-swap/lifecycle.spec.ts',
+      'apps/cli/src/domain/code-swap/runtime.spec.ts',
       'apps/cli/scripts/code-swap/supervisor/lifecycle_test.go',
       'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
       'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
@@ -5620,11 +5636,14 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
-      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts'
+      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/api/scripts/security-settings-database.test.ts'
     ],
     lanes: [
+      'console-database-security-settings',
       'console-ui',
       'console-browser-isolated',
       'console-database-security',
@@ -5710,7 +5729,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/scripts/observability-readers.test.ts',
-      'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
@@ -5801,7 +5819,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
-      'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
@@ -5931,6 +5948,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Misc/DetailHeader.tsx',
       'apps/console/ui/src/components/Misc/DropdownMenu.tsx',
       'apps/console/ui/src/AppContent.tsx',
+      'apps/console/ui/src/Router.tsx',
+      'apps/console/ui/src/RouteErrorBoundary.tsx',
+      'apps/console/ui/src/services/queryClient.ts',
       'packages/ui-react/src/select/**',
       'packages/ui-react/src/tabs/**'
     ],
@@ -5938,7 +5958,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
       'packages/design-tokens/src/tokens.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
-      'apps/console/ui/e2e/isolated-shell.test.ts'
+      'apps/console/ui/e2e/isolated-shell.test.ts',
+      'apps/console/ui/e2e/isolated-errors.test.ts'
     ],
     lanes: [
       'design-tokens-test',

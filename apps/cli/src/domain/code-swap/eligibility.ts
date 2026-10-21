@@ -1,15 +1,15 @@
 import type { StpContainerWorkload } from '../config-manager/resolved-types/multi-container-workloads';
 import { supervisorStopBudget } from './ecs-budget';
 
-export const unsupportedReason = (workload: StpContainerWorkload, serviceCount: number): string | undefined => {
+export const unsupportedReason = (workload: StpContainerWorkload, _serviceCount: number): string | undefined => {
   const container = workload.containers[0];
-  if (serviceCount !== 1) return 'the first release supports one container service per stack';
   if (workload.containers.length !== 1 || container?.essential === false) return 'side containers are not qualified';
   if (workload.resources.architecture === 'arm64') return 'arm64 is not qualified; use x86 Fargate';
   if (workload.resources.instanceTypes) return 'EC2 is not qualified; use x86 Fargate';
   if (
-    container?.packaging?.type !== 'js-bundle' ||
-    (container.packaging.properties?.runtime && container.packaging.properties.runtime !== 'node')
+    container?.packaging?.type !== 'buildpack' &&
+    (container?.packaging?.type !== 'js-bundle' ||
+      (container.packaging.properties?.runtime && container.packaging.properties.runtime !== 'node'))
   )
     return 'only Node.js js-bundle packaging is qualified';
   if (container.internalHealthCheck) return 'configured health checks are not qualified yet';

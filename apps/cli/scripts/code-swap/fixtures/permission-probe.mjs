@@ -11,7 +11,11 @@ export function permissionResponse(status, result) {
   );
   return { status, code, cancellationCodes, denied };
 }
-export async function permissionProbe(siblings) {
+export async function permissionProbe(
+  siblings,
+  service = process.env.STP_CODE_SWAP_SERVICE ?? 'node',
+  siblingServices = []
+) {
   const credentials = await (
     await fetch(`http://169.254.170.2${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`)
   ).json();
@@ -60,6 +64,7 @@ export async function permissionProbe(siblings) {
     const result = await response.json();
     return permissionResponse(response.status, result);
   };
+  siblingServices = siblingServices.map((name) => (service.startsWith('service:') ? `service:${name}` : name));
   const results = [];
   const attempt = async (name, operation, input, denied = true) => {
     const result = await call(operation, input);
@@ -67,18 +72,18 @@ export async function permissionProbe(siblings) {
     if (result.denied !== denied || (!denied && result.status !== 200))
       throw new Error(`Permission boundary failed: ${name}: ${JSON.stringify(result)}`);
   };
-  await attempt('read release', 'GetItem', { TableName: table, Key: { pk: { S: 'release#node' } } }, false);
+  await attempt('read release', 'GetItem', { TableName: table, Key: { pk: { S: `release#${service}` } } }, false);
   await attempt(
     'query release',
     'Query',
     {
       TableName: table,
       KeyConditionExpression: 'pk = :key',
-      ExpressionAttributeValues: { ':key': { S: 'release#node' } }
+      ExpressionAttributeValues: { ':key': { S: `release#${service}` } }
     },
     false
   );
-  const own = `status#node#${process.env.STP_BENCH_ROLE_ID}:${taskId}`;
+  const own = `status#${service}#${process.env.STP_BENCH_ROLE_ID}:${taskId}`;
   await attempt(
     'write own status',
     'PutItem',
@@ -91,7 +96,15 @@ export async function permissionProbe(siblings) {
     },
     false
   );
-  for (const pk of ['lock', 'release#node', `status#node#${process.env.STP_BENCH_ROLE_ID}:${sibling}`]) {
+  for (const pk of [
+    'lock',
+    `release#${service}`,
+    `status#${service}#${process.env.STP_BENCH_ROLE_ID}:${sibling}`,
+    ...siblingServices.flatMap((name) => [
+      `release#${name}`,
+      `status#${name}#${process.env.STP_BENCH_ROLE_ID}:${sibling}`
+    ])
+  ]) {
     const Key = { pk: { S: pk } },
       Item = { ...Key, data: { S: 'forged' } };
     await attempt(`put ${pk}`, 'PutItem', { TableName: table, Item });
@@ -119,6 +132,8 @@ export async function permissionProbe(siblings) {
     await attempt(`batch PartiQL ${pk}`, 'BatchExecuteStatement', { Statements: [statement] });
     await attempt(`transaction PartiQL ${pk}`, 'ExecuteTransaction', { TransactStatements: [statement] });
   }
+  for (const name of siblingServices)
+    await attempt(`read sibling ${name}`, 'GetItem', { TableName: table, Key: { pk: { S: `release#${name}` } } });
   await attempt('TTL', 'UpdateTimeToLive', {
     TableName: table,
     TimeToLiveSpecification: { AttributeName: 'expires', Enabled: true }

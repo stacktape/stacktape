@@ -39039,7 +39039,8 @@ Security scanning of this stack's configuration on every deployment.
 Enabled by default for every stage. The findings appear in the deploy output and in the Security section of
 the Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn
 scanning off for a stack, or limit it to selected stages, when a stack must not report anything. An
-organization administrator can also disable it for all projects in the Console.
+organization administrator can also choose per AWS account, in the Console's security settings, to skip the
+dependency checks or turn scanning off; that choice applies to every stack deployed into the account.
 
 ### Example 1 (yaml)
 
@@ -78972,9 +78973,11 @@ type WebServiceProps = {
   cdn?: CdnConfiguration;
   /** Update code inside running containers when eligible. Off by default, including production.
 
-Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
 without configured health checks or side containers. The application must honor PORT.
-Autoscaling maximum plus deployment surge must fit within 10 tasks.
+Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
+All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
+or custom build/install steps; other Python packaging uses images.
 
 Old and new processes share task memory during the switch. A sudden memory increase can
 fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.
@@ -79288,9 +79291,11 @@ export default defineConfig(() => {
 
 Update code inside running containers when eligible. Off by default, including production.
 
-Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
 without configured health checks or side containers. The application must honor PORT.
-Autoscaling maximum plus deployment surge must fit within 10 tasks.
+Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
+All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
+or custom build/install steps; other Python packaging uses images.
 
 Old and new processes share task memory during the switch. A sudden memory increase can
 fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.

@@ -20,7 +20,7 @@ test('security inventory follows the deployed version after create and update, a
       familyName: 'security-inventory',
       out,
       ministack,
-      securityScanningEnabled: true
+      securityScanning: 'CONFIGURATION_AND_DEPENDENCIES'
     });
     const scannerPath = join(project.directory, 'trivy.cjs');
     let deployed = false;
