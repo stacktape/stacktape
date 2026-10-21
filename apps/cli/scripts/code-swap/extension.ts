@@ -377,7 +377,10 @@ const main = async () => {
         'Missing dependency image fallback explanation.'
       );
       await verifyBusiness(urls);
-      await save(join(directory, 'results.json'), { appName, results, dependencyImageFallback: true });
+      await save(join(directory, 'dependency-image.json'), {
+        verified: true,
+        definition: next[services[0]!].definition
+      });
       console.log('Dependency change: verified image deploy and business probes.');
       return;
     }

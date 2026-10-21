@@ -1240,9 +1240,12 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
                 baseInputs: JSON.stringify({ build: input.baseInputs, requirements, environment: stdout.trim() })
               }
             });
-            // Build from the exact image measured above, even if another local build moves its tag.
+            // BuildKit resolves FROM names, not raw image IDs. This content-addressed local tag cannot be moved
+            // to different bytes by another service build while the measured image is being extended.
+            const measuredImage = `stacktape-python-swap-base:${imageId.replace('sha256:', '')}`;
+            await execDocker(['tag', imageId, measuredImage]);
             return {
-              dockerfileContents: dockerfileContents.replace(`FROM ${input.baseImage}\n`, `FROM ${imageId}\n`),
+              dockerfileContents: dockerfileContents.replace(`FROM ${input.baseImage}\n`, `FROM ${measuredImage}\n`),
               buildContextPath: context
             };
           }
