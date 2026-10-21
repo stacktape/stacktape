@@ -52,7 +52,7 @@ import {
   interruptedSwapReason,
   incompleteHistoryVersions,
   allTasksObservedAttempt,
-  allCandidatesCleaned,
+  abortProposal,
   type SwapRecord
 } from './release-record';
 import {
@@ -91,6 +91,8 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
 
   let prepare: Promise<{ ids: string[]; statuses: Status[]; service: string; cluster: string }> | undefined;
   let preparationError: unknown;
+  // Set before the proposal write: an ambiguous write failure may still have published it.
+  let proposal: { ids: string[]; revision: string } | undefined;
   let selectedWorkload: string | undefined;
   const codeSwapPending = (workloadName: string) => Boolean(prepare && selectedWorkload === workloadName);
   let recordTaskDefinition: string | undefined;
@@ -681,6 +683,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       trace('preparePrerequisitesReady');
       await faultCheckpoint('before-proposal');
       if (codeSwapInterrupted()) throw new Error('Interrupted before the code-swap proposal.');
+      proposal = { ids: before.ids, revision };
       await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
       const prepared = await waitStatus(before.ids, revision, 'prepared');
       trace('allPrepared');
@@ -768,8 +771,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         reason: capReason ?? memoryReason,
         failure: String(error)
       };
-      await put({ Phase: 'abort' });
-      await waitForCandidateCleanup();
+      await abortPublishedProposal();
       prepare = undefined;
       return false;
     }
@@ -784,15 +786,9 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     // Over-cap services skip the swap preflight but still need the RoleId for the image fallback.
     resolveStatusRole(definition, checkedStatusRoleId ?? (await lookupTaskRoleId()));
   };
-  const waitForCandidateCleanup = async () => {
-    const expectedIds = result.tasks === undefined ? [] : z.array(z.string()).parse(result.tasks);
-    const deadline = Date.now() + 35000;
-    for (;;) {
-      const found = expectedIds.length ? await statuses(expectedIds) : [];
-      if (!expectedIds.length || allCandidatesCleaned(found, expectedIds.length, identity!.revision)) break;
-      if (Date.now() > deadline) throw new Error('Candidate cleanup not confirmed; refusing image fallback.');
-      await Bun.sleep(100);
-    }
+  const abortPublishedProposal = async () => {
+    await abortProposal({ proposal, statuses, writeAbort: () => put({ Phase: 'abort' }) });
+    proposal = undefined;
   };
 
   const codeSwapUseImage = async (fallback = 'task_configuration_changed') => {
@@ -805,8 +801,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
   const abortCodeSwapPreparation = async () => {
     if (!prepare || result.mode === 'swap') return;
     // A packaging/template failure after prepare must not leave an idle candidate behind when the lock is released.
-    await put({ Phase: 'abort' });
-    await waitForCandidateCleanup();
+    await abortPublishedProposal();
     prepare = undefined;
   };
 

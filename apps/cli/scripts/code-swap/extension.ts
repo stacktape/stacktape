@@ -387,52 +387,76 @@ const main = async () => {
       );
     }
     if (process.argv.includes('--interrupt-check')) {
-      // Ctrl+C or a cancelled CI job during preparation, before any stack change, must abort the proposal and
-      // release the lock, so the next deploy runs without recovery.
+      // Ctrl+C or a cancelled CI job during preparation, before any stack change, must abort any proposal and release
+      // the lock, so the next deploy runs without recovery. Two windows: while the preparation prerequisites run, before
+      // anything is proposed, and right after the proposal, before every task has read it.
       const target = changed[0]!;
       const recordKey = { pk: { S: `release#service:${target}` } };
-      const before = revisions[target];
-      await edit(owned, 'interrupt-check', [target]);
-      const output = openSync(join(directory, 'interrupt-check.log'), 'w');
-      const child = Bun.spawn(cliArgs(state, owned, 'deploy'), {
-        cwd: resolve(import.meta.dir, '../..'),
-        env: { ...process.env, STP_DEV_MODE: 'true', AWS_PROFILE: PROFILE, AWS_REGION: REGION },
-        stdout: output,
-        stderr: output
-      });
-      let signalled = false;
-      try {
-        for (const deadline = Date.now() + 180000; Date.now() < deadline;) {
-          const current = await ddb.send(
-            new GetItemCommand({ TableName: owned.table, Key: recordKey, ConsistentRead: true })
-          );
-          if (current.Item && JSON.parse(current.Item.data!.S!).Proposed) {
-            child.kill('SIGINT');
-            signalled = true;
-            break;
+      const readRecord = async () =>
+        JSON.parse(
+          (await ddb.send(new GetItemCommand({ TableName: owned.table, Key: recordKey, ConsistentRead: true }))).Item!
+            .data!.S!
+        );
+      const interrupt = async (label: string, due: (traced: string, record: { Proposed?: unknown }) => boolean) => {
+        const before = revisions[target];
+        await edit(owned, label, [target]);
+        const tracePath = join(directory, `${label}-trace.jsonl`);
+        await writeFile(tracePath, '');
+        const output = openSync(join(directory, `${label}.log`), 'w');
+        const child = Bun.spawn(cliArgs(state, owned, 'deploy'), {
+          cwd: resolve(import.meta.dir, '../..'),
+          env: {
+            ...process.env,
+            STP_DEV_MODE: 'true',
+            AWS_PROFILE: PROFILE,
+            AWS_REGION: REGION,
+            STP_CODE_SWAP_BENCH_TRACE: tracePath
+          },
+          stdout: output,
+          stderr: output
+        });
+        let signalled = false;
+        try {
+          for (const deadline = Date.now() + 180000; Date.now() < deadline;) {
+            if (due(await readFile(tracePath, 'utf8'), await readRecord())) {
+              child.kill('SIGINT');
+              signalled = true;
+              break;
+            }
+            await Bun.sleep(20);
           }
-          await Bun.sleep(20);
+        } finally {
+          if (!signalled) child.kill('SIGTERM');
+          const exited = await Promise.race([child.exited, Bun.sleep(120000).then(() => 'timeout' as const)]);
+          if (exited === 'timeout') child.kill('SIGKILL');
+          closeSync(output);
         }
-      } finally {
-        if (!signalled) child.kill('SIGTERM');
-        const exited = await Promise.race([child.exited, Bun.sleep(120000).then(() => 'timeout' as const)]);
-        if (exited === 'timeout') child.kill('SIGKILL');
-        closeSync(output);
-      }
-      assert(signalled, 'The deploy never proposed a swap.');
-      assert(!(await readLock(ddb, owned.table)), 'An interrupt before any stack change kept the operation lock.');
-      const record = JSON.parse(
-        (await ddb.send(new GetItemCommand({ TableName: owned.table, Key: recordKey, ConsistentRead: true }))).Item!
-          .data!.S!
+        assert(signalled, `The ${label} deploy never reached its interrupt point.`);
+        assert(!(await readLock(ddb, owned.table)), `An interrupt (${label}) before any stack change kept the lock.`);
+        const current = await sample(target, urls[target]);
+        assert(current.status === 200 && current.revision === before, `The ${label} deploy changed serving code.`);
+        revisions[target] = before!;
+        return readFile(tracePath, 'utf8');
+      };
+      const recordBefore = await readRecord();
+      const preparing = await interrupt('interrupt-preparation', (traced) => traced.includes('"prepareFleet:start"'));
+      assert(
+        preparing.includes('"preparePrerequisitesReady"') && !preparing.includes('"signal:prepare"'),
+        'The preparation interrupt did not stop between the prerequisites and the proposal.'
       );
+      assert(
+        JSON.stringify(await readRecord()) === JSON.stringify(recordBefore),
+        'An interrupt before the proposal changed the release record.'
+      );
+      await interrupt('interrupt-check', (_, record) => Boolean(record.Proposed));
+      const record = await readRecord();
       assert(!record.Proposed && record.Phase === 'abort', 'The interrupted proposal was not aborted.');
-      const current = await sample(target, urls[target]);
-      assert(current.status === 200 && current.revision === before, 'The interrupted deploy changed serving code.');
+      await edit(owned, 'after-interrupt', [target]);
       await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'after-interrupt.log'));
       const log = await readFile(join(directory, 'after-interrupt.log'), 'utf8');
       assert(log.includes(`Swapped code in ${target};`), 'The deploy after an interrupt did not swap.');
       await save(join(directory, 'interrupt-check.json'), { verified: true });
-      console.log('Interrupt check: lock released, proposal aborted, next deploy swapped.');
+      console.log('Interrupt check: both windows released the lock without recovery; the next deploy swapped.');
     }
     if (process.argv.includes('--retention-check')) {
       // Swaps keep each service on its first task revision while retention trims older images. A replacement task

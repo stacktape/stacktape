@@ -119,3 +119,36 @@ export const allCandidatesCleaned = (statuses: AttemptStatus[], count: number, r
       status.state === 'refused' ||
       (status.timings.candidateReaped === true && ['failed', 'aborted'].includes(status.state))
   );
+
+type Proposal = { ids: string[]; revision: string };
+// Stops the candidates of a published proposal. Supervisors poll the record about once a second, and a task that reads
+// the abort without ever having read the proposal never reports this revision. The abort therefore waits (bounded) until
+// every task has observed the proposal, as the refusal path does. Without a published proposal no task can hold a
+// candidate, so there is nothing to abort or confirm.
+export const abortProposal = async ({
+  proposal,
+  statuses,
+  writeAbort,
+  observeMs = 30000,
+  cleanupMs = 35000,
+  pollMs = 100
+}: {
+  proposal: Proposal | undefined;
+  statuses: (ids: string[]) => Promise<AttemptStatus[]>;
+  writeAbort: () => Promise<void>;
+  observeMs?: number;
+  cleanupMs?: number;
+  pollMs?: number;
+}) => {
+  if (!proposal) return;
+  const { ids, revision } = proposal;
+  const observeDeadline = Date.now() + observeMs;
+  while (!allTasksObservedAttempt(await statuses(ids), ids.length, revision) && Date.now() < observeDeadline)
+    await Bun.sleep(pollMs);
+  await writeAbort();
+  const deadline = Date.now() + cleanupMs;
+  while (!allCandidatesCleaned(await statuses(ids), ids.length, revision)) {
+    if (Date.now() > deadline) throw new Error('Candidate cleanup not confirmed; refusing image fallback.');
+    await Bun.sleep(pollMs);
+  }
+};
