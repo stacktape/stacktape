@@ -1,4 +1,4 @@
-import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
   recordSecurityReport,
@@ -425,6 +425,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
+  codeSwapBeginMutation();
   try {
     if (fastDeployPlan) {
       await performFastDeploy({

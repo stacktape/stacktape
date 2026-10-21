@@ -2,6 +2,7 @@ import { codeSwapIntegration } from './integration';
 import {
   codeSwapImageExtension,
   codeSwapImageMatchesRunningCode,
+  codeSwapLiveImages,
   codeSwapPythonExtension,
   codeSwapReleaseIdentity,
   abortCodeSwapPreparation
@@ -15,6 +16,7 @@ import {
 
 export const installCodeSwap = () => {
   codeSwapIntegration.imageMatchesRunningCode = codeSwapImageMatchesRunningCode;
+  codeSwapIntegration.liveImages = codeSwapLiveImages;
   codeSwapIntegration.abortPreparation = abortCodeSwapPreparation;
   codeSwapIntegration.pythonExtension = codeSwapPythonExtension;
   codeSwapIntegration.imageExtension = codeSwapImageExtension;

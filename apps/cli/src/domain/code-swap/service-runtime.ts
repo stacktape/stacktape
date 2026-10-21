@@ -40,6 +40,7 @@ import { resolveStatusRole } from './ecs-policy';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 import { codeSwapBaseInputs } from './base-inputs';
 import { trace, traceAsync } from './trace';
+import { SWAP_DRAIN_SECONDS } from './ecs-budget';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
 import { memoryFallbackReason, serviceCapacity, declaredCapacity } from './ecs-budget';
 import { parse as parseYaml } from 'yaml';
@@ -58,7 +59,8 @@ import {
   recoveredOperation,
   releaseRecordsAtStart,
   hadCodeSwapTable,
-  codeSwapTrackPreparation
+  codeSwapTrackPreparation,
+  codeSwapInterrupted
 } from './lifecycle-hooks';
 import { createHash } from 'node:crypto';
 
@@ -308,11 +310,13 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     if (Object.keys(response.UnprocessedKeys ?? {}).length) throw new Error('Unprocessed status reads.');
     return (response.Responses?.[run.table] ?? []).map((item) => statusSchema.parse(JSON.parse(item.data!.S!)));
   };
-  const waitStatus = async (ids: string[], revision: string, state: string) => {
-    const deadline = Date.now() + 90000;
+  const waitStatus = async (ids: string[], revision: string, state: string, timeoutMs = 90000) => {
+    const deadline = Date.now() + timeoutMs;
     let nextFleetCheck = Date.now() + 2000;
     let stickyFailure: Error | undefined;
     while (Date.now() < deadline) {
+      // An interrupted preparation stops waiting so the abort can run before the process exits.
+      if (state === 'prepared' && codeSwapInterrupted()) throw new Error('Interrupted during code-swap preparation.');
       const found = await statuses(ids);
       const failed = found.find((s) => s.revision === revision && s.state === 'failed');
       if (failed?.timings.candidateReaped) stickyFailure ??= new Error(`Candidate failed: ${failed.reason}`);
@@ -676,6 +680,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       result.primary = before.primary;
       trace('preparePrerequisitesReady');
       await faultCheckpoint('before-proposal');
+      if (codeSwapInterrupted()) throw new Error('Interrupted before the code-swap proposal.');
       await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
       const prepared = await waitStatus(before.ids, revision, 'prepared');
       trace('allPrepared');
@@ -712,7 +717,9 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         Phase: 'commit'
       });
       await faultCheckpoint('after-commit');
-      const completed = await waitStatus(ids, identity!.revision, 'complete');
+      const grace = update.workload.containers[0]?.stopTimeout ?? 2;
+      // The old process may finish in-flight requests for up to SWAP_DRAIN_SECONDS, then gets its shutdown grace.
+      const completed = await waitStatus(ids, identity!.revision, 'complete', (SWAP_DRAIN_SECONDS + grace + 30) * 1000);
       trace('allComplete');
       if (JSON.stringify((await fleet(service, cluster)).ids) !== JSON.stringify(ids))
         throw new Error('Fleet changed after commit.');
@@ -1333,7 +1340,31 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     return protectedRevisions;
   };
 
+  // Images of every task revision the service still runs or can start: PRIMARY and draining deployments.
+  const liveImages = async () => {
+    const { stack, ecs } = await clients();
+    const service = stack.existingStackResources.find(
+      (resource) => resource.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
+    )?.PhysicalResourceId;
+    if (!service) return [];
+    const definitions = new Set(
+      (await newServiceState(service)).deployments?.flatMap(({ taskDefinition }) =>
+        taskDefinition ? [taskDefinition] : []
+      )
+    );
+    const images = await Promise.all(
+      [...definitions].map(
+        async (taskDefinition) =>
+          (
+            await ecs.send(new DescribeTaskDefinitionCommand({ taskDefinition }))
+          ).taskDefinition?.containerDefinitions?.flatMap(({ image }) => (image ? [image] : [])) ?? []
+      )
+    );
+    return images.flat();
+  };
+
   return {
+    liveImages,
     imageMatchesRunningCode: (name: string, digest: string, taskDefinition: string) =>
       name === jobName &&
       !prepare &&
