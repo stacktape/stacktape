@@ -181,16 +181,19 @@ test.skipIf(process.platform === 'win32')(
   }
 );
 
-// macOS defaults to zsh and many developers use fish; each gets its own configuration file and syntax.
-test.skipIf(process.platform === 'win32').each([
-  { installer: 'macos', shell: '/bin/zsh', file: '.zshrc', line: (bin: string) => `export PATH="${bin}:$PATH"` },
-  {
-    installer: 'linux',
-    shell: '/usr/bin/fish',
-    file: '.config/fish/config.fish',
-    line: (bin: string) => `fish_add_path ${bin}`
-  }
-])('$installer installer adds the directory to PATH for $shell', async ({ installer, shell, file, line }) => {
+// macOS defaults to zsh and many developers use fish; each gets its own configuration file and syntax. Every
+// installer except Alpine's (ash, `.profile` only) carries its own copy of the shell setup, so each is run.
+const shells = [
+  { shell: '/bin/zsh', file: '.zshrc', line: (bin: string) => `export PATH="${bin}:$PATH"` },
+  { shell: '/usr/bin/fish', file: '.config/fish/config.fish', line: (bin: string) => `fish_add_path ${bin}` }
+];
+test
+  .skipIf(process.platform === 'win32')
+  .each(
+    installers
+      .filter((installer) => installer !== 'alpine')
+      .flatMap((installer) => shells.map((entry) => ({ installer, ...entry })))
+  )('$installer installer adds the directory to PATH for $shell', async ({ installer, shell, file, line }) => {
   const { root, bin, home, run } = await fixture(installer);
   try {
     await mkdir(join(home, file, '..'), { recursive: true });

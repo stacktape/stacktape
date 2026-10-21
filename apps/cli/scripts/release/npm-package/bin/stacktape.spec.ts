@@ -48,7 +48,8 @@ const launch = async ({
 }) => {
   const child = Bun.spawn({
     cmd: ['node', '--require', preload, join(packageDir, 'bin', 'stacktape.js'), ...args],
-    env: { PATH: process.env.PATH, HOME: home, NODE_PATH: '', STP_DISABLE_TELEMETRY: '1', ...env },
+    // HOME and USERPROFILE both point at the fixture, so no real curl installation is ever consulted.
+    env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home, NODE_PATH: '', STP_DISABLE_TELEMETRY: '1', ...env },
     stdout: 'pipe',
     stderr: 'pipe'
   });
