@@ -39,7 +39,8 @@ export const lanes: readonly Lane[] = [
       'scripts/code-swap/analyze.spec.ts',
       'scripts/code-swap/transport.spec.ts',
       'scripts/code-swap/ecs-budget.spec.ts',
-      'scripts/code-swap/lifecycle.spec.ts'
+      'scripts/code-swap/lifecycle.spec.ts',
+      'src/domain/code-swap/runtime.spec.ts'
     ],
     level: 'process',
     tier: 'pr',
@@ -48,7 +49,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
-      'apps/cli/scripts/code-swap/lifecycle.spec.ts'
+      'apps/cli/scripts/code-swap/lifecycle.spec.ts',
+      'apps/cli/src/domain/code-swap/runtime.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
