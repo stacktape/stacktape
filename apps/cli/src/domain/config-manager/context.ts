@@ -1,12 +1,18 @@
+import type { SecurityScanningLevel } from '@stacktape/console-api/security';
 import type { StackContext } from '@domain-services/stack-context';
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import type { ConfigResolverContext } from './config-resolver';
 
-/** The organization-wide security scanning switch, as the Console reported it for this session. */
+/** What the Console checks for deploys into the target AWS account, as it reported it for this session. */
+export type SecurityScanningAccount = Readonly<{
+  name: string;
+  /** Absent from an older Console: scanning then follows the config file alone. */
+  securityScanning?: SecurityScanningLevel;
+}>;
+
 export type SecurityScanningContext = Readonly<{
-  organization?: Readonly<{
-    securityScanningEnabled?: boolean;
-  }>;
+  /** Read only when the policy is needed: the target account may not be resolved yet when the context is built. */
+  awsAccount?: () => SecurityScanningAccount | undefined;
 }>;
 
 /** Inputs captured by the command composition layer before configuration normalization begins. */
