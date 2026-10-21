@@ -13,6 +13,7 @@ import {
   PublishLayerVersionCommand,
   PublishVersionCommand,
   TagResourceCommand,
+  UntagResourceCommand,
   UpdateAliasCommand,
   UpdateFunctionCodeCommand,
   UpdateFunctionConfigurationCommand
@@ -234,6 +235,13 @@ export class AwsLambda {
     });
     return this.#createClient()
       .send(new TagResourceCommand({ Resource: lambdaArn, Tags: tagObject }))
+      .catch(errorHandler);
+  };
+
+  untagFunction = async ({ lambdaArn, tagKeys }: { lambdaArn: string; tagKeys: string[] }) => {
+    const errorHandler = this.#getErrorHandler('Failed to remove lambda tags.');
+    return this.#createClient()
+      .send(new UntagResourceCommand({ Resource: lambdaArn, TagKeys: tagKeys }))
       .catch(errorHandler);
   };
 

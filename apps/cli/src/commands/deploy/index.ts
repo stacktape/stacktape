@@ -461,6 +461,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     await deploymentArtifacts.repairFunctionTags(template.getTemplate());
     const sharedLayers = getSharedLayerHotswapInformation();
     if (sharedLayers.length) await deleteSupersededSharedLayerVersions({ layers: sharedLayers });
+  } else if (args.fullDeploy) {
+    // A forced no-op must also remove identity tags older rollbacks wrote outside the template.
+    await deploymentArtifacts.repairFunctionTags(template.getTemplate());
   }
 
   await deployConvexFunctions();

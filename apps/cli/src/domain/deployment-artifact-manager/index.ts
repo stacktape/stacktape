@@ -51,13 +51,11 @@ import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } 
 import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import {
   buildRepublishedLayerS3Key,
-  formatSharedLayersTag,
   getDeployedSharedLayers,
   getDeployedArtifactDigest,
   getSharedLayersOfFunctionInTemplate,
   getTagValue,
   needsLayerRepublish,
-  type SharedLayerContent,
   sharedLayerIdentity,
   sharedLayerNumberOf
 } from './shared-layers';
@@ -1312,27 +1310,15 @@ class DeploymentArtifactManager {
     const template = await this.getTemplate({ version: sourceVersion });
     codeSwapIntegration.rollbackTemplate(template);
     const copies: Promise<unknown>[] = [];
-    this.#restoredFunctionDigests = [];
+    this.#restoredFunctionTags = [];
     for (const [logicalId, resource] of Object.entries(template.Resources)) {
       const properties = (resource.Properties ?? {}) as Record<string, any>;
       if (resource.Type === 'AWS::Lambda::Function' && properties.Code) {
-        const digest = (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
-          ({ Key }) => Key === tagNames.codeDigest()
-        )?.Value;
-        if (digest) {
-          const layers = [...getSharedLayersOfFunctionInTemplate(template, logicalId)].map(
-            ([layerNumber, identity]) => ({ layerNumber, identity })
-          );
-          const artifactDigest =
-            (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
-              ({ Key }) => Key === tagNames.artifactDigest()
-            )?.Value ??
-            (typeof properties.Code.S3Key === 'string'
-              ? parseBucketObjectS3Key(properties.Code.S3Key)?.digest
-              : undefined) ??
-            digest;
-          this.#restoredFunctionDigests.push({ logicalId, digest, artifactDigest, layers });
-        }
+        const identityKeys = [tagNames.codeDigest(), tagNames.artifactDigest(), tagNames.sharedLayers()];
+        const tags = ((properties.Tags ?? []) as { Key: string; Value: string }[])
+          .filter(({ Key, Value }) => identityKeys.includes(Key) && typeof Value === 'string')
+          .map(({ Key, Value }) => ({ key: Key, value: Value }));
+        if (tags.length) this.#restoredFunctionTags.push({ logicalId, tags });
         const { Code: code } = properties;
         if (code.S3Bucket === this.deploymentBucketName && typeof code.S3Key === 'string') {
           code.S3Key = this.#copyFunctionCodeToRelease({ s3Key: code.S3Key, newVersion, copies });
@@ -1396,22 +1382,30 @@ class DeploymentArtifactManager {
             ({ Key, Value }) =>
               Key && repaired.includes(Key) && typeof Value === 'string' && getTagValue(tags, Key) !== Value
           );
-          if (!stale.length) return;
+          const expectedKeys = new Set((properties?.Tags ?? []).map(({ Key }) => Key));
+          const obsolete = (tags ?? []).flatMap(({ key }) =>
+            key && repaired.includes(key) && !expectedKeys.has(key) ? [key] : []
+          );
+          if (!stale.length && !obsolete.length) return;
           const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: PhysicalResourceId });
-          await awsSdkManager.lambda.tagFunction({
-            lambdaArn: FunctionArn,
-            tags: stale.map(({ Key, Value }) => ({ key: Key!, value: Value as string }))
-          });
+          await Promise.all([
+            ...(stale.length
+              ? [
+                  awsSdkManager.lambda.tagFunction({
+                    lambdaArn: FunctionArn,
+                    tags: stale.map(({ Key, Value }) => ({ key: Key!, value: Value as string }))
+                  })
+                ]
+              : []),
+            ...(obsolete.length
+              ? [awsSdkManager.lambda.untagFunction({ lambdaArn: FunctionArn, tagKeys: obsolete })]
+              : [])
+          ]);
         })
     );
   };
 
-  #restoredFunctionDigests: {
-    logicalId: string;
-    digest: string;
-    artifactDigest: string;
-    layers: SharedLayerContent[];
-  }[] = [];
+  #restoredFunctionTags: { logicalId: string; tags: { key: string; value: string }[] }[] = [];
 
   /**
    * Sets each restored function's code-digest and shared-layers tags after a rollback. CloudFormation leaves a tag
@@ -1419,7 +1413,7 @@ class DeploymentArtifactManager {
    */
   tagRestoredFunctions = async () => {
     await Promise.all(
-      this.#restoredFunctionDigests.map(async ({ logicalId, digest, artifactDigest, layers }) => {
+      this.#restoredFunctionTags.map(async ({ logicalId, tags }) => {
         const functionName = stackManager.existingStackResources.find(
           ({ LogicalResourceId }) => LogicalResourceId === logicalId
         )?.PhysicalResourceId;
@@ -1427,11 +1421,7 @@ class DeploymentArtifactManager {
         const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: functionName });
         await awsSdkManager.lambda.tagFunction({
           lambdaArn: FunctionArn,
-          tags: [
-            { key: tagNames.codeDigest(), value: digest },
-            { key: tagNames.artifactDigest(), value: artifactDigest },
-            ...(layers.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
-          ]
+          tags
         });
       })
     );
