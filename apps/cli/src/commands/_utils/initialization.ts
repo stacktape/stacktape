@@ -110,12 +110,30 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
   };
 };
 
+/** Of the connections to one AWS account, the one that checks the least, so no connection's choice is exceeded. */
+const SCANNING_RESTRICTIVENESS = { OFF: 2, CONFIGURATION: 1, CONFIGURATION_AND_DEPENDENCIES: 0 } as const;
+
+const securityScanningAccount = (accountId: string) =>
+  (globalStateManager.connectedAwsAccounts ?? [])
+    .filter((account) => account.awsAccountId === accountId)
+    .toSorted(
+      (a, b) =>
+        SCANNING_RESTRICTIVENESS[b.securityScanning ?? 'CONFIGURATION_AND_DEPENDENCIES'] -
+        SCANNING_RESTRICTIVENESS[a.securityScanning ?? 'CONFIGURATION_AND_DEPENDENCIES']
+    )[0];
+
 export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => {
-  const organization = globalStateManager.organizationData;
   return {
     helperLambdaDetails: globalStateManager.helperLambdaDetails,
     securityScanning: {
-      organization: organization ? { securityScanningEnabled: organization.securityScanningEnabled } : undefined
+      awsAccount: () => {
+        // Without a control plane there are no levels; with local credentials not yet matched to a connection (validate),
+        // the target account is unknown and scanning follows the config file alone.
+        if (!globalStateManager.connectedAwsAccounts?.length) return undefined;
+        if (globalStateManager.localCredentialsProvider && !globalStateManager.localTargetAwsAccount) return undefined;
+        const account = securityScanningAccount(stackContext.accountId);
+        return account && { name: account.name, securityScanning: account.securityScanning };
+      }
     },
     resolver: getConfigResolverContext(stackContext),
     stack: stackContext

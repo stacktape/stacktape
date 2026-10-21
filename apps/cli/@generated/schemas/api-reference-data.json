@@ -24218,7 +24218,7 @@
         "name": "securityScanning",
         "required": false,
         "shortDescription": "<p> Security scanning of this stack&#39;s configuration on every deployment.</p>",
-        "longDescription": "<p>Enabled by default for every stage. The findings appear in the deploy output and in the Security section of\nthe Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn\nscanning off for a stack, or limit it to selected stages, when a stack must not report anything. An\norganization administrator can also disable it for all projects in the Console.</p>",
+        "longDescription": "<p>Enabled by default for every stage. The findings appear in the deploy output and in the Security section of\nthe Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn\nscanning off for a stack, or limit it to selected stages, when a stack must not report anything. An\norganization administrator can also choose per AWS account, in the Console&#39;s security settings, to skip the\ndependency checks or turn scanning off; that choice applies to every stack deployed into the account.</p>",
         "typeInfo": {
           "kind": "reference",
           "typeName": "SecurityScanningConfig"
