@@ -10,6 +10,7 @@ import {
   type ServerContext
 } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import type { StacktapeCommand } from '../../config/cli/commands';
 import {
   describeCliCommand,
   findStacktapePackageScript,
@@ -290,6 +291,84 @@ export const summarizeMatchedScriptForPlan = (matchedScriptData?: Record<string,
   };
 };
 
+type ConvenienceArgs = {
+  stage?: string;
+  region?: string;
+  projectName?: string;
+  awsAccount?: string;
+  configPath?: string;
+  currentWorkingDirectory?: string;
+  fullDeploy?: boolean;
+  resourceName?: string;
+  scriptName?: string;
+  secretName?: string;
+  secretValue?: string;
+  secretFile?: string;
+};
+
+// stacktape_cli takes the common arguments at the top level too; agents put them there as often as in `args`.
+const pickConvenienceArgs = (values: ConvenienceArgs) =>
+  normalizeCliArgs(Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)));
+
+const findProjectScript = ({
+  scan,
+  command,
+  args
+}: {
+  scan: Awaited<ReturnType<typeof scanStacktapeProject>>;
+  command: StacktapeCommand;
+  args: Record<string, unknown>;
+}) => {
+  const filter = {
+    packageJsonFiles: scan.packageJsonFiles,
+    projectName: typeof args.projectName === 'string' ? args.projectName : undefined,
+    stage: typeof args.stage === 'string' ? args.stage : undefined
+  };
+  return (
+    findStacktapePackageScript({ ...filter, command }) || findStacktapePackageScript({ ...filter, command: 'deploy' })
+  );
+};
+
+/**
+ * Arguments for action=run: `args` wins over the top-level convenience arguments, and a missing project name or region
+ * comes from the project's Stacktape package script, the way action=plan resolves them. The stage is never inferred:
+ * a project usually deploys several, and reading the wrong one is worse than asking.
+ */
+export const resolveRunArgs = async ({
+  command,
+  cwd,
+  args,
+  convenienceArgs
+}: {
+  command: string;
+  cwd?: string;
+  args?: Record<string, unknown>;
+  convenienceArgs: ConvenienceArgs;
+}): Promise<Record<string, unknown>> => {
+  const description = describeCliCommand(command);
+  if (!description) return args || {};
+  const allowedArgs = new Set(description.allowedArgs);
+  const runArgs: Record<string, unknown> = {
+    ...Object.fromEntries(
+      Object.entries(pickConvenienceArgs(convenienceArgs)).filter(([argName]) => allowedArgs.has(argName))
+    ),
+    ...normalizeCliArgsForCommand(command, args || {})
+  };
+  const missing = (['projectName', 'region'] as const).filter(
+    (argName) => allowedArgs.has(argName) && runArgs[argName] === undefined
+  );
+  if (missing.length === 0) return runArgs;
+  const script = findProjectScript({
+    scan: await scanStacktapeProject({ cwd, maxFiles: 10 }),
+    command: description.command,
+    args: runArgs
+  });
+  for (const argName of missing) {
+    if (script?.parsedArgs[argName] !== undefined) runArgs[argName] = script.parsedArgs[argName];
+  }
+  return runArgs;
+};
+
 export const buildCliPlan = async ({
   command,
   cwd,
@@ -379,19 +458,19 @@ export const buildCliPlan = async ({
 
   const scan = await scanStacktapeProject({ cwd, maxFiles: 10 });
   const rawArgs = normalizeCliArgsForCommand(command, args || {});
-  const convenienceArgs = normalizeCliArgs({
-    ...(stage !== undefined ? { stage } : {}),
-    ...(region !== undefined ? { region } : {}),
-    ...(projectName !== undefined ? { projectName } : {}),
-    ...(awsAccount !== undefined ? { awsAccount } : {}),
-    ...(configPath !== undefined ? { configPath } : {}),
-    ...(currentWorkingDirectory !== undefined ? { currentWorkingDirectory } : {}),
-    ...(fullDeploy !== undefined ? { fullDeploy } : {}),
-    ...(resourceName !== undefined ? { resourceName } : {}),
-    ...(scriptName !== undefined ? { scriptName } : {}),
-    ...(secretName !== undefined ? { secretName } : {}),
-    ...(secretValue !== undefined ? { secretValue } : {}),
-    ...(secretFile !== undefined ? { secretFile } : {})
+  const convenienceArgs = pickConvenienceArgs({
+    stage,
+    region,
+    projectName,
+    awsAccount,
+    configPath,
+    currentWorkingDirectory,
+    fullDeploy,
+    resourceName,
+    scriptName,
+    secretName,
+    secretValue,
+    secretFile
   });
   const commandContextArgs = { ...convenienceArgs, ...rawArgs };
   const matchedScript =
