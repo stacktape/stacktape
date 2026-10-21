@@ -310,7 +310,14 @@ export const buildUsingRailpack = async ({
       python: boolean;
       baseInputs: string;
       baseImage: string;
-    }) => Promise<{ dockerfileContents: string; buildContextPath: string } | undefined>;
+    }) => Promise<
+      | {
+          plan: RailpackPlan;
+          finish: (imageId: string) => Promise<{ dockerfileContents: string; buildContextPath: string }>;
+          imageFallback: () => void;
+        }
+      | undefined
+    >;
   };
   name: string;
   cwd: string;
@@ -428,7 +435,7 @@ export const buildUsingRailpack = async ({
   });
 
   const baseImage = imageExtension ? `${name}-code-swap-base` : name;
-  const extension = await imageExtension?.prepare({
+  let extension = await imageExtension?.prepare({
     packagingDigest: digest,
     sourceDirectoryPath: absoluteSourceDirectoryPath,
     includedFilePaths,
@@ -438,10 +445,11 @@ export const buildUsingRailpack = async ({
     baseImage
   });
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
+  const buildPlan = extension?.plan ?? plan;
   const pinnedPlan =
     python && pinLocalBaseImage && !cacheFromRef && !cacheToRef
       ? pinPlanImages(
-          plan,
+          buildPlan,
           Object.fromEntries(
             await Promise.all(
               python.baseImages.map(
@@ -451,29 +459,36 @@ export const buildUsingRailpack = async ({
             )
           )
         )
-      : plan;
-  let { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
-    dockerfileContents: JSON.stringify(pinnedPlan),
-    // The context is the customer's source directory: the plan file stays out of their project tree.
-    buildFileDirectoryPath: tmpdir(),
-    buildDockerImage,
-    imageTag: extension ? baseImage : name,
-    buildContextPath: absoluteSourceDirectoryPath,
-    dockerBuildOutputArchitecture,
-    cacheFromRef,
-    cacheToRef,
-    ...(python ? { baseImages: python.baseImages } : {}),
-    builderImages: [railpackFrontendImage],
-    buildArgs: {
-      BUILDKIT_SYNTAX: railpackFrontendImage,
-      'secrets-hash': buildEnvironmentHash,
-      'cache-key': name
-    },
-    secrets: buildVariables
-  });
+      : buildPlan;
+  const buildBase = (selectedPlan: RailpackPlan) =>
+    buildGeneratedDockerImage({
+      dockerfileContents: JSON.stringify(selectedPlan),
+      buildFileDirectoryPath: tmpdir(),
+      buildDockerImage,
+      imageTag: extension ? baseImage : name,
+      buildContextPath: absoluteSourceDirectoryPath,
+      dockerBuildOutputArchitecture,
+      cacheFromRef,
+      cacheToRef,
+      ...(python ? { baseImages: python.baseImages } : {}),
+      builderImages: [railpackFrontendImage],
+      buildArgs: { BUILDKIT_SYNTAX: railpackFrontendImage, 'secrets-hash': buildEnvironmentHash, 'cache-key': name },
+      secrets: buildVariables
+    });
+  let base;
+  try {
+    base = await buildBase(pinnedPlan);
+  } catch (error) {
+    if (!extension) throw error;
+    // A syntactically hashed file may omit transitive requirements. Strict installation is authoritative.
+    extension.imageFallback();
+    extension = undefined;
+    base = await buildBase(plan);
+  }
+  let { size, id, dockerOutput, duration, created } = base;
   if (extension) {
     const extended = await buildGeneratedDockerImage({
-      ...extension,
+      ...(await extension.finish(id)),
       buildDockerImage,
       imageTag: name,
       dockerBuildOutputArchitecture,

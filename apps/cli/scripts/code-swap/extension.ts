@@ -280,7 +280,14 @@ const main = async () => {
     });
     for (
       let index = 1;
-      index <= (process.argv.includes('--lifecycle-only') ? 0 : services.length > 1 ? 11 : 10);
+      index <=
+      (process.argv.includes('--dependency-only')
+        ? 5
+        : process.argv.includes('--lifecycle-only')
+          ? 0
+          : services.length > 1
+            ? 11
+            : 10);
       index++
     ) {
       const revision = `edit-${index}`;
@@ -338,6 +345,42 @@ const main = async () => {
         samples.filter((item) => item.service === service).every((item) => item.revision === 'baseline'),
         'An unchanged service changed code.'
       );
+    if (process.argv.includes('--dependency-only')) {
+      assert(python, 'The dependency-only scenario requires container-python.');
+      const requirements = join(owned.directory, 'requirements.txt');
+      const input = join(owned.directory, 'dependency-change.in');
+      await writeFile(input, (await readFile(requirements, 'utf8')) + '\nsix==1.17.0\n');
+      await invoke(
+        [
+          'uv',
+          'pip',
+          'compile',
+          input,
+          '--python-version',
+          '3.11.14',
+          '--generate-hashes',
+          '--output-file',
+          requirements
+        ],
+        join(directory, 'dependency-lock.log')
+      );
+      await edit(owned, 'dependency-change');
+      await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'dependency-change.log'));
+      const next = await fleet(owned);
+      assert(
+        next[services[0]!].definition !== baseline[services[0]!].definition,
+        'Dependency change did not deploy an image.'
+      );
+      const log = await readFile(join(directory, 'dependency-change.log'), 'utf8');
+      assert(
+        log.includes('Image deploy for python: dependencies, environment or base configuration changed'),
+        'Missing dependency image fallback explanation.'
+      );
+      await verifyBusiness(urls);
+      await save(join(directory, 'results.json'), { appName, results, dependencyImageFallback: true });
+      console.log('Dependency change: verified image deploy and business probes.');
+      return;
+    }
     if (!process.argv.includes('--benchmark-only')) {
       const lifecycle: Record<string, unknown> = {};
       if (services.length > 1) {

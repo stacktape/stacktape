@@ -1,3 +1,5 @@
+import { pythonHashLock, strictPythonPlan, pythonEnvironmentFingerprint } from './python';
+import { execDocker } from '../../utils/docker';
 import { codeSwapIntegration } from './integration';
 import { pruneCodeSwapArtifacts, waitForRetiredCodeSwapTasks } from './artifacts';
 // Opt-in code-swap deployment lifecycle.
@@ -139,6 +141,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     const enabled = !run.optOut && !(await codeSwapCapacity()).reason;
     return {
       codeSwap: {
+        pythonDependencyIdentity: 2,
         enabled,
         recordService: run.recordService,
         artifactService: run.artifactService,
@@ -1150,11 +1153,13 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         const steps = z
           .array(z.object({ name: z.string(), commands: z.array(z.unknown()).optional() }).loose())
           .safeParse(plan.steps);
+        const strictPlan = strictPythonPlan(plan);
         // Source-installed projects/custom builds need rebuilt artifacts, not a source overlay. Fail closed.
         const unsupported =
           !input.python ||
+          !strictPlan ||
           !requirements ||
-          !requirements.includes('--hash=sha256:') ||
+          !pythonHashLock(requirements) ||
           !plan.deploy?.startCommand ||
           !/^(?:uvicorn|gunicorn|python(?:3(?:\.\d+)?)?)(?:\s|$)/.test(plan.deploy.startCommand) ||
           /[;&|`\n\r]|\$\(|\/app(?:\/|\b)/.test(plan.deploy.startCommand) ||
@@ -1162,21 +1167,13 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
           props?.installCommand ||
           props?.railpackConfig ||
           !steps.success ||
-          steps.data.some((step) => step.name === 'build' && step.commands?.length) ||
-          requirements.split('\n').some((line) => {
-            const text = line.trim();
-            return (
-              text &&
-              !text.startsWith('#') &&
-              !/^(?:--hash=sha256:[a-f0-9]+|[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?==[^\s;]+)(?:\s+\\)?$/.test(text)
-            );
-          });
+          steps.data.some((step) => step.name === 'build' && step.commands?.length);
         if (unsupported) {
           codeSwapIntegration.imageHasSupervisor.set(run.service, false);
           result = {
             mode: 'image',
             reason:
-              'Python code swap requires local Docker caching, hash-locked requirements.txt, direct uvicorn/gunicorn/python startup, and no local dependencies or custom build/install steps'
+              'Python code swap requires local Docker caching, a complete transitive requirements.txt lock (every requirement pinned with == and SHA-256 hashes; generate with uv pip compile --generate-hashes), direct uvicorn/gunicorn/python startup, and no local dependencies or custom build/install steps'
           };
           return;
         }
@@ -1204,22 +1201,52 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
           await mkdir(dirname(join(context, name)), { recursive: true });
           await copyFile(file, join(context, name));
         }
-        const dockerfileContents = await codeSwapImage({
-          packagingDigest: input.packagingDigest,
-          dockerfileContents: `FROM ${input.baseImage}\nCOPY . /app\nWORKDIR /app\n`,
-          buildContextPath: context,
-          runtime: 'python',
-          nodeVersion: 0,
-          nodeTarget: '',
-          minify: false,
-          dockerBuildOutputArchitecture: 'linux/amd64',
-          languageSpecificBundleOutput: {},
-          python: {
-            command: plan.deploy!.startCommand!,
-            baseInputs: JSON.stringify({ build: input.baseInputs, requirements })
+        return {
+          plan: strictPlan,
+          imageFallback: () => {
+            codeSwapIntegration.imageHasSupervisor.set(run.service, false);
+            result = {
+              mode: 'image',
+              reason:
+                'Python strict --require-hashes dependency installation failed; generate a complete transitive lock with uv pip compile --generate-hashes'
+            };
+          },
+          finish: async (imageId: string) => {
+            const { stdout } = await execDocker([
+              'run',
+              '--rm',
+              '--network=none',
+              '--entrypoint',
+              '/app/.venv/bin/python',
+              imageId,
+              '-I',
+              '-c',
+              pythonEnvironmentFingerprint
+            ]);
+            if (!/^[a-f0-9]{64}$/.test(stdout.trim()))
+              throw new Error('Invalid Python dependency environment fingerprint.');
+            const dockerfileContents = await codeSwapImage({
+              packagingDigest: input.packagingDigest,
+              dockerfileContents: `FROM ${input.baseImage}\nCOPY . /app\nWORKDIR /app\n`,
+              buildContextPath: context,
+              runtime: 'python',
+              nodeVersion: 0,
+              nodeTarget: '',
+              minify: false,
+              dockerBuildOutputArchitecture: 'linux/amd64',
+              languageSpecificBundleOutput: {},
+              python: {
+                command: plan.deploy!.startCommand!,
+                baseInputs: JSON.stringify({ build: input.baseInputs, requirements, environment: stdout.trim() })
+              }
+            });
+            // Build from the exact image measured above, even if another local build moves its tag.
+            return {
+              dockerfileContents: dockerfileContents.replace(`FROM ${input.baseImage}\n`, `FROM ${imageId}\n`),
+              buildContextPath: context
+            };
           }
-        });
-        return { dockerfileContents, buildContextPath: context };
+        };
       }
     };
   };

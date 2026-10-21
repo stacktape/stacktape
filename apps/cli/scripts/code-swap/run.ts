@@ -221,7 +221,12 @@ const guard = async () => {
     'Set STP_CODE_SWAP_BENCH_LIVE=1 for the authorized disposable benchmark.'
   );
   assert(
-    !Object.keys(process.env).some((key) => /^(AWS_ENDPOINT_URL|STP_.*ENDPOINT)/.test(key) && process.env[key]),
+    !Object.keys(process.env).some(
+      (key) =>
+        /^(AWS_ENDPOINT_URL|STP_.*ENDPOINT)/.test(key) &&
+        process.env[key] &&
+        !(key === 'STP_CUSTOM_TRPC_API_ENDPOINT' && process.env[key] === 'https://dev-api.stacktape.com')
+    ),
     'Endpoint overrides are forbidden.'
   );
   assert(

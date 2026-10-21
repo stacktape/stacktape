@@ -490,3 +490,66 @@ test('service records advance independently and lost writes reread only their se
   expect(reporting).toContain('status#reporting#');
   expect(reporting).not.toContain('status#api#');
 });
+
+test('Python source swaps require a hash on every pinned requirement', async () => {
+  const { pythonHashLock, strictPythonPlan } = await import('../../src/domain/code-swap/python');
+  const hash = `--hash=sha256:${'a'.repeat(64)}`;
+  for (const requirements of [
+    '',
+    '# only a comment',
+    `a==1.0 \\\n ${hash}\nb==2.0`,
+    `a>=1.0 ${hash}`,
+    `a==1.* ${hash}`,
+    `a==1.0 ${hash}\n-r extra.txt`,
+    `a @ https://example.com/a.whl ${hash}`
+  ])
+    expect(pythonHashLock(requirements)).toBe(false);
+  expect(pythonHashLock(`# uv generated\na==1.0 \\\n ${hash}\n # via b\nb[extra]==2.0 ${hash}\n`)).toBe(true);
+  const plan = {
+    steps: [{ commands: [{ cmd: 'uv pip install -r requirements.txt || python -m pip install -r requirements.txt' }] }]
+  };
+  expect(strictPythonPlan(plan)?.steps).toEqual([
+    {
+      commands: [
+        {
+          cmd: 'uv pip install --require-hashes -r requirements.txt || python -m pip install --require-hashes -r requirements.txt'
+        }
+      ]
+    }
+  ]);
+  expect(strictPythonPlan({ steps: [{ commands: [{ cmd: 'uv sync --locked' }] }] })).toBeUndefined();
+  expect(plan.steps[0].commands[0].cmd).toBe(
+    'uv pip install -r requirements.txt || python -m pip install -r requirements.txt'
+  );
+});
+
+test.skipIf(!Bun.which('python3'))(
+  'Python environment identity ignores source edits and detects installed byte changes',
+  async () => {
+    const { pythonEnvironmentFingerprint } = await import('../../src/domain/code-swap/python');
+    const { mkdir } = await import('node:fs/promises');
+    const directory = await mkdtemp(join(tmpdir(), 'python-swap-identity-'));
+    try {
+      const venv = join(directory, '.venv');
+      await mkdir(venv);
+      await writeFile(join(venv, 'dependency.py'), 'VERSION = 1\n');
+      const script = pythonEnvironmentFingerprint.replace(
+        "['/app/.venv', '/usr/local', '/usr/lib', '/lib']",
+        JSON.stringify([venv])
+      );
+      const fingerprint = () => {
+        const result = Bun.spawnSync(['python3', '-I', '-c', script]);
+        expect(result.exitCode).toBe(0);
+        return result.stdout.toString().trim();
+      };
+      const initial = fingerprint();
+      expect(initial).toMatch(/^[a-f0-9]{64}$/);
+      await writeFile(join(directory, 'app.py'), 'new code\n');
+      expect(fingerprint()).toBe(initial);
+      await writeFile(join(venv, 'dependency.py'), 'VERSION = 2\n');
+      expect(fingerprint()).not.toBe(initial);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+);
