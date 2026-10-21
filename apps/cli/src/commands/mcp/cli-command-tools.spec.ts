@@ -85,3 +85,11 @@ test('quoted public package scripts round-trip literal shell characters', () => 
   const args = { secretName: 'token', secretFile: "keys/owner's token.txt", region: 'eu-west-1' };
   expect(parseStacktapeScriptCommand(publicCommandLine('secret:set', args))).toEqual({ command: 'secret:set', args });
 });
+
+test('package script discovery preserves Windows path separators', () => {
+  const script = String.raw`stacktape diff --configPath "C:\infra\stacktape.ts"`;
+  expect(parseStacktapeScriptCommand(script)).toEqual({
+    command: 'diff',
+    args: { configPath: String.raw`C:\infra\stacktape.ts` }
+  });
+});

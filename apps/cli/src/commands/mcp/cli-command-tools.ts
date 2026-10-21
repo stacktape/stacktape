@@ -253,7 +253,11 @@ const tokenizeCommand = (command: string): string[] => {
       value += char;
       continue;
     }
-    if (char === '\\' && index + 1 < command.length) {
+    if (
+      char === '\\' &&
+      index + 1 < command.length &&
+      (command[index + 1] === quote || command[index + 1] === '\\' || (!quote && /[\s'"]/.test(command[index + 1])))
+    ) {
       value += command[++index];
       started = true;
       continue;
