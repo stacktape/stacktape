@@ -66,6 +66,7 @@ const main = async () => {
     await run(['docker', 'build', '-t', name, directory]);
     for (const scenario of process.env.QUAL_SCENARIOS?.split(',') ?? [
       'normal',
+      'memory-sources',
       'oom-prepare',
       'oom-switch',
       'lifetime',
