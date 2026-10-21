@@ -28,6 +28,46 @@ const createRoot = async () => {
 };
 
 describe('split bundler end-to-end regressions', () => {
+  test('runs an installed dependency that loads locale JSON through a computed relative require', async () => {
+    const root = await createRoot();
+    const files = {
+      'package.json': manifest('app', { dependencies: { 'locale-library': '1.0.0' } }),
+      'handler.ts': "import locale from 'locale-library'; export const handler = () => locale.name;",
+      'node_modules/locale-library/package.json': manifest('locale-library'),
+      'node_modules/locale-library/index.js':
+        "const language = process.env.FIXTURE_LOCALE || 'en'; module.exports = require('./langs/' + language + '.json');",
+      'node_modules/locale-library/langs/en.json': '{"name":"English"}'
+    };
+    for (const [path, contents] of Object.entries(files)) {
+      await mkdir(join(root, path, '..'), { recursive: true });
+      await writeFile(join(root, path), contents);
+    }
+    const runtime = await createRoot();
+    await buildSplitBundle({
+      entrypoints: [
+        { name: 'handler', jobName: 'handler', entryfilePath: join(root, 'handler.ts'), distFolderPath: runtime }
+      ],
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      installDependencies: async () => {},
+      createPackagingError
+    });
+    await cp(join(root, 'node_modules'), join(runtime, 'node_modules'), { recursive: true });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(handler());`
+      ],
+      { cwd: runtime, encoding: 'utf8', timeout: 10_000, env: { ...process.env, NODE_PATH: '' } }
+    );
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(execution.stdout.trim()).toBe('English');
+  });
+
   test('attributes nested native dependency versions to only their importing Lambda', async () => {
     const root = await createRoot();
     await writeFile(join(root, 'package.json'), JSON.stringify({ private: true, workspaces: ['packages/*'] }));
