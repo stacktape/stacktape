@@ -9,6 +9,7 @@ export const pruneCodeSwapArtifacts = async ({
   bucket,
   currentRevision,
   currentAttemptId,
+  service = 'api',
   optOut = false,
   protectedRevisions = [],
   protectedBundleKeys = []
@@ -17,6 +18,7 @@ export const pruneCodeSwapArtifacts = async ({
   bucket: string;
   currentRevision: string;
   currentAttemptId?: string;
+  service?: string;
   optOut?: boolean;
   protectedRevisions?: string[];
   protectedBundleKeys?: string[];
@@ -28,7 +30,7 @@ export const pruneCodeSwapArtifacts = async ({
     keys.push(...(page.Contents ?? []).flatMap((item) => (item.Key ? [item.Key] : [])));
     token = page.NextContinuationToken;
   } while (token);
-  const swapKeys = keys.filter((key) => key.startsWith('code-swap/api/'));
+  const swapKeys = keys.filter((key) => key.startsWith(`code-swap/${service}/`));
   let obsolete = swapKeys;
   if (!optOut) {
     const retained = new Set([
@@ -39,8 +41,8 @@ export const pruneCodeSwapArtifacts = async ({
     // Rollback can copy an older bundle's identity into a newer release record.
     const records = swapKeys.filter(
       (key) =>
-        key === 'code-swap/api/head.json' ||
-        (key.startsWith('code-swap/api/releases/') && retained.has(key.split('/').at(-1)!.slice(0, -5)))
+        key === `code-swap/${service}/head.json` ||
+        (key.startsWith(`code-swap/${service}/releases/`) && retained.has(key.split('/').at(-1)!.slice(0, -5)))
     );
     for (const key of records) {
       const response = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -48,9 +50,9 @@ export const pruneCodeSwapArtifacts = async ({
         .object({ key: z.string(), revision: z.string() })
         .parse(JSON.parse(await response.Body!.transformToString()));
       bundles.push(saved.key);
-      if (key === 'code-swap/api/head.json') retained.add(saved.revision);
+      if (key === `code-swap/${service}/head.json`) retained.add(saved.revision);
     }
-    obsolete = obsoleteCodeSwapKeys(swapKeys, [...retained], bundles, currentRevision, currentAttemptId);
+    obsolete = obsoleteCodeSwapKeys(swapKeys, [...retained], bundles, currentRevision, currentAttemptId, service);
   }
   for (let start = 0; start < obsolete.length; start += 1000) {
     const response = await s3.send(

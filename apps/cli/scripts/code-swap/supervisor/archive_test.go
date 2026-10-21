@@ -107,3 +107,19 @@ func TestArchiveExpansionLimit(t *testing.T) {
 		t.Fatal("expansion bomb accepted")
 	}
 }
+
+func TestPythonArchiveUsesConfiguredImageCommand(t *testing.T) {
+	t.Setenv("STP_CODE_SWAP_COMMAND", "/stacktape-start")
+	b := bundleForTest(t, "app.py", tar.TypeReg)
+	dst := filepath.Join(t.TempDir(), "python")
+	if err := applyBundle(b, sha256Hex(b), int64(len(b)), dst); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "app.py")); err != nil {
+		t.Fatal(err)
+	}
+	b = bundleForTest(t, "../escape.py", tar.TypeReg)
+	if applyBundle(b, sha256Hex(b), int64(len(b)), filepath.Join(t.TempDir(), "bad")) == nil {
+		t.Fatal("unsafe Python archive accepted")
+	}
+}

@@ -289,7 +289,7 @@ test('table creation follows task protection, and opt-out retains the Deny while
     const run = JSON.parse(await Bun.file(runPath).text());
     await writeFile(runPath, JSON.stringify({ ...run, optOut: false }));
     await codeSwapTemplate(template);
-    expect(template.Resources.StacktapeCodeSwapTable.DependsOn).toBe(cfLogicalNames.ecsTaskRole('api'));
+    expect(template.Resources.StacktapeCodeSwapTable.DependsOn).toContain(cfLogicalNames.ecsTaskRole('api'));
     template.Resources[cfLogicalNames.ecsTaskDefinition('api')].Properties = {
       ...template.Resources[cfLogicalNames.ecsTaskDefinition('api')].Properties,
       TaskRoleArn: 'arn:aws:iam::597581086285:role/unprotected'
@@ -470,4 +470,23 @@ test('opt-out waits for draining task revisions and refuses uncertain task evide
   await expect(waitForRetiredCodeSwapTasks(ecs, 'arn:aws:ecs:eu-west-1:123:service/cluster/api')).rejects.toThrow(
     'Could not confirm'
   );
+});
+
+test('service records advance independently and lost writes reread only their service', async () => {
+  const { client, items, loseNextResponse } = fixture();
+  await writeReleaseRecord(client, 'table', undefined, record(1), 'api');
+  loseNextResponse();
+  await writeReleaseRecord(client, 'table', undefined, { ...record(1), TaskDefinition: 'reporting:1' }, 'reporting');
+  await writeReleaseRecord(client, 'table', record(1), record(2), 'api');
+  expect((await readReleaseRecord(client, 'table', 'api'))?.Seq).toBe(2);
+  expect((await readReleaseRecord(client, 'table', 'reporting'))?.TaskDefinition).toBe('reporting:1');
+  expect(items.size).toBe(2);
+  const api = JSON.stringify(taskTableProtection('arn:aws:dynamodb:eu-west-1:597581086285:table/table', 'api'));
+  const reporting = JSON.stringify(
+    taskTableProtection('arn:aws:dynamodb:eu-west-1:597581086285:table/table', 'reporting')
+  );
+  expect(api).toContain('release#api');
+  expect(api).not.toContain('release#reporting');
+  expect(reporting).toContain('status#reporting#');
+  expect(reporting).not.toContain('status#api#');
 });

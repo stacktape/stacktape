@@ -2,7 +2,9 @@ import {
   CloudFormationClient,
   CancelUpdateStackCommand,
   DescribeStacksCommand,
-  DescribeStackResourcesCommand
+  DescribeStackResourcesCommand,
+  ListStackResourcesCommand,
+  type StackResourceSummary
 } from '@aws-sdk/client-cloudformation';
 import {
   DynamoDBClient,
@@ -30,6 +32,7 @@ import {
   FilterLogEventsCommand
 } from '@aws-sdk/client-cloudwatch-logs';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -56,13 +59,18 @@ const ACCOUNT = '597581086285',
   PROFILE = 'stacktape-e2e';
 const cliRoot = resolve(import.meta.dir, '../..');
 const root = resolve(cliRoot, '../..');
-const clients = { region: REGION, credentials: fromIni({ profile: PROFILE }) };
+const clients = {
+  region: REGION,
+  credentials: fromIni({ profile: PROFILE }),
+  requestHandler: new NodeHttpHandler({ connectionTimeout: 10000, requestTimeout: 30000 })
+};
 const cfn = new CloudFormationClient(clients),
   ddb = new DynamoDBClient(clients),
   ecs = new ECSClient(clients),
   s3 = new S3Client(clients),
   ecr = new ECRClient(clients);
 type Owned = {
+  services?: string[];
   name: string;
   owner: string;
   table: string;
@@ -232,6 +240,18 @@ const getStack = async (owned: Owned) => {
   }
 };
 
+const listOwnedStackResources = async (owned: Owned) => {
+  const resources: StackResourceSummary[] = [];
+  let NextToken: string | undefined;
+  do {
+    const page = await cfn.send(
+      new ListStackResourcesCommand({ StackName: owned.stackId ?? `${owned.name}-bench`, NextToken })
+    );
+    resources.push(...(page.StackResourceSummaries ?? []));
+    NextToken = page.NextToken;
+  } while (NextToken);
+  return resources;
+};
 const ownedStack = async (owned: Owned) => {
   const stack = await getStack(owned);
   if (stack)
@@ -309,12 +329,10 @@ const cleanup = async (state: State, owned: Owned) => {
   await guard();
   const stack = await ownedStack(owned);
   if (owned.stackAttempted && (stack || owned.stackId)) {
-    const resources = await cfn.send(
-      new DescribeStackResourcesCommand({ StackName: owned.stackId ?? `${owned.name}-bench` })
-    );
+    const resources = await listOwnedStackResources(owned);
     owned.inventory = [
       ...(owned.inventory ?? []),
-      ...(resources.StackResources ?? [])
+      ...resources
         .filter((r) => r.PhysicalResourceId)
         .map((r) => ({ type: r.ResourceType!, id: r.PhysicalResourceId! }))
     ].filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index);
@@ -385,47 +403,49 @@ const cleanup = async (state: State, owned: Owned) => {
       if (!missing(error)) throw error;
     }
   }
-  const family = awsResourceNames.ecsTaskDefinitionFamily('api', `${owned.name}-bench`);
-  for (const status of ['ACTIVE', 'INACTIVE'] as const) {
-    let nextToken: string | undefined;
-    do {
-      const definitions = await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status, nextToken }));
-      const exact = (definitions.taskDefinitionArns ?? []).filter(
-        (arn) => arn.split('/').at(-1)?.split(':')[0] === family
-      );
-      for (const arn of exact) {
-        if (status === 'ACTIVE')
-          await retryEcsCleanup(() => ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn })));
-        await retryEcsCleanup(async () => {
-          const deleted = await ecs.send(new DeleteTaskDefinitionsCommand({ taskDefinitions: [arn] }));
-          assert(!deleted.failures?.length, 'Owned task-definition deletion failed.');
-        });
-        await Bun.sleep(1200);
-      }
-      nextToken = definitions.nextToken;
-    } while (nextToken);
-  }
-  // ECS retains DELETE_IN_PROGRESS revisions while recently stopped tasks still reference them.
-  // Keep exact-family recovery state until every revision is absent, rather than treating acceptance as deletion.
-  const revisionDeadline = performance.now() + 70 * 60 * 1000;
-  for (;;) {
-    const remaining: string[] = [];
-    for (const status of ['ACTIVE', 'INACTIVE', 'DELETE_IN_PROGRESS'] as const) {
+  for (const serviceName of owned.services ?? ['api']) {
+    const family = awsResourceNames.ecsTaskDefinitionFamily(serviceName, `${owned.name}-bench`);
+    for (const status of ['ACTIVE', 'INACTIVE'] as const) {
       let nextToken: string | undefined;
       do {
-        const page = await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status, nextToken }));
-        remaining.push(
-          ...(page.taskDefinitionArns ?? []).filter((arn) => arn.split('/').at(-1)?.split(':')[0] === family)
+        const definitions = await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status, nextToken }));
+        const exact = (definitions.taskDefinitionArns ?? []).filter(
+          (arn) => arn.split('/').at(-1)?.split(':')[0] === family
         );
-        nextToken = page.nextToken;
+        for (const arn of exact) {
+          if (status === 'ACTIVE')
+            await retryEcsCleanup(() => ecs.send(new DeregisterTaskDefinitionCommand({ taskDefinition: arn })));
+          await retryEcsCleanup(async () => {
+            const deleted = await ecs.send(new DeleteTaskDefinitionsCommand({ taskDefinitions: [arn] }));
+            assert(!deleted.failures?.length, 'Owned task-definition deletion failed.');
+          });
+          await Bun.sleep(1200);
+        }
+        nextToken = definitions.nextToken;
       } while (nextToken);
     }
-    if (!remaining.length) break;
-    await save(join(owned.directory, 'task-definition-cleanup.json'), { pending: remaining, verified: false });
-    assert(performance.now() < revisionDeadline, 'Owned task-definition deletion still pending; run cleanup-only.');
-    await Bun.sleep(15000);
+    // ECS retains DELETE_IN_PROGRESS revisions while recently stopped tasks still reference them.
+    // Keep exact-family recovery state until every revision is absent, rather than treating acceptance as deletion.
+    const revisionDeadline = performance.now() + 70 * 60 * 1000;
+    for (;;) {
+      const remaining: string[] = [];
+      for (const status of ['ACTIVE', 'INACTIVE', 'DELETE_IN_PROGRESS'] as const) {
+        let nextToken: string | undefined;
+        do {
+          const page = await ecs.send(new ListTaskDefinitionsCommand({ familyPrefix: family, status, nextToken }));
+          remaining.push(
+            ...(page.taskDefinitionArns ?? []).filter((arn) => arn.split('/').at(-1)?.split(':')[0] === family)
+          );
+          nextToken = page.nextToken;
+        } while (nextToken);
+      }
+      if (!remaining.length) break;
+      await save(join(owned.directory, 'task-definition-cleanup.json'), { pending: remaining, verified: false });
+      assert(performance.now() < revisionDeadline, 'Owned task-definition deletion still pending; run cleanup-only.');
+      await Bun.sleep(15000);
+    }
+    await save(join(owned.directory, `task-definition-cleanup-${serviceName}.json`), { pending: [], verified: true });
   }
-  await save(join(owned.directory, 'task-definition-cleanup.json'), { pending: [], verified: true });
   for (let i = 0; i < 180; i++) {
     const remaining = await getStack(owned);
     if (!remaining) break;
@@ -977,6 +997,8 @@ const main = async () => {
         }
         await configure(owned, memory, count);
         const run: BenchmarkRun = {
+          recordService: 'node',
+          artifactService: 'api',
           service: 'api',
           name,
           owner,
@@ -1256,6 +1278,7 @@ export {
   cleanup,
   getStack,
   ownedStack,
+  listOwnedStackResources,
   endpoint,
   waitForFleet,
   edit,

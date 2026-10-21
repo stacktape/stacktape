@@ -24,9 +24,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
   /**
    * #### Update code inside running containers when eligible. Off by default, including production.
    *
-   * Supports one Node.js js-bundle web service per stack, on x86 Fargate behind an HTTP API,
+   * Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
    * without configured health checks or side containers. The application must honor PORT.
-   * Autoscaling maximum plus deployment surge must fit within 10 tasks.
+   * Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
+   * All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
+   * or custom build/install steps; other Python packaging uses images.
    *
    * Old and new processes share task memory during the switch. A sudden memory increase can
    * fail in-flight requests. A kernel peak-memory screen rejects risky swaps and uses an image deploy.

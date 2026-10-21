@@ -83,6 +83,25 @@ owned `v4swap-` project at stage `bench`. It copies the `deploy-benchmarks/fixtu
 ignored run directory. A small entrypoint starts its exported app because the bundler resolves `import.meta.url` at
 build time. The pinned Go builder requires Docker. No package is published.
 
+For Python and several public-config services, use `scripts/code-swap/extension.ts`. Set
+`STP_CODE_SWAP_BENCH_FIXTURES_ROOT` to a deploy-benchmarks checkout if it is not at
+`/home/congy/projects/deploy-benchmarks`. Build development artifacts before the benchmark CLI. That build copies the
+supervisor beside its entrypoint, so another development-artifact build cannot remove the binary during an edit.
+
+```sh
+STP_CODE_SWAP_BENCH_LIVE=1 AWS_PROFILE=stacktape-e2e STACKTAPE_AWS_ACCOUNT=stacktape-e2e \
+  pnpm --filter @stacktape/cli exec bun scripts/code-swap/extension.ts container-python --customer-path --state .stacktape/swap-python
+```
+
+Repeat with `five-services`. Its eleven edits include the fixture's three changed services and a selective edit to one
+previously swapped service; unchanged tasks and code must stay unchanged. Business probes use fresh job IDs and the
+fixture's public webhook signature. Both apps also exercise group image fallback, a killed deploy followed by explicit
+image recovery, image rollback and opt-out. Five services additionally test wildcard task-role denials and a real kernel
+peak-memory refusal. For the Node regression, use `container-node --benchmark-only`. Each run keeps raw request samples,
+command logs and exact cleanup state under the selected directory, and prints its cleanup-only command. Do not delete
+that state while an ECS task-definition deletion is still pending. These runs use the ordinary Cloud Map drain helper;
+this does not qualify arbitrary application sidecars.
+
 Each 512/1024 MiB, one/two-task configuration receives 20 consecutive edits and 20 matched image controls under public
 traffic. The real CLI discovers configuration, bundles, builds/pushes images, uploads S3 bundles, allocates releases and
 records ordinary release history. The supervisor enforces the lifetime kernel-peak screen; image fallbacks remain in the

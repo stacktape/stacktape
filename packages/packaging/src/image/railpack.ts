@@ -296,8 +296,22 @@ export const buildUsingRailpack = async ({
   packages,
   aptPackages,
   buildEnvironment,
-  railpackConfig
+  railpackConfig,
+  imageExtension
 }: {
+  imageExtension?: {
+    digestInput: unknown;
+    existingDigests: string[];
+    prepare: (input: {
+      packagingDigest: string;
+      sourceDirectoryPath: string;
+      includedFilePaths: string[];
+      plan: RailpackPlan;
+      python: boolean;
+      baseInputs: string;
+      baseImage: string;
+    }) => Promise<{ dockerfileContents: string; buildContextPath: string } | undefined>;
+  };
   name: string;
   cwd: string;
   progressLogger: PackagingProgressLogger;
@@ -381,7 +395,13 @@ export const buildUsingRailpack = async ({
   });
   const digest = mergeHashes(
     contextChecksum,
-    objectHash({ plan, railpackFrontendImage, dockerBuildOutputArchitecture, buildEnvironmentHash })
+    objectHash({
+      plan,
+      railpackFrontendImage,
+      dockerBuildOutputArchitecture,
+      buildEnvironmentHash,
+      ...(imageExtension && { imageExtension: imageExtension.digestInput })
+    })
   );
   const resolvedPackages = Object.values(info.resolvedPackages ?? {}).map(
     ({ name: packageName, resolvedVersion }) => `${packageName} ${resolvedVersion}`
@@ -391,7 +411,7 @@ export const buildUsingRailpack = async ({
     ...resolvedPackages,
     ...(python ? [`built on ${python.image.split('/').at(-1)}`] : [])
   ].join(', ');
-  if (existingDigests.includes(digest)) {
+  if ((imageExtension?.existingDigests ?? existingDigests).includes(digest)) {
     await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM', finalMessage: packagingMessages.unchanged });
     return {
       digest,
@@ -407,6 +427,16 @@ export const buildUsingRailpack = async ({
     finalMessage: detection ? `Detected ${detection}` : undefined
   });
 
+  const baseImage = imageExtension ? `${name}-code-swap-base` : name;
+  const extension = await imageExtension?.prepare({
+    packagingDigest: digest,
+    sourceDirectoryPath: absoluteSourceDirectoryPath,
+    includedFilePaths,
+    plan,
+    python: Boolean(python) && !cacheFromRef && !cacheToRef,
+    baseInputs: JSON.stringify({ plan, railpackFrontendImage, dockerBuildOutputArchitecture, buildEnvironmentHash }),
+    baseImage
+  });
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
   const pinnedPlan =
     python && pinLocalBaseImage && !cacheFromRef && !cacheToRef
@@ -422,12 +452,12 @@ export const buildUsingRailpack = async ({
           )
         )
       : plan;
-  const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+  let { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
     dockerfileContents: JSON.stringify(pinnedPlan),
     // The context is the customer's source directory: the plan file stays out of their project tree.
     buildFileDirectoryPath: tmpdir(),
     buildDockerImage,
-    imageTag: name,
+    imageTag: extension ? baseImage : name,
     buildContextPath: absoluteSourceDirectoryPath,
     dockerBuildOutputArchitecture,
     cacheFromRef,
@@ -441,6 +471,21 @@ export const buildUsingRailpack = async ({
     },
     secrets: buildVariables
   });
+  if (extension) {
+    const extended = await buildGeneratedDockerImage({
+      ...extension,
+      buildDockerImage,
+      imageTag: name,
+      dockerBuildOutputArchitecture,
+      cacheFromRef,
+      cacheToRef
+    });
+    size = extended.size;
+    id = extended.id;
+    created = extended.created;
+    dockerOutput = (dockerOutput ?? '') + (extended.dockerOutput ?? '');
+    duration += extended.duration;
+  }
   await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: packagingMessages.containerImage(size) });
 
   return {

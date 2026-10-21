@@ -1,3 +1,4 @@
+import { codeSwapPrepareServices } from '@domain-services/code-swap/runtime';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { RollingUpdateFinish } from 'src/aws/ecs';
 import { tuiManager } from '@application-services/tui-manager';
@@ -167,6 +168,7 @@ export const performFastDeploy = async ({
   );
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
+  await codeSwapPrepareServices(plan.services);
   const updates = [
     ...plan.functions.map((update) => ({
       name: update.workloadName,
