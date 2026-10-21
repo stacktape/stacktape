@@ -48,6 +48,12 @@ test('CLI compilation discovers a new smoke project and rejects errors in its in
   const invalid = compile();
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.stdout, /new-smoke.*source\.ts.*TS2322/);
+  // An early program's error fails the run even though every later program compiles.
+  await writeFile(join(root, '_test-stacks/new-smoke/source.ts'), 'export const value: string = "valid";');
+  await writeFile(join(root, 'tests/source.ts'), 'export const value: string = 42;');
+  const invalidTests = compile();
+  assert.notEqual(invalidTests.status, 0);
+  assert.match(invalidTests.stdout, /source\.ts.*TS2322/);
 });
 
 test('Turbo schedules generated editor inputs and shared UI before development consumers', () => {
@@ -64,10 +70,12 @@ test('Turbo schedules generated editor inputs and shared UI before development c
       ...(hasConsole ? ['--filter=@stacktape/console-ui'] : []),
       '--filter=@stacktape/init-ui',
       '--filter=@stacktape/website',
+      '--filter=@stacktape/docs',
       '--dry=json'
     ],
     {
       encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
       shell: process.platform === 'win32',
       timeout: 30_000,
       env: { ...process.env, TURBO_TELEMETRY_DISABLED: '1', DO_NOT_TRACK: '1' }
@@ -77,7 +85,8 @@ test('Turbo schedules generated editor inputs and shared UI before development c
   const graph = JSON.parse(result.stdout) as { tasks: { taskId: string; dependencies: string[] }[] };
   const expected: Record<string, string[]> = {
     '@stacktape/init-ui#build:watch': ['@stacktape/ui-react#build'],
-    '@stacktape/website#dev': ['@stacktape/design-tokens#generate', '@stacktape/ui-react#build']
+    '@stacktape/website#dev': ['@stacktape/design-tokens#generate', '@stacktape/ui-react#build'],
+    '@stacktape/docs#dev': ['@stacktape/cli#generate', '@stacktape/cli#generate:monaco', '@stacktape/ui-react#build']
   };
   // Public clones intentionally have no Console workspace.
   if (hasConsole) {

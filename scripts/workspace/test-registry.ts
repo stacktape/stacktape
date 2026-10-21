@@ -5978,7 +5978,10 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/cli/scripts/typecheck.mts',
       'apps/cli/package.json',
-      'apps/cli/**/tsconfig.json',
+      'apps/cli/tsconfig.json',
+      'apps/cli/tests/tsconfig.json',
+      'apps/cli/@generated/tsconfig.json',
+      'apps/cli/_test-stacks/*/tsconfig.json',
       'turbo.json',
       'apps/console/ui/turbo.json',
       'packages/ministack/src/fixture.ts',

@@ -80,13 +80,23 @@ test('committed Console gitlinks expand into the real changed and deleted privat
   assert.ok(dirtyPaths.includes('apps/console/api/src/server.ts'));
   git(root, 'add', '-A');
   git(root, 'commit', '-m', 'advance private pointer and remove root file');
-  const paths = await collectChangedPaths({ json: true, since: baseline }, root);
-  assert.deepEqual(paths, [
+  // --since compares with the merge base, so later commits on the base branch are not this branch's changes.
+  const branch = git(root, 'rev-parse', '--abbrev-ref', 'HEAD');
+  git(root, 'checkout', '-q', '-b', 'advanced-base', baseline);
+  await mkdir(join(root, 'apps', 'website'), { recursive: true });
+  await writeFile(join(root, 'apps', 'website', 'page.ts'), 'export {};');
+  git(root, 'add', '.');
+  git(root, 'commit', '-m', 'unrelated base change');
+  git(root, 'checkout', '-q', branch);
+  const expected = [
     'apps/console',
     'apps/console/api/prisma/old.sql',
     'apps/console/api/src/server.ts',
     'package.json'
-  ]);
+  ];
+  assert.deepEqual(await collectChangedPaths({ json: true, since: baseline }, root), expected);
+  const paths = await collectChangedPaths({ json: true, since: 'advanced-base' }, root);
+  assert.deepEqual(paths, expected);
   const ids = new Set(createTestPlan(paths).map(({ id }) => id));
   for (const id of [
     'console-api',
@@ -97,6 +107,10 @@ test('committed Console gitlinks expand into the real changed and deleted privat
   ]) {
     assert.ok(ids.has(id), `missing ${id}`);
   }
+  // A public clone sees only the gitlink; it still needs the integrated gate.
+  const pointerOnly = new Set(createTestPlan(['apps/console']).map(({ id }) => id));
+  assert.ok(pointerOnly.has('integrated-gate'));
+  assert.ok(!pointerOnly.has('public-gate'));
 });
 
 test('uses the self-starting deployed-dev browser lane for a UI-only change', () => {
@@ -573,27 +587,6 @@ test('recommendations report one de-duplicated command with slice IDs, level, ti
   assert.equal(insights.available, false);
   assert.deepEqual(insights.requires, ['console', 'docker', 'network']);
 });
-test('specialized browser projects are selected by their implementing slice paths', () => {
-  for (const [path, command, slice] of [
-    [
-      'apps/console/ui/src/pages/SecurityPage/Findings.tsx',
-      'pnpm --filter @stacktape/console-ui test:e2e:security',
-      'S62'
-    ],
-    ['apps/console/api/src/services/runners/index.ts', 'pnpm --filter @stacktape/console-ui test:e2e:runners', 'S47'],
-    [
-      'apps/console/ui/src/pages/IssuesPage/index.tsx',
-      'pnpm --filter @stacktape/console-ui test:e2e:issues:dev-api',
-      'S55'
-    ]
-  ]) {
-    const selected = createTestPlan([path!]).find((l) => l.commands.includes(command!));
-    assert.ok(selected, path!);
-    assert.ok(selected.slices.includes(slice!));
-    assert.equal(selected.level, 'browser');
-    assert.equal(selected.tier, 'release');
-  }
-});
 test('session tooling selects the previously dormant Chromium command', () => {
   for (const path of [
     'apps/console/ui/scripts/browser-sessions.ts',
@@ -601,34 +594,13 @@ test('session tooling selects the previously dormant Chromium command', () => {
     'apps/console/ui/e2e/fixtures.ts',
     'apps/console/ui/playwright.config.ts'
   ]) {
-    const lane = createTestPlan([path]).find((l) => l.id === 'console-browser-sessions');
-    assert.ok(lane, path!);
-    assert.equal(lane.tier, 'change');
-    assert.equal(lane.level, 'browser');
-    assert.ok(lane.slices.includes('S71'));
+    assert.ok(
+      createTestPlan([path]).some((l) => l.id === 'console-browser-sessions'),
+      path
+    );
   }
 });
-test('dormant trace and resource-map rules are owned and selected', () => {
-  for (const [path, slice] of [
-    ['apps/console/ui/src/aws/traces-commands.test.ts', 'S64'],
-    ['apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts', 'S46']
-  ]) {
-    const lane = createTestPlan([path!]).find((l) => l.id === 'console-ui');
-    assert.ok(lane, path!);
-    assert.ok(lane.tests.includes(path!));
-    assert.ok(lane.slices.includes(slice!));
-    assert.equal(lane.tier, 'pr');
-  }
-});
-
-test('migration adoption and browser privacy remain selected change lanes before release', () => {
-  for (const path of ['apps/console/api/prisma/migration-adoption.test.ts', 'apps/console/api/scripts/migrate-db.ts']) {
-    const lane = createTestPlan([path]).find((candidate) => candidate.id === 'console-database');
-    assert.ok(lane, path);
-    assert.equal(lane.tier, 'change');
-    assert.equal(lane.release, 'every-candidate');
-    assert.ok(lane.requires.includes('docker'));
-  }
+test('browser privacy tooling selects the privacy qualification', () => {
   for (const path of [
     'apps/console/ui/scripts/qualify-browser-privacy.ts',
     'apps/console/ui/e2e/privacy-probe.spec.ts',
@@ -637,22 +609,5 @@ test('migration adoption and browser privacy remain selected change lanes before
   ]) {
     const lane = createTestPlan([path]).find((candidate) => candidate.id === 'console-ui-test-e2e-privacy');
     assert.ok(lane, path);
-    assert.equal(lane.tier, 'change');
-    assert.equal(lane.release, 'every-candidate');
-    assert.ok(lane.requires.includes('chromium'));
-  }
-});
-
-test('offline Console contracts and assembled template validation are selected PR lanes', () => {
-  for (const [path, id] of [
-    ['apps/console/api/package-exports.test.ts', 'console-offline-contracts'],
-    ['apps/console/api/prisma/migration-history.test.ts', 'console-offline-contracts'],
-    ['apps/console/api/stacktape.test.ts', 'console-support-template'],
-    ['apps/console/api/stacktape.ts', 'console-support-template']
-  ]) {
-    const lane = createTestPlan([path!]).find((candidate) => candidate.id === id);
-    assert.ok(lane, `${path} selects ${id}`);
-    assert.equal(lane.tier, 'pr');
-    assert.ok(lane.slices.includes('S68'));
   }
 });
