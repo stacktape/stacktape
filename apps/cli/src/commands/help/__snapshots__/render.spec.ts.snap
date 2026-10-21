@@ -175,6 +175,26 @@ Global options:
 Documentation: https://docs.stacktape.com/cli/"
 `;
 
+exports[`help for stack 1`] = `
+"Usage: stacktape stack [options]
+
+Commands:
+  stack update-modules      Updates AWS CloudFormation infrastructure module private types to the latest compatible version.
+  stack recover             Rolls back the CloudFormation stack to the last known good state.
+  stack list                Lists all stacks deployed in a specified region.
+  stack history             Lists recent recorded Stacktape operations with their status.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Show errors only
+      --log-level <level>  info, debug, error; quiet wins, otherwise last flag wins
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
 exports[`help for dev 1`] = `
 "Usage: stacktape dev [options]
 

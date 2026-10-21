@@ -47,9 +47,7 @@ const commandRow = (id: StacktapeCommand) =>
 export const renderHelp = (path?: string): string[] => {
   const command = path ? resolveCommandName(path, cliCommands) : undefined;
   const name = command ? publicCommandName(command) : path;
-  const children = name
-    ? cliCommands.filter((id) => publicCommandName(id).startsWith(`${name} `) && id !== 'cf-module:update')
-    : [];
+  const children = name ? cliCommands.filter((id) => publicCommandName(id).startsWith(`${name} `)) : [];
   if (path && !command && !children.length)
     throw new CliError({
       category: 'CLI',
