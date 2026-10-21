@@ -16881,7 +16881,7 @@ Security guardrails enforce infrastructure best practices that protect data and 
 - **Require deletion protection** — When enabled, all [relational databases](/resources/databases/relational-database) must have `deletionProtection` set to `true`, reducing accidental deletion risk for database resources.
 - **Require stack termination protection** — Require `deploymentConfig.terminationProtection: true`. CloudFormation then rejects stack deletion through Stacktape, AWS Console, or the AWS API until protection is deliberately disabled and redeployed.
 - **Require recoverable data stores** — Require automated backups for RDS, DynamoDB point-in-time recovery, and EFS automatic backups. This adds backup storage cost and does not replace restore testing.
-- **Require dead-letter queue** — When enabled, all [SQS queues](/resources/messaging/sqs-queue) must have a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing, preventing silent message loss.
+- **Require dead-letter queue** — When enabled, every [SQS queue](/resources/messaging/sqs-queue) must have a `redrivePolicy` (dead-letter queue) configured, except a queue that another queue in the stack uses as its dead-letter queue. In AWS SQS, a dead-letter queue captures messages that fail processing, preventing silent message loss.
 - **Require WAF on load balancers** — When enabled, directly configured application load balancers and those generated for web/private services must reference a configured [web application firewall](/resources/security/web-application-firewall). Internally generated load balancers without a configurable firewall setting are ignored.
 - **Require multiple container instances** — Require `scaling.minInstances` of at least two for user-configurable container services. This removes a single-task failure point and increases baseline compute cost. Fixed internal workloads, currently self-hosted Convex, are ignored because their instance count cannot be changed.
 
@@ -17263,7 +17263,7 @@ The `require-data-backups` guardrail checks the backup controls Stacktape can de
 
 ## Require dead-letter queue
 
-The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures.
+The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures. A queue that another queue in the stack names in `redrivePolicy.targetSqsQueueName` is the dead-letter queue itself and needs no `redrivePolicy` of its own, as `deadLetterQueue` in the example below shows. A queue that only queues in other stacks use as their dead-letter queue is not recognized and still needs its own `redrivePolicy`.
 
 **When to enable:** Enable when your system processes messages representing real business events — orders, payments, notifications — where losing a message means losing data. Dead-letter queues give you a second chance to inspect and reprocess failed messages instead of having them silently disappear after exhausting retries.
 
