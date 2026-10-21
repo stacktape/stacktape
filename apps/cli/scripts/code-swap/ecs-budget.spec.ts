@@ -139,7 +139,7 @@ test('customer workload eligibility keeps unqualified platforms and checks on im
   expect(unsupportedReason({ ...workload, resources: { ...workload.resources, architecture: 'arm64' } }, 1)).toContain(
     'arm64'
   );
-  expect(unsupportedReason(workload, 2)).toContain('one container service');
+  expect(unsupportedReason(workload, 5)).toBeUndefined();
   expect(
     unsupportedReason(
       {
@@ -179,7 +179,7 @@ test('an image-only fallback never receives a command for a supervisor absent fr
   const { codeSwapContainerPolicy } = await import('../../src/domain/code-swap/ecs-policy');
   const previous = codeSwapIntegration.imageHasSupervisor;
   try {
-    codeSwapIntegration.imageHasSupervisor = false;
+    codeSwapIntegration.imageHasSupervisor = new Map([['orders', false]]);
     const container = { name: 'app', packaging: { type: 'js-bundle' } } as Parameters<
       typeof codeSwapContainerPolicy
     >[1];
