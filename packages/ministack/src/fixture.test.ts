@@ -1,12 +1,14 @@
 /**
  * Qualifies the fixture through its own contract: the emulator answers on a loopback port with synthetic credentials,
  * two accounts from one container cannot see each other's state, code inside the container cannot reach the internet
- * over IPv4 or IPv6 and cannot put the default route back, and `stop()` removes the container and its volumes after
+ * over IPv4 or IPv6 and cannot put the default route back, a forwarded host loopback port is the one way it reaches
+ * this machine, and `stop()` removes the container and its volumes after
  * success and after a deliberate failure and refuses to report a cleanup Docker did not confirm. Needs Docker; run
  * with `pnpm --filter @stacktape/ministack test:fixture`.
  */
 import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
 import { CreateBucketCommand, HeadBucketCommand, ListBucketsCommand, S3Client } from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import {
@@ -115,6 +117,44 @@ describe('MiniStack fixture', () => {
     expect(egress.ipv4).toMatch(/^blocked/);
     expect(egress.ipv6).toMatch(/^blocked/);
     expect(egress.restore_errno).toBe(-1);
+
+    // A loopback server on this machine, reached from inside the emulator at the same address once forwarded.
+    const server = createServer((request, response) => response.end(`host saw ${request.url}`));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const { port } = server.address() as { port: number };
+      // Asynchronous, so this process can answer while the container waits for it.
+      const fetchInside = async () => {
+        const child = Bun.spawn(
+          [
+            'docker',
+            'exec',
+            ministack.containerName,
+            'python',
+            '-c',
+            `import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:${port}/from-ministack',timeout=5).read().decode())`
+          ],
+          { stdout: 'pipe', stderr: 'pipe' }
+        );
+        const [stdout, stderr, status] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited
+        ]);
+        return { stdout, stderr, status };
+      };
+      expect((await fetchInside()).status).not.toBe(0);
+      await ministack.forwardHostPort(port);
+      await ministack.forwardHostPort(port);
+      const reached = await fetchInside();
+      expect(reached.stdout.trim(), reached.stderr).toBe('host saw /from-ministack');
+      const afterForward = spawnSync('docker', ['exec', ministack.containerName, 'python', '-c', EGRESS_PROBE], {
+        encoding: 'utf8'
+      });
+      expect(JSON.parse(afterForward.stdout)).toMatchObject({ ipv4: expect.stringMatching(/^blocked/) });
+    } finally {
+      server.close();
+    }
 
     const environment = ministack.childEnvironment();
     expect(Object.keys(environment).some((name) => /PROFILE/.test(name))).toBe(false);
