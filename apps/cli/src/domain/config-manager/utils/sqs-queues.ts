@@ -44,6 +44,13 @@ export const validateSqsQueueConfig = ({ resource }: { resource: StpSqsQueue }) 
   }
 };
 
+/**
+ * Queues that another queue of the stack names as its redrive target. A dead-letter queue keeps what failed elsewhere;
+ * it needs no dead-letter queue of its own, which could only be satisfied by a cycle.
+ */
+export const getDeadLetterQueueNames = (queues: ReadonlyArray<StpSqsQueue>) =>
+  new Set(queues.flatMap((queue) => queue.redrivePolicy?.targetSqsQueueName ?? []));
+
 export const getAllQueuePolicyStatements = ({
   activeConfig,
   resource

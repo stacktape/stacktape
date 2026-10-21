@@ -35,15 +35,21 @@ describe('issue processor parsing', () => {
   test('extracts Python frames that appear before the final error line', () => {
     const events = [
       event('1', 'Traceback (most recent call last):'),
-      event('2', '  File "/app/app.py", line 14, in error'),
-      event('3', '    raise ValueError("Python container ValueError with traceback")'),
-      event('4', 'ValueError: Python container ValueError with traceback')
+      event('2', '  File "/app/server.py", line 40, in handle'),
+      event('3', '    return error(request)'),
+      event('4', '  File "/app/app.py", line 14, in error'),
+      event('5', '    raise ValueError("Python container ValueError with traceback")'),
+      event('6', 'ValueError: Python container ValueError with traceback')
     ];
 
-    const parsed = issueProcessor.parseLogEventForErrors(events[3], events, 3);
+    const parsed = issueProcessor.parseLogEventForErrors(events[5], events, 5);
 
     expect(parsed?.errorMessage).toBe('ValueError: Python container ValueError with traceback');
-    expect(parsed?.stackTrace[0]).toEqual({ function: 'error', file: '/app/app.py', line: 14, column: 0 });
+    // Python prints the oldest call first; the frame that raised leads the stored trace.
+    expect(parsed?.stackTrace).toEqual([
+      { function: 'error', file: '/app/app.py', line: 14, column: 0 },
+      { function: 'handle', file: '/app/server.py', line: 40, column: 0 }
+    ]);
   });
 
   test('parses Lambda runtime JSON stack traces', () => {
