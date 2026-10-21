@@ -150,6 +150,18 @@ test('local directives read current values after rotation while deployed referen
     expect(await locallyResolveSensitiveValue({ ssmParameterName: '/app/deployed-connection' })).toBe(
       'postgres://app:synthetic-first@database.example/app'
     );
+    // A password that looks like a replacement pattern is inserted as it is.
+    await secrets.send(new CreateSecretCommand({ Name: 'dollars', SecretString: "pa$$w$&rd$'" }));
+    await ssm.send(
+      new PutParameterCommand({
+        Name: '/app/dollar-connection',
+        Type: 'String',
+        Value: `postgres://app:${escapeCloudformationSecretDynamicReference('{{resolve:secretsmanager:dollars}}')}@database.example/app`
+      })
+    );
+    expect(await locallyResolveSensitiveValue({ ssmParameterName: '/app/dollar-connection' })).toBe(
+      "postgres://app:pa$$w$&rd$'@database.example/app"
+    );
     expect(outputs[getStackOutputName('database', 'CurrentSecretVersionId')].Value).toBe(first.VersionId);
     const nextDeployment = await loadConfig(account, inputs);
     expect(await nextDeployment.resolve(false)).toEqual({
@@ -163,6 +175,53 @@ test('local directives read current values after rotation while deployed referen
     ssm.destroy();
   }
 }, 30_000);
+
+test('container secrets resolve to version-pinned selectors and require SecureString parameters', async () => {
+  const account = ministack.account();
+  const secrets = new SecretsManagerClient(ministack.clientConfig(account));
+  const ssm = new SSMClient(ministack.clientConfig(account));
+  const containerInputs = `resources: {}
+variables:
+  password: $ContainerSecret('database.password')
+  secret: $ContainerSecret('database')
+  token: $ContainerSsmParameterVersion('/app/token')
+`;
+  try {
+    const first = await secrets.send(
+      new CreateSecretCommand({ Name: 'database', SecretString: '{"password":"synthetic-first"}' })
+    );
+    await ssm.send(new PutParameterCommand({ Name: '/app/token', Value: 'synthetic-token', Type: 'SecureString' }));
+    await ssm.send(new PutParameterCommand({ Name: '/app/host', Value: 'database.internal', Type: 'String' }));
+    expect(await (await loadConfig(account, containerInputs)).resolve(false)).toEqual({
+      password: `${first.ARN}:password::${first.VersionId}`,
+      secret: `${first.ARN}:::${first.VersionId}`,
+      token: '1'
+    });
+
+    // A rotation changes the selector and the version label, so ECS registers a new task definition.
+    const second = await secrets.send(
+      new PutSecretValueCommand({ SecretId: 'database', SecretString: '{"password":"synthetic-second"}' })
+    );
+    await ssm.send(
+      new PutParameterCommand({ Name: '/app/token', Value: 'synthetic-new', Type: 'SecureString', Overwrite: true })
+    );
+    expect(await (await loadConfig(account, containerInputs)).resolve(false)).toEqual({
+      password: `${first.ARN}:password::${second.VersionId}`,
+      secret: `${first.ARN}:::${second.VersionId}`,
+      token: '2'
+    });
+
+    // ECS can inject only SecureString parameters as secrets; a plain String is refused before deployment.
+    const plain = await loadConfig(
+      account,
+      "resources: {}\nvariables:\n  host: $ContainerSsmParameterVersion('/app/host')\n"
+    );
+    await expect(plain.resolve(false)).rejects.toMatchObject({ code: 'CONFIG_CONTAINER_SECRET_SSM_TYPE_INVALID' });
+  } finally {
+    secrets.destroy();
+    ssm.destroy();
+  }
+});
 
 test.each([
   { value: 'synthetic-private-not-json', code: 'DIRECTIVE_SECRET_JSON_INVALID' },
