@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -145,9 +145,14 @@ test.skipIf(process.platform === 'win32').each(installers)(
         expect(result.exitCode).toBe(0);
         expect(result.stdout.toString()).toBe('candidate executable: --version\n');
       }
+      // The installer's TMPDIR is the fixture root: an 80 MB download must not stay behind.
+      expect(readdirSync(root).filter((name) => name.startsWith('stacktape_install_'))).toEqual([]);
       const shellConfig = await readFile(join(home, platform === 'alpine' ? '.profile' : '.bashrc'), 'utf8');
       expect(shellConfig).toContain(bin);
-      expect(run().exitCode).toBe(0);
+      // A GitHub Actions job gets the directory on PATH for its later steps, and shell setup is not repeated.
+      const githubPath = join(root, 'github-path');
+      expect(run({ GITHUB_ACTIONS: 'true', GITHUB_PATH: githubPath }).exitCode).toBe(0);
+      expect(await readFile(githubPath, 'utf8')).toBe(`${bin}\n`);
       expect(await readFile(join(home, platform === 'alpine' ? '.profile' : '.bashrc'), 'utf8')).toBe(shellConfig);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -175,6 +180,29 @@ test.skipIf(process.platform === 'win32')(
     }
   }
 );
+
+// macOS defaults to zsh and many developers use fish; each gets its own configuration file and syntax.
+test.skipIf(process.platform === 'win32').each([
+  { installer: 'macos', shell: '/bin/zsh', file: '.zshrc', line: (bin: string) => `export PATH="${bin}:$PATH"` },
+  {
+    installer: 'linux',
+    shell: '/usr/bin/fish',
+    file: '.config/fish/config.fish',
+    line: (bin: string) => `fish_add_path ${bin}`
+  }
+])('$installer installer adds the directory to PATH for $shell', async ({ installer, shell, file, line }) => {
+  const { root, bin, home, run } = await fixture(installer);
+  try {
+    await mkdir(join(home, file, '..'), { recursive: true });
+    await writeFile(join(home, file), '# customer shell\n');
+    const result = run({ SHELL: shell });
+    expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
+    expect(await readFile(join(home, file), 'utf8')).toContain(line(bin));
+    expect(await readFile(join(home, '.bashrc'), 'utf8')).toBe('# customer shell\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 // A visitor may copy the installer for the other architecture, for instance when the website guesses Apple silicon for
 // an Intel Mac. Every Linux and macOS installer installs the build the machine's processor runs.
