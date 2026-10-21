@@ -164,6 +164,40 @@ describe('estimator', () => {
     expect(httpApiRequests?.unsupportedProduct).toBeUndefined();
   });
 
+  test('a load balancer pays for two public IPs and a scaled service for every minimum instance', async () => {
+    await putPrice('EC2-load-balancer-application', {
+      'us-east-1': { currency: 'USD', pricePerUnit: '0.0225', unit: 'Hrs' }
+    });
+    await putPrice('EC2-load-balancer-lcu-application', {
+      'us-east-1': { currency: 'USD', pricePerUnit: '0.008', unit: 'LCU-Hrs' }
+    });
+    const result = await estimate(
+      {
+        resources: {
+          balancer: { type: 'application-load-balancer' },
+          scaledApi: {
+            type: 'web-service',
+            properties: {
+              packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+              resources: { cpu: 0.25, memory: 512 },
+              scaling: { minInstances: 3, maxInstances: 5 }
+            }
+          }
+        }
+      },
+      'us-east-1'
+    );
+    expect(result.incomplete).toBe(false);
+    expect(result.resourcesBreakdown.balancer.priceInfo.totalMonthlyFlat).toBeCloseTo(
+      (0.0225 + 2 * 0.005) * HOURS_PER_MONTH,
+      10
+    );
+    expect(result.resourcesBreakdown.scaledApi.priceInfo.totalMonthlyFlat).toBeCloseTo(
+      3 * (0.04048 * 0.25 + 0.004445 * 0.5 + 0.005) * HOURS_PER_MONTH,
+      10
+    );
+  });
+
   test('missing pay-per-use rates cannot turn a function into a complete zero-cost estimate', async () => {
     const result = await estimate(
       {
