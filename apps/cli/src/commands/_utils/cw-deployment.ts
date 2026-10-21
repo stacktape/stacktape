@@ -1,3 +1,5 @@
+import { codeSwapIntegration } from '@domain-services/code-swap/integration';
+import { packagingManager } from '@domain-services/packaging-manager';
 import { codeSwapSwap, codeSwapResolveRole, codeSwapPending } from '@domain-services/code-swap/runtime';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type {
@@ -210,10 +212,26 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     Tags: stackManager.getTags()
   };
 
-  await codeSwapResolveRole(calculatedTaskDefinition);
+  await codeSwapResolveRole(calculatedTaskDefinition, workload.name);
+  const comparison = structuredClone(calculatedTaskDefinition);
+  for (const container of comparison.Properties.ContainerDefinitions as ContainerDefinition[]) {
+    const job = getJobName({
+      workloadName: workload.name,
+      workloadType: workload.configParentResourceType,
+      containerName: container.Name as string
+    });
+    const packaged = packagingManager.getPackagingOutputForJob(job);
+    if (
+      packaged &&
+      codeSwapIntegration.imageMatchesRunningCode(job, packaged.digest, currentTaskDefinition.taskDefinitionArn)
+    ) {
+      const current = currentTaskDefinition.containerDefinitions.find((item) => item.name === container.Name);
+      if (current) container.Image = current.image;
+    }
+  }
   const { needsUpdate: imageNeedsUpdate } = compareEcsTaskDefinitions({
     currentTaskDefinition,
-    calculatedTaskDefinition
+    calculatedTaskDefinition: comparison
   });
 
   const ecsTaskDefinitionNeedsUpdate = imageNeedsUpdate || codeSwapPending(workload.name);
@@ -240,7 +258,7 @@ export const updateEcsService = async ({
 }: Awaited<ReturnType<typeof getECSHotswapInformation>>): Promise<{ finishedWhen?: RollingUpdateFinish }> => {
   if (await codeSwapSwap({ workload, ecsServiceArn, newCfTaskDefinition, blueGreen, ecsTaskDefinition, ecsService }))
     return {};
-  await codeSwapResolveRole(newCfTaskDefinition);
+  await codeSwapResolveRole(newCfTaskDefinition, workload.name);
   const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
     instanceId: workload.name,

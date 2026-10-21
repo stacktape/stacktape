@@ -44,11 +44,11 @@ export const codeSwapContainerPolicy = (
   serviceCount = 1
 ) => {
   if (!workload.codeSwap && !benchmarkHasPhase3()) return {};
-  if (codeSwapIntegration.imageHasSupervisor === false) return {};
+  if (codeSwapIntegration.imageHasSupervisor.get(workload.name) === false) return {};
   if (workload.codeSwap && unsupportedReason(workload, serviceCount)) return {};
   if (workload.containers.length !== 1 || container.internalHealthCheck || container.essential === false)
     throw new Error('Phase 3 qualifies one essential application without authored checks.');
-  if (workload.resources.instanceTypes || container.packaging?.type !== 'js-bundle')
+  if (workload.resources.instanceTypes || !['js-bundle', 'buildpack'].includes(container.packaging?.type ?? ''))
     throw new Error('Phase 3 qualifies Node Fargate js-bundle only.');
   // The owned harness has one service. Reject other composition rather than
   // pretending a per-service calculation enforces a stack-wide total.

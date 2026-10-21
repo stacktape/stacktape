@@ -81,8 +81,14 @@ func applyBundle(data []byte, digest string, size int64, destination string) (er
 	if expanded.N <= 0 {
 		return fmt.Errorf("expanded archive too large")
 	}
-	if !names["index.mjs"] && !names["index.js"] {
+	if os.Getenv("STP_CODE_SWAP_COMMAND") == "" && !names["index.mjs"] && !names["index.js"] {
 		return fmt.Errorf("missing Node entrypoint")
+	}
+	// Dependencies remain in the verified image. The archive cannot supply this name or an escaping link.
+	if info, err := os.Stat("/app/node_modules"); err == nil && info.IsDir() {
+		if err := os.Symlink("/app/node_modules", filepath.Join(staging, "node_modules")); err != nil {
+			return err
+		}
 	}
 	return os.Rename(staging, destination)
 }

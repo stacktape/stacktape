@@ -1,5 +1,5 @@
 // Identity-policy Denies apply even when customer application statements allow dynamodb:* on *.
-export const taskTableProtection = (tableArn: string) => {
+export const taskTableProtection = (tableArn: string, service = 'node') => {
   const resources = [tableArn, `${tableArn}/*`, tableArn.replace(/:[^:]+:(\d+):table\//, '::$1:global-table/')];
   const denyWrongKey = (actions: string[], key: string) => [
     {
@@ -12,8 +12,8 @@ export const taskTableProtection = (tableArn: string) => {
   ];
   return [
     { Effect: 'Deny', NotAction: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:PutItem'], Resource: resources },
-    ...denyWrongKey(['dynamodb:GetItem', 'dynamodb:Query'], 'release#node'),
-    ...denyWrongKey(['dynamodb:PutItem'], 'status#node#${aws:userid}'),
+    ...denyWrongKey(['dynamodb:GetItem', 'dynamodb:Query'], `release#${service}`),
+    ...denyWrongKey(['dynamodb:PutItem'], `status#${service}#\${aws:userid}`),
     // TransactWriteItems authorizes the underlying PutItem action, not an action named TransactWriteItems.
     {
       Effect: 'Deny',

@@ -289,7 +289,7 @@ test('table creation follows task protection, and opt-out retains the Deny while
     const run = JSON.parse(await Bun.file(runPath).text());
     await writeFile(runPath, JSON.stringify({ ...run, optOut: false }));
     await codeSwapTemplate(template);
-    expect(template.Resources.StacktapeCodeSwapTable.DependsOn).toBe(cfLogicalNames.ecsTaskRole('api'));
+    expect(template.Resources.StacktapeCodeSwapTable.DependsOn).toContain(cfLogicalNames.ecsTaskRole('api'));
     template.Resources[cfLogicalNames.ecsTaskDefinition('api')].Properties = {
       ...template.Resources[cfLogicalNames.ecsTaskDefinition('api')].Properties,
       TaskRoleArn: 'arn:aws:iam::597581086285:role/unprotected'
@@ -471,3 +471,152 @@ test('opt-out waits for draining task revisions and refuses uncertain task evide
     'Could not confirm'
   );
 });
+
+test('service records advance independently and lost writes reread only their service', async () => {
+  const { client, items, loseNextResponse } = fixture();
+  await writeReleaseRecord(client, 'table', undefined, record(1), 'api');
+  loseNextResponse();
+  await writeReleaseRecord(client, 'table', undefined, { ...record(1), TaskDefinition: 'reporting:1' }, 'reporting');
+  await writeReleaseRecord(client, 'table', record(1), record(2), 'api');
+  expect((await readReleaseRecord(client, 'table', 'api'))?.Seq).toBe(2);
+  expect((await readReleaseRecord(client, 'table', 'reporting'))?.TaskDefinition).toBe('reporting:1');
+  expect(items.size).toBe(2);
+  const api = JSON.stringify(taskTableProtection('arn:aws:dynamodb:eu-west-1:597581086285:table/table', 'api'));
+  const reporting = JSON.stringify(
+    taskTableProtection('arn:aws:dynamodb:eu-west-1:597581086285:table/table', 'reporting')
+  );
+  expect(api).toContain('release#api');
+  expect(api).not.toContain('release#reporting');
+  expect(reporting).toContain('status#reporting#');
+  expect(reporting).not.toContain('status#api#');
+});
+
+test('Python source swaps require a hash on every pinned requirement', async () => {
+  const { pythonHashLock, strictPythonPlan } = await import('../../src/domain/code-swap/python');
+  const hash = `--hash=sha256:${'a'.repeat(64)}`;
+  for (const requirements of [
+    '',
+    '# only a comment',
+    `a==1.0 \\\n ${hash}\nb==2.0`,
+    `a>=1.0 ${hash}`,
+    `a==1.* ${hash}`,
+    `a==1.0 ${hash}\n-r extra.txt`,
+    `a @ https://example.com/a.whl ${hash}`
+  ])
+    expect(pythonHashLock(requirements)).toBe(false);
+  expect(pythonHashLock(`# uv generated\na==1.0 \\\n ${hash}\n # via b\nb[extra]==2.0 ${hash}\n`)).toBe(true);
+  const plan = {
+    steps: [{ commands: [{ cmd: 'uv pip install -r requirements.txt || python -m pip install -r requirements.txt' }] }]
+  };
+  expect(strictPythonPlan(plan)?.steps).toEqual([
+    {
+      commands: [
+        {
+          cmd: 'uv pip install --require-hashes -r requirements.txt || python -m pip install --require-hashes -r requirements.txt'
+        }
+      ]
+    }
+  ]);
+  expect(strictPythonPlan({ steps: [{ commands: [{ cmd: 'uv sync --locked' }] }] })).toBeUndefined();
+  expect(plan.steps[0].commands[0].cmd).toBe(
+    'uv pip install -r requirements.txt || python -m pip install -r requirements.txt'
+  );
+});
+
+test.skipIf(!Bun.which('python3'))(
+  'Python environment identity ignores source edits and detects installed byte changes',
+  async () => {
+    const { pythonEnvironmentFingerprint } = await import('../../src/domain/code-swap/python');
+    const { mkdir } = await import('node:fs/promises');
+    const directory = await mkdtemp(join(tmpdir(), 'python-swap-identity-'));
+    try {
+      const venv = join(directory, '.venv');
+      await mkdir(venv);
+      await writeFile(join(venv, 'dependency.py'), 'VERSION = 1\n');
+      const script = pythonEnvironmentFingerprint.replace(
+        "['/app/.venv', '/usr/local', '/usr/lib', '/lib']",
+        JSON.stringify([venv])
+      );
+      const fingerprint = () => {
+        const result = Bun.spawnSync(['python3', '-I', '-c', script]);
+        expect(result.exitCode).toBe(0);
+        return result.stdout.toString().trim();
+      };
+      const initial = fingerprint();
+      expect(initial).toMatch(/^[a-f0-9]{64}$/);
+      await writeFile(join(directory, 'app.py'), 'new code\n');
+      expect(fingerprint()).toBe(initial);
+      await writeFile(join(venv, 'dependency.py'), 'VERSION = 2\n');
+      expect(fingerprint()).not.toBe(initial);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+);
+
+test.skipIf(!Bun.which('python3') || !Bun.which('uv'))(
+  'strict Python installation rejects a hashed direct dependency without its transitive lock',
+  async () => {
+    const { pythonHashLock } = await import('../../src/domain/code-swap/python');
+    const directory = await mkdtemp(join(tmpdir(), 'python-transitive-lock-'));
+    try {
+      // Local wheels make dependency resolution real while keeping the test entirely offline.
+      const wheels = Bun.spawnSync([
+        'python3',
+        '-I',
+        '-c',
+        `
+import hashlib, pathlib, sys, zipfile
+root = pathlib.Path(sys.argv[1])
+entries = []
+for name, dependency in [('swap_parent', 'Requires-Dist: swap-child==1.0\\n'), ('swap_child', '')]:
+    path = root / (name + '-1.0-py3-none-any.whl')
+    info = name + '-1.0.dist-info/'
+    with zipfile.ZipFile(path, 'w') as wheel:
+        wheel.writestr(info + 'METADATA', 'Metadata-Version: 2.1\\nName: ' + name + '\\nVersion: 1.0\\n' + dependency)
+        wheel.writestr(info + 'WHEEL', 'Wheel-Version: 1.0\\nRoot-Is-Purelib: true\\nTag: py3-none-any\\n')
+        wheel.writestr(info + 'RECORD', '')
+        wheel.writestr(name + '.py', 'VALUE = 1\\n')
+    entries.append(name + '==1.0 --hash=sha256:' + hashlib.sha256(path.read_bytes()).hexdigest())
+print('\\n'.join(entries))
+`,
+        directory
+      ]);
+      expect(wheels.exitCode).toBe(0);
+      const complete = wheels.stdout.toString().trim();
+      const incomplete = complete.split('\n')[0]!;
+      // Both pass syntax validation; only the installer can establish transitive completeness.
+      expect(pythonHashLock(incomplete)).toBe(true);
+      expect(pythonHashLock(complete)).toBe(true);
+      const requirements = join(directory, 'requirements.txt');
+      const install = () =>
+        Bun.spawnSync([
+          'uv',
+          'pip',
+          'install',
+          '--python',
+          Bun.which('python3')!,
+          '--no-config',
+          '--no-cache',
+          '--no-index',
+          '--find-links',
+          directory,
+          '--require-hashes',
+          '--target',
+          join(directory, 'installed'),
+          '-r',
+          requirements
+        ]);
+      await writeFile(requirements, incomplete);
+      const rejected = install();
+      expect(rejected.exitCode).not.toBe(0);
+      expect(rejected.stderr.toString()).toContain('hash');
+      await writeFile(requirements, complete);
+      const accepted = install();
+      expect(accepted.exitCode).toBe(0);
+      expect(await Bun.file(join(directory, 'installed/swap_child.py')).text()).toBe('VALUE = 1\n');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+);

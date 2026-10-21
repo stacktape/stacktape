@@ -311,3 +311,70 @@ test('pins the images a plan names wherever a step or the deploy names them, and
   // The input is left as it was: the digest identifies the unpinned plan.
   expect(JSON.stringify(plan)).not.toContain('@sha256');
 });
+
+test.each([false, true])(
+  'Python strict install failure=%s chooses image fallback before creating a swap artifact',
+  async (fails) => {
+    const source = await mkdtemp(join(tmpdir(), 'python-lock-fallback-'));
+    let fallback = false;
+    let finished = false;
+    const commands: string[] = [];
+    try {
+      await writeFile(join(source, 'app.py'), 'print(1)');
+      const plan = preparedPlan({
+        steps: [{ name: 'install', commands: [{ cmd: 'uv pip install -r requirements.txt' }] }]
+      });
+      const result = await buildUsingRailpack({
+        name: 'python',
+        cwd: source,
+        existingDigests: [],
+        dockerBuildOutputArchitecture: 'linux/amd64',
+        railpackFrontendImage: 'example.invalid/frontend@sha256:' + 'a'.repeat(64),
+        progressLogger: {
+          startEvent: async () => {},
+          finishEvent: async () => {},
+          updateEvent: async () => {}
+        } as never,
+        createPackagingError: createPackagingError as never,
+        runRailpackPrepare: async () => ({ plan, info: { success: true, detectedProviders: ['python'] } }),
+        imageExtension: {
+          digestInput: {},
+          existingDigests: [],
+          prepare: async () => ({
+            plan: {
+              ...plan,
+              steps: [{ name: 'install', commands: [{ cmd: 'uv pip install --require-hashes -r requirements.txt' }] }]
+            },
+            imageFallback: () => {
+              fallback = true;
+            },
+            finish: async (imageId) => {
+              expect(imageId).toBe('sha256:base');
+              finished = true;
+              return { dockerfileContents: 'FROM python-code-swap-base\n', buildContextPath: source };
+            }
+          })
+        },
+        buildDockerImage: async (options) => {
+          const contents = await Bun.file(join(options.buildContextPath, options.dockerfilePath!)).text();
+          commands.push(contents);
+          if (fails && contents.includes('--require-hashes')) throw new Error('Unpinned transitive requirement');
+          return {
+            size: 1,
+            id: contents.startsWith('FROM') ? 'sha256:swap' : 'sha256:base',
+            dockerOutput: '',
+            created: 0,
+            duration: 0
+          };
+        }
+      });
+      expect(fallback).toBe(fails);
+      expect(finished).toBe(!fails);
+      expect(result.imageId).toBe(fails ? 'sha256:base' : 'sha256:swap');
+      expect(commands).toHaveLength(2);
+      if (fails) expect(commands[1]).not.toContain('--require-hashes');
+    } finally {
+      await rm(source, { recursive: true, force: true });
+    }
+  }
+);
