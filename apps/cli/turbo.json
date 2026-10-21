@@ -8,6 +8,8 @@
         "helper-lambdas/**",
         "src/**",
         "scripts/package-helper-lambdas.ts",
+        "scripts/code-swap/build-supervisor.ts",
+        "scripts/code-swap/supervisor/**",
         "scripts/release/build-cli-sources.ts",
         "scripts/support/**",
         "package.json",

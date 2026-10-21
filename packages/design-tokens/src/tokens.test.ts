@@ -24,6 +24,7 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-interactive-primary',
       '--stp-interactive-primary-light',
       '--stp-interactive-accent',
+      '--stp-field-hover-border',
       '--stp-field-focus-border',
       '--stp-field-focus-ring',
       '--stp-status-error',
@@ -41,7 +42,25 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-focus-outline-offset',
       '--stp-motion-duration-fast',
       '--stp-motion-duration-base',
-      '--stp-motion-easing'
+      '--stp-motion-easing',
+      '--stp-space-4',
+      '--stp-space-8',
+      '--stp-space-12',
+      '--stp-space-16',
+      '--stp-space-24',
+      '--stp-space-32',
+      '--stp-space-48',
+      '--stp-font-size-caption',
+      '--stp-font-size-body',
+      '--stp-font-size-heading',
+      '--stp-font-size-title',
+      '--stp-font-size-display',
+      '--stp-font-weight-body',
+      '--stp-font-weight-label',
+      '--stp-font-weight-display',
+      '--stp-dialog-width-confirm',
+      '--stp-dialog-width-form',
+      '--stp-dialog-width-content'
     ]
   );
 });
@@ -64,7 +83,7 @@ test('literal tokens contain direct CSS values rather than token references', ()
 
 test('shipped CSS declares each typed token value and resolves every typed reference', async () => {
   const css = await readFile(new URL('../generated/tokens.css', import.meta.url), 'utf8');
-  const declarations = [...css.matchAll(/(--stp-[a-z-]+):\s*([^;]+);/g)];
+  const declarations = [...css.matchAll(/(--stp-[a-z0-9-]+):\s*([^;]+);/g)];
   const actual = new Map(declarations.map((match) => [match[1], match[2]]));
   assert.equal(actual.size, declarations.length, 'CSS must not redeclare a token');
   const expected = new Map<string, string>();

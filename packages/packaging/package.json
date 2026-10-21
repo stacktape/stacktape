@@ -38,7 +38,8 @@
     "./web/constants": "./src/web/constants.ts",
     "./web/hosting-bucket-build": "./src/web/hosting-bucket-build.ts",
     "./web/nextjs-web": "./src/web/nextjs-web.ts",
-    "./web/ssr-web-shared": "./src/web/ssr-web-shared.ts"
+    "./web/ssr-web-shared": "./src/web/ssr-web-shared.ts",
+    "./artifact/code-swap": "./src/artifact/code-swap.ts"
   },
   "scripts": {
     "test:ssr": "bun test src/web",

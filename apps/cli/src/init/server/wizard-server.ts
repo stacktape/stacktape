@@ -73,6 +73,8 @@ export type WizardDeployment = {
   region: string;
   /** The command that was run, so anyone can reproduce or resume it in a terminal. */
   commandLine: string;
+  /** When this attempt began. The event list is capped, so its first entry cannot say. */
+  startedAt?: string;
   events: unknown[];
   /** Output that was not part of the protocol: stderr, and anything unparseable. */
   lines: string[];
@@ -94,8 +96,8 @@ export type WizardDeployment = {
    * minutes is the point. The page must say so: resources that exist are resources that bill.
    */
   keptPartialProgress?: boolean;
-  /** Typed deployed-resource URLs resolved after success; never scraped from repository output. */
-  urls?: string[];
+  /** Typed deployed-resource URLs resolved after success, by resource; never scraped from repository output. */
+  urls?: Array<{ resourceName: string; url: string }>;
 };
 
 /** What the page renders. Serialised as-is, so nothing here may contain a secret. */

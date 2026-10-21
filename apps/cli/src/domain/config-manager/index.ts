@@ -1061,6 +1061,7 @@ export class ConfigManager {
       const {
         name: _,
         packaging,
+        codeSwap,
         resources,
         type,
         connectTo,
@@ -1100,6 +1101,7 @@ export class ConfigManager {
         _nestedResources: {
           [containerWorkloadIdentifier]: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
+            codeSwap,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1572,28 +1574,29 @@ export class ConfigManager {
   }
 
   /**
-   * Whether this stack's logs feed Issues, decided from `deploymentConfig.issues` alone: on for every stage unless the
+   * Whether this stack's logs feed Issues, decided from `deploymentConfig.errorTracking` alone: on for every stage unless the
    * configuration turns it off or lists other stages. The Console's organization-wide switch is enforced when events
    * arrive, not here, so a deploy never has to reach the Console to decide.
    */
   get issueDetectionPolicy(): { enabled: boolean; reason: string } {
-    const issues = this.config?.deploymentConfig?.issues;
+    const errorTracking = this.config?.deploymentConfig?.errorTracking;
     const stage = this.stackContext.stage;
-    if (issues?.enabled === false) {
-      return { enabled: false, reason: 'turned off by deploymentConfig.issues.enabled' };
+    if (errorTracking?.enabled === false) {
+      return { enabled: false, reason: 'turned off by deploymentConfig.errorTracking.enabled' };
     }
-    const stages = issues?.stages ?? [];
+    const stages = errorTracking?.stages ?? [];
     if (stages.length > 0 && !stages.includes(stage)) {
-      return { enabled: false, reason: `stage "${stage}" is not listed in deploymentConfig.issues.stages` };
+      return { enabled: false, reason: `stage "${stage}" is not listed in deploymentConfig.errorTracking.stages` };
     }
     return {
       enabled: true,
-      reason: stages.length > 0 ? `stage "${stage}" is listed in deploymentConfig.issues.stages` : 'on by default'
+      reason:
+        stages.length > 0 ? `stage "${stage}" is listed in deploymentConfig.errorTracking.stages` : 'on by default'
     };
   }
 
   /** For the deployment record: whether this operation wires Issues for its stack; undefined until a configuration is loaded. */
-  get issuesEnabledForRecording(): boolean | undefined {
+  get errorTrackingEnabledForRecording(): boolean | undefined {
     if (!this.#stackContext || !this.config) return undefined;
     return this.issueDetectionPolicy.enabled;
   }

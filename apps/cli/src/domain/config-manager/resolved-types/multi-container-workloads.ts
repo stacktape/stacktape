@@ -16,6 +16,8 @@ export type StpContainerWorkload = ContainerWorkload['properties'] & {
    * so requiring it here would describe fewer workloads than actually reach this type.
    */
   scaling: ContainerWorkloadScaling & { minInstances: number; maxInstances: number };
+  /** Internal propagation of the web-service opt-in. */
+  codeSwap?: boolean;
   name: string;
   type: ContainerWorkload['type'];
   configParentResourceType:

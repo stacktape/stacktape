@@ -1,0 +1,23 @@
+# Minimal HTTP API continuity case: no ALB, code swap, health check, or application shutdown delay.
+# The runner writes the run owner into this copied config before deployment.
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: local
+resources:
+  apiweb:
+    type: web-service
+    overrides:
+      ApiwebStage:
+        AccessLogSettings:
+          DestinationArn:
+            Fn::GetAtt: [ApiwebLogGroup, Arn]
+          Format: '{"requestId":"$context.requestId","requestTimeEpoch":"$context.requestTimeEpoch","status":"$context.status","integrationError":"$context.integrationErrorMessage","integrationLatency":"$context.integration.latency"}'
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/server.ts
+      resources:
+        cpu: 0.25
+        memory: 512

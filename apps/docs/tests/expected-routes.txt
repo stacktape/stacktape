@@ -29,6 +29,10 @@
 /cli/dev-stop
 /cli/diff
 /cli/domain-add
+/cli/errors-ignore
+/cli/errors-list
+/cli/errors-reopen
+/cli/errors-resolve
 /cli/help
 /cli/incidents
 /cli/incidents-ack
@@ -40,10 +44,6 @@
 /cli/info-stacks
 /cli/info-whoami
 /cli/init
-/cli/issues-ignore
-/cli/issues-list
-/cli/issues-reopen
-/cli/issues-resolve
 /cli/login
 /cli/logout
 /cli/logs
@@ -81,6 +81,7 @@
 /configuration/secrets
 /configuration/stages-and-environments
 /configuration/variables-and-reuse
+/deployment-and-lifecycle/code-swap
 /deployment-and-lifecycle/deploy-time-parameters
 /deployment-and-lifecycle/deploying-stacks
 /deployment-and-lifecycle/deployment-scripts-and-hooks
@@ -115,9 +116,9 @@
 /observability/alarms
 /observability/alert-channels
 /observability/alert-history
+/observability/error-tracking
 /observability/incident-ai
 /observability/incidents
-/observability/issues
 /observability/log-forwarding
 /observability/logs
 /observability/metrics

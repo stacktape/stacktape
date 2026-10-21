@@ -3,6 +3,8 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink, utimes
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { EXECUTABLE_FILE_PATTERNS } from '../../scripts/release/build-cli-sources';
 import * as tar from 'tar';
 import yauzl from 'yauzl';
 import { listArchiveEntries } from '@stacktape/packaging/artifact/archive-entries';
@@ -85,20 +87,34 @@ describe('archiveItem', () => {
     const root = await createRoot();
     const source = join(root, 'release');
     await mkdir(join(source, 'docs'), { recursive: true });
+    await mkdir(join(source, 'helper-lambdas'));
     await file(join(source, 'stacktape'), 'binary');
+    await file(join(source, 'helper-lambdas', 'stacktape-supervisor'), '#!/bin/sh\necho supervisor-ready\n');
     // The release build marks every file executable on disk; only the patterns decide.
     await file(join(source, 'docs', 'readme.md'), 'docs', 0o755);
 
     const archivePath = await archiveItem({
       absoluteSourcePath: source,
       format: 'tgz',
-      executablePatterns: ['stacktape']
+      executablePatterns: EXECUTABLE_FILE_PATTERNS
     });
 
     const modes: Record<string, string> = {};
     await tar.t({ file: archivePath, onReadEntry: (entry) => (modes[entry.path] = (entry.mode! & 0o777).toString(8)) });
     expect(archivePath).toBe(`${source}.tar.gz`);
-    expect(modes).toMatchObject({ stacktape: '755', 'docs/readme.md': '644' });
+    expect(modes).toMatchObject({
+      stacktape: '755',
+      'helper-lambdas/stacktape-supervisor': '755',
+      'docs/readme.md': '644'
+    });
+    if (isPosix) {
+      const extracted = join(root, 'extracted');
+      await mkdir(extracted);
+      await tar.x({ file: archivePath, cwd: extracted });
+      const result = spawnSync(join(extracted, 'helper-lambdas', 'stacktape-supervisor'), { encoding: 'utf8' });
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim()).toBe('supervisor-ready');
+    }
   });
 
   test('keeps the modification times of small and large files in an archive without a fixed time', async () => {
