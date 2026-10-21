@@ -1,6 +1,6 @@
-# Notifications
+# Notification Rules
 
-Stacktape notification rules send selected Stacktape events to your team, such as a failed deployment, an opened incident or a changed secret. Each rule maps one or more event types to an [alert channel](/observability/alert-channels) and can be scoped to specific projects and stages.
+Notification rules decide which Stacktape events an [alert channel](/observability/alert-channels) receives, such as a failed deployment, an opened incident or a changed secret. Each rule belongs to one channel, lists one or more event types and can be limited to specific projects and stages. Rules are managed on the channel's page in the Console.
 
 
 > **Info:** Notifications cover **events recorded by Stacktape**: deployments, deletions, rollbacks, Git deployments, script runs, secret and SSM parameter changes, incidents and new security findings. For **metric-based alerts** on running resources (CPU, error rates, latency), use [alarms](/observability/alarms). A firing alarm opens an [incident](/observability/incidents), and a notification rule that watches incident events sends it to your channel.
@@ -41,21 +41,19 @@ A new rule starts with the failure events, the incident events and new security 
 
 ## Managing notification rules
 
-Open **Notifications** in the Alerting group of the Stacktape Console. The page requires the `org:manage-notifications` permission and lists existing rules with these columns:
+Open **Channels** in the Alerting group of the Stacktape Console and click a channel. Its page lists what the channel receives, one rule per row:
 
 | Column | Description |
 |---|---|
-| **Events** | The event types this rule watches |
-| **Projects** | The projects this rule applies to, or "All projects" |
-| **Stages** | The stages this rule applies to, or "All stages" |
-| **Sent to** | The [alert channel](/observability/alert-channels) that receives the alerts |
-| **Created** | When the rule was created |
+| **Events** | The events the rule sends, grouped by subject, for example "Incidents: opened, resolved" |
+| **From** | The projects and stages the rule covers, for example "All projects · production stages" |
+| **Added** | When the rule was created |
 
-To create a rule, click **New notification rule**, choose an alert channel and event types, then click **Create rule**. To delete a rule, use the **Delete** action on its row. Deleting a rule stops the alerts but keeps the channel.
+The Channels list summarises the same thing per channel in its **Receives** column.
 
+To add a rule, click **New rule** on the channel's page, choose the event types and, optionally, projects and stages, then click **Add rule**. To delete a rule, use **Delete** in its row menu; the channel stays. Adding and deleting rules needs the `org:manage-notifications` permission (organization owners and admins); every member can see them.
 
-> Screenshot: Stacktape Console Notifications page showing a table of notification rules with events, projects, stages, destination channel, and creation date columns Caption: The Notifications page lists notification rules for the selected organization
-
+A new Slack (Stacktape app) channel starts with default rules: incidents and failed deployments from every stage, successful deployments from production stages, and new security findings.
 
 ## Scoping notifications
 
@@ -70,9 +68,9 @@ Project and stage scoping can be combined. Secret and SSM parameter events belon
 > **Tip:** Create separate rules for different severity levels. For example, route failure events to a high-urgency Slack channel and success events to a low-noise webhook.
 
 
-## Alert history
+## Checking what was sent
 
-The [Alert history](/observability/alert-history) page in the Alerting group lists every alert Stacktape sent to your channels, including notification rule alerts, incident pages and budget alerts, with the delivery status per channel. The **Alert history** button on the Notifications page opens it. The old `/notifications/history` address redirects to Alert history filtered to notifications. If an alert wasn't delivered, check the destination [alert channel](/observability/alert-channels) configuration; an expired webhook URL or a misconfigured Slack integration is the most common cause.
+[Sent alerts](/observability/alert-history) in the Alerting group lists every alert Stacktape sent to your channels, with the delivery outcome per channel. Each channel's page also shows its recent alerts. If an alert was not delivered, the delivery details name the error and link to the channel, where **Send test** checks it after you fix its settings. The old `/notifications` address opens Channels.
 
 ## Notifications vs. alarms vs. budgets
 
@@ -80,7 +78,7 @@ Notifications, alarms and budgets serve different purposes. Notification rules a
 
 | Feature | Watches for | Defined in |
 |---|---|---|
-| **Notifications** | Stacktape events (for example a failed deployment or an opened incident) | Console, Notifications page |
+| **Notification rules** | Stacktape events (for example a failed deployment or an opened incident) | Console, on each channel's page |
 | **[Alarms](/observability/alarms)** | CloudWatch metric thresholds (error rates, CPU, latency, queue depth) | Stacktape configuration, `alarms` list on a resource; created on deploy |
 | **[Budgets](/managing-costs/budgets)** | AWS spending thresholds | Console, Budgets page |
 
@@ -92,11 +90,11 @@ Stacktape creates the AWS budget when a budget is saved. Alarms are created when
 
 ### Can I route different events to different channels?
 
-Yes. Create several notification rules, each with its own event types, scope and [alert channel](/observability/alert-channels). For example, send all deployment events to a low-noise webhook with one rule, and route only `production` deploy failures to a high-urgency Slack channel with another.
+Yes. Each channel has its own rules, so give each channel the events and scope it should receive. For example, send all deployment events to a low-noise webhook with one rule, and route only `production` deploy failures to a high-urgency Slack channel with another.
 
 ### Why didn't my notification get delivered?
 
-Open [Alert history](/observability/alert-history), which lists every alert that was sent with its delivery status per channel. If a delivery failed, the cause is usually the destination [alert channel](/observability/alert-channels): an expired webhook URL or a misconfigured Slack integration.
+Open [Sent alerts](/observability/alert-history), which lists every alert that was sent with its delivery status per channel. If a delivery failed, the cause is usually the destination [alert channel](/observability/alert-channels): an expired webhook URL or a misconfigured Slack integration.
 
 ### What is the difference between notifications and alarms?
 

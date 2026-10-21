@@ -20,6 +20,8 @@ export type WizardScenario = {
   verify?: 'passed' | 'failed' | 'unavailable';
   deploy?: 'succeed' | 'fail' | 'held';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
+  agentSetup?: 'succeed' | 'fail';
+  projectName?: string;
 };
 
 export type ScriptedWizard = {

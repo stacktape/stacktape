@@ -56,6 +56,16 @@ On the GitOps screen, click **New GitOps configuration** to open the creation mo
 
 You can create multiple push-to-deploy configurations for the same project — for example, `main` → `prod` and `develop` → `staging`, each targeting different AWS accounts or regions.
 
+Connecting Git deployments prepares a runner in the background in the selected AWS account and region. It starts the
+installed tools, then hibernates until the first push; it does not clone your repository or install project dependencies
+during setup. A push that arrives during preparation uses the same runner. With the keep-running setting, the runner
+stays running instead.
+
+Stopped runners have no EC2 compute charge, but their disks remain billable. The default 50 GiB root disk and 50 GiB
+cache disk cost about **$8.80/month in Ireland**, using gp3's included IOPS and throughput; prices vary by region and
+cache growth increases storage costs. Preparing a runner also incurs a short, one-time EC2 charge. The Console's
+Runners page shows regional cost estimates. See [AWS EBS pricing](https://aws.amazon.com/ebs/pricing/).
+
 ### Multiple configurations per branch
 
 When the handler receives multiple deployment configurations from `getActionsToPerform`, it starts them through `Promise.all`. If you have two configurations watching `main` that deploy to different regions or accounts, both deployments are started concurrently. This is useful for multi-region setups where a single merge to `main` deploys to both `us-east-1` and `eu-west-1`.

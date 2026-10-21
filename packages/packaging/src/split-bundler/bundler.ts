@@ -48,7 +48,7 @@ import {
 } from '../es/import-classification';
 import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
-import { normalizeSplitBuildIdentity } from '../es/artifact-identity';
+import { normalizeSplitBuildIdentity, projectRelativeSource, resolveBunOutputPath } from '../es/artifact-identity';
 import { resolvePrisma } from '../bundlers/es/utils';
 import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
@@ -75,6 +75,7 @@ export const buildSplitBundle = async ({
   minifyIdentifiers = false,
   sourceMaps = 'external',
   sourceMapBannerType = 'pre-compiled',
+  chunkNaming = 'input-set',
   excludeDependencies = [],
   dependenciesToExcludeFromBundle = [],
   bundleAwsSdk = false,
@@ -112,6 +113,7 @@ export const buildSplitBundle = async ({
     minifyIdentifiers,
     sourceMaps,
     sourceMapBannerType,
+    chunkNaming,
     excludeDependencies,
     dependenciesToExcludeFromBundle,
     bundleAwsSdk,
@@ -230,7 +232,8 @@ const executeBunBuild = async ({
   aliases,
   tracker,
   packageAnalysisCache,
-  createPackagingError
+  createPackagingError,
+  chunkNaming
 }: AnalyzePluginOptions & {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   sharedOutdir: string;
@@ -239,6 +242,7 @@ const executeBunBuild = async ({
   minifyIdentifiers: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
+  chunkNaming: 'input-set' | 'content';
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
   /** The emitted files after identity normalization: their final paths, kinds and sizes. */
@@ -338,10 +342,29 @@ const executeBunBuild = async ({
 
   // Chunk names, debug IDs and map sources must not depend on the build directory (`es/artifact-identity`). Renamed
   // chunks are carried into the outputs and the metafile every later step reads.
+  const inputIdentity = (input: string) => {
+    // Entrypoint lookup folds Windows case; artifact identities preserve the project's file names.
+    const absolute = resolveBunOutputPath(process.cwd(), input);
+    return projectRelativeSource(existsSync(absolute) ? realpathSync(absolute) : absolute, monorepoRoot || cwd);
+  };
   const renames = await normalizeSplitBuildIdentity({
     javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     projectRoot: monorepoRoot || cwd,
-    sourcesResolveFrom: sharedOutdir
+    sourcesResolveFrom: sharedOutdir,
+    chunkNaming,
+    chunkKeys: new Map(
+      Object.entries(result.metafile!.outputs)
+        .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
+        .map(([path, output]) => [
+          basename(path, '.js'),
+          JSON.stringify({
+            inputs: Object.keys(output.inputs).map(inputIdentity).toSorted(),
+            // Dynamic-import wrappers can have no inputs. Keep their entry point separate from the input set:
+            // flattening it would collide with the actual module chunk that contains just that source file.
+            ...(output.entryPoint ? { entryPoint: inputIdentity(output.entryPoint) } : {})
+          })
+        ])
+    )
   });
   const renamed = (text: string) => text.replace(/chunk-[a-z0-9]{8}/g, (name) => renames.get(name) ?? name);
   const outputs = await Promise.all(
@@ -817,6 +840,30 @@ const processLambdaOutputsWithMetafile = async ({
     })
   );
 
+  // Every consumer needs the same rewritten chunk and map. Prepare them once per build, then copy the bytes;
+  // decoding a large shared source map separately for every function dominates split-build postprocessing.
+  const packagedChunks = new Map<string, Promise<string>>();
+  const copyChunk = async (chunkPath: string, destination: string) => {
+    let prepared = packagedChunks.get(chunkPath);
+    if (!prepared) {
+      prepared = (async () => {
+        const content = await writeEditedJavaScript({
+          from: chunkPath,
+          to: destination,
+          edits: (code) => getChunkImportEdits(code, () => './'),
+          packaged: true
+        });
+        assertNoRootChunkImports(content);
+        return destination;
+      })();
+      packagedChunks.set(chunkPath, prepared);
+    }
+    const source = await prepared;
+    if (source === destination) return;
+    await copy(source, destination);
+    if (existsSync(`${source}.map`)) await copy(`${source}.map`, `${destination}.map`);
+  };
+
   // Process all lambdas in parallel
   await Promise.all(
     entrypoints.map(async (entrypoint) => {
@@ -864,7 +911,8 @@ const processLambdaOutputsWithMetafile = async ({
         entrypoint,
         outputPath: absoluteOutputPath,
         allRequiredChunks: absoluteChunkPaths,
-        assetFiles: lambdaAssetFiles
+        assetFiles: lambdaAssetFiles,
+        copyChunk
       });
 
       const resolvedModules = getTrackedModulesForInputs(tracker, inputPaths);
@@ -928,12 +976,14 @@ const processLambdaEntrypointWithMetafile = async ({
   entrypoint,
   outputPath,
   allRequiredChunks,
-  assetFiles
+  assetFiles,
+  copyChunk
 }: {
   entrypoint: BuildSplitBundleOptions['entrypoints'][0];
   outputPath: string;
   allRequiredChunks: Set<string>;
   assetFiles: string[];
+  copyChunk: (chunkPath: string, destination: string) => Promise<void>;
 }): Promise<void> => {
   /*
    * The entry imports its chunks from the function's own `chunks/`, exports its handler as default too, and names its
@@ -958,15 +1008,7 @@ const processLambdaEntrypointWithMetafile = async ({
   );
 
   await Promise.all(
-    Array.from(allRequiredChunks).map(async (chunkPath) => {
-      const chunkContent = await writeEditedJavaScript({
-        from: chunkPath,
-        to: join(chunksDestDir, basename(chunkPath)),
-        edits: (code) => getChunkImportEdits(code, () => './'),
-        packaged: true
-      });
-      assertNoRootChunkImports(chunkContent);
-    })
+    Array.from(allRequiredChunks).map((chunkPath) => copyChunk(chunkPath, join(chunksDestDir, basename(chunkPath))))
   );
 
   // Create package.json for ESM

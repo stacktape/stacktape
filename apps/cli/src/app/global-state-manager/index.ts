@@ -104,6 +104,8 @@ export class GlobalStateManager {
   projects: GlobalStateProject[];
   permissions: string[] = [];
   isProjectScoped = false;
+  /** The member reaches only the AWS accounts assigned to them, and `connectedAwsAccounts` lists only those. */
+  isAwsAccountScoped = false;
   // populated with initial dummy variables so that resource resolving can work without using trpc api
   targetStack: {
     stackName: string;
@@ -301,13 +303,17 @@ export class GlobalStateManager {
         throw stpErrors.e65({
           accountName: awsAccount,
           organizationName: this.organizationData.name,
-          connectedAwsAccounts: this.connectedAwsAccounts
+          connectedAwsAccounts: this.connectedAwsAccounts,
+          isAwsAccountScoped: this.isAwsAccountScoped
         });
       }
       return account;
     }
     if (this.connectedAwsAccounts.length < 1) {
-      throw stpErrors.e66({ organizationName: this.organizationData.name });
+      throw stpErrors.e66({
+        organizationName: this.organizationData.name,
+        isAwsAccountScoped: this.isAwsAccountScoped
+      });
     }
     if (this.connectedAwsAccounts.length > 1) {
       throw stpErrors.e67({
@@ -550,6 +556,7 @@ export class GlobalStateManager {
     this.projects = data.projects;
     this.permissions = data.permissions;
     this.isProjectScoped = data.isProjectScoped;
+    this.isAwsAccountScoped = data.isAwsAccountScoped ?? false;
   };
 
   loadValidatedAwsCredentials = async (): Promise<ValidatedAwsCredentials> => {
@@ -558,9 +565,9 @@ export class GlobalStateManager {
 
     // loading method API
     const loadCredentialsUsingApi = async (): Promise<LoadedAwsCredentials> => {
-      const { credentials } = await stacktapeTrpcApiManager.apiClient.awsAccountCredentials({
-        awsAccountName: this.targetAwsAccount.name
-      });
+      const { credentials } = await timeAsync('credentials:console', () =>
+        stacktapeTrpcApiManager.apiClient.awsAccountCredentials({ awsAccountName: this.targetAwsAccount.name })
+      );
       return { ...credentials, expiration: new Date(credentials.expiration), source: 'api' } as LoadedAwsCredentials;
     };
 

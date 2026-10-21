@@ -17,6 +17,7 @@ import { configManager } from '@domain-services/config-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { updateEcsService } from '../../src/commands/_utils/cw-deployment';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
@@ -622,7 +623,7 @@ describe('container rolling deployment family', () => {
       ).map(({ LinuxParameters }) => LinuxParameters);
 
     // The js-bundle image has no tini: the init process ECS starts passes the stop signal to the server.
-    expect(linuxParameters('web')).toEqual([{ InitProcessEnabled: true }]);
+    expect(linuxParameters('web')).toEqual([{ InitProcessEnabled: true }, undefined]);
     // A prebuilt image may bring its own init.
     expect(linuxParameters('prebuilt')).toEqual([undefined]);
   });
@@ -646,10 +647,104 @@ describe('container rolling deployment family', () => {
     expect(deploymentConfiguration(template, 'internal').EarlySuccessCriteria).toBeUndefined();
     expect(deploymentConfiguration(template, 'checkedApiWeb').EarlySuccessCriteria).toEqual(earlySuccess);
 
+    // ECS reverses START dependencies at shutdown. Retiring HTTP API servers stay alive while the managed
+    // sidecar waits for API Gateway's cached Cloud Map routes; readiness and application stop timeouts stay separate.
+    for (const workload of ['apiWeb', 'checkedApiWeb']) {
+      const containers = (template.Resources[cfLogicalNames.ecsTaskDefinition(workload)] as Resource).Properties
+        ?.ContainerDefinitions as {
+        Name: string;
+        DependsOn?: unknown;
+        HealthCheck?: unknown;
+        StopTimeout?: number;
+        Essential?: boolean;
+        Image?: string;
+        Command?: string[];
+      }[];
+      const drain = containers.find(({ Name }) => Name === 'stp-cloudmap-drain');
+      expect(drain).toBeDefined();
+      expect(drain?.DependsOn).toEqual([{ ContainerName: 'service-container', Condition: 'START' }]);
+      expect(drain?.HealthCheck).toBeUndefined();
+      expect(drain?.StopTimeout).toBe(40);
+      expect(drain?.Essential).toBe(false);
+      expect(drain?.Image).toMatch(/\.dkr\.ecr\.eu-west-1\.amazonaws\.com\/.+@sha256:[a-f0-9]{64}$/);
+      expect(drain?.Command?.[0]).toContain('sleep 35');
+      expect(containers.find(({ Name }) => Name === 'service-container')?.StopTimeout).toBe(30);
+    }
+    expect(stopTimeouts(template, 'internal')).toEqual([30]);
+
     // A worker receives no traffic, and its configured stop timeout wins over the default.
     expect(deploymentConfiguration(template, 'worker').EarlySuccessCriteria).toEqual(earlySuccess);
     expect(stopTimeouts(template, 'worker')).toEqual([10]);
   });
+
+  test.each([false, true])(
+    'HTTP API discovery and hints follow the effective supervisor check=%s',
+    async (supervisor) => {
+      const template = await synthesizeFamily('container-sidecar-health-hotswap', config());
+      const taskDefinition = structuredClone(
+        template.Resources[cfLogicalNames.ecsTaskDefinition('apiWeb')]
+      ) as Resource;
+      taskDefinition.Properties!.ContainerDefinitions.push({
+        Name: 'telemetry',
+        Essential: false,
+        HealthCheck: { Command: ['CMD', 'true'] }
+      });
+      if (supervisor)
+        taskDefinition.Properties!.ContainerDefinitions[0].HealthCheck = {
+          Command: ['CMD', '/stacktape-supervisor', 'readiness']
+        };
+      const original = configManager.allContainerWorkloads.find(({ name }) => name === 'apiWeb')!;
+      const workload = {
+        ...original,
+        containers: [
+          ...original.containers,
+          {
+            ...original.containers[0],
+            name: 'telemetry',
+            essential: false,
+            events: [],
+            internalHealthCheck: { healthCheckCommand: ['CMD', 'true'] }
+          }
+        ]
+      };
+      const logger = operationReporter.createChildLogger({
+        parentEventType: 'HOTSWAP_UPDATE',
+        instanceId: workload.name
+      });
+      const loggerSpy = spyOn(operationReporter, 'createChildLogger').mockReturnValue(logger);
+      const finishSpy = spyOn(logger, 'finishEvent');
+      const startSpy = spyOn(awsSdkManager.ecs, 'startRollingUpdate').mockResolvedValue({ deploymentId: 'ecs-svc/2' });
+      const waitSpy = spyOn(awsSdkManager.ecs, 'waitForRollingUpdate').mockResolvedValue({
+        finishedWhen: 'new-instances-discoverable'
+      });
+      try {
+        await updateEcsService({
+          workload,
+          newCfTaskDefinition: taskDefinition,
+          ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
+          blueGreen: false,
+          ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },
+          ecsService: { needsUpdate: true, currentState: {} }
+        } as unknown as Parameters<typeof updateEcsService>[0]);
+        expect(waitSpy).toHaveBeenCalledWith({
+          ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/apiWeb',
+          deploymentId: 'ecs-svc/2',
+          allowUncheckedDiscovery: !supervisor
+        });
+        expect(finishSpy).toHaveBeenCalledWith({
+          eventType: 'UPDATE_ECS_SERVICE',
+          finalMessage: supervisor
+            ? "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background"
+            : "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background"
+        });
+      } finally {
+        waitSpy.mockRestore();
+        startSpy.mockRestore();
+        finishSpy.mockRestore();
+        loggerSpy.mockRestore();
+      }
+    }
+  );
 
   test('a hotswap sends the overridden deployment configuration that CloudFormation receives', async () => {
     const serviceLogicalId = cfLogicalNames.ecsService('albWeb', false);
@@ -691,6 +786,7 @@ describe('container rolling deployment family', () => {
     try {
       await updateEcsService({
         workload: configManager.allContainerWorkloads.find(({ name }) => name === 'albWeb')!,
+        newCfTaskDefinition: template.Resources[cfLogicalNames.ecsTaskDefinition('albWeb')],
         ecsServiceArn: 'arn:aws:ecs:eu-west-1:123456789999:service/cluster/albWeb',
         blueGreen: false,
         ecsTaskDefinition: { needsUpdate: false, currentState: { taskDefinitionArn: 'arn:task:1' } },

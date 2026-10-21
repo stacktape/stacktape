@@ -35,9 +35,11 @@ import { pRateLimit } from 'p-ratelimit';
 import {
   getTriggerOfUnchangedDeploymentScript,
   isCodeOnlyFunctionChange,
+  isContentOnlyLayerChange,
   isImageOnlyTaskDefinitionChange
 } from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
+import { sharedLayerNumberOf } from '@domain-services/deployment-artifact-manager/shared-layers';
 
 @memoizeGetters
 class DeployedStackOverviewManager {
@@ -327,6 +329,11 @@ class DeployedStackOverviewManager {
           : changed;
       case 'AWS::Lambda::Function':
         return isPartOf(this.deployedFunctions) && isCodeOnlyFunctionChange(change) ? undefined : changed;
+      case 'AWS::Lambda::LayerVersion':
+        // The functions that use a shared chunk layer are given its new version directly, like their own code.
+        return sharedLayerNumberOf(cfLogicalName) !== undefined && isContentOnlyLayerChange(change)
+          ? undefined
+          : changed;
       case 'AWS::CloudFormation::CustomResource': {
         const publishedFunction = (change.newValue?.Properties as Record<string, any> | undefined)?.publishLambdaVersion
           ?.functionName?.Ref;

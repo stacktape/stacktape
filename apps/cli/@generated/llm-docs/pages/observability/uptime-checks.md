@@ -10,7 +10,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 - **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Use a [synthetic test](/observability/synthetic-tests) for that.
 - **Monitoring internal-only services** — probers reach endpoints over the public internet. A VPC-internal service is not reachable.
-- **Catching application errors** — [issues](/observability/issues) group runtime errors from logs; an endpoint can serve 200s while a background job fails.
+- **Catching application errors** — [error tracking](/observability/error-tracking) groups runtime errors from logs; an endpoint can serve 200s while a background job fails.
 
 ## Configuration
 
