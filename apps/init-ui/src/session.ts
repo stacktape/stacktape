@@ -149,6 +149,8 @@ export type WizardState = {
     stage: string;
     region: string;
     commandLine: string;
+    /** When this attempt began; the event list is capped, so its first entry cannot say. */
+    startedAt?: string;
     events: unknown[];
     lines: string[];
     outcome?: { ok: boolean; code: string; message: string };
@@ -159,8 +161,8 @@ export type WizardState = {
     repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
     /** A failed attempt left its progress standing (a retry over an existing stack). It still bills. */
     keptPartialProgress?: boolean;
-    /** Typed deployed-resource URLs; never inferred from build or application logs. */
-    urls?: string[];
+    /** Typed deployed-resource URLs, by resource; never inferred from build or application logs. */
+    urls?: Array<{ resourceName: string; url: string }>;
   };
   /** Exact CloudFormation target observed with the credentials the deploy command will use. */
   deployTarget?:

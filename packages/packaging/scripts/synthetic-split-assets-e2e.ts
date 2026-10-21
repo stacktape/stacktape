@@ -111,9 +111,7 @@ const buildStep = async (step: string) => {
     const usedLayers = layers.filter((layer) => layer.chunks.some((chunk) => chunksOf.get(name)!.has(basename(chunk))));
     // oxlint-disable-next-line no-await-in-loop -- Functions are packaged and invoked one at a time.
     const digest = await getSplitFunctionDigest({
-      distFolderPath,
-      chunkLayers: usedLayers.map(({ layerNumber, contentHash }) => ({ layerNumber, contentHash })),
-      nativeLayer: null
+      distFolderPath
     });
     // oxlint-disable-next-line no-await-in-loop -- Functions are packaged and invoked one at a time.
     const zip = await archiveItem({
@@ -234,10 +232,10 @@ try {
   const editedShared = await buildStep('edited-shared');
   report.editedShared = editedShared;
   check(
-    'a same-size shared-code edit changes the layer and both consumers, preserving the isolated function',
+    'a same-size shared-code edit changes the layer while keeping the function ZIP digests unchanged',
     editedShared.layers[0]?.contentHash !== edited.layers[0]?.contentHash &&
-      editedShared.functions.reports.digest !== edited.functions.reports.digest &&
-      editedShared.functions.orders.digest !== edited.functions.orders.digest &&
+      editedShared.functions.reports.digest === edited.functions.reports.digest &&
+      editedShared.functions.orders.digest === edited.functions.orders.digest &&
       editedShared.functions.health.digest === edited.functions.health.digest &&
       (editedShared.functions.reports.response as HandlerResponse).logo?.marker === 'other' &&
       (editedShared.functions.orders.response as HandlerResponse).logo?.marker === 'other',

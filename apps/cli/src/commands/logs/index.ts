@@ -213,8 +213,8 @@ export const commandLogs = async () => {
     startTime: startTime.getTime()
   });
 
-  // Limit events
-  const limitedEvents = events.slice(0, limit);
+  // Events arrive oldest first. Keep the most recent ones, as the Infrequent Access snapshot does.
+  const limitedEvents = events.slice(Math.max(0, events.length - limit));
 
   printLogEvents({ events: limitedEvents, logGroupName, raw });
 

@@ -37,7 +37,13 @@ export type AwsFake = {
 
 // Only these read operations belong to the command scenarios. Everything else must be an explicitly observed
 // mutation or is refused before forwarding, including registry reads not needed by these stacks.
-const reads = new Set(['DescribeStacks', 'ListStackResources', 'GetTemplate', 'DescribeStackEvents']);
+const reads = new Set([
+  'DescribeStacks',
+  'ListStackResources',
+  'GetTemplate',
+  'DescribeStackEvents',
+  'ValidateTemplate'
+]);
 const writes = new Set([
   'CreateStack',
   'UpdateStack',

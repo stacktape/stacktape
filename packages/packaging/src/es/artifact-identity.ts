@@ -5,8 +5,9 @@
  * the absolute build path in three places, which this module neutralizes after every build:
  *
  * - a chunk's `[hash]` name: Bun salts it with the absolute path, so the same bytes get different names in different
- *   directories and every file importing the chunk changes with it. Chunks are renamed after their content, with
- *   chunk references and the debug ID masked, so a chunk's name follows its bytes alone;
+ *   directories and every file importing the chunk changes with it. Split builds normally name chunks by their
+ *   project-relative input file sets, keeping entries unchanged for shared-code edits. Content names include the
+ *   module graph and are used when an entry change requires both generations to coexist during deployment;
  * - the `debugId` in every bundle's trailing comment and in its map: derived by Bun from the absolute path. It is
  *   replaced with a value derived from the bundle's content, identical in the bundle and in its map, so tooling that
  *   pairs them by ID keeps working;
@@ -136,19 +137,24 @@ export const rebaseMapSourcesToProject = async ({
 };
 
 /**
- * Gives every chunk among `javascriptFiles` its content-derived name: the files and their maps are renamed, every
+ * Gives every chunk among `javascriptFiles` its input-set or graph/content name: files and their maps are renamed, every
  * reference in the JavaScript files and in the maps' `file` fields is rewritten, and each bundle is then stamped with
  * its debug ID. Returns the renames (old base name to new base name, without extension) for callers holding paths.
  */
 export const normalizeSplitBuildIdentity = async ({
   javascriptFiles,
   projectRoot,
-  sourcesResolveFrom
+  sourcesResolveFrom,
+  chunkKeys = new Map(),
+  chunkNaming = 'content'
 }: {
   javascriptFiles: string[];
   projectRoot: string;
   /** The folder the maps' `sources` are relative to as Bun wrote them (its output directory). */
   sourcesResolveFrom: string;
+  /** Project-relative input-set identities from the metafile, independent of Bun's path-salted filenames. */
+  chunkKeys?: Map<string, string>;
+  chunkNaming?: 'input-set' | 'content';
 }): Promise<Map<string, string>> => {
   const codes = new Map(
     await Promise.all(
@@ -158,11 +164,61 @@ export const normalizeSplitBuildIdentity = async ({
       )
     )
   );
+  // A chunk's imports are part of its content. Masking them without including the graph gave two different module
+  // graphs the same filenames, making a two-generation Lambda layer impossible. Name the graph without Bun's
+  // path-salted hashes. Hash each chunk's reachable graph so unrelated edits do not rename it; visited nodes bound cycles.
+  const keys = new Map(
+    [...codes]
+      .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
+      .map(([path, code]) => {
+        const name = basename(path, '.js');
+        return [name, chunkKeys.get(name) ?? contentChunkName(code)];
+      })
+  );
+  const canonical = (code: string) =>
+    code.replace(DEBUG_ID_COMMENT, '').replace(CHUNK_NAME, (name) => keys.get(name) ?? name);
+  const chunks = new Map(
+    [...codes].filter(([path]) => keys.has(basename(path, '.js'))).map(([path, code]) => [basename(path, '.js'), code])
+  );
+  const graphIdentity = (root: string) => {
+    const reachable = new Set<string>();
+    const pending = [root];
+    while (pending.length) {
+      const name = pending.pop()!;
+      if (reachable.has(name)) continue;
+      reachable.add(name);
+      for (const match of chunks.get(name)!.matchAll(CHUNK_NAME)) if (chunks.has(match[0])) pending.push(match[0]);
+    }
+    return sha256(
+      JSON.stringify(
+        [...reachable]
+          .map((name) => [keys.get(name)!, canonical(chunks.get(name)!)] as const)
+          .toSorted(([leftKey, leftCode], [rightKey, rightCode]) => {
+            const left = leftKey === rightKey ? leftCode : leftKey;
+            const right = leftKey === rightKey ? rightCode : rightKey;
+            return left < right ? -1 : left > right ? 1 : 0;
+          })
+      )
+    );
+  };
   const renames = new Map<string, string>();
+  // Bun can split one input set into several chunks. Only those ambiguous chunks need content names;
+  // disabling stable names for the entire build makes an unrelated shared edit replace every function ZIP.
+  const inputSetCounts = new Map<string, number>();
+  for (const name of keys.keys()) {
+    const key = chunkKeys.get(name);
+    if (key !== undefined) inputSetCounts.set(key, (inputSetCounts.get(key) ?? 0) + 1);
+  }
+  const targets = new Set<string>();
   for (const [path, code] of codes) {
     const name = basename(path, '.js');
     if (!/^chunk-[a-z0-9]{8}$/.test(name)) continue;
-    const next = contentChunkName(code);
+    const inputSet = chunkKeys.get(name);
+    const stable = chunkNaming === 'input-set' && inputSet !== undefined && inputSetCounts.get(inputSet) === 1;
+    const identity = stable ? `inputs:${inputSet}` : `${graphIdentity(name)}\0${keys.get(name)}\0${canonical(code)}`;
+    const next = `chunk-${sha256(identity).slice(0, 8)}`;
+    if (targets.has(next)) throw new Error('Two split chunks have the same normalized filename.');
+    targets.add(next);
     if (next !== name) renames.set(name, next);
   }
   const rewrite = (text: string) => text.replace(CHUNK_NAME, (name) => renames.get(name) ?? name);

@@ -1,6 +1,7 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { SourceMapManifest } from '@stacktape/console-api/source-maps';
 import { sourceMapObjectKey } from '@stacktape/console-api/source-maps';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key } from './utils';
 
 /**
@@ -56,6 +57,7 @@ export const getSourceMapManifest = ({
       FunctionName?: unknown;
       Code?: { S3Bucket?: unknown; S3Key?: unknown };
       Layers?: unknown[];
+      Tags?: { Key: string; Value: unknown }[];
     };
     const digest = typeof properties.Code?.S3Key === 'string' && parseBucketObjectS3Key(properties.Code.S3Key)?.digest;
     if (typeof properties.FunctionName !== 'string' || !digest) continue;
@@ -67,7 +69,13 @@ export const getSourceMapManifest = ({
         : undefined;
     });
     const sourceMapKeys = [storedKeyOf(properties.Code), ...layerKeys].filter((key): key is string => Boolean(key));
-    if (sourceMapKeys.length) functions.push({ lambdaName: properties.FunctionName, digest, sourceMapKeys });
+    const codeDigest = properties.Tags?.find(({ Key }) => Key === tagNames.codeDigest())?.Value;
+    if (sourceMapKeys.length)
+      functions.push({
+        lambdaName: properties.FunctionName,
+        digest: typeof codeDigest === 'string' ? codeDigest : digest,
+        sourceMapKeys
+      });
   }
   return { functions };
 };

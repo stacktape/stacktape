@@ -1,3 +1,5 @@
+import { codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
   recordSecurityReport,
   deleteUndeployedStage
@@ -39,7 +41,7 @@ import { startSecurityInventory, uploadSecurityInventory } from '../_utils/secur
 import { assessAndPrintSecurityPosture, describeSecurityReportRejection } from '../_utils/security-posture-output';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
-import { type FastDeployPlan, performFastDeploy, planFastDeploy } from './fast-deploy';
+import { createSharedLayerPublication, type FastDeployPlan, performFastDeploy, planFastDeploy } from './fast-deploy';
 import { buildPreviewResourceChanges } from '../diff/utils';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 import {
@@ -53,6 +55,7 @@ import {
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
+import { deleteSupersededSharedLayerVersions, getSharedLayerHotswapInformation } from '../_utils/fn-deployment';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -91,6 +94,15 @@ export const commandDeploy = async () => {
     });
   }
   if (runner === 'ec2') {
+    if (globalStateManager.args.recoverOperation) {
+      throw new CliError({
+        category: 'DEPLOYMENT',
+        code: 'CODE_SWAP_RECOVERY_LOCAL_RUNNER_REQUIRED',
+        message: 'Recover the code-swap operation with the local runner.',
+        hints:
+          'Stop the previous invocation, wait for its AWS changes to finish, then run again with --runner local and --recoverOperation.'
+      });
+    }
     return deployWithEc2Runner();
   }
   return deployLocally(initTargetExpectation);
@@ -175,6 +187,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     });
   }
 
+  await codeSwapOperation('deploy');
   config.validateGuardrails({ hasConfig: true });
   // Evaluated before the build so the findings sit next to the other pre-deploy notes; reported only after the
   // deployment succeeds, because they describe the configuration that is then actually running.
@@ -278,7 +291,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     if (args.fullDeploy) {
       // Even a forced full deployment changes nothing when nothing changed.
       if (!reason && !deployedStackOverview.hasTemplateChanges(cfTemplateDiff)) {
-        fastDeployPlan = { functions: [], services: [] };
+        fastDeployPlan = { functions: [], services: [], layers: [] };
       }
     } else {
       const planning = reason ? { reason } : await planFastDeploy({ config });
@@ -289,6 +302,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       }
     }
   }
+  if (!fastDeployPlan) await codeSwapUseImage();
   // A fast deployment that changes nothing creates no release. Synced bucket content may have changed, and its restore
   // manifest belongs to a release of its own.
   const createsRelease =
@@ -349,7 +363,17 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('UPLOAD');
-  await deploymentArtifacts.uploadAllArtifacts({ includeTemplates: !fastDeployPlan });
+  const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
+  try {
+    await deploymentArtifacts.uploadAllArtifacts({
+      includeTemplates: !fastDeployPlan,
+      onSharedLayerUploaded: sharedLayerPublication?.onLayerUploaded
+    });
+  } catch (error) {
+    // Publication may already be in flight. Settle it before reporting an upload failure; no workload was switched.
+    await sharedLayerPublication?.settle();
+    throw error;
+  }
   const sourceMapManifest = await recordSourceMapsBeforeSwitch(template.getTemplate());
 
   // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
@@ -403,7 +427,13 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   progress.setPhase('DEPLOY');
   try {
     if (fastDeployPlan) {
-      await performFastDeploy({ plan: fastDeployPlan, recordRelease: createsRelease, deploymentArtifacts, progress });
+      await performFastDeploy({
+        plan: fastDeployPlan,
+        recordRelease: createsRelease,
+        deploymentArtifacts,
+        progress,
+        layerVersions: sharedLayerPublication?.wait()
+      });
     } else {
       await performFullDeploy({ deploymentArtifacts, stack, tui });
     }
@@ -426,6 +456,14 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       stackResources: stack.existingStackResources,
       budgetInfo: budget.getBudgetInfoForSpecifiedStack({ stackName: stackContext.stackName })
     });
+    // CloudFormation now owns every function's code and layers, whatever fast deployments changed before, so their
+    // tags say so and the layer versions fast deployments published are no longer run.
+    await deploymentArtifacts.repairFunctionTags(template.getTemplate());
+    const sharedLayers = getSharedLayerHotswapInformation();
+    if (sharedLayers.length) await deleteSupersededSharedLayerVersions({ layers: sharedLayers });
+  } else if (args.fullDeploy) {
+    // A forced no-op must also remove identity tags older rollbacks wrote outside the template.
+    await deploymentArtifacts.repairFunctionTags(template.getTemplate());
   }
 
   await deployConvexFunctions();
@@ -543,6 +581,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   await notification.waitForQueuedEvents();
+  await codeSwapComplete(createsRelease);
 
   return {
     stackInfo: detailedStackInfoSensitive,

@@ -155,6 +155,29 @@ pnpm test:aws --aws-scenario=dev-mode-local-loop
 `STP_AWS_DEV_CANARY_SCENARIOS` selects a comma-separated subset; `first-run-agent` must come first. If cleanup does not
 finish, the canary prints one exact `--cleanup-only` command.
 
+## HTTP API container continuity
+
+The container canary also supports a minimal Node service behind an HTTP API → VPC link → Cloud Map, without a load
+balancer, application health check, code-swap runtime or application shutdown sleep. It logs the AWS-side times at which
+it listens and handles SIGTERM. It disables the HTTP server's idle keep-alive timeout to isolate retirement from backend
+idle-socket races; the SIGTERM handler still closes the server immediately. With an authenticated source CLI, set the
+container canary's guarded account/profile, owner and absolute state/report paths described in
+`container-fast-deploy-canary.ts`, plus:
+
+```sh
+export STP_AWS_CONTAINER_CANARY_HTTP_API_ONLY=1
+export STP_AWS_CONTAINER_CANARY_MEASUREMENTS=10
+pnpm --filter @stacktape/cli run test:real-aws-container-canary
+```
+
+The runner warms the public connection before each measurement. Traffic continues until the old tasks have stopped and
+the new release has answered alone for 15 seconds. The report's per-release evidence files retain each probe,
+application clock samples, routing observations and ECS timestamps. Use application response times, CloudWatch
+application/access logs and CloudTrail registration/deregistration events for cross-machine correlation; a laptop's
+monotonic clock may drift. An HTTP 503 proves a server response, while a client timeout alone does not prove an AWS
+failure. Keep the fixture's immediate SIGTERM close: an application sleep would hide a regression in the platform's
+retirement delay. Cleanup and `--cleanup-only` follow the same owned-state contract as the other container canary mode.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its

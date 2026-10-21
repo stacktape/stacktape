@@ -1,3 +1,4 @@
+import { startTiming } from '@utils/timings';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { operationReporter } from '@application-services/operation-manager';
@@ -11,6 +12,20 @@ import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
+import { templateManager } from '@domain-services/template-manager';
+import {
+  describeFastDeploymentLayerVersion,
+  formatSharedLayersTag,
+  getDeployedSharedLayers,
+  getFunctionCodeDigest,
+  getDeployedArtifactDigest,
+  getTagValue,
+  parseFastDeploymentLayerVersion,
+  replaceSharedLayerArns,
+  resolveTemplateLayerArns,
+  selectSupersededLayerVersions,
+  sharedLayerIdentity
+} from '@domain-services/deployment-artifact-manager/shared-layers';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 export const buildAndUpdateFunctionCode = async (stpResourceName: string, options: { devMode?: boolean } = {}) => {
@@ -43,7 +58,10 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
     spinner.success({ details: `${packagingOutput.size} MB` });
   }
 
-  const { artifactInfo, lambdaResourceName, aliasName } = getLambdaFunctionHotswapInformation({ lambdaProps });
+  const { artifactInfo, lambdaResourceName, aliasName } = getLambdaFunctionHotswapInformation({
+    lambdaProps,
+    sharedLayers: []
+  });
 
   // Upload phase
   const uploadSpinner = devMode ? tuiManager.createSpinner({ text: 'Uploading to S3' }) : null;
@@ -93,15 +111,91 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   return { packagingOutput, lambdaArn: FunctionArn };
 };
 
-export const getLambdaFunctionHotswapInformation = ({ lambdaProps }: { lambdaProps: StpLambdaFunction }) => {
+export type SharedLayerHotswapInformation = {
+  layerNumber: number;
+  cfLogicalName: string;
+  layerName: string;
+  /** The content this deployment built, by the hash in its S3 key. */
+  identity: string;
+  s3Key: string;
+  description?: string;
+  compatibleRuntimes?: string[];
+  /** The version CloudFormation manages and the content it was published from, when the stack has the layer. */
+  cfnVersionArn?: string;
+  cfnIdentity?: string;
+};
+
+type LayerVersionProperties = {
+  LayerName?: unknown;
+  Description?: unknown;
+  CompatibleRuntimes?: unknown;
+  Content?: { S3Key?: unknown };
+};
+
+const layerProperties = (template: { Resources?: Record<string, unknown> }, cfLogicalName: string) =>
+  (template.Resources?.[cfLogicalName] as { Properties?: LayerVersionProperties } | undefined)?.Properties;
+
+/** Every shared chunk layer this deployment's template declares, with the version CloudFormation holds for it. */
+export const getSharedLayerHotswapInformation = (): SharedLayerHotswapInformation[] =>
+  packagingManager.getLayerArtifacts().flatMap(({ layerNumber, s3Key }) => {
+    const cfLogicalName = cfLogicalNames.sharedChunkLayer(layerNumber);
+    const properties = layerProperties(templateManager.getTemplate(), cfLogicalName);
+    if (typeof properties?.LayerName !== 'string') return [];
+    const deployedS3Key = layerProperties(templateManager.oldTemplate, cfLogicalName)?.Content?.S3Key;
+    const compatibleRuntimes = properties.CompatibleRuntimes;
+    return [
+      {
+        layerNumber,
+        cfLogicalName,
+        layerName: properties.LayerName,
+        identity: sharedLayerIdentity(s3Key),
+        s3Key,
+        ...(typeof properties.Description === 'string' ? { description: properties.Description } : {}),
+        ...(Array.isArray(compatibleRuntimes) ? { compatibleRuntimes: compatibleRuntimes as string[] } : {}),
+        ...(() => {
+          const cfnVersionArn = stackManager.existingStackResources.find(
+            ({ LogicalResourceId }) => LogicalResourceId === cfLogicalName
+          )?.PhysicalResourceId;
+          return cfnVersionArn ? { cfnVersionArn } : {};
+        })(),
+        ...(typeof deployedS3Key === 'string' ? { cfnIdentity: sharedLayerIdentity(deployedS3Key) } : {})
+      }
+    ];
+  });
+
+export const getLambdaFunctionHotswapInformation = ({
+  lambdaProps,
+  sharedLayers
+}: {
+  lambdaProps: StpLambdaFunction;
+  /** From `getSharedLayerHotswapInformation`; empty when the caller updates code alone, as `dev` does. */
+  sharedLayers: SharedLayerHotswapInformation[];
+}) => {
   const artifactInfo = deploymentArtifactManager.getLambdaS3UploadInfo({
     artifactName: lambdaProps.artifactName,
     packaging: lambdaProps.packaging
   });
 
-  const deployedLambdaDigest = stackManager.existingStackResources
-    .find(({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName)
-    ?.tags?.find(({ key }) => key === tagNames.codeDigest())?.value;
+  const deployedResource = stackManager.existingStackResources.find(
+    ({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName
+  );
+  const deployedLayers = getDeployedSharedLayers({
+    tags: deployedResource?.tags,
+    deployedTemplate: templateManager.oldTemplate,
+    functionLogicalName: lambdaProps.cfLogicalName
+  });
+  const artifactDigest = getTagValue(deployedResource?.tags, tagNames.artifactDigest());
+  const codeDigest = getTagValue(deployedResource?.tags, tagNames.codeDigest());
+  const deployedLambdaDigest = getDeployedArtifactDigest(
+    artifactDigest,
+    codeDigest,
+    [...deployedLayers].map(([layerNumber, identity]) => ({ layerNumber, identity }))
+  );
+  const layers = packagingManager
+    .getLayerNumbersForLambda(lambdaProps.name)
+    .flatMap((layerNumber) => sharedLayers.filter((layer) => layer.layerNumber === layerNumber));
+  const changedLayers = layers.filter(({ layerNumber, identity }) => deployedLayers.get(layerNumber) !== identity);
+  const codeChanged = deployedLambdaDigest !== artifactInfo.digest;
 
   // if alias is part of the current deployment, it means we will be updating
   const aliasName = stackManager.existingStackResources
@@ -111,23 +205,162 @@ export const getLambdaFunctionHotswapInformation = ({ lambdaProps }: { lambdaPro
   return {
     workloadName: lambdaProps.name,
     lambdaResourceName: lambdaProps.resourceName,
+    cfLogicalName: lambdaProps.cfLogicalName,
     artifactInfo,
-    needsUpdate: deployedLambdaDigest !== artifactInfo.digest,
+    codeChanged,
+    /** The shared layers the function uses, and those whose content differs from what it runs. */
+    layers,
+    changedLayers,
+    needsUpdate: codeChanged || changedLayers.length > 0,
     aliasName
   };
+};
+
+/**
+ * The name of a Lambda the fast path does not update that uses one of the given shared layers, if there is one. Today
+ * every split-bundled Lambda is updated directly; this keeps a future kind of Lambda from running stale shared code.
+ */
+export const findLambdaOutsideFastPathUsingLayers = ({
+  config,
+  layerNumbers
+}: {
+  config: Pick<typeof configManager, 'allLambdasEligibleForHotswap' | 'allLambdasToUpload'>;
+  layerNumbers: number[];
+}): string | undefined => {
+  if (!layerNumbers.length) return undefined;
+  const eligible = new Set(config.allLambdasEligibleForHotswap.map(({ name }) => name));
+  const changed = new Set(layerNumbers);
+  return config.allLambdasToUpload.find(
+    ({ name }) =>
+      !eligible.has(name) &&
+      packagingManager.getLayerNumbersForLambda(name).some((layerNumber) => changed.has(layerNumber))
+  )?.name;
+};
+
+/**
+ * A version of each layer with this deployment's content: CloudFormation's own when it has that content, a version an
+ * earlier fast deployment published from it, or a new version published now. Returns the version ARN by layer number.
+ */
+export const resolveSharedLayerVersions = async (
+  layers: SharedLayerHotswapInformation[],
+  { parentEventType = 'HOTSWAP_UPDATE' }: { parentEventType?: 'HOTSWAP_UPDATE' | 'UPLOAD_DEPLOYMENT_ARTIFACTS' } = {}
+): Promise<Map<number, string>> => {
+  const arns = new Map<number, string>();
+  await Promise.all(
+    layers.map(async (layer) => {
+      if (layer.cfnVersionArn && layer.cfnIdentity === layer.identity) {
+        arns.set(layer.layerNumber, layer.cfnVersionArn);
+        return;
+      }
+      const published = (await awsSdkManager.lambda.listLayerVersions({ layerName: layer.layerName })).find(
+        ({ description }) => parseFastDeploymentLayerVersion(description) === layer.identity
+      );
+      if (published) {
+        arns.set(layer.layerNumber, published.arn);
+        return;
+      }
+      const logger = operationReporter.createChildLogger({
+        parentEventType,
+        instanceId: `shared-layer-${layer.layerNumber}`,
+        label: `shared layer ${layer.layerNumber}`
+      });
+      await logger.startEvent({ eventType: 'PUBLISH_LAYER_VERSION', description: 'Publishing layer version' });
+      const endPublish = startTiming('fast-deploy:publish-layer', {
+        layer: layer.layerNumber
+      });
+      const { LayerVersionArn } = await awsSdkManager.lambda.publishLayerVersion({
+        layerName: layer.layerName,
+        description: describeFastDeploymentLayerVersion(layer.description, layer.identity),
+        compatibleRuntimes: layer.compatibleRuntimes,
+        artifactBucketName: deploymentArtifactManager.deploymentBucketName,
+        artifactS3Key: layer.s3Key
+      });
+      endPublish();
+      await logger.finishEvent({ eventType: 'PUBLISH_LAYER_VERSION' });
+      arns.set(layer.layerNumber, LayerVersionArn);
+    })
+  );
+  return arns;
+};
+
+/**
+ * Deletes the layer versions fast deployments published that no function of the stack runs any more, so they do not
+ * accumulate against the account's code storage. CloudFormation's versions are never touched. Best effort: a version
+ * left behind costs storage, not correctness, and the next deployment tries again.
+ */
+export const deleteSupersededSharedLayerVersions = async ({
+  layers,
+  functionNames = stackManager.existingStackResources
+    .filter(({ ResourceType }) => ResourceType === 'AWS::Lambda::Function')
+    .map(({ PhysicalResourceId }) => PhysicalResourceId),
+  knownLayerArns = new Map()
+}: {
+  layers: { layerName: string; cfnVersionArn?: string }[];
+  /** The stack's functions; their layers are read unless `knownLayerArns` has them. None once the stack is deleted. */
+  functionNames?: string[];
+  /** The layer ARNs this deployment just gave a function, so they need not be read back. */
+  knownLayerArns?: Map<string, string[]>;
+}) => {
+  try {
+    const candidates = (
+      await Promise.all(
+        layers.map(async (layer) =>
+          (await awsSdkManager.lambda.listLayerVersions({ layerName: layer.layerName }).catch(() => []))
+            .filter(({ arn }) => arn !== layer.cfnVersionArn)
+            .map((version) => ({ ...version, layerName: layer.layerName }))
+        )
+      )
+    ).flat();
+    if (!selectSupersededLayerVersions({ versions: candidates, arnsInUse: [] }).length) return;
+    const arnsInUse = (
+      await Promise.all(
+        functionNames.map(
+          (lambdaResourceName) =>
+            knownLayerArns.get(lambdaResourceName) ?? awsSdkManager.lambda.getFunctionLayerArns({ lambdaResourceName })
+        )
+      )
+    ).flat();
+    const superseded = selectSupersededLayerVersions({ versions: candidates, arnsInUse });
+    await Promise.all(
+      superseded.map(({ layerName, version }) => awsSdkManager.lambda.deleteLayerVersion({ layerName, version }))
+    );
+    if (superseded.length) tuiManager.debug(`Deleted ${superseded.length} superseded shared layer version(s).`);
+  } catch (error) {
+    tuiManager.debug(`Could not delete superseded shared layer versions: ${error}`);
+  }
 };
 
 export const updateFunctionCode = async ({
   workloadName,
   lambdaResourceName,
+  cfLogicalName,
   artifactInfo: { s3Key, digest },
   aliasName,
+  codeChanged = true,
+  layers,
+  layerArns,
+  transitionalLayerArns,
+  layerFirst = false,
+  deferFinalTags = false,
   devMode
 }: {
   workloadName: string;
   lambdaResourceName: string;
+  cfLogicalName?: string;
   artifactInfo: { s3Key: string; digest: string };
   aliasName?: string;
+  /** False when only the function's shared layers changed; the code is then left alone. */
+  codeChanged?: boolean;
+  /** The shared layers the function uses after this update, for its tag. Omitted by `dev`, which leaves layers alone. */
+  layers?: { layerNumber: number; layerName: string; identity: string }[];
+  /** The version of every shared layer by number. Given only when the function's layers change. */
+  layerArns?: Map<number, string>;
+  /** A two-generation bridge prepared from the deployed code's imports. Attach it before changing code. */
+  transitionalLayerArns?: string[];
+  /** Both crossed module graphs were checked against the actual deployed archives. */
+  layerFirst?: boolean;
+  /** Keep the update pending until the fast deployment has recorded its release. */
+  deferFinalTags?: boolean;
   devMode?: boolean;
 }) => {
   const updateWorkloadLogger = devMode
@@ -145,36 +378,90 @@ export const updateFunctionCode = async ({
     });
   }
 
-  // The digest tag tells the next deployment which build the function runs. It says "updating" until the update is
-  // confirmed, so an update whose final tag write fails is never mistaken for the previous build.
+  // Mark the runtime identity pending before a switch. Keep the artifact digest valid for a layer-only update:
+  // invalidating it would incorrectly force a code upload when retrying an interrupted configuration update.
   await awsSdkManager.lambda.tagFunction({
     lambdaArn: arns.lambdaFromFullName({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
       region: globalStateManager.region,
       lambdaAwsName: lambdaResourceName
     }),
-    tags: [{ key: tagNames.codeDigest(), value: 'updating' }]
+    tags: [
+      { key: tagNames.codeDigest(), value: 'updating' },
+      ...(codeChanged ? [{ key: tagNames.artifactDigest(), value: 'updating' }] : []),
+      ...(layerArns && layers?.length ? [{ key: tagNames.sharedLayers(), value: 'updating' }] : [])
+    ]
   });
-  const { FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
-    lambdaResourceName,
-    artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
-    artifactS3Key: s3Key
+  let FunctionArn = arns.lambdaFromFullName({
+    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    region: globalStateManager.region,
+    lambdaAwsName: lambdaResourceName
   });
-
-  await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  if (codeChanged && layerArns && layers?.length && !transitionalLayerArns && !layerFirst) {
+    throw new Error('A code and shared-layer update requires a safe transitional layer.');
+  }
+  // Both code generations load with the bridge. Once the new code is active, drop the old chunks by attaching the
+  // canonical layer. Release templates always name that clean artifact, never the temporary union.
+  let updatedLayerArns: string[] | undefined;
+  if (layerArns && layers?.length) {
+    updatedLayerArns =
+      (cfLogicalName && resolveTemplateLayerArns(templateManager.getTemplate(), cfLogicalName, layerArns)) ||
+      replaceSharedLayerArns(
+        await awsSdkManager.lambda.getFunctionLayerArns({ lambdaResourceName }),
+        layers.flatMap(({ layerNumber, layerName }) => {
+          const arn = layerArns.get(layerNumber);
+          return arn ? [{ layerName, arn }] : [];
+        })
+      );
+  }
+  const endUpdate = startTiming('fast-deploy:update-function', {
+    workload: workloadName,
+    codeChanged,
+    layerFirst,
+    bridge: Boolean(transitionalLayerArns)
+  });
+  const attachFinalLayers = async () => {
+    if (!updatedLayerArns) return;
+    await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: updatedLayerArns });
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  };
+  if (layerFirst) await attachFinalLayers();
+  if (transitionalLayerArns) {
+    await awsSdkManager.lambda.updateFunctionLayers({ lambdaResourceName, layerArns: transitionalLayerArns });
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  }
+  if (codeChanged) {
+    ({ FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
+      lambdaResourceName,
+      artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
+      artifactS3Key: s3Key
+    }));
+    await awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName });
+  }
+  if (!layerFirst) await attachFinalLayers();
   if (aliasName) {
     const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
     await awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
   }
   // Written last: the next deployment skips a function whose digest tag already matches its code. Without the tag the
   // next deployment updates the function again, so a failure here does not fail this one.
-  await awsSdkManager.lambda
-    .tagFunction({ lambdaArn: FunctionArn, tags: [{ key: tagNames.codeDigest(), value: digest }] })
-    .catch((error) => tuiManager.warn(`Could not tag ${workloadName} with its code digest: ${error}`));
+  const tagUpdatedFunction = () =>
+    awsSdkManager.lambda
+      .tagFunction({
+        lambdaArn: FunctionArn,
+        tags: [
+          { key: tagNames.codeDigest(), value: getFunctionCodeDigest(digest, layers) },
+          { key: tagNames.artifactDigest(), value: digest },
+          ...(layers?.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
+        ]
+      })
+      .catch((error) => tuiManager.warn(`Could not tag ${workloadName} with its code digest: ${error}`));
+  if (!deferFinalTags) await tagUpdatedFunction();
 
   if (!devMode) {
     await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });
   }
 
-  return { FunctionArn };
+  endUpdate();
+  return { FunctionArn, updatedLayerArns, tagUpdatedFunction };
 };

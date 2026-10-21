@@ -621,7 +621,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Each alarm trigger supports optional `evaluation` settings to control the evaluation window and avoid alerting on brief spikes. Use `disabledGlobalAlarms` to exclude specific global alarms (configured in the Stacktape Console) from this database.
+Each alarm trigger supports optional `evaluation` settings to control the evaluation window and avoid alerting on brief spikes. Define alarms in the database config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration.
 
 ## Backups and maintenance
 

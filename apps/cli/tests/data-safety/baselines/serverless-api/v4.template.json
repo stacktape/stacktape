@@ -810,6 +810,10 @@
             "Value": null
           },
           {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
             "Key": "stp:stack-name",
             "Value": "j2-v3-baseline-j2base"
           },

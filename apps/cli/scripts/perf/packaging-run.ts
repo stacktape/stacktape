@@ -368,12 +368,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
         const layerNumbers = lambdaLayerMap.get(name);
         const hashStartedAt = performance.now();
         const digest = await getSplitFunctionDigest({
-          distFolderPath,
-          chunkLayers: Array.from(layerNumbers ?? []).map((layerNumber) => ({
-            layerNumber,
-            contentHash: layerArtifacts.find((layer) => layer.layerNumber === layerNumber)?.contentHash
-          })),
-          nativeLayer: null
+          distFolderPath
         });
         hashMs.push(performance.now() - hashStartedAt);
         const functionSizeBytes = await getFolderSizeBytes(distFolderPath);

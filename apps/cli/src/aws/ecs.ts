@@ -65,7 +65,7 @@ export type NewTasksServingPlan =
   /** The new tasks cannot be shown to serve from health signals; ECS decides when the deployment is done. */
   | { verdict: 'undecidable'; reason: string }
   | { verdict: 'waiting'; reason: string }
-  /** Every new task runs and passed its container health check; these targets must be healthy and these instances discoverable. */
+  /** Configured health checks passed; these targets must be healthy and these instances discoverable. */
   | { verdict: 'check'; targets: ServingTarget[]; instances: ServingInstance[] };
 
 const taskIp = (task: Task) =>
@@ -78,13 +78,12 @@ const taskIp = (task: Task) =>
  *
  * Behind target groups, the new tasks must be healthy targets in every one of them, for at least
  * `LOAD_BALANCER_ROUTING_ALLOWANCE_MS`. With EC2 bridge networking the target is the task's EC2 instance and the host
- * port Docker mapped to the container port. Tasks reached through Cloud Map (an HTTP API Gateway integration) or
- * Service Connect are registered as soon as they run, before the application may listen, so for them only a container
- * health check on an essential container is a signal. The same goes for a service no traffic reaches. A task that has
- * merely run for a while may still be initializing, and may crash before it ever listens, so without a health check
- * the decision is ECS's.
+ * port Docker mapped to the container port. Cloud Map web services without a configured health check may opt into
+ * finishing once the new tasks are RUNNING and discoverable. This shows registration, not application health: the app
+ * may still be initializing or never listen. Other services reached without target groups need an essential container
+ * health check, or ECS decides when the rollout is done.
  *
- * The task's own state is not required: a task whose target is healthy listens, whatever ECS reports. ECS reports a
+ * Behind a load balancer, the task's own state is not required: a task whose target is healthy listens, whatever ECS reports. ECS reports a
  * task ACTIVATING or RUNNING seconds after the load balancer reported its target healthy, and the target is the task's
  * own address and port, so no other task can make it healthy.
  *
@@ -99,6 +98,7 @@ export const planNewTasksServingChecks = ({
   service,
   containerDefinitions,
   tasks,
+  allowUncheckedDiscovery = false,
   ec2InstanceIdOf = () => undefined
 }: {
   deployment: Pick<Deployment, 'serviceConnectConfiguration'>;
@@ -108,6 +108,8 @@ export const planNewTasksServingChecks = ({
   containerDefinitions: ContainerDefinition[];
   /** The tasks the deployment started. */
   tasks: Task[];
+  /** Only HTTP API web services opt in; registration does not prove application health. */
+  allowUncheckedDiscovery?: boolean;
   /** The EC2 instance a task runs on, for tasks without their own network interface (EC2 bridge networking). */
   ec2InstanceIdOf?: (task: Task) => string | undefined;
 }): NewTasksServingPlan => {
@@ -123,10 +125,18 @@ export const planNewTasksServingChecks = ({
   const hasHealthCheck = containerDefinitions.some(({ healthCheck, essential }) => healthCheck && essential !== false);
   const reachedWithoutTargetGroup =
     serviceRegistries.length > 0 || !!deployment.serviceConnectConfiguration?.enabled || !loadBalancers.length;
-  if (reachedWithoutTargetGroup && !hasHealthCheck) {
+  const uncheckedDiscovery =
+    allowUncheckedDiscovery &&
+    !hasHealthCheck &&
+    serviceRegistries.length > 0 &&
+    !loadBalancers.length &&
+    !deployment.serviceConnectConfiguration?.enabled;
+  if (reachedWithoutTargetGroup && !hasHealthCheck && !uncheckedDiscovery) {
     return { verdict: 'undecidable', reason: 'no health check shows when a new task is ready' };
   }
-  const running = tasks.filter(({ desiredStatus }) => desiredStatus === 'RUNNING');
+  const running = tasks.filter(
+    ({ desiredStatus, lastStatus }) => desiredStatus === 'RUNNING' && (!uncheckedDiscovery || lastStatus === 'RUNNING')
+  );
   if (running.length < desiredCount) {
     return { verdict: 'waiting', reason: `${running.length} of ${desiredCount} new tasks started` };
   }
@@ -191,6 +201,7 @@ export const API_GATEWAY_ROUTING_ALLOWANCE_MS = 4000;
  * What a rolling update waited for. Before the rollout completes, the old tasks still drain and stop in the background.
  * `new-targets-healthy`: every new task was a healthy target in every target group for the routing allowance.
  * `new-instances-discoverable`: API Gateway could discover every new task in Cloud Map for the routing allowance.
+ * When unchecked discovery is allowed, the tasks are RUNNING but application health remains unknown.
  */
 export type RollingUpdateFinish =
   | 'rollout-completed'
@@ -330,15 +341,17 @@ export class AwsEcs {
   };
 
   /**
-   * Waits until the new tasks serve, or until ECS finishes the rollout. Pass the deployment `startRollingUpdate`
+   * Waits for the new tasks to meet the configured health/routing checks, or for ECS to finish the rollout. Pass the deployment `startRollingUpdate`
    * returned: without it the waiter gives ECS two seconds to make the new deployment primary and follows that one.
    */
   waitForRollingUpdate = async ({
     ecsServiceArn,
-    deploymentId
+    deploymentId,
+    allowUncheckedDiscovery = false
   }: {
     ecsServiceArn: string;
     deploymentId?: string;
+    allowUncheckedDiscovery?: boolean;
   }): Promise<{ finishedWhen: RollingUpdateFinish }> => {
     const errorHandler = this.#getErrorHandler(`ECS service ${ecsServiceArn} failed to update.`);
     let targetDeploymentId = deploymentId;
@@ -403,12 +416,31 @@ export class AwsEcs {
         return false;
       }
       try {
-        const { taskArns = [] } = await ecsClient.send(
-          new ListTasksCommand({ cluster: ecsClusterName, startedBy: deployment.id, maxResults: 100 })
+        const taskArns: string[] = [];
+        let nextToken: string | undefined;
+        do {
+          const page = await ecsClient.send(
+            new ListTasksCommand({ cluster: ecsClusterName, startedBy: deployment.id, maxResults: 100, nextToken })
+          );
+          taskArns.push(...(page.taskArns ?? []));
+          nextToken = page.nextToken;
+        } while (nextToken);
+        const describedTasks: Task[] = [];
+        for (const batch of chunkArray(taskArns, 100)) {
+          const { tasks = [], failures = [] } = await ecsClient.send(
+            new DescribeTasksCommand({ cluster: ecsClusterName, tasks: batch })
+          );
+          const describedArns = new Set(tasks.map(({ taskArn }) => taskArn));
+          if (failures.length || batch.some((arn) => !describedArns.has(arn))) {
+            ready = undefined;
+            return false;
+          }
+          describedTasks.push(...tasks);
+        }
+        const tasks = describedTasks.filter(
+          ({ startedBy, taskDefinitionArn }) =>
+            startedBy === deployment.id && taskDefinitionArn === deployment.taskDefinition
         );
-        const tasks = taskArns.length
-          ? ((await ecsClient.send(new DescribeTasksCommand({ cluster: ecsClusterName, tasks: taskArns }))).tasks ?? [])
-          : [];
         let containerDefinitions = containerDefinitionsByTaskDefinition.get(deployment.taskDefinition);
         if (!containerDefinitions) {
           const { taskDefinition } = await ecsClient.send(
@@ -441,6 +473,7 @@ export class AwsEcs {
           service,
           containerDefinitions,
           tasks,
+          allowUncheckedDiscovery,
           ec2InstanceIdOf: ({ containerInstanceArn }) => ec2InstanceIds.get(containerInstanceArn ?? '')
         });
         if (plan.verdict !== 'check') {
@@ -594,7 +627,10 @@ export class AwsEcs {
         // it decides only when the waiter cannot read the health signals itself.
         if (
           (await newTasksServe(ecsClient, serviceState.services[0], targetedDeployment)) ||
-          (!canCheckServing && usesEarlySuccess && (await reachedEarlySuccess(ecsClient, targetDeploymentId)))
+          (!canCheckServing &&
+            !allowUncheckedDiscovery &&
+            usesEarlySuccess &&
+            (await reachedEarlySuccess(ecsClient, targetDeploymentId)))
         ) {
           finishedWhen =
             newTargetsChecked && newInstancesChecked
@@ -606,7 +642,7 @@ export class AwsEcs {
                   : 'new-tasks-healthy';
           return {
             state: WaiterState.SUCCESS,
-            reason: `ECS service ${ecsServiceArn} serves the new version.`
+            reason: `ECS service ${ecsServiceArn} meets the new task completion checks.`
           };
         }
         return {

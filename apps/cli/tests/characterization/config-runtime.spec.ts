@@ -1203,7 +1203,17 @@ describe('configuration runtime contract', () => {
   });
 });
 
-test('decides Issues from the configuration alone and records the decision for the deployment', async () => {
+test('accepts errorTracking settings and rejects the removed issues config key', () => {
+  const config = singleFunctionConfig({ projectName: 'errors-project', resourceName: 'errorsFunction' });
+  for (const errorTracking of [{ enabled: false }, { enabled: true }, { stages: ['production'] }, { stages: [] }]) {
+    expect(stacktapeConfigSchema.safeParse({ ...config, deploymentConfig: { errorTracking } }).success).toBe(true);
+  }
+  expect(stacktapeConfigSchema.safeParse({ ...config, deploymentConfig: { issues: { enabled: false } } }).success).toBe(
+    false
+  );
+});
+
+test('decides error tracking from the configuration alone and records the decision for the deployment', async () => {
   const manager = new ConfigManager();
   await manager.init({
     configRequired: true,
@@ -1215,7 +1225,7 @@ test('decides Issues from the configuration alone and records the decision for t
     })
   });
   expect(manager.issueDetectionPolicy).toEqual({ enabled: true, reason: 'on by default' });
-  expect(manager.issuesEnabledForRecording, 'a configuration without stackConfig still records').toBe(true);
+  expect(manager.errorTrackingEnabledForRecording, 'a configuration without stackConfig still records').toBe(true);
 
   const limited = new ConfigManager();
   await limited.init({
@@ -1226,14 +1236,36 @@ test('decides Issues from the configuration alone and records the decision for t
       stackName: 'issues-project-preview',
       presetConfig: {
         ...singleFunctionConfig({ projectName: 'issues-project', resourceName: 'issuesFunction' }),
-        deploymentConfig: { issues: { stages: ['production'] } }
+        deploymentConfig: { errorTracking: { stages: ['production'] } }
       } as StacktapeConfig
     })
   });
   expect(limited.issueDetectionPolicy).toEqual({
     enabled: false,
-    reason: 'stage "preview" is not listed in deploymentConfig.issues.stages'
+    reason: 'stage "preview" is not listed in deploymentConfig.errorTracking.stages'
   });
-  expect(limited.issuesEnabledForRecording).toBe(false);
-  expect(new ConfigManager().issuesEnabledForRecording, 'nothing loaded, nothing recorded').toBeUndefined();
+  expect(limited.errorTrackingEnabledForRecording).toBe(false);
+  expect(new ConfigManager().errorTrackingEnabledForRecording, 'nothing loaded, nothing recorded').toBeUndefined();
+
+  for (const [errorTracking, stage, enabled] of [
+    [{ enabled: false }, 'production', false],
+    [{ stages: ['production'] }, 'production', true],
+    [{ stages: [] }, 'preview', true]
+  ] as const) {
+    const configured = new ConfigManager();
+    await configured.init({
+      configRequired: true,
+      context: getInitContext({
+        accountId: '777777777777',
+        stage,
+        stackName: `errors-project-${stage}`,
+        presetConfig: {
+          ...singleFunctionConfig({ projectName: 'errors-project', resourceName: 'errorsFunction' }),
+          deploymentConfig: { errorTracking }
+        } as StacktapeConfig
+      })
+    });
+    expect(configured.isIssueDetectionEnabled).toBe(enabled);
+    expect(configured.errorTrackingEnabledForRecording).toBe(enabled);
+  }
 });
