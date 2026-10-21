@@ -7,6 +7,7 @@ type ImageExtension = Parameters<typeof buildJsBundleImage>[0]['imageExtension']
 export const codeSwapIntegration: {
   imageHasSupervisor: Map<string, boolean>;
   imageMatchesRunningCode: (jobName: string, digest: string, taskDefinition: string) => boolean;
+  liveImages: () => Promise<string[]>;
   abortPreparation: () => Promise<void>;
   pythonExtension: (workloadName: string) => Promise<Parameters<typeof buildUsingRailpack>[0]['imageExtension']>;
   imageExtension: (workloadName: string) => Promise<ImageExtension>;
@@ -18,6 +19,7 @@ export const codeSwapIntegration: {
 } = {
   imageHasSupervisor: new Map(),
   imageMatchesRunningCode: () => false,
+  liveImages: async () => [],
   abortPreparation: async () => {},
   imageExtension: async () => undefined,
   pythonExtension: async () => undefined,

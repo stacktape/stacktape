@@ -82,6 +82,13 @@ var stopAt atomic.Pointer[time.Time]
 var bootstrapDeadline atomic.Pointer[time.Time]
 var grace, drain = 2 * time.Second, 2 * time.Second
 
+// An image deploy lets an old task finish requests through the 35 s Cloud Map drain and the 30 s default stop timeout.
+// A swap gives the old process the same time to finish in-flight requests. It stops waiting as soon as none remain.
+var swapDrain = 65 * time.Second
+
+// Status writes retry with backoff from 100 ms to 2 s, up to about 9 s in total, through throttling and endpoint blips.
+var statusRetryDelays = []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, 1600 * time.Millisecond, 2 * time.Second, 2 * time.Second, 2 * time.Second}
+
 func must(err error) {
 	if err != nil {
 		panic(err)
@@ -89,16 +96,38 @@ func must(err error) {
 }
 func now() int64             { return time.Now().UnixMilli() }
 func ms(t time.Time) float64 { return float64(time.Since(t).Microseconds()) / 1000 }
-func put(key string, value any) {
+
+// put retries a failed write and returns its last error. A status write never stops the serving process.
+func put(key string, value any) error {
 	b, err := json.Marshal(value)
-	must(err)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("{\"benchmarkEvent\":\"status\",\"atMs\":%d,\"data\":%s}\n", now(), b)
 	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
-		must(os.WriteFile(dir+"/"+key+".tmp", b, 0600))
-		must(os.Rename(dir+"/"+key+".tmp", dir+"/"+key+".json"))
-		return
+		if err := os.WriteFile(dir+"/"+key+".tmp", b, 0600); err != nil {
+			return err
+		}
+		return os.Rename(dir+"/"+key+".tmp", dir+"/"+key+".json")
 	}
-	must(awsJSON("dynamodb", "DynamoDB_20120810.PutItem", map[string]any{"TableName": table, "Item": map[string]any{"pk": map[string]string{"S": key}, "data": map[string]string{"S": string(b)}}}, nil))
+	item := map[string]any{"TableName": table, "Item": map[string]any{"pk": map[string]string{"S": key}, "data": map[string]string{"S": string(b)}}}
+	return retryStatusWrite(func() error { return putItem(item) }, func(d time.Duration) { time.Sleep(d) })
+}
+
+var putItem = func(item map[string]any) error {
+	return awsJSON("dynamodb", "DynamoDB_20120810.PutItem", item, nil)
+}
+
+func retryStatusWrite(write func() error, sleep func(time.Duration)) error {
+	err := write()
+	for _, delay := range statusRetryDelays {
+		if err == nil {
+			return nil
+		}
+		sleep(delay/2 + time.Duration(rand.Int63n(int64(delay/2)+1)))
+		err = write()
+	}
+	return err
 }
 func read() (record, error) {
 	var r record
@@ -446,7 +475,7 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	t["commitDetectedAtMs"] = now()
 	routing.Lock()
 	old := current.Load()
-	deadline := time.Now().Add(drain)
+	deadline := time.Now().Add(swapDrain)
 	old.drainUntil = deadline
 	oldGeneration.Store(old)
 	current.Store(u)
@@ -519,8 +548,15 @@ reaped:
 	oldGeneration.Store(nil)
 	return nil
 }
-func status(state, rev string, t map[string]any, reason string) {
-	put(statusKey(), map[string]any{"state": state, "revision": rev, "task": taskID, "timings": t, "reason": reason})
+
+// status reports an attempt's state. When the write fails even after retries, the CLI sees no answer from this task
+// and gives up on the attempt; the task keeps serving its current code.
+func status(state, rev string, t map[string]any, reason string) error {
+	err := put(statusKey(), map[string]any{"state": state, "revision": rev, "task": taskID, "timings": t, "reason": reason})
+	if err != nil {
+		fmt.Printf("{\"benchmarkEvent\":\"statusWriteFailed\",\"state\":%q,\"revision\":%q,\"reason\":%q}\n", state, rev, err.Error())
+	}
+	return err
 }
 func fail(u *generation, t map[string]any, err error) {
 	// A failed attempt remains sticky until a different revision. Never report restored baseline as swap success.
@@ -870,7 +906,16 @@ func main() {
 					prepared = nil
 					continue
 				}
-				status("prepared", r.Revision, timing, "")
+				if err := status("prepared", r.Revision, timing, ""); err != nil {
+					// Without a recorded preparation the CLI cannot commit; stop the idle candidate now.
+					if e := cleanupPrepare(prepared, timing, nil); e != nil {
+						status("failed", r.Revision, timing, errors.Join(err, e).Error())
+					} else {
+						status("failed", r.Revision, timing, err.Error())
+					}
+					prepared = nil
+					failed = r.Revision
+				}
 			}
 			if prepared != nil && r.Phase == "commit" && r.Revision == p.Revision {
 				if err := activate(prepared, timing, oom); err != nil {
