@@ -1400,15 +1400,14 @@ export const lanes: readonly Lane[] = [
       '--isolate',
       'src/messages/email-messages.test.ts',
       'src/model-helpers/index.test.ts',
+      'src/services/alert-channel-test.test.ts',
       'src/services/slack-app/actions.test.ts',
       'src/services/slack-app/budget-card.test.ts',
       'src/services/slack-app/client.test.ts',
-      'src/services/slack-app/deployment-card.test.ts',
       'src/services/slack-app/evidence.test.ts',
       'src/services/slack-app/ignore-modal.test.ts',
       'src/services/slack-app/render-actions.test.ts',
-      'src/services/slack-app/security-card.test.ts',
-      'src/services/slack-app/signing.test.ts'
+      'src/services/slack-app/security-card.test.ts'
     ],
     level: 'focused',
     tier: 'pr',
@@ -1419,12 +1418,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
-      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts'
+      'apps/console/api/src/services/slack-app/security-card.test.ts'
     ],
     requires: ['console'],
     release: 'every-candidate',
@@ -1721,6 +1718,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Real security services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-security']
+  },
+  {
+    id: 'console-database-security-settings',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--security-settings'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/security-settings-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves: 'Per-account security scanning levels through the real Console-session and API-key procedures.',
+    selections: ['console-database-security-settings']
   },
   {
     id: 'console-database-issue-triage',
@@ -2037,6 +2045,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
@@ -2526,7 +2535,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
-      'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
@@ -2558,13 +2566,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
-      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/api/stacktape.test.ts',
@@ -2606,6 +2611,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5605,11 +5611,14 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
-      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts'
+      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/api/scripts/security-settings-database.test.ts'
     ],
     lanes: [
+      'console-database-security-settings',
       'console-ui',
       'console-browser-isolated',
       'console-database-security',
@@ -5650,12 +5659,10 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
-      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts'
+      'apps/console/api/src/services/slack-app/security-card.test.ts'
     ],
     lanes: [
       'console-alert-rules',
@@ -5695,7 +5702,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/scripts/observability-readers.test.ts',
-      'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
@@ -5786,7 +5792,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
-      'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',

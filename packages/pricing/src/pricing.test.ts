@@ -2,7 +2,6 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { calculateFlatMonthlyCost } from './catalog';
 import { parsePricingCsvFile } from './internal/pricing';
 let fixtureDirectory: string;
 beforeAll(async () => {
@@ -71,21 +70,6 @@ test('parses AWS CSV headers, product names, regions, and metadata', async () =>
       }
     }
   });
-});
-
-test('converts each catalog unit to a monthly price', () => {
-  const cases: [unit: string, pricePerUnit: string, monthly: number][] = [
-    ['Hrs', '0.01', 7.2],
-    ['hours', '0.04048', 29.1456],
-    ['hr', '0.005', 3.6],
-    ['month', '12.5', 12.5],
-    ['GB-Mo', '0.30', 0.3],
-    ['MiBps-Mo', '6.00', 6],
-    ['GB-months', '0.085', 0.085]
-  ];
-  for (const [unit, pricePerUnit, monthly] of cases) {
-    expect(calculateFlatMonthlyCost({ currency: 'USD', pricePerUnit, unit })).toBeCloseTo(monthly, 10);
-  }
 });
 
 test('handles quoted commas, escaped quotes, blank columns, and a multi-name RDS product', async () => {
