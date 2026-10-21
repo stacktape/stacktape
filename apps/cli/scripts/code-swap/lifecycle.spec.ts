@@ -553,3 +553,70 @@ test.skipIf(!Bun.which('python3'))(
     }
   }
 );
+
+test.skipIf(!Bun.which('python3') || !Bun.which('uv'))(
+  'strict Python installation rejects a hashed direct dependency without its transitive lock',
+  async () => {
+    const { pythonHashLock } = await import('../../src/domain/code-swap/python');
+    const directory = await mkdtemp(join(tmpdir(), 'python-transitive-lock-'));
+    try {
+      // Local wheels make dependency resolution real while keeping the test entirely offline.
+      const wheels = Bun.spawnSync([
+        'python3',
+        '-I',
+        '-c',
+        `
+import hashlib, pathlib, sys, zipfile
+root = pathlib.Path(sys.argv[1])
+entries = []
+for name, dependency in [('swap_parent', 'Requires-Dist: swap-child==1.0\\n'), ('swap_child', '')]:
+    path = root / (name + '-1.0-py3-none-any.whl')
+    info = name + '-1.0.dist-info/'
+    with zipfile.ZipFile(path, 'w') as wheel:
+        wheel.writestr(info + 'METADATA', 'Metadata-Version: 2.1\\nName: ' + name + '\\nVersion: 1.0\\n' + dependency)
+        wheel.writestr(info + 'WHEEL', 'Wheel-Version: 1.0\\nRoot-Is-Purelib: true\\nTag: py3-none-any\\n')
+        wheel.writestr(info + 'RECORD', '')
+        wheel.writestr(name + '.py', 'VALUE = 1\\n')
+    entries.append(name + '==1.0 --hash=sha256:' + hashlib.sha256(path.read_bytes()).hexdigest())
+print('\\n'.join(entries))
+`,
+        directory
+      ]);
+      expect(wheels.exitCode).toBe(0);
+      const complete = wheels.stdout.toString().trim();
+      const incomplete = complete.split('\n')[0]!;
+      // Both pass syntax validation; only the installer can establish transitive completeness.
+      expect(pythonHashLock(incomplete)).toBe(true);
+      expect(pythonHashLock(complete)).toBe(true);
+      const requirements = join(directory, 'requirements.txt');
+      const install = () =>
+        Bun.spawnSync([
+          'uv',
+          'pip',
+          'install',
+          '--python',
+          Bun.which('python3')!,
+          '--no-config',
+          '--no-cache',
+          '--no-index',
+          '--find-links',
+          directory,
+          '--require-hashes',
+          '--target',
+          join(directory, 'installed'),
+          '-r',
+          requirements
+        ]);
+      await writeFile(requirements, incomplete);
+      const rejected = install();
+      expect(rejected.exitCode).not.toBe(0);
+      expect(rejected.stderr.toString()).toContain('hash');
+      await writeFile(requirements, complete);
+      const accepted = install();
+      expect(accepted.exitCode).toBe(0);
+      expect(await Bun.file(join(directory, 'installed/swap_child.py')).text()).toBe('VALUE = 1\n');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+);
