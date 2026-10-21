@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from 'src/config/project-paths';
 import { dynamicRequire } from '@utils/fs-utils';
 import { logError, logInfo, logWarn } from '@scripts/support/logging';
@@ -30,6 +32,10 @@ const isMachineMode =
   requestedJsonlOutput;
 const isMcpMode = process.argv.includes('mcp');
 const devBuildLockPath = `${DEV_TMP_FOLDER_PATH}.lock`;
+// Test suites that spawn the CLI many times build it once without this flag, then reuse that bundle. Nothing
+// checks that the bundle matches the sources, so it is never read outside such an owned sequence.
+const reuseDevBuild = process.env.STP_DEV_REUSE_BUILD === '1';
+const devBuildOutputPath = join(DEV_TMP_FOLDER_PATH, basename(CLI_SOURCE_PATH).replace(/\.ts$/, '.js'));
 const devBuildLockStaleAfterMs = 10 * 60 * 1000;
 
 const drainStream = async (stream: NodeJS.WriteStream) => {
@@ -170,7 +176,8 @@ export const runDev = async () => {
       return;
     }
 
-    const cliDistPath = await withDevBuildLock(buildSource);
+    const cliDistPath =
+      reuseDevBuild && existsSync(devBuildOutputPath) ? devBuildOutputPath : await withDevBuildLock(buildSource);
 
     if (!isSilentMode) {
       logInfo('----- RUN -----');
