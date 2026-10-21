@@ -1,3 +1,7 @@
+import { codeSwapContainerPolicy } from '@domain-services/code-swap/ecs-policy';
+import { CLOUD_MAP_DRAIN_IMAGES } from '@domain-services/deployment-artifact-manager/cloud-map-drain-image';
+import { getEcrRepositoryUrl } from '@domain-services/deployment-artifact-manager/artifact-names';
+import { getCloudMapDrainContainer } from './cloud-map-drain';
 import type {
   ContainerDefinition,
   HealthCheck,
@@ -441,6 +445,17 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       StopTimeout:
         container.stopTimeout ||
         (workload.deployment ? BLUE_GREEN_CONTAINER_STOP_TIMEOUT_SECONDS : DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS),
+      ...codeSwapContainerPolicy(
+        workload,
+        container,
+        ('overrides' in (configManager.config.resources[workload.name] ?? {})
+          ? (configManager.config.resources[workload.name] as { overrides?: Record<string, unknown> }).overrides
+          : undefined)?.[cfLogicalNames.ecsService(workload.name, false)],
+        ('overrides' in (configManager.config.resources[workload.name] ?? {})
+          ? (configManager.config.resources[workload.name] as { overrides?: Record<string, unknown> }).overrides
+          : undefined)?.[cfLogicalNames.autoScalingTarget(workload.name)],
+        configManager.allContainerWorkloads.length
+      ),
       LogConfiguration: isLoggingEnabled
         ? {
             LogDriver: 'awslogs',
@@ -1367,6 +1382,12 @@ export const getEcsTaskDefinition = (
   const workloadTracing = getWorkloadTracing(workload);
   const cpuArchitecture =
     packagingManager.getTargetCpuArchitectureForContainer(workload.resources) === 'linux/arm64' ? 'ARM64' : 'X86_64';
+  const { accountId, region, globallyUniqueStackHash } = calculatedStackOverviewManager.context;
+  const drainDigest = CLOUD_MAP_DRAIN_IMAGES[cpuArchitecture === 'ARM64' ? 'arm64' : 'amd64'];
+  const cloudMapDrain = getCloudMapDrainContainer(
+    workload,
+    `${getEcrRepositoryUrl(accountId, region, awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash))}@${drainDigest}`
+  );
   return cfnResource('AWS::ECS::TaskDefinition', {
     Family: awsResourceNames.ecsTaskDefinitionFamily(workload.name, calculatedStackOverviewManager.context.stackName),
     NetworkMode: workload.resources.instanceTypes ? 'bridge' : 'awsvpc',
@@ -1377,6 +1398,7 @@ export const getEcsTaskDefinition = (
     TaskRoleArn: getAtt(cfLogicalNames.ecsTaskRole(workload.name), 'Arn'),
     ContainerDefinitions: [
       ...getContainerWorkloadContainerDefinitions(workload),
+      ...(cloudMapDrain ? [cloudMapDrain] : []),
       ...(workloadTracing ? [getOtelCollectorSidecarDefinition(workload)] : [])
     ],
     Volumes: volumes.length > 0 ? volumes : undefined,

@@ -15,6 +15,15 @@ API keys are useful for non-interactive automation where you do not want to rely
 
 Use API keys when you need non-interactive authentication. For local development where a browser is available, [`stacktape login`](/cli/login) handles authentication for you, so you do not need to create and rotate a Console API key manually.
 
+<Tip>
+
+The keys on this page are personal: they act as you, with your role, projects and AWS accounts, and they stop working
+when you leave the organization. For CI, Owners and Admins create an
+[organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page instead.
+It belongs to the organization and keeps working when people leave.
+
+</Tip>
+
 ## Creating an API key
 
 Open **API keys** from the profile menu in the Stacktape Console. Click **New API key** to open the creation form.
@@ -69,6 +78,10 @@ API keys are intended for CLI and CI/CD authentication. After creating a key, co
 ## Permissions
 
 Managing API keys requires the `api-keys:manage-own` permission. Users without this permission are redirected to `/overview` when they navigate to the API keys page. See [Team and access control](/stacktape-console/team-and-access-control) for details on managing user permissions.
+
+A key can do what its owner can. A Developer's or Viewer's key reaches only the projects and AWS accounts chosen for
+them on the Members page; asking it for credentials in another AWS account fails with "Your access does not include
+the AWS account".
 
 ## Best practices
 

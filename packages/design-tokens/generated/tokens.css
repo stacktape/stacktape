@@ -16,6 +16,7 @@
   --stp-interactive-primary: rgb(17, 105, 105);
   --stp-interactive-primary-light: rgb(34, 166, 166);
   --stp-interactive-accent: rgb(34, 87, 122);
+  --stp-field-hover-border: rgba(110, 116, 116, 0.38);
   --stp-field-focus-border: rgba(110, 116, 116, 0.56);
   --stp-field-focus-ring: rgba(110, 116, 116, 0.12);
   --stp-status-error: #eb6161;
@@ -34,4 +35,22 @@
   --stp-motion-duration-fast: 150ms;
   --stp-motion-duration-base: 250ms;
   --stp-motion-easing: ease;
+  --stp-space-4: 4px;
+  --stp-space-8: 8px;
+  --stp-space-12: 12px;
+  --stp-space-16: 16px;
+  --stp-space-24: 24px;
+  --stp-space-32: 32px;
+  --stp-space-48: 48px;
+  --stp-font-size-caption: 0.75rem;
+  --stp-font-size-body: 0.825rem;
+  --stp-font-size-heading: 0.9rem;
+  --stp-font-size-title: 1.15rem;
+  --stp-font-size-display: 1.5rem;
+  --stp-font-weight-body: 500;
+  --stp-font-weight-label: 600;
+  --stp-font-weight-display: 700;
+  --stp-dialog-width-confirm: 440px;
+  --stp-dialog-width-form: 560px;
+  --stp-dialog-width-content: 800px;
 }

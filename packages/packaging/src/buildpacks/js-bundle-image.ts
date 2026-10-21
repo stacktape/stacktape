@@ -40,12 +40,28 @@ export const buildJsBundleImage = async ({
   devMode,
   runtime = 'node',
   runtimeTools,
+  imageExtension,
   ...otherProps
 }: StpBuildpackInput &
   JsBundleOptions &
   ImageBuildActions &
   DockerImageInspectionActions &
   EsBuildActions & {
+    imageExtension?: {
+      digestInput: unknown;
+      existingDigests: string[];
+      transform: (input: {
+        packagingDigest: string;
+        dockerfileContents: string;
+        buildContextPath: string;
+        runtime: string;
+        nodeVersion: number;
+        nodeTarget: string;
+        minify: boolean;
+        dockerBuildOutputArchitecture: string;
+        languageSpecificBundleOutput: LanguageSpecificBundleOutput;
+      }) => Promise<string>;
+    };
     requiresGlibcBinaries: boolean;
     nodeTarget: string;
     minify: boolean;
@@ -61,6 +77,7 @@ export const buildJsBundleImage = async ({
 
   const bundlingOutput = await createEsBundle({
     ...otherProps,
+    ...(imageExtension && { existingDigests: imageExtension.existingDigests }),
     ...(otherProps.disableSourceMaps && { sourceMaps: 'disabled' }),
     bundleTarget: runtime === 'bun' ? 'bun' : 'node',
     externals: [],
@@ -71,6 +88,7 @@ export const buildJsBundleImage = async ({
     name,
     progressLogger,
     additionalDigestInput: objectHash({
+      ...(imageExtension && { imageExtension: imageExtension.digestInput }),
       bundleOptions: pickJsBundleOptions(otherProps),
       runtime,
       runtimeTools,
@@ -145,7 +163,7 @@ export const buildJsBundleImage = async ({
 
   // Production mode: full Docker build with code baked in
   await progressLogger.startEvent({ eventType: 'CREATE_DOCKERFILE', description: 'Creating Dockerfile' });
-  const dockerfileContents = await createEsDockerFile({
+  let dockerfileContents = await createEsDockerFile({
     languageSpecificBundleOutput,
     requiresGlibcBinaries,
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
@@ -161,6 +179,18 @@ export const buildJsBundleImage = async ({
     },
     buildContextPath
   });
+  if (imageExtension)
+    dockerfileContents = await imageExtension.transform({
+      packagingDigest: digest,
+      dockerfileContents,
+      buildContextPath,
+      runtime,
+      nodeVersion,
+      nodeTarget,
+      minify,
+      dockerBuildOutputArchitecture: dockerBuildOutputArchitecture ?? 'linux/amd64',
+      languageSpecificBundleOutput
+    });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });

@@ -44,6 +44,7 @@ const ERROR_TYPE_LABELS: Record<string, string> = {
   STACK: 'Stack Error',
   STACK_MONITORING: 'Stack Monitoring Error',
   SUBSCRIPTION_REQUIRED: 'Subscription Required',
+  FREE_PLAN_LIMIT: 'Free Plan Limit Reached',
   SYNC_BUCKET: 'Bucket Sync Error',
   UNSUPPORTED_RESOURCE: 'Unsupported Resource'
 };

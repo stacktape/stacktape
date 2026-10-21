@@ -1,0 +1,27 @@
+id: console-page-scale
+valid:
+  - |
+    const a = { fontSize: fontSize.body, gap: space(8), padding: space(8, 16), borderRadius: controlRadius };
+  - |
+    const b = { padding: 0, gap: '0', borderRadius: '50%', fontSize: 'inherit' };
+  - |
+    const c = { padding: `${space(8)} ${space(16)}`, margin: '10px', width: 120 };
+  - |
+    const d = <Icon size={18} css={{ height: '12px' }} />;
+  - |
+    const e = { paddingLeft: `${depth * 16}px`, grid: { padding: { left: 4 } } };
+invalid:
+  - |
+    const a = { fontSize: '0.85rem' };
+  - |
+    const b = { gap: 10 };
+  - |
+    const c = { padding: '10px 16px' };
+  - |
+    const d = { borderRadius: '999px' };
+  - |
+    const e = { paddingLeft: isOpen ? '12px' : space(8) };
+  - |
+    const f = { padding: `0 ${space(8)} 6px` };
+  - |
+    const g = { '&:hover': { borderTopLeftRadius: '4px' } };

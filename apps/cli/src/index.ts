@@ -78,10 +78,10 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
   'incidents:watch': { ui: 'none' },
   'incidents:ack': { ui: 'none' },
   'incidents:resolve': { ui: 'none' },
-  'issues:list': { ui: 'none' },
-  'issues:resolve': { ui: 'none' },
-  'issues:ignore': { ui: 'none' },
-  'issues:reopen': { ui: 'none' },
+  'errors:list': { ui: 'none' },
+  'errors:resolve': { ui: 'none' },
+  'errors:ignore': { ui: 'none' },
+  'errors:reopen': { ui: 'none' },
   logs: { ui: 'none' },
   alarms: { ui: 'none' },
   metrics: { ui: 'none' },
@@ -127,6 +127,10 @@ export const runCommand = async (opts: RunCommandOptions) => {
     endGlobalState();
     await commandLifecycle.init();
     const command = globalStateManager.command;
+    if (['deploy', 'delete', 'rollback', 'package', 'synth', 'diff', 'validate'].includes(command)) {
+      const { installCodeSwap } = await import('./domain/code-swap/install');
+      installCodeSwap();
+    }
     const showsNotices = !commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl';
     await announcementsManager.init({ enabled: showsNotices });
     initAgentMode();
@@ -304,10 +308,10 @@ const commandLoaders = {
   'incidents:watch': async () => (await import('./commands/incidents-watch')).commandIncidentsWatch,
   'incidents:ack': async () => (await import('./commands/incidents-ack')).commandIncidentsAck,
   'incidents:resolve': async () => (await import('./commands/incidents-resolve')).commandIncidentsResolve,
-  'issues:list': async () => (await import('./commands/issues-list')).commandIssuesList,
-  'issues:resolve': async () => (await import('./commands/issues-resolve')).commandIssuesResolve,
-  'issues:ignore': async () => (await import('./commands/issues-ignore')).commandIssuesIgnore,
-  'issues:reopen': async () => (await import('./commands/issues-reopen')).commandIssuesReopen,
+  'errors:list': async () => (await import('./commands/errors-list')).commandErrorsList,
+  'errors:resolve': async () => (await import('./commands/errors-resolve')).commandErrorsResolve,
+  'errors:ignore': async () => (await import('./commands/errors-ignore')).commandErrorsIgnore,
+  'errors:reopen': async () => (await import('./commands/errors-reopen')).commandErrorsReopen,
   'info:stack': async () => (await import('./commands/info-stack')).commandInfoStack,
   mcp: async () => (await import('./commands/mcp')).commandMcp,
   'mcp:add': async () => (await import('./commands/mcp-add')).commandMcpAdd,

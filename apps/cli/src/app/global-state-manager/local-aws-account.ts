@@ -1,6 +1,7 @@
 import type { GlobalStateConnectedAwsAccount } from './types';
 import type { AwsCredentialIdentity, Pluggable } from '@aws-sdk/types';
 import { CliError } from '@utils/errors';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 
 /**
  * Stack commands deploy into a connected AWS account. When the user has selected local AWS credentials (`--profile`,
@@ -110,7 +111,8 @@ export const createProfileCredentialsProvider = async ({
     filepath: environment.AWS_SHARED_CREDENTIALS_FILE,
     configFilepath: environment.AWS_CONFIG_FILE,
     ignoreCache: true,
-    ...(region ? { clientConfig: { region } } : {}),
+    // Credential-provider STS calls need the same bounded transport as service calls.
+    clientConfig: { ...(region ? { region } : {}), requestHandler: createFetchHandler() },
     ...(clientPlugins ? { clientPlugins } : {})
   });
   return memoize(
