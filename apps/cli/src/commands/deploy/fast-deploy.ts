@@ -27,19 +27,19 @@ export type FastDeployPlan = {
   layers: SharedLayerHotswapInformation[];
 };
 
-/** Publish local ZIPs alongside uploads; cached layers can still publish from S3. Settle failures before returning. */
+/** Publish each layer as soon as its S3 object is available. Settle failures before returning. */
 export const createSharedLayerPublication = (plan: FastDeployPlan) => {
   const changed = new Set(
     plan.functions.flatMap(({ changedLayers }) => changedLayers.map(({ layerNumber }) => layerNumber))
   );
   const layers = plan.layers.filter(({ layerNumber }) => changed.has(layerNumber));
   const publications = new Map<number, Promise<{ arns: Map<number, string> } | { error: unknown }>>();
-  const onLayerUploaded = (layerNumber: number, zipPath?: string) => {
+  const onLayerUploaded = (layerNumber: number) => {
     const layer = layers.find((candidate) => candidate.layerNumber === layerNumber);
     if (!layer || publications.has(layerNumber)) return;
     publications.set(
       layerNumber,
-      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS', zipPath }).then(
+      resolveSharedLayerVersions([layer], { parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' }).then(
         (arns) => ({ arns }),
         (error: unknown) => ({ error })
       )

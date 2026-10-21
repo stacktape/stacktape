@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, copyFile, rm, readFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, writeFile, copyFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -17,6 +17,8 @@ const main = async () => {
   };
   try {
     await copyFile(await buildSupervisor(root), join(root, 'supervisor'));
+    // Release extraction or the build-context host can lose Unix executable bits.
+    await chmod(join(root, 'supervisor'), 0o644);
     const app = (revision: string) =>
       `import http from 'node:http'; const server=http.createServer((req,res)=>{res.statusCode=500;res.end('${revision}')}).listen(process.env.PORT,'0.0.0.0');process.on('SIGTERM',()=>server.close());`;
     const imageContext = join(root, 'image');

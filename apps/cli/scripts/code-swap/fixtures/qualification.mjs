@@ -207,14 +207,6 @@ const main = async () => {
         chunkedBytes: body.bytes
       };
     });
-    await test('B2 combined burst/cache/tmpfs activity raises lifetime peak (sources not isolated)', async () => {
-      const before = (await status()).timings.memoryAfter;
-      for (const path of ['/burst', '/cache', '/tmpfs']) assert.equal((await get(path)).status, 200);
-      const s = await attempt('new500');
-      assert.equal(s.state, 'complete');
-      assert(s.timings.memoryBefore.peakBytes >= before.peakBytes + 32 * 1024 * 1024);
-      return s.timings;
-    });
     await stop();
     await test('B3 inherited scores, workers and late forks; restoration before next swap', async () => {
       await start();
@@ -445,6 +437,34 @@ const main = async () => {
       await long.reader.cancel();
       await pidsGone([prep.pid, ...prep.workers.map((p) => p.pid)]);
       return { status: s, old, victim: prep };
+    });
+    await stop();
+  }
+  // The cgroup lifetime peak survives supervisor restarts. Run deliberate memory pressure in its own container,
+  // so it cannot make later successful-swap scenarios fail closed before they exercise their behavior.
+  if (scenario === 'memory-sources') {
+    await test('B4 a candidate serving HTTP 500 can become the live revision', async () => {
+      await start('old500');
+      const s = await attempt('new500');
+      assert.equal(s.state, 'complete');
+      const response = await get();
+      assert.equal(response.status, 500);
+      assert.equal(response.revision, 'new500');
+      return s.timings;
+    });
+    await test('B2 combined burst/cache/tmpfs activity raises lifetime peak and keeps serving', async () => {
+      const before = (await status()).timings.memoryAfter;
+      for (const path of ['/burst', '/cache', '/tmpfs']) assert.equal((await get(path)).status, 200);
+      const s = await attempt('old500');
+      const memory = s.timings.memoryBefore;
+      assert(memory.peakBytes >= before.peakBytes + 32 * 1024 * 1024);
+      assert.equal(s.state, memory.allowed ? 'complete' : 'refused');
+      if (!memory.allowed) assert.equal(s.reason, 'memory_screen');
+      const response = await get();
+      assert.equal(response.status, 500);
+      assert.equal(response.revision, memory.allowed ? 'old500' : 'new500');
+      assert.equal(supervisor.exitCode, null);
+      return { state: s.state, timings: s.timings };
     });
     await stop();
   }

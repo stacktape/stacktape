@@ -46,19 +46,16 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { readFile, stat } from 'node:fs/promises';
-import { LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES } from '@stacktape/packaging/artifact/lambda-limits';
+import { readFile } from 'node:fs/promises';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 import { keepLayersOfRetainedReleases, selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import {
   buildRepublishedLayerS3Key,
-  formatSharedLayersTag,
   getDeployedSharedLayers,
   getDeployedArtifactDigest,
   getSharedLayersOfFunctionInTemplate,
   getTagValue,
   needsLayerRepublish,
-  type SharedLayerContent,
   sharedLayerIdentity,
   sharedLayerNumberOf
 } from './shared-layers';
@@ -744,7 +741,7 @@ class DeploymentArtifactManager {
     onSharedLayerUploaded
   }: {
     includeTemplates: boolean;
-    onSharedLayerUploaded?: (layerNumber: number, zipPath?: string) => void;
+    onSharedLayerUploaded?: (layerNumber: number) => void;
   }) => {
     const jobs: (() => Promise<any>)[] = [];
 
@@ -1133,9 +1130,7 @@ class DeploymentArtifactManager {
     return { jobName, imageTagWithUrl };
   };
 
-  uploadSharedLayer = async ({
-    onLayerUploaded
-  }: { onLayerUploaded?: (layerNumber: number, zipPath?: string) => void } = {}) => {
+  uploadSharedLayer = async ({ onLayerUploaded }: { onLayerUploaded?: (layerNumber: number) => void } = {}) => {
     // Skip if no pending layers
     const pendingLayer = this.packagingSource.getPendingSharedLayer();
     if (!pendingLayer) {
@@ -1191,15 +1186,13 @@ class DeploymentArtifactManager {
         layersToUpload.map(async (layer) => {
           const zipPath = `${layer.layerPath}.zip`;
           const s3Key = layer.s3Key;
-          // Publication can read this ZIP immediately; neither S3 nor source maps are on its critical path.
-          const directUpload = (await stat(zipPath)).size <= LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES;
-          if (directUpload) onLayerUploaded?.(layer.layerNumber, zipPath);
           const results = await Promise.allSettled([
             (async () => {
               await awsSdkManager.s3.uploadFile({ s3Key, filePath: zipPath, bucketName: this.deploymentBucketName });
               this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
-              // ZIP headers can push a near-budget incompressible layer over the inline limit. Publish those from S3.
-              if (!directUpload) onLayerUploaded?.(layer.layerNumber);
+              // The release needs this S3 object anyway. Let Lambda read it there instead of sending the same
+              // archive again as a base64 inline payload, which dominates publication time for realistic layers.
+              onLayerUploaded?.(layer.layerNumber);
               this.successfullyCreatedObjects.push({ s3Key, name: `shared-layer-${layer.layerNumber}` });
             })(),
             ...(layer.sourceMapsPath
@@ -1321,27 +1314,15 @@ class DeploymentArtifactManager {
     const template = await this.getTemplate({ version: sourceVersion });
     codeSwapIntegration.rollbackTemplate(template);
     const copies: Promise<unknown>[] = [];
-    this.#restoredFunctionDigests = [];
+    this.#restoredFunctionTags = [];
     for (const [logicalId, resource] of Object.entries(template.Resources)) {
       const properties = (resource.Properties ?? {}) as Record<string, any>;
       if (resource.Type === 'AWS::Lambda::Function' && properties.Code) {
-        const digest = (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
-          ({ Key }) => Key === tagNames.codeDigest()
-        )?.Value;
-        if (digest) {
-          const layers = [...getSharedLayersOfFunctionInTemplate(template, logicalId)].map(
-            ([layerNumber, identity]) => ({ layerNumber, identity })
-          );
-          const artifactDigest =
-            (properties.Tags as { Key: string; Value: string }[] | undefined)?.find(
-              ({ Key }) => Key === tagNames.artifactDigest()
-            )?.Value ??
-            (typeof properties.Code.S3Key === 'string'
-              ? parseBucketObjectS3Key(properties.Code.S3Key)?.digest
-              : undefined) ??
-            digest;
-          this.#restoredFunctionDigests.push({ logicalId, digest, artifactDigest, layers });
-        }
+        const identityKeys = [tagNames.codeDigest(), tagNames.artifactDigest(), tagNames.sharedLayers()];
+        const tags = ((properties.Tags ?? []) as { Key: string; Value: string }[])
+          .filter(({ Key, Value }) => identityKeys.includes(Key) && typeof Value === 'string')
+          .map(({ Key, Value }) => ({ key: Key, value: Value }));
+        if (tags.length) this.#restoredFunctionTags.push({ logicalId, tags });
         const { Code: code } = properties;
         if (code.S3Bucket === this.deploymentBucketName && typeof code.S3Key === 'string') {
           code.S3Key = this.#copyFunctionCodeToRelease({ s3Key: code.S3Key, newVersion, copies });
@@ -1405,22 +1386,30 @@ class DeploymentArtifactManager {
             ({ Key, Value }) =>
               Key && repaired.includes(Key) && typeof Value === 'string' && getTagValue(tags, Key) !== Value
           );
-          if (!stale.length) return;
+          const expectedKeys = new Set((properties?.Tags ?? []).map(({ Key }) => Key));
+          const obsolete = (tags ?? []).flatMap(({ key }) =>
+            key && repaired.includes(key) && !expectedKeys.has(key) ? [key] : []
+          );
+          if (!stale.length && !obsolete.length) return;
           const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: PhysicalResourceId });
-          await awsSdkManager.lambda.tagFunction({
-            lambdaArn: FunctionArn,
-            tags: stale.map(({ Key, Value }) => ({ key: Key!, value: Value as string }))
-          });
+          await Promise.all([
+            ...(stale.length
+              ? [
+                  awsSdkManager.lambda.tagFunction({
+                    lambdaArn: FunctionArn,
+                    tags: stale.map(({ Key, Value }) => ({ key: Key!, value: Value as string }))
+                  })
+                ]
+              : []),
+            ...(obsolete.length
+              ? [awsSdkManager.lambda.untagFunction({ lambdaArn: FunctionArn, tagKeys: obsolete })]
+              : [])
+          ]);
         })
     );
   };
 
-  #restoredFunctionDigests: {
-    logicalId: string;
-    digest: string;
-    artifactDigest: string;
-    layers: SharedLayerContent[];
-  }[] = [];
+  #restoredFunctionTags: { logicalId: string; tags: { key: string; value: string }[] }[] = [];
 
   /**
    * Sets each restored function's code-digest and shared-layers tags after a rollback. CloudFormation leaves a tag
@@ -1428,7 +1417,7 @@ class DeploymentArtifactManager {
    */
   tagRestoredFunctions = async () => {
     await Promise.all(
-      this.#restoredFunctionDigests.map(async ({ logicalId, digest, artifactDigest, layers }) => {
+      this.#restoredFunctionTags.map(async ({ logicalId, tags }) => {
         const functionName = stackManager.existingStackResources.find(
           ({ LogicalResourceId }) => LogicalResourceId === logicalId
         )?.PhysicalResourceId;
@@ -1436,11 +1425,7 @@ class DeploymentArtifactManager {
         const { FunctionArn } = await awsSdkManager.lambda.getFunction({ lambdaResourceName: functionName });
         await awsSdkManager.lambda.tagFunction({
           lambdaArn: FunctionArn,
-          tags: [
-            { key: tagNames.codeDigest(), value: digest },
-            { key: tagNames.artifactDigest(), value: artifactDigest },
-            ...(layers.length ? [{ key: tagNames.sharedLayers(), value: formatSharedLayersTag(layers) }] : [])
-          ]
+          tags
         });
       })
     );
