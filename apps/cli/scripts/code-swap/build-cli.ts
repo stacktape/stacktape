@@ -1,5 +1,5 @@
 import type { BunPlugin } from 'bun';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, copyFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createStacktapeOpenTuiBuildPlugin } from '../support/opentui-loader';
 import packageJson from '../../package.json';
@@ -51,7 +51,10 @@ export const benchmarkBuildPlugin = (): BunPlugin => ({
     }));
   }
 });
-export const buildBenchmarkCli = async (outputDirectory: string) => {
+export const buildBenchmarkCli = async (
+  outputDirectory: string,
+  supervisor: string | false = resolve('__stacktape-dist/dev/helper-lambdas/stacktape-supervisor')
+) => {
   const output = resolve(outputDirectory);
   await mkdir(output, { recursive: true });
   const result = await Bun.build({
@@ -66,6 +69,7 @@ export const buildBenchmarkCli = async (outputDirectory: string) => {
     define: { STACKTAPE_VERSION: JSON.stringify(packageJson.version) }
   });
   if (!result.success) throw new Error(result.logs.map(({ message }) => message).join('\n'));
+  if (supervisor) await copyFile(supervisor, resolve(output, 'stacktape-supervisor'));
   return result.outputs;
 };
 if (import.meta.main)

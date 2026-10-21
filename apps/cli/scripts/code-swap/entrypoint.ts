@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { trace } from './trace';
 
 // Match the source-dev wrapper's process lifetime without including its per-command compilation in edit timing.
@@ -9,6 +11,8 @@ if (import.meta.main) {
     process.env.STP_CODE_SWAP_BENCH_RECOVER = invocationId;
     process.argv.splice(recovery, 2);
   }
+  const supervisor = resolve(import.meta.dir, 'stacktape-supervisor');
+  if (existsSync(supervisor)) process.env.STP_CODE_SWAP_BENCH_SUPERVISOR ??= supervisor;
   trace('entry');
   process.env.STP_DEV_MODE = 'true';
   import('../../src/entrypoints/cli')

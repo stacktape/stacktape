@@ -296,8 +296,29 @@ export const buildUsingRailpack = async ({
   packages,
   aptPackages,
   buildEnvironment,
-  railpackConfig
+  railpackConfig,
+  imageExtension
 }: {
+  imageExtension?: {
+    digestInput: unknown;
+    existingDigests: string[];
+    prepare: (input: {
+      packagingDigest: string;
+      sourceDirectoryPath: string;
+      includedFilePaths: string[];
+      plan: RailpackPlan;
+      python: boolean;
+      baseInputs: string;
+      baseImage: string;
+    }) => Promise<
+      | {
+          plan: RailpackPlan;
+          finish: (imageId: string) => Promise<{ dockerfileContents: string; buildContextPath: string }>;
+          imageFallback: () => void;
+        }
+      | undefined
+    >;
+  };
   name: string;
   cwd: string;
   progressLogger: PackagingProgressLogger;
@@ -381,7 +402,13 @@ export const buildUsingRailpack = async ({
   });
   const digest = mergeHashes(
     contextChecksum,
-    objectHash({ plan, railpackFrontendImage, dockerBuildOutputArchitecture, buildEnvironmentHash })
+    objectHash({
+      plan,
+      railpackFrontendImage,
+      dockerBuildOutputArchitecture,
+      buildEnvironmentHash,
+      ...(imageExtension && { imageExtension: imageExtension.digestInput })
+    })
   );
   const resolvedPackages = Object.values(info.resolvedPackages ?? {}).map(
     ({ name: packageName, resolvedVersion }) => `${packageName} ${resolvedVersion}`
@@ -391,7 +418,7 @@ export const buildUsingRailpack = async ({
     ...resolvedPackages,
     ...(python ? [`built on ${python.image.split('/').at(-1)}`] : [])
   ].join(', ');
-  if (existingDigests.includes(digest)) {
+  if ((imageExtension?.existingDigests ?? existingDigests).includes(digest)) {
     await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM', finalMessage: packagingMessages.unchanged });
     return {
       digest,
@@ -407,11 +434,22 @@ export const buildUsingRailpack = async ({
     finalMessage: detection ? `Detected ${detection}` : undefined
   });
 
+  const baseImage = imageExtension ? `${name}-code-swap-base` : name;
+  let extension = await imageExtension?.prepare({
+    packagingDigest: digest,
+    sourceDirectoryPath: absoluteSourceDirectoryPath,
+    includedFilePaths,
+    plan,
+    python: Boolean(python) && !cacheFromRef && !cacheToRef,
+    baseInputs: JSON.stringify({ plan, railpackFrontendImage, dockerBuildOutputArchitecture, buildEnvironmentHash }),
+    baseImage
+  });
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
+  const buildPlan = extension?.plan ?? plan;
   const pinnedPlan =
     python && pinLocalBaseImage && !cacheFromRef && !cacheToRef
       ? pinPlanImages(
-          plan,
+          buildPlan,
           Object.fromEntries(
             await Promise.all(
               python.baseImages.map(
@@ -421,26 +459,48 @@ export const buildUsingRailpack = async ({
             )
           )
         )
-      : plan;
-  const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
-    dockerfileContents: JSON.stringify(pinnedPlan),
-    // The context is the customer's source directory: the plan file stays out of their project tree.
-    buildFileDirectoryPath: tmpdir(),
-    buildDockerImage,
-    imageTag: name,
-    buildContextPath: absoluteSourceDirectoryPath,
-    dockerBuildOutputArchitecture,
-    cacheFromRef,
-    cacheToRef,
-    ...(python ? { baseImages: python.baseImages } : {}),
-    builderImages: [railpackFrontendImage],
-    buildArgs: {
-      BUILDKIT_SYNTAX: railpackFrontendImage,
-      'secrets-hash': buildEnvironmentHash,
-      'cache-key': name
-    },
-    secrets: buildVariables
-  });
+      : buildPlan;
+  const buildBase = (selectedPlan: RailpackPlan) =>
+    buildGeneratedDockerImage({
+      dockerfileContents: JSON.stringify(selectedPlan),
+      buildFileDirectoryPath: tmpdir(),
+      buildDockerImage,
+      imageTag: extension ? baseImage : name,
+      buildContextPath: absoluteSourceDirectoryPath,
+      dockerBuildOutputArchitecture,
+      cacheFromRef,
+      cacheToRef,
+      ...(python ? { baseImages: python.baseImages } : {}),
+      builderImages: [railpackFrontendImage],
+      buildArgs: { BUILDKIT_SYNTAX: railpackFrontendImage, 'secrets-hash': buildEnvironmentHash, 'cache-key': name },
+      secrets: buildVariables
+    });
+  let base;
+  try {
+    base = await buildBase(pinnedPlan);
+  } catch (error) {
+    if (!extension) throw error;
+    // A syntactically hashed file may omit transitive requirements. Strict installation is authoritative.
+    extension.imageFallback();
+    extension = undefined;
+    base = await buildBase(plan);
+  }
+  let { size, id, dockerOutput, duration, created } = base;
+  if (extension) {
+    const extended = await buildGeneratedDockerImage({
+      ...(await extension.finish(id)),
+      buildDockerImage,
+      imageTag: name,
+      dockerBuildOutputArchitecture,
+      cacheFromRef,
+      cacheToRef
+    });
+    size = extended.size;
+    id = extended.id;
+    created = extended.created;
+    dockerOutput = (dockerOutput ?? '') + (extended.dockerOutput ?? '');
+    duration += extended.duration;
+  }
   await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: packagingMessages.containerImage(size) });
 
   return {
