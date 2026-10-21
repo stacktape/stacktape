@@ -1400,15 +1400,14 @@ export const lanes: readonly Lane[] = [
       '--isolate',
       'src/messages/email-messages.test.ts',
       'src/model-helpers/index.test.ts',
+      'src/services/alert-channel-test.test.ts',
       'src/services/slack-app/actions.test.ts',
       'src/services/slack-app/budget-card.test.ts',
       'src/services/slack-app/client.test.ts',
-      'src/services/slack-app/deployment-card.test.ts',
       'src/services/slack-app/evidence.test.ts',
       'src/services/slack-app/ignore-modal.test.ts',
       'src/services/slack-app/render-actions.test.ts',
-      'src/services/slack-app/security-card.test.ts',
-      'src/services/slack-app/signing.test.ts'
+      'src/services/slack-app/security-card.test.ts'
     ],
     level: 'focused',
     tier: 'pr',
@@ -1419,12 +1418,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
-      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts'
+      'apps/console/api/src/services/slack-app/security-card.test.ts'
     ],
     requires: ['console'],
     release: 'every-candidate',
@@ -2570,12 +2567,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
-      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/api/stacktape.test.ts',
@@ -5684,12 +5679,10 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
-      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts'
+      'apps/console/api/src/services/slack-app/security-card.test.ts'
     ],
     lanes: [
       'console-alert-rules',

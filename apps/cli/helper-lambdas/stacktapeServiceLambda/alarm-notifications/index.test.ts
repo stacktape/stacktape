@@ -1,5 +1,6 @@
 import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
+import { reportAlarmEventInputSchema } from '@stacktape/console-api/aws-identity';
 
 let endpoint: string;
 let refuseConsole = false;
@@ -54,7 +55,15 @@ beforeAll(async () => {
           },
           { status: 500 }
         );
-      alarms.push(((await request.json()) as Record<string, Record<string, unknown>>)['0']!);
+      // The Console validates the wire body with this public schema; a vocabulary slip is a rejected alarm.
+      const body = ((await request.json()) as Record<string, unknown>)['0'];
+      const parsed = reportAlarmEventInputSchema.safeParse(body);
+      if (!parsed.success)
+        return Response.json(
+          { error: { message: parsed.error.message, code: -32600, data: { code: 'BAD_REQUEST', httpStatus: 400 } } },
+          { status: 400 }
+        );
+      alarms.push(parsed.data as unknown as Record<string, unknown>);
       return Response.json([{ result: { data: 'event-1' } }]);
     }
   });
@@ -76,7 +85,15 @@ const event = (includeInHistory: boolean, stateValue: 'ALARM' | 'OK' = 'ALARM'):
       includeInHistory,
       trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
       notificationChannels: [
-        { type: 'slack', properties: { conversationId: 'C_ONCALL', accessToken: 'local-slack-placeholder' } }
+        { type: 'slack', properties: { conversationId: 'C_ONCALL', accessToken: 'local-slack-placeholder' } },
+        // Only reported to the Console: the direct path would try to send mail.
+        ...(includeInHistory
+          ? [
+              { type: 'email', properties: { recipients: ['oncall@example.com'] } },
+              { type: 'ms-teams', properties: { webhookUrl: 'https://example.invalid/teams' } },
+              { type: 'console-channel', properties: { channelName: 'on-call' } }
+            ]
+          : [])
       ]
     },
     affectedResource: { displayName: 'api', link: 'https://example.invalid' },
@@ -105,6 +122,13 @@ test('the handler delivers without history, reports firing and recovery with sig
     triggerType: 'lambda-error-rate',
     details: { alarmArn: 'shop-production-errors', time: '2026-10-13T00:00:00.000Z' }
   });
+  // Config vocabulary becomes the Console's: `email` → `e_mail`, `ms-teams` → `ms_teams`, references by channel name.
+  expect((alarms[0]!.channels as Array<{ name: string; type: string }>).map(({ name, type }) => [name, type])).toEqual([
+    ['Slack', 'slack'],
+    ['Email', 'e_mail'],
+    ['ms-teams', 'ms_teams'],
+    ['on-call', 'console-channel']
+  ]);
   expect(alarms[1]).toMatchObject({ type: 'ALARM_RESOLVED' });
   refuseConsole = true;
   await expect(handle(event(true))).rejects.toThrow('console unavailable');
