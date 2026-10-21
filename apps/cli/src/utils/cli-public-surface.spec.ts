@@ -1,3 +1,4 @@
+import { validateArgs } from './validator';
 import { describe, expect, test } from 'bun:test';
 import { cliCommands, type StacktapeCommand } from '../config/cli/commands';
 import { argAliases } from '../config/cli/options';
@@ -182,4 +183,14 @@ test('negative fractions remain numbers, legacy --v works, and help does not hid
   expect(parseCliInput(['metrics', '--period', '-.5']).options.period).toBe(-0.5);
   expect(parseCliInput(['--v']).commands).toEqual(['version']);
   expect(() => parseCliInput(['deploy', '-prj', 'shop', '--help'])).toThrow('One-dash options');
+});
+
+test('invalid numeric values remain invalid at the CLI validation boundary', () => {
+  for (const value of ['oops', '', ' ', 'NaN', 'Infinity']) {
+    const parsed = parseCliInput(['logs', '--stage', 'prod', '--region', 'eu-west-1', `--limit=${value}`]);
+    expect(() => validateArgs({ command: 'logs', rawArgs: parsed.options, defaults: {}, fromEnv: {} })).toThrow(
+      'Invalid type'
+    );
+  }
+  expect(parseCliInput(['logs', '--since', '1e3']).options.startTime).toBe(1000);
 });

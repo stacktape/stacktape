@@ -201,7 +201,7 @@ export const parseCliInput = (
           ? allowedTypes.includes('string')
             ? ''
             : true
-          : allowedTypes.includes('number') && (!allowedTypes.includes('string') || /^-?\d+(\.\d+)?$/.test(value))
+          : allowedTypes.includes('number') && value.trim() !== '' && Number.isFinite(Number(value))
             ? Number(value)
             : value;
     }
