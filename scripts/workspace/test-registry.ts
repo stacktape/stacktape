@@ -1801,6 +1801,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts'
     ],
     requires: ['console'],
@@ -2551,6 +2552,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
       'apps/console/api/scripts/remote-session-aws.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
@@ -5164,6 +5166,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
       'apps/console/ui/e2e/runners-live.spec.ts',
       'apps/console/ui/e2e/runners.spec.ts',
