@@ -1721,6 +1721,17 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-security']
   },
   {
+    id: 'console-database-security-settings',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--security-settings'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/security-settings-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves: 'Per-account security scanning levels through the real Console-session and API-key procedures.',
+    selections: ['console-database-security-settings']
+  },
+  {
     id: 'console-database-issue-triage',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'run', 'test:db', '--issue-triage'],
     level: 'api-db',
@@ -2034,6 +2045,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
@@ -2601,6 +2613,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5617,11 +5630,14 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
-      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts'
+      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/api/scripts/security-settings-database.test.ts'
     ],
     lanes: [
+      'console-database-security-settings',
       'console-ui',
       'console-browser-isolated',
       'console-database-security',

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { GuardrailDefinition } from './guardrails.js';
-import type { RecordSecurityReportParams, RecordSecurityReportResponse } from './security.js';
+import type { RecordSecurityReportParams, RecordSecurityReportResponse, SecurityScanningLevel } from './security.js';
 import { sourceMapManifestSchema } from './source-maps.js';
 
 /**
@@ -452,8 +452,6 @@ export type CurrentUserAndOrgDataResponse = {
     id: string;
     name: string;
     role: string;
-    /** The organization-wide switch for security scanning; the CLI skips its evaluation when this is false. */
-    securityScanningEnabled?: boolean;
     /** The organization-wide Issues switch; the Console enforces it when error events arrive. */
     issuesEnabled?: boolean;
     [otherProperties: string]: unknown;
@@ -468,6 +466,8 @@ export type CurrentUserAndOrgDataResponse = {
     defaultRegion: string | null;
     connectionMode: 'PRIVILEGED' | 'BASIC' | null;
     deleted?: boolean | null;
+    /** What a deploy into this account is checked for; an older Console omits it and scanning follows the config. */
+    securityScanning?: SecurityScanningLevel;
     [otherProperties: string]: unknown;
   }>;
   projects: Array<{

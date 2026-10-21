@@ -88056,7 +88056,8 @@ Security scanning of this stack's configuration on every deployment.
 Enabled by default for every stage. The findings appear in the deploy output and in the Security section of
 the Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn
 scanning off for a stack, or limit it to selected stages, when a stack must not report anything. An
-organization administrator can also disable it for all projects in the Console.
+organization administrator can also choose per AWS account, in the Console's security settings, to skip the
+dependency checks or turn scanning off; that choice applies to every stack deployed into the account.
 
 ### Example 1 (yaml)
 
