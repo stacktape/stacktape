@@ -23,14 +23,15 @@ export const codeSwapResolveRole = async (
 };
 export const codeSwapSwap = async (update: Parameters<ServiceRuntime['codeSwapSwap']>[0]) =>
   (await runtimes.get(update.workload.name)?.codeSwapSwap(update)) ?? false;
-export const codeSwapUseImage = async () => {
-  const results = await Promise.allSettled([...runtimes.values()].map((runtime) => runtime.codeSwapUseImage()));
+const useImage = async (all: Iterable<Pick<ServiceRuntime, 'codeSwapUseImage'>>, fallback?: string) => {
+  const results = await Promise.allSettled([...all].map((runtime) => runtime.codeSwapUseImage(fallback)));
   const failure = results.find((item) => item.status === 'rejected');
   if (failure?.status === 'rejected') {
     retainCodeSwapLock();
     throw failure.reason;
   }
 };
+export const codeSwapUseImage = () => useImage(runtimes.values());
 export const abortCodeSwapPreparation = async () => {
   const results = await Promise.allSettled([...runtimes.values()].map((runtime) => runtime.abortCodeSwapPreparation()));
   const failure = results.find((item) => item.status === 'rejected');
@@ -63,21 +64,20 @@ export const codeSwapComplete = async (createsRelease: boolean) => {
     throw error;
   }
 };
+type ServiceUpdate = Parameters<ServiceRuntime['codeSwapSwap']>[0];
+type PreparedRuntime = Pick<ServiceRuntime, 'prepared' | 'codeSwapSwap' | 'codeSwapUseImage' | 'forceImage'>;
 // No service commits until every changed service has prepared. A later failure converges all changed services to images.
-export const codeSwapPrepareServices = async (updates: Parameters<ServiceRuntime['codeSwapSwap']>[0][]) => {
-  if (!runtimes.size || !updates.length) return;
-  const selected = updates.map((update) => runtimes.get(update.workload.name));
+export const prepareCodeSwapServices = async (
+  all: ReadonlyMap<string, PreparedRuntime>,
+  updates: ServiceUpdate[],
+  taskConfigurationChanged: (update: ServiceUpdate) => boolean
+) => {
+  if (!all.size || !updates.length) return;
+  const selected = updates.map((update) => all.get(update.workload.name));
   const prepared = await Promise.allSettled(selected.map((runtime) => runtime?.prepared()));
-  const taskConfigurationChanged = updates.some(
-    (update) =>
-      compareEcsTaskDefinitions({
-        currentTaskDefinition: update.ecsTaskDefinition.currentState,
-        calculatedTaskDefinition: update.newCfTaskDefinition,
-        ignoreImages: true
-      }).needsUpdate
-  );
+  const configurationChanged = updates.some(taskConfigurationChanged);
   if (
-    taskConfigurationChanged ||
+    configurationChanged ||
     selected.some((runtime) => !runtime?.prepared()) ||
     prepared.some((item) => item.status === 'rejected')
   ) {
@@ -87,15 +87,26 @@ export const codeSwapPrepareServices = async (updates: Parameters<ServiceRuntime
         item.status === 'rejected' ? [selected[index]!.codeSwapSwap(updates[index]!)] : []
       )
     );
-    await codeSwapUseImage();
+    await useImage(all.values(), configurationChanged ? undefined : 'another_service_failed');
     return;
   }
-  const outcomes = await Promise.allSettled(updates.map((update) => codeSwapSwap(update)));
+  const outcomes = await Promise.allSettled(updates.map((update, index) => selected[index]!.codeSwapSwap(update)));
   if (outcomes.some((item) => item.status === 'rejected' || !item.value)) {
-    await codeSwapUseImage();
+    await useImage(all.values(), 'another_service_failed');
     for (const runtime of selected) runtime?.forceImage();
   }
 };
+export const codeSwapPrepareServices = (updates: ServiceUpdate[]) =>
+  prepareCodeSwapServices(
+    runtimes,
+    updates,
+    (update) =>
+      compareEcsTaskDefinitions({
+        currentTaskDefinition: update.ecsTaskDefinition.currentState,
+        calculatedTaskDefinition: update.newCfTaskDefinition,
+        ignoreImages: true
+      }).needsUpdate
+  );
 
 export const codeSwapPythonExtension = async (name: string) => {
   await initializeRuntimes();

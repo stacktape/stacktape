@@ -788,11 +788,11 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     }
   };
 
-  const codeSwapUseImage = async () => {
+  const codeSwapUseImage = async (fallback = 'task_configuration_changed') => {
     if (!prepare) return;
     await Promise.allSettled([prepare]);
     await abortCodeSwapPreparation();
-    result = { ...result, mode: 'image', fallback: result.fallback ?? 'task_configuration_changed' };
+    result = { ...result, mode: 'image', fallback: result.fallback ?? fallback };
   };
 
   const abortCodeSwapPreparation = async () => {
