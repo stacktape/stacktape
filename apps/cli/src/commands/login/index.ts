@@ -41,7 +41,7 @@ export const commandLogin = async () => {
     tuiManager.info(`User: ${userData.user.name}`);
     tuiManager.info(`Organization: ${organizationName}`);
     tuiManager.info(
-      `To create a new organization, run ${tuiManager.prettyCommand('org:create --organizationName "Acme org"')}`
+      `To create a new organization, run ${tuiManager.prettyCommand('org create --organization-name "Acme org"')}`
     );
     tuiManager.outro('Login successful!');
   } catch (error) {

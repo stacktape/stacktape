@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { spawn } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -382,8 +383,8 @@ export const runStacktapeCommandJsonl = async ({
       code: outcome.kind === 'timeout' ? 'TIMEOUT' : 'CANCELLED',
       message:
         outcome.kind === 'timeout'
-          ? `Stacktape command timed out after ${timeoutMs}ms: ${command}.`
-          : `Stacktape command was cancelled: ${command}.`,
+          ? `Stacktape command timed out after ${timeoutMs}ms: ${publicCommandName(command)}.`
+          : `Stacktape command was cancelled: ${publicCommandName(command)}.`,
       rawTail,
       events,
       logEvents,
@@ -393,7 +394,8 @@ export const runStacktapeCommandJsonl = async ({
   }
 
   if (outcome.kind === 'spawn-error') {
-    const message = outcome.error.message || `Failed to start Stacktape CLI subprocess for ${command}.`;
+    const message =
+      outcome.error.message || `Failed to start Stacktape CLI subprocess for ${publicCommandName(command)}.`;
     return {
       ok: false,
       code: 'SPAWN_FAILED',

@@ -1,3 +1,4 @@
+import { publicCommandLine } from '../../config/cli/public-names';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
@@ -17,7 +18,7 @@ export const commandIncidentsWatch = async () => {
       category: 'INPUT',
       code: 'INCIDENT_WATCH_INVALID_WINDOW',
       message: 'The incident stability window cannot be longer than the watch timeout.',
-      hints: 'Increase --incidentWatchTimeoutSeconds or decrease --incidentWatchStabilitySeconds.'
+      hints: 'Increase --timeout or decrease --stable-for.'
     });
   }
 
@@ -82,8 +83,8 @@ export const commandIncidentsWatch = async () => {
       code: 'INCIDENT_WATCH_TIMEOUT',
       message: `Incident ${args.incidentId} did not remain resolved for ${stabilitySeconds} seconds within the ${timeoutSeconds}-second timeout. Last status: ${error.lastIncident.status}; active signals: ${activeSignals}.`,
       hints: [
-        `Run stacktape incidents:show --incidentId ${args.incidentId} to inspect current evidence.`,
-        'After deploying another fix, run incidents:watch again.'
+        `Run ${publicCommandLine('incidents:show', { incidentId: args.incidentId })} to inspect current evidence.`,
+        'After deploying another fix, run incident watch again.'
       ]
     });
   }

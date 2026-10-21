@@ -11,7 +11,7 @@ export const commandProjectCreate = async () => {
 
   if (agentMode) {
     if (!name) {
-      throw new ExpectedError('CLI', 'Missing required flag: --projectName', 'Provide --projectName <project-name>');
+      throw new ExpectedError('CLI', 'Missing required flag: --project', 'Provide --project <project-name>');
     }
   } else if (!name) {
     name = (

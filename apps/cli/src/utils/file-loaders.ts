@@ -113,7 +113,7 @@ export const getPythonExecutable = () => {
         category: 'MISSING_PREREQUISITE',
         code: 'PYTHON_EXECUTABLE_MISSING',
         message: 'Python executable is missing.',
-        hints: 'Install `python` or `python3`, or configure another executable with `stacktape defaults:configure`.'
+        hints: 'Install `python` or `python3`, or configure another executable with `stacktape defaults set`.'
       });
     }
     pythonExecutable = isPythonExecInPath ? 'python' : 'python3';
@@ -247,8 +247,7 @@ export const loadRawFileContent = async ({ workingDir, filePath }: { filePath: s
       category: 'CONFIG',
       code: 'CONFIG_REFERENCED_FILE_UNAVAILABLE',
       message: `File \`${formatFilePathForError(absoluteFilePath)}\` does not exist or is not accessible.`,
-      hints:
-        'Relative paths are resolved from `--currentWorkingDirectory` or the directory containing the Stacktape config.'
+      hints: 'Relative paths are resolved from `--cwd` or the directory containing the Stacktape config.'
     });
   }
   return getFileContent(absoluteFilePath);
@@ -299,8 +298,7 @@ export const parseUserCodeFilepath = ({
       category: 'CONFIG',
       code: 'CONFIG_SOURCE_FILE_UNAVAILABLE',
       message: `${codeType} source \`${formatFilePathForError(filePath)}\` does not exist or is not accessible.`,
-      hints:
-        'Relative paths are resolved from `--currentWorkingDirectory` or the directory containing the Stacktape config.'
+      hints: 'Relative paths are resolved from `--cwd` or the directory containing the Stacktape config.'
     });
   }
 

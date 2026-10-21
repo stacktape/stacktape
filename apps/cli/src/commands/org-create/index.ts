@@ -12,8 +12,8 @@ export const commandOrgCreate = async () => {
     if (!organizationName) {
       throw new ExpectedError(
         'CLI',
-        'Missing required flag: --organizationName',
-        'Provide --organizationName <organization-name>'
+        'Missing required flag: --organization-name',
+        'Provide --organization-name <organization-name>'
       );
     }
   } else if (!organizationName) {

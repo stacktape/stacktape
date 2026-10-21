@@ -1,3 +1,4 @@
+import { publicFlag, publicCommandName } from '../../../config/cli/public-names';
 import { linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@utils/fs-utils';
 import kleur from 'kleur';
@@ -65,10 +66,10 @@ export const prettyCommand = (command: string): string => {
     return `${formattedOption}=${value}`;
   });
 
-  return [colorize('yellow', 'stacktape'), commandName, ...formattedArgs].join(' ');
+  return [colorize('yellow', 'stacktape'), publicCommandName(commandName), ...formattedArgs].join(' ');
 };
 
-export const prettyOption = (option: string): string => bold(colorize('gray', `--${option}`));
+export const prettyOption = (option: string): string => bold(colorize('gray', `--${publicFlag(option)}`));
 
 export const prettyResourceName = (resourceName: string): string => bold(resourceName);
 

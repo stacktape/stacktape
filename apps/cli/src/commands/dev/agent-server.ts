@@ -1246,7 +1246,7 @@ export const buildStartupMessage = (params: {
 
   // Agent info
   lines.push(`Agent: http://localhost:${port}`);
-  lines.push(`Data:  .stacktape/dev-data/${stage}/ (persists between runs, use --freshDb to reset)`);
+  lines.push(`Data:  .stacktape/dev-data/${stage}/ (persists between runs, use --fresh-db to reset)`);
   lines.push('');
 
   // Resources
@@ -1300,7 +1300,7 @@ export const buildStartupMessage = (params: {
   // AWS SDK
   lines.push('AWS SDK (reviewed read-only operations only):');
   lines.push('  POST /aws/sdk                {"service": "...", "command": "...", "input": {...}}');
-  lines.push('  GET  /aws/sdk/services       List services and the read-only operations aws:call accepts');
+  lines.push('  GET  /aws/sdk/services       List services and the read-only operations aws call accepts');
   lines.push('');
   lines.push('  Services: lambda, dynamodb, s3, logs, cloudformation, cloudwatch, sqs, sns, sfn,');
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');
@@ -1345,7 +1345,7 @@ export const startAgentServer = async (
 
     httpServer.on('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
-        reject(new Error(`Port ${port} is already in use. Choose a different --agentPort.`));
+        reject(new Error(`Port ${port} is already in use. Choose a different --agent-port.`));
       } else {
         reject(err);
       }

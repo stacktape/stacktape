@@ -12,11 +12,11 @@ import {
 
 const REFRESH_NOTE =
   'A run may refresh the sign-in. If the provider then replaces its refresh token, either your local sign-in or ' +
-  "Stacktape's copy stops working; run `stacktape ai:connect` again to connect a fresh one.";
+  "Stacktape's copy stops working; run `stacktape ai connect` again to connect a fresh one.";
 const STORAGE_NOTE =
   'Stacktape stores a copy for your user in this organization, encrypted; it is never shown or logged by Stacktape. ' +
   'To start a run, the copy goes into an encrypted, expiring parameter in the incident’s AWS account, where the ' +
-  'runner reads and deletes it. Remove it at any time with `stacktape ai:disconnect`.';
+  'runner reads and deletes it. Remove it at any time with `stacktape ai disconnect`.';
 
 /**
  * The providers whose subscription a member can connect for the hosted incident runs they request, each with the
@@ -78,7 +78,7 @@ const needsTerminal = () =>
   new CliError({
     category: 'CLI',
     code: 'AI_CONNECT_NEEDS_TERMINAL',
-    message: '`stacktape ai:connect` needs an interactive terminal here: signing in to the provider is interactive.',
+    message: '`stacktape ai connect` needs an interactive terminal here: signing in to the provider is interactive.',
     hints: ['Run it in a terminal.']
   });
 
@@ -87,7 +87,7 @@ const notCompleted = (provider: AiProvider) =>
     category: 'CLI',
     code: 'AI_SIGN_IN_NOT_COMPLETED',
     message: `The ${AI_PROVIDERS[provider].label} sign-in did not complete, so nothing was connected.`,
-    hints: ['Run `stacktape ai:connect` again and finish the sign-in.']
+    hints: ['Run `stacktape ai connect` again and finish the sign-in.']
   });
 
 /** The provider from `--aiProvider`, or the one the person picks; a non-interactive run must name it. */
@@ -108,7 +108,7 @@ export const chooseAiProvider = async (requested: string | undefined, message: s
       category: 'CLI',
       code: 'AI_PROVIDER_REQUIRED',
       message: 'No provider was chosen, and there is no terminal to choose one in.',
-      hints: [`Pass --aiProvider with one of: ${Object.keys(AI_PROVIDERS).join(', ')}.`]
+      hints: [`Pass --ai-provider with one of: ${Object.keys(AI_PROVIDERS).join(', ')}.`]
     });
   }
   return (await tuiManager.promptSelect({
@@ -191,7 +191,7 @@ export const commandAiConnect = async () => {
   tuiManager.success(
     `Connected your ${AI_PROVIDERS[provider].label} for ${connection.member.email ?? 'you'} in ` +
       `${connection.organization.name}. Hosted runs you request with it now use it; remove it with ` +
-      '`stacktape ai:disconnect`.'
+      '`stacktape ai disconnect`.'
   );
   return { provider, configured: connection.configured, organization: connection.organization };
 };

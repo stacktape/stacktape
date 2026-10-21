@@ -100,7 +100,7 @@ export const commandDeploy = async () => {
         code: 'CODE_SWAP_RECOVERY_LOCAL_RUNNER_REQUIRED',
         message: 'Recover the code-swap operation with the local runner.',
         hints:
-          'Stop the previous invocation, wait for its AWS changes to finish, then run again with --runner local and --recoverOperation.'
+          'Stop the previous invocation, wait for its AWS changes to finish, then run again with --runner local and --recover-operation.'
       });
     }
     return deployWithEc2Runner();

@@ -1,7 +1,7 @@
 import { pathExists, readFile } from 'fs-extra';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
-import { findStacktapePackageScript } from './cli-command-tools';
+import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
 import { summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
@@ -28,35 +28,9 @@ type DevToolDependencies = {
   now?: () => Date;
 };
 
-const ARG_ALIASES: Record<string, string> = {
-  aa: 'awsAccount',
-  fd: 'fullDeploy',
-  project_name: 'projectName',
-  config_path: 'configPath',
-  resource_name: 'resourceName',
-  script_name: 'scriptName',
-  secret_name: 'secretName',
-  secret_value: 'secretValue',
-  secret_file: 'secretFile',
-  bastion_resource: 'bastionResource',
-  out_file: 'outFile',
-  out_format: 'outFormat',
-  auto_confirm_operation: 'autoConfirmOperation',
-  task_arn: 'taskArn',
-  start_time: 'startTime',
-  end_time: 'endTime'
-};
-
-const toCamelCase = (value: string): string => value.replace(/[_-]([a-z])/g, (_, char: string) => char.toUpperCase());
-
 const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unknown> => {
-  if (!args) return {};
-  const normalized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(args)) {
-    const mappedKey = ARG_ALIASES[key] || toCamelCase(key);
-    normalized[mappedKey] = value;
-  }
-  return normalized;
+  const { cwd, ...cliArgs } = args ?? {};
+  return { ...normalizeCliInvocation('dev', cliArgs).args, ...(cwd !== undefined ? { cwd } : {}) };
 };
 
 const devApiRequest: DevApiRequest = async ({

@@ -13,7 +13,7 @@ import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@st
 import { isAlphanumeric, isSmallAlphanumericDashCase } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { cliCommands, type StacktapeCommand } from '../config/cli/commands';
-import { argAliases as cliArgsAliases } from '../config/cli/options';
+import { publicCommandName, publicFlag } from '../config/cli/public-names';
 import { getAllowedArgs, getArgInfo, getRequiredArgs } from '../config/cli/utils';
 
 export const validateDomain = (domain: string) => {
@@ -83,7 +83,7 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
     throw new CliError({
       category: 'CLI',
       code: 'CLI_COMMAND_UNKNOWN',
-      message: `Unknown command \`${command}\`.`,
+      message: `Unknown command \`${publicCommandName(command)}\`.`,
       hints: hint
     });
   }
@@ -118,20 +118,20 @@ export const validateArgs = ({
   // Get allowed args using the new Zod-based definition
   const allowedArgs = getAllowedArgs(command as StacktapeCommand);
 
-  const helpHint = `Use \`stacktape ${command} --help\` to show available options and their meaning, or visit ${getLink(command)}.`;
+  const helpHint = `Use \`stacktape ${publicCommandName(command)} --help\` to show available options and their meaning, or visit ${getLink(command)}.`;
   const multiCharacterHint =
     'Note that multi-character aliases for options must be supplied with -- (two dashes) instead of one.';
 
   // Validate each provided arg
   for (const cliArg in rawArgs) {
     if (!allowedArgs.includes(cliArg)) {
-      const rawAlias = cliArgsAliases[cliArg as keyof typeof cliArgsAliases];
-      const alias = rawAlias ? `(--${Array.isArray(rawAlias) ? rawAlias.join(', --') : rawAlias}) ` : '';
       throw new CliError({
         category: 'CLI',
         code: 'CLI_ARGUMENT_UNKNOWN',
-        message: `Invalid argument \`--${cliArg}\` ${alias}for command \`${command}\`.${
-          allowedArgs.length ? ` Must be one of ${allowedArgs.map((arg) => `\`--${arg}\``).join(', ')}.` : ''
+        message: `Invalid argument \`--${publicFlag(cliArg)}\` for command \`${publicCommandName(command)}\`.${
+          allowedArgs.length
+            ? ` Must be one of ${allowedArgs.map((arg) => `\`--${publicFlag(arg)}\``).join(', ')}.`
+            : ''
         }`,
         hints: [multiCharacterHint, helpHint]
       });
@@ -162,7 +162,7 @@ export const validateArgs = ({
       throw new CliError({
         category: 'CLI',
         code: 'CLI_ARGUMENT_TYPE_INVALID',
-        message: `Invalid type of argument \`--${cliArg}\` for command \`${command}\`. Received \`${value}\` of type \`${type}\`. Must be of type ${allowedTypes.join(
+        message: `Invalid type of argument \`--${publicFlag(cliArg)}\` for command \`${publicCommandName(command)}\`. Received \`${value}\` of type \`${type}\`. Must be of type ${allowedTypes.join(
           ', '
         )}.`,
         hints: [multiCharacterHint, helpHint]
@@ -174,7 +174,7 @@ export const validateArgs = ({
         throw new CliError({
           category: 'CLI',
           code: 'CLI_ARGUMENT_VALUE_INVALID',
-          message: `Argument \`--${cliArg}\` for command \`${command}\` must be one of ${allowedValues.join(
+          message: `Argument \`--${publicFlag(cliArg)}\` for command \`${publicCommandName(command)}\` must be one of ${allowedValues.join(
             ', '
           )}. Received: \`${value}\``,
           hints: [multiCharacterHint, helpHint]
@@ -202,10 +202,10 @@ export const validateArgs = ({
         throw new CliError({
           category: 'CLI',
           code: 'CLI_ARGUMENT_REQUIRED',
-          message: `Missing required argument \`--${requiredArg}\` for command \`${command}\`. Required arguments: ${(
+          message: `Missing required argument \`--${publicFlag(requiredArg)}\` for command \`${publicCommandName(command)}\`. Required arguments: ${(
             requiredArgs as readonly string[]
           )
-            .map((arg) => `\`--${arg}\``)
+            .map((arg) => `\`--${publicFlag(arg)}\``)
             .join(', ')}.`,
           hints: [multiCharacterHint, helpHint]
         });
@@ -230,7 +230,7 @@ const validateStage = (stage: string) => {
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_VALIDATION_STAGE_MISSING',
       message: 'Stage is not set.',
-      hints: 'Use `--stage`, or configure a global default with `stacktape defaults:configure`.'
+      hints: 'Use `--stage`, or configure a global default with `stacktape defaults set`.'
     });
   }
   if (stage.length < 2) {
@@ -250,8 +250,7 @@ const validateStage = (stage: string) => {
 };
 
 const validateRegion = (region: string) => {
-  const hint =
-    'Use `--region`, set `AWS_DEFAULT_REGION`, or configure a global default with `stacktape defaults:configure`.';
+  const hint = 'Use `--region`, set `AWS_DEFAULT_REGION`, or configure a global default with `stacktape defaults set`.';
   if (region === null || region === undefined) {
     throw new CliError({
       category: 'CONFIG_VALIDATION',
@@ -350,7 +349,7 @@ export const validateAwsProfile = ({
       hints: [
         `Available profiles are: ${
           availableAwsProfiles.map((p) => p.profile).join(', ') || 'NONE'
-        }. Create one with \`stacktape aws-profile:create\`, or set \`AWS_ACCESS_KEY_ID\` and \`AWS_SECRET_ACCESS_KEY\`.`,
+        }. Create one with \`stacktape aws-profile create\`, or set \`AWS_ACCESS_KEY_ID\` and \`AWS_SECRET_ACCESS_KEY\`.`,
         'See https://docs.stacktape.com/user-guides/configure-aws-profile/ for a detailed guide.'
       ]
     });

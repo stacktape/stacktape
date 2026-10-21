@@ -305,7 +305,7 @@ class DeploymentArtifactManager {
       throw new ExpectedError(
         'STACK',
         `The container image for ${jobName} was reported unchanged, but no matching image is left in the deployment repository.`,
-        'Deploy again with --disableCache to rebuild and push it.'
+        'Deploy again with --no-cache to rebuild and push it.'
       );
     }
 

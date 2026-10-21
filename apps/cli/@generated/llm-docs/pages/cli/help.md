@@ -41,7 +41,9 @@ The `help` command accepts a single optional flag. The reference below lists its
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--command (-cmd)` | no | `string` | Command — This argument has different meanings depending on the command: • With `stacktape help`, it specifies a command to show detailed help for. • With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
+| `--command (positional 1)` | no | `string` | Command — This argument has different meanings depending on the command: • With `stacktape help`, it specifies a command to show detailed help for. • With `stacktape container shell`, it specifies a command to run inside the container to start the interactive session. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 
 
 ## Examples

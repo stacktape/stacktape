@@ -13,9 +13,12 @@ This command takes no arguments. It reads stored defaults and prints each config
 ## Command reference
 
 
-## CLI Options: `stacktape defaults:list`
+## CLI Options: `stacktape defaults list`
 
-No available options.
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 
 
 ## What gets displayed

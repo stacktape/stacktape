@@ -244,7 +244,7 @@ const resolveProfileAccountId = async ({
       category: 'AWS_ACCOUNT',
       code: 'LOCAL_AWS_PROFILE_NOT_FOUND',
       message: `AWS profile "${profile}" (${selector.label}) does not exist.`,
-      hints: [`Fix the profile name, ${selector.removal}, or pass --awsAccount <name>.`]
+      hints: [`Fix the profile name, ${selector.removal}, or pass --aws-account <name>.`]
     });
   }
   const configured = accountIdFromProfile(data);
@@ -257,8 +257,8 @@ const resolveProfileAccountId = async ({
       selector,
       cause,
       hint: sso
-        ? `Run "aws sso login --profile ${profile}", or pass --awsAccount <name>.`
-        : `Check the credentials of profile "${profile}", ${selector.removal}, or pass --awsAccount <name>.`
+        ? `Run "aws sso login --profile ${profile}", or pass --aws-account <name>.`
+        : `Check the credentials of profile "${profile}", ${selector.removal}, or pass --aws-account <name>.`
     });
   }
 };
@@ -337,12 +337,12 @@ export const matchConnectedAwsAccount = <Account extends ConnectedAccount>({
       category: 'AWS_ACCOUNT',
       code: 'LOCAL_AWS_ACCOUNT_AMBIGUOUS',
       message: `AWS account ${accountId} (from ${selector.label}) is connected more than once: ${matches.map(({ name }) => name).join(', ')}.`,
-      hints: ['Pass --awsAccount <name>.']
+      hints: ['Pass --aws-account <name>.']
     });
   }
   // Keys in the environment are still used to deploy when they are set, so only removing them helps.
   const fixes = selector.profile
-    ? `${selector.removal}, pass --awsAccount <name>, or connect account ${accountId} in the Stacktape Console.`
+    ? `${selector.removal}, pass --aws-account <name>, or connect account ${accountId} in the Stacktape Console.`
     : `${selector.removal}, or connect account ${accountId} in the Stacktape Console.`;
   throw new CliError({
     category: 'AWS_ACCOUNT',
@@ -366,5 +366,5 @@ export const ignoredProfileNotice = ({
   const { profile, environmentKeys } = selectors;
   if (!profile) return undefined;
   if (account.connectionMode !== 'PRIVILEGED' && !environmentKeys) return undefined;
-  return `${profile.label} is ignored: --awsAccount selects "${account.name}" (${account.awsAccountId}).`;
+  return `${profile.label} is ignored: --aws-account selects "${account.name}" (${account.awsAccountId}).`;
 };

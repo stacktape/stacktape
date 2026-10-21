@@ -9,7 +9,7 @@ export const commandAiDisconnect = async () => {
   const connection = await apiClient.disconnectAiSubscription({ provider });
   tuiManager.success(
     `Removed your ${AI_PROVIDERS[provider].label} for ${connection.member.email ?? 'you'} in ` +
-      `${connection.organization.name}. Connect it again with \`stacktape ai:connect\`.`
+      `${connection.organization.name}. Connect it again with \`stacktape ai connect\`.`
   );
   return { provider, configured: connection.configured, organization: connection.organization };
 };

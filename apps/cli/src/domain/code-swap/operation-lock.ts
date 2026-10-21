@@ -57,7 +57,7 @@ export const acquireLock = async (ddb: Client, table: string, holder: LockHolder
       category: 'DEPLOYMENT',
       code: 'CODE_SWAP_OPERATION_BUSY',
       message: `Another ${existing.operation} operation (${existing.invocationId}, started ${existing.startedAt}) holds the code-swap lock. No change was made.`,
-      hints: `Wait for it to finish. If it stopped, make sure its AWS changes finished, then run again with --recoverOperation ${existing.invocationId}.`
+      hints: `Wait for it to finish. If it stopped, make sure its AWS changes finished, then run again with --recover-operation ${existing.invocationId}.`
     });
   }
 };

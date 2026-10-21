@@ -102,7 +102,7 @@ const runStacktape = async (
     return;
   }
 
-  const args = [subcommand, '--stage', stage, '--region', region, '--configPath', configPath];
+  const args = [subcommand, '--stage', stage, '--region', region, '--config', configPath];
   const profile = workspace.getConfiguration('stacktape').get<string>('profile');
   if (profile) {
     args.push('--profile', profile);

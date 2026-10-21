@@ -32,7 +32,7 @@ const createJsonlSink = ({ stdout }: { stdout: boolean }): OutputSink => {
   };
 };
 
-const createPlainSink = (): OutputSink => {
+const createPlainSink = (isQuiet: () => boolean): OutputSink => {
   return {
     reset: () => plainEmitter.reset(),
     emit: (record) => {
@@ -49,7 +49,8 @@ const createPlainSink = (): OutputSink => {
         if (record.source === 'console') {
           return;
         }
-        plainEmitter.emitLog({ level: record.level, message: record.message });
+        if (isQuiet() && record.level === 'error') console.error(`[x] ${record.message}`);
+        else plainEmitter.emitLog({ level: record.level, message: record.message });
         return;
       }
       if (record.type === 'output') {
@@ -59,29 +60,36 @@ const createPlainSink = (): OutputSink => {
         return;
       }
       if (record.type === 'result') {
-        plainEmitter.emitResult(record);
+        if (isQuiet()) {
+          if (!record.ok) console.error(`[x] ${record.message} (${record.code})`);
+        } else plainEmitter.emitResult(record);
       }
     }
   };
 };
 
-const getSinksForMode = (mode: OutputMode): OutputSink[] => {
+const getSinksForMode = (mode: OutputMode, isQuiet: () => boolean): OutputSink[] => {
   const sinks: OutputSink[] = [createJsonlSink({ stdout: mode === 'jsonl' })];
   if (mode === 'plain') {
-    sinks.push(createPlainSink());
+    sinks.push(createPlainSink(isQuiet));
   }
   return sinks;
 };
 
 export class OutputRouter {
   private sinks: OutputSink[];
+  private quiet = false;
+
+  setQuiet(quiet: boolean) {
+    this.quiet = quiet;
+  }
 
   constructor(mode: OutputMode) {
-    this.sinks = getSinksForMode(mode);
+    this.sinks = getSinksForMode(mode, () => this.quiet);
   }
 
   reconfigure(mode: OutputMode) {
-    this.sinks = getSinksForMode(mode);
+    this.sinks = getSinksForMode(mode, () => this.quiet);
   }
 
   reset() {
@@ -91,6 +99,7 @@ export class OutputRouter {
   }
 
   emit(record: OutputRecord) {
+    if (this.quiet && record.type !== 'result' && !(record.type === 'log' && record.level === 'error')) return;
     for (const sink of this.sinks) {
       sink.emit(record);
     }

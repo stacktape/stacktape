@@ -52,14 +52,20 @@ export const apiReferenceDataPlugin = (): VirtualModulePlugin => ({
       if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new Error(`Invalid CLI command reference in ${artifact}. ${generatorHint('generate')}`);
       }
-      for (const [command, args] of Object.entries(data)) {
+      for (const [command, reference] of Object.entries(data)) {
+        const metadata = reference as Record<string, unknown>;
+        const args = metadata?.args;
         if (
+          typeof metadata?.publicName !== 'string' ||
+          !Array.isArray(metadata?.positionals) ||
           !Array.isArray(args) ||
           args.some((value: unknown) => {
             if (!value || typeof value !== 'object') return true;
             const arg = value as Record<string, unknown>;
             return (
               typeof arg.name !== 'string' ||
+              typeof arg.flag !== 'string' ||
+              (arg.positional !== undefined && typeof arg.positional !== 'number') ||
               typeof arg.required !== 'boolean' ||
               !Array.isArray(arg.allowedTypes) ||
               arg.allowedTypes.some((allowedType: unknown) => typeof allowedType !== 'string') ||

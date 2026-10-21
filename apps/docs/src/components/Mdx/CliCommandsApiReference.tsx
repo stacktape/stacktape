@@ -5,6 +5,8 @@ import { PropertyDescription, PropertyHeading, tokens } from './api-reference/sh
 
 export type CliCommandArg = {
   name: string;
+  flag: string;
+  positional?: number;
   required: boolean;
   description?: string;
   alias?: string;
@@ -27,7 +29,7 @@ const buildTypeInfo = (allowedTypes?: string[], allowedValues?: string[]): ApiTy
 const toProperty = (arg: CliCommandArg): ApiProperty => {
   const [short = '', ...long] = (arg.description || '').split('---');
   return {
-    name: `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`,
+    name: `${arg.alias ? `-${arg.alias}, ` : ''}--${arg.flag}${arg.positional !== undefined ? ` (positional ${arg.positional + 1})` : ''}`,
     required: arg.required,
     shortDescription: renderDocsMarkdown(short.trim().replace(/^#{1,6}\s+/, '')),
     longDescription: renderDocsMarkdown(long.join('---').trim()),
@@ -36,9 +38,10 @@ const toProperty = (arg: CliCommandArg): ApiProperty => {
 };
 
 export function CliCommandsApiReference({ command }: { command: string }) {
-  const args = cliCommandReference[command];
-  if (!args) throw new Error(`CLI reference command "${command}" was not found. Regenerate CLI artifacts.`);
+  const reference = cliCommandReference[command];
+  if (!reference) throw new Error(`CLI reference command "${command}" was not found. Regenerate CLI artifacts.`);
 
+  const { args, publicName, positionals } = reference;
   return (
     <section
       id={`api-ref-${command}`}
@@ -53,7 +56,8 @@ export function CliCommandsApiReference({ command }: { command: string }) {
           className="text-[14px] font-semibold"
           style={{ color: tokens.syntax.type, fontFamily: tokens.monoFamily }}
         >
-          {command}
+          stacktape {publicName}
+          {positionals.map((arg) => ` <${args.find((item) => item.name === arg)?.flag ?? arg}>`).join('')}
         </code>
         <span
           className="stp-typography text-[12px] font-medium uppercase leading-[1.2] tracking-[0.6px]"

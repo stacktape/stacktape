@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
 
 export type ToolOutput = {
@@ -391,7 +392,7 @@ const summarizeInfoStackData = (data?: Record<string, unknown>): Record<string, 
   if (result?.schemaVersion !== INFO_STACK_AGENT_SCHEMA_VERSION) {
     return {
       sourceSchemaVersion: result?.schemaVersion,
-      note: `Stacktape expected ${INFO_STACK_AGENT_SCHEMA_VERSION} from info:stack but received an unsupported result.`
+      note: `Stacktape expected ${INFO_STACK_AGENT_SCHEMA_VERSION} from status but received an unsupported result.`
     };
   }
 
@@ -406,7 +407,7 @@ const summarizeInfoStackData = (data?: Record<string, unknown>): Record<string, 
     description: result.description,
     ...(stackInfoResources ? { stacktapeResources: stackInfoResources } : {}),
     ...(cloudformation ? { cloudformation } : {}),
-    note: 'Full info:stack output was compacted for MCP. It can contain hundreds of CloudFormation records and sensitive-looking metadata; use this Stacktape summary instead of generic AWS MCP tools for Stacktape-managed stacks.'
+    note: 'Full status output was compacted for MCP. It can contain hundreds of CloudFormation records and sensitive-looking metadata; use this Stacktape summary instead of generic AWS MCP tools for Stacktape-managed stacks.'
   };
 };
 
@@ -464,7 +465,7 @@ export const buildCliRunOutput = ({
   const failureNextActions = authFailure
     ? STACKTAPE_AUTH_FAILURE_NEXT_ACTIONS
     : [
-        `Do not retry stacktape ${command} through Bash/shell. The MCP result above is the canonical execution result.`,
+        `Do not retry stacktape ${publicCommandName(command)} through Bash/shell. The MCP result above is the canonical execution result.`,
         rawTail
           ? 'Use rawTail to explain the failure, then ask the user for the missing input or auth step if needed.'
           : 'If the CLI produced no raw output, report that limitation and ask the user for the missing input or auth step if needed.',

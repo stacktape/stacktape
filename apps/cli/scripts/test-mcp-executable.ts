@@ -424,7 +424,7 @@ const verify = async () => {
       )
     );
     for (const [route, expected] of [
-      ['/cli/aws-profile-update', '--logLevel'],
+      ['/cli/aws-profile-update', '--log-level'],
       ['/getting-started/starter-projects', 'stacktape init --starterId'],
       ['/config-reference/alarms', 'notificationChannels']
     ]) {
@@ -439,12 +439,13 @@ const verify = async () => {
       ({ command }) => command
     );
     for (const action of ['list', 'ignore', 'resolve', 'reopen']) {
-      assert(errorCommandNames.includes(`errors:${action}`));
+      assert(errorCommandNames.includes(`error ${action}`));
       const described = await call('stacktape_cli', { action: 'describe', command: `errors:${action}` });
       assert.equal(described.ok, true);
       assert.equal(described.data?.safety, action === 'list' ? 'readOnly' : 'mutating');
       const removed = await call('stacktape_cli', { action: 'describe', command: `issues:${action}` });
-      assert.equal(removed.ok, false, 'The old command must not remain as an alias');
+      assert.equal(removed.ok, true, 'Legacy command spellings remain supported');
+      assert.equal(removed.data?.canonicalCommand, `errors:${action}`);
     }
     const listed = await call('stacktape_cli', { action: 'list', category: 'deployment' });
     assert((listed.data?.commands as Array<{ command: string }>).some((command) => command.command === 'deploy'));

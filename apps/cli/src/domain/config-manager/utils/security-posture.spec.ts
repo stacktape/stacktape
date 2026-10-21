@@ -451,7 +451,7 @@ describe('secret detection in raw configuration', () => {
       resourceType: 'multi-container-workload',
       fingerprint: 'secret-in-environment-variable:api:containers.app.environment.CLIENT_SECRET'
     });
-    expect(finding?.remediation).toContain('`stacktape secret:set`');
+    expect(finding?.remediation).toContain('`stacktape secret set`');
     expect(JSON.stringify(finding)).not.toContain(secretValue);
   });
 });

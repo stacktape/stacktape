@@ -499,7 +499,7 @@ const secretRules = ({ rawConfig }: RuleContext): SecurityReportFinding[] => {
             resourceType: resource?.type,
             fingerprintSuffix: `${path.join('.')}.${name}`,
             message: `Environment variable \`${name}\` on \`${resourceName}\`${location} holds a value that looks like a credential (${pattern.replaceAll('-', ' ')}).`,
-            remediation: `Store the value with \`stacktape secret:set\`, reference it as \`$Secret('...')\`, remove it from the configuration, and rotate the credential: a value committed to Git stays valid until it is revoked.`,
+            remediation: `Store the value with \`stacktape secret set\`, reference it as \`$Secret('...')\`, remove it from the configuration, and rotate the credential: a value committed to Git stays valid until it is revoked.`,
             details: { pattern, variableName: name, path }
           })
         );

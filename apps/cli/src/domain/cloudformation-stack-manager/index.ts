@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { codeSwapIntegration } from '@domain-services/code-swap/integration';
 import type { IamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
 import type {
@@ -480,7 +481,7 @@ class StackManager {
         const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          description: `Waiting for stack to be ready for ${globalStateManager.command} (current state: ${humanStatus})`,
+          description: `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`,
           parentEventType: eventContext?.parentEventType,
           instanceId: eventContext?.instanceId
         });

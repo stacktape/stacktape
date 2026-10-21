@@ -15,5 +15,8 @@ declare module 'virtual:stacktape/api-reference-data' {
 declare module 'virtual:stacktape/cli-command-reference' {
   import type { CliCommandArg } from '@/components/Mdx/CliCommandsApiReference';
 
-  export const cliCommandReference: Record<string, CliCommandArg[]>;
+  export const cliCommandReference: Record<
+    string,
+    { publicName: string; positionals: string[]; args: CliCommandArg[] }
+  >;
 }

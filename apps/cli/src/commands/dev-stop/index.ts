@@ -103,7 +103,7 @@ export const commandDevStop = async () => {
       tuiManager.info(`  - ${agent.projectName}/${agent.stage} on port ${agent.port}`);
     }
     tuiManager.printLines(['']);
-    tuiManager.info('To stop a specific agent, use: dev:stop --agentPort <port>');
+    tuiManager.info('To stop a specific agent, use: dev stop --agent-port <port>');
     return;
   }
 
@@ -113,6 +113,6 @@ export const commandDevStop = async () => {
   if (!stopped) {
     tuiManager.info('No running dev agents found.');
     tuiManager.printLines(['']);
-    tuiManager.info('If the agent is running on a different port, use: dev:stop --agentPort <port>');
+    tuiManager.info('If the agent is running on a different port, use: dev stop --agent-port <port>');
   }
 };

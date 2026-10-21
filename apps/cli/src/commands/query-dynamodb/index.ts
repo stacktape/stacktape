@@ -39,8 +39,8 @@ export const commandQueryDynamodb = async () => {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_DYNAMODB_RESOURCE_REQUIRED',
-      message: 'Missing required flag `--resourceName`.',
-      hints: 'Provide `--resourceName <tableName>`.'
+      message: 'Missing required flag `--resource-name`.',
+      hints: 'Provide `--resource-name <tableName>`.'
     });
   }
 
@@ -68,7 +68,7 @@ export const commandQueryDynamodb = async () => {
       category: 'CLI',
       code: 'CLI_DYNAMODB_RESOURCE_TYPE_INVALID',
       message: `Resource \`${resourceName}\` is not a DynamoDB table (type: \`${resource.resourceType}\`).`,
-      hints: '`query:dynamodb` supports `dynamo-db-table` resources only.'
+      hints: '`query dynamodb` supports `dynamo-db-table` resources only.'
     });
   }
 

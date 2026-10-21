@@ -1,3 +1,4 @@
+import { publicFlag } from '../../config/cli/public-names';
 import { operationReporter } from '@application-services/operation-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -221,7 +222,7 @@ const getSelectedResources = async (
         throw new CliError({
           category: 'CLI',
           code: 'CLI_DEV_RESOURCE_NOT_FOUND',
-          message: `Resource \`${name}\` specified in \`--${argName}\` does not exist.`,
+          message: `Resource \`${name}\` specified in \`--${publicFlag(argName)}\` does not exist.`,
           hints: hint
         });
       }
@@ -329,7 +330,7 @@ export const commandDev = async () => {
         category: 'CLI',
         code: 'CLI_DEV_AGENT_PORT_UNAVAILABLE',
         message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`,
-        hints: 'Specify a port with `--agentPort`, or free a port in that range.'
+        hints: 'Specify a port with `--agent-port`, or free a port in that range.'
       });
     }
 
@@ -380,7 +381,7 @@ export const commandDev = async () => {
         '',
         '─'.repeat(60),
         'IMPORTANT: When done, stop the dev agent with:',
-        `  stacktape dev:stop --agentPort ${port}`,
+        `  stacktape dev stop --agent-port ${port}`,
         '─'.repeat(60)
       ]);
     }
@@ -418,7 +419,7 @@ export const commandDev = async () => {
         category: 'CLI',
         code: 'CLI_DEV_AGENT_PORT_UNAVAILABLE',
         message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`,
-        hints: 'Specify a port with `--agentPort`, or free a port in that range.'
+        hints: 'Specify a port with `--agent-port`, or free a port in that range.'
       });
     }
 

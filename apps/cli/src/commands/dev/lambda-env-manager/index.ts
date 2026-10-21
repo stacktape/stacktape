@@ -183,7 +183,7 @@ export const detectLambdasNeedingTunnels = async (
         reason:
           `Lambda is in VPC and cannot reach local resources via public tunnel. ` +
           `Options: (1) Set "dev.remote: true" on [${resourceList}] to use deployed AWS resources, ` +
-          `(2) Remove joinDefaultVpc during dev, or (3) Use --skipResources ${lambda.name} to exclude this function`
+          `(2) Remove joinDefaultVpc during dev, or (3) Use --skip-resources ${lambda.name} to exclude this function`
       });
       continue;
     }

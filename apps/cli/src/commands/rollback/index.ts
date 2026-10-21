@@ -79,7 +79,7 @@ const resolveTargetVersion = ({
   if (!currentVersion) {
     throw stpErrors.e999({
       message: 'Cannot determine current deployment version. The stack may not have been deployed with Stacktape.',
-      hint: 'Use --targetVersion to specify the target version explicitly.'
+      hint: 'Use --target-version to specify the target version explicitly.'
     });
   }
 
@@ -93,7 +93,7 @@ const resolveTargetVersion = ({
   if (!targetVersion) {
     throw stpErrors.e999({
       message: `Cannot roll back ${steps} step(s) from ${currentVersion}: only ${olderVersions.length} older release(s) are stored.`,
-      hint: 'Use --listVersions to see the stored releases and --targetVersion to pick one.'
+      hint: 'Use --list-versions to see the stored releases and --target-version to pick one.'
     });
   }
 
@@ -109,7 +109,7 @@ const verifyArtifactsExist = async ({
   if (!availableVersions.includes(targetVersion)) {
     throw stpErrors.e999({
       message: `Version ${targetVersion} not found in deployment bucket. Available versions: ${availableVersions.sort().join(', ') || 'none'}.`,
-      hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`
+      hint: `Use --list-versions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`
     });
   }
 

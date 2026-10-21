@@ -18,8 +18,8 @@ test('redirected help is readable and early failures preserve the JSONL result c
   try {
     const help = await fixture.run(['--help']);
     expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain('Available commands:');
-    expect(help.stdout).toContain('query:sql');
+    expect(help.stdout).toContain('Daily:');
+    expect(help.stdout).toContain('query sql');
     expect(help.stdout).toBe(stripAnsi(help.stdout));
     expect(help.stderr).toBe('');
     const prompt = await fixture.run(['aws-profile:create']);

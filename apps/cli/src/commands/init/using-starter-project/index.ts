@@ -1,3 +1,4 @@
+import { shellQuote } from '../../../config/cli/public-names';
 import type { StarterProjectMetadata } from '@scripts/types';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -257,11 +258,11 @@ const displayResult = ({
   }
 
   const projectName = projectToUse.starterProjectId;
-  const options = `--projectName ${projectName} --stage {stage} --region {region}`;
+  const options = `--project ${shellQuote(projectName)} --stage {stage} --region {region}`;
 
   lines.push('');
   lines.push(tuiManager.makeBold('Navigate to the project:'));
-  lines.push(`  ${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}`);
+  lines.push(`  ${tuiManager.colorize('yellow', 'cd')} ${shellQuote(targetDirectory)}`);
   lines.push(
     tuiManager.makeBold(`Run hybrid-local dev mode ${color.dim('(deploys minimal, free dev stack to AWS)')}:`)
   );

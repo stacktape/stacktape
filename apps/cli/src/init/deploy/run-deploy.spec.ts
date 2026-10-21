@@ -89,7 +89,7 @@ describe('the deploy command line', () => {
   it('shows the user the same command without our own machine-readable flag', () => {
     // What is displayed has to be what a person would type; `--agent` would give them JSONL.
     expect(deployCommandLine(request)).toBe(
-      'stacktape deploy --configPath stacktape.yml --stage dev --region eu-west-1 --projectName orders'
+      'stacktape deploy --config stacktape.yml --stage dev --region eu-west-1 --project orders'
     );
   });
 
@@ -100,7 +100,7 @@ describe('the deploy command line', () => {
       '--awsAccount',
       'production-account'
     ]);
-    expect(deployCommandLine(selected)).toEndWith('--awsAccount production-account');
+    expect(deployCommandLine(selected)).toEndWith('--aws-account production-account');
   });
 });
 

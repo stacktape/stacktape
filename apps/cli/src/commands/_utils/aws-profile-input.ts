@@ -6,7 +6,7 @@ export const assertAwsProfilesConfigured = (profiles: string[]) => {
       category: 'CREDENTIALS',
       code: 'AWS_PROFILE_NOT_CONFIGURED',
       message: 'No AWS profile is configured in the shared AWS credentials or config files.',
-      hints: 'Create a profile with `stacktape aws-profile:create`.'
+      hints: 'Create a profile with `stacktape aws-profile create`.'
     });
   }
 };

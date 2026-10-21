@@ -235,7 +235,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
   if (agent === undefined && requested !== 'auto' && requested !== 'none') {
     // Asked for by name and not there. Falling back to something else would be doing a different
     // thing than was requested, quietly, and charging someone's subscription for it.
-    throw new Error(`--codingAgent ${requested} was requested, but it is not installed.`);
+    throw new Error(`--coding-agent ${requested} was requested, but it is not installed.`);
   }
 
   const presentation: InitPresentation = options.presentation ?? (canOpenBrowser() ? 'browser' : 'terminal');
@@ -314,7 +314,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     say(
       configFile.existingPath === undefined
         ? `\nWrote ${configFile.path}`
-        : `\n${configFile.existingPath} was already here and has not been touched.\nWrote ${configFile.path} beside it — deploy it with \`--configPath ${configFile.filename}\`, or merge it in yourself.`
+        : `\n${configFile.existingPath} was already here and has not been touched.\nWrote ${configFile.path} beside it — deploy it with \`--config ${configFile.filename}\`, or merge it in yourself.`
     );
     for (const line of describeDevDependency(configFile)) say(line);
 
@@ -496,7 +496,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     codingAgentSetup: {
       describe: (agentId) =>
         isCodingAgentId(agentId)
-          ? { label: getCodingAgent(agentId).label, command: `stacktape mcp:add --codingAgents ${agentId}` }
+          ? { label: getCodingAgent(agentId).label, command: `stacktape mcp add --coding-agents ${agentId}` }
           : undefined,
       setUp: async (agentId) => {
         if (!isCodingAgentId(agentId)) return { ok: false, detail: 'This agent cannot be connected to Stacktape.' };

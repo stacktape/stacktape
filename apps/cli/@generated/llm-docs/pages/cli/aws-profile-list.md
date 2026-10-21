@@ -15,11 +15,12 @@ If no profiles are configured, the command prints a warning and suggests creatin
 ## Options reference
 
 
-## CLI Options: `stacktape aws-profile:list`
+## CLI Options: `stacktape aws-profile list`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 
 
 ## Examples

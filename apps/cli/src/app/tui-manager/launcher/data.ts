@@ -1,3 +1,4 @@
+import { publicCommandName, publicCommandLine } from '../../../config/cli/public-names';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import { cliCommands, type StacktapeCommand } from '../../../config/cli/commands';
 import { getAllowedArgs, getCommandDescription, getRequiredArgs } from '../../../config/cli/utils';
@@ -43,7 +44,7 @@ export const commandSuggestions = (): CommandSuggestion[] => {
   return launcherCommands().map((command) => ({
     type: 'command',
     command,
-    label: `/${command}`,
+    label: `/${publicCommandName(command)}`,
     description: firstParagraph(getCommandDescription(command))
   }));
 };
@@ -113,26 +114,14 @@ export const normalizeArgValue = ({ value, allowedTypes }: { value: string; allo
 };
 
 export const formatCommandLine = (command: StacktapeCommand, args: StacktapeArgs) => {
-  const parts = ['stacktape', command];
-  for (const [key, value] of Object.entries(args)) {
-    if (value === undefined || value === null || value === '') continue;
-    if (typeof value === 'boolean') {
-      if (value) parts.push(`--${key}`);
-      continue;
-    }
-    if (SENSITIVE_RECENT_ARG_NAMES.has(key)) {
-      parts.push(`--${key}`, '<redacted>');
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        parts.push(`--${key}`, String(item));
-      }
-      continue;
-    }
-    parts.push(`--${key}`, String(value));
-  }
-  return parts.join(' ');
+  return publicCommandLine(
+    command,
+    Object.fromEntries(
+      Object.entries(args)
+        .filter(([, value]) => value !== '')
+        .map(([key, value]) => [key, SENSITIVE_RECENT_ARG_NAMES.has(key) ? '<redacted>' : value])
+    )
+  );
 };
 
 export const getAllowedValuesForArg = (argName: string, allowedValues?: string[]) => {

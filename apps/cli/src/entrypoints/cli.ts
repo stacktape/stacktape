@@ -19,7 +19,10 @@ const main = async () => {
   );
   configureNativeRuntimeForPlatform();
 
-  const { getCliInput } = await timeAsync('startup:load-argument-reader', () => import('@utils/cli'));
+  const { getCliInput, getBootstrapOptions } = await timeAsync(
+    'startup:load-argument-reader',
+    () => import('@utils/cli')
+  );
   const { resolveOutputMode } = await timeAsync(
     'startup:load-output-mode',
     () => import('@application-services/tui-manager/output/mode')
@@ -29,7 +32,14 @@ const main = async () => {
   addCallerStacksToFileErrors();
 
   const endReadArguments = startTiming('startup:read-arguments');
-  const { commands, options, additionalArgs } = getCliInput();
+  let input: ReturnType<typeof getCliInput>;
+  try {
+    input = getCliInput();
+  } catch (error) {
+    endReadArguments();
+    return runCommand({ commands: [], args: getBootstrapOptions(process.argv.slice(2)) }, error);
+  }
+  const { commands, options, additionalArgs } = input;
   endReadArguments();
   const forceTty = process.env.FORCE_TTY === '1';
   const outputMode = resolveOutputMode({

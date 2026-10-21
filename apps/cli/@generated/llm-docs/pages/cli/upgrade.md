@@ -28,7 +28,9 @@ For automatically-run upgrades (native and global installs), Stacktape executes 
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--newVersion (-nv)` | no | `string` | New Version — The version of Stacktape to install. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--new-version (positional 1)` | no | `string` | New Version — The version of Stacktape to install. | - |
 
 
 When run without flags, Stacktape resolves and installs the latest published version automatically.
