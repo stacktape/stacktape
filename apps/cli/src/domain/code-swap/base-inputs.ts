@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 // The benchmark CLI and installed-package consumer must invalidate the same image inputs.
 export const codeSwapBaseInputs = (input: {
   manifest: string;
+  dependencyImage?: string;
   lock: string;
   authored: string;
   supervisor: Uint8Array;
