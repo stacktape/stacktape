@@ -172,7 +172,7 @@ The `require-data-backups` guardrail checks the backup controls Stacktape can de
 
 ## Require dead-letter queue
 
-The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures.
+The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures. A queue that another queue in the stack names in `redrivePolicy.targetSqsQueueName` is the dead-letter queue itself and needs no `redrivePolicy` of its own, as `deadLetterQueue` in the example below shows. A queue that only queues in other stacks use as their dead-letter queue is not recognized and still needs its own `redrivePolicy`.
 
 **When to enable:** Enable when your system processes messages representing real business events — orders, payments, notifications — where losing a message means losing data. Dead-letter queues give you a second chance to inspect and reprocess failed messages instead of having them silently disappear after exhausting retries.
 

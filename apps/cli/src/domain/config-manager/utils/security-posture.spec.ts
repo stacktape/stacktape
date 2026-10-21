@@ -58,7 +58,12 @@ describe('security posture through authored configuration', () => {
         }
       },
       jobs: { type: 'sqs-queue' },
-      events: { type: 'sqs-queue', properties: { redrivePolicy: { targetSqsQueueName: 'jobs', maxReceiveCount: 3 } } },
+      // `failed` is the dead-letter queue of `events`; it has no queue of its own to send failures to.
+      failed: { type: 'sqs-queue' },
+      events: {
+        type: 'sqs-queue',
+        properties: { redrivePolicy: { targetSqsQueueName: 'failed', maxReceiveCount: 3 } }
+      },
       sessions: {
         type: 'dynamo-db-table',
         properties: { primaryKey: { partitionKey: { name: 'id', type: 'string' } } }
@@ -66,6 +71,7 @@ describe('security posture through authored configuration', () => {
       files: { type: 'efs-filesystem' },
       uploads: { type: 'bucket', properties: { accessibility: { accessibilityMode: 'public-read-write' } } },
       assets: { type: 'bucket', properties: { accessibility: { accessibilityMode: 'public-read' } } },
+      search: { type: 'open-search-domain' },
       internal: { type: 'application-load-balancer', properties: { interface: 'internal' } },
       edge: { type: 'application-load-balancer' }
     } satisfies NonNullable<StacktapeConfig['resources']>;
@@ -78,6 +84,7 @@ describe('security posture through authored configuration', () => {
       'database-backups-disabled',
       'database-deletion-protection-disabled',
       'database-reachable-from-internet',
+      'database-reachable-from-internet',
       'load-balancer-without-firewall',
       'queue-without-dead-letter-queue',
       'stack-termination-protection-disabled'
@@ -86,6 +93,7 @@ describe('security posture through authored configuration', () => {
       'assets',
       'edge',
       'orders',
+      'search',
       'uploads'
     ]);
     expect(production.findings.find(({ resourceName }) => resourceName === 'uploads')).toMatchObject({
@@ -96,12 +104,17 @@ describe('security posture through authored configuration', () => {
       ruleId: 'bucket-publicly-accessible',
       severity: 'MEDIUM'
     });
-    expect(production.findings.find(({ ruleId }) => ruleId === 'database-reachable-from-internet')).toMatchObject({
-      resourceName: 'orders',
-      fingerprint: 'database-reachable-from-internet:orders'
-    });
+    expect(
+      production.findings
+        .filter(({ ruleId }) => ruleId === 'database-reachable-from-internet')
+        .map(({ fingerprint, resourceType }) => [fingerprint, resourceType])
+    ).toEqual([
+      ['database-reachable-from-internet:orders', 'relational-database'],
+      ['database-reachable-from-internet:search', 'open-search-domain']
+    ]);
     expect(production.findings[0].severity).toBe('HIGH');
     expect(production.findings.map(({ severity }) => severity)).toEqual([
+      'HIGH',
       'HIGH',
       'HIGH',
       'MEDIUM',
@@ -113,9 +126,10 @@ describe('security posture through authored configuration', () => {
       'LOW',
       'LOW'
     ]);
-    expect(summarizeSecurityFindings(production.findings)).toBe('2 high, 6 medium, 2 low');
+    expect(summarizeSecurityFindings(production.findings)).toBe('3 high, 6 medium, 2 low');
     expect(summarizeSecurityFindings([])).toBe('no findings');
     expect(production.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
+    expect(production.findings.map(({ resourceName }) => resourceName)).not.toContain('failed');
     const development = assess(resources, {
       stage: 'production',
       config: { stackConfig: { stageType: 'non-production' } }
@@ -144,12 +158,21 @@ describe('security posture through authored configuration', () => {
           accessibility: { accessibilityMode: 'vpc' as const },
           deletionProtection: true
         }
+      },
+      search: {
+        type: 'open-search-domain' as const,
+        properties: { accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' as const } }
       }
     };
     expect(ruleIds(assess(privateResources))).not.toContain('database-reachable-from-internet');
-    expect(assess(privateResources).exposure.find(({ resourceName }) => resourceName === 'orders')?.accessibility).toBe(
-      'vpc'
-    );
+    expect(
+      assess(privateResources)
+        .exposure.filter(({ kind }) => kind === 'database')
+        .map(({ resourceName, accessibility }) => [resourceName, accessibility])
+    ).toEqual([
+      ['orders', 'vpc'],
+      ['search', 'scoping-workloads-in-vpc']
+    ]);
     expect(assess({}, { stage: 'client-a', config: { stackConfig: { stageType: 'production' } } }).isProduction).toBe(
       true
     );

@@ -361,6 +361,97 @@ test('a refusal waits for every task to observe this attempt, and old completion
   expect(allCandidatesCleaned([refused, status('v000002', 'complete')], 2, 'v000002')).toBe(true);
 });
 
+// Two supervisors against one release record, following the poll loop in supervisor/main.go: a proposal starts a
+// candidate and reports this revision; an abort stops it. A task that never read the proposal ignores the abort.
+const supervisedFleet = (reads: Record<string, boolean>) => {
+  const record = { phase: 'commit', revision: 'v000001' };
+  const tasks = Object.keys(reads).map((id) => ({
+    id,
+    prepared: false,
+    status: { revision: 'v000001', state: 'complete', timings: {} as Record<string, unknown> }
+  }));
+  const poll = (id: string) => {
+    const task = tasks.find((item) => item.id === id)!;
+    if (task.prepared && (record.phase === 'abort' || record.revision !== 'v000002')) {
+      task.prepared = false;
+      task.status = { revision: 'v000002', state: 'aborted', timings: { candidateReaped: true } };
+    } else if (!task.prepared && record.phase === 'prepare' && record.revision === 'v000002') {
+      task.prepared = true;
+      task.status = { revision: 'v000002', state: 'prepared', timings: {} };
+    }
+  };
+  const timer = setInterval(() => {
+    for (const task of tasks) if (reads[task.id]) poll(task.id);
+  }, 2);
+  return {
+    record,
+    statuses: async (ids: string[]) => ids.map((id) => tasks.find((task) => task.id === id)!.status),
+    stop: () => clearInterval(timer)
+  };
+};
+
+test('an interrupt before the proposal has nothing to abort or confirm, so the lock can be released', async () => {
+  const { abortProposal } = await import('../../src/domain/code-swap/release-record');
+  let calls = 0;
+  await abortProposal({
+    proposal: undefined,
+    statuses: async () => {
+      calls++;
+      return [];
+    },
+    writeAbort: async () => {
+      calls++;
+    }
+  });
+  expect(calls).toBe(0);
+});
+
+test('an abort right after the proposal waits until every task has observed it', async () => {
+  const { abortProposal } = await import('../../src/domain/code-swap/release-record');
+  // Interrupted right after the proposal: task b has not read the record yet. Writing the abort now would leave b on
+  // the old revision forever and cleanup could never be confirmed.
+  const reads = { a: true, b: false };
+  const fleet = supervisedFleet(reads);
+  Object.assign(fleet.record, { phase: 'prepare', revision: 'v000002' });
+  let abortedWhile: unknown;
+  const settled = abortProposal({
+    proposal: { ids: ['a', 'b'], revision: 'v000002' },
+    statuses: fleet.statuses,
+    writeAbort: async () => {
+      abortedWhile = await fleet.statuses(['a', 'b']);
+      Object.assign(fleet.record, { phase: 'abort', revision: '' });
+    },
+    pollMs: 1
+  });
+  await Bun.sleep(20);
+  expect(abortedWhile).toBeUndefined();
+  reads.b = true;
+  await settled;
+  fleet.stop();
+  expect(abortedWhile).toEqual([
+    { revision: 'v000002', state: 'prepared', timings: {} },
+    { revision: 'v000002', state: 'prepared', timings: {} }
+  ]);
+  expect((await fleet.statuses(['a', 'b'])).map(({ state }) => state)).toEqual(['aborted', 'aborted']);
+
+  // A task that never reads the proposal cannot prove cleanup; the abort still stops the others and the lock is kept.
+  const unreachable = supervisedFleet({ a: true, b: false });
+  Object.assign(unreachable.record, { phase: 'prepare', revision: 'v000002' });
+  const outcome = abortProposal({
+    proposal: { ids: ['a', 'b'], revision: 'v000002' },
+    statuses: unreachable.statuses,
+    writeAbort: async () => {
+      Object.assign(unreachable.record, { phase: 'abort', revision: '' });
+    },
+    observeMs: 20,
+    cleanupMs: 20,
+    pollMs: 1
+  });
+  await expect(outcome).rejects.toThrow('Candidate cleanup not confirmed');
+  unreachable.stop();
+  expect((await unreachable.statuses(['a'])).map(({ state }) => state)).toEqual(['aborted']);
+});
+
 test('a no-op image-only deploy never finalizes a release number that was not created', async () => {
   const { codeSwapComplete } = await import('../../src/domain/code-swap/runtime');
   const previous = process.env.STP_CODE_SWAP_BENCH_RUN;

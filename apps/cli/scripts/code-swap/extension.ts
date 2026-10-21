@@ -8,7 +8,14 @@ import { join, resolve } from 'node:path';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { ECSClient, DescribeServicesCommand, ListTasksCommand } from '@aws-sdk/client-ecs';
+import {
+  ECSClient,
+  DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
+  ListTasksCommand,
+  StopTaskCommand
+} from '@aws-sdk/client-ecs';
+import { ECRClient, DescribeImagesCommand } from '@aws-sdk/client-ecr';
 import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import {
   guard,
@@ -33,7 +40,8 @@ const assert: (value: unknown, reason: string) => asserts value = (value, reason
 const root = process.env.STP_CODE_SWAP_BENCH_FIXTURES_ROOT ?? '/home/congy/projects/deploy-benchmarks';
 const config = { ...clients, requestHandler: new NodeHttpHandler({ connectionTimeout: 10000, requestTimeout: 30000 }) };
 const ecs = new ECSClient(config),
-  ddb = new DynamoDBClient(config);
+  ddb = new DynamoDBClient(config),
+  ecr = new ECRClient(config);
 const stateIndex = process.argv.indexOf('--state');
 const directory = resolve(stateIndex < 0 ? '.stacktape/extension-live' : process.argv[stateIndex + 1]!);
 const statePath = join(directory, 'state.json');
@@ -243,7 +251,7 @@ const main = async () => {
       await cp(join(import.meta.dir, 'fixtures/permission-probe.mjs'), join(cwd, 'permission-probe.mjs'));
       await writeFile(
         join(cwd, 'entry.mjs'),
-        "import { createApp } from './server.mjs'; import { permissionProbe } from './permission-probe.mjs'; const app = createApp(); let heldMemory; app.post('/_swap/memory', (req,res) => { heldMemory = Buffer.alloc(192*1024*1024, 1); res.json({bytes:heldMemory.length}); }); app.get('/_swap/permissions', async (req,res) => { try { res.json(await permissionProbe(String(req.query.tasks).split(','), undefined, String(req.query.services ?? '').split(',').filter(Boolean))); } catch(error) { res.status(500).json({error:String(error)}); } }); const server = app.listen(Number(process.env.PORT ?? 3000), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
+        "import { createApp } from './server.mjs'; import { permissionProbe } from './permission-probe.mjs'; import { revision } from './revision.mjs'; const app = createApp(); app.get('/_swap/slow', (req,res) => { setTimeout(() => res.json({revision}), Number(req.query.ms ?? 1000)); }); let heldMemory; app.post('/_swap/memory', (req,res) => { heldMemory = Buffer.alloc(192*1024*1024, 1); res.json({bytes:heldMemory.length}); }); app.get('/_swap/permissions', async (req,res) => { try { res.json(await permissionProbe(String(req.query.tasks).split(','), undefined, String(req.query.services ?? '').split(',').filter(Boolean))); } catch(error) { res.status(500).json({error:String(error)}); } }); const server = app.listen(Number(process.env.PORT ?? 3000), '0.0.0.0'); process.on('SIGTERM', () => server.close());\n"
       );
       config.resources[service].properties.packaging.properties.entryfilePath =
         services.length > 1 ? `${service}/entry.mjs` : 'entry.mjs';
@@ -345,6 +353,156 @@ const main = async () => {
         samples.filter((item) => item.service === service).every((item) => item.revision === 'baseline'),
         'An unchanged service changed code.'
       );
+    if (process.argv.includes('--drain-check')) {
+      // A request that is still open when the swap switches must finish on the old code instead of being cut.
+      assert(!python, 'The drain check uses the Node.js fixture route.');
+      const target = changed[0]!;
+      const before = revisions[target];
+      await edit(owned, 'drain-check', [target]);
+      const slowStart = performance.now();
+      const slow = fetch(`${urls[target]}/_swap/slow?ms=20000`, { signal: AbortSignal.timeout(90000) }).then(
+        async (response) => ({ status: response.status, body: (await response.json()) as { revision?: string } }),
+        (error: unknown) => ({ status: 0, body: { error: String(error) } as { revision?: string } })
+      );
+      await Bun.sleep(500);
+      const start = performance.now(),
+        sampleStart = samples.length;
+      await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'drain-check.log'));
+      const cliMs = performance.now() - start;
+      const response = await slow;
+      const log = await readFile(join(directory, 'drain-check.log'), 'utf8');
+      const drain = { cliMs, slowMs: performance.now() - slowStart, status: response.status, body: response.body };
+      await save(join(directory, 'drain-check.json'), drain);
+      assert(log.includes(`Swapped code in ${target};`), 'The drain check did not swap.');
+      assert(
+        response.status === 200 && response.body.revision === before,
+        'An in-flight request did not finish on the old code.'
+      );
+      assert(
+        !samples.slice(sampleStart).some((item) => item.status !== 200 || item.error),
+        'Request failures occurred during the drain check.'
+      );
+      console.log(
+        `Drain check: 20 s request finished on the old code (HTTP ${response.status}); CLI ${(cliMs / 1000).toFixed(2)}s.`
+      );
+    }
+    if (process.argv.includes('--interrupt-check')) {
+      // Ctrl+C or a cancelled CI job during preparation, before any stack change, must abort any proposal and release
+      // the lock, so the next deploy runs without recovery. Two windows: while the preparation prerequisites run, before
+      // anything is proposed, and right after the proposal, before every task has read it.
+      const target = changed[0]!;
+      const recordKey = { pk: { S: `release#service:${target}` } };
+      const readRecord = async () =>
+        JSON.parse(
+          (await ddb.send(new GetItemCommand({ TableName: owned.table, Key: recordKey, ConsistentRead: true }))).Item!
+            .data!.S!
+        );
+      const interrupt = async (label: string, due: (traced: string, record: { Proposed?: unknown }) => boolean) => {
+        const before = revisions[target];
+        await edit(owned, label, [target]);
+        const tracePath = join(directory, `${label}-trace.jsonl`);
+        await writeFile(tracePath, '');
+        const output = openSync(join(directory, `${label}.log`), 'w');
+        const child = Bun.spawn(cliArgs(state, owned, 'deploy'), {
+          cwd: resolve(import.meta.dir, '../..'),
+          env: {
+            ...process.env,
+            STP_DEV_MODE: 'true',
+            AWS_PROFILE: PROFILE,
+            AWS_REGION: REGION,
+            STP_CODE_SWAP_BENCH_TRACE: tracePath
+          },
+          stdout: output,
+          stderr: output
+        });
+        let signalled = false;
+        try {
+          for (const deadline = Date.now() + 180000; Date.now() < deadline;) {
+            if (due(await readFile(tracePath, 'utf8'), await readRecord())) {
+              child.kill('SIGINT');
+              signalled = true;
+              break;
+            }
+            await Bun.sleep(20);
+          }
+        } finally {
+          if (!signalled) child.kill('SIGTERM');
+          const exited = await Promise.race([child.exited, Bun.sleep(120000).then(() => 'timeout' as const)]);
+          if (exited === 'timeout') child.kill('SIGKILL');
+          closeSync(output);
+        }
+        assert(signalled, `The ${label} deploy never reached its interrupt point.`);
+        assert(!(await readLock(ddb, owned.table)), `An interrupt (${label}) before any stack change kept the lock.`);
+        const current = await sample(target, urls[target]);
+        assert(current.status === 200 && current.revision === before, `The ${label} deploy changed serving code.`);
+        revisions[target] = before!;
+        return readFile(tracePath, 'utf8');
+      };
+      const recordBefore = await readRecord();
+      const preparing = await interrupt('interrupt-preparation', (traced) => traced.includes('"prepareFleet:start"'));
+      assert(
+        preparing.includes('"preparePrerequisitesReady"') && !preparing.includes('"signal:prepare"'),
+        'The preparation interrupt did not stop between the prerequisites and the proposal.'
+      );
+      assert(
+        JSON.stringify(await readRecord()) === JSON.stringify(recordBefore),
+        'An interrupt before the proposal changed the release record.'
+      );
+      await interrupt('interrupt-check', (_, record) => Boolean(record.Proposed));
+      const record = await readRecord();
+      assert(!record.Proposed && record.Phase === 'abort', 'The interrupted proposal was not aborted.');
+      await edit(owned, 'after-interrupt', [target]);
+      await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'after-interrupt.log'));
+      const log = await readFile(join(directory, 'after-interrupt.log'), 'utf8');
+      assert(log.includes(`Swapped code in ${target};`), 'The deploy after an interrupt did not swap.');
+      await save(join(directory, 'interrupt-check.json'), { verified: true });
+      console.log('Interrupt check: both windows released the lock without recovery; the next deploy swapped.');
+    }
+    if (process.argv.includes('--retention-check')) {
+      // Swaps keep each service on its first task revision while retention trims older images. A replacement task
+      // must still be able to pull that image and load the committed code.
+      const running = await fleet(owned);
+      for (const service of services) {
+        const definition = await ecs.send(
+          new DescribeTaskDefinitionCommand({ taskDefinition: running[service]!.definition })
+        );
+        const image = definition.taskDefinition!.containerDefinitions![0]!.image!;
+        const [repository, tag] = image.split('/').at(-1)!.split(':');
+        const found = await ecr
+          .send(new DescribeImagesCommand({ repositoryName: repository, imageIds: [{ imageTag: tag }] }))
+          .then(
+            (response) => response.imageDetails?.length ?? 0,
+            () => 0
+          );
+        assert(found, `Retention deleted the image ${service} runs (${tag}).`);
+      }
+      probeController.abort();
+      await Promise.allSettled(probes);
+      const target = changed[0]!;
+      const cluster = running[target]!.tasks[0]!.split('/').at(-2)!;
+      await ecs.send(
+        new StopTaskCommand({ cluster, task: running[target]!.tasks[0]!, reason: 'code-swap retention check' })
+      );
+      // A single-task service is briefly unavailable here; keep these probes out of the swap failure count.
+      const replacementSamples = samples.length;
+      let replaced: Sample | undefined;
+      for (const deadline = Date.now() + 300000; Date.now() < deadline && !replaced;) {
+        const current = await sample(target, urls[target]);
+        const tasks = (await fleet(owned))[target]!.tasks;
+        if (
+          current.status === 200 &&
+          current.revision === revisions[target] &&
+          tasks.length === running[target]!.tasks.length &&
+          !tasks.includes(running[target]!.tasks[0]!)
+        )
+          replaced = current;
+        else await Bun.sleep(2000);
+      }
+      samples.splice(replacementSamples);
+      assert(replaced, 'A replacement task did not start with the committed code.');
+      await save(join(directory, 'retention-check.json'), { verified: true, replacedTask: replaced.task });
+      console.log('Retention check: running images kept; a replacement task serves the committed code.');
+    }
     if (process.argv.includes('--dependency-only')) {
       assert(python, 'The dependency-only scenario requires container-python.');
       const requirements = join(owned.directory, 'requirements.txt');

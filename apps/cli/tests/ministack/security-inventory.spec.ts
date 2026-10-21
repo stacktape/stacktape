@@ -132,6 +132,10 @@ fs.copyFileSync('scanner-input.json', args[args.indexOf('--output') + 1]);
         .components.map(({ name }: { name: string }) => name)
         .toSorted()
     ).toEqual(['express', 'left-pad', 'pg']);
+    // With several inventories in the bucket, the newest one decides whether the packages changed.
+    await deploymentArtifactManager.loadPreviousBucketObjects(first.pointer.bucket, 'update');
+    const unchangedAgain = await scan(['left-pad', 'pg', 'express'], 'v000004');
+    expect(unchangedAgain.pointer).toEqual(changed.pointer);
   } finally {
     if (previousTrivy === undefined) delete process.env.STACKTAPE_TRIVY_PATH;
     else process.env.STACKTAPE_TRIVY_PATH = previousTrivy;
