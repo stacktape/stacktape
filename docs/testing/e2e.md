@@ -136,6 +136,11 @@ credentials or reservation.
 The Console's [UI review procedure](../../apps/console/e2e/README.md#agent-ui-review) combines these journeys with
 visual and product critique and describes which findings should become repeatable browser assertions.
 
+For interaction and data-volume review, use the committed
+[capture helpers and heavy tenant](../../apps/console/ui/e2e/ui-capture/README.md) (private). The opt-in projects
+example captures mid-scroll chrome with real scrollbars, hover/focus control crops, disabled explanations and open
+overlays. Its helper qualification runs through the same offline `--ui-capture` lane.
+
 `STP_ISOLATED_BROWSER_FAIL_AFTER_START=1` forces a failure after startup to check teardown; the run must fail and still
 report the container removed.
 

@@ -1,3 +1,6 @@
+/** Inline Lambda ZIP uploads are capped at 50 MiB; larger archives must be published from S3. */
+export const LAMBDA_MAX_DIRECT_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024;
+
 /** AWS Lambda's limit applies to the combined unzipped function package and all attached layers. */
 export const LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES = 250 * 1024 * 1024;
 

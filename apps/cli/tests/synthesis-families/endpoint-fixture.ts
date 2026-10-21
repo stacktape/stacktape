@@ -58,7 +58,7 @@ export const synthesizeAppSyncEndpoint = async ({
       packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
       events: [new AppSyncApiIntegration({ appsyncApiName: graphql, field: 'Query.user' })]
     });
-    return { resources: { graphql, handler }, deploymentConfig: { issues: { enabled: false } } };
+    return { resources: { graphql, handler }, deploymentConfig: { errorTracking: { enabled: false } } };
   });
   const template = await synthesizeFixture({
     compiledConfig: config({

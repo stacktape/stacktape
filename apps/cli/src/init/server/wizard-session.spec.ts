@@ -255,6 +255,42 @@ describe('startWizardSession', () => {
       expect(runs).toBe(1);
     });
 
+    it('reads the project again when the first analysis found nothing to deploy', async () => {
+      // The first read found no service; the page then offers to read the project again.
+      const results = [factsWith({ services: [] }), factsWith({})];
+      let runs = 0;
+      const opened = await openSession(async () => {
+        runs += 1;
+        return resultFor(results[Math.min(runs, results.length) - 1]!);
+      });
+      const stateAfter = async (until: (state: { phase: string; composition?: { resources: object } }) => boolean) => {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const state = (await (
+            await fetch(`${opened.origin}/api/state`, { headers: { Origin: opened.origin, Cookie: opened.cookie } })
+          ).json()) as { phase: string; composition?: { resources: object } };
+          if (until(state)) return state;
+          await new Promise((settle) => setTimeout(settle, 20));
+        }
+        throw new Error('timed out');
+      };
+
+      await post(opened, { agentId: 'claude-code', modelId: 'default' });
+      const empty = await stateAfter((state) => state.phase === 'reviewing');
+      expect(Object.keys(empty.composition?.resources ?? {})).toHaveLength(0);
+
+      await post(opened, { agentId: 'claude-code', modelId: 'default' });
+      const found = await stateAfter(
+        (state) => state.phase === 'reviewing' && Object.keys(state.composition?.resources ?? {}).length > 0
+      );
+      expect(runs).toBe(2);
+      expect(Object.keys(found.composition?.resources ?? {})).toContain('api');
+
+      // A composition with resources still starts only once, however often the button is pressed.
+      await post(opened, { agentId: 'claude-code', modelId: 'default' });
+      await new Promise((settle) => setTimeout(settle, 60));
+      expect(runs).toBe(2);
+    });
+
     it('offers to connect the chosen coding agent after a successful deploy, and changes it only on the click', async () => {
       const setUpFor: string[] = [];
       session = await startWizardSession({
@@ -450,7 +486,14 @@ describe('startWizardSession', () => {
 
     it('streams a deploy to the page and ends with its outcome', async () => {
       let emit: ((event: unknown) => void) | undefined;
-      let settle: ((outcome: { ok: boolean; code: string; message: string; urls?: string[] }) => void) | undefined;
+      let settle:
+        | ((outcome: {
+            ok: boolean;
+            code: string;
+            message: string;
+            urls?: Array<{ resourceName: string; url: string }>;
+          }) => void)
+        | undefined;
       let requestedUrlResources: string[] = [];
 
       session = await startWizardSession({
@@ -481,8 +524,8 @@ describe('startWizardSession', () => {
             status: string;
             events: Array<{ type?: string; data?: unknown }>;
             commandLine: string;
-            outcome?: { ok: boolean; urls?: string[] };
-            urls?: string[];
+            outcome?: { ok: boolean; urls?: unknown };
+            urls?: Array<{ resourceName: string; url: string }>;
           };
         };
 
@@ -534,14 +577,19 @@ describe('startWizardSession', () => {
       expect(streamed[1]?.data).toBeUndefined();
       expect(JSON.stringify(streamed)).not.toContain('do-not-publish');
 
-      settle!({ ok: true, code: 'OK', message: 'Deployed', urls: ['https://api.example.com/'] });
+      settle!({
+        ok: true,
+        code: 'OK',
+        message: 'Deployed',
+        urls: [{ resourceName: 'api', url: 'https://api.example.com/' }]
+      });
       await new Promise((wait) => setTimeout(wait, 50));
 
       const finished = await readState();
       expect(finished.deployment?.status).toBe('succeeded');
       expect(finished.deployment?.outcome?.ok).toBe(true);
       expect(finished.deployment?.outcome?.urls).toBeUndefined();
-      expect(finished.deployment?.urls).toEqual(['https://api.example.com/']);
+      expect(finished.deployment?.urls).toEqual([{ resourceName: 'api', url: 'https://api.example.com/' }]);
     });
 
     it('checks with deploy credentials, then binds update consent to the exact StackId', async () => {

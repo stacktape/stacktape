@@ -16,7 +16,7 @@ Stacktape bills based on the AWS infrastructure costs your stacks generate — n
 | Feature | Free | Flexible | Enterprise |
 | --- | --- | --- | --- |
 | Price | $0 | % of AWS costs | Custom |
-| Team members | 1 | Unlimited | Unlimited |
+| Team members | Unlimited | Unlimited | Unlimited |
 | AWS cost limit | $100/mo | — | — |
 | Deployments | Unlimited | Unlimited | — |
 | Stacks | Unlimited | Unlimited | — |
@@ -27,7 +27,7 @@ Stacktape bills based on the AWS infrastructure costs your stacks generate — n
 
 ### Free plan
 
-The Free plan requires no credit card. It supports one team member and covers managed AWS infrastructure costs up to $100 per month. The Free plan price is $0 — Stacktape itself charges nothing on this tier. This is a good fit for individual developers, hobby projects, or evaluating Stacktape before committing to a paid plan.
+The Free plan requires no credit card and has no member limit. It covers managed AWS infrastructure costs up to $100 a calendar month. The Free plan price is $0: Stacktape itself charges nothing on this tier. When the month's managed AWS costs pass $100, deploys pause until you upgrade (see [Free plan cost limit](#free-plan-cost-limit)). This is a good fit for small teams, side projects, or evaluating Stacktape before committing to a paid plan.
 
 ### Flexible plan
 
@@ -38,6 +38,28 @@ The Flexible plan includes unlimited team members and hands-on support. Choose t
 ### Enterprise plan
 
 The Enterprise plan shows custom pricing on the subscription page and includes a schedule-meeting button to connect with the Stacktape team. The Enterprise plan card lists unlimited members, SSO, SOC 2 compliance, and up to 24x7 premium support. Choose this when your organization requires compliance certifications, SSO integration, or dedicated support SLAs.
+
+## Free plan cost limit
+
+A Free organization can deploy while its managed AWS costs for the current calendar month (UTC) are $100 or less.
+
+- **What counts.** The same managed AWS costs the Flexible fee is based on: the costs of the resources in Stacktape-managed
+  stacks, summed over all AWS accounts connected to the organization, from the AWS billing data Stacktape reads. Other
+  resources in your AWS accounts do not count. The Costs page shows the same numbers.
+- **What pauses.** Every new deploy: `stacktape deploy`, including code-only (fast) deploys, remote and runner deploys,
+  deploys after a Git push and deploys started from the Console. `stacktape dev` does not start either, because it
+  deploys and updates a dev stack. A deploy that already started finishes normally.
+- **What keeps working.** Your running infrastructure is never touched. Deleting stages, rolling back, running scripts
+  and the rest of the Console keep working.
+- **How it lifts.** Upgrading to the Flexible plan lifts it immediately. Without an upgrade, deploys resume when the next
+  calendar month starts and its costs begin again from zero.
+- **Missing cost data.** AWS delivers billing data a few times a day, and a new connection has none at first. Until
+  Stacktape has this month's costs, deploys are not limited.
+
+Every Free organization sees this month's managed AWS costs against the limit in the sidebar of the Console. While
+deploys are paused, every Console page opens with an upgrade notice, which you can close to keep reading. Members who
+cannot change the plan see which Owners and Admins can. The CLI stops a refused deploy or dev session before it touches AWS and prints
+the costs, the limit and the link to the Subscription Plans page.
 
 ## Walkthrough: upgrading to the Flexible plan
 
@@ -63,7 +85,7 @@ Payment management controls appear only when you have the `org:manage-billing` p
 
 ### Downgrading to the Free plan
 
-Open the Subscription Plans page. Under the Free plan card, click **Downgrade to FREE**. The button calls the Console's cancellation flow and refreshes your organization data on success. The Free plan card lists 1 team member and up to $100/month AWS costs.
+Open the Subscription Plans page. Under the Free plan card, click **Downgrade to FREE**. The button calls the Console's cancellation flow and refreshes your organization data on success. The Free plan card lists unlimited team members and up to $100 a month of managed AWS costs. If this month's managed costs are already above $100, deploys pause right after the downgrade.
 
 ### Viewing current plan status
 
@@ -120,7 +142,7 @@ Users with the `org:manage-billing` permission see the upgrade and downgrade con
 
 ### What happens if I exceed the Free plan's $100/month limit?
 
-The Free plan covers up to $100/month of managed AWS costs. For larger Stacktape-managed AWS spend, upgrade to the Flexible plan on the Subscription Plans page, which has no AWS cost limit.
+Deploys pause. Stacktape refuses new deploys and `stacktape dev` sessions of the organization until it upgrades to the Flexible plan or the next calendar month starts. Your running infrastructure is not touched, and deleting or rolling back stages still works. See [Free plan cost limit](#free-plan-cost-limit).
 
 ### Can I downgrade from Flexible to Free?
 

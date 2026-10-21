@@ -262,9 +262,12 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     return;
   }
 
-  // No connected accounts - need to connect one
-  if (!process.stdout.isTTY) {
-    throw stpErrors.e66({ organizationName: currentUserAndOrgData.organization.name });
+  // No connected accounts - need to connect one. A member who reaches only assigned accounts cannot connect one.
+  if (!process.stdout.isTTY || currentUserAndOrgData.isAwsAccountScoped) {
+    throw stpErrors.e66({
+      organizationName: currentUserAndOrgData.organization.name,
+      isAwsAccountScoped: currentUserAndOrgData.isAwsAccountScoped
+    });
   }
 
   await operationReporter.startEvent({

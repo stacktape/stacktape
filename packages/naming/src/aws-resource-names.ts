@@ -218,6 +218,10 @@ export const awsResourceNames = {
     });
   },
   // max 63 chars
+  /** The Lambda layer that holds a shared chunk of the stack's split-bundled functions. */
+  sharedChunkLayer({ stackName, layerNumber }: { stackName: string; layerNumber: number }) {
+    return `${stackName}-shared-chunk-layer-${layerNumber}`;
+  },
   // !!! should not be changed - breaking change
   deploymentBucket(globallyUniqueStackHash: string) {
     return buildResourceName({

@@ -21,8 +21,12 @@ if (endpoint) {
 }
 
 const guardedFetch = globalThis.fetch;
-globalThis.fetch = Object.assign(
-  (input: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) =>
-    guardedFetch(input, { ...options, redirect: 'error' }),
-  guardedFetch
-);
+globalThis.fetch = Object.assign((input: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
+  // MiniStack 1.5.27 advertises artifact downloads on its container's localhost:4566 instead of Docker's mapped
+  // loopback port. Keep the path/query intact and route only these emulator-owned downloads to this fixture.
+  const url = new URL(input instanceof Request ? input.url : input.toString());
+  if (endpoint && url.origin === 'http://localhost:4566' && url.pathname.startsWith('/_ministack/')) {
+    input = new URL(`${url.pathname}${url.search}`, endpoint);
+  }
+  return guardedFetch(input, { ...options, redirect: 'error' });
+}, guardedFetch);

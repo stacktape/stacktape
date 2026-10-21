@@ -1,16 +1,22 @@
 import { pRateLimit } from 'p-ratelimit';
-import type { LambdaClient } from '@aws-sdk/client-lambda';
+import type { LambdaClient, Runtime } from '@aws-sdk/client-lambda';
 import {
+  DeleteLayerVersionCommand,
   GetAliasCommand,
   GetFunctionCommand,
+  GetLayerVersionByArnCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
+  ListLayerVersionsCommand,
   ListTagsCommand,
+  PublishLayerVersionCommand,
   PublishVersionCommand,
   TagResourceCommand,
+  UntagResourceCommand,
   UpdateAliasCommand,
-  UpdateFunctionCodeCommand
+  UpdateFunctionCodeCommand,
+  UpdateFunctionConfigurationCommand
 } from '@aws-sdk/client-lambda';
 import { fromUtf8, toUtf8 } from '@smithy/util-utf8';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -59,6 +65,109 @@ export class AwsLambda {
           S3Key: artifactS3Key
         })
       )
+      .catch(errorHandler);
+  };
+
+  /**
+   * Replaces the function's layers. Lambda refuses a configuration update while another update of the function is in
+   * progress, so wait for a preceding code update first.
+   */
+  updateFunctionLayers = async ({
+    lambdaResourceName,
+    layerArns
+  }: {
+    lambdaResourceName: string;
+    layerArns: string[];
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to update the layers of function ${lambdaResourceName}.`);
+    return this.#createClient()
+      .send(new UpdateFunctionConfigurationCommand({ FunctionName: lambdaResourceName, Layers: layerArns }))
+      .catch(errorHandler);
+  };
+
+  /** The layer ARNs the function runs with now. Shares the status read budget, as it reads with GetFunction. */
+  getFunctionLayerArns = async ({ lambdaResourceName }: { lambdaResourceName: string }): Promise<string[]> => {
+    const errorHandler = this.#getErrorHandler(`Failed to read the layers of function ${lambdaResourceName}.`);
+    const { Configuration } = await this.#readFunctionStatus(() =>
+      this.#createClient().send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+    ).catch(errorHandler);
+    return (Configuration?.Layers ?? []).flatMap(({ Arn }) => (Arn ? [Arn] : []));
+  };
+
+  /** Download locations stay inside the deployment workflow; never include these signed URLs in diagnostics. */
+  getFunctionDeployment = async ({ lambdaResourceName }: { lambdaResourceName: string }) =>
+    this.#readFunctionStatus(() =>
+      this.#createClient().send(new GetFunctionCommand({ FunctionName: lambdaResourceName }))
+    ).catch(this.#getErrorHandler(`Failed to read deployed code of function ${lambdaResourceName}.`));
+
+  getLayerVersion = async ({ arn }: { arn: string }) =>
+    this.#createClient()
+      .send(new GetLayerVersionByArnCommand({ Arn: arn }))
+      .catch(this.#getErrorHandler('Failed to read a deployed layer version.'));
+
+  /** Signed Lambda artifact URLs must never appear in errors, including a failed response-body read. */
+  downloadArtifact = async ({ location }: { location?: string }): Promise<Buffer> => {
+    if (!location) throw new Error('AWS did not return the deployed artifact download location.');
+    try {
+      const response = await fetch(location, { redirect: 'error' });
+      if (!response.ok) throw new Error('Artifact download failed.');
+      return Buffer.from(await response.arrayBuffer());
+    } catch {
+      throw new Error('Could not download a deployed Lambda artifact.');
+    }
+  };
+
+  publishLayerVersion = async ({
+    layerName,
+    description,
+    compatibleRuntimes,
+    artifactBucketName,
+    artifactS3Key,
+    zipFile
+  }: {
+    layerName: string;
+    description?: string;
+    compatibleRuntimes?: string[];
+    artifactBucketName?: string;
+    artifactS3Key?: string;
+    zipFile?: Uint8Array;
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to publish a version of layer ${layerName}.`);
+    return this.#createClient()
+      .send(
+        new PublishLayerVersionCommand({
+          LayerName: layerName,
+          Description: description,
+          CompatibleRuntimes: compatibleRuntimes as Runtime[] | undefined,
+          Content: zipFile ? { ZipFile: zipFile } : { S3Bucket: artifactBucketName, S3Key: artifactS3Key }
+        })
+      )
+      .catch(errorHandler);
+  };
+
+  /** Every version of the layer, newest first. A layer that was never published has no versions. */
+  listLayerVersions = async ({ layerName }: { layerName: string }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to list the versions of layer ${layerName}.`);
+    const versions: { version: number; arn: string; description?: string }[] = [];
+    let marker: string | undefined;
+    do {
+      const page = await this.#createClient()
+        .send(new ListLayerVersionsCommand({ LayerName: layerName, Marker: marker }))
+        .catch(errorHandler);
+      for (const { Version, LayerVersionArn, Description } of page.LayerVersions ?? []) {
+        if (Version !== undefined && LayerVersionArn) {
+          versions.push({ version: Version, arn: LayerVersionArn, description: Description });
+        }
+      }
+      marker = page.NextMarker;
+    } while (marker);
+    return versions;
+  };
+
+  deleteLayerVersion = async ({ layerName, version }: { layerName: string; version: number }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to delete version ${version} of layer ${layerName}.`);
+    await this.#createClient()
+      .send(new DeleteLayerVersionCommand({ LayerName: layerName, VersionNumber: version }))
       .catch(errorHandler);
   };
 
@@ -126,6 +235,13 @@ export class AwsLambda {
     });
     return this.#createClient()
       .send(new TagResourceCommand({ Resource: lambdaArn, Tags: tagObject }))
+      .catch(errorHandler);
+  };
+
+  untagFunction = async ({ lambdaArn, tagKeys }: { lambdaArn: string; tagKeys: string[] }) => {
+    const errorHandler = this.#getErrorHandler('Failed to remove lambda tags.');
+    return this.#createClient()
+      .send(new UntagResourceCommand({ Resource: lambdaArn, TagKeys: tagKeys }))
       .catch(errorHandler);
   };
 

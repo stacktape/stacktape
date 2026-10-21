@@ -80,7 +80,7 @@ exports.handler = async () => {
 
 ## Failure alerts
 
-Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
 ## Cost
 

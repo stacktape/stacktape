@@ -101,9 +101,7 @@ const packageStep = async (step: string, root: string, existingDigests: string[]
     createPackagingError
   });
   const splitFunctionDigest = await getSplitFunctionDigest({
-    distFolderPath: root,
-    chunkLayers: [],
-    nativeLayer: null
+    distFolderPath: root
   });
   if (output.outcome !== 'bundled' || !output.artifactPath) {
     return {

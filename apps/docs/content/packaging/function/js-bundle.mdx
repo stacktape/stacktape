@@ -164,7 +164,7 @@ Stacktape bundles your code starting from the entry file into a single output fi
 
 ### Source maps
 
-Each deployment stores the function's source maps in the stack's deployment bucket instead of the deployment package, so the package carries code only. The maps contain no source code. When the [Stacktape Console](/observability/issues) first sees an error from the function, it uses the maps of the code that threw to show the stack trace with the original file, line and function. Stack traces in CloudWatch logs point into the bundled code.
+Each deployment stores the function's source maps in the stack's deployment bucket instead of the deployment package, so the package carries code only. The maps contain no source code. When the [Stacktape Console](/observability/error-tracking) first sees an error from the function, it uses the maps of the code that threw to show the stack trace with the original file, line and function. Stack traces in CloudWatch logs point into the bundled code.
 
 The deployment bucket keeps a function's maps as long as it keeps a deployment package that uses them, so the maps of every release you can [roll back](/cli/rollback) to stay available.
 

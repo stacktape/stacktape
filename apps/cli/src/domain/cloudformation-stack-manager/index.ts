@@ -1,3 +1,4 @@
+import { codeSwapIntegration } from '@domain-services/code-swap/integration';
 import type { IamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
 import type {
   AwsCallerIdentity,
@@ -248,7 +249,7 @@ class StackManager {
 
   /** The release this operation creates. It stays the same after the stack details are fetched again. */
   get nextVersion() {
-    return this.#nextVersionAfterRefetch ?? getNextVersionString(this.lastVersion);
+    return this.#nextVersionAfterRefetch ?? codeSwapIntegration.nextVersion(getNextVersionString(this.lastVersion));
   }
 
   get lastDeploymentStackOutput(): { [name: string]: string } {
@@ -597,6 +598,7 @@ class StackManager {
       description: 'Deploying infrastructure resources'
     });
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack('update', stackParams.StackName, (progress) => {
         operationReporter.updateEvent({
@@ -643,6 +645,7 @@ class StackManager {
       description: 'Deploying infrastructure resources'
     });
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack('update', stackName, (progress) => {
         operationReporter.updateEvent({
@@ -679,6 +682,7 @@ class StackManager {
     await awsSdkManager.cloudFormation.delete(this.#stackName, {
       roleArn
     });
+    codeSwapIntegration.teardownAccepted(this.#stackName);
     const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
       operationReporter.updateEvent({
         eventType: 'DELETE_STACK',
