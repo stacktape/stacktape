@@ -18,6 +18,7 @@ import { classifyStage } from '@stacktape/console-api/stages';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { ConfigManager } from '../index';
+import { getDeadLetterQueueNames } from './sqs-queues';
 
 /**
  * Security posture: what the resolved configuration says about how exposed and how recoverable this stack is.
@@ -374,8 +375,9 @@ const resilienceRules = ({ configManager, isProduction }: RuleContext): Security
       }
     }
   }
+  const deadLetterQueues = getDeadLetterQueueNames(configManager.sqsQueues as StpSqsQueue[]);
   for (const queue of configManager.sqsQueues as (StpSqsQueue & NamedResource)[]) {
-    if (!queue.redrivePolicy) {
+    if (!queue.redrivePolicy && !deadLetterQueues.has(queue.name)) {
       findings.push(
         createFinding('queue-without-dead-letter-queue', {
           resourceName: queue.name,

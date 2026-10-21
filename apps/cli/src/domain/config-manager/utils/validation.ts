@@ -42,7 +42,7 @@ import { validateSsrWebConfig } from './ssr-webs';
 import { validateRelationalDatabaseConfig } from './relational-databases';
 import { validateSnsTopicConfig } from './sns-topics';
 import { validateEmailSenderConfig, validateEmailSenderIdentityUniqueness } from './email-senders';
-import { validateSqsQueueConfig } from './sqs-queues';
+import { getDeadLetterQueueNames, validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
 import type { StacktapeConfig } from '@stacktape/config';
 import type {
@@ -436,8 +436,9 @@ export const validateGuardrails = ({
       }
       case 'require-dead-letter-queue': {
         if (!hasConfig || !guardrail.properties.enabled) break;
+        const deadLetterQueues = getDeadLetterQueueNames(configManager.sqsQueues as StpSqsQueue[]);
         for (const queue of configManager.sqsQueues) {
-          if (!(queue as StpSqsQueue).redrivePolicy) {
+          if (!(queue as StpSqsQueue).redrivePolicy && !deadLetterQueues.has(queue.name)) {
             throw guardrailViolation(
               guardrail.type,
               'GUARDRAIL_SQS_DEAD_LETTER_QUEUE_REQUIRED',

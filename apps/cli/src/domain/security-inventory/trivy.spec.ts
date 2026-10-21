@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
@@ -78,7 +78,8 @@ describe('ensureTrivyBinary', () => {
     await expect(ensureTrivyBinary({ release, platform: 'linux', toolsDirectory })).rejects.toThrow(
       'does not match the checksum'
     );
-    await expect(stat(join(toolsDirectory, 'trivy', '0.0.0-tampered', 'trivy'))).rejects.toThrow();
+    // Neither the binary nor the downloaded archive stays: a retry starts clean and nothing accumulates.
+    expect(await readdir(join(toolsDirectory, 'trivy', '0.0.0-tampered'))).toEqual([]);
   });
 
   test('reports a failed download instead of verifying an error page', async () => {
