@@ -1649,7 +1649,10 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--runner'],
     level: 'api-db',
     tier: 'change',
-    tests: ['apps/console/api/scripts/runner-database.test.ts'],
+    tests: [
+      'apps/console/api/scripts/runner-database.test.ts',
+      'apps/console/api/scripts/runner-retirement-database.test.ts'
+    ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves: 'Real runner services and persistence through the isolated PostgreSQL feature suite.',
@@ -2480,6 +2483,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/runner-aws.test.ts',
       'apps/console/api/scripts/runner-build-cache.test.ts',
       'apps/console/api/scripts/runner-database.test.ts',
+      'apps/console/api/scripts/runner-retirement-database.test.ts',
       'apps/console/api/scripts/runner-scripts.test.ts',
       'apps/console/api/scripts/security-database.test.ts',
       'apps/console/api/scripts/setup-dev-provider-parameters.test.ts',
@@ -5152,6 +5156,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/runner-aws.test.ts',
       'apps/console/api/scripts/runner-build-cache.test.ts',
       'apps/console/api/scripts/runner-database.test.ts',
+      'apps/console/api/scripts/runner-retirement-database.test.ts',
       'apps/console/api/scripts/runner-scripts.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
