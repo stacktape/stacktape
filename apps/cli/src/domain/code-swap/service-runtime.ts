@@ -786,10 +786,16 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     // Over-cap services skip the swap preflight but still need the RoleId for the image fallback.
     resolveStatusRole(definition, checkedStatusRoleId ?? (await lookupTaskRoleId()));
   };
-  const abortPublishedProposal = async () => {
-    await abortProposal({ proposal, statuses, writeAbort: () => put({ Phase: 'abort' }) });
-    proposal = undefined;
-  };
+  // The image gate and the interrupt cleanup can both abort; they share one write so neither loses the record race.
+  let aborting: Promise<void> | undefined;
+  const abortPublishedProposal = () =>
+    (aborting ??= abortProposal({ proposal, statuses, writeAbort: () => put({ Phase: 'abort' }) })
+      .then(() => {
+        proposal = undefined;
+      })
+      .finally(() => {
+        aborting = undefined;
+      }));
 
   const codeSwapUseImage = async (fallback = 'task_configuration_changed') => {
     if (!prepare) return;
