@@ -112,6 +112,7 @@ const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[
 export const EXECUTABLE_FILE_PATTERNS = [
   'stacktape',
   'stacktape.exe',
+  'helper-lambdas/stacktape-supervisor',
   // The Session Manager plugin that only the Windows archives ship.
   '*/smp.exe',
   '*/exec',

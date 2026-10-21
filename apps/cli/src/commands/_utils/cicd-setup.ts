@@ -63,6 +63,9 @@ const connectGitProvider = async ({
   const providerName = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' }[provider];
 
   tuiManager.info('');
+  tuiManager.info(
+    'Stacktape prepares a runner in the background. AWS disk storage remains billable while it is stopped.'
+  );
   tuiManager.info(`Browser opened. If it didn't open, visit:`);
   tuiManager.info(tuiManager.colorize('cyan', connectionUrl.toString()));
   tuiManager.info('');
