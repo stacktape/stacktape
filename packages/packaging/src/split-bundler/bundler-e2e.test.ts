@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- These fixtures intentionally build and inspect each sequential generation. */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,6 +28,47 @@ const createRoot = async () => {
 };
 
 describe('split bundler end-to-end regressions', () => {
+  test('shared edits keep function imports stable beside dynamic CommonJS import wrappers', async () => {
+    const root = await createRoot();
+    const files = {
+      'package.json': manifest('app'),
+      'shared.ts': `import common from './common.cjs'; export const revision = 'old' + common.value;`,
+      'common.cjs': 'module.exports = { value: 3 };',
+      'one.cjs': 'module.exports = { value: 1 };',
+      'two.cjs': 'module.exports = { value: 2 };',
+      'first.ts': `import { revision } from './shared'; export const handler = async () => [revision, (await import('./one.cjs')).default];`,
+      'second.ts': `import { revision } from './shared'; export const handler = async () => [revision, (await import('./two.cjs')).default];`
+    };
+    await Promise.all(Object.entries(files).map(([path, contents]) => writeFile(join(root, path), contents)));
+    const build = async (label: string) => {
+      const result = await buildSplitBundle({
+        entrypoints: ['first', 'second'].map((name) => ({
+          name,
+          jobName: name,
+          entryfilePath: join(root, `${name}.ts`),
+          distFolderPath: join(root, label, name)
+        })),
+        sharedOutdir: join(root, label, 'shared'),
+        cwd: root,
+        sourceMaps: 'external',
+        installDependencies: async () => {},
+        createPackagingError
+      });
+      const entries = await Promise.all(
+        [...result.lambdaOutputs.values()].map((output) => readFile(output.entryFile, 'utf8'))
+      );
+      return { entries, chunks: result.chunkAnalysis.map(({ chunkName }) => chunkName).toSorted() };
+    };
+    const old = await build('old');
+    await writeFile(
+      join(root, 'shared.ts'),
+      `import common from './common.cjs'; export const revision = 'new' + common.value;`
+    );
+    const next = await build('next');
+    expect(next.entries).toEqual(old.entries);
+    expect(next.chunks).toEqual(old.chunks);
+  });
+
   test('runs an installed dependency that loads locale JSON through a computed relative require', async () => {
     const root = await createRoot();
     const files = {

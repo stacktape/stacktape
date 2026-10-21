@@ -13,7 +13,8 @@ import {
   InvokeCommand,
   LambdaClient,
   ListLayerVersionsCommand,
-  ListTagsCommand
+  ListTagsCommand,
+  TagResourceCommand
 } from '@aws-sdk/client-lambda';
 import { ensureLambdaImage, extractZip, invokeInLambdaRuntime } from '../../scripts/packaging-archives/lambda-runtime';
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
@@ -605,6 +606,18 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     });
     expect(rolledBack.exitCode, rolledBack.tail).toBe(0);
     expect(await deployedVersion()).toBe('v000004');
+    const helperArn = (
+      await lambda.send(
+        new GetFunctionConfigurationCommand({
+          FunctionName: physical('StacktapeServiceLambdaCustomResourceFunction')
+        })
+      )
+    ).FunctionArn!;
+    expect(
+      (await lambda.send(new ListTagsCommand({ Resource: helperArn }))).Tags?.['stp:artifact-digest']
+    ).toBeUndefined();
+    // Older rollbacks added this undeclared helper tag. The next full deployment must repair existing drift too.
+    await lambda.send(new TagResourceCommand({ Resource: helperArn, Tags: { 'stp:artifact-digest': 'stale' } }));
     const cloudFormationAfterRollback = await cloudFormationLayerArn();
     expect(cloudFormationAfterRollback).not.toBe(cloudFormationV1);
     expect(cloudFormationAfterRollback).not.toBe(fastArn);
@@ -650,6 +663,21 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(cloudFormationAfterFull).not.toBe(fastArn3);
     const afterFull = await state();
     expect(afterFull.map(({ layers }) => layers)).toEqual([[cloudFormationAfterFull], [cloudFormationAfterFull]]);
+    expect(
+      (await lambda.send(new ListTagsCommand({ Resource: helperArn }))).Tags?.['stp:artifact-digest']
+    ).toBeUndefined();
+    await lambda.send(new TagResourceCommand({ Resource: helperArn, Tags: { 'stp:artifact-digest': 'stale-again' } }));
+    const reconciled = await runSourceCli({
+      project,
+      step: 'update',
+      ministack,
+      logName: 'full-no-op',
+      extraArgs: ['--fullDeploy']
+    });
+    expect(reconciled.exitCode, reconciled.tail).toBe(0);
+    expect(
+      (await lambda.send(new ListTagsCommand({ Resource: helperArn }))).Tags?.['stp:artifact-digest']
+    ).toBeUndefined();
     const identity3 = identityOf(afterFull[0]!.tag);
     expect((await layerVersions()).map(({ arn }) => arn)).not.toContain(fastArn3);
 

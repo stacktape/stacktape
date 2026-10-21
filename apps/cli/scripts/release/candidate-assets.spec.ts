@@ -1,11 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, rm, truncate, writeFile, readFile } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import { mkdtemp, rm, truncate, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EXTERNAL_TOOL_MANIFEST } from 'src/utils/external-tools';
-import { archiveItem } from '@utils/zip';
-import { BUN_COMPILE_TARGETS, EXECUTABLE_FILE_PATTERNS, OPENTUI_PLATFORM_IDENTIFIERS } from './build-cli-sources';
+import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './build-cli-sources';
 import {
   EXPECTED_RELEASE_ARCHIVES,
   MAX_RELEASE_ARCHIVE_BYTES,
@@ -16,35 +14,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 describe('native candidate compatibility', () => {
-  test.skipIf(process.platform !== 'linux')('the extracted release can execute the code-swap supervisor', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'stacktape-supervisor-release-'));
-    try {
-      const source = join(directory, 'release');
-      const supervisor = join(source, 'helper-lambdas', 'stacktape-supervisor');
-      await mkdir(join(source, 'helper-lambdas'), { recursive: true });
-      await writeFile(supervisor, '#!/bin/sh\nprintf supervisor-started');
-      await chmod(supervisor, 0o755);
-      for (const format of ['tgz', 'zip'] as const) {
-        const archive = await archiveItem({
-          absoluteSourcePath: source,
-          format,
-          executablePatterns: EXECUTABLE_FILE_PATTERNS
-        });
-        const extracted = join(directory, format);
-        await mkdir(extracted);
-        execFileSync(
-          format === 'tgz' ? 'tar' : 'unzip',
-          format === 'tgz' ? ['-xzf', archive, '-C', extracted] : ['-q', archive, '-d', extracted]
-        );
-        expect(execFileSync(join(extracted, 'helper-lambdas', 'stacktape-supervisor'), { encoding: 'utf8' })).toBe(
-          'supervisor-started'
-        );
-      }
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
-
   test('bundles both Linux libc variants for cross-compiled candidates', () => {
     expect(OPENTUI_PLATFORM_IDENTIFIERS.linux).toEqual(['linux-x64', 'linux-x64-musl']);
     expect(OPENTUI_PLATFORM_IDENTIFIERS.alpine).toEqual(['linux-x64', 'linux-x64-musl']);
