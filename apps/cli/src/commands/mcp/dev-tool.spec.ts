@@ -141,4 +141,22 @@ describe('MCP dev session routing', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  test('refuses a list for a flag that takes one value instead of starting dev mode on the last stage', async () => {
+    const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-start-'));
+    const previousCommand = process.env.STACKTAPE_MCP_CLI_COMMAND;
+    // Only reached if the runner spawns at all: `bun dev` in an empty folder fails without a result.
+    process.env.STACKTAPE_MCP_CLI_COMMAND = process.execPath;
+    try {
+      const output = (
+        await createDevToolHandler()({ action: 'start', args: { cwd: project, stage: ['dev', 'production'] } })
+      ).structuredContent;
+      expect(output).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+      expect(output.message).toContain('stage');
+    } finally {
+      if (previousCommand === undefined) delete process.env.STACKTAPE_MCP_CLI_COMMAND;
+      else process.env.STACKTAPE_MCP_CLI_COMMAND = previousCommand;
+      await rm(project, { recursive: true, force: true });
+    }
+  });
 });
