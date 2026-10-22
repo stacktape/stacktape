@@ -475,7 +475,19 @@ const verify = async () => {
     assert.equal((override.data?.args as Record<string, unknown>).autoConfirmOperation, true);
     for (const [safety, commands] of [
       ['destructive', ['delete', 'secret:delete', 'aws-profile:delete', 'org:delete']],
-      ['mutating', ['deploy', 'rollback', 'domain:add', 'errors:resolve', 'container:exec']],
+      [
+        'mutating',
+        [
+          'deploy',
+          'rollback',
+          'domain:add',
+          'errors:resolve',
+          'container:exec',
+          'bucket:sync',
+          'ai:connect',
+          'ai:disconnect'
+        ]
+      ],
       ['interactive', ['login', 'init', 'dev', 'dev:stop', 'bastion:session', 'bastion:tunnel', 'container:session']]
     ] as const) {
       for (const command of commands) {
@@ -617,6 +629,9 @@ const verify = async () => {
       3
     );
     await writeFile(join(project, 'a', 'stacktape.ts'), 'export default {};');
+    // Installed dependencies are not the user's project, even when a package ships a Stacktape config.
+    await mkdir(join(project, 'node_modules', 'starter'), { recursive: true });
+    await writeFile(join(project, 'node_modules', 'starter', 'stacktape.ts'), 'export default {};');
     assert.equal((await call('stacktape_project', { action: 'scan' })).data?.totalConfigCandidates, 2);
     assert.equal((await call('stacktape_cli', { action: 'describe', command: 'deploy' })).data?.safety, 'mutating');
     assert.equal(
@@ -796,6 +811,9 @@ const verify = async () => {
     const mark = requests.length;
     const changed = retry(first, { ...original, args: { organizationId: 'org_other' } });
     assert.equal(envelope(await client.callTool(changed)).code, 'USER_CONFIRMATION_REQUIRED');
+    // The person confirmed the command for one project folder; it must not run from another.
+    const moved = retry(await requireConfirmation(), { ...original, cwd: otherProject });
+    assert.equal(envelope(await client.callTool(moved)).code, 'USER_CONFIRMATION_REQUIRED');
     assert.equal(
       envelope(await client.callTool(retry(await requireConfirmation(), original, false))).code,
       'USER_CONFIRMATION_DECLINED'
@@ -891,11 +909,15 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
   const home = `${project}-agents-home`;
   const xdg = join(home, '.config');
   const agentEnv = { ...env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: xdg, PATH: join(home, 'no-tools') };
-  const run = async (command: 'mcp:add' | 'mcp:remove') => {
+  const run = async (
+    command: 'mcp:add' | 'mcp:remove',
+    args: string[] = [],
+    envOverrides: Record<string, string> = {}
+  ) => {
     const child = Bun.spawn({
-      cmd: [binary, command, '--agent'],
+      cmd: [binary, command, '--agent', ...args],
       cwd: project,
-      env: agentEnv,
+      env: { ...agentEnv, ...envOverrides },
       stdout: 'pipe',
       stderr: 'pipe'
     });
@@ -903,11 +925,17 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
     const result = stdout
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line) as { type: string; data?: { result?: { result?: { agents?: AgentOutcome[] } } } })
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            type: string;
+            data?: { code?: string; result?: { result?: { agents?: AgentOutcome[] } } };
+          }
+      )
       .find(({ type }) => type === 'result');
     const agents = result?.data?.result?.result?.agents ?? [];
     const count = (change: string) => agents.filter((agent) => agent.ok && agent.server?.change === change).length;
-    return { status, count };
+    return { status, count, stdout };
   };
 
   const json: Array<[string, string, string]> = [
@@ -957,6 +985,8 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
   );
 
   assert.equal((await run('mcp:add')).count('updated'), 5);
+  // Repeating the setup changes nothing, so it must not write the files or leave another backup.
+  assert.equal((await run('mcp:add')).count('unchanged'), 5, 'Repeated installation should not rewrite configs');
   const updatedCodex = Bun.TOML.parse(await readFile(codexPath, 'utf8')) as {
     mcp_servers: { stacktape: unknown; other: { command: string } };
   };
@@ -974,7 +1004,6 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
     const backups = (await readdir(join(path, '..'))).filter((name) => name.startsWith(`${fileName}.bak.`));
     assert.equal(backups.length, 1, `${path} needs exactly one backup`);
   }
-  assert.equal((await run('mcp:add')).count('unchanged'), 5, 'Repeated installation should not rewrite configs');
 
   // Table-looking text inside a multi-line string is content, not a table.
   const validCodex = await readFile(codexPath, 'utf8');
@@ -996,13 +1025,56 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
   assert.equal((await run('mcp:add')).status, 0);
   assert.equal(await readFile(join(home, '.claude.json'), 'utf8'), claudeState, "Claude Code's state file was edited");
 
+  // The documented comma-separated form names an agent that detection cannot find: Copilot CLI is not on PATH here.
+  const named = await run('mcp:add', ['--coding-agents', 'copilot,cursor']);
+  assert.equal(named.status, 0, named.stdout);
+  assert.equal(named.count('created'), 1);
+  assert.equal(named.count('unchanged'), 1);
+  const copilotConfig = JSON.parse(await readFile(join(home, '.copilot', 'mcp-config.json'), 'utf8')) as {
+    mcpServers: Record<string, unknown>;
+  };
+  // Copilot CLI exposes none of a server's tools unless the entry lists them.
+  assert.deepEqual(copilotConfig.mcpServers.stacktape, {
+    type: 'local',
+    command: binary,
+    args: ['mcp'],
+    env: { STACKTAPE_MCP_CLIENT_NAME: 'copilot' },
+    tools: ['*']
+  });
+
+  const misspelled = await run('mcp:add', ['--coding-agents', 'cursr']);
+  assert.notEqual(misspelled.status, 0);
+  assert.match(misspelled.stdout, /MCP_CODING_AGENT_UNKNOWN/);
+
+  if (process.platform !== 'win32') {
+    // An older global Stacktape on PATH that has no MCP server: the entries now name it, so setup must not report Ready.
+    const oldInstall = join(home, 'old-stacktape');
+    await mkdir(oldInstall);
+    await writeFile(join(oldInstall, 'stacktape'), '#!/bin/sh\necho "Unknown command: mcp" >&2\nexit 1\n', {
+      mode: 0o755
+    });
+    const broken = await run('mcp:add', [], { PATH: oldInstall });
+    assert.notEqual(broken.status, 0, 'A configured command that does not start an MCP server must fail the setup');
+    assert.match(broken.stdout, /MCP_SERVER_CHECK_FAILED/);
+  }
+
+  const backupCount = async (path: string) => {
+    const fileName = path.split(/[\\/]/).at(-1)!;
+    return (await readdir(join(path, '..'))).filter((name) => name.startsWith(`${fileName}.bak.`)).length;
+  };
+  const backupsBeforeRemove = await Promise.all(json.map(([path]) => backupCount(path)));
   const removed = await run('mcp:remove');
   assert.equal(removed.status, 0);
-  assert.equal(removed.count('removed'), 5);
-  for (const [path, rootKey] of json.slice(1)) {
+  assert.equal(removed.count('removed'), 6);
+  for (const [index, [path, rootKey]] of json.entries()) {
     const config = Bun.JSONC.parse(await readFile(path, 'utf8')) as Record<string, Record<string, unknown>>;
     assert.equal(config[rootKey].stacktape, undefined);
-    assert.deepEqual(config[rootKey].other, { command: 'j12-other' });
+    if (index > 0) assert.deepEqual(config[rootKey].other, { command: 'j12-other' });
+    assert.equal(
+      await backupCount(path),
+      backupsBeforeRemove[index] + 1,
+      `${path}: removal must keep the previous file`
+    );
   }
   console.info(
     'PASS executable mcp:add/mcp:remove user-level formats, preservation, backups, idempotence and invalid input'

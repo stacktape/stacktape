@@ -121,7 +121,8 @@ const ARG_ALIASES: Record<string, string> = {
   task_arn: 'taskArn'
 };
 
-const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy>>> = {
+// Every command is classified here; the type rejects a new command until it is, so none defaults to read-only.
+const commandPolicies: Record<StacktapeCommand, Omit<CliCommandPolicy, 'requiresConfirmation'>> = {
   deploy: { category: 'deployment', safety: 'mutating' },
   delete: { category: 'deployment', safety: 'destructive' },
   rollback: { category: 'deployment', safety: 'mutating' },
@@ -196,6 +197,10 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
   'errors:resolve': { category: 'errors', safety: 'mutating' },
   'errors:ignore': { category: 'errors', safety: 'mutating' },
   'errors:reopen': { category: 'errors', safety: 'mutating' },
+  'alarms:export': { category: 'errors', safety: 'readOnly' },
+  // Uploads the local AI sign-in to Stacktape, or removes it.
+  'ai:connect': { category: 'account', safety: 'mutating' },
+  'ai:disconnect': { category: 'account', safety: 'mutating' },
 
   mcp: {
     category: 'docs',
@@ -365,12 +370,6 @@ export const findStacktapePackageScript = ({
   return candidates[0];
 };
 
-const getDefaultPolicy = (command: StacktapeCommand): CliCommandPolicy => ({
-  category: command.includes(':') ? 'utility' : 'local',
-  safety: 'readOnly',
-  requiresConfirmation: false
-});
-
 const requiresConfirmationForSafety = (safety: CliCommandSafety): boolean =>
   safety === 'mutating' || safety === 'destructive';
 
@@ -538,16 +537,8 @@ const getMcpRequiredArgs = (command: StacktapeCommand): readonly string[] => {
 };
 
 export const getCliCommandPolicy = (command: StacktapeCommand, _args?: Record<string, unknown>): CliCommandPolicy => {
-  const override = policyOverrides[command] || {};
-  const policy = {
-    ...getDefaultPolicy(command),
-    ...override
-  };
-
-  return {
-    ...policy,
-    requiresConfirmation: override.requiresConfirmation ?? requiresConfirmationForSafety(policy.safety)
-  };
+  const policy = commandPolicies[command];
+  return { ...policy, requiresConfirmation: requiresConfirmationForSafety(policy.safety) };
 };
 
 export const listCliCommandSummaries = ({

@@ -106,13 +106,58 @@ describe('stacktape_cli action=run', () => {
       })
     }));
 
+    for (const [command, args] of [
+      ['secret:get', { region: 'eu-west-1', secretName: 'stripe' }],
+      ['param:get', { region: 'eu-west-1', stage: 'production', resourceName: 'database', paramName: 'password' }]
+    ] as const) {
+      const output = await call({ action: 'run', command, args });
+      expect(output.ok, command).toBe(true);
+      expect(JSON.stringify(output), command).not.toContain('correct-horse-battery-staple');
+    }
+  });
+
+  test('summarizes a compiled template instead of returning it', async () => {
+    const template = {
+      Description: 'shop-api production',
+      Resources: {
+        UploadsBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'shop-api-production-uploads-8f3a' } },
+        OrdersApiRole: { Type: 'AWS::IAM::Role', Properties: { RoleName: 'shop-api-production-orders' } }
+      },
+      Outputs: { UploadsBucketName: { Value: { Ref: 'UploadsBucket' } } }
+    };
+    const { call } = await connect(() => ({ data: { result: template } }));
+
     const output = await call({
       action: 'run',
-      command: 'secret:get',
-      args: { region: 'eu-west-1', secretName: 'stripe' }
+      command: 'synth',
+      args: { projectName: 'shop-api', stage: 'production', region: 'eu-west-1' }
     });
 
+    expect(output.ok).toBe(true);
+    expect(output.data?.cli.summary).toEqual({
+      compiled: true,
+      description: 'shop-api production',
+      resourceCount: 2,
+      outputCount: 1
+    });
+    expect(JSON.stringify(output)).not.toContain('shop-api-production-uploads-8f3a');
+  });
+
+  test('plans a secret command without printing the secret in its shell command', async () => {
+    const { call, runs } = await connect();
+
+    const output = await call({
+      action: 'plan',
+      command: 'secret:set',
+      args: { region: 'eu-west-1', secretName: 'stripe', secretValue: 'correct-horse-battery-staple' }
+    });
+
+    expect(output.ok).toBe(true);
+    expect(output.data?.shellCommand).toStartWith(
+      'stacktape secret set --region eu-west-1 --secret-name stripe --value '
+    );
     expect(JSON.stringify(output)).not.toContain('correct-horse-battery-staple');
+    expect(runs).toHaveLength(0);
   });
 
   test('keeps the newest log events when the whole result is too large for one response', async () => {

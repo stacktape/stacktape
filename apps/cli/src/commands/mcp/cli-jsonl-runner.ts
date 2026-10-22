@@ -1,4 +1,6 @@
-import { publicCommandName } from '../../config/cli/public-names';
+import { publicCommandName, publicFlag } from '../../config/cli/public-names';
+import { cliCommands, type StacktapeCommand } from '../../config/cli/commands';
+import { getArgInfo } from '../../config/cli/utils';
 import { spawn } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -177,9 +179,10 @@ const normalizeCliArgs = (args: Record<string, unknown> = {}): string[] => {
       continue;
     }
 
+    // One inline `--flag=item` per item: the CLI collects repeated array flags, keeps commas inside an item and does
+    // not mistake an item such as `--build-arg` for a flag of its own.
     if (Array.isArray(value)) {
-      if (value.length === 0) continue;
-      cliArgs.push(flag, value.map((item) => String(item)).join(','));
+      for (const item of value) cliArgs.push(`${flag}=${String(item)}`);
       continue;
     }
 
@@ -247,6 +250,15 @@ const terminateProcessTree = async ({
   await waitForClose(closePromise, PROCESS_EXIT_GRACE_MS);
 };
 
+// The CLI keeps the last value of a repeated single-value flag, so a list sent for one would silently pick its last item.
+const findListForSingleValueFlag = (command: string, args: Record<string, unknown>): string | undefined =>
+  (cliCommands as readonly string[]).includes(command)
+    ? Object.keys(args).find(
+        (key) =>
+          Array.isArray(args[key]) && !getArgInfo(command as StacktapeCommand, key).allowedTypes.includes('array')
+      )
+    : undefined;
+
 export const runStacktapeCommandJsonl = async ({
   command,
   args,
@@ -272,6 +284,18 @@ export const runStacktapeCommandJsonl = async ({
   const resolvedCwd = realpathSync(resolve(cwd || process.cwd()));
   const resolvedProjectArgs = resolveUserProjectArgs({ args: args || {}, cwd: resolvedCwd });
   const resolvedArgs = resolvedProjectArgs.args;
+  const listForSingleValue = findListForSingleValueFlag(command, resolvedArgs);
+  if (listForSingleValue) {
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      message: `--${publicFlag(listForSingleValue)} takes one value, not a list.`,
+      events: [],
+      logEvents: [],
+      outputEvents: [],
+      resolvedContext: { cwd: resolvedCwd }
+    };
+  }
   const cliArgs = normalizeCliArgs(resolvedArgs);
   const spawnArgs = [...prefixArgs, command, '--agent', ...cliArgs];
   const operationInvocationEnv = getMcpOperationInvocationEnv({

@@ -90,4 +90,48 @@ describe('MCP Stacktape agent subprocess runner', () => {
       await rm(cwd, { recursive: true, force: true });
     }
   });
+
+  test('hands the CLI flags it parses back into the agent arguments, with the MCP invocation context', async () => {
+    const parse = async (parseAs: string, args: Record<string, unknown>) => {
+      const result = await runStacktapeCommandJsonl({
+        command: fixturePath,
+        args: { mode: 'parse', parseAs, ...args },
+        clientName: 'cursor'
+      });
+      expect(result.ok).toBe(true);
+      return result.data as { options: Record<string, unknown>; invocation: unknown };
+    };
+
+    const deploy = await parse('deploy', {
+      stage: 'dev',
+      fullDeploy: true,
+      disableAutoRollback: false,
+      dockerArgs: ['--build-arg', 'VERSION=1,2']
+    });
+    expect(deploy.options).toMatchObject({
+      stage: 'dev',
+      fullDeploy: true,
+      dockerArgs: ['--build-arg', 'VERSION=1,2']
+    });
+    expect(deploy.options.disableAutoRollback).toBeUndefined();
+    // The Console shows operations started this way as run by an AI agent through MCP.
+    expect(deploy.invocation).toEqual({
+      initiator: 'ai-agent',
+      interface: 'mcp',
+      client: 'cursor',
+      tool: 'stacktape_cli'
+    });
+
+    const awsCall = await parse('aws:call', {
+      service: 'dynamodb',
+      command: 'Scan',
+      input: { TableName: 'orders', Limit: 5 }
+    });
+    expect(JSON.parse(String(awsCall.options.input))).toEqual({ TableName: 'orders', Limit: 5 });
+
+    expect((await parse('mcp:add', { codingAgents: ['cursor', 'vscode'] })).options.codingAgents).toEqual([
+      'cursor',
+      'vscode'
+    ]);
+  });
 });
