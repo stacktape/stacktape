@@ -17,6 +17,8 @@ const CONTAINER_PORT = 4566;
 const SYNTHETIC_SECRET_ACCESS_KEY = 'stacktape-ministack-synthetic-not-a-real-key';
 const CONTAINER_NAME_PREFIX = 'stacktape-ministack-';
 const DOCKER_HOST_NAME = 'host.docker.internal';
+/** An anonymous volume of the emulator, shared with the host relay, that holds one Unix socket per forwarded port. */
+const RELAY_SOCKET_DIRECTORY = '/stacktape-host-relay';
 
 export type MiniStackCredentials = { accessKeyId: string; secretAccessKey: string };
 
@@ -60,9 +62,10 @@ export type MiniStack = {
   /**
    * Lets code the emulator runs (Lambda functions, custom resources) reach a server on this machine's
    * `127.0.0.1:<port>` under that same address, such as a control-plane fake whose URL the CLI writes into a
-   * function's environment. A relay inside the container listens on its own `127.0.0.1:<port>` and connects to the
-   * Docker host. With egress blocked, the only route this adds is one to the Docker host, which a Linux container
-   * reaches over its bridge anyway; the internet stays unreachable.
+   * function's environment. A relay inside the emulator listens on its own `127.0.0.1:<port>` and hands each
+   * connection through a Unix socket in a shared volume to a sidecar container on Docker's default bridge, which
+   * connects to that one port on the Docker host. The emulator gains no route: other host ports and the internet stay
+   * unreachable from it. `stop()` removes the sidecar too.
    */
   forwardHostPort: (port: number) => Promise<void>;
   /** The container's combined stdout and stderr so far. */
@@ -179,36 +182,21 @@ print('IPV6')
 print(open('/proc/net/ipv6_route').read())`;
 
 /**
- * Adds a route to one IPv4 address through the given gateway unless a directly connected subnet already reaches it.
- * Arguments: the address and the gateway. Runs in a NET_ADMIN helper sharing the emulator's network namespace.
+ * A stream relay between two endpoints, each `tcp:<host>:<port>` or `unix:<path>`: listens on the first argument and
+ * connects every client to the second. It prints "ready" once it listens and leaves a detached child serving, so
+ * `docker exec` returns.
  */
-const ADD_HOST_ROUTE = `import socket,struct,sys
-address,gateway=sys.argv[1],sys.argv[2]
-target=struct.unpack('<I',socket.inet_aton(address))[0]
-for line in open('/proc/net/route').read().splitlines()[1:]:
- fields=line.split()
- if len(fields)>7 and fields[2]=='00000000' and target&int(fields[7],16)==int(fields[1],16) and int(fields[7],16)!=0:
-  print('connected')
-  sys.exit(0)
-s=socket.socket(socket.AF_NETLINK,socket.SOCK_RAW,socket.NETLINK_ROUTE)
-s.bind((0,0))
-route=struct.pack('BBBBBBBBI',socket.AF_INET,32,0,0,254,4,0,1,0)
-attributes=struct.pack('HH',8,1)+socket.inet_aton(address)+struct.pack('HH',8,5)+socket.inet_aton(gateway)
-s.send(struct.pack('IHHII',16+len(route)+len(attributes),24,0x605,1,0)+route+attributes)
-reply=s.recv(65535)
-error=struct.unpack_from('i',reply,16)[0]
-if error!=0: raise RuntimeError('route to the Docker host failed: errno %d'%-error)
-print('routed')`;
-
-/**
- * A TCP relay: listens on 127.0.0.1 at the first argument's port and connects every client to the second and third
- * arguments. It prints "ready" once it listens and leaves a detached child serving, so `docker exec` returns.
- */
-const LOOPBACK_RELAY = `import os,socket,sys,threading
-port,target_host,target_port=int(sys.argv[1]),sys.argv[2],int(sys.argv[3])
-server=socket.socket()
-server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
-server.bind(('127.0.0.1',port))
+const RELAY = `import os,socket,sys,threading
+def endpoint(spec):
+ kind,_,rest=spec.partition(':')
+ if kind=='unix': return socket.AF_UNIX,rest
+ host,_,port=rest.rpartition(':')
+ return socket.AF_INET,(host,int(port))
+listen_family,listen_address=endpoint(sys.argv[1])
+target_family,target_address=endpoint(sys.argv[2])
+server=socket.socket(listen_family)
+if listen_family==socket.AF_INET: server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+server.bind(listen_address)
 server.listen(64)
 if os.fork()>0:
  print('ready',flush=True)
@@ -226,10 +214,14 @@ def pipe(source,sink):
  try: sink.shutdown(socket.SHUT_WR)
  except OSError: pass
 def serve(client):
- try: upstream=socket.create_connection((target_host,target_port),5)
+ upstream=socket.socket(target_family)
+ upstream.settimeout(5)
+ try: upstream.connect(target_address)
  except OSError:
   client.close()
+  upstream.close()
   return
+ upstream.settimeout(None)
  back=threading.Thread(target=pipe,args=(upstream,client),daemon=True)
  back.start()
  pipe(client,upstream)
@@ -241,8 +233,8 @@ while True:
  threading.Thread(target=serve,args=(client,),daemon=True).start()`;
 
 /**
- * Exits 0 once the first and second arguments accept a TCP connection, retrying for 15 seconds; run inside the
- * emulator. Docker Desktop in WSL reaches a new loopback listener only after WSL's localhost forwarding notices it.
+ * Exits 0 once the first and second arguments accept a TCP connection, retrying for 15 seconds; runs in the
+ * host relay. Docker Desktop in WSL reaches a new loopback listener only after WSL's localhost forwarding notices it.
  */
 const CONNECT_PROBE = `import socket,sys,time
 deadline=time.time()+15
@@ -380,9 +372,14 @@ export const startMiniStack = async ({
   let stopped = false;
   let volumes: string[] = [];
   const bridgeRelays: Server[] = [];
+  let sidecarStarted = false;
+  const sidecarName = () => `${containerName}-host-relay`;
   const stop = async () => {
     if (stopped) return;
     for (const relay of bridgeRelays.splice(0)) relay.close();
+    // The sidecar mounts the emulator's relay volume, so it goes first.
+    if (sidecarStarted) removeMiniStackContainer(docker, sidecarName(), []);
+    sidecarStarted = false;
     removeMiniStackContainer(docker, containerName, volumes);
     stopped = true;
   };
@@ -399,6 +396,7 @@ export const startMiniStack = async ({
       );
     }
     let endpoint = '';
+    let relayVolume = '';
     for (let attempt = 1; ; attempt += 1) {
       docker(
         [
@@ -408,10 +406,8 @@ export const startMiniStack = async ({
           containerName,
           '--publish',
           `127.0.0.1::${CONTAINER_PORT}`,
-          // The address `forwardHostPort` relays to; Docker resolves it to the bridge gateway on Linux and to the host
-          // proxy on Docker Desktop.
-          '--add-host',
-          `${DOCKER_HOST_NAME}:host-gateway`,
+          '--volume',
+          RELAY_SOCKET_DIRECTORY,
           ...(blockEgress ? ['--sysctl', 'net.ipv6.conf.all.disable_ipv6=1'] : []),
           // Code the emulator runs locally (Lambda functions, custom resources) must find the emulator and must never
           // hold anything but synthetic credentials.
@@ -428,14 +424,13 @@ export const startMiniStack = async ({
         ],
         { timeoutMs: 180_000 }
       );
-      volumes = (
-        JSON.parse(docker(['inspect', '--format', '{{json .Mounts}}', containerName]).stdout) as Array<{
-          Type: string;
-          Name?: string;
-        }>
-      )
-        .filter((mount) => mount.Type === 'volume' && mount.Name)
-        .map((mount) => mount.Name!);
+      const mounts = JSON.parse(docker(['inspect', '--format', '{{json .Mounts}}', containerName]).stdout) as Array<{
+        Type: string;
+        Name?: string;
+        Destination?: string;
+      }>;
+      volumes = mounts.filter((mount) => mount.Type === 'volume' && mount.Name).map((mount) => mount.Name!);
+      relayVolume = mounts.find((mount) => mount.Destination === RELAY_SOCKET_DIRECTORY)?.Name ?? '';
       if (blockEgress) {
         // The helper shares the emulator's network namespace and is the only process that ever holds NET_ADMIN.
         const routeTables = docker(
@@ -490,68 +485,77 @@ export const startMiniStack = async ({
       forcePathStyle: true
     });
     const forwardedPorts = new Set<number>();
-    let dockerHost: Promise<{ address: string; clientAddress: string }> | undefined;
-    /** Where the Docker host is from inside the container, with the route to it when egress is blocked. */
-    const reachDockerHost = async () => {
-      const python = (script: string, ...args: string[]) =>
-        docker(['exec', containerName, 'python', '-c', script, ...args]).stdout;
-      const address = python(`import socket;print(socket.gethostbyname('${DOCKER_HOST_NAME}'))`);
-      const [gateway = '', clientAddress = ''] = docker([
+    let sidecar: Promise<{ dockerHost: string; sidecarAddress: string }> | undefined;
+    /**
+     * The sidecar that connects to the Docker host for the emulator: on Docker's default bridge, sharing only the
+     * emulator's relay volume. Code the emulator runs cannot execute in it; it can only connect to its sockets.
+     */
+    const startSidecar = async () => {
+      if (!relayVolume) throw new MiniStackError(`MiniStack has no ${RELAY_SOCKET_DIRECTORY} volume.`);
+      sidecarStarted = true;
+      docker(
+        [
+          'run',
+          '--detach',
+          '--name',
+          sidecarName(),
+          '--add-host',
+          `${DOCKER_HOST_NAME}:host-gateway`,
+          '--volume',
+          `${relayVolume}:${RELAY_SOCKET_DIRECTORY}`,
+          '--entrypoint',
+          'python',
+          MINISTACK_IMAGE,
+          '-c',
+          'import time\nwhile True: time.sleep(3600)'
+        ],
+        { timeoutMs: 120_000 }
+      );
+      const dockerHost = docker([
+        'exec',
+        sidecarName(),
+        'python',
+        '-c',
+        `import socket;print(socket.gethostbyname('${DOCKER_HOST_NAME}'))`
+      ]).stdout;
+      const sidecarAddress = docker([
         'inspect',
         '--format',
-        '{{range .NetworkSettings.Networks}}{{.Gateway}} {{.IPAddress}}{{end}}',
-        containerName
-      ]).stdout.split(' ');
-      if (blockEgress) {
-        docker(
-          [
-            'run',
-            '--rm',
-            '--network',
-            `container:${containerName}`,
-            '--cap-add',
-            'NET_ADMIN',
-            '--entrypoint',
-            'python',
-            MINISTACK_IMAGE,
-            '-c',
-            ADD_HOST_ROUTE,
-            address,
-            gateway
-          ],
-          { timeoutMs: 120_000 }
-        );
+        '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',
+        sidecarName()
+      ]).stdout;
+      return { dockerHost, sidecarAddress };
+    };
+    const startRelay = (container: string, listen: string, target: string) => {
+      const result = docker(['exec', container, 'python', '-c', RELAY, listen, target], { allowFailure: true });
+      if (result.exitCode !== 0 || result.stdout !== 'ready') {
+        throw new MiniStackError(`The relay in ${container} could not listen on ${listen}: ${result.stderr}`);
       }
-      return { address, clientAddress };
     };
     const forwardHostPort = async (port: number) => {
       if (stopped) throw new MiniStackError('MiniStack is stopped.');
       if (forwardedPorts.has(port)) return;
-      dockerHost ??= reachDockerHost();
-      const { address, clientAddress } = await dockerHost;
+      sidecar ??= startSidecar();
+      const { dockerHost, sidecarAddress } = await sidecar;
       // Docker Desktop delivers host-gateway connections to the host's loopback. Linux delivers them to the bridge
-      // address, so a relay there admits this container and passes the connection on to loopback.
+      // address, so a relay there admits only the sidecar and passes the connection on to loopback.
       let targetPort = port;
-      if (isLocalAddress(address)) {
-        const relay = await startBridgeRelay(address, clientAddress, port);
+      if (isLocalAddress(dockerHost)) {
+        const relay = await startBridgeRelay(dockerHost, sidecarAddress, port);
         bridgeRelays.push(relay.server);
         targetPort = relay.port;
       }
-      const relayStart = docker(
-        ['exec', containerName, 'python', '-c', LOOPBACK_RELAY, String(port), address, String(targetPort)],
-        { allowFailure: true }
-      );
-      if (relayStart.exitCode !== 0 || relayStart.stdout !== 'ready') {
-        throw new MiniStackError(`MiniStack could not listen on 127.0.0.1:${port}: ${relayStart.stderr}`);
-      }
-      const reached = docker(['exec', containerName, 'python', '-c', CONNECT_PROBE, address, String(targetPort)], {
+      const socketPath = `unix:${RELAY_SOCKET_DIRECTORY}/${port}.sock`;
+      startRelay(sidecarName(), socketPath, `tcp:${dockerHost}:${targetPort}`);
+      const reached = docker(['exec', sidecarName(), 'python', '-c', CONNECT_PROBE, dockerHost, String(targetPort)], {
         allowFailure: true
       });
       if (reached.exitCode !== 0) {
         throw new MiniStackError(
-          `Code in MiniStack cannot reach this machine's port ${port} through ${address}:${targetPort}: ${reached.stderr}`
+          `The host relay cannot reach this machine's port ${port} through ${dockerHost}:${targetPort}: ${reached.stderr}`
         );
       }
+      startRelay(containerName, `tcp:127.0.0.1:${port}`, socketPath);
       forwardedPorts.add(port);
     };
     return {

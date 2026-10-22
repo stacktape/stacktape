@@ -1261,7 +1261,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The shared MiniStack fixture starts ready, isolates accounts, blocks egress, forwards one host loopback port into the container and verifies its cleanup.',
+      'The shared MiniStack fixture starts ready, isolates accounts, blocks egress, forwards only the requested host loopback port into the container and verifies its cleanup.',
     selections: ['ministack-fixture']
   },
   {

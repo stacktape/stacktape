@@ -54,11 +54,14 @@ package, scenario DSL or page object per click.
 MiniStack runs Lambda functions and custom resources inside its own container, where `127.0.0.1` is the container
 itself. Stacktape's service Lambda calls the tRPC endpoint the CLI wrote into its environment: for an HTTP API's default
 domain it registers the domain on create and removes it on delete. `createFamilyProject` therefore calls the fixture's
-`forwardHostPort` for the control-plane fake. A relay on the container's own `127.0.0.1:<port>` connects to the Docker
-host (`host.docker.internal` through `--add-host host-gateway`), so the Lambda uses the same URL as the CLI, which stays
-on loopback. Docker Desktop delivers those connections to the host's loopback; Linux delivers them to the bridge
-address, where the fixture runs a relay that admits only that container. With egress blocked, the fixture adds one route
-to the Docker host and nothing else, and the HTTP API family asserts both control-plane calls.
+`forwardHostPort` for the control-plane fake, so the Lambda uses the same URL as the CLI, which stays on loopback.
+
+A relay inside the emulator listens on its own `127.0.0.1:<port>` and passes each connection through a Unix socket in a
+shared volume to a sidecar container on Docker's default bridge. Only the sidecar connects to the Docker host
+(`host.docker.internal` through `--add-host host-gateway`), and only to forwarded ports. The emulator gets no route to
+the host: Docker Desktop would deliver every host-gateway port to the host's loopback, including unrelated local
+servers. On Linux the sidecar's connection arrives on the bridge address, where the fixture runs a relay that admits
+only the sidecar. The fixture test checks that an unforwarded host port and the internet stay unreachable.
 
 ### MiniStack gaps
 

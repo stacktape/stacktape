@@ -15,6 +15,7 @@ import {
   assertLocalAwsEndpoint,
   hasDefaultRoute,
   MINISTACK_DEFAULT_ACCOUNT_ID,
+  MINISTACK_IMAGE,
   removeMiniStackContainer,
   startMiniStack,
   verifyMiniStackRemoval,
@@ -49,6 +50,13 @@ const scripted =
   (answers: Record<string, DockerResult>): DockerRunner =>
   (args) =>
     answers[args.join(' ')] ?? { exitCode: 1, stdout: '', stderr: `unexpected docker ${args.join(' ')}` };
+
+/** A loopback HTTP server on this machine that echoes the request path. */
+const startServer = async () => {
+  const server = createServer((request, response) => response.end(`host saw ${request.url}`));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { server, port: (server.address() as { port: number }).port };
+};
 
 const started: MiniStack[] = [];
 afterAll(async () => {
@@ -118,42 +126,80 @@ describe('MiniStack fixture', () => {
     expect(egress.ipv6).toMatch(/^blocked/);
     expect(egress.restore_errno).toBe(-1);
 
-    // A loopback server on this machine, reached from inside the emulator at the same address once forwarded.
-    const server = createServer((request, response) => response.end(`host saw ${request.url}`));
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    // Two loopback servers on this machine: code in the emulator reaches the forwarded one at the same address and
+    // nothing else on the host, under any address the Docker host has from a container.
+    const forwarded = await startServer();
+    const unforwarded = await startServer();
+    // Asynchronous, so this process can answer while the container waits for it.
+    const fetchInside = async (url: string) => {
+      const child = Bun.spawn(
+        [
+          'docker',
+          'exec',
+          ministack.containerName,
+          'python',
+          '-c',
+          `import urllib.request;print(urllib.request.urlopen('${url}',timeout=3).read().decode())`
+        ],
+        { stdout: 'pipe', stderr: 'pipe' }
+      );
+      const [stdout, stderr, status] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited
+      ]);
+      return { stdout: stdout.trim(), stderr, status };
+    };
     try {
-      const { port } = server.address() as { port: number };
-      // Asynchronous, so this process can answer while the container waits for it.
-      const fetchInside = async () => {
-        const child = Bun.spawn(
+      const dockerHostAddresses = [
+        spawnSync(
+          'docker',
           [
-            'docker',
-            'exec',
-            ministack.containerName,
+            'run',
+            '--rm',
+            '--add-host',
+            'probe-host:host-gateway',
+            '--entrypoint',
             'python',
+            MINISTACK_IMAGE,
             '-c',
-            `import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:${port}/from-ministack',timeout=5).read().decode())`
+            "import socket;print(socket.gethostbyname('probe-host'))"
           ],
-          { stdout: 'pipe', stderr: 'pipe' }
-        );
-        const [stdout, stderr, status] = await Promise.all([
-          new Response(child.stdout).text(),
-          new Response(child.stderr).text(),
-          child.exited
-        ]);
-        return { stdout, stderr, status };
-      };
-      expect((await fetchInside()).status).not.toBe(0);
-      await ministack.forwardHostPort(port);
-      await ministack.forwardHostPort(port);
-      const reached = await fetchInside();
-      expect(reached.stdout.trim(), reached.stderr).toBe('host saw /from-ministack');
+          { encoding: 'utf8' }
+        ).stdout.trim(),
+        spawnSync(
+          'docker',
+          ['inspect', '--format', '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}', ministack.containerName],
+          { encoding: 'utf8' }
+        ).stdout.trim()
+      ];
+      for (const address of dockerHostAddresses) expect(address).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+      expect((await fetchInside(`http://127.0.0.1:${forwarded.port}/before`)).status).not.toBe(0);
+      await ministack.forwardHostPort(forwarded.port);
+      await ministack.forwardHostPort(forwarded.port);
+      const reached = await fetchInside(`http://127.0.0.1:${forwarded.port}/from-ministack`);
+      expect(reached.stdout, reached.stderr).toBe('host saw /from-ministack');
+      const unreachable = [
+        `http://127.0.0.1:${unforwarded.port}/`,
+        ...dockerHostAddresses.flatMap((address) => [
+          `http://${address}:${unforwarded.port}/`,
+          `http://${address}:${forwarded.port}/`
+        ])
+      ];
+      const attempts = await Promise.all(unreachable.map(fetchInside));
+      attempts.forEach((attempt, index) =>
+        expect(attempt.status, `${unreachable[index]} answered ${attempt.stdout}`).not.toBe(0)
+      );
       const afterForward = spawnSync('docker', ['exec', ministack.containerName, 'python', '-c', EGRESS_PROBE], {
         encoding: 'utf8'
       });
-      expect(JSON.parse(afterForward.stdout)).toMatchObject({ ipv4: expect.stringMatching(/^blocked/) });
+      expect(JSON.parse(afterForward.stdout)).toMatchObject({
+        ipv4: expect.stringMatching(/^blocked/),
+        ipv6: expect.stringMatching(/^blocked/)
+      });
     } finally {
-      server.close();
+      forwarded.server.close();
+      unforwarded.server.close();
     }
 
     const environment = ministack.childEnvironment();
@@ -184,8 +230,10 @@ describe('MiniStack fixture', () => {
     expect(seenBySecond.map(({ Name }) => Name)).not.toContain('owned-by-first');
 
     const { containerName, volumes } = ministack;
+    expect(dockerExists('container', `${containerName}-host-relay`)).toBe(true);
     await ministack.stop();
     expect(dockerExists('container', containerName)).toBe(false);
+    expect(dockerExists('container', `${containerName}-host-relay`)).toBe(false);
     for (const volume of volumes) expect(dockerExists('volume', volume)).toBe(false);
     await ministack.stop();
   }, 120_000);
