@@ -5575,6 +5575,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
@@ -5947,6 +5948,7 @@ stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--period` | no | `number` | Metric Period — Aggregation period in seconds (default: 300). | - |
@@ -17914,7 +17916,7 @@ Fetch the last 30 minutes:
 stacktape logs api --since 30m
 ```
 
-For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--end-time` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
+For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--until` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
 
 ### Filtering
 
@@ -17934,7 +17936,7 @@ stacktape logs api --filter '{ $.level = "error" }'
 
 ### CloudWatch Logs Insights queries
 
-Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--end-time`.
+Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--until`.
 
 ```bash
 stacktape logs api --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
@@ -17943,7 +17945,7 @@ stacktape logs api --query "fields @timestamp, @message | filter @message like /
 Fetch Logs Insights results between two absolute timestamps:
 
 ```bash
-stacktape logs api --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --end-time "2025-01-15T11:00:00Z"
+stacktape logs api --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --until "2025-01-15T11:00:00Z"
 ```
 
 ### Output format
@@ -18003,7 +18005,7 @@ stacktape metrics api Invocations
 - `--period` — aggregation interval in seconds (default: `300`, i.e. 5 minutes)
 - `--stat` — CloudWatch aggregation statistic (default: `Average`). Standard CloudWatch statistics include `Average`, `Sum`, `Minimum`, `Maximum`, and `SampleCount`.
 - `--since` — supports relative time (`1h`, `6h`, `1d`) or ISO timestamp (default: 1 hour ago)
-- `--end-time` — end of the time window (default: now)
+- `--until` — end of the time window (default: now)
 
 View database CPU over the last 24 hours with 1-hour granularity:
 
@@ -18461,7 +18463,7 @@ Run a CloudWatch Logs Insights query for structured searching:
 stacktape logs myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
 ```
 
-The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--end-time` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
+The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--until` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
 
 
 > **Warning:** CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned. For high-volume functions, use narrow time ranges and specific filters to control cost.
@@ -21303,7 +21305,7 @@ This returns up to 100 log events from the last hour. Without `--raw` or agent m
 
 ### Time ranges
 
-Control the time window with `--since` and `--end-time`.
+Control the time window with `--since` and `--until`.
 
 Last 30 minutes:
 
@@ -21327,7 +21329,7 @@ Specific time window (used with Logs Insights queries):
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 \
-  --since "2025-05-14T08:00:00Z" --end-time "2025-05-14T09:00:00Z" \
+  --since "2025-05-14T08:00:00Z" --until "2025-05-14T09:00:00Z" \
   --query "fields @timestamp, @message | sort @timestamp desc | limit 50"
 ```
 
@@ -21335,12 +21337,12 @@ The `--since` flag accepts two formats:
 
 | Format | Example | Meaning |
 |---|---|---|
-| Relative shorthand | `1h`, `30m`, `2d`, `10s` | Hours, minutes, days, or seconds before `--end-time` |
+| Relative shorthand | `1h`, `30m`, `2d`, `10s` | Hours, minutes, days, or seconds before `--until` |
 | Absolute date | `2025-05-14T08:00:00Z` | Any value accepted by the JavaScript `Date` constructor |
 
-If `--since` is omitted, it defaults to 1 hour before `--end-time`. If `--end-time` is omitted, it defaults to the current time.
+If `--since` is omitted, it defaults to 1 hour before `--until`. If `--until` is omitted, it defaults to the current time.
 
-**How `--end-time` works:** The `--end-time` flag serves as the anchor point when computing relative `--since` values — for example, `--since 1h` means 1 hour before `--end-time`. For Logs Insights queries (when using `--query`), both `--since` and `--end-time` define the query's time window. For standard log fetching (without `--query`), `--end-time` is used only to compute relative `--since` values; the CloudWatch fetch call receives `startTime` but not an end-time bound.
+**How `--until` works:** The `--until` flag serves as the anchor point when computing relative `--since` values — for example, `--since 1h` means 1 hour before `--until`. For Logs Insights queries (when using `--query`), both `--since` and `--until` define the query's time window. For standard log fetching (without `--query`), `--until` is used only to compute relative `--since` values; the CloudWatch fetch call receives `startTime` but not an end-time bound.
 
 ### Limiting results
 
@@ -21404,7 +21406,7 @@ stacktape logs myApi --stage prod --region eu-west-1 \
   --query "filter @type = 'REPORT' | stats max(@duration) as maxDuration, avg(@duration) as avgDuration by bin(5m)"
 ```
 
-When `--query` is provided, the command uses the CloudWatch Logs Insights engine instead of the standard log-fetching path. Both `--since` and `--end-time` define the query's time window. In non-agent mode, the CLI prints the result count and each row's timestamp and message. In agent mode, results are returned as structured JSON.
+When `--query` is provided, the command uses the CloudWatch Logs Insights engine instead of the standard log-fetching path. Both `--since` and `--until` define the query's time window. In non-agent mode, the CLI prints the result count and each row's timestamp and message. In agent mode, results are returned as structured JSON.
 
 
 > **Tip:** CloudWatch Logs Insights is well suited for ad-hoc investigation and aggregate queries across large volumes of logs. Use it when simple filter patterns are not expressive enough — for example, when you need to count occurrences, compute averages, or group by a field.
@@ -21574,7 +21576,7 @@ The CLI resolves metrics based on the deployed resource's `resourceType`. Resour
 
 ### Time range
 
-By default, the CLI fetches the last 1 hour of data. Use `--since` to set the start of the time window and `--end-time` to set the end.
+By default, the CLI fetches the last 1 hour of data. Use `--since` to set the start of the time window and `--until` to set the end.
 
 `--since` accepts either a relative duration or an absolute ISO 8601 timestamp. Relative durations use a number followed by a unit: `s` (seconds), `m` (minutes), `h` (hours), or `d` (days).
 
@@ -21587,10 +21589,10 @@ stacktape metrics backend CPUUtilization --stage prod --region eu-west-1 --since
 Fetch metrics from a specific absolute time window:
 
 ```bash
-stacktape metrics api Errors --stage prod --region eu-west-1 --since "2025-05-16T08:00:00Z" --end-time "2025-05-16T12:00:00Z"
+stacktape metrics api Errors --stage prod --region eu-west-1 --since "2025-05-16T08:00:00Z" --until "2025-05-16T12:00:00Z"
 ```
 
-When `--end-time` is omitted, the command uses the current time.
+When `--until` is omitted, the command uses the current time.
 
 ### Aggregation and statistics
 

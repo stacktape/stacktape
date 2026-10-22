@@ -4028,6 +4028,16 @@
         "flag": "cwd"
       },
       {
+        "name": "endTime",
+        "description": "#### End Time\n---\nThe end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it.",
+        "required": false,
+        "allowedTypes": [
+          "number",
+          "string"
+        ],
+        "flag": "until"
+      },
+      {
         "name": "filter",
         "description": "#### Filter\n---\nA pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).",
         "required": false,
@@ -4360,6 +4370,16 @@
           "string"
         ],
         "flag": "aws-account"
+      },
+      {
+        "name": "endTime",
+        "description": "#### End Time\n---\nThe end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it.",
+        "required": false,
+        "allowedTypes": [
+          "number",
+          "string"
+        ],
+        "flag": "until"
       },
       {
         "name": "help",

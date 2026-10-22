@@ -208,6 +208,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |

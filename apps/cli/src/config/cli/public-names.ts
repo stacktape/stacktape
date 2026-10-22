@@ -27,6 +27,7 @@ const flagOverrides: Record<string, string> = {
   currentWorkingDirectory: 'cwd',
   autoConfirmOperation: 'yes',
   startTime: 'since',
+  endTime: 'until',
   preserveTempFiles: 'keep-temp-files',
   showSensitiveValues: 'show-secrets',
   outFile: 'out',

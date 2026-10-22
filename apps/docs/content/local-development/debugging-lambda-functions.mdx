@@ -158,7 +158,7 @@ Run a CloudWatch Logs Insights query for structured searching:
 stacktape logs myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
 ```
 
-The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--end-time` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
+The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--until` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
 
 <Warning>CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned. For high-volume functions, use narrow time ranges and specific filters to control cost.</Warning>
 
