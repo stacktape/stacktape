@@ -49,7 +49,7 @@ Fetch the last 30 minutes:
 stacktape logs api --since 30m
 ```
 
-For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--end-time` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
+For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--until` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
 
 ### Filtering
 
@@ -69,7 +69,7 @@ stacktape logs api --filter '{ $.level = "error" }'
 
 ### CloudWatch Logs Insights queries
 
-Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--end-time`.
+Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--until`.
 
 ```bash
 stacktape logs api --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
@@ -78,7 +78,7 @@ stacktape logs api --query "fields @timestamp, @message | filter @message like /
 Fetch Logs Insights results between two absolute timestamps:
 
 ```bash
-stacktape logs api --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --end-time "2025-01-15T11:00:00Z"
+stacktape logs api --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --until "2025-01-15T11:00:00Z"
 ```
 
 ### Output format
@@ -138,7 +138,7 @@ stacktape metrics api Invocations
 - `--period` — aggregation interval in seconds (default: `300`, i.e. 5 minutes)
 - `--stat` — CloudWatch aggregation statistic (default: `Average`). Standard CloudWatch statistics include `Average`, `Sum`, `Minimum`, `Maximum`, and `SampleCount`.
 - `--since` — supports relative time (`1h`, `6h`, `1d`) or ISO timestamp (default: 1 hour ago)
-- `--end-time` — end of the time window (default: now)
+- `--until` — end of the time window (default: now)
 
 View database CPU over the last 24 hours with 1-hour granularity:
 

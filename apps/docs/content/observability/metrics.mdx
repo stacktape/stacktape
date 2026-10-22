@@ -50,7 +50,7 @@ The CLI resolves metrics based on the deployed resource's `resourceType`. Resour
 
 ### Time range
 
-By default, the CLI fetches the last 1 hour of data. Use `--since` to set the start of the time window and `--end-time` to set the end.
+By default, the CLI fetches the last 1 hour of data. Use `--since` to set the start of the time window and `--until` to set the end.
 
 `--since` accepts either a relative duration or an absolute ISO 8601 timestamp. Relative durations use a number followed by a unit: `s` (seconds), `m` (minutes), `h` (hours), or `d` (days).
 
@@ -63,10 +63,10 @@ stacktape metrics backend CPUUtilization --stage prod --region eu-west-1 --since
 Fetch metrics from a specific absolute time window:
 
 ```bash
-stacktape metrics api Errors --stage prod --region eu-west-1 --since "2025-05-16T08:00:00Z" --end-time "2025-05-16T12:00:00Z"
+stacktape metrics api Errors --stage prod --region eu-west-1 --since "2025-05-16T08:00:00Z" --until "2025-05-16T12:00:00Z"
 ```
 
-When `--end-time` is omitted, the command uses the current time.
+When `--until` is omitted, the command uses the current time.
 
 ### Aggregation and statistics
 

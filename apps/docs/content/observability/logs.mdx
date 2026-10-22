@@ -77,7 +77,7 @@ This returns up to 100 log events from the last hour. Without `--raw` or agent m
 
 ### Time ranges
 
-Control the time window with `--since` and `--end-time`.
+Control the time window with `--since` and `--until`.
 
 Last 30 minutes:
 
@@ -101,7 +101,7 @@ Specific time window (used with Logs Insights queries):
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 \
-  --since "2025-05-14T08:00:00Z" --end-time "2025-05-14T09:00:00Z" \
+  --since "2025-05-14T08:00:00Z" --until "2025-05-14T09:00:00Z" \
   --query "fields @timestamp, @message | sort @timestamp desc | limit 50"
 ```
 
@@ -109,12 +109,12 @@ The `--since` flag accepts two formats:
 
 | Format | Example | Meaning |
 |---|---|---|
-| Relative shorthand | `1h`, `30m`, `2d`, `10s` | Hours, minutes, days, or seconds before `--end-time` |
+| Relative shorthand | `1h`, `30m`, `2d`, `10s` | Hours, minutes, days, or seconds before `--until` |
 | Absolute date | `2025-05-14T08:00:00Z` | Any value accepted by the JavaScript `Date` constructor |
 
-If `--since` is omitted, it defaults to 1 hour before `--end-time`. If `--end-time` is omitted, it defaults to the current time.
+If `--since` is omitted, it defaults to 1 hour before `--until`. If `--until` is omitted, it defaults to the current time.
 
-**How `--end-time` works:** The `--end-time` flag serves as the anchor point when computing relative `--since` values — for example, `--since 1h` means 1 hour before `--end-time`. For Logs Insights queries (when using `--query`), both `--since` and `--end-time` define the query's time window. For standard log fetching (without `--query`), `--end-time` is used only to compute relative `--since` values; the CloudWatch fetch call receives `startTime` but not an end-time bound.
+**How `--until` works:** The `--until` flag serves as the anchor point when computing relative `--since` values — for example, `--since 1h` means 1 hour before `--until`. For Logs Insights queries (when using `--query`), both `--since` and `--until` define the query's time window. For standard log fetching (without `--query`), `--until` is used only to compute relative `--since` values; the CloudWatch fetch call receives `startTime` but not an end-time bound.
 
 ### Limiting results
 
@@ -178,7 +178,7 @@ stacktape logs myApi --stage prod --region eu-west-1 \
   --query "filter @type = 'REPORT' | stats max(@duration) as maxDuration, avg(@duration) as avgDuration by bin(5m)"
 ```
 
-When `--query` is provided, the command uses the CloudWatch Logs Insights engine instead of the standard log-fetching path. Both `--since` and `--end-time` define the query's time window. In non-agent mode, the CLI prints the result count and each row's timestamp and message. In agent mode, results are returned as structured JSON.
+When `--query` is provided, the command uses the CloudWatch Logs Insights engine instead of the standard log-fetching path. Both `--since` and `--until` define the query's time window. In non-agent mode, the CLI prints the result count and each row's timestamp and message. In agent mode, results are returned as structured JSON.
 
 <Tip>
 CloudWatch Logs Insights is well suited for ad-hoc investigation and aggregate queries across large volumes of logs. Use it when simple filter patterns are not expressive enough — for example, when you need to count occurrences, compute averages, or group by a field.

@@ -75,6 +75,7 @@ import {
   starterId,
   starterProject,
   startTime,
+  endTime,
   universalArgs,
   watch,
   withPackage,
@@ -428,6 +429,7 @@ Examples:
       resourceName: resourceName.optional(),
       container: container.optional(),
       startTime: startTime.optional(),
+      endTime: endTime.optional(),
       filter: filter.optional(),
       raw: raw.optional(),
       query: logsQuery.optional(),
@@ -465,7 +467,8 @@ Supported metrics by resource type:
       metric: metric.optional(),
       period: period.optional(),
       stat: stat.optional(),
-      startTime: startTime.optional()
+      startTime: startTime.optional(),
+      endTime: endTime.optional()
     },
     requiredArgs: ['stage', 'region', 'resourceName', 'metric'] as const
   },

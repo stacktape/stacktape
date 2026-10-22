@@ -224,6 +224,10 @@ export const startTime = z.union([z.number(), z.string()]).describe(`#### Start 
 ---
 The start time from which to print logs. This can be any format accepted by the JavaScript \`Date\` constructor.`);
 
+export const endTime = z.union([z.number(), z.string()]).describe(`#### End Time
+---
+The end of the time window. This can be any format accepted by the JavaScript \`Date\` constructor. Defaults to now; a relative \`--since\` value counts back from it.`);
+
 export const filter = z.string().describe(`#### Filter
 ---
 A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).`);
