@@ -165,10 +165,10 @@ export const assignChunksToLayers = (
   }
 
   // The project's own shared code goes with the functions, so editing it is a code update. Installed packages, which
-  // change rarely, stay in the layers. The split bundler keeps the two in separate chunks.
-  const ownCodeChunks = chunkAnalysis.filter(({ containsOwnCode }) => containsOwnCode);
+  // change rarely, stay in the layers. This needs the split bundler to have kept the two in separate chunks.
+  const ownCodeChunks = chunkAnalysis.filter(({ code }) => code === 'own');
   const ownCodeSize = ownCodeChunks.reduce((sum, chunk) => sum + chunk.sizeBytes, 0);
-  if (ownCodeSize <= (config.maxOwnCodeInFunctions ?? 0)) {
+  if (!chunkAnalysis.some(({ code }) => code === 'mixed') && ownCodeSize <= (config.maxOwnCodeInFunctions ?? 0)) {
     dropWithImporters(ownCodeChunks.map(({ chunkName }) => chunkName));
   }
 

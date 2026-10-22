@@ -111,8 +111,8 @@ export type ChunkUsageAnalysis = {
   deduplicationValue: number;
   /** Other chunk names that this chunk imports (dependencies) */
   dependsOn: string[];
-  /** The chunk holds the project's own source, not only installed packages. */
-  containsOwnCode?: boolean | undefined;
+  /** Whose code the chunk holds: the project's own source, installed packages, or both. Packages when omitted. */
+  code?: 'own' | 'packages' | 'mixed' | undefined;
 };
 
 /** Layer assignment for a single chunk */

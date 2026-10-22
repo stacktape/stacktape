@@ -19,14 +19,16 @@ import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
-import { copy, emptyDir, ensureDir, outputFile, outputJSON, readFile, remove } from 'fs-extra';
+import { copy, emptyDir, ensureDir, outputJSON, readFile, remove } from 'fs-extra';
 import { IGNORED_MODULES } from '../es/config';
-import { createPackageAnalysisCache, getProductionDependencies, isInside } from '../es/installed-packages';
+import { createPackageAnalysisCache, getProductionDependencies } from '../es/installed-packages';
 import {
+  createOwnCodeAnchorPlugin,
   createOwnCodeAnchorSource,
+  isInstalledPackagePath,
   isOwnCodeAnchorOutput,
   isOwnSourcePath,
-  OWN_CODE_ANCHOR_FILE_NAME
+  OWN_CODE_ANCHOR_ENTRY
 } from './own-code-anchor';
 import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
@@ -261,18 +263,20 @@ const executeBunBuild = async ({
   const banner = await getSourceMapBanner(sourceMapBannerType);
   // Use monorepo root for module resolution if available, otherwise cwd
   const buildRoot = monorepoRoot || cwd;
+  const entryPaths = entrypoints.map((ep) => ep.entryfilePath);
   const runBunBuild = ({
-    entries,
+    anchorSource,
     outdir,
     buildTracker
   }: {
-    entries: string[];
+    /** An extra entry point, `createOwnCodeAnchorSource`'s, that keeps own code and packages in separate chunks. */
+    anchorSource?: string | undefined;
     /** Without one, Bun keeps the outputs in memory. */
     outdir?: string | undefined;
     buildTracker: DependencyTracker;
   }) =>
     Bun.build({
-      entrypoints: entries,
+      entrypoints: anchorSource ? [...entryPaths, OWN_CODE_ANCHOR_ENTRY] : entryPaths,
       ...(outdir ? { outdir } : {}),
       target: 'node',
       format: 'esm',
@@ -303,7 +307,8 @@ const executeBunBuild = async ({
         }),
         createNativeNodeModulesPlugin(),
         createPrismaLambdaClientPlugin(),
-        createWindowsPathNormalizationPlugin({ cwd, monorepoRoot })
+        createWindowsPathNormalizationPlugin({ cwd, monorepoRoot }),
+        ...(anchorSource ? [createOwnCodeAnchorPlugin(anchorSource)] : [])
       ],
       root: buildRoot,
       ...(sourceMapBannerType === 'pre-compiled' && banner ? { banner } : {}),
@@ -322,37 +327,28 @@ const executeBunBuild = async ({
   await emptyDir(sharedOutdir);
   let result: Awaited<ReturnType<typeof Bun.build>>;
   const bunBuildStartedAt = performance.now();
-  const entryPaths = entrypoints.map((ep) => ep.entryfilePath);
-  // The anchor lives beside the shared outdir, inside the build root, so its output stays inside the outdir.
-  const anchorPath = join(dirname(sharedOutdir), OWN_CODE_ANCHOR_FILE_NAME);
 
   try {
-    let anchored = false;
-    if (entrypoints.length > 1 && isInside(buildRoot, anchorPath)) {
-      const plan = await runBunBuild({ entries: entryPaths, buildTracker: createDependencyTracker() });
-      const anchorSource =
-        plan.success &&
-        (await createOwnCodeAnchorSource({
-          metafile: plan.metafile as BuildMetafile,
-          resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
-        }));
-      if (anchorSource) {
-        await outputFile(anchorPath, anchorSource);
-        anchored = true;
-      }
-    }
-    result = await runBunBuild({
-      entries: anchored ? [...entryPaths, anchorPath] : entryPaths,
-      outdir: sharedOutdir,
-      buildTracker: tracker
-    });
-    // The anchor names what the project's code imports as it was written. If Bun disagrees, build without it: own
-    // code then shares chunks with packages, as it did before.
-    if (!result.success && anchored) {
+    // A build in memory shows which chunks would mix own code and packages. The anchor is only an optimization: when
+    // it cannot be prepared, or Bun rejects a name it re-exports, the build goes on without it, as it did before.
+    const anchorSource =
+      entrypoints.length > 1
+        ? await runBunBuild({ buildTracker: createDependencyTracker() })
+            .then((plan) =>
+              plan.success
+                ? createOwnCodeAnchorSource({
+                    metafile: plan.metafile as BuildMetafile,
+                    resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
+                  })
+                : undefined
+            )
+            .catch(() => undefined)
+        : undefined;
+    result = await runBunBuild({ anchorSource, outdir: sharedOutdir, buildTracker: tracker });
+    if (!result.success && anchorSource) {
       await emptyDir(sharedOutdir);
-      result = await runBunBuild({ entries: entryPaths, outdir: sharedOutdir, buildTracker: tracker });
+      result = await runBunBuild({ outdir: sharedOutdir, buildTracker: tracker });
     }
-    if (anchored) await remove(anchorPath);
   } catch (error) {
     const errorDetails = formatBuildError(error);
     throw createPackagingError({
@@ -1080,6 +1076,13 @@ const processLambdaEntrypointWithMetafile = async ({
  * emitted it with (`sourceMapBytes`, by path), not its size on disk after the asset and `sources` edits, so layer
  * assignment does not depend on those edits.
  */
+/** Whose code a chunk holds, by its inputs. */
+const getChunkCode = (inputs: string[]): ChunkUsageAnalysis['code'] => {
+  const own = inputs.some(isOwnSourcePath);
+  const packages = inputs.some(isInstalledPackagePath);
+  return own && packages ? 'mixed' : own ? 'own' : 'packages';
+};
+
 const buildChunkAnalysisFromMetafile = (
   metafile: BuildMetafile,
   chunkUsageMap: Map<string, Set<string>>,
@@ -1114,7 +1117,7 @@ const buildChunkAnalysisFromMetafile = (
       usageCount,
       deduplicationValue,
       dependsOn,
-      containsOwnCode: Object.keys(chunkMeta.inputs).some(isOwnSourcePath)
+      code: getChunkCode(Object.keys(chunkMeta.inputs))
     });
   }
 

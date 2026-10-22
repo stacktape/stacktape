@@ -235,7 +235,7 @@ test("an edit of the project's shared code changes the functions, not the layer 
 
   const first = await build('first');
   // No chunk holds both the project's code and the package's, and only the package's chunk is layered.
-  expect(first.split.chunkAnalysis.filter(({ containsOwnCode }) => containsOwnCode)).toHaveLength(1);
+  expect(first.split.chunkAnalysis.map(({ code }) => code).toSorted()).toEqual(['own', 'packages']);
   expect(first.layerArtifacts).toHaveLength(1);
   const layerCode = (await readLayerCode(first.layerArtifacts[0]!)).join('');
   expect(layerCode).toContain('reduce');

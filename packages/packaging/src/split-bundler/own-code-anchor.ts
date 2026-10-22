@@ -9,14 +9,28 @@
  * discarded.
  */
 import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, extname } from 'node:path';
+import type { BunPlugin } from 'bun';
 import type { BuildMetafile } from './types';
 
-/** The anchor entry's file name, in a directory of the build folder. */
-export const OWN_CODE_ANCHOR_FILE_NAME = '__stacktape-own-code-anchor.js';
+/** The anchor's entry point. No file has this name; the plugin below provides the module. */
+export const OWN_CODE_ANCHOR_ENTRY = 'stacktape-own-code-anchor';
 
-/** The anchor's emitted file or its source map. */
-export const isOwnCodeAnchorOutput = (path: string) => basename(path).startsWith('__stacktape-own-code-anchor.');
+/** The anchor's emitted file or its source map, or its entry point as the metafile names it. */
+export const isOwnCodeAnchorOutput = (path: string) =>
+  basename(path).startsWith(`${OWN_CODE_ANCHOR_ENTRY}.`) || path.startsWith(`${OWN_CODE_ANCHOR_ENTRY}:`);
+
+/** Serves the anchor entry point with the given source. */
+export const createOwnCodeAnchorPlugin = (source: string): BunPlugin => ({
+  name: 'stp-own-code-anchor',
+  setup(build) {
+    build.onResolve({ filter: new RegExp(`^${OWN_CODE_ANCHOR_ENTRY}$`) }, () => ({
+      path: OWN_CODE_ANCHOR_ENTRY,
+      namespace: OWN_CODE_ANCHOR_ENTRY
+    }));
+    build.onLoad({ filter: /.*/, namespace: OWN_CODE_ANCHOR_ENTRY }, () => ({ contents: source, loader: 'js' }));
+  }
+});
 
 /** An installed package's file, by its path in the metafile. */
 export const isInstalledPackagePath = (path: string) => /(?:^|[\\/])node_modules[\\/]/.test(path);
@@ -27,7 +41,29 @@ const isVirtualModule = (path: string) => /^[\w-]+:/.test(path) && !/^[a-z]:[\\/
 /** A source file of the project, rather than an installed package or a plugin's module. */
 export const isOwnSourcePath = (path: string) => !isInstalledPackagePath(path) && !isVirtualModule(path);
 
-const transpiler = new Bun.Transpiler({ loader: 'tsx', target: 'node' });
+const LOADERS: Record<string, 'ts' | 'tsx' | 'js' | 'jsx'> = {
+  '.ts': 'ts',
+  '.mts': 'ts',
+  '.cts': 'ts',
+  '.tsx': 'tsx',
+  '.js': 'js',
+  '.mjs': 'js',
+  '.cjs': 'js',
+  '.jsx': 'jsx'
+};
+const transpilers = new Map<string, Bun.Transpiler>();
+
+/** The file's code with its types removed, or `undefined` when it is not a script this can read. */
+const readScript = async (path: string) => {
+  const loader = LOADERS[extname(path)];
+  if (!loader) return undefined;
+  if (!transpilers.has(loader)) transpilers.set(loader, new Bun.Transpiler({ loader, target: 'node' }));
+  try {
+    return transpilers.get(loader)!.transformSync(await readFile(path, 'utf8'));
+  } catch {
+    return undefined;
+  }
+};
 
 /** `import … from` and `export … from` statements: their keyword, clause and specifier. */
 const FROM_STATEMENT = /\b(import|export)\s*([\w$\s,*{}]*?)\s*from\s*["']([^"']+)["']/g;
@@ -83,39 +119,28 @@ export const createOwnCodeAnchorSource = async ({
   const ownSources = Object.entries(metafile.inputs).filter(
     ([path]) => mixedChunkInputs.has(path) && isOwnSourcePath(path)
   );
-  const lines = await Promise.all(
+  const reexports = await Promise.all(
     ownSources.map(async ([path, { imports }]) => {
       const packageImports = imports.filter(
         ({ path: imported, kind, external }) =>
           !external && kind === 'import-statement' && isInstalledPackagePath(imported) && !imported.endsWith('.json')
       );
       if (!packageImports.length) return [];
-      const importedNames = getImportedNames(transpiler.transformSync(await readFile(resolveInput(path), 'utf8')));
-      return packageImports.map(({ path: imported, original }) => {
-        const names = (original && importedNames.get(original)) || new Set(['*']);
-        const target = JSON.stringify(resolveInput(imported));
-        return names.has('*')
-          ? `export * as __ from ${target};`
-          : `export { ${[...names].join(', ')} } from ${target};`;
-      });
+      const code = await readScript(resolveInput(path));
+      const importedNames = code === undefined ? new Map<string, Set<string>>() : getImportedNames(code);
+      return packageImports.map(({ path: imported, original }) => ({
+        target: JSON.stringify(resolveInput(imported)),
+        // A form this does not read takes the namespace: the chunks stay separate, the package is less tree-shaken.
+        names: (original && importedNames.get(original)) || new Set(['*'])
+      }));
     })
   );
-  const statements = [...new Set(lines.flat())];
-  if (!statements.length) return undefined;
-  // Every export needs a unique name.
+  // Every name is exported under a new one, so that two packages' `default` exports cannot collide.
   let index = 0;
-  return statements
-    .map((statement) =>
-      statement.startsWith('export *')
-        ? statement.replace('__', `__stp${index++}`)
-        : statement.replace(
-            /\{ (.*) \}/,
-            (_, list: string) =>
-              `{ ${list
-                .split(', ')
-                .map((name) => `${name} as __stp${index++}`)
-                .join(', ')} }`
-          )
-    )
-    .join('\n');
+  const statements = reexports.flat().flatMap(({ target, names }) => {
+    if (names.has('*')) return [`export * as __stp${index++} from ${target};`];
+    if (!names.size) return [];
+    return [`export { ${[...names].map((name) => `${name} as __stp${index++}`).join(', ')} } from ${target};`];
+  });
+  return statements.length ? statements.join('\n') : undefined;
 };
