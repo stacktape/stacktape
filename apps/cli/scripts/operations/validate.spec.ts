@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import AdmZip from 'adm-zip';
+import { writeHelperLambdaManifest } from '@utils/helper-lambdas';
 import { buildOperationsCli, createOperationsFixture, targetArgs } from './cli-process';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 
@@ -41,6 +42,10 @@ test('thorough validation checks at 51,200 bytes, skips larger UTF-8 templates, 
     inventory.writeZip(
       join(fixture.directory, '__stacktape-dist/dev/helper-lambdas/stacktapeServiceLambda-fixture.zip')
     );
+    await writeHelperLambdaManifest({
+      helperLambdasDir: join(fixture.directory, '__stacktape-dist/dev/helper-lambdas'),
+      artifacts: { stacktapeServiceLambda: 'stacktapeServiceLambda-fixture.zip' }
+    });
     // MiniStack has no Cost Explorer/Budgets or resource-tag key enumeration.
     fixture.aws.on('ce.GetTags', () => ({ kind: 'json', body: { Tags: [] } }));
     fixture.aws.on('budgets.DescribeBudgets', () => ({ kind: 'json', body: { Budgets: [] } }));
