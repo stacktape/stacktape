@@ -24,13 +24,13 @@ Stacktape deletion follows a fixed sequence. Understanding the order helps when 
 Run [`stacktape delete`](/cli/delete) with the project name, stage, and region of the stack you want to remove.
 
 ```bash
-stacktape delete --projectName my-app --stage dev --region eu-west-1
+stacktape delete --project my-app --stage dev --region eu-west-1
 ```
 
 See the [`stacktape delete` CLI reference](/cli/delete) for the full list of available flags and options.
 
 
-> **Info:** The delete command initializes with `commandRequiresConfig: false`, so deletion can run without loading the project config. Specify `--projectName`, `--stage`, and `--region` to target the stack. When a configuration is loaded, Stacktape additionally registers and processes the hooks defined in it. See the full flag reference on the [`stacktape delete` CLI page](/cli/delete).
+> **Info:** The delete command initializes with `commandRequiresConfig: false`, so deletion can run without loading the project config. Specify `--project`, `--stage`, and `--region` to target the stack. When a configuration is loaded, Stacktape additionally registers and processes the hooks defined in it. See the full flag reference on the [`stacktape delete` CLI page](/cli/delete).
 
 
 ## Termination protection
@@ -120,7 +120,7 @@ For PR-based workflows, automate deletion when the branch is deleted or the PR i
 
 ### Can I delete a stack without the original config file?
 
-Yes. The `stacktape delete` command does not require a configuration file. Specify `--projectName`, `--stage`, and `--region` and Stacktape deletes the stack directly. The only limitation is that pre-deletion lifecycle hooks defined in the config file will not run, because no configuration is loaded.
+Yes. The `stacktape delete` command does not require a configuration file. Specify `--project`, `--stage`, and `--region` and Stacktape deletes the stack directly. The only limitation is that pre-deletion lifecycle hooks defined in the config file will not run, because no configuration is loaded.
 
 ### What happens to my data when I delete a stack? Can I recover it?
 

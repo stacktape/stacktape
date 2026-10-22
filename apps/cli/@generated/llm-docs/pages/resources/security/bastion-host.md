@@ -9,7 +9,7 @@ A Stacktape bastion host is a lightweight EC2 instance that gives you secure, ke
 Add a bastion host when your stack has private VPC resources and you need interactive or ad-hoc access from your local machine. Common scenarios:
 
 - **Connecting database GUI tools** — use port-forwarding tunnels so pgAdmin, DBeaver, or TablePlus can reach a private database as if it were on `localhost`.
-- **Running ad-hoc queries** — use [`bastion:tunnel`](/cli/bastion-tunnel) to connect local database tools, or [`query:sql`](/cli/query-sql) for quick command-line queries against private databases.
+- **Running ad-hoc queries** — use [`bastion tunnel`](/cli/bastion-tunnel) to connect local database tools, or [`query sql`](/cli/query-sql) for quick command-line queries against private databases.
 - **Debugging connectivity** — verify that VPC networking, security groups, and DNS resolution work as expected from inside the VPC.
 - **Running maintenance scripts** — execute migration or data-fix scripts that need direct VPC network access.
 
@@ -40,31 +40,31 @@ export default defineConfig(() => {
 ```
 
 
-After deploying, use [`bastion:session`](/cli/bastion-session) to open an interactive shell or [`bastion:tunnel`](/cli/bastion-tunnel) to create port-forwarding tunnels to private resources.
+After deploying, use [`bastion shell`](/cli/bastion-session) to open an interactive shell or [`bastion tunnel`](/cli/bastion-tunnel) to create port-forwarding tunnels to private resources.
 
 ## Connecting to private resources
 
-A Stacktape bastion host gives you access to private VPC resources such as relational databases, Redis clusters, and OpenSearch domains. Stacktape provides two CLI commands for this: an interactive shell session and port-forwarding tunnels. The [`bastion:tunnel`](/cli/bastion-tunnel) command supports a specific set of tunnel targets: relational databases, Redis clusters, MongoDB Atlas clusters, application load balancers, and private services with an application load balancer.
+A Stacktape bastion host gives you access to private VPC resources such as relational databases, Redis clusters, and OpenSearch domains. Stacktape provides two CLI commands for this: an interactive shell session and port-forwarding tunnels. The [`bastion tunnel`](/cli/bastion-tunnel) command supports a specific set of tunnel targets: relational databases, Redis clusters, MongoDB Atlas clusters, application load balancers, and private services with an application load balancer.
 
 ### Interactive shell
 
-The [`bastion:session`](/cli/bastion-session) command opens an interactive shell on the bastion instance. Stacktape uses keyless access via AWS Systems Manager, so there are no SSH keys to manage.
+The [`bastion shell`](/cli/bastion-session) command opens an interactive shell on the bastion instance. Stacktape uses keyless access via AWS Systems Manager, so there are no SSH keys to manage.
 
 ```bash
-stacktape bastion:session --stage production --region eu-west-1
+stacktape bastion shell --stage production --region eu-west-1
 ```
 
-Once connected, you can run commands on the bastion instance. Install the tools you need (database clients, network utilities) via [`runCommandsAtLaunch`](#startup-commands) so they're available every time you connect. See the [`bastion:session` CLI reference](/cli/bastion-session) for details.
+Once connected, you can run commands on the bastion instance. Install the tools you need (database clients, network utilities) via [`runCommandsAtLaunch`](#startup-commands) so they're available every time you connect. See the [`bastion shell` CLI reference](/cli/bastion-session) for details.
 
 ### Tunnels
 
-The [`bastion:tunnel`](/cli/bastion-tunnel) command creates a port-forwarding tunnel from your local machine to a private resource. The remote endpoint is mapped to a local port, so your local tools connect to `localhost` as if the resource were running on your machine.
+The [`bastion tunnel`](/cli/bastion-tunnel) command creates a port-forwarding tunnel from your local machine to a private resource. The remote endpoint is mapped to a local port, so your local tools connect to `localhost` as if the resource were running on your machine.
 
 ```bash
-stacktape bastion:tunnel --stage production --region eu-west-1
+stacktape bastion tunnel --stage production --region eu-west-1
 ```
 
-The tunnel target is a Stacktape resource name. See the [`bastion:tunnel` CLI reference](/cli/bastion-tunnel) for command usage. Supported tunnel targets:
+The tunnel target is a Stacktape resource name. See the [`bastion tunnel` CLI reference](/cli/bastion-tunnel) for command usage. Supported tunnel targets:
 
 | Resource type | Example use case |
 |---|---|
@@ -74,7 +74,7 @@ The tunnel target is a Stacktape resource name. See the [`bastion:tunnel` CLI re
 | [Application load balancer](/resources/networking/application-load-balancer) | Access internal APIs or admin panels behind a private ALB |
 | [Private service](/resources/compute/private-service) | Reach a private service fronted by an application load balancer |
 
-If the target resource has multiple endpoints (for example, a Redis cluster with separate writer and reader endpoints), all endpoints are tunneled automatically. See the [`bastion:tunnel` CLI reference](/cli/bastion-tunnel) for details.
+If the target resource has multiple endpoints (for example, a Redis cluster with separate writer and reader endpoints), all endpoints are tunneled automatically. See the [`bastion tunnel` CLI reference](/cli/bastion-tunnel) for details.
 
 ## Scripts
 
@@ -173,7 +173,7 @@ For compliance-sensitive environments, keep `secure` and `audit` logs at longer 
 
 ### Bastion with database tooling
 
-A bastion configured with startup commands to install database clients. After deployment, use [`bastion:session`](/cli/bastion-session) to connect and run `psql` or `redis-cli` against private resources, or use [`bastion:tunnel`](/cli/bastion-tunnel) to map remote endpoints to local ports for GUI tools.
+A bastion configured with startup commands to install database clients. After deployment, use [`bastion shell`](/cli/bastion-session) to connect and run `psql` or `redis-cli` against private resources, or use [`bastion tunnel`](/cli/bastion-tunnel) to map remote endpoints to local ports for GUI tools.
 
 
 Example (TypeScript):
@@ -244,7 +244,7 @@ A bastion runs a single EC2 instance continuously — there is no scale-to-zero.
 
 ### Can I connect a database GUI to a private database?
 
-Yes. Use [`bastion:tunnel`](/cli/bastion-tunnel) to create a port-forwarding tunnel from your local machine to the private database. The tunnel maps the remote database endpoint to a local port, so your GUI tool (pgAdmin, DBeaver, TablePlus, DataGrip) connects to `localhost` as if the database were running locally.
+Yes. Use [`bastion tunnel`](/cli/bastion-tunnel) to create a port-forwarding tunnel from your local machine to the private database. The tunnel maps the remote database endpoint to a local port, so your GUI tool (pgAdmin, DBeaver, TablePlus, DataGrip) connects to `localhost` as if the database were running locally.
 
 ### What happens if I change the startup commands?
 
@@ -254,13 +254,13 @@ Changing `runCommandsAtLaunch` replaces the underlying EC2 instance on the next 
 
 Yes, in two ways. A `bastion-script` runs migration commands directly on the bastion instance inside the VPC. Alternatively, `local-script-with-bastion-tunneling` runs locally while tunneling connections to private VPC resources through the bastion; `connectTo` ensures injected connection details use the tunneled endpoints. Both are configured in the [scripts](/configuration/hooks-and-scripts) section of your config and can be attached to lifecycle hooks.
 
-### What's the difference between bastion:session and bastion:tunnel?
+### What's the difference between bastion shell and bastion tunnel?
 
-[`bastion:session`](/cli/bastion-session) opens an interactive shell on the bastion instance — you type commands and see output, similar to SSH. [`bastion:tunnel`](/cli/bastion-tunnel) creates a port-forwarding tunnel that maps a remote resource endpoint to a local port, letting local tools connect to the private resource. Use `bastion:session` for ad-hoc commands on the bastion itself; use `bastion:tunnel` for connecting local applications to private resources.
+[`bastion shell`](/cli/bastion-session) opens an interactive shell on the bastion instance — you type commands and see output, similar to SSH. [`bastion tunnel`](/cli/bastion-tunnel) creates a port-forwarding tunnel that maps a remote resource endpoint to a local port, letting local tools connect to the private resource. Use `bastion shell` for ad-hoc commands on the bastion itself; use `bastion tunnel` for connecting local applications to private resources.
 
 ### What resources can I tunnel to?
 
-The [`bastion:tunnel`](/cli/bastion-tunnel) command supports [relational databases](/resources/databases/relational-database), [Redis clusters](/resources/databases/redis), [MongoDB Atlas clusters](/resources/databases/mongodb-atlas), [application load balancers](/resources/networking/application-load-balancer), and [private services](/resources/compute/private-service) fronted by an application load balancer. If the target has multiple endpoints (for example, a Redis cluster with writer and reader nodes), all endpoints are tunneled automatically.
+The [`bastion tunnel`](/cli/bastion-tunnel) command supports [relational databases](/resources/databases/relational-database), [Redis clusters](/resources/databases/redis), [MongoDB Atlas clusters](/resources/databases/mongodb-atlas), [application load balancers](/resources/networking/application-load-balancer), and [private services](/resources/compute/private-service) fronted by an application load balancer. If the target has multiple endpoints (for example, a Redis cluster with writer and reader nodes), all endpoints are tunneled automatically.
 
 ### Bastion host vs VPN — which should I use?
 

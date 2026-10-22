@@ -1,19 +1,19 @@
-# ai:connect
+# ai connect
 
-The `stacktape ai:connect` command connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--aiProvider`) and explains what will happen, then, in a terminal, waits for your confirmation. It stores the sign-in with Stacktape under your user and the organization of your API key, and never prints it. Only runs you request use it, and they run the provider's coding agent.
+The `stacktape ai connect` command connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--ai-provider`) and explains what will happen, then, in a terminal, waits for your confirmation. It stores the sign-in with Stacktape under your user and the organization of your API key, and never prints it. Only runs you request use it, and they run the provider's coding agent.
 
 ## Usage
 
 ```bash
-stacktape ai:connect
-stacktape ai:connect --aiProvider codex
+stacktape ai connect
+stacktape ai connect codex
 ```
 
 This command needs a valid API key for your own user (run [`stacktape login`](/cli/login) first) and the provider's own CLI on your `PATH`. Without it, the command stops and tells you how to install it.
 
 ## Providers
 
-| `--aiProvider` | Connects | For | How |
+| `<ai-provider>` | Connects | For | How |
 |---|---|---|---|
 | `claude` | Your Claude subscription (Anthropic) | Claude Code | Runs `claude setup-token`, which signs you in to Claude in your browser and prints a long-lived token, and stores that token. |
 | `codex` | Your ChatGPT plan (OpenAI) | Codex | Uses the ChatGPT sign-in of your Codex CLI: runs `codex login` first when Codex is not signed in with ChatGPT, then stores the tokens Codex keeps in `~/.codex/auth.json`. |
@@ -30,20 +30,20 @@ A Codex signed in with an OpenAI API key is refused: an API key is not a subscri
 
 - **Your subscription, for your runs.** A run you fund with your own sign-in on an incident page uses it. One member's sign-in never funds another member's run, and Stacktape never switches a run to one of the organization's API keys.
 - **Your organization only.** The sign-in is stored for the organization of the API key you are logged in with. Run the command again after switching organizations to connect it there too.
-- **Replaceable.** Running the command again replaces it. Remove it with [`stacktape ai:disconnect`](/cli/ai-disconnect).
+- **Replaceable.** Running the command again replaces it. Remove it with [`stacktape ai disconnect`](/cli/ai-disconnect).
 
 The subscription is your own arrangement with the provider, under the provider's terms. Stacktape does not check the plan or promise that its limits cover a run; a run whose sign-in is expired, rejected or out of quota fails and says so.
 
 ## Sign-ins that refresh
 
-A Codex, Grok or OpenCode sign-in holds a refresh token, and Stacktape stores a copy. A run can refresh its copy, and your own CLI refreshes its copy. When either refreshes, the provider may replace the refresh token, and the other copy then stops working: your CLI asks you to sign in again, or a run fails saying the provider did not accept the sign-in. Run `stacktape ai:connect` again to connect a fresh one. Stacktape never writes a refreshed sign-in back.
+A Codex, Grok or OpenCode sign-in holds a refresh token, and Stacktape stores a copy. A run can refresh its copy, and your own CLI refreshes its copy. When either refreshes, the provider may replace the refresh token, and the other copy then stops working: your CLI asks you to sign in again, or a run fails saying the provider did not accept the sign-in. Run `stacktape ai connect` again to connect a fresh one. Stacktape never writes a refreshed sign-in back.
 
 To keep the runs' sign-in apart from your own CLI's, sign in once more in a separate home for the agent, for example:
 
 ```bash
-CODEX_HOME=~/.codex-stacktape stacktape ai:connect --aiProvider codex
-GROK_HOME=~/.grok-stacktape stacktape ai:connect --aiProvider grok
-XDG_DATA_HOME=~/.local/share/opencode-stacktape stacktape ai:connect --aiProvider opencode
+CODEX_HOME=~/.codex-stacktape stacktape ai connect codex
+GROK_HOME=~/.grok-stacktape stacktape ai connect grok
+XDG_DATA_HOME=~/.local/share/opencode-stacktape stacktape ai connect opencode
 ```
 
 A Claude token from `claude setup-token` does not refresh, so this does not apply to it.
@@ -52,6 +52,6 @@ A Claude token from `claude setup-token` does not refresh, so this does not appl
 
 | Flag | Description |
 |---|---|
-| `--aiProvider` | The provider whose subscription to connect: `claude`, `codex`, `grok` or `opencode`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
-| `--outputFormat` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
-| `--logLevel` | Log verbosity. |
+| `<ai-provider>` | Positional argument. The provider whose subscription to connect: `claude`, `codex`, `grok` or `opencode`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
+| `--output-format` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
+| `--log-level` | Log verbosity. |

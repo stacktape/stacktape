@@ -1,21 +1,21 @@
 ---
-title: 'mcp:add'
+title: 'mcp add'
 order: 189
-seoTitle: 'mcp:add - Connect Coding Agents to Stacktape | Stacktape CLI'
+seoTitle: 'mcp add - Connect Coding Agents to Stacktape | Stacktape CLI'
 seoDescription: 'Connect Claude Code, Codex, Cursor, VS Code, Copilot CLI, Windsurf and OpenCode to Stacktape with one command. Adds the MCP server for your user, then checks the connection.'
 ---
 
-# mcp:add
+# mcp add
 
-`stacktape mcp:add` connects your coding agents to Stacktape. For each agent you pick, it adds the Stacktape MCP server ([`stacktape mcp`](/cli/mcp)) for your user, then starts the server once to check that it works. Neither `mcp:add` nor `mcp` needs a Stacktape API key.
+`stacktape mcp add` connects your coding agents to Stacktape. For each agent you pick, it adds the Stacktape MCP server ([`stacktape mcp`](/cli/mcp)) for your user, then starts the server once to check that it works. Neither `mcp add` nor `mcp` needs a Stacktape API key.
 
 ## Usage
 
 ```bash
-stacktape mcp:add
+stacktape mcp add
 ```
 
-In a terminal, `mcp:add` lists every supported agent with the ones installed on this machine preselected. Confirm the selection and it sets them up, prints what it changed and tells you how to reload each agent. Then ask your agent: “Use Stacktape to show what this project deploys.”
+In a terminal, `mcp add` lists every supported agent with the ones installed on this machine preselected. Confirm the selection and it sets them up, prints what it changed and tells you how to reload each agent. Then ask your agent: “Use Stacktape to show what this project deploys.”
 
 ## Supported agents
 
@@ -29,37 +29,37 @@ In a terminal, `mcp:add` lists every supported agent with the ones installed on 
 | Windsurf, now Devin Desktop (`windsurf`) | The existing `mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` |
 | OpenCode (`opencode`) | `~/.config/opencode/opencode.jsonc` or `opencode.json` |
 
-An agent counts as installed when its command is on your PATH, or its app or settings folder exists. The name in brackets is the value for `--codingAgents`.
+An agent counts as installed when its command is on your PATH, or its app or settings folder exists. The name in brackets is the value for `--coding-agents`.
 
 ## Behavior details
 
-**User level only.** `mcp:add` never writes into your project, so nothing reaches your repository or your teammates. Claude Code's `~/.claude.json` is changed only through `claude mcp add`.
+**User level only.** `mcp add` never writes into your project, so nothing reaches your repository or your teammates. Claude Code's `~/.claude.json` is changed only through `claude mcp add`.
 
 **Edits in place, with a backup.** In JSON and JSONC files only the `stacktape` entry changes; comments, other servers and formatting stay. The previous file is kept as `<file>.bak.<timestamp>`. A file that cannot be parsed is left untouched and reported as failed.
 
-**Safe to repeat.** Entries that already match are reported as already set up and not touched. Run `mcp:add` again to add another agent or after moving the CLI.
+**Safe to repeat.** Entries that already match are reported as already set up and not touched. Run `mcp add` again to add another agent or after moving the CLI.
 
-**The command it writes.** When `stacktape` is on your PATH, agents run `stacktape mcp`. When you installed Stacktape with the install script, they run `~/.stacktape/bin/stacktape mcp` by its full path, which keeps working for agents started from the Dock or Start menu. In any other case `mcp:add` writes the running binary's full path and tells you to run it again if that file moves.
+**The command it writes.** When `stacktape` is on your PATH, agents run `stacktape mcp`. When you installed Stacktape with the install script, they run `~/.stacktape/bin/stacktape mcp` by its full path, which keeps working for agents started from the Dock or Start menu. In any other case `mcp add` writes the running binary's full path and tells you to run it again if that file moves.
 
-**Connection check.** After writing, `mcp:add` starts the configured command, completes an MCP handshake and lists the tools. If the server does not start, it prints the server's error output and exits with an error.
+**Connection check.** After writing, `mcp add` starts the configured command, completes an MCP handshake and lists the tools. If the server does not start, it prints the server's error output and exits with an error.
 
-**Project entries.** If the current project has its own Stacktape entry for a configured agent (for example a committed `.mcp.json`), that agent uses it inside this project. `mcp:add` names the file so you can decide whether to keep it.
+**Project entries.** If the current project has its own Stacktape entry for a configured agent (for example a committed `.mcp.json`), that agent uses it inside this project. `mcp add` names the file so you can decide whether to keep it.
 
 ## Examples
 
 Set up two agents without the question:
 
 ```bash
-stacktape mcp:add --codingAgents claude-code,cursor
+stacktape mcp add --coding-agents claude-code,cursor
 ```
 
 Set up every installed agent, for example from a dotfiles script:
 
 ```bash
-stacktape mcp:add --autoConfirmOperation
+stacktape mcp add --yes
 ```
 
-With `--autoConfirmOperation` or `--agent`, `mcp:add` sets up every installed agent. When it finds none, it changes nothing and exits with an error.
+With `--yes` or `--agent`, `mcp add` sets up every installed agent. When it finds none, it changes nothing and exits with an error.
 
 ## Flags reference
 
@@ -68,6 +68,6 @@ With `--autoConfirmOperation` or `--agent`, `mcp:add` sets up every installed ag
 
 ## Related commands
 
-- [`mcp:remove`](/cli/mcp-remove) — Removes what `mcp:add` set up.
+- [`mcp remove`](/cli/mcp-remove) — Removes what `mcp add` set up.
 - [`mcp`](/cli/mcp) — The MCP server process that the agents start.
 - [`login`](/cli/login) — Signs in to Stacktape, which tools that deploy or read deployed stacks need.

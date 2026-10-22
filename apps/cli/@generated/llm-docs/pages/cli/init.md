@@ -51,7 +51,7 @@ with Ctrl+C.
    deploy child checks that target again before it creates secrets or changes AWS, then reports progress,
    warnings and typed HTTPS URLs. This step is optional and clearly marked as the one that costs money.
    If your Stacktape organization has multiple connected AWS accounts and no saved default, start with
-   `stacktape init --awsAccount <account-name>`. That account selection is carried through the target check,
+   `stacktape init --aws-account <account-name>`. That account selection is carried through the target check,
    deploy, and typed URL lookup.
    If the deploy fails for a reason that could be our reading of your code — a wrong start
    command, a missing build step — the agent re-reads the project against the actual error, the
@@ -83,14 +83,14 @@ written by Stacktape.
 
 ## Important flags
 
-### `--codingAgent`
+### `--coding-agent`
 
 Which agent reads the project. `auto` (the default) takes the best one installed. Naming one that is not
 installed fails rather than quietly using another.
 
 ```bash
-stacktape init --codingAgent claude-code
-stacktape init --codingAgent none          # static analysis only
+stacktape init --coding-agent claude-code
+stacktape init --coding-agent none          # static analysis only
 ```
 
 ### `--headless`
@@ -102,16 +102,16 @@ CI. Nothing prompts: the terminal prints what was decided for you, and the confi
 stacktape init --headless
 ```
 
-### `--noBrowser`
+### `--no-browser`
 
 Starts the wizard and prints its address without opening anything. Use it when the browser you want is not
 this machine's default, or when the port is forwarded from somewhere else.
 
 ```bash
-stacktape init --noBrowser
+stacktape init --no-browser
 ```
 
-### `--infrastructureType`
+### `--infrastructure-type`
 
 How much infrastructure to create: `low-cost`, `standard` (the default), or `production`. It sets every
 size and safety setting in the generated configuration, and it is the only thing reading your code
@@ -123,36 +123,35 @@ cannot tell us.
   second datacentre.
 
 ```bash
-stacktape init --infrastructureType production
+stacktape init --infrastructure-type production
 ```
 
-### `--configFormat`
+### `--config-format`
 
 `yaml` (the default) or `typescript`. In the browser this is chosen on the Review step instead, once you
 have seen what is in the file.
 
 ```bash
-stacktape init --headless --configFormat typescript
+stacktape init --headless --config-format typescript
 ```
 
-### `--projectDirectory`
+### `--project-directory`
 
 The project to read. Defaults to the current directory.
 
 ```bash
-stacktape init --projectDirectory ./my-app
+stacktape init --project-directory ./my-app
 ```
 
-### `--starterId`, `--starterProject`, `--templateId`
+### `--starter-id`, `--starter-project`
 
 Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
 
 ```bash
-stacktape init --starterId lambda-api-postgres
-stacktape init --templateId your-template-id
+stacktape init --starter-id lambda-api-postgres
 ```
 
-### `--initializeProjectTo`
+### `--initialize-project-to`
 
 Where a starter project's files are placed.
 
@@ -164,12 +163,12 @@ Where a starter project's files are placed.
 
 If the project already has a `stacktape.yml` or `stacktape.ts`, `init` does not touch it. The new
 configuration is written beside it as `stacktape.generated.yml` (or `.ts`), and both the wizard and the
-terminal tell you so. Deploy the generated one with `--configPath`, or merge it in yourself:
+terminal tell you so. Deploy the generated one with `--config`, or merge it in yourself:
 
 ```bash
 stacktape deploy \
-  --configPath stacktape.generated.yml \
-  --projectName <project-name> \
+  --config stacktape.generated.yml \
+  --project <project-name> \
   --stage dev \
   --region eu-west-1
 ```
@@ -179,13 +178,13 @@ stacktape deploy \
 Read the project with Claude Code's most careful model:
 
 ```bash
-stacktape init --codingAgent claude-code
+stacktape init --coding-agent claude-code
 ```
 
 No agent, no browser, cheapest infrastructure — a configuration in one step:
 
 ```bash
-stacktape init --headless --codingAgent none --infrastructureType low-cost
+stacktape init --headless --coding-agent none --infrastructure-type low-cost
 ```
 
 ## Related commands
@@ -276,4 +275,4 @@ confirmation is a file on your disk or a read-only AWS check.
 ### Will init overwrite files in my project?
 
 It writes exactly one file, and never on top of an existing configuration — see above. The one
-destructive flag is `--initializeProjectTo`, which empties the directory you point it at.
+destructive flag is `--initialize-project-to`, which empties the directory you point it at.

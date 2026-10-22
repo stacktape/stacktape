@@ -1,21 +1,21 @@
 ---
-title: 'query:redis'
+title: 'query redis'
 order: 170
-seoTitle: 'query:redis CLI Command | Stacktape Docs'
-seoDescription: 'Inspect deployed Redis clusters from the command line with stacktape query:redis. List keys, get values, check TTLs, and view server info — with automatic bastion tunneling for VPC clusters.'
+seoTitle: 'query redis CLI Command | Stacktape Docs'
+seoDescription: 'Inspect deployed Redis clusters from the command line with stacktape query redis. List keys, get values, check TTLs, and view server info — with automatic bastion tunneling for VPC clusters.'
 ---
 
-# query:redis
+# query redis
 
-The `query:redis` command lets you inspect a deployed [Redis cluster](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
+The `query redis` command lets you inspect a deployed [Redis cluster](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
 
 ## Usage
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation info
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation info
 ```
 
-The `--resourceName` must refer to a `redis-cluster` resource defined in your Stacktape configuration. The command resolves the cluster's connection details (host, port, password) from the deployed stack automatically.
+The resource name argument must refer to a `redis-cluster` resource defined in your Stacktape configuration. The command resolves the cluster's connection details (host, port, password) from the deployed stack automatically.
 
 ## Operations
 
@@ -33,13 +33,13 @@ All operations are read-only. You cannot write, delete, or modify data through t
 
 ## Accessing VPC-only clusters
 
-Redis clusters deployed inside a VPC are not publicly accessible. To reach them from your local machine, pass `--bastionResource` to tunnel through a [bastion host](/resources/security/bastion-host) in your stack. When `--bastionResource` resolves a tunnel target, the command starts an SSM port-forwarding session, uses localhost for the query, and closes the tunnel after the query.
+Redis clusters deployed inside a VPC are not publicly accessible. To reach them from your local machine, pass `--bastion-resource` to tunnel through a [bastion host](/resources/security/bastion-host) in your stack. When `--bastion-resource` resolves a tunnel target, the command starts an SSM port-forwarding session, uses localhost for the query, and closes the tunnel after the query.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --bastionResource myBastion --operation keys --pattern "session:*"
+stacktape query redis myRedis --stage prod --region eu-west-1 --bastion-resource myBastion --operation keys --pattern "session:*"
 ```
 
-If the Redis endpoint is reachable from your machine, omit `--bastionResource`. For VPC-only clusters, pass a bastion resource name.
+If the Redis endpoint is reachable from your machine, omit `--bastion-resource`. For VPC-only clusters, pass a bastion resource name.
 
 ## Examples
 
@@ -48,13 +48,13 @@ If the Redis endpoint is reachable from your machine, omit `--bastionResource`. 
 Returns the full Redis INFO output.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation info
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation info
 ```
 
 Use `--section` to pass a Redis INFO section such as `server`, `memory`, or `stats`. The command passes the section string directly to Redis.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation info --section memory
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation info --section memory
 ```
 
 ### List keys by pattern
@@ -62,13 +62,13 @@ stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --o
 Lists keys matching a glob pattern. The `--pattern` flag is optional and defaults to `*` (all keys). Use `--limit` to cap the number of returned keys.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation keys --pattern "user:*" --limit 20
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation keys --pattern "user:*" --limit 20
 ```
 
 ### Get a key's value
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation get --key "session:abc123"
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation get --key "session:abc123"
 ```
 
 ### Check a key's TTL
@@ -76,29 +76,29 @@ stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --o
 Returns the remaining time-to-live in seconds. A value of `-1` means the key has no expiration; `-2` means the key does not exist.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation ttl --key "session:abc123"
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation ttl --key "session:abc123"
 ```
 
 ### Check a key's type
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation type --key "user:42"
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation type --key "user:42"
 ```
 
 ### Query through a bastion tunnel
 
-When your Redis cluster is VPC-only, pass `--bastionResource` to route the connection through a bastion host.
+When your Redis cluster is VPC-only, pass `--bastion-resource` to route the connection through a bastion host.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --bastionResource myBastion --operation get --key "config:feature-flags"
+stacktape query redis myRedis --stage prod --region eu-west-1 --bastion-resource myBastion --operation get --key "config:feature-flags"
 ```
 
 ## Agent mode
 
-When running inside an AI coding agent or CI pipeline, pass `--agent` to switch to agent-oriented output. In agent mode, `query:redis` prints the Redis result as a JSON object containing `ok`, `resource`, `operation`, and the operation-specific result fields. Agent mode also disables interactive terminal UI.
+When running inside an AI coding agent or CI pipeline, pass `--agent` to switch to agent-oriented output. In agent mode, `query redis` prints the Redis result as a JSON object containing `ok`, `resource`, `operation`, and the operation-specific result fields. Agent mode also disables interactive terminal UI.
 
 ```bash
-stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation get --key "session:abc123" --agent
+stacktape query redis myRedis --stage prod --region eu-west-1 --operation get --key "session:abc123" --agent
 ```
 
 ## Flags reference
@@ -107,6 +107,6 @@ stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --o
 
 ## Related commands
 
-- [`query:dynamodb`](/cli/query-dynamodb) — query, scan, or inspect DynamoDB tables.
-- [`query:opensearch`](/cli/query-opensearch) — search, count, or inspect OpenSearch indices.
-- [`bastion:tunnel`](/cli/bastion-tunnel) — open a persistent tunnel through a bastion host for use with a local Redis client (e.g., `redis-cli`). Use `query:redis` for quick one-off lookups; use [`bastion:tunnel`](/cli/bastion-tunnel) when you need an ongoing local session.
+- [`query dynamodb`](/cli/query-dynamodb) — query, scan, or inspect DynamoDB tables.
+- [`query opensearch`](/cli/query-opensearch) — search, count, or inspect OpenSearch indices.
+- [`bastion tunnel`](/cli/bastion-tunnel) — open a persistent tunnel through a bastion host for use with a local Redis client (e.g., `redis-cli`). Use `query redis` for quick one-off lookups; use [`bastion tunnel`](/cli/bastion-tunnel) when you need an ongoing local session.

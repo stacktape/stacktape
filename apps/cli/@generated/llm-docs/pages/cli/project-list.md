@@ -1,18 +1,18 @@
-# project:list
+# project list
 
-The `project:list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs.
+The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs.
 
 ## Usage
 
 ```bash
-stacktape project:list
+stacktape project list
 ```
 
-The command requires no arguments. You must be [logged in](/cli/login) to Stacktape, and the output reflects the organization your CLI session is scoped to. Run [`info:whoami`](/cli/info-whoami) to verify which organization you're authenticated against.
+The command requires no arguments. You must be [logged in](/cli/login) to Stacktape, and the output reflects the organization your CLI session is scoped to. Run [`whoami`](/cli/info-whoami) to verify which organization you're authenticated against.
 
 ## Output
 
-The `project:list` command prints a summary table followed by per-project detail. The summary table includes these columns:
+The `project list` command prints a summary table followed by per-project detail. The summary table includes these columns:
 
 | Column | Description |
 |---|---|
@@ -27,18 +27,18 @@ Projects are sorted by most recent stage activity first, then alphabetically by 
 
 ## CI and agent usage
 
-In CI pipelines or when consumed by AI coding agents, pass `--agent` to get machine-readable JSONL output instead of the interactive table. The `--outputFormat` flag provides finer control over formatting.
+In CI pipelines or when consumed by AI coding agents, pass `--agent` to get machine-readable JSONL output instead of the interactive table. The `--output-format` flag provides finer control over formatting.
 
 List projects as JSONL for scripting:
 
 ```bash
-stacktape project:list --agent
+stacktape project list --agent
 ```
 
 Use plain text output (no colors or animations):
 
 ```bash
-stacktape project:list --outputFormat plain
+stacktape project list --output-format plain
 ```
 
 ## Flags reference
@@ -58,23 +58,23 @@ stacktape project:list --outputFormat plain
 Check all projects and their cost at a glance:
 
 ```bash
-stacktape project:list
+stacktape project list
 ```
 
 Pipe JSONL output into `jq` for scripting:
 
 ```bash
-stacktape project:list --agent | jq .
+stacktape project list --agent | jq .
 ```
 
 Suppress info-level CLI log messages, showing only errors from the CLI framework itself:
 
 ```bash
-stacktape project:list --logLevel error
+stacktape project list --log-level error
 ```
 
 ## Related commands
 
-- [`project:create`](/cli/project-create) — create a new project in the current organization.
-- [`org:list`](/cli/org-list) — list organizations accessible with your current user.
-- [`info:whoami`](/cli/info-whoami) — verify which user and organization your CLI session is scoped to.
+- [`project create`](/cli/project-create) — create a new project in the current organization.
+- [`org list`](/cli/org-list) — list organizations accessible with your current user.
+- [`whoami`](/cli/info-whoami) — verify which user and organization your CLI session is scoped to.

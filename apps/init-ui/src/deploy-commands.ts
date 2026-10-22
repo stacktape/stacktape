@@ -16,19 +16,19 @@ type StackCommandTarget = {
 
 export const quoteArgument = (argument: string): string => (argument.includes(' ') ? `"${argument}"` : argument);
 
-export const stackCommand = (action: 'deploy' | 'delete' | 'cf:rollback', target: StackCommandTarget): string =>
+export const stackCommand = (action: 'deploy' | 'delete' | 'stack recover', target: StackCommandTarget): string =>
   [
     'stacktape',
-    action,
-    '--configPath',
+    ...action.split(' '),
+    '--config',
     target.configPath,
-    '--projectName',
+    '--project',
     target.projectName,
     '--stage',
     target.stage,
     '--region',
     target.region,
-    ...(target.awsAccount === undefined ? [] : ['--awsAccount', target.awsAccount])
+    ...(target.awsAccount === undefined ? [] : ['--aws-account', target.awsAccount])
   ]
     .map(quoteArgument)
     .join(' ');

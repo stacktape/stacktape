@@ -1,26 +1,26 @@
-# mcp:remove
+# mcp remove
 
-`stacktape mcp:remove` undoes [`mcp:add`](/cli/mcp-add): it removes the user-level Stacktape MCP server entry from your coding agents.
+`stacktape mcp remove` undoes [`mcp add`](/cli/mcp-add): it removes the user-level Stacktape MCP server entry from your coding agents.
 
 ## Usage
 
 ```bash
-stacktape mcp:remove
+stacktape mcp remove
 ```
 
-In a terminal, it lists the agents that have Stacktape set up and removes it from the ones you keep selected. With `--codingAgents`, `--autoConfirmOperation` or `--agent`, it removes Stacktape from the named agents, or from every agent that has it, without asking.
+In a terminal, it lists the agents that have Stacktape set up and removes it from the ones you keep selected. With `--coding-agents`, `--yes` or `--agent`, it removes Stacktape from the named agents, or from every agent that has it, without asking.
 
 ## Behavior details
 
 - Claude Code and Codex entries are removed with `claude mcp remove` and `codex mcp remove`. In the other agents' config files only the `stacktape` entry is deleted, and the previous file is kept as `<file>.bak.<timestamp>`.
-- Project-level entries, such as a committed `.mcp.json`, are shared with your team. `mcp:remove` lists them and leaves them as they are.
+- Project-level entries, such as a committed `.mcp.json`, are shared with your team. `mcp remove` lists them and leaves them as they are.
 
 ## Examples
 
 Remove Stacktape from Cursor only:
 
 ```bash
-stacktape mcp:remove --codingAgents cursor
+stacktape mcp remove --coding-agents cursor
 ```
 
 ## Flags reference
@@ -39,5 +39,5 @@ stacktape mcp:remove --codingAgents cursor
 
 ## Related commands
 
-- [`mcp:add`](/cli/mcp-add) — Connects coding agents to Stacktape.
+- [`mcp add`](/cli/mcp-add) — Connects coding agents to Stacktape.
 - [`mcp`](/cli/mcp) — The MCP server process.

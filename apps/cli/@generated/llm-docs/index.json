@@ -15149,10 +15149,10 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#when-not-to-use-custom-ci-cd",
         "page:/ci-cd-and-gitops/custom-ci-cd#authentication",
         "page:/ci-cd-and-gitops/custom-ci-cd#essential-cli-flags-for-ci",
-        "page:/ci-cd-and-gitops/custom-ci-cd#autoconfirmoperation",
+        "page:/ci-cd-and-gitops/custom-ci-cd#yes",
         "page:/ci-cd-and-gitops/custom-ci-cd#stage-and-region",
-        "page:/ci-cd-and-gitops/custom-ci-cd#fulldeploy",
-        "page:/ci-cd-and-gitops/custom-ci-cd#disableautorollback",
+        "page:/ci-cd-and-gitops/custom-ci-cd#full",
+        "page:/ci-cd-and-gitops/custom-ci-cd#no-auto-rollback",
         "page:/ci-cd-and-gitops/custom-ci-cd#github-actions",
         "page:/ci-cd-and-gitops/custom-ci-cd#adding-tests-before-deploy",
         "page:/ci-cd-and-gitops/custom-ci-cd#pr-preview-environments",
@@ -15337,7 +15337,7 @@
     },
     {
       "id": "page:/cli/ai-connect",
-      "title": "ai:connect",
+      "title": "ai connect",
       "route": "/cli/ai-connect",
       "sourcePath": "apps/docs/content/cli/ai-connect.mdx",
       "outputPath": "pages/cli/ai-connect.md",
@@ -15358,7 +15358,7 @@
     },
     {
       "id": "page:/cli/ai-disconnect",
-      "title": "ai:disconnect",
+      "title": "ai disconnect",
       "route": "/cli/ai-disconnect",
       "sourcePath": "apps/docs/content/cli/ai-disconnect.mdx",
       "outputPath": "pages/cli/ai-disconnect.md",
@@ -15376,7 +15376,7 @@
     },
     {
       "id": "page:/cli/alarms",
-      "title": "alarms",
+      "title": "alarm list",
       "route": "/cli/alarms",
       "sourcePath": "apps/docs/content/cli/alarms.mdx",
       "outputPath": "pages/cli/alarms.md",
@@ -15387,7 +15387,7 @@
         "alarms"
       ],
       "chunks": [
-        "page:/cli/alarms#alarms",
+        "page:/cli/alarms#alarm-list",
         "page:/cli/alarms#usage",
         "page:/cli/alarms#filtering",
         "page:/cli/alarms#filter-by-resource",
@@ -15405,7 +15405,7 @@
     },
     {
       "id": "page:/cli/aws-call",
-      "title": "aws:call",
+      "title": "aws call",
       "route": "/cli/aws-call",
       "sourcePath": "apps/docs/content/cli/aws-call.mdx",
       "outputPath": "pages/cli/aws-call.md",
@@ -15433,7 +15433,7 @@
     },
     {
       "id": "page:/cli/aws-profile-create",
-      "title": "aws-profile:create",
+      "title": "aws-profile create",
       "route": "/cli/aws-profile-create",
       "sourcePath": "apps/docs/content/cli/aws-profile-create.mdx",
       "outputPath": "pages/cli/aws-profile-create.md",
@@ -15455,7 +15455,7 @@
     },
     {
       "id": "page:/cli/aws-profile-delete",
-      "title": "aws-profile:delete",
+      "title": "aws-profile delete",
       "route": "/cli/aws-profile-delete",
       "sourcePath": "apps/docs/content/cli/aws-profile-delete.mdx",
       "outputPath": "pages/cli/aws-profile-delete.md",
@@ -15476,7 +15476,7 @@
     },
     {
       "id": "page:/cli/aws-profile-list",
-      "title": "aws-profile:list",
+      "title": "aws-profile list",
       "route": "/cli/aws-profile-list",
       "sourcePath": "apps/docs/content/cli/aws-profile-list.mdx",
       "outputPath": "pages/cli/aws-profile-list.md",
@@ -15497,7 +15497,7 @@
     },
     {
       "id": "page:/cli/aws-profile-update",
-      "title": "aws-profile:update",
+      "title": "aws-profile update",
       "route": "/cli/aws-profile-update",
       "sourcePath": "apps/docs/content/cli/aws-profile-update.mdx",
       "outputPath": "pages/cli/aws-profile-update.md",
@@ -15518,7 +15518,7 @@
     },
     {
       "id": "page:/cli/bastion-session",
-      "title": "bastion:session",
+      "title": "bastion shell",
       "route": "/cli/bastion-session",
       "sourcePath": "apps/docs/content/cli/bastion-session.mdx",
       "outputPath": "pages/cli/bastion-session.md",
@@ -15529,7 +15529,7 @@
         "bastion-session"
       ],
       "chunks": [
-        "page:/cli/bastion-session#bastion-session",
+        "page:/cli/bastion-session#bastion-shell",
         "page:/cli/bastion-session#usage",
         "page:/cli/bastion-session#how-it-works",
         "page:/cli/bastion-session#cli-reference",
@@ -15544,7 +15544,7 @@
     },
     {
       "id": "page:/cli/bastion-tunnel",
-      "title": "bastion:tunnel",
+      "title": "bastion tunnel",
       "route": "/cli/bastion-tunnel",
       "sourcePath": "apps/docs/content/cli/bastion-tunnel.mdx",
       "outputPath": "pages/cli/bastion-tunnel.md",
@@ -15579,7 +15579,7 @@
     },
     {
       "id": "page:/cli/bucket-sync",
-      "title": "bucket:sync",
+      "title": "bucket sync",
       "route": "/cli/bucket-sync",
       "sourcePath": "apps/docs/content/cli/bucket-sync.mdx",
       "outputPath": "pages/cli/bucket-sync.md",
@@ -15595,17 +15595,17 @@
         "page:/cli/bucket-sync#argument-reference",
         "page:/cli/bucket-sync#cli-options-stacktape-bucket-sync",
         "page:/cli/bucket-sync#important-flags",
-        "page:/cli/bucket-sync#invalidatecdncache",
-        "page:/cli/bucket-sync#headerspreset",
-        "page:/cli/bucket-sync#sourcepath",
-        "page:/cli/bucket-sync#resourcename",
+        "page:/cli/bucket-sync#invalidate-cdn-cache",
+        "page:/cli/bucket-sync#headers-preset",
+        "page:/cli/bucket-sync#source-path",
+        "page:/cli/bucket-sync#resource-name",
         "page:/cli/bucket-sync#examples",
         "page:/cli/bucket-sync#related-commands"
       ]
     },
     {
       "id": "page:/cli/cf-module-update",
-      "title": "cf-module:update",
+      "title": "stack update-modules",
       "route": "/cli/cf-module-update",
       "sourcePath": "apps/docs/content/cli/cf-module-update.mdx",
       "outputPath": "pages/cli/cf-module-update.md",
@@ -15616,7 +15616,7 @@
         "cf-module-update"
       ],
       "chunks": [
-        "page:/cli/cf-module-update#cf-module-update",
+        "page:/cli/cf-module-update#stack-update-modules",
         "page:/cli/cf-module-update#usage",
         "page:/cli/cf-module-update#arguments-reference",
         "page:/cli/cf-module-update#cli-options-stacktape-stack-update-modules",
@@ -15626,7 +15626,7 @@
     },
     {
       "id": "page:/cli/cf-rollback",
-      "title": "cf:rollback",
+      "title": "stack recover",
       "route": "/cli/cf-rollback",
       "sourcePath": "apps/docs/content/cli/cf-rollback.mdx",
       "outputPath": "pages/cli/cf-rollback.md",
@@ -15637,27 +15637,27 @@
         "cf-rollback"
       ],
       "chunks": [
-        "page:/cli/cf-rollback#cf-rollback",
+        "page:/cli/cf-rollback#stack-recover",
         "page:/cli/cf-rollback#usage",
         "page:/cli/cf-rollback#arguments-reference",
         "page:/cli/cf-rollback#cli-options-stacktape-stack-recover",
         "page:/cli/cf-rollback#what-it-does",
-        "page:/cli/cf-rollback#cf-rollback-vs-rollback",
+        "page:/cli/cf-rollback#stack-recover-vs-rollback",
         "page:/cli/cf-rollback#important-flags",
-        "page:/cli/cf-rollback#resourcestoskip",
+        "page:/cli/cf-rollback#resources-to-skip",
         "page:/cli/cf-rollback#stage",
         "page:/cli/cf-rollback#profile",
         "page:/cli/cf-rollback#examples",
         "page:/cli/cf-rollback#related-commands",
         "page:/cli/cf-rollback#faq",
-        "page:/cli/cf-rollback#when-should-i-use-cf-rollback-instead-of-rollback",
+        "page:/cli/cf-rollback#when-should-i-use-stack-recover-instead-of-rollback",
         "page:/cli/cf-rollback#what-s-the-difference-between-update-failed-and-update-rollback-failed",
         "page:/cli/cf-rollback#my-rollback-keeps-failing-on-a-specific-resource-what-do-i-do"
       ]
     },
     {
       "id": "page:/cli/container-exec",
-      "title": "container:exec",
+      "title": "container exec",
       "route": "/cli/container-exec",
       "sourcePath": "apps/docs/content/cli/container-exec.mdx",
       "outputPath": "pages/cli/container-exec.md",
@@ -15687,7 +15687,7 @@
         "page:/cli/container-exec#task-not-found",
         "page:/cli/container-exec#related-commands",
         "page:/cli/container-exec#faq",
-        "page:/cli/container-exec#what-is-the-difference-between-container-exec-and-container-session",
+        "page:/cli/container-exec#what-is-the-difference-between-container-exec-and-container-shell",
         "page:/cli/container-exec#which-resource-types-work-with-container-exec",
         "page:/cli/container-exec#does-container-exec-modify-the-running-container",
         "page:/cli/container-exec#how-does-container-exec-connect-to-the-container"
@@ -15695,7 +15695,7 @@
     },
     {
       "id": "page:/cli/container-session",
-      "title": "container:session",
+      "title": "container shell",
       "route": "/cli/container-session",
       "sourcePath": "apps/docs/content/cli/container-session.mdx",
       "outputPath": "pages/cli/container-session.md",
@@ -15706,7 +15706,7 @@
         "container-session"
       ],
       "chunks": [
-        "page:/cli/container-session#container-session",
+        "page:/cli/container-session#container-shell",
         "page:/cli/container-session#usage",
         "page:/cli/container-session#important-flags",
         "page:/cli/container-session#multiple-running-instances",
@@ -15719,7 +15719,7 @@
     },
     {
       "id": "page:/cli/defaults-configure",
-      "title": "defaults:configure",
+      "title": "defaults set",
       "route": "/cli/defaults-configure",
       "sourcePath": "apps/docs/content/cli/defaults-configure.mdx",
       "outputPath": "pages/cli/defaults-configure.md",
@@ -15730,7 +15730,7 @@
         "defaults-configure"
       ],
       "chunks": [
-        "page:/cli/defaults-configure#defaults-configure",
+        "page:/cli/defaults-configure#defaults-set",
         "page:/cli/defaults-configure#usage",
         "page:/cli/defaults-configure#configurable-defaults",
         "page:/cli/defaults-configure#cli-argument-defaults",
@@ -15744,13 +15744,13 @@
         "page:/cli/defaults-configure#faq",
         "page:/cli/defaults-configure#do-explicit-cli-flags-override-configured-defaults",
         "page:/cli/defaults-configure#how-do-i-clear-a-single-configured-default",
-        "page:/cli/defaults-configure#do-i-need-to-be-logged-in-to-run-defaults-configure",
+        "page:/cli/defaults-configure#do-i-need-to-be-logged-in-to-run-defaults-set",
         "page:/cli/defaults-configure#can-i-set-defaults-per-project-or-only-globally"
       ]
     },
     {
       "id": "page:/cli/defaults-list",
-      "title": "defaults:list",
+      "title": "defaults list",
       "route": "/cli/defaults-list",
       "sourcePath": "apps/docs/content/cli/defaults-list.mdx",
       "outputPath": "pages/cli/defaults-list.md",
@@ -15816,13 +15816,13 @@
         "page:/cli/deploy#what-happens-during-deploy",
         "page:/cli/deploy#fast-deployments",
         "page:/cli/deploy#common-flags",
-        "page:/cli/deploy#fulldeploy",
-        "page:/cli/deploy#autoconfirmoperation",
-        "page:/cli/deploy#disableautorollback",
-        "page:/cli/deploy#nocache",
-        "page:/cli/deploy#configpath",
-        "page:/cli/deploy#disablelayeroptimization",
-        "page:/cli/deploy#showsensitivevalues",
+        "page:/cli/deploy#full",
+        "page:/cli/deploy#yes",
+        "page:/cli/deploy#no-auto-rollback",
+        "page:/cli/deploy#no-cache",
+        "page:/cli/deploy#config",
+        "page:/cli/deploy#no-layer-optimization",
+        "page:/cli/deploy#show-secrets",
         "page:/cli/deploy#all-flags",
         "page:/cli/deploy#cli-options-stacktape-deploy",
         "page:/cli/deploy#examples",
@@ -15839,7 +15839,7 @@
     },
     {
       "id": "page:/cli/deployment-script-run",
-      "title": "deployment-script:run",
+      "title": "deployment-script run",
       "route": "/cli/deployment-script-run",
       "sourcePath": "apps/docs/content/cli/deployment-script-run.mdx",
       "outputPath": "pages/cli/deployment-script-run.md",
@@ -15861,7 +15861,7 @@
     },
     {
       "id": "page:/cli/dev-stop",
-      "title": "dev:stop",
+      "title": "dev stop",
       "route": "/cli/dev-stop",
       "sourcePath": "apps/docs/content/cli/dev-stop.mdx",
       "outputPath": "pages/cli/dev-stop.md",
@@ -15875,8 +15875,8 @@
         "page:/cli/dev-stop#dev-stop",
         "page:/cli/dev-stop#usage",
         "page:/cli/dev-stop#important-flags",
-        "page:/cli/dev-stop#agentport",
-        "page:/cli/dev-stop#cleanupcontainers",
+        "page:/cli/dev-stop#agent-port",
+        "page:/cli/dev-stop#cleanup-containers",
         "page:/cli/dev-stop#flags-reference",
         "page:/cli/dev-stop#cli-options-stacktape-dev-stop",
         "page:/cli/dev-stop#related-commands"
@@ -15901,13 +15901,13 @@
         "page:/cli/dev#what-it-does",
         "page:/cli/dev#supported-resource-types",
         "page:/cli/dev#important-flags",
-        "page:/cli/dev#resources-skipresources",
+        "page:/cli/dev#resources-skip-resources",
         "page:/cli/dev#watch",
-        "page:/cli/dev#remoteresources",
-        "page:/cli/dev#freshdb",
-        "page:/cli/dev#notunnel",
-        "page:/cli/dev#disableemulation",
-        "page:/cli/dev#agent-agentport",
+        "page:/cli/dev#remote-resources",
+        "page:/cli/dev#fresh-db",
+        "page:/cli/dev#no-tunnel",
+        "page:/cli/dev#no-emulation",
+        "page:/cli/dev#agent-agent-port",
         "page:/cli/dev#interactive-commands",
         "page:/cli/dev#examples",
         "page:/cli/dev#faq",
@@ -15952,7 +15952,7 @@
     },
     {
       "id": "page:/cli/domain-add",
-      "title": "domain:add",
+      "title": "domain add",
       "route": "/cli/domain-add",
       "sourcePath": "apps/docs/content/cli/domain-add.mdx",
       "outputPath": "pages/cli/domain-add.md",
@@ -15984,7 +15984,7 @@
     },
     {
       "id": "page:/cli/errors-ignore",
-      "title": "errors:ignore",
+      "title": "error ignore",
       "route": "/cli/errors-ignore",
       "sourcePath": "apps/docs/content/cli/errors-ignore.mdx",
       "outputPath": "pages/cli/errors-ignore.md",
@@ -15995,7 +15995,7 @@
         "errors-ignore"
       ],
       "chunks": [
-        "page:/cli/errors-ignore#errors-ignore",
+        "page:/cli/errors-ignore#error-ignore",
         "page:/cli/errors-ignore#usage",
         "page:/cli/errors-ignore#flags-reference",
         "page:/cli/errors-ignore#cli-options-stacktape-error-ignore",
@@ -16006,7 +16006,7 @@
     },
     {
       "id": "page:/cli/errors-list",
-      "title": "errors:list",
+      "title": "error list",
       "route": "/cli/errors-list",
       "sourcePath": "apps/docs/content/cli/errors-list.mdx",
       "outputPath": "pages/cli/errors-list.md",
@@ -16017,7 +16017,7 @@
         "errors-list"
       ],
       "chunks": [
-        "page:/cli/errors-list#errors-list",
+        "page:/cli/errors-list#error-list",
         "page:/cli/errors-list#usage",
         "page:/cli/errors-list#flags-reference",
         "page:/cli/errors-list#cli-options-stacktape-error-list",
@@ -16028,7 +16028,7 @@
     },
     {
       "id": "page:/cli/errors-reopen",
-      "title": "errors:reopen",
+      "title": "error reopen",
       "route": "/cli/errors-reopen",
       "sourcePath": "apps/docs/content/cli/errors-reopen.mdx",
       "outputPath": "pages/cli/errors-reopen.md",
@@ -16039,7 +16039,7 @@
         "errors-reopen"
       ],
       "chunks": [
-        "page:/cli/errors-reopen#errors-reopen",
+        "page:/cli/errors-reopen#error-reopen",
         "page:/cli/errors-reopen#usage",
         "page:/cli/errors-reopen#examples",
         "page:/cli/errors-reopen#arguments-reference",
@@ -16049,7 +16049,7 @@
     },
     {
       "id": "page:/cli/errors-resolve",
-      "title": "errors:resolve",
+      "title": "error resolve",
       "route": "/cli/errors-resolve",
       "sourcePath": "apps/docs/content/cli/errors-resolve.mdx",
       "outputPath": "pages/cli/errors-resolve.md",
@@ -16060,7 +16060,7 @@
         "errors-resolve"
       ],
       "chunks": [
-        "page:/cli/errors-resolve#errors-resolve",
+        "page:/cli/errors-resolve#error-resolve",
         "page:/cli/errors-resolve#usage",
         "page:/cli/errors-resolve#flags-reference",
         "page:/cli/errors-resolve#cli-options-stacktape-error-resolve",
@@ -16083,7 +16083,7 @@
       "chunks": [
         "page:/cli/help#help",
         "page:/cli/help#usage",
-        "page:/cli/help#the-command-flag",
+        "page:/cli/help#help-for-one-command",
         "page:/cli/help#options-reference",
         "page:/cli/help#cli-options-stacktape-help",
         "page:/cli/help#examples",
@@ -16092,7 +16092,7 @@
     },
     {
       "id": "page:/cli/incidents-ack",
-      "title": "incidents:ack",
+      "title": "incident ack",
       "route": "/cli/incidents-ack",
       "sourcePath": "apps/docs/content/cli/incidents-ack.mdx",
       "outputPath": "pages/cli/incidents-ack.md",
@@ -16103,7 +16103,7 @@
         "incidents-ack"
       ],
       "chunks": [
-        "page:/cli/incidents-ack#incidents-ack",
+        "page:/cli/incidents-ack#incident-ack",
         "page:/cli/incidents-ack#usage",
         "page:/cli/incidents-ack#flags-reference",
         "page:/cli/incidents-ack#cli-options-stacktape-incident-ack",
@@ -16113,7 +16113,7 @@
     },
     {
       "id": "page:/cli/incidents-resolve",
-      "title": "incidents:resolve",
+      "title": "incident resolve",
       "route": "/cli/incidents-resolve",
       "sourcePath": "apps/docs/content/cli/incidents-resolve.mdx",
       "outputPath": "pages/cli/incidents-resolve.md",
@@ -16124,7 +16124,7 @@
         "incidents-resolve"
       ],
       "chunks": [
-        "page:/cli/incidents-resolve#incidents-resolve",
+        "page:/cli/incidents-resolve#incident-resolve",
         "page:/cli/incidents-resolve#usage",
         "page:/cli/incidents-resolve#flags-reference",
         "page:/cli/incidents-resolve#cli-options-stacktape-incident-resolve",
@@ -16134,7 +16134,7 @@
     },
     {
       "id": "page:/cli/incidents-show",
-      "title": "incidents:show",
+      "title": "incident show",
       "route": "/cli/incidents-show",
       "sourcePath": "apps/docs/content/cli/incidents-show.mdx",
       "outputPath": "pages/cli/incidents-show.md",
@@ -16145,7 +16145,7 @@
         "incidents-show"
       ],
       "chunks": [
-        "page:/cli/incidents-show#incidents-show",
+        "page:/cli/incidents-show#incident-show",
         "page:/cli/incidents-show#usage",
         "page:/cli/incidents-show#flags-reference",
         "page:/cli/incidents-show#cli-options-stacktape-incident-show",
@@ -16156,7 +16156,7 @@
     },
     {
       "id": "page:/cli/incidents-watch",
-      "title": "incidents:watch",
+      "title": "incident watch",
       "route": "/cli/incidents-watch",
       "sourcePath": "apps/docs/content/cli/incidents-watch.mdx",
       "outputPath": "pages/cli/incidents-watch.md",
@@ -16167,7 +16167,7 @@
         "incidents-watch"
       ],
       "chunks": [
-        "page:/cli/incidents-watch#incidents-watch",
+        "page:/cli/incidents-watch#incident-watch",
         "page:/cli/incidents-watch#usage",
         "page:/cli/incidents-watch#flags-reference",
         "page:/cli/incidents-watch#cli-options-stacktape-incident-watch",
@@ -16178,7 +16178,7 @@
     },
     {
       "id": "page:/cli/incidents",
-      "title": "incidents",
+      "title": "incident list",
       "route": "/cli/incidents",
       "sourcePath": "apps/docs/content/cli/incidents.mdx",
       "outputPath": "pages/cli/incidents.md",
@@ -16189,7 +16189,7 @@
         "incidents"
       ],
       "chunks": [
-        "page:/cli/incidents#incidents",
+        "page:/cli/incidents#incident-list",
         "page:/cli/incidents#usage",
         "page:/cli/incidents#flags-reference",
         "page:/cli/incidents#cli-options-stacktape-incident-list",
@@ -16200,7 +16200,7 @@
     },
     {
       "id": "page:/cli/info-operations",
-      "title": "info:operations",
+      "title": "stack history",
       "route": "/cli/info-operations",
       "sourcePath": "apps/docs/content/cli/info-operations.mdx",
       "outputPath": "pages/cli/info-operations.md",
@@ -16211,7 +16211,7 @@
         "info-operations"
       ],
       "chunks": [
-        "page:/cli/info-operations#info-operations",
+        "page:/cli/info-operations#stack-history",
         "page:/cli/info-operations#usage",
         "page:/cli/info-operations#filtering-results",
         "page:/cli/info-operations#controlling-output-size",
@@ -16223,7 +16223,7 @@
     },
     {
       "id": "page:/cli/info-stack",
-      "title": "info:stack",
+      "title": "status",
       "route": "/cli/info-stack",
       "sourcePath": "apps/docs/content/cli/info-stack.mdx",
       "outputPath": "pages/cli/info-stack.md",
@@ -16234,7 +16234,7 @@
         "info-stack"
       ],
       "chunks": [
-        "page:/cli/info-stack#info-stack",
+        "page:/cli/info-stack#status",
         "page:/cli/info-stack#usage",
         "page:/cli/info-stack#command-reference",
         "page:/cli/info-stack#cli-options-stacktape-status",
@@ -16244,7 +16244,7 @@
     },
     {
       "id": "page:/cli/info-stacks",
-      "title": "info:stacks",
+      "title": "stack list",
       "route": "/cli/info-stacks",
       "sourcePath": "apps/docs/content/cli/info-stacks.mdx",
       "outputPath": "pages/cli/info-stacks.md",
@@ -16255,7 +16255,7 @@
         "info-stacks"
       ],
       "chunks": [
-        "page:/cli/info-stacks#info-stacks",
+        "page:/cli/info-stacks#stack-list",
         "page:/cli/info-stacks#usage",
         "page:/cli/info-stacks#api-reference",
         "page:/cli/info-stacks#cli-options-stacktape-stack-list",
@@ -16267,7 +16267,7 @@
     },
     {
       "id": "page:/cli/info-whoami",
-      "title": "info:whoami",
+      "title": "whoami",
       "route": "/cli/info-whoami",
       "sourcePath": "apps/docs/content/cli/info-whoami.mdx",
       "outputPath": "pages/cli/info-whoami.md",
@@ -16278,7 +16278,7 @@
         "info-whoami"
       ],
       "chunks": [
-        "page:/cli/info-whoami#info-whoami",
+        "page:/cli/info-whoami#whoami",
         "page:/cli/info-whoami#usage",
         "page:/cli/info-whoami#examples",
         "page:/cli/info-whoami#flags",
@@ -16304,14 +16304,14 @@
         "page:/cli/init#what-happens-in-order",
         "page:/cli/init#who-reads-your-code",
         "page:/cli/init#important-flags",
-        "page:/cli/init#codingagent",
+        "page:/cli/init#coding-agent",
         "page:/cli/init#headless",
-        "page:/cli/init#nobrowser",
-        "page:/cli/init#infrastructuretype",
-        "page:/cli/init#configformat",
-        "page:/cli/init#projectdirectory",
-        "page:/cli/init#starterid-starterproject-templateid",
-        "page:/cli/init#initializeprojectto",
+        "page:/cli/init#no-browser",
+        "page:/cli/init#infrastructure-type",
+        "page:/cli/init#config-format",
+        "page:/cli/init#project-directory",
+        "page:/cli/init#starter-id-starter-project",
+        "page:/cli/init#initialize-project-to",
         "page:/cli/init#your-existing-configuration-is-never-overwritten",
         "page:/cli/init#examples",
         "page:/cli/init#related-commands",
@@ -16428,7 +16428,7 @@
     },
     {
       "id": "page:/cli/mcp-add",
-      "title": "mcp:add",
+      "title": "mcp add",
       "route": "/cli/mcp-add",
       "sourcePath": "apps/docs/content/cli/mcp-add.mdx",
       "outputPath": "pages/cli/mcp-add.md",
@@ -16451,7 +16451,7 @@
     },
     {
       "id": "page:/cli/mcp-remove",
-      "title": "mcp:remove",
+      "title": "mcp remove",
       "route": "/cli/mcp-remove",
       "sourcePath": "apps/docs/content/cli/mcp-remove.mdx",
       "outputPath": "pages/cli/mcp-remove.md",
@@ -16531,7 +16531,7 @@
     },
     {
       "id": "page:/cli/org-create",
-      "title": "org:create",
+      "title": "org create",
       "route": "/cli/org-create",
       "sourcePath": "apps/docs/content/cli/org-create.mdx",
       "outputPath": "pages/cli/org-create.md",
@@ -16553,7 +16553,7 @@
     },
     {
       "id": "page:/cli/org-delete",
-      "title": "org:delete",
+      "title": "org delete",
       "route": "/cli/org-delete",
       "sourcePath": "apps/docs/content/cli/org-delete.mdx",
       "outputPath": "pages/cli/org-delete.md",
@@ -16575,7 +16575,7 @@
     },
     {
       "id": "page:/cli/org-list",
-      "title": "org:list",
+      "title": "org list",
       "route": "/cli/org-list",
       "sourcePath": "apps/docs/content/cli/org-list.mdx",
       "outputPath": "pages/cli/org-list.md",
@@ -16616,7 +16616,7 @@
         "page:/cli/package#related-commands",
         "page:/cli/package#faq",
         "page:/cli/package#when-should-i-use-package-instead-of-just-running-deploy",
-        "page:/cli/package#how-is-package-different-from-validate-withpackage",
+        "page:/cli/package#how-is-package-different-from-validate-with-package",
         "page:/cli/package#does-package-use-caching",
         "page:/cli/package#does-package-require-aws-credentials",
         "page:/cli/package#can-i-package-only-specific-workloads",
@@ -16625,7 +16625,7 @@
     },
     {
       "id": "page:/cli/param-get",
-      "title": "param:get",
+      "title": "param get",
       "route": "/cli/param-get",
       "sourcePath": "apps/docs/content/cli/param-get.mdx",
       "outputPath": "pages/cli/param-get.md",
@@ -16646,13 +16646,13 @@
         "page:/cli/param-get#how-do-i-find-the-available-parameter-names-for-a-resource",
         "page:/cli/param-get#does-param-get-require-a-deployed-stack",
         "page:/cli/param-get#how-do-i-capture-the-value-in-a-shell-script-or-ci-step",
-        "page:/cli/param-get#what-is-the-difference-between-param-get-and-info-stack",
+        "page:/cli/param-get#what-is-the-difference-between-param-get-and-status",
         "page:/cli/param-get#related-commands"
       ]
     },
     {
       "id": "page:/cli/project-create",
-      "title": "project:create",
+      "title": "project create",
       "route": "/cli/project-create",
       "sourcePath": "apps/docs/content/cli/project-create.mdx",
       "outputPath": "pages/cli/project-create.md",
@@ -16673,7 +16673,7 @@
     },
     {
       "id": "page:/cli/project-list",
-      "title": "project:list",
+      "title": "project list",
       "route": "/cli/project-list",
       "sourcePath": "apps/docs/content/cli/project-list.mdx",
       "outputPath": "pages/cli/project-list.md",
@@ -16696,7 +16696,7 @@
     },
     {
       "id": "page:/cli/query-dynamodb",
-      "title": "query:dynamodb",
+      "title": "query dynamodb",
       "route": "/cli/query-dynamodb",
       "sourcePath": "apps/docs/content/cli/query-dynamodb.mdx",
       "outputPath": "pages/cli/query-dynamodb.md",
@@ -16731,7 +16731,7 @@
     },
     {
       "id": "page:/cli/query-opensearch",
-      "title": "query:opensearch",
+      "title": "query opensearch",
       "route": "/cli/query-opensearch",
       "sourcePath": "apps/docs/content/cli/query-opensearch.mdx",
       "outputPath": "pages/cli/query-opensearch.md",
@@ -16773,7 +16773,7 @@
     },
     {
       "id": "page:/cli/query-redis",
-      "title": "query:redis",
+      "title": "query redis",
       "route": "/cli/query-redis",
       "sourcePath": "apps/docs/content/cli/query-redis.mdx",
       "outputPath": "pages/cli/query-redis.md",
@@ -16803,7 +16803,7 @@
     },
     {
       "id": "page:/cli/query-sql",
-      "title": "query:sql",
+      "title": "query sql",
       "route": "/cli/query-sql",
       "sourcePath": "apps/docs/content/cli/query-sql.mdx",
       "outputPath": "pages/cli/query-sql.md",
@@ -16819,8 +16819,8 @@
         "page:/cli/query-sql#what-it-does",
         "page:/cli/query-sql#important-flags",
         "page:/cli/query-sql#sql-required",
-        "page:/cli/query-sql#resourcename-required",
-        "page:/cli/query-sql#bastionresource",
+        "page:/cli/query-sql#resource-name-required",
+        "page:/cli/query-sql#bastion-resource",
         "page:/cli/query-sql#limit",
         "page:/cli/query-sql#timeout",
         "page:/cli/query-sql#agent",
@@ -16862,10 +16862,10 @@
         "page:/cli/rollback#when-to-use",
         "page:/cli/rollback#usage",
         "page:/cli/rollback#important-flags",
-        "page:/cli/rollback#targetversion",
-        "page:/cli/rollback#rollbacksteps",
-        "page:/cli/rollback#listversions",
-        "page:/cli/rollback#configpath",
+        "page:/cli/rollback#target-version",
+        "page:/cli/rollback#rollback-steps",
+        "page:/cli/rollback#list-versions",
+        "page:/cli/rollback#config",
         "page:/cli/rollback#how-rollback-works",
         "page:/cli/rollback#flow",
         "page:/cli/rollback#safety-warnings",
@@ -16878,7 +16878,7 @@
         "page:/cli/rollback#inspect-available-versions-first",
         "page:/cli/rollback#rollback-in-ci-cd",
         "page:/cli/rollback#faq",
-        "page:/cli/rollback#what-is-the-difference-between-rollback-and-cf-rollback",
+        "page:/cli/rollback#what-is-the-difference-between-rollback-and-stack-recover",
         "page:/cli/rollback#does-rollback-rebuild-my-code",
         "page:/cli/rollback#does-rollback-affect-my-database",
         "page:/cli/rollback#how-far-back-can-i-roll-back",
@@ -16889,7 +16889,7 @@
     },
     {
       "id": "page:/cli/script-run",
-      "title": "script:run",
+      "title": "script run",
       "route": "/cli/script-run",
       "sourcePath": "apps/docs/content/cli/script-run.mdx",
       "outputPath": "pages/cli/script-run.md",
@@ -16910,7 +16910,7 @@
     },
     {
       "id": "page:/cli/secret-delete",
-      "title": "secret:delete",
+      "title": "secret delete",
       "route": "/cli/secret-delete",
       "sourcePath": "apps/docs/content/cli/secret-delete.mdx",
       "outputPath": "pages/cli/secret-delete.md",
@@ -16931,7 +16931,7 @@
     },
     {
       "id": "page:/cli/secret-get",
-      "title": "secret:get",
+      "title": "secret get",
       "route": "/cli/secret-get",
       "sourcePath": "apps/docs/content/cli/secret-get.mdx",
       "outputPath": "pages/cli/secret-get.md",
@@ -16953,7 +16953,7 @@
     },
     {
       "id": "page:/cli/secret-set",
-      "title": "secret:set",
+      "title": "secret set",
       "route": "/cli/secret-set",
       "sourcePath": "apps/docs/content/cli/secret-set.mdx",
       "outputPath": "pages/cli/secret-set.md",
@@ -16996,10 +16996,10 @@
         "page:/cli/synth#flags-reference",
         "page:/cli/synth#cli-options-stacktape-synth",
         "page:/cli/synth#important-flags",
-        "page:/cli/synth#outfile",
-        "page:/cli/synth#configpath",
-        "page:/cli/synth#preservetempfiles",
-        "page:/cli/synth#projectname",
+        "page:/cli/synth#out",
+        "page:/cli/synth#config",
+        "page:/cli/synth#keep-temp-files",
+        "page:/cli/synth#project",
         "page:/cli/synth#examples",
         "page:/cli/synth#synth-vs-validate-vs-diff",
         "page:/cli/synth#related-commands",
@@ -17054,7 +17054,7 @@
         "page:/cli/validate#usage",
         "page:/cli/validate#validation-levels",
         "page:/cli/validate#default-config-resources-and-template",
-        "page:/cli/validate#with-packaging-add-withpackage",
+        "page:/cli/validate#with-packaging-add-with-package",
         "page:/cli/validate#thorough-add-thorough",
         "page:/cli/validate#when-to-use-validate",
         "page:/cli/validate#inspecting-the-validated-template",
@@ -17915,10 +17915,10 @@
         "page:/deployment-and-lifecycle/rollbacks#artifact-retention",
         "page:/deployment-and-lifecycle/rollbacks#rollback-safety-warnings",
         "page:/deployment-and-lifecycle/rollbacks#cloudformation-rollback",
-        "page:/deployment-and-lifecycle/rollbacks#when-to-use-cf-rollback",
+        "page:/deployment-and-lifecycle/rollbacks#when-to-use-stack-recover",
         "page:/deployment-and-lifecycle/rollbacks#basic-usage-2",
         "page:/deployment-and-lifecycle/rollbacks#faq",
-        "page:/deployment-and-lifecycle/rollbacks#what-s-the-difference-between-stacktape-rollback-and-stacktape-cf-rollback",
+        "page:/deployment-and-lifecycle/rollbacks#what-s-the-difference-between-stacktape-rollback-and-stacktape-stack-recover",
         "page:/deployment-and-lifecycle/rollbacks#what-happens-to-my-database-during-a-rollback",
         "page:/deployment-and-lifecycle/rollbacks#how-do-i-know-which-version-to-roll-back-to",
         "page:/deployment-and-lifecycle/rollbacks#can-i-roll-forward-after-a-rollback",
@@ -18079,6 +18079,7 @@
       "chunks": [
         "page:/getting-started/upgrading-from-v3#upgrading-from-v3",
         "page:/getting-started/upgrading-from-v3#deployed-stacks",
+        "page:/getting-started/upgrading-from-v3#cli-command-and-flag-names",
         "page:/getting-started/upgrading-from-v3#error-tracking-names",
         "page:/getting-started/upgrading-from-v3#target-aws-account",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
@@ -18393,7 +18394,7 @@
         "page:/local-development/debug-commands-reference#how-do-i-view-real-time-logs-as-they-arrive",
         "page:/local-development/debug-commands-reference#can-i-use-debug-commands-with-dev-mode-stacks",
         "page:/local-development/debug-commands-reference#how-do-i-debug-a-vpc-only-database-without-a-bastion",
-        "page:/local-development/debug-commands-reference#what-s-the-difference-between-container-exec-and-container-session",
+        "page:/local-development/debug-commands-reference#what-s-the-difference-between-container-exec-and-container-shell",
         "page:/local-development/debug-commands-reference#how-do-i-know-which-metrics-are-available-for-my-resource",
         "page:/local-development/debug-commands-reference#how-much-do-debug-commands-cost",
         "page:/local-development/debug-commands-reference#can-i-pipe-debug-command-output-to-other-tools"
@@ -21548,7 +21549,7 @@
         "page:/resources/security/bastion-host#can-i-connect-a-database-gui-to-a-private-database",
         "page:/resources/security/bastion-host#what-happens-if-i-change-the-startup-commands",
         "page:/resources/security/bastion-host#can-i-run-database-migrations-through-a-bastion",
-        "page:/resources/security/bastion-host#what-s-the-difference-between-bastion-session-and-bastion-tunnel",
+        "page:/resources/security/bastion-host#what-s-the-difference-between-bastion-shell-and-bastion-tunnel",
         "page:/resources/security/bastion-host#what-resources-can-i-tunnel-to",
         "page:/resources/security/bastion-host#bastion-host-vs-vpn-which-should-i-use"
       ]

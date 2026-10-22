@@ -113,7 +113,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -196,7 +196,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -270,7 +270,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -558,7 +558,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -680,7 +680,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -1247,7 +1247,7 @@
                   "name": "repositoryCredentialsSecretArn",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -3854,7 +3854,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -4479,7 +4479,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -6465,7 +6465,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -7772,7 +7772,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -8506,7 +8506,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -11204,7 +11204,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -15733,7 +15733,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -16242,7 +16242,7 @@
                   "name": "repositoryCredentialsSecretArn",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -18779,7 +18779,7 @@
       {
         "name": "enableRemoteSessions",
         "required": false,
-        "shortDescription": "<p> Enable <code>stacktape container:session</code> for interactive shell access to running containers.</p>",
+        "shortDescription": "<p> Enable <code>stacktape container shell</code> for interactive shell access to running containers.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
@@ -18946,7 +18946,7 @@
       "requiredCount": 2,
       "optionalCount": 7
     },
-    "typeDeclaration": "import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadProps = {\n  /** Containers in this workload. They share compute resources and scale together. */\n  containers: Array<ContainerWorkloadContainer>;\n  /** CPU, memory, and compute engine (Fargate or EC2). */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Enable `stacktape container:session` for interactive shell access to running containers. */\n  enableRemoteSessions?: boolean;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Auto-scaling: how many instances and when to add/remove them. */\n  scaling?: ContainerWorkloadScaling;\n  /** Distributed tracing for this workload. */\n  tracing?: ContainerWorkloadTracing;\n  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */\n  usePrivateSubnetsWithNAT?: boolean;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadProps = {\n  /** Containers in this workload. They share compute resources and scale together. */\n  containers: Array<ContainerWorkloadContainer>;\n  /** CPU, memory, and compute engine (Fargate or EC2). */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Enable `stacktape container shell` for interactive shell access to running containers. */\n  enableRemoteSessions?: boolean;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Auto-scaling: how many instances and when to add/remove them. */\n  scaling?: ContainerWorkloadScaling;\n  /** Distributed tracing for this workload. */\n  tracing?: ContainerWorkloadTracing;\n  /** Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT. */\n  usePrivateSubnetsWithNAT?: boolean;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "ContainerWorkloadResourcesConfig": {
     "definitionName": "ContainerWorkloadResourcesConfig",
@@ -19337,7 +19337,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -22700,7 +22700,7 @@
                   "name": "authenticationSecretArn",
                   "required": true,
                   "shortDescription": "<p> The ARN of a secret containing the Kafka credentials.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -22718,7 +22718,7 @@
                   "name": "clientCertificate",
                   "required": true,
                   "shortDescription": "<p> The ARN of a secret containing the client certificate.</p>",
-                  "longDescription": "<p>This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -22730,7 +22730,7 @@
                   "name": "serverRootCaCertificate",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing the server&#39;s root CA certificate.</p>",
-                  "longDescription": "<p>You can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>You can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -22795,7 +22795,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -23660,7 +23660,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -24307,7 +24307,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -26099,7 +26099,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -26540,7 +26540,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -27044,7 +27044,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -27882,7 +27882,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -28267,7 +28267,7 @@
         "name": "enabled",
         "required": false,
         "shortDescription": "<p> Records runtime errors from this stack&#39;s logs in the Stacktape Console.</p>",
-        "longDescription": "<p>When enabled, every deployment subscribes the stack&#39;s function and container log groups to Stacktape&#39;s error\ndetector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack\ntraces and occurrence counts, shown on the Error tracking page and by <code>stacktape errors:list</code>.</p>\n<p>What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and\nthe request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as\n<code>password</code> or <code>authorization</code>, email addresses, IP addresses, card numbers and user home paths) are masked before\nthe event is sent. Logs themselves stay in your account.</p>\n<p>When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an\norganization-wide switch that turns error tracking off for every stack at once.</p>",
+        "longDescription": "<p>When enabled, every deployment subscribes the stack&#39;s function and container log groups to Stacktape&#39;s error\ndetector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack\ntraces and occurrence counts, shown on the Error tracking page and by <code>stacktape error list</code>.</p>\n<p>What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and\nthe request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as\n<code>password</code> or <code>authorization</code>, email addresses, IP addresses, card numbers and user home paths) are masked before\nthe event is sent. Logs themselves stay in your account.</p>\n<p>When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an\norganization-wide switch that turns error tracking off for every stack at once.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -28312,7 +28312,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -29362,7 +29362,7 @@
         "name": "afterDelete",
         "required": false,
         "shortDescription": "<p> Scripts to run after deleting the stack.</p>",
-        "longDescription": "<p>Only runs when <code>--configPath</code> and <code>--stage</code> are provided to the delete command.</p>",
+        "longDescription": "<p>Only runs when <code>--config</code> and <code>--stage</code> are provided to the delete command.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -29454,7 +29454,7 @@
         "name": "beforeDelete",
         "required": false,
         "shortDescription": "<p> Scripts to run before deleting the stack. Common use: export data, clean up external resources.</p>",
-        "longDescription": "<p>Only runs when <code>--configPath</code> and <code>--stage</code> are provided to the delete command.</p>",
+        "longDescription": "<p>Only runs when <code>--config</code> and <code>--stage</code> are provided to the delete command.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -29544,7 +29544,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -30539,7 +30539,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -33641,7 +33641,7 @@
         "name": "clientCertificate",
         "required": true,
         "shortDescription": "<p> The ARN of a secret containing the client certificate.</p>",
-        "longDescription": "<p>This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+        "longDescription": "<p>This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -33653,7 +33653,7 @@
         "name": "serverRootCaCertificate",
         "required": false,
         "shortDescription": "<p> The ARN of a secret containing the server&#39;s root CA certificate.</p>",
-        "longDescription": "<p>You can create secrets using the <code>stacktape secret:create</code> command.</p>",
+        "longDescription": "<p>You can create secrets using the <code>stacktape secret set</code> command.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -33712,7 +33712,7 @@
         "name": "authenticationSecretArn",
         "required": true,
         "shortDescription": "<p> The ARN of a secret containing the Kafka credentials.</p>",
-        "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+        "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -34221,7 +34221,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -35490,7 +35490,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -39788,7 +39788,7 @@
         "name": "executeScript",
         "required": false,
         "shortDescription": "<p> Execute Script</p>",
-        "longDescription": "<p>The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.</p>\n<p>The executable is determined by <code>defaults:configure</code> or the system default (<code>node</code> for JS/TS, <code>python</code> for Python). You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
+        "longDescription": "<p>The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.</p>\n<p>The executable is determined by <code>stacktape defaults set</code> or the system default (<code>node</code> for JS/TS, <code>python</code> for Python). You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -39810,7 +39810,7 @@
         "name": "executeScripts",
         "required": false,
         "shortDescription": "<p> Execute Scripts</p>",
-        "longDescription": "<p>A list of script files to execute sequentially. Each script runs in a separate process.</p>\n<p>The script can be written in JavaScript, TypeScript, or Python. The executable is determined by <code>defaults:configure</code> or the system default. You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
+        "longDescription": "<p>A list of script files to execute sequentially. Each script runs in a separate process.</p>\n<p>The script can be written in JavaScript, TypeScript, or Python. The executable is determined by <code>stacktape defaults set</code> or the system default. You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -40069,7 +40069,7 @@
         "name": "executeScript",
         "required": false,
         "shortDescription": "<p> Execute Script</p>",
-        "longDescription": "<p>The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.</p>\n<p>The executable is determined by <code>defaults:configure</code> or the system default (<code>node</code> for JS/TS, <code>python</code> for Python). You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
+        "longDescription": "<p>The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.</p>\n<p>The executable is determined by <code>stacktape defaults set</code> or the system default (<code>node</code> for JS/TS, <code>python</code> for Python). You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -40091,7 +40091,7 @@
         "name": "executeScripts",
         "required": false,
         "shortDescription": "<p> Execute Scripts</p>",
-        "longDescription": "<p>A list of script files to execute sequentially. Each script runs in a separate process.</p>\n<p>The script can be written in JavaScript, TypeScript, or Python. The executable is determined by <code>defaults:configure</code> or the system default. You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
+        "longDescription": "<p>A list of script files to execute sequentially. Each script runs in a separate process.</p>\n<p>The script can be written in JavaScript, TypeScript, or Python. The executable is determined by <code>stacktape defaults set</code> or the system default. You can only use one of <code>executeScript</code>, <code>executeScripts</code>, <code>executeCommand</code>, or <code>executeCommands</code>.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -41777,7 +41777,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -42113,7 +42113,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -42687,7 +42687,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -43197,7 +43197,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -44584,7 +44584,7 @@
         "name": "repositoryCredentialsSecretArn",
         "required": false,
         "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-        "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+        "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -44627,7 +44627,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -45150,7 +45150,7 @@
                   "name": "repositoryCredentialsSecretArn",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -45609,7 +45609,7 @@
         "name": "enableRemoteSessions",
         "required": false,
         "shortDescription": "<p> Allow SSH-like access to running containers for debugging.</p>",
-        "longDescription": "<p>Enables <code>stacktape container:session</code> to open an interactive shell inside the container.\nAdds a small SSM agent that uses minimal CPU/memory.</p>",
+        "longDescription": "<p>Enables <code>stacktape container shell</code> to open an interactive shell inside the container.\nAdds a small SSM agent that uses minimal CPU/memory.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -46866,7 +46866,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -47615,7 +47615,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -50677,7 +50677,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -51778,7 +51778,7 @@
                   "name": "repositoryCredentialsSecretArn",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -52594,7 +52594,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -52722,7 +52722,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -53086,7 +53086,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -54982,7 +54982,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -56450,7 +56450,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -56752,7 +56752,7 @@
       {
         "name": "scriptPath",
         "required": true,
-        "shortDescription": "<p> Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).</p>",
+        "shortDescription": "<p> Path to the test script, relative to the config file (or the --cwd directory when set).</p>",
         "longDescription": "<p>The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of\nthe box — Stacktape bundles the script at deploy time.</p>\n<p>Export a <code>handler</code> function; use <code>executeHttpStep</code> from the runtime&#39;s <code>synthetics</code> helper so\neach step gets its own timing and success metrics:</p>\n<pre><code class=\"language-ts\">const synthetics = require(&#39;Synthetics&#39;);\n\nexports.handler = async () =&gt; {\n  await synthetics.executeHttpStep(&#39;health&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;GET&#39;,\n    path: &#39;/health&#39;,\n    protocol: &#39;https:&#39;\n  });\n  await synthetics.executeHttpStep(&#39;create-order&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;POST&#39;,\n    path: &#39;/orders&#39;,\n    protocol: &#39;https:&#39;,\n    headers: { &#39;Content-Type&#39;: &#39;application/json&#39; }\n  });\n};\n</code></pre>\n<p>A run fails when the handler throws or a step&#39;s response is not a success.</p>",
         "typeInfo": {
           "kind": "primitive",
@@ -56766,7 +56766,7 @@
       "requiredCount": 1,
       "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype SyntheticApiTestProps = {\n  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */\n  scriptPath: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype SyntheticApiTestProps = {\n  /** Path to the test script, relative to the config file (or the --cwd directory when set). */\n  scriptPath: string;\n};\n// [!code focus-end]"
   },
   "SyntheticBrowserTest": {
     "definitionName": "SyntheticBrowserTest",
@@ -56794,7 +56794,7 @@
       {
         "name": "scriptPath",
         "required": true,
-        "shortDescription": "<p> Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).</p>",
+        "shortDescription": "<p> Path to the test script, relative to the config file (or the --cwd directory when set).</p>",
         "longDescription": "<p>The script drives a real browser with <a href=\"https://playwright.dev\">Playwright</a> and runs on the\nAWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script\nat deploy time (imports of your own helper files are allowed; npm packages are not, except the\nones the runtime provides).</p>\n<p>Export a <code>handler</code> function; get the browser from the runtime&#39;s <code>synthetics</code> helper:</p>\n<pre><code class=\"language-ts\">import { synthetics } from &#39;@aws/synthetics-playwright&#39;;\nimport { expect } from &#39;@playwright/test&#39;;\n\nexport const handler = async () =&gt; {\n  try {\n    const browser = await synthetics.launch();\n    const page = await synthetics.newPage(browser);\n    await page.goto(process.env.BASE_URL, { timeout: 30000 });\n    await page.screenshot({ path: &#39;/tmp/home.png&#39; });\n    expect(await page.title()).toContain(&#39;Example&#39;);\n  } finally {\n    await synthetics.close();\n  }\n};\n</code></pre>\n<p>A run fails when the handler throws (including failed <code>expect</code> assertions). Screenshots written\nto <code>/tmp</code> are stored with the run&#39;s results.</p>",
         "typeInfo": {
           "kind": "primitive",
@@ -56808,7 +56808,7 @@
       "requiredCount": 1,
       "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype SyntheticBrowserTestProps = {\n  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */\n  scriptPath: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype SyntheticBrowserTestProps = {\n  /** Path to the test script, relative to the config file (or the --cwd directory when set). */\n  scriptPath: string;\n};\n// [!code focus-end]"
   },
   "SyntheticTest": {
     "definitionName": "SyntheticTest",
@@ -56827,7 +56827,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -56868,7 +56868,7 @@
                 {
                   "name": "scriptPath",
                   "required": true,
-                  "shortDescription": "<p> Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).</p>",
+                  "shortDescription": "<p> Path to the test script, relative to the config file (or the --cwd directory when set).</p>",
                   "longDescription": "<p>The script drives a real browser with <a href=\"https://playwright.dev\">Playwright</a> and runs on the\nAWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script\nat deploy time (imports of your own helper files are allowed; npm packages are not, except the\nones the runtime provides).</p>\n<p>Export a <code>handler</code> function; get the browser from the runtime&#39;s <code>synthetics</code> helper:</p>\n<pre><code class=\"language-ts\">import { synthetics } from &#39;@aws/synthetics-playwright&#39;;\nimport { expect } from &#39;@playwright/test&#39;;\n\nexport const handler = async () =&gt; {\n  try {\n    const browser = await synthetics.launch();\n    const page = await synthetics.newPage(browser);\n    await page.goto(process.env.BASE_URL, { timeout: 30000 });\n    await page.screenshot({ path: &#39;/tmp/home.png&#39; });\n    expect(await page.title()).toContain(&#39;Example&#39;);\n  } finally {\n    await synthetics.close();\n  }\n};\n</code></pre>\n<p>A run fails when the handler throws (including failed <code>expect</code> assertions). Screenshots written\nto <code>/tmp</code> are stored with the run&#39;s results.</p>",
                   "typeInfo": {
                     "kind": "primitive",
@@ -56886,7 +56886,7 @@
                 {
                   "name": "scriptPath",
                   "required": true,
-                  "shortDescription": "<p> Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).</p>",
+                  "shortDescription": "<p> Path to the test script, relative to the config file (or the --cwd directory when set).</p>",
                   "longDescription": "<p>The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of\nthe box — Stacktape bundles the script at deploy time.</p>\n<p>Export a <code>handler</code> function; use <code>executeHttpStep</code> from the runtime&#39;s <code>synthetics</code> helper so\neach step gets its own timing and success metrics:</p>\n<pre><code class=\"language-ts\">const synthetics = require(&#39;Synthetics&#39;);\n\nexports.handler = async () =&gt; {\n  await synthetics.executeHttpStep(&#39;health&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;GET&#39;,\n    path: &#39;/health&#39;,\n    protocol: &#39;https:&#39;\n  });\n  await synthetics.executeHttpStep(&#39;create-order&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;POST&#39;,\n    path: &#39;/orders&#39;,\n    protocol: &#39;https:&#39;,\n    headers: { &#39;Content-Type&#39;: &#39;application/json&#39; }\n  });\n};\n</code></pre>\n<p>A run fails when the handler throws or a step&#39;s response is not a success.</p>",
                   "typeInfo": {
                     "kind": "primitive",
@@ -57316,7 +57316,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -57880,7 +57880,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -57962,7 +57962,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -58611,7 +58611,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -59960,7 +59960,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -60712,7 +60712,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -61540,7 +61540,7 @@
                   "name": "repositoryCredentialsSecretArn",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -63352,7 +63352,7 @@
         "name": "enableRemoteSessions",
         "required": false,
         "shortDescription": "<p> Allow SSH-like access to running containers for debugging.</p>",
-        "longDescription": "<p>Enables <code>stacktape container:session</code> to open an interactive shell inside the container.\nAdds a small SSM agent that uses minimal CPU/memory.</p>",
+        "longDescription": "<p>Enables <code>stacktape container shell</code> to open an interactive shell inside the container.\nAdds a small SSM agent that uses minimal CPU/memory.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -64269,7 +64269,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -64613,7 +64613,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -65100,7 +65100,7 @@
                   "name": "repositoryCredentialsSecretArn",
                   "required": false,
                   "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>",
-                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret set</code> command.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -65559,7 +65559,7 @@
         "name": "enableRemoteSessions",
         "required": false,
         "shortDescription": "<p> Allow SSH-like access to running containers for debugging.</p>",
-        "longDescription": "<p>Enables <code>stacktape container:session</code> to open an interactive shell inside the container.\nAdds a small SSM agent that uses minimal CPU/memory.</p>",
+        "longDescription": "<p>Enables <code>stacktape container shell</code> to open an interactive shell inside the container.\nAdds a small SSM agent that uses minimal CPU/memory.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",

@@ -1,11 +1,11 @@
-# org:list
+# org list
 
-The `org:list` command displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
+The `org list` command displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
 
 ## Usage
 
 ```bash
-stacktape org:list
+stacktape org list
 ```
 
 When organizations are found, the command prints a table with the following columns. If you have no organizations, it prints "No organizations found for this user."
@@ -22,18 +22,18 @@ No flags are required. The command uses the API key configured via [`stacktape l
 
 ## Output formats
 
-When Stacktape detects an interactive terminal (TTY), `org:list` renders a table. In CI or other non-TTY contexts, the output format is auto-detected. Use `--outputFormat jsonl` or `--agent` for machine-readable output.
+When Stacktape detects an interactive terminal (TTY), `org list` renders a table. In CI or other non-TTY contexts, the output format is auto-detected. Use `--json` or `--agent` for machine-readable output.
 
 Machine-readable JSONL output:
 
 ```bash
-stacktape org:list --outputFormat jsonl
+stacktape org list --json
 ```
 
 Agent mode (JSONL output with no interactive UI):
 
 ```bash
-stacktape org:list --agent
+stacktape org list --agent
 ```
 
 ## Flags reference
@@ -53,18 +53,18 @@ stacktape org:list --agent
 List all organizations with debug-level logging:
 
 ```bash
-stacktape org:list --logLevel debug
+stacktape org list --debug
 ```
 
 Pipe organization data into another tool:
 
 ```bash
-stacktape org:list --outputFormat jsonl
+stacktape org list --json
 ```
 
 ## Related commands
 
-- [`org:create`](/cli/org-create) — create a new organization
-- [`org:delete`](/cli/org-delete) — delete organization access (owner-only, requires no other users or connected AWS accounts)
-- [`info:whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
+- [`org create`](/cli/org-create) — create a new organization
+- [`org delete`](/cli/org-delete) — delete organization access (owner-only, requires no other users or connected AWS accounts)
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

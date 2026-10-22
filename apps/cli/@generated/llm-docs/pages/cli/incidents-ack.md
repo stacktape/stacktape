@@ -1,18 +1,18 @@
-# incidents:ack
+# incident ack
 
-The `incidents:ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it.
+The `incident ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it.
 
 ## Usage
 
 ```bash
-stacktape incidents:ack --incidentId <incident-id>
+stacktape incident ack <incident-id>
 ```
 
-You need the incident ID. Use [`incidents`](/cli/incidents) to find it. Acknowledging an incident that is not `OPEN` changes nothing and reports so.
+You need the incident ID. Use [`incident list`](/cli/incidents) to find it. Acknowledging an incident that is not `OPEN` changes nothing and reports so.
 
 ## Flags reference
 
-The only required flag is `--incidentId`.
+The only required argument is the incident ID.
 
 
 ## CLI Options: `stacktape incident ack`
@@ -30,11 +30,11 @@ The only required flag is `--incidentId`.
 Acknowledge an incident in agent mode for use in scripts or AI coding assistants:
 
 ```bash
-stacktape incidents:ack --incidentId inc_abc123def456 --agent
+stacktape incident ack inc_abc123def456 --agent
 ```
 
 ## Related commands
 
-- [`incidents`](/cli/incidents) — list incidents and find their IDs
-- [`incidents:show`](/cli/incidents-show) — print the incident's handoff bundle
-- [`incidents:resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix
+- [`incident list`](/cli/incidents) — list incidents and find their IDs
+- [`incident show`](/cli/incidents-show) — print the incident's handoff bundle
+- [`incident resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix

@@ -11,7 +11,7 @@ export interface StacktapeConfig {
    * CloudFormation stack name: `{projectName}-{stage}`.
    *
    * Must be alphanumeric and can contain dashes. Must match the regex `[a-zA-Z][-a-zA-Z0-9]*`.
-   * The CLI's `--projectName` option overrides this value.
+   * The CLI's `--project` option overrides this value.
    *
    * ---
    *
@@ -283,7 +283,7 @@ export interface StacktapeConfig {
    * ---
    *
    * Use `connectTo` in a script to auto-inject database URLs, API keys, etc. as environment variables.
-   * Run scripts with `stacktape script:run --scriptName myScript` or attach them to `hooks`.
+   * Run scripts with `stacktape script run myScript` or attach them to `hooks`.
    *
    * **Script types:**
    * - **`local-script`**: Runs on your machine (or CI). Good for migrations, builds, seed scripts.
@@ -572,7 +572,7 @@ export interface StacktapeConfig {
    * ---
    *
    * Each entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages
-   * the underlying AWS resources for you. Use `stacktape info:stack` to inspect them.
+   * the underlying AWS resources for you. Use `stacktape status` to inspect them.
    *
    * **Example (YAML):**
    *
@@ -633,7 +633,7 @@ export interface StacktapeConfig {
    * ---
    *
    * For advanced use cases where Stacktape doesn't have a built-in resource type.
-   * These are merged into the CloudFormation template as-is. Use `stacktape info:stack`
+   * These are merged into the CloudFormation template as-is. Use `stacktape status`
    * to check existing logical names and avoid conflicts.
    *
    * Does not count towards your resource limit.

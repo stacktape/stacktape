@@ -34,7 +34,7 @@ type AgentCoreBrowser = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -143,7 +143,7 @@ type AgentCoreCodeInterpreter = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -246,7 +246,7 @@ type AgentCoreGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -469,7 +469,7 @@ type AgentCoreMemory = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -596,7 +596,7 @@ type AgentCoreRuntime = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -6352,7 +6352,7 @@ type ApplicationLoadBalancer = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -8818,7 +8818,7 @@ type AppSyncApi = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -9258,7 +9258,7 @@ type AstroWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -10302,7 +10302,7 @@ type Bastion = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -10921,7 +10921,7 @@ type BatchJob = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -12497,7 +12497,7 @@ type Bucket = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -19213,7 +19213,7 @@ type Convex = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -21038,7 +21038,7 @@ type CustomResourceDefinition = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -21636,7 +21636,7 @@ type CustomResourceInstance = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -27128,7 +27128,7 @@ export default defineConfig(() => {
 The ARN of a secret containing credentials for a private container registry.
 
 The secret must be a JSON object with `username` and `password` keys.
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.
 
 ### Example 1 (yaml)
 
@@ -27483,7 +27483,7 @@ type DeploymentScript = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -28158,7 +28158,7 @@ type DsqlDatabase = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -28785,7 +28785,7 @@ type DynamoDbTable = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -29728,7 +29728,7 @@ type EdgeLambdaFunction = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -30264,7 +30264,7 @@ type EfsFilesystem = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -30637,7 +30637,7 @@ type EventBus = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -34027,7 +34027,7 @@ type KafkaMTLSAuthProps = {
 The ARN of a secret containing the client certificate.
 
 This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.
 
 ## Property: `serverRootCaCertificate`
 
@@ -34036,7 +34036,7 @@ You can create secrets using the `stacktape secret:create` command.
 
 The ARN of a secret containing the server's root CA certificate.
 
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.
 
 ---
 
@@ -34100,7 +34100,7 @@ type KafkaSASLAuthProps = {
 The ARN of a secret containing the Kafka credentials.
 
 The secret must be a JSON object with `username` and `password` keys.
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.
 
 ---
 
@@ -35697,7 +35697,7 @@ type LambdaFunction = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -39664,7 +39664,7 @@ Records runtime errors from this stack's logs in the Stacktape Console.
 
 When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
 detector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack
-traces and occurrence counts, shown on the Error tracking page and by `stacktape errors:list`.
+traces and occurrence counts, shown on the Error tracking page and by `stacktape error list`.
 
 What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
 the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
@@ -39782,7 +39782,7 @@ export default defineConfig(() => {
 
 Scripts to run after deleting the stack.
 
-Only runs when `--configPath` and `--stage` are provided to the delete command.
+Only runs when `--config` and `--stage` are provided to the delete command.
 
 ### Example 1 (yaml)
 
@@ -39984,7 +39984,7 @@ export default defineConfig(() => {
 
 Scripts to run before deleting the stack. Common use: export data, clean up external resources.
 
-Only runs when `--configPath` and `--stage` are provided to the delete command.
+Only runs when `--config` and `--stage` are provided to the delete command.
 
 ### Example 1 (yaml)
 
@@ -40527,7 +40527,7 @@ Execute Script
 
 The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.
 
-The executable is determined by `defaults:configure` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+The executable is determined by `stacktape defaults set` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
 
 ### Example 1 (yaml)
 
@@ -40574,7 +40574,7 @@ Execute Scripts
 
 A list of script files to execute sequentially. Each script runs in a separate process.
 
-The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `defaults:configure` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `stacktape defaults set` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
 
 ### Example 1 (yaml)
 
@@ -41145,7 +41145,7 @@ Execute Script
 
 The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.
 
-The executable is determined by `defaults:configure` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+The executable is determined by `stacktape defaults set` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
 
 ### Example 1 (yaml)
 
@@ -41192,7 +41192,7 @@ Execute Scripts
 
 A list of script files to execute sequentially. Each script runs in a separate process.
 
-The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `defaults:configure` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `stacktape defaults set` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
 
 ### Example 1 (yaml)
 
@@ -43312,7 +43312,7 @@ type HostingBucket = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -44918,7 +44918,7 @@ type HttpApiGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -45463,7 +45463,7 @@ type KinesisStream = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -48887,7 +48887,7 @@ type ContainerWorkload = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -50181,7 +50181,7 @@ type ContainerWorkloadProps = {
   connectTo?: Array<string>;
   /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */
   deployment?: ContainerWorkloadDeploymentConfig;
-  /** Enable `stacktape container:session` for interactive shell access to running containers. */
+  /** Enable `stacktape container shell` for interactive shell access to running containers. */
   enableRemoteSessions?: boolean;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
@@ -50465,7 +50465,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Enable `stacktape container:session` for interactive shell access to running containers.
+Enable `stacktape container shell` for interactive shell access to running containers.
 
 ### Example 1 (yaml)
 
@@ -51661,7 +51661,7 @@ type NetworkLoadBalancer = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -52559,7 +52559,7 @@ type NextjsWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -53376,7 +53376,7 @@ type NuxtWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -54538,7 +54538,7 @@ type OpenSearchDomain = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -55470,7 +55470,7 @@ type PrivateService = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -55909,7 +55909,7 @@ export default defineConfig(() => {
 
 Allow SSH-like access to running containers for debugging.
 
-Enables `stacktape container:session` to open an interactive shell inside the container.
+Enables `stacktape container shell` to open an interactive shell inside the container.
 Adds a small SSM agent that uses minimal CPU/memory.
 
 ### Example 1 (yaml)
@@ -57059,7 +57059,7 @@ type RedisCluster = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -60514,7 +60514,7 @@ type RelationalDatabase = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -61647,7 +61647,7 @@ type RemixWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -62835,7 +62835,7 @@ type SnsTopic = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -63102,7 +63102,7 @@ type SolidStartWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -63742,7 +63742,7 @@ type SqsQueue = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -66594,7 +66594,7 @@ type StateMachine = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -67448,7 +67448,7 @@ type SvelteKitWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -68140,7 +68140,7 @@ Route: `/config-reference/synthetic-tests`
 
 ```typescript
 type SyntheticApiTestProps = {
-  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */
+  /** Path to the test script, relative to the config file (or the --cwd directory when set). */
   scriptPath: string;
 };
 ```
@@ -68150,7 +68150,7 @@ type SyntheticApiTestProps = {
 - Required: yes
 - Type: `string`
 
-Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
+Path to the test script, relative to the config file (or the --cwd directory when set).
 
 The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of
 the box — Stacktape bundles the script at deploy time.
@@ -68210,7 +68210,7 @@ Route: `/config-reference/synthetic-tests`
 
 ```typescript
 type SyntheticBrowserTestProps = {
-  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */
+  /** Path to the test script, relative to the config file (or the --cwd directory when set). */
   scriptPath: string;
 };
 ```
@@ -68220,7 +68220,7 @@ type SyntheticBrowserTestProps = {
 - Required: yes
 - Type: `string`
 
-Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
+Path to the test script, relative to the config file (or the --cwd directory when set).
 
 The script drives a real browser with [Playwright](https://playwright.dev) and runs on the
 AWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script
@@ -68278,7 +68278,7 @@ type SyntheticTest = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -68624,7 +68624,7 @@ type TanStackWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -69393,7 +69393,7 @@ type UpstashRedis = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -69636,7 +69636,7 @@ type UptimeCheck = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -72279,7 +72279,7 @@ type UserAuthPool = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -77280,7 +77280,7 @@ type WebAppFirewall = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -78100,7 +78100,7 @@ type WebService = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -79628,7 +79628,7 @@ export default defineConfig(() => {
 
 Allow SSH-like access to running containers for debugging.
 
-Enables `stacktape container:session` to open an interactive shell inside the container.
+Enables `stacktape container shell` to open an interactive shell inside the container.
 Adds a small SSM agent that uses minimal CPU/memory.
 
 ### Example 1 (yaml)
@@ -80539,7 +80539,7 @@ type WebSocketApiGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -80675,7 +80675,7 @@ type WorkerService = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 
@@ -80994,7 +80994,7 @@ export default defineConfig(() => {
 
 Allow SSH-like access to running containers for debugging.
 
-Enables `stacktape container:session` to open an interactive shell inside the container.
+Enables `stacktape container shell` to open an interactive shell inside the container.
 Adds a small SSM agent that uses minimal CPU/memory.
 
 ### Example 1 (yaml)

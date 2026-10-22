@@ -1,25 +1,25 @@
-# domain:add
+# domain add
 
-The `domain:add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
+The `domain add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
 
 ## Usage
 
 ```bash
-stacktape domain:add --region eu-west-1
+stacktape domain add --region eu-west-1
 ```
 
 The command runs an interactive wizard. You supply only the `--region` flag — the domain name is entered interactively during the wizard.
 
 ## What it does
 
-The `domain:add` wizard walks through the following steps, stopping at the first incomplete one.
+The `domain add` wizard walks through the following steps, stopping at the first incomplete one.
 
 1. **Enter domain name** — Must be a root domain (e.g. `mydomain.com`, not `sub.mydomain.com`). If you enter a subdomain, the command exits with an error.
 2. **Check registration** — If the domain is not registered (not purchased), the command exits immediately and prints a hint to register via Route 53 or another registrar. Prices start at $3/year for `.click` domains.
 3. **Verify DNS ownership** — If DNS is managed outside AWS, the command asks whether to move DNS management to Route 53. If confirmed and no hosted zone exists, it creates one and prints the name servers to configure at your registrar.
 4. **Provision TLS certificates** — Requests a regional ACM certificate. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which Stacktape stores as `usEast1Cert` in domain status. When the regional certificate is not yet issued, it adds a DNS validation record from the regional certificate's domain validation options to the Route 53 hosted zone.
 
-The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain:add` after DNS or certificate validation has had time to complete.
+The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain add` after DNS or certificate validation has had time to complete.
 
 
 > **Warning:** Only root domains are accepted. If you enter a subdomain like `api.mydomain.com`, the command exits with an error. Add the root domain (`mydomain.com`) first, then configure subdomains on the resource that should serve them. See [custom domains](/resources/networking/custom-domains) for the resource-level setup.
@@ -40,7 +40,7 @@ When DNS for the domain is managed outside AWS, the command asks whether you wan
 1. A Route 53 hosted zone is created (if one doesn't already exist).
 2. The command prints the name server records to set at your registrar.
 3. DNS propagation can take hours to days depending on the registrar and prior TTL values.
-4. After propagation, re-run `domain:add` to continue with certificate provisioning.
+4. After propagation, re-run `domain add` to continue with certificate provisioning.
 
 
 > **Info:** If the domain is already in use, copy your existing DNS records into the new Route 53 hosted zone before updating the name servers at your registrar. This prevents downtime during the migration.
@@ -74,35 +74,35 @@ The command requests a free AWS ACM certificate in the specified `--region`. Whe
 Add a domain in the eu-west-1 region:
 
 ```bash
-stacktape domain:add --region eu-west-1
+stacktape domain add --region eu-west-1
 ```
 
 Add a domain using a specific AWS profile:
 
 ```bash
-stacktape domain:add --region us-east-1 --profile production
+stacktape domain add --region us-east-1 --profile production
 ```
 
 Add a domain using a named AWS account connected in the Stacktape Console:
 
 ```bash
-stacktape domain:add --region eu-west-1 --awsAccount my-prod-account
+stacktape domain add --region eu-west-1 --aws-account my-prod-account
 ```
 
 ## Related commands
 
 - [`deploy`](/cli/deploy) — deploy your stack, which can reference the added domain via [custom domain configuration](/resources/networking/custom-domains)
-- [`defaults:configure`](/cli/defaults-configure) — set a default region so you don't need `--region` every time
+- [`defaults set`](/cli/defaults-configure) — set a default region so you don't need `--region` every time
 
 ## FAQ
 
 ### Can I add a subdomain instead of a root domain?
 
-No. The `domain:add` command only accepts root domains (e.g. `mydomain.com`). Entering a subdomain like `api.mydomain.com` causes the command to exit with an error. Add the root domain first, then configure subdomains on the resource that should serve them. See [custom domains](/resources/networking/custom-domains) for the resource-level setup.
+No. The `domain add` command only accepts root domains (e.g. `mydomain.com`). Entering a subdomain like `api.mydomain.com` causes the command to exit with an error. Add the root domain first, then configure subdomains on the resource that should serve them. See [custom domains](/resources/networking/custom-domains) for the resource-level setup.
 
 ### What happens if my domain is not yet registered?
 
-If the domain is not registered (not purchased from any registrar), the command exits immediately and prints a hint to register it. You can register it with [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) or any other domain registrar. Registration prices vary by top-level domain; see the [current Route 53 prices](https://aws.amazon.com/route53/pricing/#Domain_Names). After registration, re-run `domain:add`.
+If the domain is not registered (not purchased from any registrar), the command exits immediately and prints a hint to register it. You can register it with [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) or any other domain registrar. Registration prices vary by top-level domain; see the [current Route 53 prices](https://aws.amazon.com/route53/pricing/#Domain_Names). After registration, re-run `domain add`.
 
 ### Do I need to run this command in every region?
 
@@ -110,7 +110,7 @@ The command creates a regional certificate for the selected `--region` and, when
 
 ### Is there a cost for adding a domain?
 
-Adding the domain is free: ACM TLS certificates are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain:add` requires the domain to already be registered).
+Adding the domain is free: ACM TLS certificates are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain add` requires the domain to already be registered).
 
 ### Can I use a domain registered outside AWS?
 

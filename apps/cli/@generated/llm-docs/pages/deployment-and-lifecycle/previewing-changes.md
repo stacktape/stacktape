@@ -29,13 +29,13 @@ stacktape diff --stage production --region eu-west-1
 To specify a config file path explicitly:
 
 ```bash
-stacktape diff --stage production --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape diff --stage production --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 For the full list of available flags, see the [`diff` CLI reference](/cli/diff).
 
 
-> **Tip:** Use [`stacktape defaults:configure`](/cli/defaults-configure) to set a default stage, region, and AWS profile so you can run `stacktape diff` without flags during development.
+> **Tip:** Use [`stacktape defaults set`](/cli/defaults-configure) to set a default stage, region, and AWS profile so you can run `stacktape diff` without flags during development.
 
 
 ## How diff works

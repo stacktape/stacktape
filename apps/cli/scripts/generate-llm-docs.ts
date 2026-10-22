@@ -851,7 +851,7 @@ const cleanMdxForLlms = async (body: string): Promise<string> => {
     .replace(/<LandingCover\s*\/>/g, '')
     .replace(
       /<StarterProjectGallery\s*\/>/g,
-      '\n\nBrowse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starterId <starter-id>`.\n\n'
+      '\n\nBrowse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starter-id <starter-id>`.\n\n'
     )
     .replace(
       /<OpenSourceBanner\s*\/>/g,

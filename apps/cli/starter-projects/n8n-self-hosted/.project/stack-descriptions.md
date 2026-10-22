@@ -55,7 +55,7 @@ Workflow data, credentials, and execution history are stored in a PostgreSQL dat
 - **Credentials** — the master password is stored using a
   [`$Secret`](https://docs.stacktape.com/configuration/directives/#secret) directive. On first deploy, it uses the
   default value `my_secret_password`. You should change it to a strong password using
-  `stp secret:create --name db-password --value '<your-password>'`.
+  `stp secret set db-password --value '<your-password>'`.
 
 ```yml
 database:

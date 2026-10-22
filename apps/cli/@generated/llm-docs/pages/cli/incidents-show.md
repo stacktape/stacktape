@@ -1,21 +1,21 @@
-# incidents:show
+# incident show
 
-The `incidents:show` command prints an incident's handoff bundle: a self-contained markdown document with the incident's current state, its signals and their evidence, the release that was live when it opened and what changed since the previous release, nearby operations and events, the timeline with page delivery status, scoped links into the Console, earlier related incidents, the AI assessment, the reports of any hosted AI runs on the incident, and guidance for diagnosing the incident and watching its recovery read-only. It asks for a diagnosis and a recommended next action; it never tells the reader to deploy or resolve. It is the same document that **Copy details for agent** produces on the incident page in the Console.
+The `incident show` command prints an incident's handoff bundle: a self-contained markdown document with the incident's current state, its signals and their evidence, the release that was live when it opened and what changed since the previous release, nearby operations and events, the timeline with page delivery status, scoped links into the Console, earlier related incidents, the AI assessment, the reports of any hosted AI runs on the incident, and guidance for diagnosing the incident and watching its recovery read-only. It asks for a diagnosis and a recommended next action; it never tells the reader to deploy or resolve. It is the same document that **Copy details for agent** produces on the incident page in the Console.
 
 ## Usage
 
 ```bash
-stacktape incidents:show --incidentId <incident-id>
+stacktape incident show <incident-id>
 ```
 
-You need the incident ID. Use [`incidents`](/cli/incidents) to list incidents before showing one.
+You need the incident ID. Use [`incident list`](/cli/incidents) to list incidents before showing one.
 
 A coding agent connected through the [Stacktape MCP server](/using-with-ai/mcp-server-setup#incident-tool) gets the
 same document with the `stacktape_incident` tool, using your local Stacktape login.
 
 ## Flags reference
 
-The only required flag is `--incidentId`.
+The only required argument is the incident ID.
 
 
 ## CLI Options: `stacktape incident show`
@@ -33,7 +33,7 @@ The only required flag is `--incidentId`.
 Pipe the bundle to a coding agent:
 
 ```bash
-stacktape incidents:show --incidentId inc_abc123def456 --agent | claude -p "Diagnose and fix this incident"
+stacktape incident show inc_abc123def456 --agent | claude -p "Diagnose and fix this incident"
 ```
 
 ## Untrusted evidence
@@ -42,7 +42,7 @@ The bundle contains runtime data from your application: log lines, error message
 
 ## Related commands
 
-- [`incidents`](/cli/incidents) — list incidents and find their IDs
-- [`incidents:ack`](/cli/incidents-ack) — record that someone is working on the incident
-- [`incidents:watch`](/cli/incidents-watch) — wait until the incident stays resolved after a fix
-- [`incidents:resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix
+- [`incident list`](/cli/incidents) — list incidents and find their IDs
+- [`incident ack`](/cli/incidents-ack) — record that someone is working on the incident
+- [`incident watch`](/cli/incidents-watch) — wait until the incident stays resolved after a fix
+- [`incident resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix

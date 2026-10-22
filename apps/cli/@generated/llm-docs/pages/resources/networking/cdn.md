@@ -74,7 +74,7 @@ export default defineConfig(() => {
 
 Setting `cloudfrontPriceClass` to `PriceClass_100` restricts edge locations to North America and Europe — the cheapest option. See [Price class](#price-class) for all three options.
 
-CDN exposes `cdnUrl` as a referenceable parameter; reference it with `$ResourceParam('staticAssets', 'cdnUrl')` using the parent resource name. You can also retrieve parameters after deploy with [`stacktape param:get`](/cli/param-get). See [Referenceable parameters](#referenceable-parameters) for all available CDN parameters.
+CDN exposes `cdnUrl` as a referenceable parameter; reference it with `$ResourceParam('staticAssets', 'cdnUrl')` using the parent resource name. You can also retrieve parameters after deploy with [`stacktape param get`](/cli/param-get). See [Referenceable parameters](#referenceable-parameters) for all available CDN parameters.
 
 ## Examples
 
@@ -108,7 +108,7 @@ export default defineConfig(() => {
 ```
 
 
-The `PriceClass_100` restricts edge locations to North America and Europe — the cheapest option. The custom domain requires a Route53 hosted zone in your AWS account; set one up with [`stacktape domain:add`](/cli/domain-add). See [Price class](#price-class) for region coverage options and [Custom domains](#custom-domains) for DNS and certificate details.
+The `PriceClass_100` restricts edge locations to North America and Europe — the cheapest option. The custom domain requires a Route53 hosted zone in your AWS account; set one up with [`stacktape domain add`](/cli/domain-add). See [Price class](#price-class) for region coverage options and [Custom domains](#custom-domains) for DNS and certificate details.
 
 ### Multi-origin API with WAF
 
@@ -339,7 +339,7 @@ If you have a pre-existing CloudFront origin request policy, pass its ID via `or
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `cdn.example.com`) to the CDN distribution. Stacktape can automatically create DNS records and provision a free TLS certificate. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain:add`](/cli/domain-add) to set one up.
+Stacktape can attach your own domain (e.g., `cdn.example.com`) to the CDN distribution. Stacktape can automatically create DNS records and provision a free TLS certificate. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
 
 **When to use a custom domain:** Production and customer-facing stages where a branded, stable URL matters (e.g., `api.yourproduct.com` or `app.yourproduct.com`). Custom domains also make it easier to switch infrastructure behind the scenes without breaking client integrations. **When the default CloudFront URL is fine:** Development stages, internal tools, and early validation where a generated `d1234.cloudfront.net` URL is acceptable. Custom domains add DNS propagation and certificate provisioning overhead that slows down initial deploys. For full domain management details, see [Custom domains](/resources/networking/custom-domains).
 
@@ -596,4 +596,4 @@ Yes, using `routeRewrites`. Each rewrite matches a URL path pattern (wildcards s
 
 ### Why does my custom domain certificate fail to attach?
 
-AWS CloudFront requires the viewer TLS certificate to live in ACM `us-east-1`, regardless of where your origin resources are deployed. If you pass `customCertificateArn`, make sure that certificate is in `us-east-1`. When you let Stacktape provision the certificate automatically it handles this for you, but your domain must still have a [Route53 hosted zone](/resources/networking/custom-domains) — set one up with [`stacktape domain:add`](/cli/domain-add).
+AWS CloudFront requires the viewer TLS certificate to live in ACM `us-east-1`, regardless of where your origin resources are deployed. If you pass `customCertificateArn`, make sure that certificate is in `us-east-1`. When you let Stacktape provision the certificate automatically it handles this for you, but your domain must still have a [Route53 hosted zone](/resources/networking/custom-domains) — set one up with [`stacktape domain add`](/cli/domain-add).

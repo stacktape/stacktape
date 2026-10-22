@@ -112,5 +112,5 @@ scripts:
 You can execute the test script after the deploy using
 
 ```bash
-stp script:run --scriptName broadcastTet --stage <<previously-used-stage>> --region <<previously-used-region>>
+stp script run broadcastTet --stage <<previously-used-stage>> --region <<previously-used-region>>
 ```

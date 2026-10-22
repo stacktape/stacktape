@@ -275,7 +275,7 @@ export default defineConfig(() => {
 
 Allow SSH-like access to running containers for debugging.
 
-Enables `stacktape container:session` to open an interactive shell inside the container.
+Enables `stacktape container shell` to open an interactive shell inside the container.
 Adds a small SSM agent that uses minimal CPU/memory.
 
 ### Example 1 (yaml)

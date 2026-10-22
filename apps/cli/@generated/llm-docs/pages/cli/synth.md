@@ -10,10 +10,10 @@ stacktape synth --stage dev --region eu-west-1
 
 This reads your Stacktape configuration, resolves all resources, finalizes the CloudFormation template, and writes it to `compiled-template.yaml`. Both `--stage` and `--region` are required so the command can resolve a concrete stack context.
 
-To write the template to a custom path, use `--outFile`.
+To write the template to a custom path, use `--out`.
 
 ```bash
-stacktape synth --stage dev --region eu-west-1 --outFile ./infra/template.yaml
+stacktape synth --stage dev --region eu-west-1 --out ./infra/template.yaml
 ```
 
 
@@ -42,36 +42,36 @@ stacktape synth --stage dev --region eu-west-1 --outFile ./infra/template.yaml
 
 ## Important flags
 
-### --outFile
+### --out
 
 Controls where the synthesized template is saved. Defaults to `compiled-template.yaml`. Use this when you want the template in a specific location for CI artifacts, version control, or external tooling.
 
 ```bash
-stacktape synth --stage prod --region us-east-1 --outFile ./output/prod-template.yaml
+stacktape synth --stage prod --region us-east-1 --out ./output/prod-template.yaml
 ```
 
-### --configPath
+### --config
 
 Points to your Stacktape configuration file when it is not in the default location. The path is relative to the current working directory.
 
 ```bash
-stacktape synth --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape synth --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
-### --preserveTempFiles
+### --keep-temp-files
 
 When set, Stacktape preserves temporary files generated during synthesis under `.stacktape/[invocation-id]`. Useful for debugging the synthesis pipeline when the final template doesn't match your expectations.
 
 ```bash
-stacktape synth --stage dev --region eu-west-1 --preserveTempFiles
+stacktape synth --stage dev --region eu-west-1 --keep-temp-files
 ```
 
-### --projectName
+### --project
 
 Specifies the Stacktape project name for the operation. Pass the same value you would use with [`deploy`](/cli/deploy).
 
 ```bash
-stacktape synth --stage prod --region us-east-1 --projectName my-app
+stacktape synth --stage prod --region us-east-1 --project my-app
 ```
 
 ## Examples
@@ -79,13 +79,13 @@ stacktape synth --stage prod --region us-east-1 --projectName my-app
 Synthesize a production template and save it to a specific directory:
 
 ```bash
-stacktape synth --stage prod --region us-east-1 --outFile ./artifacts/prod.yaml
+stacktape synth --stage prod --region us-east-1 --out ./artifacts/prod.yaml
 ```
 
 Synthesize with debug-level logging to troubleshoot configuration resolution:
 
 ```bash
-stacktape synth --stage dev --region eu-west-1 --logLevel debug
+stacktape synth --stage dev --region eu-west-1 --debug
 ```
 
 Synthesize using a specific AWS profile:
@@ -97,7 +97,7 @@ stacktape synth --stage staging --region eu-west-1 --profile my-aws-profile
 Synthesize and keep temporary files for inspection:
 
 ```bash
-stacktape synth --stage dev --region eu-west-1 --preserveTempFiles --outFile ./debug-template.yaml
+stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-template.yaml
 ```
 
 ## synth vs validate vs diff
@@ -124,7 +124,7 @@ Stacktape needs both values before synthesis so it can resolve a concrete stack 
 
 ### Can I feed the synthesized template into CloudFormation linting or policy tools?
 
-Yes — that is a primary use case. The output is a finalized CloudFormation YAML template, so you can pass it to any tool that accepts CloudFormation: linters, policy-as-code scanners, or your own scripts. A common CI pattern is to run `synth` and then run a scanner against the output. In non-TTY environments output is plain text automatically; pass `--outputFormat plain` to force it, or `--agent` for JSONL.
+Yes — that is a primary use case. The output is a finalized CloudFormation YAML template, so you can pass it to any tool that accepts CloudFormation: linters, policy-as-code scanners, or your own scripts. A common CI pattern is to run `synth` and then run a scanner against the output. In non-TTY environments output is plain text automatically; pass `--output-format plain` to force it, or `--agent` for JSONL.
 
 ### When should I use synth vs validate vs diff?
 
@@ -132,4 +132,4 @@ Use `synth` when you need the generated CloudFormation template on disk to inspe
 
 ### The synthesized template doesn't match what I expected — how do I debug it?
 
-Run `synth` with `--preserveTempFiles` to keep the intermediate files generated during synthesis under `.stacktape/[invocation-id]`, and add `--logLevel debug` to trace how your configuration is resolved. This lets you inspect the synthesis pipeline rather than only the final template.
+Run `synth` with `--keep-temp-files` to keep the intermediate files generated during synthesis under `.stacktape/[invocation-id]`, and add `--debug` to trace how your configuration is resolved. This lets you inspect the synthesis pipeline rather than only the final template.

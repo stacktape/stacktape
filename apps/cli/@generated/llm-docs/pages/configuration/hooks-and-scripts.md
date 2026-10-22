@@ -4,7 +4,7 @@ Stacktape hooks and scripts automate tasks around your deployment lifecycle — 
 
 ## Scripts
 
-A Stacktape script is a named task in the `scripts` section of your config. Scripts can run shell commands or JS/TS/Python files. Use [`connectTo`](/configuration/connecting-resources) to auto-inject resource connection details as environment variables. Run scripts manually with [`stacktape script:run`](/cli/script-run) or attach them to [hooks](#hooks) for automatic execution.
+A Stacktape script is a named task in the `scripts` section of your config. Scripts can run shell commands or JS/TS/Python files. Use [`connectTo`](/configuration/connecting-resources) to auto-inject resource connection details as environment variables. Run scripts manually with [`stacktape script run`](/cli/script-run) or attach them to [hooks](#hooks) for automatic execution.
 
 Stacktape supports three script types, each suited to different execution and network requirements:
 
@@ -137,13 +137,13 @@ A bastion script runs on the bastion host inside your VPC. If your command needs
 
 ## Running scripts manually
 
-Run any defined script with [`stacktape script:run`](/cli/script-run):
+Run any defined script with [`stacktape script run`](/cli/script-run):
 
 ```bash
-stacktape script:run --scriptName seedBucket
+stacktape script run seedBucket
 ```
 
-See the [`script:run` CLI reference](/cli/script-run) for the complete command options.
+See the [`script run` CLI reference](/cli/script-run) for the complete command options.
 
 ## Hooks
 
@@ -219,7 +219,7 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 > **Info:** Delete hook behavior depends on how the delete command is invoked. See the <a href="/cli/delete">delete CLI reference</a> for details.
 
 
-> **Warning:** Post-deploy hooks (like database migrations) run after infrastructure changes are complete. If a script fails, re-run it manually with <code>stacktape script:run</code>. Check the CLI output for error details.
+> **Warning:** Post-deploy hooks (like database migrations) run after infrastructure changes are complete. If a script fails, re-run it manually with <code>stacktape script run</code>. Check the CLI output for error details.
 
 
 ### Conditional execution
@@ -257,7 +257,7 @@ Yes. Each hook (`beforeDeploy`, `afterDeploy`, etc.) accepts an array of script 
 
 ### What happens if my afterDeploy hook fails?
 
-Your infrastructure is deployed and running, but the post-deploy task needs attention. Re-run the script with [`stacktape script:run`](/cli/script-run) to address the issue. Check the CLI output for error details and confirm the fix before the next deployment.
+Your infrastructure is deployed and running, but the post-deploy task needs attention. Re-run the script with [`stacktape script run`](/cli/script-run) to address the issue. Check the CLI output for error details and confirm the fix before the next deployment.
 
 ### When should I use hooks vs deployment scripts?
 

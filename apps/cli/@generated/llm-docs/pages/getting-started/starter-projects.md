@@ -12,7 +12,7 @@ There are two ways to use a starter:
   yourself:
 
 ```bash
-stacktape init --starterId <starter-id>
+stacktape init --starter-id <starter-id>
 ```
 
 
@@ -20,4 +20,4 @@ stacktape init --starterId <starter-id>
 `hono-api` or `nextjs-saas`).
 
 
-Browse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starterId <starter-id>`.
+Browse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starter-id <starter-id>`.

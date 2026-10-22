@@ -50,7 +50,7 @@ const ENDPOINT_PARAMS = [
 const SSR_WEB_PARAMS = [{ name: 'url', description: 'Website URL' }] as const;
 
 /**
- * The parameters each resource type can expose to `$ResourceParam`, the resource classes and `stacktape param:get`.
+ * The parameters each resource type can expose to `$ResourceParam`, the resource classes and `stacktape param get`.
  * Which of them a deployed resource has depends on its configuration: a custom domain, for example, adds
  * `customDomainUrl`. The synthesis test `referenceable-params.spec.ts` keeps this list equal to what the CLI publishes.
  */

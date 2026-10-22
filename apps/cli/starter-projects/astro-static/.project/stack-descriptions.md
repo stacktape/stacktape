@@ -40,4 +40,4 @@ hooks:
 ```
 
 Scripts specified in [scripts](https://docs.stacktape.com/configuration/scripts/) section of config, can be run manually
-anytime using `stp script:run` [command](https://docs.stacktape.com/cli/commands/script-run/).
+anytime using `stp script run` [command](https://docs.stacktape.com/cli/commands/script-run/).

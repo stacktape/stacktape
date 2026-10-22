@@ -1,25 +1,25 @@
 ---
-title: 'incidents:watch'
+title: 'incident watch'
 order: 184
-seoTitle: 'incidents:watch CLI Command | Stacktape Docs'
-seoDescription: 'Wait until a Stacktape incident remains resolved for a sustained stability window with stacktape incidents:watch. Verify a deployed fix from scripts and coding-agent workflows.'
+seoTitle: 'incident watch CLI Command | Stacktape Docs'
+seoDescription: 'Wait until a Stacktape incident remains resolved for a sustained stability window with stacktape incident watch. Verify a deployed fix from scripts and coding-agent workflows.'
 ---
 
-# incidents:watch
+# incident watch
 
-The `incidents:watch` command waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow.
+The `incident watch` command waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow.
 
 ## Usage
 
 ```bash
-stacktape incidents:watch --incidentId <incident-id>
+stacktape incident watch <incident-id>
 ```
 
 By default the command waits up to 900 seconds for the incident to stay resolved for 30 continuous seconds. Recovery time the Console already recorded before the command started counts toward the window.
 
 ## Flags reference
 
-The only required flag is `--incidentId`. Raise the timeout and the stability window when the affected monitor evaluates slowly, for example an alarm with a five-minute period.
+The only required argument is the incident ID. Raise the timeout and the stability window when the affected monitor evaluates slowly, for example an alarm with a five-minute period.
 
 <CliCommandsApiReference command="incidents:watch" />
 
@@ -28,16 +28,15 @@ The only required flag is `--incidentId`. Raise the timeout and the stability wi
 Wait up to 30 minutes and require two minutes of stability:
 
 ```bash
-stacktape incidents:watch \
-  --incidentId inc_abc123def456 \
-  --incidentWatchTimeoutSeconds 1800 \
-  --incidentWatchStabilitySeconds 120
+stacktape incident watch inc_abc123def456 \
+  --timeout 1800 \
+  --stable-for 120
 ```
 
 Emit status events and the final result as JSON for scripts or AI coding assistants:
 
 ```bash
-stacktape incidents:watch --incidentId inc_abc123def456 --agent
+stacktape incident watch inc_abc123def456 --agent
 ```
 
 ## Exit behavior
@@ -46,8 +45,8 @@ The command exits with the error code `INCIDENT_WATCH_TIMEOUT` if sustained reco
 
 ## Related commands
 
-- [`incidents:show`](/cli/incidents-show) — inspect the current evidence when the watch times out
-- [`incidents:resolve`](/cli/incidents-resolve) — resolve error-only incidents manually before watching for a recurrence
-- [`incidents`](/cli/incidents) — list incidents and find their IDs
+- [`incident show`](/cli/incidents-show) — inspect the current evidence when the watch times out
+- [`incident resolve`](/cli/incidents-resolve) — resolve error-only incidents manually before watching for a recurrence
+- [`incident list`](/cli/incidents) — list incidents and find their IDs
 
 See [Incidents](/observability/incidents) for the recommended triage and verification workflow.

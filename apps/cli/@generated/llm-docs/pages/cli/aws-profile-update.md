@@ -1,11 +1,11 @@
-# aws-profile:update
+# aws-profile update
 
-The `aws-profile:update` command replaces the AWS access key credentials for an existing AWS profile stored on your machine. Use it when you rotate IAM user keys or need to correct a misconfigured profile without deleting and recreating it.
+The `aws-profile update` command replaces the AWS access key credentials for an existing AWS profile stored on your machine. Use it when you rotate IAM user keys or need to correct a misconfigured profile without deleting and recreating it.
 
 ## Usage
 
 ```bash
-stacktape aws-profile:update
+stacktape aws-profile update
 ```
 
 The command is fully interactive. It reads the profiles already configured in your AWS credentials file (`~/.aws/credentials`) and walks you through three prompts:
@@ -17,7 +17,7 @@ The command is fully interactive. It reads the profiles already configured in yo
 After the prompts complete, Stacktape updates the selected profile's credentials and prints `Updated credentials for AWS profile <profile>.`
 
 
-> **Warning:** If no AWS profiles exist on your system, the command exits with an error. Use [`aws-profile:create`](/cli/aws-profile-create) to set up your first profile.
+> **Warning:** If no AWS profiles exist on your system, the command exits with an error. Use [`aws-profile create`](/cli/aws-profile-create) to set up your first profile.
 
 
 ## Examples
@@ -25,7 +25,7 @@ After the prompts complete, Stacktape updates the selected profile's credentials
 Update credentials for an existing profile with debug-level logging:
 
 ```bash
-stacktape aws-profile:update --logLevel debug
+stacktape aws-profile update --debug
 ```
 
 ## Flags reference
@@ -42,6 +42,6 @@ stacktape aws-profile:update --logLevel debug
 
 ## Related commands
 
-- [`aws-profile:create`](/cli/aws-profile-create) — create a new AWS profile from scratch.
-- [`aws-profile:delete`](/cli/aws-profile-delete) — remove a profile you no longer need.
-- [`aws-profile:list`](/cli/aws-profile-list) — list all profiles configured on your system.
+- [`aws-profile create`](/cli/aws-profile-create) — create a new AWS profile from scratch.
+- [`aws-profile delete`](/cli/aws-profile-delete) — remove a profile you no longer need.
+- [`aws-profile list`](/cli/aws-profile-list) — list all profiles configured on your system.

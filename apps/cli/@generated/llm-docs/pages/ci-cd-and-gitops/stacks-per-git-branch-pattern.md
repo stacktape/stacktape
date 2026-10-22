@@ -188,7 +188,7 @@ Deploying to a stage runs a Stacktape deploy operation for the selected project,
 
 **Set budget alerts.** Configure [budgets](/managing-costs/budgets) to notify your team when spend exceeds a threshold. This catches runaway costs from forgotten stages.
 
-**Audit regularly.** Use [`stacktape info:stacks`](/cli/info-stacks) to list all deployed stages and identify stale ones that should be deleted.
+**Audit regularly.** Use [`stacktape stack list`](/cli/info-stacks) to list all deployed stages and identify stale ones that should be deleted.
 
 ## Cleanup strategies
 
@@ -256,7 +256,7 @@ Deleting a preview stage starts a Stacktape delete operation for that stage. Tre
 
 ### How do I debug a failing PR preview deployment?
 
-For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape logs`](/cli/logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape info:operations`](/cli/info-operations) for the deployment history of the preview stage.
+For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape logs`](/cli/logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape stack history`](/cli/info-operations) for the deployment history of the preview stage.
 
 ### GitOps vs custom CI/CD for stacks-per-branch — which should I choose?
 

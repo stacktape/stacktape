@@ -1,5 +1,5 @@
 /**
- * The AWS SDK v3 service/operation pairs that may be sent by name: by the CLI's `aws:call` and the dev agent's `/aws/sdk`
+ * The AWS SDK v3 service/operation pairs that may be sent by name: by the CLI's `aws call` and the dev agent's `/aws/sdk`
  * endpoint, and by the `aws_call` tool of a hosted incident run, which the Console executes in the incident's account
  * with the organization's connected-account role. The executor enforces it for every caller.
  *
@@ -290,7 +290,7 @@ export const AWS_READ_ONLY_OPERATIONS = {
 export type AwsReadOnlyService = keyof typeof AWS_READ_ONLY_OPERATIONS;
 
 /**
- * Alternate service spellings `aws:call` has always accepted, each pointing at the canonical name above rather than
+ * Alternate service spellings `aws call` has always accepted, each pointing at the canonical name above rather than
  * repeating its operations.
  */
 const SERVICE_ALIASES: Record<string, AwsReadOnlyService> = {
@@ -299,7 +299,7 @@ const SERVICE_ALIASES: Record<string, AwsReadOnlyService> = {
   stepfunctions: 'sfn'
 };
 
-/** The canonical name for a user-supplied service, or `undefined` when `aws:call` supports no operation for it. */
+/** The canonical name for a user-supplied service, or `undefined` when `aws call` supports no operation for it. */
 export const resolveAwsServiceName = (service: string): AwsReadOnlyService | undefined => {
   // `Object.hasOwn`, not `in`: the name comes from a CLI flag, and `in` also answers yes for `constructor`.
   const name = service.toLowerCase();
@@ -309,7 +309,7 @@ export const resolveAwsServiceName = (service: string): AwsReadOnlyService | und
   return Object.hasOwn(SERVICE_ALIASES, name) ? SERVICE_ALIASES[name] : undefined;
 };
 
-/** The operations accepted for a service, aliases included; empty for a service `aws:call` does not support. */
+/** The operations accepted for a service, aliases included; empty for a service `aws call` does not support. */
 export const getReadOnlyAwsOperations = (service: string): readonly string[] => {
   const canonical = resolveAwsServiceName(service);
 
@@ -325,19 +325,19 @@ export const isReadOnlyAwsCommand = (service: string, command: string): boolean 
 
 /**
  * Why a service/operation pair is refused, in the words every caller uses, or `null` when the catalog accepts it. The
- * CLI's `aws:call` and a hosted agent's `aws_call` both answer with this.
+ * CLI's `aws call` and a hosted agent's `aws_call` both answer with this.
  */
 export const describeAwsCallRefusal = (service: string, command: string): { message: string; hint: string } | null => {
   if (!resolveAwsServiceName(service)) {
     return {
-      message: `Service \`${service}\` has no operations that \`aws:call\` is allowed to send.`,
+      message: `Service \`${service}\` has no operations that \`aws call\` is allowed to send.`,
       hint: `Supported services: ${Object.keys(AWS_READ_ONLY_OPERATIONS).join(', ')}.`
     };
   }
   if (!isReadOnlyAwsCommand(service, command)) {
     return {
       message: `Command \`${command}\` is not an accepted read-only operation for service \`${service}\`.`,
-      hint: `\`aws:call\` sends only operations reviewed as read-only. Accepted for ${service}: ${getReadOnlyAwsOperations(service).join(', ')}.`
+      hint: `\`aws call\` sends only operations reviewed as read-only. Accepted for ${service}: ${getReadOnlyAwsOperations(service).join(', ')}.`
     };
   }
   return null;

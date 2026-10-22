@@ -219,7 +219,7 @@ If you need long-term log storage for compliance, consider [forwarding logs](/ob
 
 Every deployed [stage](/configuration/stages-and-environments) consumes AWS resources. Old feature-branch stages, abandoned test stacks, and forgotten staging environments accumulate idle cost — especially for always-on resources like container services, databases, and Redis clusters.
 
-Review your stacks regularly in the Stacktape Console or with [`stacktape info:stacks`](/cli/info-stacks). Delete any stage that's no longer needed:
+Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/info-stacks). Delete any stage that's no longer needed:
 
 ```bash
 stacktape delete --stage old-feature

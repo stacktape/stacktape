@@ -2,5 +2,5 @@
   them. To run it, use
 
 ```bash
-stacktape script:run --scriptName broadcastTest --stage <<your-previously-deployed-stage>> --region <<your-previously-used-region>>
+stacktape script run broadcastTest --stage <<your-previously-deployed-stage>> --region <<your-previously-used-region>>
 ```

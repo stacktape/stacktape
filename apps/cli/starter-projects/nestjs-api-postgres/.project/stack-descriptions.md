@@ -141,5 +141,5 @@ hooks:
 You can also execute the migration script anytime using
 
 ```bash
-stp script:run --scriptName migrateDb --stage <<previously-used-stage>> --region <<previously-used-region>>
+stp script run migrateDb --stage <<previously-used-stage>> --region <<previously-used-region>>
 ```

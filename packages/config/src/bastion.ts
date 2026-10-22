@@ -5,8 +5,8 @@ import type { LogForwardingBase } from './log-forwarding';
  *
  * ---
  *
- * Uses keyless SSH via AWS Systems Manager — no SSH keys to manage. Connect with `stacktape bastion:ssh`
- * or create port-forwarding tunnels with `stacktape bastion:tunnel`. Costs ~$4/month (t3.micro).
+ * Uses keyless SSH via AWS Systems Manager — no SSH keys to manage. Connect with `stacktape bastion shell`
+ * or create port-forwarding tunnels with `stacktape bastion tunnel`. Costs ~$4/month (t3.micro).
  */
 export interface Bastion {
   type: 'bastion';
