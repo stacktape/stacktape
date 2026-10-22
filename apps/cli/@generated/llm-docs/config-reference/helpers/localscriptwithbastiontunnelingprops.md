@@ -434,7 +434,7 @@ Execute Script
 
 The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.
 
-The executable is determined by `defaults:configure` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+The executable is determined by `stacktape defaults set` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
 
 ### Example 1 (yaml)
 
@@ -481,7 +481,7 @@ Execute Scripts
 
 A list of script files to execute sequentially. Each script runs in a separate process.
 
-The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `defaults:configure` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `stacktape defaults set` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
 
 ### Example 1 (yaml)
 

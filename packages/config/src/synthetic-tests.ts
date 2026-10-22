@@ -242,7 +242,7 @@ export interface SyntheticBrowserTest {
 
 export interface SyntheticBrowserTestProps {
   /**
-   * #### Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
+   * #### Path to the test script, relative to the config file (or the --cwd directory when set).
    *
    * ---
    *
@@ -283,7 +283,7 @@ export interface SyntheticApiTest {
 
 export interface SyntheticApiTestProps {
   /**
-   * #### Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
+   * #### Path to the test script, relative to the config file (or the --cwd directory when set).
    *
    * ---
    *

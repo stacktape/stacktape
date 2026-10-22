@@ -143,10 +143,10 @@ describe('read-only AWS operation catalog', () => {
   test('refuses with the words both the CLI and a hosted agent give, naming what is accepted', () => {
     expect(describeAwsCallRefusal('ssm', 'GetParameter')).toEqual({
       message: 'Command `GetParameter` is not an accepted read-only operation for service `ssm`.',
-      hint: '`aws:call` sends only operations reviewed as read-only. Accepted for ssm: DescribeParameters, ListTagsForResource.'
+      hint: '`aws call` sends only operations reviewed as read-only. Accepted for ssm: DescribeParameters, ListTagsForResource.'
     });
     expect(describeAwsCallRefusal('glacier', 'ListVaults')?.message).toBe(
-      'Service `glacier` has no operations that `aws:call` is allowed to send.'
+      'Service `glacier` has no operations that `aws call` is allowed to send.'
     );
     expect(describeAwsCallRefusal('glacier', 'ListVaults')?.hint).toContain('lambda');
     expect(describeAwsCallRefusal('stepfunctions', 'DescribeExecution')).toBeNull();

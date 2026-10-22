@@ -200,7 +200,7 @@ Each tag has a `name` (1-128 characters) and a `value` (1-256 characters). When 
 
 ## Overrides
 
-The `AgentCoreCodeInterpreter` resource definition accepts a resource-level [`overrides`](/configuration/overrides-and-escape-hatches) property for modifying generated CloudFormation resources directly. Use [`stacktape info:stack`](/cli/info-stack) to find logical IDs of child resources, then target them by name in the `overrides` block. This is an escape hatch — most configurations do not need it.
+The `AgentCoreCodeInterpreter` resource definition accepts a resource-level [`overrides`](/configuration/overrides-and-escape-hatches) property for modifying generated CloudFormation resources directly. Use [`stacktape status`](/cli/info-stack) to find logical IDs of child resources, then target them by name in the `overrides` block. This is an escape hatch — most configurations do not need it.
 
 ## Referenceable parameters
 

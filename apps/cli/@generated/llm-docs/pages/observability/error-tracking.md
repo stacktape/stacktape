@@ -2,11 +2,11 @@
 
 Stacktape error tracking is a built-in error inbox available on the **Error tracking** page of the [Stacktape Console](/stacktape-console/console-overview) and in the [CLI](/cli/errors-list). It displays recorded runtime errors with each issue's status, error message, error type, occurrence count, function name, and originating project and stage. Manage issues without integrating a third-party error tracking service.
 
-Use `stacktape errors:list`, `errors:resolve`, `errors:ignore`, and `errors:reopen` to manage recorded errors from the CLI. Configure capture with `deploymentConfig.errorTracking`. Each recorded error group is called an issue.
+Use `stacktape error list`, `error resolve`, `error ignore`, and `error reopen` to manage recorded errors from the CLI. Configure capture with `deploymentConfig.errorTracking`. Each recorded error group is called an issue.
 
 ## Migrating to v4
 
-Rename `issues:list`, `issues:ignore`, `issues:resolve`, and `issues:reopen` to `errors:list`, `errors:ignore`, `errors:resolve`, and `errors:reopen` in scripts and MCP command requests. Rename `deploymentConfig.issues` to `deploymentConfig.errorTracking` in YAML and TypeScript configs. The old names are rejected; there are no aliases. Issue IDs, status values, `--issueId`, and `--issueStatus` stay the same.
+The `issues:*` commands are now `error list`, `error ignore`, `error resolve`, and `error reopen`. The old commands still work, so existing scripts and MCP command requests keep running. Rename `deploymentConfig.issues` to `deploymentConfig.errorTracking` in YAML and TypeScript configs; the old config name is rejected. Issue IDs and status values stay the same.
 
 ## When to use
 
@@ -72,7 +72,7 @@ The detector classifies each error. The Console shows the classification as a pl
 | `handler_not_found` | **Handler not found** |
 | `panic` | **Panic** |
 
-If an error type is not in this table, the Console also displays the raw `errorType` value. Use the label to recognize similar errors at a glance. The Console supports filtering by status, search text, project, and stage; the CLI [`errors:list`](/cli/errors-list) command supports filtering by project name, stage, issue status, and result limit.
+If an error type is not in this table, the Console also displays the raw `errorType` value. Use the label to recognize similar errors at a glance. The Console supports filtering by status, search text, project, and stage; the CLI [`error list`](/cli/errors-list) command supports filtering by project name, stage, issue status, and result limit.
 
 ## Issue statuses
 
@@ -84,7 +84,7 @@ Every issue has one of three statuses. The Console displays summary cards at the
 | **Resolved** | Green | Marked as fixed |
 | **Ignored** | Gray | Intentionally suppressed |
 
-The CLI has separate commands for resolving, ignoring, and reopening errors: [`errors:resolve`](/cli/errors-resolve), [`errors:ignore`](/cli/errors-ignore), and [`errors:reopen`](/cli/errors-reopen). Clicking a row in the Console navigates to the selected issue.
+The CLI has separate commands for resolving, ignoring, and reopening errors: [`error resolve`](/cli/errors-resolve), [`error ignore`](/cli/errors-ignore), and [`error reopen`](/cli/errors-reopen). Clicking a row in the Console navigates to the selected issue.
 
 ## Viewing issues in the Console
 
@@ -121,26 +121,26 @@ The table shows 20 items per page by default and uses Last seen as the default s
 
 ## Managing issues from the CLI
 
-The Stacktape CLI provides commands for working with issues. The [`errors:list`](/cli/errors-list) command initializes the Stacktape API client with your configured [API key](/stacktape-console/api-keys). In agent mode, it prints raw JSON for programmatic use in CI/CD pipelines and AI coding assistants.
+The Stacktape CLI provides commands for working with issues. The [`error list`](/cli/errors-list) command initializes the Stacktape API client with your configured [API key](/stacktape-console/api-keys). In agent mode, it prints raw JSON for programmatic use in CI/CD pipelines and AI coding assistants.
 
 ### Listing issues
 
-[`stacktape errors:list`](/cli/errors-list) displays issues as a formatted table. The default limit is 25.
+[`stacktape error list`](/cli/errors-list) displays issues as a formatted table. The default limit is 25.
 
 ```bash
-stacktape errors:list
+stacktape error list
 ```
 
 Filter by project, stage, or status:
 
 ```bash
-stacktape errors:list --projectName my-api --stage production --issueStatus OPEN
+stacktape error list --project my-api --stage production --status OPEN
 ```
 
 Set a custom limit:
 
 ```bash
-stacktape errors:list --limit 50
+stacktape error list --limit 50
 ```
 
 In agent mode (used by AI coding assistants), the command outputs the raw `listIssues` response as JSON. The table view displays ID, status, error message, error type, function name, project, stage, occurrence count, and last seen.
@@ -149,9 +149,9 @@ In agent mode (used by AI coding assistants), the command outputs the raw `listI
 
 The CLI has separate commands for changing issue status:
 
-- [`stacktape errors:resolve`](/cli/errors-resolve)
-- [`stacktape errors:ignore`](/cli/errors-ignore)
-- [`stacktape errors:reopen`](/cli/errors-reopen)
+- [`stacktape error resolve`](/cli/errors-resolve)
+- [`stacktape error ignore`](/cli/errors-ignore)
+- [`stacktape error reopen`](/cli/errors-reopen)
 
 ## Error tracking vs logs vs alarms
 

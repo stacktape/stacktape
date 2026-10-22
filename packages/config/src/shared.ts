@@ -356,7 +356,7 @@ export type StacktapeWorkloadDefinition =
  * ---
  *
  * Use dot-notation paths to override specific properties on any child resource.
- * Find resource logical IDs with `stacktape info:stack`.
+ * Find resource logical IDs with `stacktape status`.
  *
  * **Example (YAML):**
  *
@@ -520,7 +520,7 @@ export interface Hooks {
    *
    * ---
    *
-   * Only runs when `--configPath` and `--stage` are provided to the delete command.
+   * Only runs when `--config` and `--stage` are provided to the delete command.
    *
    * **Example (YAML):**
    *
@@ -581,7 +581,7 @@ export interface Hooks {
    *
    * ---
    *
-   * Only runs when `--configPath` and `--stage` are provided to the delete command.
+   * Only runs when `--config` and `--stage` are provided to the delete command.
    *
    * **Example (YAML):**
    *
@@ -1398,7 +1398,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    *
    * The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.
    *
-   * The executable is determined by `defaults:configure` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+   * The executable is determined by `stacktape defaults set` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
    *
    * **Example (YAML):**
    *
@@ -1492,7 +1492,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    *
    * A list of script files to execute sequentially. Each script runs in a separate process.
    *
-   * The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `defaults:configure` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+   * The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `stacktape defaults set` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
    *
    * **Example (YAML):**
    *
@@ -2095,7 +2095,7 @@ export interface ErrorTrackingConfig {
    *
    * When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
    * detector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack
-   * traces and occurrence counts, shown on the Error tracking page and by `stacktape errors:list`.
+   * traces and occurrence counts, shown on the Error tracking page and by `stacktape error list`.
    *
    * What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
    * the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
@@ -4351,7 +4351,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *
    * ---
    *
-   * Enables `stacktape container:session` to open an interactive shell inside the container.
+   * Enables `stacktape container shell` to open an interactive shell inside the container.
    * Adds a small SSM agent that uses minimal CPU/memory.
    *
    *

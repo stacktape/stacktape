@@ -1,6 +1,6 @@
-# secret:delete
+# secret delete
 
-The `secret:delete` command deletes a specified AWS Secrets Manager secret by name in the selected AWS region. Use it to clean up secrets that are no longer referenced in your Stacktape configuration — for example, retired API keys, rotated credentials, or secrets from deleted stages.
+The `secret delete` command deletes a specified AWS Secrets Manager secret by name in the selected AWS region. Use it to clean up secrets that are no longer referenced in your Stacktape configuration — for example, retired API keys, rotated credentials, or secrets from deleted stages.
 
 
 > **Warning:** Before deleting a secret, verify that no active Stacktape configuration references it via `$Secret('secret-name')`. If a configuration still references a deleted secret, future operations that need to resolve that secret may fail.
@@ -11,13 +11,13 @@ The `secret:delete` command deletes a specified AWS Secrets Manager secret by na
 In non-agent mode, Stacktape prompts for the secret name regardless of other flags.
 
 ```bash
-stacktape secret:delete --region eu-west-1
+stacktape secret delete --region eu-west-1
 ```
 
-In agent mode (CI pipelines or AI coding agents), pass `--secretName` explicitly — it becomes required.
+In agent mode (CI pipelines or AI coding agents), pass the secret name as an argument — it becomes required.
 
 ```bash
-stacktape secret:delete --region eu-west-1 --secretName my-api-key --agent
+stacktape secret delete my-api-key --region eu-west-1 --agent
 ```
 
 On success, the CLI reports `Secret "my-api-key" deleted.`
@@ -43,23 +43,23 @@ On success, the CLI reports `Secret "my-api-key" deleted.`
 Delete a secret interactively — you will be prompted for the name.
 
 ```bash
-stacktape secret:delete --region us-east-1
+stacktape secret delete --region us-east-1
 ```
 
 Delete a secret by name in agent mode (no prompt, JSONL output).
 
 ```bash
-stacktape secret:delete --region us-east-1 --secretName stripe-webhook-secret --agent
+stacktape secret delete stripe-webhook-secret --region us-east-1 --agent
 ```
 
 Use a specific AWS profile in agent mode.
 
 ```bash
-stacktape secret:delete --region eu-west-1 --secretName old-db-password --profile production --agent
+stacktape secret delete old-db-password --region eu-west-1 --profile production --agent
 ```
 
 ## Related commands
 
-- [`secret:set`](/cli/secret-set) — create a new secret or update an existing one in AWS Secrets Manager.
-- [`secret:get`](/cli/secret-get) — retrieve and display details about a stored secret.
+- [`secret set`](/cli/secret-set) — create a new secret or update an existing one in AWS Secrets Manager.
+- [`secret get`](/cli/secret-get) — retrieve and display details about a stored secret.
 - [`deploy`](/cli/deploy) — deploy a stack that references secrets via the `$Secret()` [directive](/configuration/directives).

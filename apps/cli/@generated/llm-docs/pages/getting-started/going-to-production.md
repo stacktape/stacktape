@@ -93,7 +93,7 @@ export default defineConfig(() => {
 ```
 
 
-Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain:add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
+Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
 
 Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
 
@@ -186,7 +186,7 @@ Before sending real traffic, run through these concrete checks:
 
 2. **Set a budget threshold.** Open the [Stacktape Console](/getting-started/using-console-ui) Budgets page and create a budget alert matching your expected monthly spend. Set alerts at 80% and 100%. Enable forecast-based alerts so you catch spend trends before they hit the threshold.
 
-3. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). If you registered the domain with [`stacktape domain:add`](/cli/domain-add), the DNS records are managed automatically. If you manage DNS externally, verify the CNAME or alias record points to the correct AWS endpoint.
+3. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). If you registered the domain with [`stacktape domain add`](/cli/domain-add), the DNS records are managed automatically. If you manage DNS externally, verify the CNAME or alias record points to the correct AWS endpoint.
 
 4. **Test a gradual deployment.** Push a small change and monitor the deployment in the [Stacktape Console](/getting-started/using-console-ui). Confirm that traffic shifts gradually according to your chosen strategy. Use [`stacktape logs`](/cli/logs) to verify the new version is handling requests correctly.
 

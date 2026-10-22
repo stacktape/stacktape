@@ -169,7 +169,7 @@ Set `allowCredentials: true` if your frontend sends cookies or `Authorization` h
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `api.example.com`) to an HTTP API Gateway. Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain:add`](/cli/domain-add) to set one up.
+Stacktape can attach your own domain (e.g., `api.example.com`) to an HTTP API Gateway. Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
 
 
 Example (TypeScript):

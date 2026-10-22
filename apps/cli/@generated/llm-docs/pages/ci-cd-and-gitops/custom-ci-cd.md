@@ -24,10 +24,10 @@ You can combine both: GitOps for staging and PR previews, custom CI for producti
 
 Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
 
-- **Explicit login step** — run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
+- **Explicit login step** — run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
 - **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
 
-If the pipeline also sets AWS credentials, for example with `aws-actions/configure-aws-credentials`, Stacktape deploys to the connected account they belong to. Pass `--awsAccount <name>` to choose the account explicitly; the AWS credentials must then belong to it. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+If the pipeline also sets AWS credentials, for example with `aws-actions/configure-aws-credentials`, Stacktape deploys to the connected account they belong to. Pass `--aws-account <name>` to choose the account explicitly; the AWS credentials must then belong to it. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
 | Provider | Where to store the secret |
 |----------|--------------------------|
@@ -42,9 +42,9 @@ If the pipeline also sets AWS credentials, for example with `aws-actions/configu
 
 ## Essential CLI flags for CI
 
-### --autoConfirmOperation
+### --yes
 
-The [`deploy`](/cli/deploy) and [`delete`](/cli/delete) commands can prompt for confirmation before modifying infrastructure. The `--autoConfirmOperation` flag skips these prompts. Always include this flag in automated pipelines — without it, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs. See the [`deploy` CLI reference](/cli/deploy) for details.
+The [`deploy`](/cli/deploy) and [`delete`](/cli/delete) commands can prompt for confirmation before modifying infrastructure. The `--yes` flag skips these prompts. Always include this flag in automated pipelines — without it, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs. See the [`deploy` CLI reference](/cli/deploy) for details.
 
 ### --stage and --region
 
@@ -53,33 +53,33 @@ CI commands should pass `--stage` and `--region` explicitly so the deployment ta
 A full deploy command in CI:
 
 ```bash
-npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 A delete command (for PR cleanup):
 
 ```bash
-npx stacktape delete --stage pr-42 --region us-east-1 --autoConfirmOperation
+npx stacktape delete --stage pr-42 --region us-east-1 --yes
 ```
 
 
 > **Info:** If your CI pipeline deploys more than one Stacktape project, make the project selection explicit — set the project name in each configuration file or pass it as a CLI argument.
 
 
-### --fullDeploy
+### --full
 
-When only code changed, `stacktape deploy` updates the changed [Lambda functions](/resources/compute/lambda-function) and container workloads directly, without CloudFormation (see [Fast deployments](/cli/deploy#fast-deployments)). The `--fullDeploy` flag deploys every change through CloudFormation instead.
+When only code changed, `stacktape deploy` updates the changed [Lambda functions](/resources/compute/lambda-function) and container workloads directly, without CloudFormation (see [Fast deployments](/cli/deploy#fast-deployments)). The `--full` flag deploys every change through CloudFormation instead.
 
 ```bash
-npx stacktape deploy --stage staging --region us-east-1 --fullDeploy --autoConfirmOperation
+npx stacktape deploy --stage staging --region us-east-1 --full --yes
 ```
 
-### --disableAutoRollback
+### --no-auto-rollback
 
-By default, failed deployments auto-rollback to the last working state. The `--disableAutoRollback` flag keeps the stack in a failed state instead, so you can inspect what went wrong. When auto-rollback is enabled and a deploy fails (outside of stack-monitoring errors, where the actual stack outcome is unknown), Stacktape removes deployment artifacts from the rolled-back attempt. See the [`deploy` CLI reference](/cli/deploy) for details.
+By default, failed deployments auto-rollback to the last working state. The `--no-auto-rollback` flag keeps the stack in a failed state instead, so you can inspect what went wrong. When auto-rollback is enabled and a deploy fails (outside of stack-monitoring errors, where the actual stack outcome is unknown), Stacktape removes deployment artifacts from the rolled-back attempt. See the [`deploy` CLI reference](/cli/deploy) for details.
 
 ```bash
-npx stacktape deploy --stage staging --region us-east-1 --disableAutoRollback --autoConfirmOperation
+npx stacktape deploy --stage staging --region us-east-1 --no-auto-rollback --yes
 ```
 
 Disabling auto-rollback is useful for debugging deployment failures. Keep auto-rollback enabled (the default) for production pipelines.
@@ -104,7 +104,7 @@ jobs:
       - name: Deploy to production
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        run: npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 Store `STACKTAPE_API_KEY` in your repository's Actions secrets. The `npx stacktape` invocation downloads and caches the CLI on first run.
@@ -137,7 +137,7 @@ jobs:
       - name: Deploy to production
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        run: npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 The `needs: test` dependency ensures the deploy only runs when tests pass.
@@ -162,7 +162,7 @@ jobs:
       - name: Deploy PR preview
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --autoConfirmOperation
+        run: npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
 ```
 
 Add a cleanup workflow that runs when the PR is closed:
@@ -183,7 +183,7 @@ jobs:
       - name: Delete PR preview
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --autoConfirmOperation
+        run: npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
 ```
 
 
@@ -215,7 +215,7 @@ deploy:
   only:
     - main
   script:
-    - npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+    - npx stacktape deploy --stage production --region us-east-1 --yes
   variables:
     STACKTAPE_API_KEY: $STACKTAPE_API_KEY
 ```
@@ -242,7 +242,7 @@ deploy-staging:
   only:
     - develop
   script:
-    - npx stacktape deploy --stage staging --region us-east-1 --autoConfirmOperation
+    - npx stacktape deploy --stage staging --region us-east-1 --yes
   variables:
     STACKTAPE_API_KEY: $STACKTAPE_API_KEY
 
@@ -252,7 +252,7 @@ deploy-production:
   only:
     - main
   script:
-    - npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+    - npx stacktape deploy --stage production --region us-east-1 --yes
   variables:
     STACKTAPE_API_KEY: $STACKTAPE_API_KEY
   when: manual
@@ -273,7 +273,7 @@ pipelines:
       - step:
           name: Deploy to production
           script:
-            - npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+            - npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 Store `STACKTAPE_API_KEY` as a repository variable in Bitbucket Pipeline settings.
@@ -292,7 +292,7 @@ jobs:
       - checkout
       - run:
           name: Deploy to production
-          command: npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+          command: npx stacktape deploy --stage production --region us-east-1 --yes
 workflows:
   deploy-on-push:
     jobs:
@@ -346,11 +346,11 @@ This is useful in production pipelines where a reviewer needs to see the infrast
 
 ### CLI hangs or throws an error waiting for input
 
-Add `--autoConfirmOperation` to your [`deploy`](/cli/deploy) or [`delete`](/cli/delete) command. Without this flag, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs.
+Add `--yes` to your [`deploy`](/cli/deploy) or [`delete`](/cli/delete) command. Without this flag, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs.
 
 ### Authentication fails
 
-Verify that you have authenticated — either by setting the `STACKTAPE_API_KEY` environment variable (case-sensitive) or by running [`stacktape login --apiKey <key>`](/cli/login) before the deploy step. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys), and rotate it if necessary.
+Verify that you have authenticated — either by setting the `STACKTAPE_API_KEY` environment variable (case-sensitive) or by running [`stacktape login --api-key <key>`](/cli/login) before the deploy step. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys), and rotate it if necessary.
 
 ### Stack name too long or resource names obfuscated
 
@@ -364,7 +364,7 @@ Stacktape deploys use CloudFormation, which serializes updates to a single stack
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
+Run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
 
 ### When should I use custom CI/CD vs GitOps?
 
@@ -376,7 +376,7 @@ The standard [`deploy`](/cli/deploy) command builds on the CI worker that invoke
 
 ### What happens when a deploy fails in CI?
 
-By default, failed deployments auto-rollback to the last working state, and Stacktape removes deployment artifacts from the rolled-back attempt (except after stack-monitoring errors, where the actual stack outcome is unknown). To debug a failure, pass `--disableAutoRollback` so the stack stays in its failed state for inspection, then fix the issue and redeploy. Keep auto-rollback enabled for production pipelines. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full options.
+By default, failed deployments auto-rollback to the last working state, and Stacktape removes deployment artifacts from the rolled-back attempt (except after stack-monitoring errors, where the actual stack outcome is unknown). To debug a failure, pass `--no-auto-rollback` so the stack stays in its failed state for inspection, then fix the issue and redeploy. Keep auto-rollback enabled for production pipelines. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full options.
 
 ### How do I deploy to multiple AWS regions from CI?
 

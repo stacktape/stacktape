@@ -40,7 +40,7 @@ The `dev` command can run the following resource types locally:
 
 ## Important flags
 
-### --resources / --skipResources
+### --resources / --skip-resources
 
 Control which resources run in dev mode. Without these flags, an interactive picker appears. Use these flags to scope a dev session to a specific workload or container compute resource — for example, run just the API service while skipping a heavy database.
 
@@ -59,7 +59,7 @@ stacktape dev --stage dev --region eu-west-1 --resources myApi,myDb
 Run everything except a heavy database:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --skipResources myHeavyDb
+stacktape dev --stage dev --region eu-west-1 --skip-resources myHeavyDb
 ```
 
 ### --watch
@@ -70,39 +70,39 @@ Enables automatic file watching. When source files change, Stacktape automatical
 stacktape dev --stage dev --region eu-west-1 --watch
 ```
 
-### --remoteResources
+### --remote-resources
 
-Databases and Redis run locally by default. Use `--remoteResources` to connect selected resources to deployed AWS resources instead. This is useful when you need to test against real data or when local emulation is insufficient.
+Databases and Redis run locally by default. Use `--remote-resources` to connect selected resources to deployed AWS resources instead. This is useful when you need to test against real data or when local emulation is insufficient.
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remoteResources myPostgres
+stacktape dev --stage dev --region eu-west-1 --remote-resources myPostgres
 ```
 
-### --freshDb
+### --fresh-db
 
 Deletes existing local database data before starting. Use this to start with a clean database state.
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --freshDb
+stacktape dev --stage dev --region eu-west-1 --fresh-db
 ```
 
-### --noTunnel
+### --no-tunnel
 
 Disables automatic tunneling for Lambda functions. Stacktape sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed. Disable this if you don't need that connectivity or if tunneling causes issues.
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --noTunnel
+stacktape dev --stage dev --region eu-west-1 --no-tunnel
 ```
 
-### --disableEmulation
+### --no-emulation
 
 Disables the automatic injection of parameters and credentials during local emulation. Use this flag when you want to run a compute resource locally before the corresponding deployed resource exists — for example, during initial development before your first deploy.
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --disableEmulation
+stacktape dev --stage dev --region eu-west-1 --no-emulation
 ```
 
-### --agent / --agentPort
+### --agent / --agent-port
 
 The `--agent` flag runs dev mode as a detached daemon and enables the agent HTTP server for programmatic control. Agent mode is intended for programmatic/LLM consumption and AI coding-agent workflows. The daemon spawns in the background and the parent process exits after confirming the agent is ready.
 
@@ -110,13 +110,13 @@ The `--agent` flag runs dev mode as a detached daemon and enables the agent HTTP
 stacktape dev --stage dev --region eu-west-1 --agent
 ```
 
-Providing `--agentPort` also enables agent mode, so `--agent` is optional when you pass a port. Use `--agentPort` to specify a custom port for the agent HTTP server:
+Providing `--agent-port` also enables agent mode, so `--agent` is optional when you pass a port. Use `--agent-port` to specify a custom port for the agent HTTP server:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --agentPort 8080
+stacktape dev --stage dev --region eu-west-1 --agent-port 8080
 ```
 
-Stop a running agent with [`dev:stop`](/cli/dev-stop).
+Stop a running agent with [`dev stop`](/cli/dev-stop).
 
 ## Interactive commands
 
@@ -146,7 +146,7 @@ stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
 Run locally but connect to a deployed database instead of emulating it:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remoteResources myDatabase
+stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
 ```
 
 Start a dev agent for AI coding assistant integration:
@@ -158,14 +158,14 @@ stacktape dev --stage dev --region eu-west-1 --agent --resources all
 Start with a fresh database (deletes existing local data):
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --freshDb
+stacktape dev --stage dev --region eu-west-1 --fresh-db
 ```
 
 ## FAQ
 
 ### Does `stacktape dev` require Docker?
 
-Dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally. You need Docker installed and running for local database emulation. If you use `--remoteResources` for all databases, Docker is not required for database emulation, though container workloads may still use it for local builds.
+Dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally. You need Docker installed and running for local database emulation. If you use `--remote-resources` for all databases, Docker is not required for database emulation, though container workloads may still use it for local builds.
 
 ### When should I use `stacktape dev` vs `stacktape deploy`?
 
@@ -173,11 +173,11 @@ Use [`stacktape dev`](/cli/dev) for iterating on code locally with fast feedback
 
 ### How can I connect to a real deployed database instead of the local one?
 
-Use `--remoteResources` with a comma-separated list of resource names (for example `--remoteResources myPostgres,myRedis`). Databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts when local emulation is insufficient or you need to test against real data.
+Use `--remote-resources` with a comma-separated list of resource names (for example `--remote-resources myPostgres,myRedis`). Databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts when local emulation is insufficient or you need to test against real data.
 
 ### What is agent mode and when should I use it?
 
-Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server for programmatic control. It uses JSONL output and disables the interactive terminal UI. Use agent mode when integrating with AI coding agents, automation tools, or any workflow that needs to control dev mode programmatically. Stop a running agent with [`dev:stop`](/cli/dev-stop).
+Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server for programmatic control. It uses JSONL output and disables the interactive terminal UI. Use agent mode when integrating with AI coding agents, automation tools, or any workflow that needs to control dev mode programmatically. Stop a running agent with [`dev stop`](/cli/dev-stop).
 
 ### Why does `stacktape dev` stop with "Free Plan Limit Reached"?
 
@@ -186,10 +186,10 @@ Dev mode deploys and updates a dev stack in your AWS account, so it follows the 
 [`stacktape deploy`](/cli/deploy#free-plan-cost-limit). When a Free organization's managed AWS costs this month are
 above $100, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
 to the Flexible plan lifts the limit immediately. Running infrastructure is not affected, and
-[`dev:stop`](/cli/dev-stop) and [`delete`](/cli/delete) keep working.
+[`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete) keep working.
 
 ## Related commands
 
-- [`dev:stop`](/cli/dev-stop) — stop a running dev agent
+- [`dev stop`](/cli/dev-stop) — stop a running dev agent
 - [`deploy`](/cli/deploy) — deploy your stack to AWS
 - [`logs`](/cli/logs) — fetch logs from deployed resources

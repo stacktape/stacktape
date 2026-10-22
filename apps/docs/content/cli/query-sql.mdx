@@ -1,88 +1,88 @@
 ---
-title: 'query:sql'
+title: 'query sql'
 order: 167
-seoTitle: 'query:sql — Run SQL Queries on Deployed Databases | Stacktape CLI'
+seoTitle: 'query sql — Run SQL Queries on Deployed Databases | Stacktape CLI'
 seoDescription: 'Execute read-only SQL queries against deployed PostgreSQL and MySQL databases from the command line. Supports bastion tunneling, structured JSON output, and automatic credential resolution.'
 pipelineStatus: 'needs-human-review'
 pipelineReviewSummary: 'reviewer-avg 8.0, hard blockers 1, advisory high 0, verifier medium 5'
 ---
 
-# query:sql
+# query sql
 
-Run read-only SQL queries against a deployed [relational database](/resources/databases/relational-database) directly from the command line. Use `query:sql` when you need to check a row, verify a migration, or inspect table structure in a deployed PostgreSQL or MySQL database without setting up a local database client.
+Run read-only SQL queries against a deployed [relational database](/resources/databases/relational-database) directly from the command line. Use `query sql` when you need to check a row, verify a migration, or inspect table structure in a deployed PostgreSQL or MySQL database without setting up a local database client.
 
 ## Usage
 
 Query a table in a deployed database:
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SELECT * FROM users LIMIT 10"
+stacktape query sql myDatabase "SELECT * FROM users LIMIT 10" --stage prod --region eu-west-1
 ```
 
 Query a database through a [bastion host](/resources/security/bastion-host):
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --bastionResource myBastion --sql "SHOW TABLES"
+stacktape query sql myDatabase "SHOW TABLES" --stage prod --region eu-west-1 --bastion-resource myBastion
 ```
 
 ## What it does
 
-The `query:sql` command connects to a deployed Stacktape `relational-database` resource, executes a read-only SQL query, and prints the results. Stacktape resolves the database connection string — including host, port, username, and password — from your deployed stack's SSM parameters automatically. You don't need to look up credentials or endpoints.
+The `query sql` command connects to a deployed Stacktape `relational-database` resource, executes a read-only SQL query, and prints the results. Stacktape resolves the database connection string — including host, port, username, and password — from your deployed stack's SSM parameters automatically. You don't need to look up credentials or endpoints.
 
 The command validates that the SQL string starts with an allowed read-only prefix before sending it to the database. Accepted prefixes are `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, and `\d` (PostgreSQL meta-commands). Any SQL that does not start with one of these prefixes is rejected.
 
-When the deployed database exposes a `readerConnectionString` SSM parameter, `query:sql` uses it. Otherwise it uses the primary `connectionString` parameter. This means read queries are automatically routed away from the writer instance when a reader endpoint is available.
+When the deployed database exposes a `readerConnectionString` SSM parameter, `query sql` uses it. Otherwise it uses the primary `connectionString` parameter. This means read queries are automatically routed away from the writer instance when a reader endpoint is available.
 
 The command passes SSL connection options to the database client automatically.
 
 <Warning>
-This command is for ad-hoc inspection, not bulk data export. Results are capped by the `--limit` flag (default: 1000 rows). For persistent database access with a local client like `psql` or DataGrip, use [`bastion:tunnel`](/cli/bastion-tunnel) instead.
+This command is for ad-hoc inspection, not bulk data export. Results are capped by the `--limit` flag (default: 1000 rows). For persistent database access with a local client like `psql` or DataGrip, use [`bastion tunnel`](/cli/bastion-tunnel) instead.
 </Warning>
 
 ## Important flags
 
-### `--sql` (required)
+### `<sql>` (required)
 
-The SQL query to execute. Wrap it in double quotes on the command line. The command accepts queries starting with `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\d`.
+The SQL query to execute, passed as the second positional argument. Wrap it in double quotes on the command line. The command accepts queries starting with `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\d`.
 
 Select specific columns:
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SELECT id, email, created_at FROM users WHERE active = true LIMIT 20"
+stacktape query sql myDatabase "SELECT id, email, created_at FROM users WHERE active = true LIMIT 20" --stage prod --region eu-west-1
 ```
 
 Inspect table structure in PostgreSQL:
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users'"
+stacktape query sql myDatabase "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users'" --stage prod --region eu-west-1
 ```
 
 List tables in MySQL:
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SHOW TABLES"
+stacktape query sql myDatabase "SHOW TABLES" --stage prod --region eu-west-1
 ```
 
-### `--resourceName` (required)
+### `<resource-name>` (required)
 
-The name of the relational database resource as defined in your Stacktape configuration. The resource must be a `relational-database` — other resource types are not supported by this command.
+The first positional argument: the name of the relational database resource as defined in your Stacktape configuration. The resource must be a `relational-database` — other resource types are not supported by this command.
 
-### `--bastionResource`
+### `--bastion-resource`
 
-Name of a [bastion host](/resources/security/bastion-host) resource to tunnel through. Use `--bastionResource` when you want `query:sql` to tunnel through a Stacktape bastion host to reach a VPC-only database. Stacktape opens an SSM port-forwarding session for the duration of the query and tears it down automatically afterward.
+Name of a [bastion host](/resources/security/bastion-host) resource to tunnel through. Use `--bastion-resource` when you want `query sql` to tunnel through a Stacktape bastion host to reach a VPC-only database. Stacktape opens an SSM port-forwarding session for the duration of the query and tears it down automatically afterward.
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --bastionResource myBastion --sql "SELECT count(*) FROM orders"
+stacktape query sql myDatabase "SELECT count(*) FROM orders" --stage prod --region eu-west-1 --bastion-resource myBastion
 ```
 
-If you need a persistent tunnel (for example, to connect a local GUI client), use [`bastion:tunnel`](/cli/bastion-tunnel) instead.
+If you need a persistent tunnel (for example, to connect a local GUI client), use [`bastion tunnel`](/cli/bastion-tunnel) instead.
 
 ### `--limit`
 
 Maximum number of rows to return. Default: **1000**. The output indicates whether results were truncated.
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SELECT * FROM events" --limit 50
+stacktape query sql myDatabase "SELECT * FROM events" --stage prod --region eu-west-1 --limit 50
 ```
 
 ### `--timeout`
@@ -90,15 +90,15 @@ stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --
 Maximum time to wait for the query to finish, in milliseconds. Default: **30000** (30 seconds). Increase this for queries against large tables or complex joins.
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SELECT * FROM large_table" --timeout 60000
+stacktape query sql myDatabase "SELECT * FROM large_table" --stage prod --region eu-west-1 --timeout 60000
 ```
 
 ### `--agent`
 
-Switches output to structured JSON for programmatic consumption. In agent mode, `query:sql` writes a JSON object containing `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. Use this when calling `query:sql` from scripts or AI coding assistants.
+Switches output to structured JSON for programmatic consumption. In agent mode, `query sql` writes a JSON object containing `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. Use this when calling `query sql` from scripts or AI coding assistants.
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --sql "SELECT * FROM users LIMIT 5" --agent
+stacktape query sql myDatabase "SELECT * FROM users LIMIT 5" --stage prod --region eu-west-1 --agent
 ```
 
 ## Examples
@@ -106,41 +106,41 @@ stacktape query:sql --stage prod --region eu-west-1 --resourceName myDatabase --
 ### Check if a migration ran
 
 ```bash
-stacktape query:sql --stage staging --region eu-west-1 --resourceName mainDb --sql "SELECT * FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5"
+stacktape query sql mainDb "SELECT * FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5" --stage staging --region eu-west-1
 ```
 
 ### Count rows in a table
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName mainDb --sql "SELECT count(*) FROM orders WHERE created_at > '2025-01-01'"
+stacktape query sql mainDb "SELECT count(*) FROM orders WHERE created_at > '2025-01-01'" --stage prod --region eu-west-1
 ```
 
 ### Describe a PostgreSQL table
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName mainDb --sql "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = 'users'"
+stacktape query sql mainDb "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = 'users'" --stage prod --region eu-west-1
 ```
 
 ### Explain a slow query
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName mainDb --sql "EXPLAIN ANALYZE SELECT * FROM orders JOIN users ON orders.user_id = users.id WHERE users.email LIKE '%@example.com'"
+stacktape query sql mainDb "EXPLAIN ANALYZE SELECT * FROM orders JOIN users ON orders.user_id = users.id WHERE users.email LIKE '%@example.com'" --stage prod --region eu-west-1
 ```
 
 ### Query through a bastion host
 
 ```bash
-stacktape query:sql --stage prod --region eu-west-1 --resourceName mainDb --bastionResource bastion --sql "SELECT * FROM products WHERE stock = 0"
+stacktape query sql mainDb "SELECT * FROM products WHERE stock = 0" --stage prod --region eu-west-1 --bastion-resource bastion
 ```
 
 ## Output
 
-In interactive mode, `query:sql` prints results as a formatted ASCII table with column headers. When no rows match, it prints "No rows returned."
+In interactive mode, `query sql` prints results as a formatted ASCII table with column headers. When no rows match, it prints "No rows returned."
 
 In agent mode (`--agent`), the output is a structured JSON object containing:
 
 - `ok` — `true` on success
-- `resource` — the `--resourceName` value
+- `resource` — the resource name argument
 - `engine` — `postgres` or `mysql`
 - `sql` — the executed query string
 - `rows` — array of row objects
@@ -154,42 +154,42 @@ In agent mode (`--agent`), the output is a structured JSON object containing:
 
 ## Related commands
 
-- [`bastion:tunnel`](/cli/bastion-tunnel) — open a persistent tunnel to a VPC resource for use with a local database client like `psql`, `mysql`, or DataGrip.
+- [`bastion tunnel`](/cli/bastion-tunnel) — open a persistent tunnel to a VPC resource for use with a local database client like `psql`, `mysql`, or DataGrip.
 - [`logs`](/cli/logs) — fetch and analyze logs from deployed resources.
-- [`query:dynamodb`](/cli/query-dynamodb) — run read-only queries against a deployed DynamoDB table.
-- [`query:redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cluster.
-- [`query:opensearch`](/cli/query-opensearch) — search and inspect a deployed OpenSearch domain.
+- [`query dynamodb`](/cli/query-dynamodb) — run read-only queries against a deployed DynamoDB table.
+- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cluster.
+- [`query opensearch`](/cli/query-opensearch) — search and inspect a deployed OpenSearch domain.
 
 ## FAQ
 
-### What SQL statements does `query:sql` accept?
+### What SQL statements does `query sql` accept?
 
 The command accepts SQL whose trimmed text starts with `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\d` (PostgreSQL meta-commands). Any SQL that does not start with one of these prefixes is rejected before it reaches the database. This is intended for read-only inspection of deployed databases from the CLI.
 
 ### What database types does it work with?
 
-The `query:sql` command works with deployed Stacktape `relational-database` resources whose connection string uses the `postgresql://` or `mysql://` protocol. The engine is detected automatically from the connection string, and the appropriate database client driver is used.
+The `query sql` command works with deployed Stacktape `relational-database` resources whose connection string uses the `postgresql://` or `mysql://` protocol. The engine is detected automatically from the connection string, and the appropriate database client driver is used.
 
 ### Do I need to know the database password?
 
 No. Stacktape resolves the full connection string — including host, port, username, and password — from the deployed stack's SSM parameters at query time. You only need the resource name and stage. The connection uses SSL automatically.
 
-### When should I use `query:sql` vs `bastion:tunnel`?
+### When should I use `query sql` vs `bastion tunnel`?
 
-Use `query:sql` for quick, one-off inspections: checking a row, verifying a migration, counting records. Use [`bastion:tunnel`](/cli/bastion-tunnel) when you need a persistent connection for a local database client (psql, DataGrip, TablePlus) or need to run write operations. The `query:sql` command is read-only by design.
+Use `query sql` for quick, one-off inspections: checking a row, verifying a migration, counting records. Use [`bastion tunnel`](/cli/bastion-tunnel) when you need a persistent connection for a local database client (psql, DataGrip, TablePlus) or need to run write operations. The `query sql` command is read-only by design.
 
 ### Can I query a database that is only reachable inside a VPC?
 
-Yes, if your stack includes a [bastion host](/resources/security/bastion-host). Pass `--bastionResource` and Stacktape opens an SSM port-forwarding session for the duration of the query, then tears it down automatically afterward. Without a bastion resource in the stack, `query:sql` cannot reach a VPC-only database.
+Yes, if your stack includes a [bastion host](/resources/security/bastion-host). Pass `--bastion-resource` and Stacktape opens an SSM port-forwarding session for the duration of the query, then tears it down automatically afterward. Without a bastion resource in the stack, `query sql` cannot reach a VPC-only database.
 
 ### What happens if my query returns too many rows?
 
-Results are capped by the `--limit` flag, which defaults to 1000 rows. The output includes a `truncated` indicator when the limit is reached. Increase `--limit` if you need more rows, but keep in mind that large result sets are printed to the terminal. For bulk data exports, use [`bastion:tunnel`](/cli/bastion-tunnel) with a dedicated database client.
+Results are capped by the `--limit` flag, which defaults to 1000 rows. The output includes a `truncated` indicator when the limit is reached. Increase `--limit` if you need more rows, but keep in mind that large result sets are printed to the terminal. For bulk data exports, use [`bastion tunnel`](/cli/bastion-tunnel) with a dedicated database client.
 
-### Does `query:sql` use the reader or writer endpoint?
+### Does `query sql` use the reader or writer endpoint?
 
-When the deployed database exposes a `readerConnectionString` SSM parameter, `query:sql` uses it. Otherwise it uses the primary `connectionString` parameter. This routes read queries away from the writer instance when a reader endpoint is available.
+When the deployed database exposes a `readerConnectionString` SSM parameter, `query sql` uses it. Otherwise it uses the primary `connectionString` parameter. This routes read queries away from the writer instance when a reader endpoint is available.
 
 ### How do I get machine-readable output for scripts or AI agents?
 
-Pass `--agent` to switch from the formatted ASCII table to a structured JSON object containing `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. This is the format to parse when calling `query:sql` from scripts or AI coding assistants.
+Pass `--agent` to switch from the formatted ASCII table to a structured JSON object containing `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. This is the format to parse when calling `query sql` from scripts or AI coding assistants.

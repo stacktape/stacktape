@@ -8,10 +8,10 @@ The `stacktape deploy` command deploys your stack to AWS. If the stack does not 
 stacktape deploy --stage <stage> --region <region>
 ```
 
-Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--configPath`.
+Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 ## What happens during deploy
@@ -40,59 +40,59 @@ A deployment uses CloudFormation when:
 - stack settings changed, such as tags or termination protection,
 - a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
 - the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
-- you pass `--fullDeploy`.
+- you pass `--full`.
 
-A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--fullDeploy`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
 ## Common flags
 
-### `--fullDeploy`
+### `--full`
 
 Deploys every change through CloudFormation, even when only code changed.
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --fullDeploy
+stacktape deploy --stage production --region eu-west-1 --full
 ```
 
-### `--autoConfirmOperation`
+### `--yes`
 
-Skips the interactive confirmation prompt before deploying. Use `--autoConfirmOperation` in CI/CD pipelines or other non-interactive environments to avoid blocking on confirmation. The `--agent` flag also confirms operations automatically (along with switching to JSONL output).
+Skips the interactive confirmation prompt before deploying. Use `--yes` in CI/CD pipelines or other non-interactive environments to avoid blocking on confirmation. The `--agent` flag also confirms operations automatically (along with switching to JSONL output).
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+stacktape deploy --stage production --region eu-west-1 --yes
 ```
 
-### `--disableAutoRollback`
+### `--no-auto-rollback`
 
 By default, if a deployment fails, CloudFormation automatically rolls the stack back to its last known good state. Without auto-rollback, a failed deployment can leave the stack in `UPDATE_FAILED` state. This is useful for debugging — you can inspect the partial state, fix the issue, and redeploy without waiting for a rollback first.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --disableAutoRollback
+stacktape deploy --stage dev --region eu-west-1 --no-auto-rollback
 ```
 
-After fixing the issue, redeploy normally. To roll back to a previous deployment version after disabling auto-rollback, use [`rollback`](/cli/rollback). To recover a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`cf:rollback`](/cli/cf-rollback).
+After fixing the issue, redeploy normally. To roll back to a previous deployment version after disabling auto-rollback, use [`rollback`](/cli/rollback). To recover a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`stack recover`](/cli/cf-rollback).
 
-### `--noCache`
+### `--no-cache`
 
 Forces a fresh build of all compute resources, ignoring cached artifacts from previous deploys. Use this when you suspect a stale cache is causing issues.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --noCache
+stacktape deploy --stage dev --region eu-west-1 --no-cache
 ```
 
-### `--configPath`
+### `--config`
 
 Points to a Stacktape configuration file when it is not in the default location (current directory).
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
-### `--disableLayerOptimization`
+### `--no-layer-optimization`
 
 By default, Stacktape extracts shared code into Lambda layers to reduce per-function deployment size. Disable this to bundle all code directly into each Lambda function — useful if you need to inspect the full function package or if layer extraction causes issues.
 
-### `--showSensitiveValues`
+### `--show-secrets`
 
 Includes sensitive values in deploy output. Handle with care.
 
@@ -138,25 +138,25 @@ stacktape deploy --stage production --region us-east-1
 The deploy goes to the connected AWS account that `my-aws-profile` belongs to. It fails if that account is not connected to your organization.
 
 ```bash
-stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
+stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --project my-app
 ```
 
 ### Deploy to a named connected account
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --awsAccount production
+stacktape deploy --stage production --region eu-west-1 --aws-account production
 ```
 
 ### Deploy everything through CloudFormation
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --fullDeploy
+stacktape deploy --stage production --region eu-west-1 --full
 ```
 
 ### Non-interactive deploy in CI/CD
 
 ```bash
-stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 ### Preview changes before deploying
@@ -196,6 +196,6 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 |---|---|
 | [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
-| [`cf:rollback`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
+| [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
 
 For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.

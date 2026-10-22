@@ -1,22 +1,22 @@
-# bastion:tunnel
+# bastion tunnel
 
-The `bastion:tunnel` command creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
+The `bastion tunnel` command creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
 
 ## Usage
 
 ```bash
-stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myDatabase
+stacktape bastion tunnel myDatabase --stage prod --region eu-west-1
 ```
 
 The command opens one or more local ports, prints the local-to-remote mapping, and keeps running until you press `Ctrl+C`. Your stack must contain a [bastion](/resources/security/bastion-host) resource.
 
 ## Important flags
 
-**`--resourceName`** (required) — the name of the target resource you want to reach through the tunnel, as defined in your Stacktape configuration.
+**`<resource-name>`** (required, positional argument) — the name of the target resource you want to reach through the tunnel, as defined in your Stacktape configuration.
 
-**`--bastionResource`** — selects which bastion resource to tunnel through. Use this when your stack has multiple bastion hosts.
+**`--bastion-resource`** — selects which bastion resource to tunnel through. Use this when your stack has multiple bastion hosts.
 
-**`--localTunnelingPort`** — sets the local port passed to the tunneling helper. If not specified, Stacktape automatically selects an available port. If the target resolves to multiple tunnel targets, Stacktape opens one port-forwarding session per target and prints the actual local ports.
+**`--local-tunneling-port`** — sets the local port passed to the tunneling helper. If not specified, Stacktape automatically selects an available port. If the target resolves to multiple tunnel targets, Stacktape opens one port-forwarding session per target and prints the actual local ports.
 
 ## Flags reference
 
@@ -60,7 +60,7 @@ If you target a resource type not listed above, Stacktape fails the command with
 Connect a local database GUI (pgAdmin, DataGrip, DBeaver) to a VPC-only PostgreSQL or MySQL database.
 
 ```bash
-stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myDatabase
+stacktape bastion tunnel myDatabase --stage prod --region eu-west-1
 ```
 
 The output prints each local-to-remote mapping. When tunnel metadata includes an additional string, Stacktape prints it with the remote host and port replaced by the local tunnel address.
@@ -70,7 +70,7 @@ The output prints each local-to-remote mapping. When tunnel metadata includes an
 Pin the local port so bookmarked database connections stay stable across sessions.
 
 ```bash
-stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myDatabase --localTunnelingPort 5433
+stacktape bastion tunnel myDatabase --stage prod --region eu-west-1 --local-tunneling-port 5433
 ```
 
 Stacktape starts one port-forwarding session for each resolved target and prints the local port for each tunnel.
@@ -80,7 +80,7 @@ Stacktape starts one port-forwarding session for each resolved target and prints
 Access a VPC-only [Redis cluster](/resources/databases/redis) from a local `redis-cli` or Redis GUI.
 
 ```bash
-stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myRedis
+stacktape bastion tunnel myRedis --stage prod --region eu-west-1
 ```
 
 ### Tunnel to a private service
@@ -88,26 +88,26 @@ stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myRedis
 Reach a [private service](/resources/compute/private-service) through its load balancer.
 
 ```bash
-stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myPrivateApi
+stacktape bastion tunnel myPrivateApi --stage prod --region eu-west-1
 ```
 
 ### Specify which bastion to use
 
-When a stack has multiple bastion hosts, pass the bastion name explicitly with `--bastionResource`.
+When a stack has multiple bastion hosts, pass the bastion name explicitly with `--bastion-resource`.
 
 ```bash
-stacktape bastion:tunnel --stage prod --region eu-west-1 --resourceName myDatabase --bastionResource devBastion
+stacktape bastion tunnel myDatabase --stage prod --region eu-west-1 --bastion-resource devBastion
 ```
 
 ## How tunneling works
 
-When you run `bastion:tunnel`, Stacktape performs the following steps:
+When you run `bastion tunnel`, Stacktape performs the following steps:
 
 1. Initializes services for working with the deployed stack.
-2. Looks up the target resource by `--resourceName` in the deployed stack. If the resource does not exist, the command fails with an error.
+2. Looks up the target resource by name in the deployed stack. If the resource does not exist, the command fails with an error.
 3. Validates that the target is a supported resource type. For `private-service`, it also checks that the resource has a nested load balancer.
 4. Resolves the tunnel targets for the resource (hosts, ports, and optional connection string metadata) using the target resource name and the bastion resource name.
-5. Passes `--localTunnelingPort` as the starting port to the port-forwarding session helper, which opens one SSM session per resolved target.
+5. Passes `--local-tunneling-port` as the starting port to the port-forwarding session helper, which opens one SSM session per resolved target.
 6. Prints the local-to-remote mappings, including substituted connection strings when available.
 7. Registers cleanup hooks to close all tunnel sessions on exit.
 8. Keeps the process alive until you press `Ctrl+C`.
@@ -118,13 +118,13 @@ When you run `bastion:tunnel`, Stacktape performs the following steps:
 
 ## FAQ
 
-### Do I need SSH keys to use bastion:tunnel?
+### Do I need SSH keys to use bastion tunnel?
 
-No. The `bastion:tunnel` command uses AWS SSM Session Manager for port forwarding, not SSH, so there are no SSH keys to manage. Stacktape supplies the Session Manager plugin the tunnel needs (see [How tunneling works](#how-tunneling-works)), and your stack must include a [bastion](/resources/security/bastion-host) resource.
+No. The `bastion tunnel` command uses AWS SSM Session Manager for port forwarding, not SSH, so there are no SSH keys to manage. Stacktape supplies the Session Manager plugin the tunnel needs (see [How tunneling works](#how-tunneling-works)), and your stack must include a [bastion](/resources/security/bastion-host) resource.
 
 ### How do I connect a database GUI through the tunnel?
 
-Run `bastion:tunnel` and note the local address printed in the output (e.g. `127.0.0.1:5433`). In your database GUI, set the host to `127.0.0.1` and the port to the printed local port. Use the same database credentials you normally use for the deployed resource; `bastion:tunnel` only changes the host and port to the printed local address.
+Run `bastion tunnel` and note the local address printed in the output (e.g. `127.0.0.1:5433`). In your database GUI, set the host to `127.0.0.1` and the port to the printed local port. Use the same database credentials you normally use for the deployed resource; `bastion tunnel` only changes the host and port to the printed local address.
 
 ### Why does my private service tunnel fail?
 
@@ -132,7 +132,7 @@ Tunneling to a [private service](/resources/compute/private-service) requires th
 
 ### Can I run multiple tunnels at the same time?
 
-Yes. Each `bastion:tunnel` invocation keeps running while its port-forwarding sessions are open, so run another invocation in a separate terminal for a second tunnel. Pass a different `--localTunnelingPort` to each one to avoid local port collisions.
+Yes. Each `bastion tunnel` invocation keeps running while its port-forwarding sessions are open, so run another invocation in a separate terminal for a second tunnel. Pass a different `--local-tunneling-port` to each one to avoid local port collisions.
 
 ### Can I tunnel to a publicly accessible database?
 
@@ -140,6 +140,6 @@ You can, but there is no reason to. If a database has a public endpoint, connect
 
 ## Related commands
 
-- [`bastion:session`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
-- [`query:sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastionResource` for VPC-only databases.
-- [`query:redis`](/cli/query-redis) — query a deployed Redis cluster. Supports `--bastionResource` for VPC-only clusters.
+- [`bastion shell`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
+- [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastion-resource` for VPC-only databases.
+- [`query redis`](/cli/query-redis) — query a deployed Redis cluster. Supports `--bastion-resource` for VPC-only clusters.

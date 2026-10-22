@@ -16,7 +16,7 @@ type ContainerWorkloadProps = {
   connectTo?: Array<string>;
   /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */
   deployment?: ContainerWorkloadDeploymentConfig;
-  /** Enable `stacktape container:session` for interactive shell access to running containers. */
+  /** Enable `stacktape container shell` for interactive shell access to running containers. */
   enableRemoteSessions?: boolean;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
@@ -300,7 +300,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `boolean`
 
-Enable `stacktape container:session` for interactive shell access to running containers.
+Enable `stacktape container shell` for interactive shell access to running containers.
 
 ### Example 1 (yaml)
 

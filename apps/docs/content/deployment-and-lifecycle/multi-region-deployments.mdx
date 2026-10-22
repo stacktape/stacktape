@@ -189,13 +189,13 @@ Other guardrail types (`stage-restriction`, `command-restriction`, `resource-typ
 Each region's stack is monitored independently. Use [`stacktape logs`](/cli/logs) with the appropriate `--region` flag to view logs for a specific region:
 
 ```bash
-stacktape logs --stage production --region eu-west-1 --resourceName api
+stacktape logs api --stage production --region eu-west-1
 ```
 
 For the secondary region:
 
 ```bash
-stacktape logs --stage production --region us-east-1 --resourceName api
+stacktape logs api --stage production --region us-east-1
 ```
 
 Since each region runs its own CloudFormation stack, logs, alarms, and metrics are scoped to that region. See [Observability](/observability/overview) for monitoring and alerting options.

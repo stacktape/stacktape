@@ -248,7 +248,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    */
   deployment?: ContainerWorkloadDeploymentConfig;
   /**
-   * #### Enable `stacktape container:session` for interactive shell access to running containers.
+   * #### Enable `stacktape container shell` for interactive shell access to running containers.
    *
    * ---
    *

@@ -78,7 +78,7 @@ Rates vary by region and change over time. Use the [AWS Pricing Calculator](http
 
 The runner stores package-manager, source, and build caches on its persistent volume. This avoids downloading and rebuilding unchanged inputs on every deployment. Stacktape isolates individual operation work directories while reusing the caches that make repeated jobs faster.
 
-Use `--noCache` for a CLI deployment when you need Stacktape to rebuild artifacts without its normal build cache. That flag does not delete the runner or all operating-system-level caches.
+Use `--no-cache` for a CLI deployment when you need Stacktape to rebuild artifacts without its normal build cache. That flag does not delete the runner or all operating-system-level caches.
 
 ## FAQ
 

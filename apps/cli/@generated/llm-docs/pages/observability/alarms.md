@@ -285,7 +285,7 @@ The `includeInHistory` property controls whether alarm state changes should appe
 
 The Console no longer creates or edits alarm rules. Existing rules appear under **Legacy alarm rules** on the Alarms page. They keep applying to matching deployments until the stack defines its alarms in configuration.
 
-Run `stacktape alarms:export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments), and deploy each affected stage. Verify the resulting alarms before deleting the legacy rule in the Console.
+Run `stacktape alarm export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments), and deploy each affected stage. Verify the resulting alarms before deleting the legacy rule in the Console.
 
 `disabledGlobalAlarms` excludes named legacy rules from a resource while you migrate. For new alarms, edit the resource's `alarms` list directly.
 
@@ -293,10 +293,10 @@ Run `stacktape alarms:export` to print those rules as config entries, including 
 
 ### CLI
 
-Use [`stacktape alarms`](/cli/alarms) to inspect alarms from the CLI. See the [CLI reference](/cli/alarms) for flags and output details.
+Use [`stacktape alarm list`](/cli/alarms) to inspect alarms from the CLI. See the [CLI reference](/cli/alarms) for flags and output details.
 
 ```bash
-stacktape alarms --stage production --region eu-west-1
+stacktape alarm list --stage production --region eu-west-1
 ```
 
 
@@ -354,7 +354,7 @@ Custom application-level metrics emitted via the CloudWatch SDK are not directly
 
 ### How do I test that my alarms work?
 
-Deploy a stage with alarms configured and use [`stacktape alarms`](/cli/alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
+Deploy a stage with alarms configured and use [`stacktape alarm list`](/cli/alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
 
 ### When should I use alarms vs error tracking?
 

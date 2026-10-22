@@ -17,10 +17,10 @@ stacktape package --stage dev --region eu-west-1
 
 The command loads your Stacktape configuration, initializes packaging, and packages all compute resources for the target stack. A valid Stacktape configuration file is required — by default Stacktape looks for one in the current directory.
 
-To use a configuration file in a different location, pass `--configPath`.
+To use a configuration file in a different location, pass `--config`.
 
 ```bash
-stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 <Info>
@@ -40,7 +40,7 @@ stacktape package --stage staging --region us-east-1
 Package with debug logging to see detailed build output:
 
 ```bash
-stacktape package --stage dev --region eu-west-1 --logLevel debug
+stacktape package --stage dev --region eu-west-1 --debug
 ```
 
 Package using a specific AWS profile:
@@ -52,7 +52,7 @@ stacktape package --stage prod --region eu-west-1 --profile my-aws-profile
 Package using a configuration file in a subdirectory:
 
 ```bash
-stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 ## Command reference
@@ -63,7 +63,7 @@ stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.
 
 - [`deploy`](/cli/deploy) — creates or updates your stack on AWS. Use `deploy` when you want to deploy; `package` runs the packaging step independently.
 - [`synth`](/cli/synth) — compiles your configuration into a CloudFormation template without packaging compute resources. Use `synth` when you only need to inspect the infrastructure template.
-- [`validate`](/cli/validate) — validates your configuration and optionally includes workload packaging checks with `--withPackage`.
+- [`validate`](/cli/validate) — validates your configuration and optionally includes workload packaging checks with `--with-package`.
 - [`diff`](/cli/diff) — previews what would change in your stack if you deployed. Useful alongside `package` for a full pre-deploy review.
 
 ## FAQ
@@ -72,9 +72,9 @@ stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.
 
 Use `package` when you want to verify that your compute resources package correctly before committing to a deployment — for example, catching build errors, confirming dependencies resolve, or validating that container images build successfully. In normal workflows, [`deploy`](/cli/deploy) handles packaging as part of its pipeline, so `package` is primarily a pre-deploy verification tool.
 
-### How is `package` different from `validate --withPackage`?
+### How is `package` different from `validate --with-package`?
 
-[`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--withPackage` also validates workload packaging. Use `validate --withPackage` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
+[`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--with-package` also validates workload packaging. Use `validate --with-package` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
 
 ### Does `package` use caching?
 
@@ -86,7 +86,7 @@ Only when your configuration reads something from AWS. `package` builds on your 
 
 ### Can I package only specific workloads?
 
-By default, the `package` command packages all compute resources in your configuration. To target a subset, pass `--onlyWorkloads` with a comma-separated list of workload names (for example, `--onlyWorkloads myFunction,myContainer`). Other workloads are skipped.
+By default, the `package` command packages all compute resources in your configuration. To target a subset, pass `--only-workloads` with a comma-separated list of workload names (for example, `--only-workloads myFunction,myContainer`). Other workloads are skipped.
 
 ### What is the difference between `package` and `synth`?
 

@@ -37,7 +37,7 @@ For most Lambda-based projects, Upstash Redis is the better starting point. Swit
 
 Upstash Redis requires `providerConfig.upstash` in your Stacktape config. This block supplies your Upstash account credentials so Stacktape can provision and manage the database on your behalf. See the [basic example](#basic-example) below for the shape of the block.
 
-Use the [`$Secret()` directive](/configuration/directives) to reference sensitive credential values instead of hard-coding them in the config file. Create secrets with [`stacktape secret:set`](/cli/secret-set) before deploying.
+Use the [`$Secret()` directive](/configuration/directives) to reference sensitive credential values instead of hard-coding them in the config file. Create secrets with [`stacktape secret set`](/cli/secret-set) before deploying.
 
 
 > **Warning:** Every stack that uses an `upstash-redis` resource must include `providerConfig.upstash`. If you have multiple Upstash Redis resources in the same stack, they all share the same provider credentials — you only configure `providerConfig.upstash` once.

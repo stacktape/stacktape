@@ -32,19 +32,19 @@ Agent mode is designed for workflows where an AI coding assistant drives the edi
 Add the `--agent` flag to the [`stacktape dev`](/cli/dev) command to start the HTTP API server alongside your workloads.
 
 ```bash
-stacktape dev --agent --agentPort 9900 --stage dev --region eu-west-1
+stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 ```
 
 | Flag            | Description                                                                              |
 | --------------- | ---------------------------------------------------------------------------------------- |
 | `--agent`       | Enables the agent HTTP API server alongside dev mode                                     |
-| `--agentPort`   | Port for the agent HTTP server                                                           |
+| `--agent-port`   | Port for the agent HTTP server                                                           |
 | `--stage`       | Stage used for dev mode and the `.stacktape/dev-data/{stage}/` directory                 |
 | `--region`      | AWS region used by dev mode and as the default for `/aws/sdk` when `region` is omitted   |
 | `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
-| `--freshDb`     | Reset local database data on startup                                                     |
+| `--fresh-db`     | Reset local database data on startup                                                     |
 
-Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--freshDb` to wipe it for a clean slate.
+Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--fresh-db` to wipe it for a clean slate.
 
 <Warning title="Keep the agent port private">
 The agent HTTP API has no application-level authentication and the server does not explicitly restrict its listener to the loopback interface. Do not expose the port through a public interface, port forward, tunnel, or permissive container/network configuration. Anyone who can reach it may be able to rebuild workloads, query local data, stop the session, or call AWS APIs with the dev agent's credentials.
@@ -357,7 +357,7 @@ curl -X POST http://localhost:9900/opensearch/searchDomain/search \
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws:call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
 
 ```bash
 curl -X POST http://localhost:9900/aws/sdk \
@@ -409,7 +409,7 @@ The core value of agent mode is the **automated feedback loop**: an AI agent wri
 An AI coding assistant building a notes API would follow this sequence:
 
 1. Write `stacktape.ts` with a Lambda function, DynamoDB table, and HTTP API Gateway trigger
-2. Start agent mode: `stacktape dev --agent --agentPort 9900 --stage dev --region eu-west-1`
+2. Start agent mode: `stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1`
 3. Poll `GET /status` until `phase` is `"ready"` and `ready` is `true`
 4. Write the handler code in `src/handler.ts`
 5. Call `POST /rebuild/api` to pick up the new code
@@ -501,7 +501,7 @@ Agent mode exposes typed HTTP endpoints for five local resource types started by
 
 ### Is my data persisted between agent mode sessions?
 
-Yes. The startup message confirms local database data is stored in `.stacktape/dev-data/{stage}/` and survives restarts. Use the `--freshDb` flag when starting dev mode to reset all local databases to a clean state.
+Yes. The startup message confirms local database data is stored in `.stacktape/dev-data/{stage}/` and survives restarts. Use the `--fresh-db` flag when starting dev mode to reset all local databases to a clean state.
 
 ### Are destructive database operations safe during AI sessions?
 

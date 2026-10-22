@@ -1,19 +1,19 @@
-# org:delete
+# org delete
 
-The `stacktape org:delete` command removes your access to a Stacktape organization. Use it when you need to permanently leave an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. In interactive mode you select the target organization and confirm; in agent mode, pass `--organizationId` directly.
+The `stacktape org delete` command removes your access to a Stacktape organization. Use it when you need to permanently leave an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. In interactive mode you select the target organization and confirm; in agent mode, pass the organization ID as an argument (`org delete <organization-id>`).
 
 ## Usage
 
-Run `org:delete` without flags for the interactive flow, or pass `--agent` and `--organizationId` for non-interactive use in CI and agent workflows.
+Run `org delete` without flags for the interactive flow, or pass `--agent` and the organization ID for non-interactive use in CI and agent workflows.
 
 ```bash
-stacktape org:delete
+stacktape org delete
 ```
 
-In interactive mode, you select from a list of your organizations and confirm removing your access. In agent mode, pass `--organizationId` directly.
+In interactive mode, you select from a list of your organizations and confirm removing your access. In agent mode, pass the organization ID as an argument (`org delete <organization-id>`).
 
 ```bash
-stacktape org:delete --agent --organizationId "org_abc123"
+stacktape org delete "org_abc123" --agent
 ```
 
 ## Prerequisites
@@ -32,7 +32,7 @@ If any of these conditions are not met, the operation will fail.
 
 ## Flags reference
 
-The `org:delete` command accepts the following flags. None are required in interactive mode; agent mode requires `--organizationId`.
+The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID.
 
 
 ## CLI Options: `stacktape org delete`
@@ -47,26 +47,26 @@ The `org:delete` command accepts the following flags. None are required in inter
 
 ## Examples
 
-List your organizations first, then remove access to one by ID. Without `--agent`, passing `--organizationId` skips the organization picker but still asks for confirmation.
+List your organizations first, then remove access to one by ID. Without `--agent`, passing the organization ID skips the organization picker but still asks for confirmation.
 
 ```bash
-stacktape org:list
+stacktape org list
 ```
 
 ```bash
-stacktape org:delete --organizationId "org_abc123"
+stacktape org delete "org_abc123"
 ```
 
 Non-interactive removal in CI or agent workflows:
 
 ```bash
-stacktape org:delete --agent --organizationId "org_abc123"
+stacktape org delete "org_abc123" --agent
 ```
 
 ## Related commands
 
 Other organization management commands and the whoami command for verifying your current context.
 
-- [`org:create`](/cli/org-create) — create a new organization
-- [`org:list`](/cli/org-list) — list all organizations accessible to your user
-- [`info:whoami`](/cli/info-whoami) — verify your current user, organization, and access
+- [`org create`](/cli/org-create) — create a new organization
+- [`org list`](/cli/org-list) — list all organizations accessible to your user
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and access

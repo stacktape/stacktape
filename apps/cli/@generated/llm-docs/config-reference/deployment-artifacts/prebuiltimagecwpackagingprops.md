@@ -182,7 +182,7 @@ export default defineConfig(() => {
 The ARN of a secret containing credentials for a private container registry.
 
 The secret must be a JSON object with `username` and `password` keys.
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.
 
 ### Example 1 (yaml)
 

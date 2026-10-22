@@ -269,7 +269,7 @@ export default async (event: { tableName: string; region: string }) => {
 
 ## Manual execution
 
-Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke a configured deployment script on demand without a full deploy. Deploy first when you need Stacktape to apply resource, packaging, permission, or environment changes. See the [CLI reference](/cli/deployment-script-run) for available flags and options.
+Use [`stacktape deployment-script run`](/cli/deployment-script-run) to invoke a configured deployment script on demand without a full deploy. Deploy first when you need Stacktape to apply resource, packaging, permission, or environment changes. See the [CLI reference](/cli/deployment-script-run) for available flags and options.
 
 This is useful for re-running migrations after a hotfix, re-seeding data, or testing a script before a full deploy.
 
@@ -285,7 +285,7 @@ Stack deletion continues. This is by design — a broken cleanup script should n
 
 ### Can I re-run a deployment script without a full deploy?
 
-Yes. Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke a configured script on demand — useful for re-running migrations after a hotfix or re-seeding data. Run a full [`stacktape deploy`](/cli/deploy) first when you've changed the script's resources, packaging, permissions, or environment, since `deployment-script:run` invokes the already-deployed version.
+Yes. Use [`stacktape deployment-script run`](/cli/deployment-script-run) to invoke a configured script on demand — useful for re-running migrations after a hotfix or re-seeding data. Run a full [`stacktape deploy`](/cli/deploy) first when you've changed the script's resources, packaging, permissions, or environment, since `deployment-script run` invokes the already-deployed version.
 
 ### Can a deployment script access my database?
 

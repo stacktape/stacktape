@@ -37,7 +37,7 @@ An API Gateway custom domain cannot contain both WebSocket and HTTP/REST API map
 
 ## Prerequisites
 
-The custom domain must resolve through a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it. Use the [`stacktape domain:add`](/cli/domain-add) command to create the hosted zone and retrieve the nameservers to configure at your registrar.
+The custom domain must resolve through a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it. Use the [`stacktape domain add`](/cli/domain-add) command to create the hosted zone and retrieve the nameservers to configure at your registrar.
 
 In typical DNS setups, one hosted zone for `example.com` can contain records for subdomains such as `api.example.com`, `app.example.com`, and `staging.example.com`. Route53 hosted zones have a small monthly cost per zone, and ACM certificates provisioned by Stacktape are free.
 
@@ -184,7 +184,7 @@ Custom domains attach directly to [HTTP API Gateways](/resources/networking/http
 
 ### Can I use a domain registered outside AWS?
 
-Yes. You don't need to transfer your domain registration to AWS. Keep the domain at any registrar (GoDaddy, Namecheap, Google Domains, etc.), then use [`stacktape domain:add`](/cli/domain-add) to create the Route53 hosted zone and update your registrar's nameservers to point to it. Your registrar handles registration; Route53 handles DNS resolution. One hosted zone for `example.com` covers subdomains like `api.example.com` and `app.example.com`.
+Yes. You don't need to transfer your domain registration to AWS. Keep the domain at any registrar (GoDaddy, Namecheap, Google Domains, etc.), then use [`stacktape domain add`](/cli/domain-add) to create the Route53 hosted zone and update your registrar's nameservers to point to it. Your registrar handles registration; Route53 handles DNS resolution. One hosted zone for `example.com` covers subdomains like `api.example.com` and `app.example.com`.
 
 ### Does Stacktape handle TLS certificate renewal?
 

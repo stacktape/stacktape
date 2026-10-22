@@ -11,10 +11,10 @@ describe('stackCommand', () => {
     };
 
     expect(stackCommand('deploy', target)).toBe(
-      'stacktape deploy --configPath stacktape.yml --projectName orders-api --stage dev --region eu-west-1'
+      'stacktape deploy --config stacktape.yml --project orders-api --stage dev --region eu-west-1'
     );
     expect(stackCommand('delete', target)).toBe(
-      'stacktape delete --configPath stacktape.yml --projectName orders-api --stage dev --region eu-west-1'
+      'stacktape delete --config stacktape.yml --project orders-api --stage dev --region eu-west-1'
     );
   });
 
@@ -26,12 +26,12 @@ describe('stackCommand', () => {
         stage: 'dev',
         region: 'eu-west-1'
       })
-    ).toContain('--configPath "generated config/stacktape.yml"');
+    ).toContain('--config "generated config/stacktape.yml"');
   });
 
   it('names the AWS account the wizard was started with, so a delete cannot reach another account', () => {
     expect(
-      stackCommand('cf:rollback', {
+      stackCommand('stack recover', {
         configPath: 'stacktape.yml',
         projectName: 'orders-api',
         stage: 'dev',
@@ -39,7 +39,7 @@ describe('stackCommand', () => {
         awsAccount: 'development'
       })
     ).toBe(
-      'stacktape cf:rollback --configPath stacktape.yml --projectName orders-api --stage dev --region eu-west-1 --awsAccount development'
+      'stacktape stack recover --config stacktape.yml --project orders-api --stage dev --region eu-west-1 --aws-account development'
     );
   });
 });

@@ -425,7 +425,7 @@ const verify = async () => {
     );
     for (const [route, expected] of [
       ['/cli/aws-profile-update', '--log-level'],
-      ['/getting-started/starter-projects', 'stacktape init --starterId'],
+      ['/getting-started/starter-projects', 'stacktape init --starter-id'],
       ['/config-reference/alarms', 'notificationChannels']
     ]) {
       const rendered = await call('stacktape_docs', { action: 'get', route, includeFullPage: true });

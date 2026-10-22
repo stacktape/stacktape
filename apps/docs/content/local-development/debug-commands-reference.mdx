@@ -7,7 +7,7 @@ seoDescription: 'Reference for Stacktape debug CLI commands: view logs and metri
 
 # Debug Commands Reference
 
-Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. This page documents `logs` and `metrics` in depth and covers the essentials of each remaining command with links to dedicated CLI reference pages. The `container:exec` command runs a one-shot command inside a running container and returns its output, while `container:session` and `bastion:session` open interactive shell sessions — treat all three with appropriate care in production stages, since they let you run arbitrary commands against live infrastructure.
+Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. This page documents `logs` and `metrics` in depth and covers the essentials of each remaining command with links to dedicated CLI reference pages. The `container exec` command runs a one-shot command inside a running container and returns its output, while `container shell` and `bastion shell` open interactive shell sessions — treat all three with appropriate care in production stages, since they let you run arbitrary commands against live infrastructure.
 
 ## Command overview
 
@@ -15,46 +15,46 @@ Stacktape provides a suite of CLI commands for inspecting deployed stacks withou
 |---------|---------|
 | [`logs`](/cli/logs) | Fetch CloudWatch log events |
 | [`metrics`](/cli/metrics) | Fetch CloudWatch metric data |
-| [`alarms`](/cli/alarms) | Inspect CloudWatch alarms |
-| [`query:sql`](/cli/query-sql) | Query SQL databases |
-| [`query:dynamodb`](/cli/query-dynamodb) | Query DynamoDB tables |
-| [`query:redis`](/cli/query-redis) | Inspect Redis clusters |
-| [`query:opensearch`](/cli/query-opensearch) | Query OpenSearch domains |
-| [`aws:call`](/cli/aws-call) | Run AWS SDK calls |
-| [`container:exec`](/cli/container-exec) | Execute a command in a container |
-| [`container:session`](/cli/container-session) | Interactive container shell |
-| [`bastion:tunnel`](/cli/bastion-tunnel) | Port-forwarding through a bastion |
-| [`bastion:session`](/cli/bastion-session) | SSM shell on a bastion instance |
+| [`alarm list`](/cli/alarms) | Inspect CloudWatch alarms |
+| [`query sql`](/cli/query-sql) | Query SQL databases |
+| [`query dynamodb`](/cli/query-dynamodb) | Query DynamoDB tables |
+| [`query redis`](/cli/query-redis) | Inspect Redis clusters |
+| [`query opensearch`](/cli/query-opensearch) | Query OpenSearch domains |
+| [`aws call`](/cli/aws-call) | Run AWS SDK calls |
+| [`container exec`](/cli/container-exec) | Execute a command in a container |
+| [`container shell`](/cli/container-session) | Interactive container shell |
+| [`bastion tunnel`](/cli/bastion-tunnel) | Port-forwarding through a bastion |
+| [`bastion shell`](/cli/bastion-session) | SSM shell on a bastion instance |
 
 <Info>This page covers `logs` and `metrics` in depth. For the other commands, use the linked CLI reference pages for their flags, operations, and requirements.</Info>
 
 ## Stack targeting
 
-Debug commands target a deployed stack through the usual Stacktape stack-selection flags (`--projectName`, `--stage`, `--region`). `logs` and `metrics` require `--resourceName` to pick a specific resource; other resource-specific commands document their own required targeting flags on their CLI reference pages. The exact targeting flags supported by each command — and any defaults applied when a flag is omitted — are documented on each command's [CLI reference page](/cli/logs).
+Debug commands target a deployed stack through the usual Stacktape stack-selection flags (`--project`, `--stage`, `--region`). `logs` and `metrics` require `--resource-name` to pick a specific resource; other resource-specific commands document their own required targeting flags on their CLI reference pages. The exact targeting flags supported by each command — and any defaults applied when a flag is omitted — are documented on each command's [CLI reference page](/cli/logs).
 
 ## Viewing logs
 
-The [`stacktape logs`](/cli/logs) command fetches CloudWatch log events for a deployed resource. It requires `--resourceName`, resolves that resource's log group through Stacktape's log-group helper, and retrieves events from CloudWatch Logs.
+The [`stacktape logs`](/cli/logs) command fetches CloudWatch log events for a deployed resource. It requires `--resource-name`, resolves that resource's log group through Stacktape's log-group helper, and retrieves events from CloudWatch Logs.
 
 ### Basic usage
 
 Fetch the last hour of logs for a resource:
 
 ```bash
-stacktape logs --projectName myProject --stage prod --region eu-west-1 --resourceName api
+stacktape logs api --project myProject --stage prod --region eu-west-1
 ```
 
 ### Time range
 
-Use `--startTime` with relative notation (`1h`, `30m`, `1d`, `5s`) or an ISO timestamp. The default lookback window is 1 hour from the current time.
+Use `--since` with relative notation (`1h`, `30m`, `1d`, `5s`) or an ISO timestamp. The default lookback window is 1 hour from the current time.
 
 Fetch the last 30 minutes:
 
 ```bash
-stacktape logs --resourceName api --startTime 30m
+stacktape logs api --since 30m
 ```
 
-For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--endTime` is used as the reference point when parsing relative `--startTime`; Logs Insights queries pass both `startTime` and `endTime`.
+For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--end-time` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
 
 ### Filtering
 
@@ -63,27 +63,27 @@ Use `--filter` to pass a CloudWatch Logs filter pattern.
 Filter for lines containing "ERROR":
 
 ```bash
-stacktape logs --resourceName api --filter "ERROR"
+stacktape logs api --filter "ERROR"
 ```
 
 Filter JSON structured logs by a field:
 
 ```bash
-stacktape logs --resourceName api --filter '{ $.level = "error" }'
+stacktape logs api --filter '{ $.level = "error" }'
 ```
 
 ### CloudWatch Logs Insights queries
 
-Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--startTime` and `--endTime`.
+Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--end-time`.
 
 ```bash
-stacktape logs --resourceName api --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
+stacktape logs api --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
 Fetch Logs Insights results between two absolute timestamps:
 
 ```bash
-stacktape logs --resourceName api --query "fields @timestamp, @message | sort @timestamp desc" --startTime "2025-01-15T10:00:00Z" --endTime "2025-01-15T11:00:00Z"
+stacktape logs api --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --end-time "2025-01-15T11:00:00Z"
 ```
 
 ### Output format
@@ -135,20 +135,20 @@ The metrics command checks the resource's type from the deployed stack. If the t
 View Lambda invocations over the last hour:
 
 ```bash
-stacktape metrics --resourceName api --metric Invocations
+stacktape metrics api Invocations
 ```
 
 ### Customizing the query
 
 - `--period` — aggregation interval in seconds (default: `300`, i.e. 5 minutes)
 - `--stat` — CloudWatch aggregation statistic (default: `Average`). Standard CloudWatch statistics include `Average`, `Sum`, `Minimum`, `Maximum`, and `SampleCount`.
-- `--startTime` — supports relative time (`1h`, `6h`, `1d`) or ISO timestamp (default: 1 hour ago)
-- `--endTime` — end of the time window (default: now)
+- `--since` — supports relative time (`1h`, `6h`, `1d`) or ISO timestamp (default: 1 hour ago)
+- `--end-time` — end of the time window (default: now)
 
 View database CPU over the last 24 hours with 1-hour granularity:
 
 ```bash
-stacktape metrics --resourceName mainDb --metric CPUUtilization --startTime 1d --period 3600
+stacktape metrics mainDb CPUUtilization --since 1d --period 3600
 ```
 
 ### Terminal output
@@ -157,45 +157,45 @@ In interactive mode, Stacktape renders the returned datapoints as a formatted me
 
 ## Viewing alarms
 
-The [`stacktape alarms`](/cli/alarms) command inspects CloudWatch alarm state for a deployed stack. See the [CLI reference](/cli/alarms) for the full flag list and behavior.
+The [`stacktape alarm list`](/cli/alarms) command inspects CloudWatch alarm state for a deployed stack. See the [CLI reference](/cli/alarms) for the full flag list and behavior.
 
 ## Querying SQL databases
 
-The [`stacktape query:sql`](/cli/query-sql) command runs SQL queries against a deployed [relational database](/resources/databases/relational-database) from the CLI. See the [CLI reference](/cli/query-sql) for supported query behavior and flags.
+The [`stacktape query sql`](/cli/query-sql) command runs SQL queries against a deployed [relational database](/resources/databases/relational-database) from the CLI. See the [CLI reference](/cli/query-sql) for supported query behavior and flags.
 
 ## Querying DynamoDB
 
-The [`stacktape query:dynamodb`](/cli/query-dynamodb) command inspects [DynamoDB table](/resources/databases/dynamodb) contents and schema from the CLI. See the [CLI reference](/cli/query-dynamodb) for the full list of operations and flags.
+The [`stacktape query dynamodb`](/cli/query-dynamodb) command inspects [DynamoDB table](/resources/databases/dynamodb) contents and schema from the CLI. See the [CLI reference](/cli/query-dynamodb) for the full list of operations and flags.
 
 ## Querying Redis
 
-The [`stacktape query:redis`](/cli/query-redis) command inspects keys and server info on a deployed [Redis cluster](/resources/databases/redis). See the [CLI reference](/cli/query-redis) for the full list of operations and flags.
+The [`stacktape query redis`](/cli/query-redis) command inspects keys and server info on a deployed [Redis cluster](/resources/databases/redis). See the [CLI reference](/cli/query-redis) for the full list of operations and flags.
 
 ## Querying OpenSearch
 
-The [`stacktape query:opensearch`](/cli/query-opensearch) command queries deployed [OpenSearch domains](/resources/databases/opensearch) from the CLI. See the [CLI reference](/cli/query-opensearch) for the full list of operations and flags.
+The [`stacktape query opensearch`](/cli/query-opensearch) command queries deployed [OpenSearch domains](/resources/databases/opensearch) from the CLI. See the [CLI reference](/cli/query-opensearch) for the full list of operations and flags.
 
 ## Running AWS SDK commands
 
-The [`stacktape aws:call`](/cli/aws-call) command runs AWS SDK v3 calls against your deployed stack as an escape hatch for resources without a dedicated debug command. See the [CLI reference](/cli/aws-call) for the full flag list and restrictions.
+The [`stacktape aws call`](/cli/aws-call) command runs AWS SDK v3 calls against your deployed stack as an escape hatch for resources without a dedicated debug command. See the [CLI reference](/cli/aws-call) for the full flag list and restrictions.
 
 ## Executing commands in containers
 
-The [`stacktape container:exec`](/cli/container-exec) command runs a one-shot command inside a running container and returns the output. See the [CLI reference](/cli/container-exec) for the full flag list.
+The [`stacktape container exec`](/cli/container-exec) command runs a one-shot command inside a running container and returns the output. See the [CLI reference](/cli/container-exec) for the full flag list.
 
-<Warning>`container:exec` and `container:session` execute arbitrary commands inside live containers. These are NOT read-only operations — use caution in production stages.</Warning>
+<Warning>`container exec` and `container shell` execute arbitrary commands inside live containers. These are NOT read-only operations — use caution in production stages.</Warning>
 
 ## Interactive container shell
 
-The [`stacktape container:session`](/cli/container-session) command opens an interactive shell session inside a running container. See the [CLI reference](/cli/container-session) for the full flag list.
+The [`stacktape container shell`](/cli/container-session) command opens an interactive shell session inside a running container. See the [CLI reference](/cli/container-session) for the full flag list.
 
 ## Bastion tunneling
 
-The [`stacktape bastion:tunnel`](/cli/bastion-tunnel) command opens a local port-forwarding tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources. See the [CLI reference](/cli/bastion-tunnel) for the full flag list and target behavior.
+The [`stacktape bastion tunnel`](/cli/bastion-tunnel) command opens a local port-forwarding tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources. See the [CLI reference](/cli/bastion-tunnel) for the full flag list and target behavior.
 
 ## Bastion shell session
 
-The [`stacktape bastion:session`](/cli/bastion-session) command opens an interactive SSM shell session on a [bastion host](/resources/security/bastion-host) EC2 instance. See the [CLI reference](/cli/bastion-session) for the full flag list.
+The [`stacktape bastion shell`](/cli/bastion-session) command opens an interactive SSM shell session on a [bastion host](/resources/security/bastion-host) EC2 instance. See the [CLI reference](/cli/bastion-session) for the full flag list.
 
 ## Credentials and permissions
 
@@ -205,23 +205,23 @@ The [`stacktape bastion:session`](/cli/bastion-session) command opens an interac
 
 ### How do I view real-time logs as they arrive?
 
-The `logs` command fetches historical log events from CloudWatch Logs. For near-real-time inspection of a deployed stack, re-run `logs` with a short `--startTime` window (e.g. `--startTime 1m`). For local development behavior, see the [dev mode overview](/local-development/dev-mode-overview).
+The `logs` command fetches historical log events from CloudWatch Logs. For near-real-time inspection of a deployed stack, re-run `logs` with a short `--since` window (e.g. `--since 1m`). For local development behavior, see the [dev mode overview](/local-development/dev-mode-overview).
 
 ### Can I use debug commands with dev mode stacks?
 
-`logs` and `metrics` require a deployed stack as their target. If you are running `stacktape dev`, these commands can target the deployed AWS stack that dev mode created — specify the same `--projectName`, `--stage`, and `--region`. Other debug commands have their own deployment requirements documented on their CLI reference pages.
+`logs` and `metrics` require a deployed stack as their target. If you are running `stacktape dev`, these commands can target the deployed AWS stack that dev mode created — specify the same `--project`, `--stage`, and `--region`. Other debug commands have their own deployment requirements documented on their CLI reference pages.
 
 ### How do I debug a VPC-only database without a bastion?
 
-Options for debugging private resources depend on what you've deployed. The simplest path is to add a [bastion host](/resources/security/bastion-host) to your stack and use [`bastion:tunnel`](/cli/bastion-tunnel) to forward a local port to the database. If you use container shell access for private-resource debugging, see the [`container:session`](/cli/container-session) and [`container:exec`](/cli/container-exec) CLI reference pages for requirements.
+Options for debugging private resources depend on what you've deployed. The simplest path is to add a [bastion host](/resources/security/bastion-host) to your stack and use [`bastion tunnel`](/cli/bastion-tunnel) to forward a local port to the database. If you use container shell access for private-resource debugging, see the [`container shell`](/cli/container-session) and [`container exec`](/cli/container-exec) CLI reference pages for requirements.
 
-### What's the difference between container:exec and container:session?
+### What's the difference between container exec and container shell?
 
-[`container:exec`](/cli/container-exec) runs a single command and returns its output — it's non-interactive and suitable for scripting or AI agent use. [`container:session`](/cli/container-session) opens a persistent interactive shell. Use `container:session` for exploratory debugging; use `container:exec` for automated checks.
+[`container exec`](/cli/container-exec) runs a single command and returns its output — it's non-interactive and suitable for scripting or AI agent use. [`container shell`](/cli/container-session) opens a persistent interactive shell. Use `container shell` for exploratory debugging; use `container exec` for automated checks.
 
 ### How do I know which metrics are available for my resource?
 
-The `metrics` command supports a fixed set of metrics per resource type (listed in the metrics table above). If the metric name doesn't match the resource type's allowed list, the command returns an error with the valid options. For metrics not in that list, use [`aws:call`](/cli/aws-call) with the CloudWatch `GetMetricData` or `ListMetrics` commands.
+The `metrics` command supports a fixed set of metrics per resource type (listed in the metrics table above). If the metric name doesn't match the resource type's allowed list, the command returns an error with the valid options. For metrics not in that list, use [`aws call`](/cli/aws-call) with the CloudWatch `GetMetricData` or `ListMetrics` commands.
 
 ### How much do debug commands cost?
 

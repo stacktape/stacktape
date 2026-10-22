@@ -1,6 +1,6 @@
-# aws:call
+# aws call
 
-The `aws:call` command sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
+The `aws call` command sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
 stack. Use it when Stacktape's purpose-built inspection commands do not expose the AWS data you need.
 
 ## Safety model
@@ -15,14 +15,14 @@ This is not a prefix check. An operation is not accepted merely because its name
 - SQS `ReceiveMessage`, because it hides messages from their consumers for the visibility timeout.
 - Step Functions `GetActivityTask`, because it claims work and starts the task timeout.
 
-Unknown services and unlisted operations are rejected. The error includes the operations that `aws:call` accepts for
+Unknown services and unlisted operations are rejected. The error includes the operations that `aws call` accepts for
 the selected service. Coverage is deliberately incomplete: a genuinely read-only operation remains unavailable until
 it has been reviewed and added to the service's allowlist.
 
 The explicit secret-value reads are not on the list either, because the caller is often a coding agent whose context
 and transcript would keep the value: Secrets Manager `GetSecretValue` and the SSM Parameter Store reads `GetParameter`,
 `GetParameters`, `GetParametersByPath` and `GetParameterHistory`. Their metadata operations, such as `DescribeSecret`,
-`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret:get`](/cli/secret-get) in your own
+`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret get`](/cli/secret-get) in your own
 terminal.
 
 Lambda function configurations and ECS task definitions come back with environment variable values replaced by
@@ -41,15 +41,15 @@ are ultimately used.
 
 ## Target stack and credentials
 
-`aws:call` always initializes services for an existing deployed Stacktape stack. It does not require a local
+`aws call` always initializes services for an existing deployed Stacktape stack. It does not require a local
 `stacktape.ts` file, but it does require enough information to identify a deployed stack:
 
 - `--region` is required.
-- `--projectName` and `--stage` may be omitted only when your configured Stacktape defaults already identify the
+- `--project` and `--stage` may be omitted only when your configured Stacktape defaults already identify the
   target stack.
-- Otherwise, provide the missing `--projectName` and `--stage` values explicitly.
+- Otherwise, provide the missing `--project` and `--stage` values explicitly.
 
-Use `--profile` to select a local AWS profile or `--awsAccount` to select a connected Stacktape AWS account. These
+Use `--profile` to select a local AWS profile or `--aws-account` to select a connected Stacktape AWS account. These
 credentials are also the fallback when the deployed stack's debug role is unavailable.
 
 ## Basic usage
@@ -57,33 +57,27 @@ credentials are also the fallback when the deployed stack's debug role is unavai
 List Lambda functions visible to the target stack's debug role or credential fallback:
 
 ```bash
-stacktape aws:call \
-  --projectName my-project \
+stacktape aws call lambda ListFunctions \
+  --project my-project \
   --stage production \
-  --region eu-west-1 \
-  --service lambda \
-  --command ListFunctions
+  --region eu-west-1
 ```
 
 Pass command input as JSON:
 
 ```bash
-stacktape aws:call \
-  --projectName my-project \
+stacktape aws call dynamodb Scan \
+  --project my-project \
   --stage production \
   --region eu-west-1 \
-  --service dynamodb \
-  --command Scan \
   --input '{"TableName":"my-table","Limit":10}'
 ```
 
 If project and stage defaults are configured, you can omit those two flags:
 
 ```bash
-stacktape aws:call \
+stacktape aws call logs FilterLogEvents \
   --region eu-west-1 \
-  --service logs \
-  --command FilterLogEvents \
   --input '{"logGroupName":"/aws/lambda/my-function","limit":20}'
 ```
 
@@ -99,11 +93,11 @@ resource-specific validation, and usually provide more useful output.
 | --------------------------------------- | ------------------------------------------- |
 | Read function or service logs           | [`logs`](/cli/logs)                         |
 | Inspect CloudWatch metrics              | [`metrics`](/cli/metrics)                   |
-| Inspect a Stacktape DynamoDB table      | [`query:dynamodb`](/cli/query-dynamodb)     |
-| Inspect a Stacktape relational database | [`query:sql`](/cli/query-sql)               |
-| Inspect a Stacktape Redis cluster       | [`query:redis`](/cli/query-redis)           |
-| Inspect a Stacktape OpenSearch domain   | [`query:opensearch`](/cli/query-opensearch) |
-| Call another reviewed read-only AWS API | `aws:call`                                  |
+| Inspect a Stacktape DynamoDB table      | [`query dynamodb`](/cli/query-dynamodb)     |
+| Inspect a Stacktape relational database | [`query sql`](/cli/query-sql)               |
+| Inspect a Stacktape Redis cluster       | [`query redis`](/cli/query-redis)           |
+| Inspect a Stacktape OpenSearch domain   | [`query opensearch`](/cli/query-opensearch) |
+| Call another reviewed read-only AWS API | `aws call`                                  |
 
 ## CLI options
 
@@ -129,7 +123,7 @@ resource-specific validation, and usually provide more useful output.
 
 ### The service is not supported
 
-The service has no reviewed operations in the `aws:call` allowlist. Use a Stacktape purpose-built command, use the AWS
+The service has no reviewed operations in the `aws call` allowlist. Use a Stacktape purpose-built command, use the AWS
 CLI directly when appropriate, or request review of the specific read-only operation you need.
 
 ### The operation is rejected
@@ -139,7 +133,7 @@ Do not infer support from the operation's verb prefix.
 
 ### The target stack cannot be found
 
-Confirm that the stack is already deployed in the selected region. Then provide `--projectName` and `--stage`, or
+Confirm that the stack is already deployed in the selected region. Then provide `--project` and `--stage`, or
 configure defaults that identify that same stack.
 
 ### The call returns AccessDenied
@@ -148,7 +142,7 @@ The debug role or fallback AWS credentials do not allow the operation for the re
 AWS account/profile and target stack. The allowlist prevents known state-changing operations; it does not grant IAM
 permissions.
 
-### Can I use `aws:call` without a Stacktape project?
+### Can I use `aws call` without a Stacktape project?
 
 No. A local configuration file is optional, but a deployed target stack is not. Use the AWS CLI or an AWS SDK directly
 for resources that are not associated with a deployed Stacktape stack.
