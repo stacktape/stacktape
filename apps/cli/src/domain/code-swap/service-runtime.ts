@@ -46,6 +46,7 @@ import { memoryFallbackReason, serviceCapacity, declaredCapacity } from './ecs-b
 import { parse as parseYaml } from 'yaml';
 import { getCfTemplateS3Key } from '../deployment-artifact-manager/artifact-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import {
   readReleaseRecord,
   writeReleaseRecord,
@@ -136,6 +137,17 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     };
   };
   const clients = () => (clientsPromise ??= initialize());
+  // `package`, `synth` and `validate` have no stack action: they build what a first deployment builds and read
+  // nothing a deployment left behind.
+  const updatesDeployedStack = (stack: { stackActionType: string | undefined }) => stack.stackActionType === 'update';
+  // `package` does not initialize deployment artifacts. The bucket name derives from the account, region and stack;
+  // a profile that names its account supplies it without a request.
+  const deploymentBucketName = async () => {
+    const { artifacts, global } = await clients();
+    if (artifacts.deploymentBucketName) return artifacts.deploymentBucketName;
+    await global.resolveLocalAwsAccount();
+    return awsResourceNames.deploymentBucket(global.targetStack.globallyUniqueStackHash);
+  };
   const codeSwapBuildInputs = async () => {
     const { run, stack, global } = await clients();
     if (!run.phase4) return {};
@@ -390,7 +402,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       const { run, stack } = await clients();
       if (
         !run.phase3 ||
-        stack.stackActionType === 'create' ||
+        !updatesDeployedStack(stack) ||
         !stack.existingStackResources.some(
           (item) => item.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
         )
@@ -434,7 +446,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       codeSwapIntegration.imageHasSupervisor.set(run.service, false);
       return input.dockerfileContents;
     }
-    if (run.phase4 && stack.stackActionType !== 'create') releaseRecord = releaseRecordAtStart;
+    if (run.phase4 && updatesDeployedStack(stack)) releaseRecord = releaseRecordAtStart;
     const recoveryReason = interruptedSwapReason(releaseRecord, recoveredOperation);
     if (recoveryReason && releaseRecord?.Attempt && incompleteHistoryVersions(releaseRecord).length) {
       const interruptedVersion = releaseRecord.Proposed?.Revision ?? releaseRecord.Committed?.Revision;
@@ -462,7 +474,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     declaredMaximum = capacity.pollers! - capacity.tasks!;
     const identityLookup = codeSwapPrimeIdentity();
     const headLookup =
-      stack.stackActionType !== 'create' && run.mode === 'swap'
+      updatesDeployedStack(stack) && run.mode === 'swap'
         ? s3
             .send(
               new GetObjectCommand({
@@ -595,6 +607,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       throw new Error('Code swap needs a resolved numeric PORT.');
     const authoredGrace =
       configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0]?.stopTimeout ?? 2;
+    const bucket = await deploymentBucketName();
     const dockerfile = async () => {
       await identityLookup;
       return (
@@ -602,11 +615,11 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         (input.python
           ? '\nCOPY stacktape-start /stacktape-start\nENV STP_CODE_SWAP_COMMAND=/stacktape-start PYTHONDONTWRITEBYTECODE=1\n'
           : '') +
-        `\nENV STP_CODE_SWAP_SERVICE=${run.recordService} STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${artifacts.deploymentBucketName} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_PORT=${port} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
+        `\nENV STP_CODE_SWAP_SERVICE=${run.recordService} STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${bucket} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_PORT=${port} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
       );
     };
     if (
-      stack.stackActionType === 'create' ||
+      !updatesDeployedStack(stack) ||
       (run.phase4 && !hadCodeSwapTable) ||
       run.mode === 'image' ||
       global.args.fullDeploy ||
@@ -1103,7 +1116,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     if (run.service !== workloadName) return undefined;
     const { stack, s3, artifacts } = await clients();
     let currentDigest: string | undefined;
-    if (!run.optOut && stack.stackActionType !== 'create') {
+    if (!run.optOut && updatesDeployedStack(stack)) {
       try {
         const head = await s3.send(
           new GetObjectCommand({

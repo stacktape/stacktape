@@ -19,6 +19,8 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { createServer, type IncomingMessage } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 
 /** Each scenario starts the source CLI as a child process, which takes several seconds. */
 const test = (name: string, fn: () => Promise<void>) => bunTest(name, fn, 120_000);
@@ -464,5 +466,46 @@ describe('stacktape package without AWS', () => {
     expect(run.output).toContain('DIRECTIVE_RESOURCE_NOT_FOUND');
     expect(run.output).toContain('recordz');
     expect(run.buildEnvironment).toBeUndefined();
+  });
+
+  test('a code-swap web service packages its code-swap image without reading the deployed stack', async () => {
+    const aws = await startAwsFake();
+    // Unique, so concurrent runs on the shared Docker daemon do not replace each other's image.
+    const service = `swap${randomUUID().replaceAll('-', '').slice(0, 10)}`;
+    const image = `${service}-service-container`;
+    cleanups.push(async () => {
+      await Bun.spawn(['docker', 'image', 'rm', '--force', image], { stdout: 'ignore', stderr: 'ignore' }).exited;
+    });
+    const run = await runPackage({
+      awsEndpoint: aws.endpoint,
+      resources: [
+        `  ${service}:`,
+        '    type: web-service',
+        '    properties:',
+        '      codeSwap: true',
+        '      packaging:',
+        '        type: js-bundle',
+        '        properties:',
+        '          entryfilePath: src/handler.ts',
+        '      resources:',
+        '        cpu: 0.25',
+        '        memory: 512'
+      ],
+      environment: { AWS_PROFILE: 'deploy' }
+    });
+
+    expect(run.exitCode, run.output).toBe(0);
+    expect(aws.actions).toEqual([]);
+    const inspect = Bun.spawn(['docker', 'image', 'inspect', image, '--format', '{{json .Config}}'], {
+      stdout: 'pipe',
+      stderr: 'pipe'
+    });
+    const config = JSON.parse(await new Response(inspect.stdout).text()) as { Entrypoint: string[]; Env: string[] };
+    expect(config.Entrypoint).toEqual(['/stacktape-supervisor']);
+    const bucket = awsResourceNames.deploymentBucket(
+      getGloballyUniqueStackHash({ region: 'eu-west-1', stackName: 'pkgnoaws-test', accountId: ROLE_ACCOUNT })
+    );
+    expect(config.Env).toContain(`STP_BENCH_BUCKET=${bucket}`);
+    expect(config.Env).toContain('STP_BENCH_TABLE=pkgnoaws-test-code-swap');
   });
 });
