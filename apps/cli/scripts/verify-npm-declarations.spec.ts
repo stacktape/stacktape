@@ -44,7 +44,7 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
       "export { cfnResource, cfnResourceUnchecked, getAtt, ref, sub } from './cloudformation';",
       "export type { AnyCloudFormationResource, CloudFormationTemplate, Intrinsic } from './cloudformation';",
       "export type FinalTransform = <Template extends import('./cloudformation').CloudFormationTemplate>(template: Template) => Template;",
-      'export declare function defineConfig<T>(factory: () => T): (params: Record<string, unknown>) => { config: T };',
+      'export declare function defineConfig<T>(settings: { projectName?: string; region?: string }, factory: (params: { projectName: string }) => T): (params: Record<string, unknown>) => { config: T };',
       'export declare function $Secret(name: string): string;'
     ].join('\n'),
     'utf-8'

@@ -2,6 +2,7 @@ import { Alarm, defineConfig } from './config.js';
 import type {
   CloudFormationTemplate,
   CompiledStacktapeConfig,
+  ConfigSettings,
   DefinedStacktapeConfig,
   FinalTransform,
   GetConfigParams,
@@ -343,6 +344,7 @@ export {
 export type {
   CloudFormationTemplate,
   CompiledStacktapeConfig,
+  ConfigSettings,
   DefinedStacktapeConfig,
   FinalTransform,
   GetConfigParams,

@@ -275,7 +275,7 @@ function generateEssentialDeclarations(): string {
  * Parameters passed to the defineConfig function.
  */
 export type GetConfigParams = {
-  /** Project name selected before config evaluation; absent when the config itself declares it. */
+  /** Project name of this operation; always present when the config declares \`projectName\` in the settings of defineConfig. */
   projectName?: string;
   /** Stage ("environment") used for this operation */
   stage: string;
@@ -294,6 +294,10 @@ export type GetConfigParams = {
     email: string;
   };
 };
+
+/** Parameters of a config that declares project settings: a declared project name is always passed to the callback. */
+export type GetConfigParamsWithSettings<Settings extends ConfigSettings = ConfigSettings> = GetConfigParams &
+  (Settings extends { projectName: string } ? { projectName: string } : unknown);
 
 type StacktapeResourceType = import('./plain').StacktapeResourceDefinition['type'];
 
@@ -1086,6 +1090,7 @@ export {
 // Re-export authoring types for convenience
 export type {
   CompiledStacktapeConfig,
+  ConfigSettings,
   DefinedStacktapeConfig,
   FinalTransform,
   GetConfigParams,

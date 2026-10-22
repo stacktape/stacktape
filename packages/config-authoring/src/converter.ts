@@ -11,7 +11,12 @@ import {
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
 } from './class-config.js';
-import { compileAuthoringConfig, isCompiledStacktapeConfig, isResourceReferencePropertyKey } from './config.js';
+import {
+  compileAuthoringConfig,
+  getConfigSettings,
+  isCompiledStacktapeConfig,
+  isResourceReferencePropertyKey
+} from './config.js';
 import { parseYaml, stringifyToYaml } from './yaml.js';
 
 /** Lambda function event types (from events.d.ts) */
@@ -187,6 +192,8 @@ const topologicalSortResources = (resources: Record<string, Record<string, unkno
   return sorted;
 };
 
+const SETTINGS_KEYS = ['projectName', 'region'] as const;
+
 /**
  * Converts a parsed config object to TypeScript code.
  */
@@ -259,8 +266,15 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   lines.push(`import { ${sortedImports.join(', ')} } from 'stacktape';`);
   lines.push('');
 
-  // defineConfig
-  lines.push('export default defineConfig(() => {');
+  // defineConfig. The project settings go in its first argument, where the CLI reads them without running the config.
+  const settingsEntries = SETTINGS_KEYS.filter((key) => config[key] !== undefined).map(
+    (key) => `${key}: ${generateValueCode(config[key])}`
+  );
+  lines.push(
+    settingsEntries.length
+      ? `export default defineConfig({ ${settingsEntries.join(', ')} }, () => {`
+      : 'export default defineConfig(() => {'
+  );
 
   // Resource declarations
   if (resourceDeclarations.length) {
@@ -288,7 +302,9 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   }
 
   // Add other top-level config (hooks, etc.)
-  const otherKeys = Object.keys(config).filter((k) => k !== 'resources' && k !== 'scripts');
+  const otherKeys = Object.keys(config).filter(
+    (k) => k !== 'resources' && k !== 'scripts' && !(SETTINGS_KEYS as readonly string[]).includes(k)
+  );
   for (const key of otherKeys) {
     const value = config[key];
     lines.push(`${key}: ${JSON.stringify(value, null, 2)},`);
@@ -522,7 +538,11 @@ const typescriptConfigToObject = (
   configOrFn: ConfigExport,
   params: Partial<GetConfigParams> = {}
 ): Record<string, unknown> => {
-  const mergedParams = { ...DEFAULT_CONFIG_PARAMS, ...params };
+  // A config that declares its settings runs with them, the way the CLI runs it without overriding flags.
+  const settings = Object.fromEntries(
+    Object.entries(getConfigSettings(configOrFn) ?? {}).filter(([, value]) => value !== undefined)
+  ) as Partial<GetConfigParams>;
+  const mergedParams: GetConfigParams = { ...DEFAULT_CONFIG_PARAMS, ...settings, ...params };
 
   // If it's a function (from defineConfig), call it
   const configOrCompiled: Record<string, unknown> | CompiledStacktapeConfig =
