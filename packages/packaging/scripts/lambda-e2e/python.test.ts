@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
-import { buildPythonLambda } from '../../src/buildpacks/py-lambda-buildpack';
+import { buildPythonLambda, getPythonLambdaHandlerModule } from '../../src/buildpacks/py-lambda-buildpack';
 import { invokeInLambdaImage } from '../e2e-helpers';
 import { actions, ensureRuntimeImage, extractArtifact, withProject } from './harness';
 
@@ -57,5 +57,34 @@ test('a stale uv lock stops packaging before producing a Lambda artifact', async
         python: { packageManagerFile: 'uv.lock' }
       })
     ).rejects.toThrow(/lockfile.*needs to be updated/);
+  });
+}, 480_000);
+
+// The dependency file sits at the project root and the handler in `src/`, so the ZIP keeps `src/`. The handler is the one
+// the CLI configures for the function, not a string written for this test.
+test('a Python handler below its pyproject.toml runs in Lambda under the handler the CLI configures', async () => {
+  await withProject('python-src-layout', async (root, project) => {
+    const runtimeImage = 'public.ecr.aws/lambda/python:3.12';
+    await ensureRuntimeImage(runtimeImage);
+    const entryfilePath = 'src/handler.py';
+    const handler = `${getPythonLambdaHandlerModule({ cwd: project, entryfilePath })}.handler`;
+    expect(handler).toBe('src.handler.handler');
+    const output = await buildPythonLambda({
+      ...actions,
+      cwd: project,
+      name: 'python-src-layout',
+      entryfilePath,
+      distFolderPath: join(root, 'dist'),
+      pythonVersion: 3.12
+    });
+    const response = await invokeInLambdaImage({
+      functionDirectory: await extractArtifact(output, root),
+      runtimeImage,
+      handler,
+      user: '993:990',
+      containerLabel: `stacktape.test=python-src-layout-${process.pid}`,
+      event: { domain: 'münich' }
+    });
+    expect(response).toEqual({ module: 'src.handler', domain: 'xn--mnich-kva' });
   });
 }, 480_000);

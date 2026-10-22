@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, join, parse, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 /**
@@ -44,6 +44,24 @@ export const findNearestProjectRoot = ({
     }
     candidate = parent;
   }
+};
+
+/**
+ * The entry file's path inside an artifact built from `artifactRoot`, without its extension and with `/` separators.
+ * Lambda resolves interpreted handlers from the artifact root, so this is the handler's module path.
+ */
+export const getEntryPathInArtifact = ({
+  artifactRoot,
+  cwd,
+  entryfilePath
+}: {
+  artifactRoot: string;
+  cwd: string;
+  entryfilePath: string;
+}): string => {
+  const absoluteEntryfilePath = isAbsolute(entryfilePath) ? resolve(entryfilePath) : resolve(cwd, entryfilePath);
+  const { dir, name } = parse(relative(artifactRoot, absoluteEntryfilePath));
+  return [...dir.split(sep), name].filter(Boolean).join('/');
 };
 
 export const resolveExplicitProjectRoot = ({ cwd, projectFile }: { cwd: string; projectFile: string }): string =>

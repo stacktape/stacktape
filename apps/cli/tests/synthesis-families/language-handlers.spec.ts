@@ -1,0 +1,77 @@
+import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { synthesizeFixture } from '../characterization/synthesis-fixture';
+
+/**
+ * Lambda imports a Python or Ruby handler from the ZIP root, and the buildpack puts the dependency root (the directory
+ * of `pyproject.toml` or `Gemfile`) there. A handler below that root keeps its directories; one beside it keeps the
+ * name it always had. `python.test.ts` and `ruby.test.ts` in `packages/packaging/scripts/lambda-e2e` run the layout
+ * below the root in Lambda.
+ */
+let directory = '';
+
+const files: Record<string, string> = {
+  'pyproject.toml': '[project]\nname = "api"\nversion = "0.1.0"\n',
+  'src/api.py': 'def handler(event, context):\n    return event\n',
+  'workers/requirements.txt': '',
+  'workers/worker.py': 'def run(event, context):\n    return event\n',
+  Gemfile: 'source "https://rubygems.org"\n',
+  'src/jobs/report.rb': 'def handler(event:, context:) = event\n',
+  'billing/Gemfile': 'source "https://rubygems.org"\n',
+  'billing/invoice.rb': 'def handler(event:, context:) = event\n'
+};
+
+const lambda = (entryfilePath: string, runtime: string, handlerFunction?: string) => `
+    type: function
+    properties:
+      runtime: ${runtime}
+      packaging:
+        type: buildpack
+        properties:
+          entryfilePath: ${entryfilePath}${handlerFunction ? `\n          handlerFunction: ${handlerFunction}` : ''}`;
+
+beforeAll(async () => {
+  directory = await mkdtemp(join(tmpdir(), 'stacktape-language-handlers-'));
+  for (const [path, contents] of Object.entries(files)) {
+    await mkdir(dirname(join(directory, path)), { recursive: true });
+    await writeFile(join(directory, path), contents);
+  }
+  await writeFile(
+    join(directory, 'stacktape.yml'),
+    `resources:
+  pythonBelowRoot:${lambda('src/api.py', 'python3.12')}
+  pythonBesideRoot:${lambda('workers/worker.py', 'python3.12', 'run')}
+  rubyBelowRoot:${lambda('src/jobs/report.rb', 'ruby3.4')}
+  rubyBesideRoot:${lambda('billing/invoice.rb', 'ruby3.4')}
+`
+  );
+});
+
+afterAll(async () => {
+  if (directory) await rm(directory, { recursive: true, force: true });
+});
+
+test('Python and Ruby handlers name the entry file by its path inside the ZIP', async () => {
+  const template = await synthesizeFixture({
+    configPath: join(directory, 'stacktape.yml'),
+    workingDir: directory,
+    identity: { projectName: 'handlers', stage: 'test' }
+  });
+  const handler = (name: string) =>
+    (template.Resources[cfLogicalNames.lambda(name)] as { Properties: { Handler: string } }).Properties.Handler;
+
+  expect({
+    pythonBelowRoot: handler('pythonBelowRoot'),
+    pythonBesideRoot: handler('pythonBesideRoot'),
+    rubyBelowRoot: handler('rubyBelowRoot'),
+    rubyBesideRoot: handler('rubyBesideRoot')
+  }).toEqual({
+    pythonBelowRoot: 'src.api.handler',
+    pythonBesideRoot: 'worker.run',
+    rubyBelowRoot: 'src/jobs/report.handler',
+    rubyBesideRoot: 'invoice.handler'
+  });
+});

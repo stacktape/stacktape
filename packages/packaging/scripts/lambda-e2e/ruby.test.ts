@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { readFile, rename } from 'node:fs/promises';
-import { buildRubyLambda } from '../../src/buildpacks/rb-lambda-buildpack';
+import { buildRubyLambda, getRubyLambdaHandlerFile } from '../../src/buildpacks/rb-lambda-buildpack';
 import { invokeInLambdaImage } from '../e2e-helpers';
 import { actions, ensureRuntimeImage, extractArtifact, withProject } from './harness';
 
@@ -55,3 +55,32 @@ for (const { version, gemfile, lockfile, directory } of layouts) {
     );
   }, 480_000);
 }
+
+// The Gemfile sits at the project root and the handler in `src/`, so the ZIP keeps `src/`. The handler is the one
+// the CLI configures for the function, not a string written for this test.
+test('a Ruby handler below its Gemfile runs in Lambda under the handler the CLI configures', async () => {
+  await withProject('ruby-src-layout', async (root, project) => {
+    const runtimeImage = 'public.ecr.aws/lambda/ruby:3.4';
+    await ensureRuntimeImage(runtimeImage);
+    const entryfilePath = 'src/handler.rb';
+    const handler = `${getRubyLambdaHandlerFile({ cwd: project, entryfilePath })}.handler`;
+    expect(handler).toBe('src/handler.handler');
+    const output = await buildRubyLambda({
+      ...actions,
+      cwd: project,
+      name: 'ruby-src-layout',
+      entryfilePath,
+      distFolderPath: join(root, 'dist'),
+      rubyVersion: 3.4
+    });
+    const response = await invokeInLambdaImage({
+      functionDirectory: await extractArtifact(output, root),
+      runtimeImage,
+      handler,
+      user: '993:990',
+      containerLabel: `stacktape.test=ruby-src-layout-${process.pid}`,
+      event: { message: 'ruby-src-layout-ok' }
+    });
+    expect(response).toEqual({ file: '/var/task/src/handler.rb', value: { message: 'ruby-src-layout-ok' } });
+  });
+}, 480_000);
