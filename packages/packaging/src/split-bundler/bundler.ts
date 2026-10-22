@@ -19,9 +19,15 @@ import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
-import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
+import { copy, emptyDir, ensureDir, outputFile, outputJSON, readFile, remove } from 'fs-extra';
 import { IGNORED_MODULES } from '../es/config';
-import { createPackageAnalysisCache, getProductionDependencies } from '../es/installed-packages';
+import { createPackageAnalysisCache, getProductionDependencies, isInside } from '../es/installed-packages';
+import {
+  createOwnCodeAnchorSource,
+  isOwnCodeAnchorOutput,
+  isOwnSourcePath,
+  OWN_CODE_ANCHOR_FILE_NAME
+} from './own-code-anchor';
 import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
@@ -252,43 +258,28 @@ const executeBunBuild = async ({
   bunBuildStartedAt: number;
   bunBuildFinishedAt: number;
 }> => {
-  const analyzePlugin = createAnalyzePlugin({
-    cwd,
-    monorepoRoot,
-    excludeDependencies,
-    dependenciesToExcludeFromBundle,
-    bundleAwsSdk,
-    isLambda,
-    nodeTarget,
-    shouldIgnoreAllDeps,
-    aliases,
-    tracker,
-    packageAnalysisCache
-  });
-
-  const nativeModulesPlugin = createNativeNodeModulesPlugin();
-  const bunFfiShimPlugin = createBunFfiShimPlugin();
   const banner = await getSourceMapBanner(sourceMapBannerType);
-
-  // A packaging manager can rebuild the same invocation paths in dev mode. Bun does not remove outputs that are no
-  // longer emitted, so retaining this directory would leak stale chunks and source maps into later artifacts.
-  await emptyDir(sharedOutdir);
-  let result: Awaited<ReturnType<typeof Bun.build>>;
-  const bunBuildStartedAt = performance.now();
-
-  try {
-    // Use monorepo root for module resolution if available, otherwise cwd
-    const buildRoot = monorepoRoot || cwd;
-
-    result = await Bun.build({
-      entrypoints: entrypoints.map((ep) => ep.entryfilePath),
-      outdir: sharedOutdir,
+  // Use monorepo root for module resolution if available, otherwise cwd
+  const buildRoot = monorepoRoot || cwd;
+  const runBunBuild = ({
+    entries,
+    outdir,
+    buildTracker
+  }: {
+    entries: string[];
+    /** Without one, Bun keeps the outputs in memory. */
+    outdir?: string | undefined;
+    buildTracker: DependencyTracker;
+  }) =>
+    Bun.build({
+      entrypoints: entries,
+      ...(outdir ? { outdir } : {}),
       target: 'node',
       format: 'esm',
       splitting: true,
       minify: getBunMinifyConfig({ minify, minifyIdentifiers }),
-      sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
-      external: ['fsevents', ...tracker.externalModules.map((m) => m.name)],
+      sourcemap: !outdir || sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
+      external: ['fsevents', ...buildTracker.externalModules.map((m) => m.name)],
       define: {
         // Avoid baking the packaging process's development mode into every deployed Lambda.
         'process.env.NODE_ENV': 'process.env.NODE_ENV',
@@ -296,9 +287,21 @@ const executeBunBuild = async ({
         __filename: '__stp_filename'
       },
       plugins: [
-        bunFfiShimPlugin,
-        analyzePlugin,
-        nativeModulesPlugin,
+        createBunFfiShimPlugin(),
+        createAnalyzePlugin({
+          cwd,
+          monorepoRoot,
+          excludeDependencies,
+          dependenciesToExcludeFromBundle,
+          bundleAwsSdk,
+          isLambda,
+          nodeTarget,
+          shouldIgnoreAllDeps,
+          aliases,
+          tracker: buildTracker,
+          packageAnalysisCache
+        }),
+        createNativeNodeModulesPlugin(),
         createPrismaLambdaClientPlugin(),
         createWindowsPathNormalizationPlugin({ cwd, monorepoRoot })
       ],
@@ -313,6 +316,43 @@ const executeBunBuild = async ({
       metafile: true,
       throw: false
     });
+
+  // A packaging manager can rebuild the same invocation paths in dev mode. Bun does not remove outputs that are no
+  // longer emitted, so retaining this directory would leak stale chunks and source maps into later artifacts.
+  await emptyDir(sharedOutdir);
+  let result: Awaited<ReturnType<typeof Bun.build>>;
+  const bunBuildStartedAt = performance.now();
+  const entryPaths = entrypoints.map((ep) => ep.entryfilePath);
+  // The anchor lives beside the shared outdir, inside the build root, so its output stays inside the outdir.
+  const anchorPath = join(dirname(sharedOutdir), OWN_CODE_ANCHOR_FILE_NAME);
+
+  try {
+    let anchored = false;
+    if (entrypoints.length > 1 && isInside(buildRoot, anchorPath)) {
+      const plan = await runBunBuild({ entries: entryPaths, buildTracker: createDependencyTracker() });
+      const anchorSource =
+        plan.success &&
+        (await createOwnCodeAnchorSource({
+          metafile: plan.metafile as BuildMetafile,
+          resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
+        }));
+      if (anchorSource) {
+        await outputFile(anchorPath, anchorSource);
+        anchored = true;
+      }
+    }
+    result = await runBunBuild({
+      entries: anchored ? [...entryPaths, anchorPath] : entryPaths,
+      outdir: sharedOutdir,
+      buildTracker: tracker
+    });
+    // The anchor names what the project's code imports as it was written. If Bun disagrees, build without it: own
+    // code then shares chunks with packages, as it did before.
+    if (!result.success && anchored) {
+      await emptyDir(sharedOutdir);
+      result = await runBunBuild({ entries: entryPaths, outdir: sharedOutdir, buildTracker: tracker });
+    }
+    if (anchored) await remove(anchorPath);
   } catch (error) {
     const errorDetails = formatBuildError(error);
     throw createPackagingError({
@@ -333,10 +373,23 @@ const executeBunBuild = async ({
     });
   }
 
+  // The anchor's own output is not part of any function.
+  await Promise.all(result.outputs.filter(({ path }) => isOwnCodeAnchorOutput(path)).map(({ path }) => remove(path)));
+  const builtOutputs = result.outputs.filter(({ path }) => !isOwnCodeAnchorOutput(path));
+  const builtMetafile: BuildMetafile = {
+    inputs: result.metafile!.inputs,
+    outputs: Object.fromEntries(
+      Object.entries(result.metafile!.outputs).filter(
+        ([path, output]) =>
+          !isOwnCodeAnchorOutput(path) && !(output.entryPoint && isOwnCodeAnchorOutput(output.entryPoint))
+      )
+    )
+  };
+
   // Point asset references at `/var/task`, shifting each output's source map with the edits before normalization.
-  const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
+  const assetFiles = builtOutputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
   await rewriteLambdaAssetReferences(
-    result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    builtOutputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     assetFiles
   );
 
@@ -348,12 +401,12 @@ const executeBunBuild = async ({
     return projectRelativeSource(existsSync(absolute) ? realpathSync(absolute) : absolute, monorepoRoot || cwd);
   };
   const renames = await normalizeSplitBuildIdentity({
-    javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    javascriptFiles: builtOutputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     projectRoot: monorepoRoot || cwd,
     sourcesResolveFrom: sharedOutdir,
     chunkNaming,
     chunkKeys: new Map(
-      Object.entries(result.metafile!.outputs)
+      Object.entries(builtMetafile.outputs)
         .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
         .map(([path, output]) => [
           basename(path, '.js'),
@@ -368,12 +421,12 @@ const executeBunBuild = async ({
   });
   const renamed = (text: string) => text.replace(/chunk-[a-z0-9]{8}/g, (name) => renames.get(name) ?? name);
   const outputs = await Promise.all(
-    result.outputs.map(async ({ path, kind }) => {
+    builtOutputs.map(async ({ path, kind }) => {
       const finalPath = renamed(path);
       return { path: finalPath, kind, size: (await stat(finalPath)).size };
     })
   );
-  const metafile = JSON.parse(renamed(JSON.stringify(result.metafile))) as BuildMetafile;
+  const metafile = JSON.parse(renamed(JSON.stringify(builtMetafile))) as BuildMetafile;
 
   return {
     buildResult: { outputs },
@@ -1060,7 +1113,8 @@ const buildChunkAnalysisFromMetafile = (
       usedByLambdas,
       usageCount,
       deduplicationValue,
-      dependsOn
+      dependsOn,
+      containsOwnCode: Object.keys(chunkMeta.inputs).some(isOwnSourcePath)
     });
   }
 

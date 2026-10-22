@@ -12,6 +12,8 @@ export type MetafileInput = {
     path: string;
     kind: string;
     external?: boolean | undefined;
+    /** The specifier as the source wrote it. */
+    original?: string | undefined;
   }>;
   format?: string | undefined;
 };
@@ -109,6 +111,8 @@ export type ChunkUsageAnalysis = {
   deduplicationValue: number;
   /** Other chunk names that this chunk imports (dependencies) */
   dependsOn: string[];
+  /** The chunk holds the project's own source, not only installed packages. */
+  containsOwnCode?: boolean | undefined;
 };
 
 /** Layer assignment for a single chunk */
@@ -129,6 +133,11 @@ export type LayerConfig = {
   maxLayers: number;
   /** Maximum size per layer in bytes (AWS limit is 250MB unzipped) */
   maxLayerSize: number;
+  /**
+   * The project's own shared code stays in each function's package while all of it together is at most this size,
+   * so changing it updates function code without publishing a layer version. Larger own code is layered.
+   */
+  maxOwnCodeInFunctions?: number | undefined;
 };
 
 /** Result of layer assignment computation */

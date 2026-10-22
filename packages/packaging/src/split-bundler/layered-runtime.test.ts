@@ -130,7 +130,12 @@ test('functions load their shared chunk from the layer mount and only ship the a
       if (chunk.endsWith('.map')) expect(JSON.parse(orders.toString()).sourcesContent).toBeUndefined();
     })
   );
-  const layerAssignment = assignChunksToLayers(split.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, minChunkSize: 1 });
+  // The shared code is the project's own, which normally stays in the functions; this layers it as large own code is.
+  const layerAssignment = assignChunksToLayers(split.chunkAnalysis, {
+    ...DEFAULT_LAYER_CONFIG,
+    minChunkSize: 1,
+    maxOwnCodeInFunctions: 0
+  });
   const { layerArtifacts } = await createLayerArtifacts({
     lambdaOutputs: split.lambdaOutputs,
     layerAssignment,
@@ -172,4 +177,93 @@ test('functions load their shared chunk from the layer mount and only ship the a
   const health = await invoke({ functionDirectory: join(root, 'functions', 'health') });
   expect(health.status, health.stderr).toBe(0);
   expect(JSON.parse(health.stdout)).toEqual({ function: 'health' });
+}, 30_000);
+
+const readLayerCode = (layer: { layerPath: string; chunks: string[] }) =>
+  Promise.all(layer.chunks.map((chunk) => readFile(join(layer.layerPath, 'nodejs', 'chunks', chunk), 'utf8')));
+
+test("an edit of the project's shared code changes the functions, not the layer of installed packages", async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-layered-own-code-'));
+  temporaryDirectories.push(root);
+  const files: Record<string, string> = {
+    'package.json': JSON.stringify({ name: 'layered-own-code', private: true, dependencies: { pricing: '1.0.0' } }),
+    // An ESM package with more exports than the code uses: the anchor must not keep the unused one.
+    'node_modules/pricing/package.json': JSON.stringify({
+      name: 'pricing',
+      version: '1.0.0',
+      type: 'module',
+      main: 'index.js'
+    }),
+    'node_modules/pricing/index.js': [
+      'export const total = (lines) => lines.reduce((sum, line) => sum + line, 0);',
+      `export const unusedTable = ${JSON.stringify('unused-'.repeat(512))};`
+    ].join('\n'),
+    'src/lib/orders.ts':
+      "import { total } from 'pricing'; export const revision = 'one'; export const sum = () => total([1, 2]);",
+    'src/orders.ts':
+      "import { revision, sum } from './lib/orders'; export const handler = async () => ({ revision, sum: sum() });",
+    'src/reports.ts':
+      "import { revision, sum } from './lib/orders'; export const handler = async () => ({ revision, sum: sum() });"
+  };
+  await Promise.all(
+    Object.entries(files).map(async ([path, contents]) => {
+      await mkdir(join(root, path, '..'), { recursive: true });
+      await writeFile(join(root, path), contents);
+    })
+  );
+  const build = async (label: string) => {
+    const split = await buildSplitBundle({
+      entrypoints: ['orders', 'reports'].map((name) => ({
+        name,
+        jobName: name,
+        entryfilePath: join(root, 'src', `${name}.ts`),
+        distFolderPath: join(root, label, name)
+      })),
+      sharedOutdir: join(root, label, 'shared'),
+      cwd: root,
+      installDependencies: async () => {},
+      createPackagingError
+    });
+    const layerAssignment = assignChunksToLayers(split.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, minChunkSize: 1 });
+    const { layerArtifacts } = await createLayerArtifacts({
+      lambdaOutputs: split.lambdaOutputs,
+      layerAssignment,
+      layerBasePath: join(root, label, 'layers')
+    });
+    return { split, layerArtifacts };
+  };
+
+  const first = await build('first');
+  // No chunk holds both the project's code and the package's, and only the package's chunk is layered.
+  expect(first.split.chunkAnalysis.filter(({ containsOwnCode }) => containsOwnCode)).toHaveLength(1);
+  expect(first.layerArtifacts).toHaveLength(1);
+  const layerCode = (await readLayerCode(first.layerArtifacts[0]!)).join('');
+  expect(layerCode).toContain('reduce');
+  expect(layerCode).not.toContain('unused-');
+  expect(layerCode).not.toContain('"one"');
+  for (const name of ['orders', 'reports']) {
+    // oxlint-disable-next-line no-await-in-loop -- Functions are invoked one at a time, each in its own Node process.
+    const execution = await invoke({
+      functionDirectory: join(root, 'first', name),
+      layerDirectory: first.layerArtifacts[0]!.layerPath
+    });
+    expect(execution.status, `${name}: ${execution.stderr}`).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual({ revision: 'one', sum: 3 });
+  }
+
+  await writeFile(
+    join(root, 'src', 'lib', 'orders.ts'),
+    "import { total } from 'pricing'; export const revision = 'two'; export const sum = () => total([1, 2]);"
+  );
+  const second = await build('second');
+  expect(second.layerArtifacts.map(({ contentHash }) => contentHash)).toEqual(
+    first.layerArtifacts.map(({ contentHash }) => contentHash)
+  );
+  // The new function package runs against the layer the first build published.
+  const execution = await invoke({
+    functionDirectory: join(root, 'second', 'orders'),
+    layerDirectory: first.layerArtifacts[0]!.layerPath
+  });
+  expect(execution.status, execution.stderr).toBe(0);
+  expect(JSON.parse(execution.stdout)).toEqual({ revision: 'two', sum: 3 });
 }, 30_000);
