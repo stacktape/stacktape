@@ -334,7 +334,15 @@ export const initializeStackOperationLifecycle = async ({
       parentEventType: 'LOAD_METADATA_FROM_AWS',
       whileLoadingResourceDetails: () =>
         Promise.all([
-          templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+          templateManager
+            .init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName })
+            .then(() =>
+              domainManager.loadDefaultDomainsInfo({
+                stackName: stackContext.stackName,
+                deployedTemplate: stackManager.existingStackDetails ? templateManager.oldTemplate : undefined,
+                fromControlPlane: requiresControlPlane
+              })
+            ),
           deploymentArtifactManager.init({
             packagingSource: packagingManager,
             accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -354,10 +362,8 @@ export const initializeStackOperationLifecycle = async ({
     }),
     budgetManager.init({ parentEventType: 'LOAD_METADATA_FROM_AWS' }),
     domainManager.init({
-      stackName: globalStateManager.targetStack.stackName,
       domains: configManager.allUsedDomainsInConfig,
       fromParameterStore: true,
-      loadDefaultDomainsFromControlPlane: requiresControlPlane,
       parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     ...(requiresControlPlane
@@ -676,11 +682,19 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     }),
     domainManager.init({
-      stackName: stackContext.stackName,
       domains: configManager.allUsedDomainsInConfig,
       fromParameterStore: true
     })
   ]);
+  const deployedStack = stackManager.existingStackDetails;
+  await domainManager.loadDefaultDomainsInfo({
+    stackName: stackContext.stackName,
+    deployedTemplate:
+      deployedStack && deployedStack.StackStatus !== 'DELETE_COMPLETE'
+        ? await awsSdkManager.cloudFormation.getTemplate(deployedStack.StackName)
+        : undefined,
+    fromControlPlane: true
+  });
 
   await Promise.all([
     deployedStackOverviewManager.init({

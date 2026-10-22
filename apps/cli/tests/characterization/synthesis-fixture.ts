@@ -18,6 +18,7 @@ import { assertLocalAwsEndpoint, type MiniStackClientConfig } from '@stacktape/m
 import type { StackContext } from '@domain-services/stack-context';
 import type { CompiledStacktapeConfig } from '@stacktape/config-authoring';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -50,6 +51,7 @@ export const synthesizeFixture = async ({
   command = 'synth',
   remoteResources,
   identity: identityOverride,
+  deployedTemplate,
   localAws
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
@@ -62,6 +64,8 @@ export const synthesizeFixture = async ({
   command?: 'dev' | 'synth';
   remoteResources?: string[];
   identity?: Partial<SynthesisIdentity>;
+  /** The template of the stack as deployed, for an update of an existing stack. Only read with `identity`. */
+  deployedTemplate?: CloudFormationTemplate;
   /** Explicit synthetic clients for runtime directives; every other network request stays forbidden. */
   localAws?: MiniStackClientConfig;
 }) => {
@@ -165,10 +169,10 @@ export const synthesizeFixture = async ({
       // Default domains derive from the stack identity. Without this the domain manager stays in its placeholder
       // mode and every default domain name reads `project-stage-xxxxxxxx`, which would look like a replacement
       // against a template produced by a real invocation.
-      await domainManager.init({
+      await domainManager.loadDefaultDomainsInfo({
         stackName: stackContext.stackName,
-        domains: [],
-        loadDefaultDomainsFromControlPlane: false
+        deployedTemplate,
+        fromControlPlane: false
       });
     }
 

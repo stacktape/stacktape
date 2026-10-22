@@ -24,6 +24,7 @@ import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
 import { jsonFetch } from '@utils/json-fetch';
 import { areStringArraysContentsEqual } from '@utils/misc';
 import { shortHash } from '@stacktape/naming/short-hash';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -36,6 +37,22 @@ type DefaultDomainsInfo = {
   suffix: string;
   certDomainSuffix: string;
   version: number;
+};
+
+/**
+ * The default-domain version of a deployed stack, from the `version` its default-domain custom resources were deployed
+ * with. Returns the oldest one if the stack somehow has several, and `null` when it has no default domains.
+ */
+const getDeployedDefaultDomainsVersion = (template: CloudFormationTemplate | undefined): number | null => {
+  const versions = Object.values(template?.Resources ?? {})
+    .map(({ Properties }) => {
+      const properties = Properties as
+        | { defaultDomain?: { version?: unknown }; defaultDomainCert?: { version?: unknown } }
+        | undefined;
+      return Number(properties?.defaultDomain?.version ?? properties?.defaultDomainCert?.version);
+    })
+    .filter((version) => Number.isInteger(version) && version > 0);
+  return versions.length ? Math.min(...versions) : null;
 };
 
 export class DomainManager {
@@ -52,22 +69,15 @@ export class DomainManager {
   // populating with dummy values to make resource resolvers work (in dummy mode) without trpc api
   #stackName: string = 'project-stage';
   init = async ({
-    stackName,
     domains,
     fromParameterStore,
-    loadDefaultDomainsFromControlPlane = true,
     parentEventType
   }: {
-    stackName?: string;
     domains: string[];
     fromParameterStore?: boolean;
-    loadDefaultDomainsFromControlPlane?: boolean;
     /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
     parentEventType?: LoggableEventType;
   }) => {
-    // if (!domains.length) {
-    //   return;
-    // }
     this.dnsResolver = new dnsPromises.Resolver();
     this.dnsResolver.setServers(['8.8.8.8']);
     await operationReporter.startEvent({
@@ -76,36 +86,47 @@ export class DomainManager {
       parentEventType,
       instanceId: parentEventType ? 'Domain statuses' : undefined
     });
-    this.#stackName = stackName;
-    const [fetchedDefaultDomainsInfo] = await Promise.all([
-      stackName
-        ? loadDefaultDomainsFromControlPlane
-          ? stacktapeTrpcApiManager.apiClient.defaultDomainsInfo({
-              stackName,
-              region: globalStateManager.region,
-              awsAccountId: globalStateManager.targetAwsAccount.awsAccountId
-            })
-          : {
-              suffix: getDefaultDomainSuffixForStack({
-                stackName,
-                region: globalStateManager.region,
-                accountId: globalStateManager.targetAwsAccount.awsAccountId,
-                version: CURRENT_DEFAULT_DOMAINS_VERSION
-              }),
-              certDomainSuffix: getDefaultDomainRootSuffix({ version: CURRENT_DEFAULT_DOMAINS_VERSION }),
-              version: CURRENT_DEFAULT_DOMAINS_VERSION
-            }
-        : undefined,
-      fromParameterStore
-        ? domains.length && this.#fetchDomainStatusesFromParameterStore({ domains })
-        : domains.length && this.#fetchDomainStatuses({ domains })
-    ]);
-    this.defaultDomainsInfo = stackName && this.#validateDefaultDomainsInfo(fetchedDefaultDomainsInfo);
+    if (domains.length) {
+      await (fromParameterStore
+        ? this.#fetchDomainStatusesFromParameterStore({ domains })
+        : this.#fetchDomainStatuses({ domains }));
+    }
     await operationReporter.finishEvent({
       eventType: 'FETCH_DOMAIN_STATUSES',
       parentEventType,
       instanceId: parentEventType ? 'Domain statuses' : undefined
     });
+  };
+
+  /**
+   * Loads the default-domain suffix of the stack. A stack whose deployed default domains use an older version keeps
+   * it, so their URLs stay the same; a stack without default domains gets the current version.
+   */
+  loadDefaultDomainsInfo = async ({
+    stackName,
+    deployedTemplate,
+    fromControlPlane
+  }: {
+    stackName: string;
+    deployedTemplate: CloudFormationTemplate | undefined;
+    fromControlPlane: boolean;
+  }) => {
+    this.#stackName = stackName;
+    const deployedVersion = getDeployedDefaultDomainsVersion(deployedTemplate);
+    const version = deployedVersion ?? CURRENT_DEFAULT_DOMAINS_VERSION;
+    const stack = {
+      stackName,
+      region: globalStateManager.region,
+      awsAccountId: globalStateManager.targetAwsAccount.awsAccountId
+    };
+    const info = fromControlPlane
+      ? await stacktapeTrpcApiManager.apiClient.defaultDomainsInfo({ ...stack, deployedVersion })
+      : {
+          suffix: getDefaultDomainSuffixForStack({ ...stack, accountId: stack.awsAccountId, version }),
+          certDomainSuffix: getDefaultDomainRootSuffix({ version }),
+          version
+        };
+    this.defaultDomainsInfo = this.#validateDefaultDomainsInfo(info);
   };
 
   #validateDefaultDomainsInfo(info: Partial<DefaultDomainsInfo> | undefined): DefaultDomainsInfo {

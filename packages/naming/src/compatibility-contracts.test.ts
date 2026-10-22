@@ -122,18 +122,21 @@ describe('migrated naming compatibility contracts', () => {
   });
 
   test('derives and validates the default domain suffix from stack identity', () => {
-    const stack = {
-      accountId: '123456789012',
-      region: 'eu-west-1',
-      stackName: 'my-project-production',
-      version: CURRENT_DEFAULT_DOMAINS_VERSION
-    };
-    const suffix = getDefaultDomainSuffixForStack(stack);
-
-    expect(suffix).toBe('-de773011.stacktape-app.com');
-    expect(getDefaultDomainRootSuffix({ version: CURRENT_DEFAULT_DOMAINS_VERSION })).toBe('.stacktape-app.com');
-    expect(isDefaultDomainSuffixForStack({ domainName: `api${suffix}`, ...stack })).toBe(true);
-    expect(getDefaultDomainSuffixForStack({ ...stack, version: 2 })).toBeUndefined();
+    const stack = { accountId: '123456789012', region: 'eu-west-1', stackName: 'my-project-production' };
+    // Version 1 is the 32-bit hash existing stacks keep; version 2 is a SHA-256 prefix no chosen stack name can match.
+    expect(getDefaultDomainSuffixForStack({ ...stack, version: 1 })).toBe('-de773011.stacktape-app.com');
+    expect(getDefaultDomainSuffixForStack({ ...stack, version: 2 })).toBe('-c5dea6d84fd625d0c074.stacktape-app.com');
+    expect(CURRENT_DEFAULT_DOMAINS_VERSION).toBe(2);
+    for (const version of [1, 2]) {
+      const suffix = getDefaultDomainSuffixForStack({ ...stack, version })!;
+      expect(getDefaultDomainRootSuffix({ version })).toBe('.stacktape-app.com');
+      expect(isDefaultDomainSuffixForStack({ domainName: `api${suffix}`, ...stack, version })).toBe(true);
+      expect(isDefaultDomainSuffixForStack({ domainName: `api${suffix}`, ...stack, version: 3 - version })).toBe(false);
+    }
+    // The fields are separated: moving characters between the region and the stack name changes the suffix.
+    const shifted = { ...stack, region: 'eu-west-1m', stackName: 'y-project-production', version: 2 };
+    expect(getDefaultDomainSuffixForStack(shifted)).not.toBe(getDefaultDomainSuffixForStack({ ...stack, version: 2 }));
+    expect(getDefaultDomainSuffixForStack({ ...stack, version: 3 })).toBeUndefined();
   });
 
   test('preserves helper Lambda physical names and truncation', () => {

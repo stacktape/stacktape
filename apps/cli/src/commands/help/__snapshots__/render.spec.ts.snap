@@ -69,7 +69,7 @@ Account:
   logout                    Removes Stacktape authentication state from the current system.
   org create                Creates a new organization in your Stacktape account.
   org list                  Lists organizations accessible with your current Stacktape user.
-  org delete                Deletes organization access for your user.
+  org delete                Deletes the organization of your API key.
   project create            Creates a new project in the current organization.
   project list              Lists all projects in your organization with their deployed stages, status, and costs.
   whoami                    Displays information about the current user, organization, connected AWS accounts, and accessible projects.

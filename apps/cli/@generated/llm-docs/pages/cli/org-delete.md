@@ -1,6 +1,8 @@
 # org delete
 
-The `stacktape org delete` command removes your access to a Stacktape organization. Use it when you need to permanently leave an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. In interactive mode you select the target organization and confirm; in agent mode, pass the organization ID as an argument (`org delete <organization-id>`).
+The `stacktape org delete` command deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
+
+An API key acts in one organization, so the command can delete only that organization. To delete another organization you own, run [`login`](/cli/login) with an API key of that organization first.
 
 ## Usage
 
@@ -10,7 +12,7 @@ Run `org delete` without flags for the interactive flow, or pass `--agent` and t
 stacktape org delete
 ```
 
-In interactive mode, you select from a list of your organizations and confirm removing your access. In agent mode, pass the organization ID as an argument (`org delete <organization-id>`).
+In interactive mode, the command names the organization and asks you to confirm. In agent mode, pass the ID of your API key's organization as confirmation (`org delete <organization-id>`). Any other ID is refused.
 
 ```bash
 stacktape org delete "org_abc123" --agent
@@ -18,16 +20,17 @@ stacktape org delete "org_abc123" --agent
 
 ## Prerequisites
 
-Before you can remove your access to an organization:
+Before you can delete an organization:
 
 1. Remove all non-service users (other team members must be removed first).
 2. Disconnect all AWS accounts from the organization.
 3. You must be the organization OWNER.
+4. You must be a member of at least one other organization.
 
 If any of these conditions are not met, the operation will fail.
 
 
-> **Warning:** This operation removes your access to the organization. Make sure you have another way to access anything you still need before continuing.
+> **Warning:** Deleting the organization cannot be undone. Make sure you have another way to access anything you still need before continuing.
 
 
 ## Flags reference
@@ -47,17 +50,17 @@ The `org delete` command accepts the following flags. None are required in inter
 
 ## Examples
 
-List your organizations first, then remove access to one by ID. Without `--agent`, passing the organization ID skips the organization picker but still asks for confirmation.
+Check which organization your API key belongs to, then delete it. Without `--agent`, the command still asks for confirmation.
 
 ```bash
 stacktape org list
 ```
 
 ```bash
-stacktape org delete "org_abc123"
+stacktape org delete
 ```
 
-Non-interactive removal in CI or agent workflows:
+Non-interactive deletion in CI or agent workflows:
 
 ```bash
 stacktape org delete "org_abc123" --agent
@@ -69,4 +72,5 @@ Other organization management commands and the whoami command for verifying your
 
 - [`org create`](/cli/org-create) — create a new organization
 - [`org list`](/cli/org-list) — list all organizations accessible to your user
+- [`login`](/cli/login) — switch to an API key of another organization
 - [`whoami`](/cli/info-whoami) — verify your current user, organization, and access
