@@ -44,6 +44,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -92,6 +101,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -195,6 +213,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "resourceName",
         "description": "#### Resource Name\n---\nThe name of the resource as defined in your Stacktape configuration.",
         "required": false,
@@ -241,6 +268,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -271,6 +307,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -301,6 +346,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -331,6 +385,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -361,6 +424,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -484,6 +556,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "stage",
@@ -623,6 +704,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -773,6 +863,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -922,6 +1021,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "resourceName",
         "description": "#### Resource Name\n---\nThe name of the resource as defined in your Stacktape configuration.",
         "required": false,
@@ -1031,6 +1139,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -1141,6 +1258,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "resourcesToSkip",
@@ -1314,6 +1440,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "taskArn",
         "description": "#### Task ARN\n---\nSpecific ECS task ARN to connect to.",
         "required": false,
@@ -1471,6 +1606,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -1516,6 +1660,15 @@
         "flag": "log-level"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "value",
         "description": "New value for the selected default setting.",
         "required": false,
@@ -1554,6 +1707,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -1674,6 +1836,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "stage",
@@ -1879,6 +2050,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "runner",
         "description": "#### Deploy Runner\n---\nControls where deployment build and packaging work runs.\n- `local`: Run deployment locally.\n- `ec2`: Run deployment on a configured EC2 runner in your AWS account.",
         "required": false,
@@ -2031,6 +2211,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2198,6 +2387,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "remoteResources",
         "description": "#### Remote Resources\n---\nDatabases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`.",
         "required": false,
@@ -2290,6 +2488,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2419,6 +2626,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2501,6 +2717,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2543,6 +2768,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2607,6 +2841,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "stage",
         "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters.",
         "required": false,
@@ -2657,6 +2900,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2699,6 +2951,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2741,6 +3002,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2807,6 +3077,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "stage",
         "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters.",
         "required": false,
@@ -2857,6 +3136,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2899,6 +3187,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -2941,6 +3238,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3001,6 +3307,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3058,6 +3373,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "stage",
@@ -3149,6 +3473,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "stackName",
@@ -3261,6 +3594,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "stage",
         "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters.",
         "required": false,
@@ -3299,6 +3641,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3418,6 +3769,15 @@
         "flag": "project-directory"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "starterId",
         "description": "#### Starter ID\n---\nThe identifier of the starter project to initialize.",
         "required": false,
@@ -3492,6 +3852,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3550,6 +3919,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3720,6 +4098,15 @@
         "flag": "query"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "raw",
         "description": "#### Raw\n---\nIf `true`, prints logs in raw JSON format instead of pretty-printing them.",
         "required": false,
@@ -3767,6 +4154,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3816,6 +4212,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -3865,6 +4270,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -4000,6 +4414,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "startTime",
         "description": "#### Start Time\n---\nThe start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor.",
         "required": false,
@@ -4059,6 +4482,15 @@
         ],
         "flag": "organization-name",
         "positional": 0
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -4101,6 +4533,15 @@
         ],
         "flag": "organization-id",
         "positional": 0
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -4131,6 +4572,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -4251,6 +4701,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -4377,6 +4836,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "showSensitiveValues",
         "description": "#### Show Sensitive Values\n---\nIf `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks.",
         "required": false,
@@ -4436,6 +4904,15 @@
         ],
         "flag": "project",
         "positional": 0
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "region",
@@ -4499,6 +4976,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -4667,6 +5153,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "sk",
@@ -4853,6 +5348,15 @@
           "string"
         ],
         "flag": "query"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -5032,6 +5536,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "section",
         "description": "#### Redis Info Section\n---\nSpecific section of Redis INFO output (e.g., server, memory, stats).",
         "required": false,
@@ -5202,6 +5715,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "timeout",
         "description": "#### Query Timeout\n---\nMaximum time to wait for query execution in milliseconds (default: 30000).",
         "required": false,
@@ -5328,6 +5850,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "rollbackSteps",
@@ -5475,6 +6006,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "region",
         "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).",
         "required": false,
@@ -5592,6 +6132,15 @@
         "flag": "profile"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "secretName",
         "description": "#### Secret Name\n---\nThe name of the secret in AWS Secrets Manager.",
         "required": false,
@@ -5684,6 +6233,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "secretName",
@@ -5787,6 +6345,15 @@
           "string"
         ],
         "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       },
       {
         "name": "secretFile",
@@ -5945,6 +6512,15 @@
           "string"
         ],
         "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -5987,6 +6563,15 @@
         ],
         "flag": "new-version",
         "positional": 0
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   },
@@ -6110,6 +6695,15 @@
         "flag": "project"
       },
       {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
         "name": "thorough",
         "description": "#### Thorough\n---\nIf `true`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template.",
         "required": false,
@@ -6156,6 +6750,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
       }
     ]
   }

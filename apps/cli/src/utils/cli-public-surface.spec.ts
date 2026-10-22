@@ -88,7 +88,8 @@ test.each([
   ['init', ['--no-browser'], { noBrowser: true }],
   ['logs', ['--limit', '-10'], { limit: -10 }],
   ['deploy', ['--json'], { outputFormat: 'jsonl' }],
-  ['deploy', ['--debug', '--logLevel', 'info', '--quiet', '--debug'], { logLevel: 'error' }],
+  ['deploy', ['--debug', '--logLevel', 'info', '--quiet', '--debug'], { logLevel: 'debug', quiet: true }],
+  ['defaults:list', ['--logLevel', 'error'], { logLevel: 'error' }],
   ['deploy', ['--json', '--output-format', 'plain'], { outputFormat: 'plain' }]
 ] as const)('%s types options and positionals', (id, tokens, options) => {
   expect(parseCliInput([id, ...tokens]).options).toEqual(options);

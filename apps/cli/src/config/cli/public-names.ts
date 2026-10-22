@@ -58,7 +58,7 @@ export const shortFlags: Readonly<Record<string, string>> = {
   version: 'v'
 };
 export const hiddenArgs = new Set(['agent', 'agentPort', 'agentChild', 'ui', 'outputFormat', 'recoverOperation']);
-export const globalArgs = new Set(['help', 'logLevel', 'outputFormat']);
+export const globalArgs = new Set(['help', 'logLevel', 'outputFormat', 'quiet']);
 
 export const commandPositionals: Readonly<Record<string, readonly string[]>> = {
   logs: ['resourceName'],

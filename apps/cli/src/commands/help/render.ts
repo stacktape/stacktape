@@ -32,14 +32,16 @@ const groups: Record<string, readonly string[]> = {
   'Coding agents': ['mcp', 'ai']
 };
 const summary = (description: string) => description.split('\n')[0].replace(/`/g, '');
+// Option descriptions start with a `#### Title` line and a `---` separator; the help row shows the first sentence after them.
+const argDescription = (description?: string) => (description ?? '').replace(/^####[^\n]*\n+(?:---\n+)?/, '');
 const globalHelp = [
   'Global options:',
   '  -h, --help               Show help for a command or group',
   '  -v, --version            Print the CLI version',
   '      --json               Emit NDJSON (does not confirm operations)',
   '      --debug              Show debug messages',
-  '      --quiet              Show errors only',
-  '      --log-level <level>  info, debug, error; quiet wins, otherwise last flag wins'
+  '      --quiet              Hide progress, banners and hints; output, warnings and errors stay',
+  '      --log-level <level>  info, debug or error'
 ];
 const commandRow = (id: StacktapeCommand) =>
   `  ${publicCommandName(id).padEnd(25)} ${summary(getCommandInfo(id).description)}`;
@@ -91,8 +93,7 @@ export const renderHelp = (path?: string): string[] => {
       lines.push(
         'Arguments:',
         ...positionals.map(
-          (arg) =>
-            `  ${publicFlag(arg).padEnd(25)} ${summary(info.args[arg]?.description?.replace(/^####[^\n]*\n+/, '') ?? '')}`
+          (arg) => `  ${publicFlag(arg).padEnd(25)} ${summary(argDescription(info.args[arg]?.description))}`
         ),
         ''
       );
@@ -100,7 +101,7 @@ export const renderHelp = (path?: string): string[] => {
     for (const [arg, metadata] of Object.entries(info.args)) {
       if (hiddenArgs.has(arg) || globalArgs.has(arg)) continue;
       const label = `${shortFlags[arg] ? `-${shortFlags[arg]}, ` : '    '}--${publicFlag(arg)}${metadata.allowedTypes.includes('boolean') ? '' : ` <${arg === 'stage' ? 'name' : metadata.allowedTypes.includes('number') ? 'number' : 'value'}>`}`;
-      const desc = summary(metadata.description?.replace(/^####[^\n]*\n+/, '') ?? '');
+      const desc = summary(argDescription(metadata.description));
       lines.push(`  ${label.padEnd(32)} ${desc}${metadata.required ? ' (required)' : ''}`);
     }
     lines.push('');

@@ -59,6 +59,9 @@ export type { Spinner } from './spinner';
  * composes the output pipeline (output/), the renderer runtime (runtime/), the
  * progress model (progress/), prompts (prompt/) and formatting (format/).
  */
+// Progress-style messages `--quiet` hides. `info` stays: commands print their data through it.
+const QUIET_HIDDEN_MESSAGES = new Set<TuiMessageType>(['success', 'hint', 'start', 'announcement']);
+
 class TuiManager {
   private presentation = new PresentationController();
   private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
@@ -77,6 +80,8 @@ class TuiManager {
   private _wasEverStarted = false;
   private _devTuiActive = false;
   private logLevel: LogLevel = 'info';
+  /** `--quiet`: no progress UI, banners, success messages or hints; command output, warnings and errors stay. */
+  private quiet = false;
   private ttyView: TtyView = 'auto';
 
   constructor() {
@@ -110,10 +115,11 @@ class TuiManager {
     this.applyOutputMode();
   }
 
-  init(options: { logLevel?: LogLevel } = {}) {
+  init(options: { logLevel?: LogLevel; quiet?: boolean } = {}) {
     this.logLevel = options.logLevel || 'info';
-    this.outputRouter.setQuiet(this.logLevel === 'error');
-    setSpinnerQuiet(this.logLevel === 'error');
+    this.quiet = Boolean(options.quiet);
+    this.outputRouter.setQuiet(this.quiet);
+    setSpinnerQuiet(this.quiet);
     this.applyOutputMode();
     this.outputRouter.reset();
   }
@@ -145,7 +151,7 @@ class TuiManager {
   }
 
   start(options: { phases?: PhasePreset; view?: TtyView } = {}) {
-    if (this.logLevel === 'error') return;
+    if (this.quiet) return;
     this._isEnabled = true;
     this._wasEverStarted = true;
     this.teardownDone = false;
@@ -305,10 +311,9 @@ class TuiManager {
       this.jsonlStdioGuard.disable();
     }
     process.env.STP_REDIRECT_STDIO_TO_CONSOLE = profile.interceptConsole && !interceptDisabled ? 'true' : 'false';
-    if ((profile.interceptConsole || this.logLevel === 'error') && !interceptDisabled) {
+    if (profile.interceptConsole && !interceptDisabled) {
       this.consoleInterceptor.start({
-        passthrough: this.outputMode !== 'jsonl',
-        shouldWrite: (level) => this.logLevel !== 'error' || level === 'error',
+        passthrough: this.outputMode === 'plain',
         onMessage: ({ level, source, message }) => {
           this.emitOutputRecord({ type: 'log', level, source, message });
         }
@@ -323,7 +328,7 @@ class TuiManager {
   }
 
   intro(title: string) {
-    if (this.logLevel === 'error') return;
+    if (this.quiet) return;
     if (!this.isTTY) {
       console.info(`\n[i] ${title}\n`);
       return;
@@ -332,7 +337,7 @@ class TuiManager {
   }
 
   outro(message?: string) {
-    if (this.logLevel === 'error') return;
+    if (this.quiet) return;
     if (!this.isTTY) {
       if (message) console.info(`\n✓ ${message}\n`);
       return;
@@ -487,7 +492,7 @@ class TuiManager {
   }
 
   private log(type: TuiMessageType, message: string) {
-    if (this.logLevel === 'error' && type !== 'error') return;
+    if (this.quiet && QUIET_HIDDEN_MESSAGES.has(type)) return;
     operationSession.message(type, message);
 
     if (this.outputMode === 'plain' || this.outputMode === 'jsonl') return;
@@ -500,10 +505,6 @@ class TuiManager {
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
-    if (this.logLevel === 'error' && type === 'error') {
-      console.error(`[x] ${message}`);
-      return;
-    }
     if (this.isTTY) {
       const symbols: Record<TuiMessageType, string> = {
         info: this.colorize('cyan', 'i'),
@@ -547,7 +548,7 @@ class TuiManager {
   }
 
   showCommandHeader(header: TuiDeploymentHeader, options: { renderStandalone?: boolean } = {}) {
-    if (this.logLevel === 'error') return;
+    if (this.quiet) return;
     this.setHeader(header);
     if (!options.renderStandalone) return;
     if (this._isEnabled || !this.isTTY || this.outputMode !== 'tty') return;
@@ -814,7 +815,6 @@ class TuiManager {
   }
 
   private writeInfoLine(line: string) {
-    if (this.logLevel === 'error') return;
     if (this.outputMode === 'jsonl') {
       this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: line });
       return;
@@ -823,7 +823,6 @@ class TuiManager {
   }
 
   private writeInfoLines(lines: string[]) {
-    if (this.logLevel === 'error') return;
     if (this.outputMode === 'jsonl') {
       this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: lines.join('\n') });
       return;

@@ -19,7 +19,8 @@ export const requireSecretValueInput = ({
   secretFile: string | undefined;
   secretValue: string | undefined;
 }) => {
-  if (secretValue === undefined && !secretFile) {
+  // An empty value, from `--value ''` or empty stdin such as /dev/null in CI, is a mistake rather than a secret.
+  if (!secretValue && !secretFile) {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_SECRET_VALUE_REQUIRED',

@@ -94,6 +94,7 @@ stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric 
 | `--period` | no | `number` | Metric Period — Aggregation period in seconds (default: 300). | - |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--since` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
 | `--stat` | no | `string` | Metric Statistic — Statistic to retrieve: Sum, Average, Maximum, Minimum, p99 (default: Average). | - |
 

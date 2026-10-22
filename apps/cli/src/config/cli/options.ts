@@ -14,6 +14,10 @@ The level of logs to print to the console.
 - \`error\`: Only errors.
 - \`debug\`: Detailed information for debugging.`);
 
+export const quiet = z.boolean().describe(`#### Quiet
+---
+Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed.`);
+
 export const stage = z.string().describe(`#### Stage
 ---
 The stage for the operation (e.g., \`production\`, \`staging\`, \`dev-john\`). You can set a default stage using the \`defaults set\` command. The maximum length is 12 characters.`);
@@ -475,6 +479,7 @@ Lists available deployment versions that can be rolled back to, then exits witho
 export const universalArgs = {
   profile: profile.optional(),
   logLevel: logLevel.optional(),
+  quiet: quiet.optional(),
   help: help.optional(),
   awsAccount: awsAccount.optional(),
   agent: agent.optional(),
@@ -485,6 +490,7 @@ export const universalArgs = {
 export const localUniversalArgs = {
   profile: profile.optional(),
   logLevel: logLevel.optional(),
+  quiet: quiet.optional(),
   help: help.optional(),
   agent: agent.optional(),
   outputFormat: outputFormat.optional(),
@@ -607,6 +613,7 @@ export const allCliArgsSchema = z.object({
   remoteResources: remoteResources.optional(),
   command: command.optional(),
   logLevel: logLevel.optional(),
+  quiet: quiet.optional(),
   startTime: startTime.optional(),
   filter: filter.optional(),
   raw: raw.optional(),

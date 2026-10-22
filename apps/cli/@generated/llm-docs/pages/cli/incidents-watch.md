@@ -24,6 +24,7 @@ The only required flag is `--incidentId`. Raise the timeout and the stability wi
 | `--stable-for` | no | `number` | Incident Watch Stability Window — Number of continuous seconds the incident must remain resolved before the command succeeds. A recurring signal resets the window. Defaults to 30 seconds. | - |
 | `--timeout` | no | `number` | Incident Watch Timeout — Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Examples

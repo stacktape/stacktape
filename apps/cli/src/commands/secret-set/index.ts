@@ -25,7 +25,9 @@ export const commandSecretSet = async () => {
       message: 'Use only one of --value or --file.'
     });
   if (!process.stdin.isTTY) requireSecretName(args.secretName);
-  const stdinValue = !hasValue && !hasFile && !process.stdin.isTTY ? await Bun.stdin.text() : undefined;
+  // `echo value | stacktape secret set name` ends the value with a newline that is not part of the secret.
+  const stdinValue =
+    !hasValue && !hasFile && !process.stdin.isTTY ? (await Bun.stdin.text()).replace(/\r?\n$/, '') : undefined;
   // Explicit input and piped stdin work in ordinary CLI mode as well as agent mode.
   if (agentMode || hasValue || hasFile || stdinValue !== undefined) {
     const secretName = requireSecretName(args.secretName);

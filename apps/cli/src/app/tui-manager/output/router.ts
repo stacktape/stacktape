@@ -32,7 +32,7 @@ const createJsonlSink = ({ stdout }: { stdout: boolean }): OutputSink => {
   };
 };
 
-const createPlainSink = (isQuiet: () => boolean): OutputSink => {
+const createPlainSink = (): OutputSink => {
   return {
     reset: () => plainEmitter.reset(),
     emit: (record) => {
@@ -49,8 +49,7 @@ const createPlainSink = (isQuiet: () => boolean): OutputSink => {
         if (record.source === 'console') {
           return;
         }
-        if (isQuiet() && record.level === 'error') console.error(`[x] ${record.message}`);
-        else plainEmitter.emitLog({ level: record.level, message: record.message });
+        plainEmitter.emitLog({ level: record.level, message: record.message });
         return;
       }
       if (record.type === 'output') {
@@ -60,36 +59,36 @@ const createPlainSink = (isQuiet: () => boolean): OutputSink => {
         return;
       }
       if (record.type === 'result') {
-        if (isQuiet()) {
-          if (!record.ok) console.error(`[x] ${record.message} (${record.code})`);
-        } else plainEmitter.emitResult(record);
+        plainEmitter.emitResult(record);
       }
     }
   };
 };
 
-const getSinksForMode = (mode: OutputMode, isQuiet: () => boolean): OutputSink[] => {
+const getSinksForMode = (mode: OutputMode): OutputSink[] => {
   const sinks: OutputSink[] = [createJsonlSink({ stdout: mode === 'jsonl' })];
   if (mode === 'plain') {
-    sinks.push(createPlainSink(isQuiet));
+    sinks.push(createPlainSink());
   }
   return sinks;
 };
 
 export class OutputRouter {
   private sinks: OutputSink[];
+
   private quiet = false;
 
+  constructor(mode: OutputMode) {
+    this.sinks = getSinksForMode(mode);
+  }
+
+  /** `--quiet` drops progress records only; command data, warnings, errors and results still reach every sink. */
   setQuiet(quiet: boolean) {
     this.quiet = quiet;
   }
 
-  constructor(mode: OutputMode) {
-    this.sinks = getSinksForMode(mode, () => this.quiet);
-  }
-
   reconfigure(mode: OutputMode) {
-    this.sinks = getSinksForMode(mode, () => this.quiet);
+    this.sinks = getSinksForMode(mode);
   }
 
   reset() {
@@ -99,7 +98,7 @@ export class OutputRouter {
   }
 
   emit(record: OutputRecord) {
-    if (this.quiet && record.type !== 'result' && !(record.type === 'log' && record.level === 'error')) return;
+    if (this.quiet && (record.type === 'event' || record.type === 'progress')) return;
     for (const sink of this.sinks) {
       sink.emit(record);
     }

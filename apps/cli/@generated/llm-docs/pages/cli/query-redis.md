@@ -116,6 +116,7 @@ stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --o
 | `--pattern` | no | `string` | Redis Key Pattern — Pattern for matching keys (default: *). Supports glob-style patterns. | - |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--section` | no | `string` | Redis Info Section — Specific section of Redis INFO output (e.g., server, memory, stats). | - |
 
 

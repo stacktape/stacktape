@@ -73,7 +73,7 @@ const parseError = (code: string, message: string, hints?: string) =>
   new CliError({ category: 'CLI', code, message, hints });
 const isOption = (token: string) => /^-/.test(token) && !/^-(?:\d|\.\d)/.test(token);
 
-/** Bootstrap output settings must survive a later parse error. Last output flag wins; quiet beats debug/logLevel. */
+/** Bootstrap output settings must survive a later parse error. Last output flag wins. */
 export const getBootstrapOptions = (argv: string[]): StacktapeCliArgs => {
   const options: StacktapeCliArgs = {};
   const end = argv.indexOf('--');
@@ -90,7 +90,7 @@ export const getBootstrapOptions = (argv: string[]): StacktapeCliArgs => {
       options.logLevel = (inline ??
         (tokens[i + 1] && !isOption(tokens[i + 1]) ? tokens[++i] : undefined)) as StacktapeCliArgs['logLevel'];
   }
-  if (tokens.includes('--quiet')) options.logLevel = 'error';
+  if (tokens.includes('--quiet')) options.quiet = true;
   return options;
 };
 
@@ -180,11 +180,12 @@ export const parseCliInput = (
       continue;
     }
     if (name === 'quiet') {
+      options.quiet = true;
       continue;
     }
     const types = command ? getArgInfo(command, arg).allowedTypes : ['string'];
     // Global output/log flags are accepted for every command.
-    const allowedTypes = globalArgs.has(arg) ? (arg === 'help' ? ['boolean'] : ['string']) : types;
+    const allowedTypes = globalArgs.has(arg) ? (['help', 'quiet'].includes(arg) ? ['boolean'] : ['string']) : types;
     if (allowedTypes.includes('boolean')) {
       if (inline !== undefined && !['true', 'false'].includes(inline))
         throw parseError('CLI_ARGUMENT_TYPE_INVALID', `--${publicFlag(arg)} expects true or false.`);

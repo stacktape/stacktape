@@ -96,6 +96,7 @@ To reset a single default to its configured default value, run `defaults:configu
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--key (positional 1)` | no | `string` | Default setting to update: region, stage, profile, project, aws-account, api-key, executable-python or executable-javascript. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--value (positional 2)` | no | `string` | New value for the selected default setting. | - |
 
 

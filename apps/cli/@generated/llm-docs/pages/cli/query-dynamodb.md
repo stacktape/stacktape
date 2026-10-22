@@ -33,6 +33,7 @@ The `--resourceName` must match the name of a `DynamoDbTable` resource in your S
 | `--pk` | no | `string` | DynamoDB Partition Key — JSON object with partition key name and value (e.g., '{"id": "123"}'). | - |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--sk` | no | `string` | DynamoDB Sort Key — JSON object with sort key name and value (e.g., '{"timestamp": 12345}'). | - |
 
 

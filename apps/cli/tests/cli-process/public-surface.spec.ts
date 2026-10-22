@@ -80,14 +80,15 @@ test('group help and quiet mode use the real output boundary', async () => {
   expect(help.exitCode, help.stderr + help.stdout).toBe(0);
   expect(help.stdout).toContain('secret set');
   expect(help.stdout).not.toContain('secret:set');
+  // Quiet hides progress, not output: the help text is the command's output.
   const quiet = await run(directory, ['help', '--quiet', '--json']);
   expect(quiet.exitCode).toBe(0);
-  expect(
-    quiet.stdout
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
-  ).toEqual([expect.objectContaining({ type: 'result', ok: true })]);
+  const records = quiet.stdout
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  expect(records.some((record) => record.type === 'log' && String(record.message).includes('secret set'))).toBe(true);
+  expect(records.at(-1)).toEqual(expect.objectContaining({ type: 'result', ok: true }));
 }, 120_000);
 
 test('ordinary secret set accepts --value, --file and piped stdin without a value prompt', async () => {
@@ -126,7 +127,8 @@ test('ordinary secret set accepts --value, --file and piped stdin without a valu
           .trim()
           .split('\n')
           .map((line) => JSON.parse(line))
-      ).toEqual([expect.objectContaining({ type: 'result', ok: true })]);
+          .at(-1)
+      ).toEqual(expect.objectContaining({ type: 'result', ok: true }));
     }
     const conflict = await fixture.run([
       'secret',
@@ -150,14 +152,13 @@ test('ordinary secret set accepts --value, --file and piped stdin without a valu
   }
 }, 120_000);
 
-test('quiet mode keeps plain errors visible and suppresses successful help', async () => {
+test('quiet mode keeps command output and plain errors visible', async () => {
   const directory = await home();
   const help = await run(directory, ['secret', '--help', '--quiet']);
   expect(help.exitCode).toBe(0);
-  expect(help.stdout).toBe('');
+  expect(help.stdout).toContain('secret set');
   expect(help.stderr).toBe('');
   const invalid = await run(directory, ['defaults', 'set', 'region', 'invalid', '--quiet']);
   expect(invalid.exitCode).toBe(1);
-  expect(invalid.stdout).toBe('');
   expect(invalid.stderr).toContain('Invalid value for default region');
 }, 120_000);
