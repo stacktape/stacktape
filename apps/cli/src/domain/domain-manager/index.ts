@@ -11,7 +11,7 @@ import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-ap
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { stpErrors } from '@errors';
 import {
-  CURRENT_DEFAULT_DOMAINS_VERSION,
+  NEW_STACK_DEFAULT_DOMAINS_VERSION,
   getDefaultDomainRootSuffix,
   getDefaultDomainSuffixForStack,
   getPrefixForUserAppResourceDefaultDomainName
@@ -113,7 +113,7 @@ export class DomainManager {
   }) => {
     this.#stackName = stackName;
     const deployedVersion = getDeployedDefaultDomainsVersion(deployedTemplate);
-    const version = deployedVersion ?? CURRENT_DEFAULT_DOMAINS_VERSION;
+    const version = deployedVersion ?? NEW_STACK_DEFAULT_DOMAINS_VERSION;
     const stack = {
       stackName,
       region: globalStateManager.region,

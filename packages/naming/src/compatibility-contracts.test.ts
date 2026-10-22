@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { getStpNameForAlarm } from './alarm-names';
 import { cfLogicalNames } from './cloudformation-logical-names';
 import {
-  CURRENT_DEFAULT_DOMAINS_VERSION,
+  NEW_STACK_DEFAULT_DOMAINS_VERSION,
   getDefaultDomainRootSuffix,
   getDefaultDomainSuffixForStack,
   getPrefixForUserAppResourceDefaultDomainName,
@@ -126,7 +126,7 @@ describe('migrated naming compatibility contracts', () => {
     // Version 1 is the 32-bit hash existing stacks keep; version 2 is a SHA-256 prefix no chosen stack name can match.
     expect(getDefaultDomainSuffixForStack({ ...stack, version: 1 })).toBe('-de773011.stacktape-app.com');
     expect(getDefaultDomainSuffixForStack({ ...stack, version: 2 })).toBe('-c5dea6d84fd625d0c074.stacktape-app.com');
-    expect(CURRENT_DEFAULT_DOMAINS_VERSION).toBe(2);
+    expect(NEW_STACK_DEFAULT_DOMAINS_VERSION).toBe(2);
     for (const version of [1, 2]) {
       const suffix = getDefaultDomainSuffixForStack({ ...stack, version })!;
       expect(getDefaultDomainRootSuffix({ version })).toBe('.stacktape-app.com');

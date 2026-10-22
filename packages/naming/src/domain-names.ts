@@ -7,7 +7,13 @@ import { getGloballyUniqueStackHash } from './stack-identity';
  * which no chosen stack name can match.
  */
 const DEFAULT_DOMAINS_VERSIONS = [1, 2] as const;
-export const CURRENT_DEFAULT_DOMAINS_VERSION = 2;
+/**
+ * The version a stack without default domains gets. The Console decides which version each stack keeps, so it must be
+ * built from the same public commit as this package. This export was renamed when version 2 replaced version 1, so a
+ * Console built against a different scheme fails to compile instead of handing out the wrong suffixes. Rename it again
+ * whenever its value changes.
+ */
+export const NEW_STACK_DEFAULT_DOMAINS_VERSION = 2;
 
 export const getDefaultDomainRootSuffix = ({ version }: { version: number }) =>
   (DEFAULT_DOMAINS_VERSIONS as readonly number[]).includes(version) ? '.stacktape-app.com' : undefined;
