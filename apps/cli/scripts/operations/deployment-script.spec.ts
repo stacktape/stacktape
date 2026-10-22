@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { writeHelperLambdaManifest } from '@utils/helper-lambdas';
 import { buildOperationsCli, createOperationsFixture, seedDeployedStack, targetArgs } from './cli-process';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
@@ -28,6 +29,10 @@ test('deployment script uploads its nested function, invokes the built artifact 
     inventory.writeZip(
       join(fixture.directory, '__stacktape-dist/dev/helper-lambdas/stacktapeServiceLambda-fixture.zip')
     );
+    await writeHelperLambdaManifest({
+      helperLambdasDir: join(fixture.directory, '__stacktape-dist/dev/helper-lambdas'),
+      artifacts: { stacktapeServiceLambda: 'stacktapeServiceLambda-fixture.zip' }
+    });
     await mkdir(join(fixture.directory, 'artifact'));
     await writeFile(
       join(fixture.directory, 'artifact/index.js'),
