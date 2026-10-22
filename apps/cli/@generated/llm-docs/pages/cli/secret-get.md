@@ -1,17 +1,17 @@
-# secret:get
+# secret get
 
 Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, value, creation date, and ARN. Use this to verify secret contents before referencing them in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
 
 ## Usage
 
 ```bash
-stacktape secret:get --region eu-west-1
+stacktape secret get --region eu-west-1
 ```
 
-In interactive mode, you are prompted to enter the secret name. In agent mode, pass `--secretName` explicitly:
+In interactive mode, you are prompted to enter the secret name. In agent mode, pass the secret name as an argument:
 
 ```bash
-stacktape secret:get --region eu-west-1 --secretName my-api-key --agent
+stacktape secret get my-api-key --region eu-west-1 --agent
 ```
 
 ## API reference
@@ -34,30 +34,30 @@ stacktape secret:get --region eu-west-1 --secretName my-api-key --agent
 
 In interactive mode, the command prints a formatted box containing the secret's name, creation date, ARN, and value. If the value is valid JSON, it is pretty-printed.
 
-For `secret:get`, agent mode prints a JSON-formatted payload containing `name`, `value`, `created`, and `arn`. The shared CLI `--agent` flag also disables interactive prompts, so pass `--secretName` when using it.
+For `secret get`, agent mode prints a JSON-formatted payload containing `name`, `value`, `created`, and `arn`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
 
 ## Examples
 
 Retrieve a secret interactively (you'll be prompted for the name):
 
 ```bash
-stacktape secret:get --region us-east-1
+stacktape secret get --region us-east-1
 ```
 
 Retrieve a specific secret by name in a CI script:
 
 ```bash
-stacktape secret:get --region eu-west-1 --secretName DATABASE_PASSWORD --agent
+stacktape secret get DATABASE_PASSWORD --region eu-west-1 --agent
 ```
 
 Use a named AWS profile:
 
 ```bash
-stacktape secret:get --region eu-west-1 --profile production
+stacktape secret get --region eu-west-1 --profile production
 ```
 
 ## Related commands
 
-- [`secret:set`](/cli/secret-set) — create a new secret in AWS Secrets Manager.
-- [`secret:delete`](/cli/secret-delete) — delete a secret from AWS Secrets Manager.
+- [`secret set`](/cli/secret-set) — create a new secret in AWS Secrets Manager.
+- [`secret delete`](/cli/secret-delete) — delete a secret from AWS Secrets Manager.
 - [Secrets configuration](/configuration/secrets) — how to reference secrets in your Stacktape config using `$Secret()`.

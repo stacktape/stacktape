@@ -1511,7 +1511,7 @@ export interface KafkaSASLAuthProps {
    * ---
    *
    * The secret must be a JSON object with `username` and `password` keys.
-   * You can create secrets using the `stacktape secret:create` command.
+   * You can create secrets using the `stacktape secret set` command.
    */
   authenticationSecretArn: string;
 }
@@ -1539,7 +1539,7 @@ export interface KafkaMTLSAuthProps {
    * ---
    *
    * This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.
-   * You can create secrets using the `stacktape secret:create` command.
+   * You can create secrets using the `stacktape secret set` command.
    */
   clientCertificate: string;
   /**
@@ -1547,7 +1547,7 @@ export interface KafkaMTLSAuthProps {
    *
    * ---
    *
-   * You can create secrets using the `stacktape secret:create` command.
+   * You can create secrets using the `stacktape secret set` command.
    */
   serverRootCaCertificate?: string;
 }

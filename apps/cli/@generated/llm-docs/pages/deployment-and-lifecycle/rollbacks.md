@@ -1,6 +1,6 @@
 # Rollbacks
 
-Stacktape provides two rollback commands for recovering from bad deployments. [`stacktape rollback`](/cli/rollback) re-deploys a previous good version using stored deployment artifacts. [`stacktape cf:rollback`](/cli/cf-rollback) triggers Stacktape's CloudFormation rollback flow when a deployment leaves the stack in a failed state. Neither command requires your local source code or config file — version rollback works from stored deployment artifacts and CloudFormation state rather than rebuilding from your current working tree.
+Stacktape provides two rollback commands for recovering from bad deployments. [`stacktape rollback`](/cli/rollback) re-deploys a previous good version using stored deployment artifacts. [`stacktape stack recover`](/cli/cf-rollback) triggers Stacktape's CloudFormation rollback flow when a deployment leaves the stack in a failed state. Neither command requires your local source code or config file — version rollback works from stored deployment artifacts and CloudFormation state rather than rebuilding from your current working tree.
 
 ## When to use each rollback type
 
@@ -9,8 +9,8 @@ Stacktape's two rollback commands serve different failure scenarios. Choosing th
 | Scenario | Command | What it does |
 |----------|---------|--------------|
 | Last deploy succeeded but introduced a bug | `stacktape rollback` | Re-deploys a previous version's CloudFormation template as a new deployment |
-| Deploy failed and the stack is stuck in a failed CloudFormation state | `stacktape cf:rollback` | Triggers Stacktape's CloudFormation rollback flow and cleans up rolled-back deployment artifacts |
-| You want to undo multiple deploys back | `stacktape rollback --rollbackSteps 3` | Targets an older version by stepping back N versions |
+| Deploy failed and the stack is stuck in a failed CloudFormation state | `stacktape stack recover` | Triggers Stacktape's CloudFormation rollback flow and cleans up rolled-back deployment artifacts |
+| You want to undo multiple deploys back | `stacktape rollback --rollback-steps 3` | Targets an older version by stepping back N versions |
 
 ## Version rollback
 
@@ -22,7 +22,7 @@ Every successful Stacktape deployment stores a versioned snapshot of the CloudFo
 
 When you run `stacktape rollback`, Stacktape:
 
-1. **Resolves the target version** — determines which version to roll back to, either by an explicit `--targetVersion` flag or by stepping back N versions (default: 1).
+1. **Resolves the target version** — determines which version to roll back to, either by an explicit `--target-version` flag or by stepping back N versions (default: 1).
 2. **Verifies artifacts for the target version** — confirms the CloudFormation template and all referenced deployment artifacts still exist.
 3. **Checks rollback safety** — inspects the current stack's rollback safety metadata and warns if the config uses features that may not replay cleanly (e.g., `$File` directive, `after:deploy` hooks, TypeScript transforms, custom directives).
 4. **Deploys the old template** — downloads the old CloudFormation template, patches the version output, uploads it, and triggers a CloudFormation stack update.
@@ -41,13 +41,13 @@ stacktape rollback --stage production --region eu-west-1
 Roll back to a specific version:
 
 ```bash
-stacktape rollback --stage production --region eu-west-1 --targetVersion v000003
+stacktape rollback --stage production --region eu-west-1 --target-version v000003
 ```
 
 Roll back multiple steps:
 
 ```bash
-stacktape rollback --stage production --region eu-west-1 --rollbackSteps 3
+stacktape rollback --stage production --region eu-west-1 --rollback-steps 3
 ```
 
 ### Listing available versions
@@ -55,7 +55,7 @@ stacktape rollback --stage production --region eu-west-1 --rollbackSteps 3
 Before rolling back, check which versions are available:
 
 ```bash
-stacktape rollback --stage production --region eu-west-1 --listVersions
+stacktape rollback --stage production --region eu-west-1 --list-versions
 ```
 
 This prints the current version and versions found in Stacktape's previous-version list. Stacktape still verifies the selected version's artifacts before performing the rollback. Versions are numbered sequentially, so you can correlate them with your deployment history. Old versions may be cleaned up based on `previousVersionsToKeep`; if a target version is no longer available, Stacktape cannot roll back to it.
@@ -105,11 +105,11 @@ When rollback safety metadata is present, Stacktape prints warnings only for the
 
 ## CloudFormation rollback
 
-The [`stacktape cf:rollback`](/cli/cf-rollback) command triggers Stacktape's CloudFormation rollback flow for the target stack and then cleans up any deployment artifacts that were uploaded during the failed deployment. Use this when a deployment failed and left your stack in a broken state — it does not target a specific previous version like `stacktape rollback` does.
+The [`stacktape stack recover`](/cli/cf-rollback) command triggers Stacktape's CloudFormation rollback flow for the target stack and then cleans up any deployment artifacts that were uploaded during the failed deployment. Use this when a deployment failed and left your stack in a broken state — it does not target a specific previous version like `stacktape rollback` does.
 
-### When to use cf:rollback
+### When to use stack recover
 
-Use `stacktape cf:rollback` when a deployment failed and left the CloudFormation stack in a failed state. The command triggers Stacktape's CloudFormation rollback flow and then deletes the artifacts uploaded during the failed deployment. Note that CloudFormation rollback itself can still fail in some cases — if the stack cannot be restored, manual recovery through the AWS Console or AWS CLI may be required.
+Use `stacktape stack recover` when a deployment failed and left the CloudFormation stack in a failed state. The command triggers Stacktape's CloudFormation rollback flow and then deletes the artifacts uploaded during the failed deployment. Note that CloudFormation rollback itself can still fail in some cases — if the stack cannot be restored, manual recovery through the AWS Console or AWS CLI may be required.
 
 You do NOT need this command when:
 
@@ -119,16 +119,16 @@ You do NOT need this command when:
 ### Basic usage
 
 ```bash
-stacktape cf:rollback --stage production --region eu-west-1
+stacktape stack recover --stage production --region eu-west-1
 ```
 
-After a successful `cf:rollback`, Stacktape automatically cleans up any deployment artifacts that were uploaded during the failed deployment.
+After a successful `stack recover`, Stacktape automatically cleans up any deployment artifacts that were uploaded during the failed deployment.
 
 ## FAQ
 
-### What's the difference between `stacktape rollback` and `stacktape cf:rollback`?
+### What's the difference between `stacktape rollback` and `stacktape stack recover`?
 
-`stacktape rollback` is a version-targeted operation — it picks a specific previous deployment version, verifies its artifacts still exist, and re-deploys its CloudFormation template as a new version. Use it when your stack is healthy but the latest code or config is wrong. `stacktape cf:rollback` is a recovery operation — it triggers Stacktape's CloudFormation rollback flow to unstick a stack left in a failed state, then cleans up artifacts from the failed deployment. Use it when the stack itself is broken, not just the application.
+`stacktape rollback` is a version-targeted operation — it picks a specific previous deployment version, verifies its artifacts still exist, and re-deploys its CloudFormation template as a new version. Use it when your stack is healthy but the latest code or config is wrong. `stacktape stack recover` is a recovery operation — it triggers Stacktape's CloudFormation rollback flow to unstick a stack left in a failed state, then cleans up artifacts from the failed deployment. Use it when the stack itself is broken, not just the application.
 
 ### What happens to my database during a rollback?
 
@@ -136,7 +136,7 @@ After a successful `cf:rollback`, Stacktape automatically cleans up any deployme
 
 ### How do I know which version to roll back to?
 
-Run `stacktape rollback --listVersions` to see all available versions with their version numbers. Versions are numbered sequentially (`v000001`, `v000002`, etc.), so you can correlate them with your deployment history. For most incidents, rolling back one step (the default) is correct — you're undoing the most recent change.
+Run `stacktape rollback --list-versions` to see all available versions with their version numbers. Versions are numbered sequentially (`v000001`, `v000002`, etc.), so you can correlate them with your deployment history. For most incidents, rolling back one step (the default) is correct — you're undoing the most recent change.
 
 ### Can I roll forward after a rollback?
 

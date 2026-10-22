@@ -304,10 +304,10 @@ export default defineConfig(({ stage }) => {
 
 ## Config file detection
 
-Stacktape auto-detects configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can point to a different location with the `--configPath` option. See the [`deploy`](/cli/deploy) command reference for details.
+Stacktape auto-detects configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can point to a different location with the `--config` option. See the [`deploy`](/cli/deploy) command reference for details.
 
 ```bash
-stacktape deploy --stage production --configPath ./infrastructure/stacktape.ts
+stacktape deploy --stage production --config ./infrastructure/stacktape.ts
 ```
 
 ## Directives in configuration

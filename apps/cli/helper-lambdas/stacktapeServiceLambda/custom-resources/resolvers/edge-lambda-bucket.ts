@@ -57,7 +57,8 @@ const emptyEdgeDeploymentBucket = async (bucketName: string) => {
         chunkArray(objects, 1000).map((chunk) =>
           s3Api.deleteObjects({
             Bucket: bucketName,
-            Delete: { Objects: chunk as ObjectIdentifier[] }
+            // Only the keys: S3 rejects a listed object's other fields as MalformedXML.
+            Delete: { Objects: chunk.map(({ Key }): ObjectIdentifier => ({ Key })) }
           })
         )
       );

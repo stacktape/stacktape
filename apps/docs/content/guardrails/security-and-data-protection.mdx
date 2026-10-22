@@ -354,7 +354,7 @@ For a high-level overview of all 18 guardrail types, see the [guardrails overvie
 
 ### What is VPC-only database accessibility?
 
-VPC-only accessibility means the database has no public IP address and can only be reached from within the AWS VPC. Workloads running in the same VPC (such as [Lambda functions](/resources/compute/lambda-function) or [container workloads](/resources/compute/web-service) configured with [`connectTo`](/configuration/connecting-resources)) connect normally. For administration and debugging, use a [bastion host](/resources/security/bastion-host) or the [`bastion:tunnel`](/cli/bastion-tunnel) CLI command to create a secure tunnel from your local machine.
+VPC-only accessibility means the database has no public IP address and can only be reached from within the AWS VPC. Workloads running in the same VPC (such as [Lambda functions](/resources/compute/lambda-function) or [container workloads](/resources/compute/web-service) configured with [`connectTo`](/configuration/connecting-resources)) connect normally. For administration and debugging, use a [bastion host](/resources/security/bastion-host) or the [`bastion tunnel`](/cli/bastion-tunnel) CLI command to create a secure tunnel from your local machine.
 
 ### What does the require-waf guardrail actually protect against?
 

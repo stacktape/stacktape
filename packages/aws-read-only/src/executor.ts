@@ -1,5 +1,5 @@
 /**
- * Sends one AWS SDK v3 operation by name: the CLI's `aws:call`, the dev agent's `/aws/sdk` endpoint and a hosted incident
+ * Sends one AWS SDK v3 operation by name: the CLI's `aws call`, the dev agent's `/aws/sdk` endpoint and a hosted incident
  * run's `aws_call` all come through here. Callers may sign with a person's own AWS credentials or with an organization's
  * connected-account role, so this is where the reviewed read-only catalog is enforced: an operation outside it is
  * refused before a client is even created. A service's SDK client is loaded only when that service is called.

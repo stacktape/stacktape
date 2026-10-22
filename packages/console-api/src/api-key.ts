@@ -220,11 +220,11 @@ export const listIncidentsInputSchema = z.object({
 
 export const incidentActionInputSchema = z.object({ incidentId: z.string() });
 
-/** The providers whose subscription a member can connect from the CLI, as `--aiProvider` names them. */
+/** The providers whose subscription a member can connect from the CLI, as the `ai connect` command names them. */
 export const aiSubscriptionProviderSchema = z.enum(['claude', 'codex', 'grok', 'opencode']);
 
 /**
- * `stacktape ai:connect`: a member's own sign-in with one provider, as that provider's agent keeps it. Claude: the
+ * `stacktape ai connect`: a member's own sign-in with one provider, as that provider's agent keeps it. Claude: the
  * token `claude setup-token` prints. Codex: the ChatGPT tokens `codex login` writes, never an API key. Grok and
  * OpenCode: the sign-in file `grok login` or `opencode auth login` writes.
  */
@@ -248,7 +248,7 @@ export const connectAiSubscriptionInputSchema = z.discriminatedUnion('provider',
   z.object({ provider: z.literal('opencode'), authFile: z.record(z.string().max(200), z.unknown()) }).strict()
 ]);
 
-/** `stacktape ai:disconnect`: the provider whose sign-in to remove. */
+/** `stacktape ai disconnect`: the provider whose sign-in to remove. */
 export const disconnectAiSubscriptionInputSchema = z.object({ provider: aiSubscriptionProviderSchema }).strict();
 
 /**

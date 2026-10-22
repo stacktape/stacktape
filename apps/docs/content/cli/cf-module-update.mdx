@@ -1,18 +1,18 @@
 ---
-title: 'cf-module:update'
+title: 'stack update-modules'
 order: 150
-seoTitle: 'cf-module:update CLI Command | Stacktape Docs'
+seoTitle: 'stack update-modules CLI Command | Stacktape Docs'
 seoDescription: 'Update CloudFormation infrastructure module private types to the latest version. Covers atlasMongo, upstashRedis, and ecsBlueGreen modules used by Stacktape.'
 ---
 
-# cf-module:update
+# stack update-modules
 
-The `cf-module:update` command updates CloudFormation infrastructure module private types in your AWS account to the latest compatible version. Stacktape currently offers updates for `atlasMongo`, `upstashRedis`, and `ecsBlueGreen` CloudFormation private types. Run this command when an upstream API change for one of these modules requires the registration in your account to be updated, or when an error message or Stacktape support explicitly tells you to update a module.
+The `stack update-modules` command updates CloudFormation infrastructure module private types in your AWS account to the latest compatible version. Stacktape currently offers updates for `atlasMongo`, `upstashRedis`, and `ecsBlueGreen` CloudFormation private types. Run this command when an upstream API change for one of these modules requires the registration in your account to be updated, or when an error message or Stacktape support explicitly tells you to update a module.
 
 ## Usage
 
 ```bash
-stacktape cf-module:update --region eu-west-1
+stacktape stack update-modules --region eu-west-1
 ```
 
 The command is interactive — after running it, you select which module to update from a prompt. There is no CLI flag to specify the module directly, so the command requires interactive terminal input. The three available modules are:
@@ -38,23 +38,23 @@ This command updates the CloudFormation private type registration in your AWS ac
 Update modules in `us-east-1`.
 
 ```bash
-stacktape cf-module:update --region us-east-1
+stacktape stack update-modules --region us-east-1
 ```
 
 Specify an AWS profile with the `--profile` argument.
 
 ```bash
-stacktape cf-module:update --region eu-west-1 --profile my-aws-profile
+stacktape stack update-modules --region eu-west-1 --profile my-aws-profile
 ```
 
 Enable debug logging to troubleshoot registration failures.
 
 ```bash
-stacktape cf-module:update --region eu-west-1 --logLevel debug
+stacktape stack update-modules --region eu-west-1 --debug
 ```
 
 ## Related commands
 
 - [`deploy`](/cli/deploy) — deploy your stack, which uses the module types registered in your account
-- [`cf:rollback`](/cli/cf-rollback) — roll back a CloudFormation stack to the last known good state if an update fails
+- [`stack recover`](/cli/cf-rollback) — roll back a CloudFormation stack to the last known good state if an update fails
 - [`synth`](/cli/synth) — compile your Stacktape config into a CloudFormation template before deployment

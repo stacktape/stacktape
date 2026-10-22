@@ -70,10 +70,10 @@ jobs:
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
         run: |
-          npx stacktape deploy --projectName my-project --stage production --region us-east-1 --autoConfirmOperation
+          npx stacktape deploy --project my-project --stage production --region us-east-1 --yes
 ```
 
-Replace `my-project` with your Stacktape project name. Store `STACKTAPE_API_KEY` in your repository's secrets settings. The `--autoConfirmOperation` flag skips the interactive confirmation prompt that would block CI.
+Replace `my-project` with your Stacktape project name. Store `STACKTAPE_API_KEY` in your repository's secrets settings. The `--yes` flag skips the interactive confirmation prompt that would block CI.
 
 ### GitLab CI example
 
@@ -86,7 +86,7 @@ deploy:
   only:
     - main
   script:
-    - npx stacktape deploy --projectName my-project --stage production --region us-east-1 --autoConfirmOperation
+    - npx stacktape deploy --project my-project --stage production --region us-east-1 --yes
   variables:
     STACKTAPE_API_KEY: $STACKTAPE_API_KEY
 ```
@@ -98,13 +98,13 @@ Use dynamic stage names based on the PR number to create isolated preview enviro
 Deploy when the PR opens or updates:
 
 ```bash
-npx stacktape deploy --projectName my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
+npx stacktape deploy --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
 ```
 
 Clean up when the PR closes:
 
 ```bash
-npx stacktape delete --projectName my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
+npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
 ```
 
 For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).

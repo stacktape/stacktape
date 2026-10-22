@@ -8,7 +8,7 @@ The `stacktape delete` command permanently removes a deployed stack and all its 
 stacktape delete --stage production --region eu-west-1
 ```
 
-`--region` is the only required flag. To avoid deleting the wrong stack, pass the identifying flags you normally use, such as `--stage`, `--projectName`, and `--configPath` when applicable.
+`--region` is the only required flag. To avoid deleting the wrong stack, pass the identifying flags you normally use, such as `--stage`, `--project`, and `--config` when applicable.
 
 
 > **Warning:** The delete command removes all resources managed by the stack according to CloudFormation's deletion behavior. Back up or export anything you need before deletion — this operation cannot be undone.
@@ -16,9 +16,9 @@ stacktape delete --stage production --region eu-west-1
 
 ## Important flags
 
-**`--autoConfirmOperation`** — Skips the interactive confirmation prompt. Required for CI/CD and non-interactive scripts.
+**`--yes`** — Skips the interactive confirmation prompt. Required for CI/CD and non-interactive scripts.
 
-**`--configPath`** — When provided, Stacktape loads the configuration file and runs any `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) before deletion. Without it, hooks are skipped.
+**`--config`** — When provided, Stacktape loads the configuration file and runs any `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) before deletion. Without it, hooks are skipped.
 
 
 ## CLI Options: `stacktape delete`
@@ -59,13 +59,13 @@ stacktape delete --stage staging --region eu-west-1
 Delete with automatic confirmation, suitable for CI/CD pipelines.
 
 ```bash
-stacktape delete --stage staging --region eu-west-1 --autoConfirmOperation
+stacktape delete --stage staging --region eu-west-1 --yes
 ```
 
 Delete with hooks enabled by providing the config file.
 
 ```bash
-stacktape delete --stage production --region eu-west-1 --configPath ./stacktape.ts
+stacktape delete --stage production --region eu-west-1 --config ./stacktape.ts
 ```
 
 Delete from the connected AWS account that an AWS profile belongs to.
@@ -77,14 +77,14 @@ stacktape delete --stage dev-john --region us-east-1 --profile my-aws-profile
 Enable debug-level logging for troubleshooting.
 
 ```bash
-stacktape delete --stage staging --region eu-west-1 --logLevel debug
+stacktape delete --stage staging --region eu-west-1 --debug
 ```
 
 ## Related commands
 
 - [`deploy`](/cli/deploy) — Create or update a stack.
 - [`rollback`](/cli/rollback) — Roll back to a previous deployment version instead of deleting.
-- [`info:stacks`](/cli/info-stacks) — List all deployed stacks in a region to find what to delete.
+- [`stack list`](/cli/info-stacks) — List all deployed stacks in a region to find what to delete.
 
 ## FAQ
 
@@ -94,11 +94,11 @@ The delete command deletes deployment artifacts and then deletes the CloudFormat
 
 ### Can I delete a stack without a configuration file?
 
-Yes. The config file is optional — you can identify the stack with `--projectName`, `--stage`, and `--region` directly. The trade-off is that `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) only run when you pass `--configPath`, so without it any data export or cleanup hooks are skipped.
+Yes. The config file is optional — you can identify the stack with `--project`, `--stage`, and `--region` directly. The trade-off is that `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) only run when you pass `--config`, so without it any data export or cleanup hooks are skipped.
 
 ### How do I delete a stack in a CI/CD pipeline?
 
-Use `--autoConfirmOperation` to skip the interactive confirmation prompt in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --autoConfirmOperation`. You can also use `--agent` which implies auto-confirm and switches output to JSONL format.
+Use `--yes` to skip the interactive confirmation prompt in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. You can also use `--agent` which implies auto-confirm and switches output to JSONL format.
 
 ### How do I delete a stack with termination protection?
 

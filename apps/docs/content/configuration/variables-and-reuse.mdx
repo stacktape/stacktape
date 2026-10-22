@@ -266,7 +266,7 @@ For most TypeScript configs, you can replace custom directives with regular impo
 
 Stacktape provides two related mechanisms for reusable operational logic beyond configuration values:
 
-- **Scripts** define reusable shell commands or code you can run with [`stacktape script:run`](/cli/script-run) or attach to lifecycle hooks. Scripts support [`connectTo`](/configuration/connecting-resources) to inject environment variables such as database URLs and API keys. Script types include `local-script` (runs on your machine or CI), `local-script-with-bastion-tunneling` (tunnels to VPC resources), and `bastion-script` (runs inside your VPC).
+- **Scripts** define reusable shell commands or code you can run with [`stacktape script run`](/cli/script-run) or attach to lifecycle hooks. Scripts support [`connectTo`](/configuration/connecting-resources) to inject environment variables such as database URLs and API keys. Script types include `local-script` (runs on your machine or CI), `local-script-with-bastion-tunneling` (tunnels to VPC resources), and `bastion-script` (runs inside your VPC).
 
 - **Hooks** attach scripts to deploy, delete, or dev lifecycle events — for example, running database migrations after every deployment or building a frontend before deploy.
 

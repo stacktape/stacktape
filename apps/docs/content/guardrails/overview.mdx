@@ -40,7 +40,7 @@ Deployment restriction guardrails control allowed stages, allowed AWS regions, a
 
 - **Stage restriction** — Only allow deployments to specific stages. Configure an `allowedStages` list (e.g., `["production", "staging"]`); operations targeting any other stage name fail. Useful for enforcing naming conventions or limiting which stages can exist.
 - **Region restriction** — Only allow deployments to specific AWS regions. Configure an `allowedRegions` list (e.g., `["eu-west-1", "us-east-1"]`); operations targeting other regions fail. Essential for data residency compliance and cost control.
-- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
+- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
 - **Require custom domain** — Require web services and hosting buckets to use a domain your organization controls. This is a delivery standard rather than a security boundary.
 
 For full details, see [Deployment guardrails](/guardrails/deployment).

@@ -1,11 +1,11 @@
-# info:whoami
+# whoami
 
-The `stacktape info:whoami` command shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
+The `stacktape whoami` command shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
 
 ## Usage
 
 ```bash
-stacktape info:whoami
+stacktape whoami
 ```
 
 This command requires a valid API key. If you haven't logged in yet, run [`stacktape login`](/cli/login) first.
@@ -23,19 +23,19 @@ The output includes:
 Verify your identity and check which organization you're operating in.
 
 ```bash
-stacktape info:whoami
+stacktape whoami
 ```
 
 Get machine-readable JSON output (one JSON object per line) for scripting or CI pipelines.
 
 ```bash
-stacktape info:whoami --outputFormat jsonl
+stacktape whoami --json
 ```
 
 Enable debug-level logging to troubleshoot API key issues.
 
 ```bash
-stacktape info:whoami --logLevel debug
+stacktape whoami --debug
 ```
 
 ## Flags
@@ -53,5 +53,5 @@ stacktape info:whoami --logLevel debug
 ## Related commands
 
 - [`login`](/cli/login) — configure your Stacktape API key.
-- [`org:list`](/cli/org-list) — list all organizations you can access.
-- [`project:list`](/cli/project-list) — list all projects and their deployed stages in your organization.
+- [`org list`](/cli/org-list) — list all organizations you can access.
+- [`project list`](/cli/project-list) — list all projects and their deployed stages in your organization.

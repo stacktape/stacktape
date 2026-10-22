@@ -39,7 +39,7 @@ The briefing appears:
 
 - on the incident page in the Console, under **AI assessment**, with the time its evidence was collected;
 - on the incident's card in Slack when the incident goes to a [Stacktape Slack app](/observability/alert-channels#slack-stacktape-app) channel: the summary and why it may need attention now, with a link to the full assessment. The card is updated when a new briefing is ready;
-- in the [agent handoff](/observability/incidents#agent-handoff-bundle) that **Copy details for agent** and `stacktape incidents:show` return.
+- in the [agent handoff](/observability/incidents#agent-handoff-bundle) that **Copy details for agent** and `stacktape incident show` return.
 
 A Stacktape-managed model writes the briefing from a scrubbed, bounded snapshot of what Stacktape already stores about the incident (see [What leaves your AWS account](#what-leaves-your-aws-account)). It does not read raw log lines, your source code or live state in your AWS account. Stacktape pays for it and limits how many briefings it prepares per organization per hour, so during a burst of incidents some briefings wait. A briefing that cannot be prepared within a day is dropped. Alerts and monitoring are unaffected either way.
 
@@ -52,7 +52,7 @@ When the project's repository is connected, the runner checks out the commit Sta
 For Stacktape and AWS, the agent has Stacktape's tools:
 
 - the incident and the project's other incidents, with their signals, evidence, releases, timelines and briefings;
-- `aws_call`: any operation from Stacktape's reviewed read-only catalog, the same list [`stacktape aws:call`](/cli/aws-call) accepts, anywhere in the incident's AWS account. An operation outside the catalog is refused. Secret values are not in the catalog: Secrets Manager secret values, SSM parameter values and the values of function and container environment variables are never returned;
+- `aws_call`: any operation from Stacktape's reviewed read-only catalog, the same list [`stacktape aws call`](/cli/aws-call) accepts, anywhere in the incident's AWS account. An operation outside the catalog is refused. Secret values are not in the catalog: Secrets Manager secret values, SSM parameter values and the values of function and container environment variables are never returned;
 - the resources of the incident's stack, CloudWatch Logs Insights queries over their logs, their metrics, alarms and runtime configuration, by the resource names in your Stacktape config;
 - a search of Stacktape's documentation.
 
@@ -130,11 +130,11 @@ If GitHub refuses the push, or Stacktape cannot open the pull request, the run f
 Each time you start a run, you choose the agent and the credential that funds it. Nothing is preselected.
 
 - **The organization's API key.** An Owner or Admin connects an Anthropic, OpenAI or xAI key once, and Stacktape checks it with that provider before saving it: it lists Anthropic's or OpenAI's models, or asks xAI to describe the key. Members can choose it for their runs but never see it. Usage is billed to the organization's account with that provider. An OpenCode run on the organization's money uses one of these keys, chosen when the run starts.
-- **Your own subscription.** Each member can connect their own sign-in with each provider by running [`stacktape ai:connect`](/cli/ai-connect): the token `claude setup-token` prints, the ChatGPT sign-in of the Codex CLI, the sign-in of the Grok CLI, or what the OpenCode CLI is signed in to. A Claude token can also be pasted in the dialog that starts a run. Only the runs that member requests use it, and they count against the member's plan limits. The subscription is the member's own arrangement with the provider, under the provider's terms, which the provider can change. Stacktape does not check the plan or promise that its limits cover a run. A member's sign-ins are deleted when they leave or are removed from the organization.
+- **Your own subscription.** Each member can connect their own sign-in with each provider by running [`stacktape ai connect`](/cli/ai-connect): the token `claude setup-token` prints, the ChatGPT sign-in of the Codex CLI, the sign-in of the Grok CLI, or what the OpenCode CLI is signed in to. A Claude token can also be pasted in the dialog that starts a run. Only the runs that member requests use it, and they count against the member's plan limits. The subscription is the member's own arrangement with the provider, under the provider's terms, which the provider can change. Stacktape does not check the plan or promise that its limits cover a run. A member's sign-ins are deleted when they leave or are removed from the organization.
 
 A run uses only the credential chosen for it. If that credential is missing, expired, rejected or out of quota, the run fails and says so. Stacktape never switches to another credential, and one member's subscription never funds another member's run.
 
-A Codex, Grok or OpenCode sign-in holds a refresh token. A run may refresh its copy, and nothing is written back to Stacktape. When a provider replaces the refresh token on refresh, the copy Stacktape stores, or the one on the member's machine, stops working: the run fails saying the provider did not accept the sign-in, and the member reconnects it with `stacktape ai:connect`. [`ai:connect`](/cli/ai-connect#sign-ins-that-refresh) shows how to give runs a sign-in of their own.
+A Codex, Grok or OpenCode sign-in holds a refresh token. A run may refresh its copy, and nothing is written back to Stacktape. When a provider replaces the refresh token on refresh, the copy Stacktape stores, or the one on the member's machine, stops working: the run fails saying the provider did not accept the sign-in, and the member reconnects it with `stacktape ai connect`. [`ai connect`](/cli/ai-connect#sign-ins-that-refresh) shows how to give runs a sign-in of their own.
 
 Stacktape keeps every credential encrypted in its AWS Secrets Manager and never shows it back. To start a run, Stacktape copies the chosen credential into an encrypted, expiring SSM parameter in the incident's AWS account. The runner deletes the parameter as soon as it reads it. Until then, an administrator of that AWS account may be able to read it.
 
@@ -154,13 +154,13 @@ Stacktape masks known sensitive shapes in the answers of its tools and in what i
 - **Reading briefings and run results:** every role, including Viewer, on the projects the member can access.
 - **Requesting Investigate or Fix:** Owner, Admin and Developer (the `incidents:manage` permission), with access to the incident's project. The person who requested a run must still have that access when the run starts.
 - **Connecting, replacing or removing the organization's Anthropic, OpenAI or xAI API key:** Owner and Admin.
-- **Connecting or removing their own sign-in with a provider:** each member, for their own, with `stacktape ai:connect` and `stacktape ai:disconnect`, or in the dialog that starts a run.
+- **Connecting or removing their own sign-in with a provider:** each member, for their own, with `stacktape ai connect` and `stacktape ai disconnect`, or in the dialog that starts a run.
 
 See [Team and access control](/stacktape-console/team-and-access-control#roles) for how roles are assigned.
 
 ## Using your own coding agent instead
 
-**Copy details for agent** on the incident page, [`stacktape incidents:show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
+**Copy details for agent** on the incident page, [`stacktape incident show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
 
 - the repository is on GitLab or Bitbucket, so Fix with AI is not available;
 - no credential is connected for the agent you want;

@@ -21,7 +21,7 @@ Records runtime errors from this stack's logs in the Stacktape Console.
 
 When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
 detector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack
-traces and occurrence counts, shown on the Error tracking page and by `stacktape errors:list`.
+traces and occurrence counts, shown on the Error tracking page and by `stacktape error list`.
 
 What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
 the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as

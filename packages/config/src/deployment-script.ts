@@ -7,7 +7,7 @@ import type { LambdaRuntime } from './primitives';
  * ---
  *
  * Executes as a Lambda function. Use `after:deploy` to run migrations after resources are ready,
- * or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script:run`.
+ * or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script run`.
  *
  * **Example (YAML):**
  *

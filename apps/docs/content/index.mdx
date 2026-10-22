@@ -110,7 +110,7 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
   </Step>
   <Step title="Deploy to AWS">
     Pick a stage and a region — Stacktape builds, packages and provisions everything into your account.
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --projectName {your-project-name}` }]} />
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --project {your-project-name}` }]} />
   </Step>
 </Steps>
 
@@ -189,7 +189,7 @@ export default defineConfig(() => {
   }]}
 />
 
-<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape script:run --scriptName migrate --stage dev --region us-east-1` }]} />
+<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape script run migrate --stage dev --region us-east-1` }]} />
 
 ## Private networking
 

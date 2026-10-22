@@ -1,6 +1,6 @@
 # help
 
-The `stacktape help` command displays help information for all available Stacktape CLI commands and their options. Run it without arguments to see every command, or pass `--command` to get detailed option documentation for a specific command. No API key or AWS credentials are required.
+The `stacktape help` command displays help information for all available Stacktape CLI commands and their options. Run it without arguments to see every command, or pass a command name (`stacktape help deploy`) to get detailed option documentation for that command. No API key or AWS credentials are required.
 
 ## Usage
 
@@ -13,28 +13,28 @@ stacktape help
 Show detailed options for a specific command:
 
 ```bash
-stacktape help --command deploy
+stacktape help deploy
 ```
 
 The short alias `stp` works in place of `stacktape`:
 
 ```bash
-stp help --command dev
+stp help dev
 ```
 
-## The `--command` flag
+## Help for one command
 
-When you pass `--command`, Stacktape prints the command usage and available options, including each argument's name, whether it is required, and its description. This is the fastest way to check which flags a command accepts without leaving the terminal.
+When you pass a command name, Stacktape prints the command usage and available options, including each argument's name, whether it is required, and its description. This is the fastest way to check which flags a command accepts without leaving the terminal. `stacktape <command> --help` prints the same output.
 
 ```bash
-stacktape help --command delete
+stacktape help delete
 ```
 
-Without `--command`, the output lists every CLI command with its configured description, followed by hints linking to the CLI documentation and the Stacktape docs site.
+Without a command name, the output lists every CLI command with its configured description, followed by hints linking to the CLI documentation and the Stacktape docs site.
 
 ## Options reference
 
-The `help` command accepts a single optional flag. The reference below lists its name, alias, type, and whether it is required.
+The `help` command accepts one optional argument. The reference below lists its name, alias, type, and whether it is required.
 
 
 ## CLI Options: `stacktape help`
@@ -52,13 +52,13 @@ The `help` command accepts a single optional flag. The reference below lists its
 Get help for the [dev](/cli/dev) command to see all development mode flags:
 
 ```bash
-stacktape help --command dev
+stacktape help dev
 ```
 
 Check required and optional flags for [logs](/cli/logs):
 
 ```bash
-stacktape help --command logs
+stacktape help logs
 ```
 
 View all commands at a glance:
@@ -71,4 +71,4 @@ stacktape help
 
 - [version](/cli/version) — print the installed Stacktape version.
 - [init](/cli/init) — scaffold a new Stacktape project with an interactive wizard.
-- [defaults:configure](/cli/defaults-configure) — set system-wide default values for common flags like `region` and `stage`.
+- [defaults set](/cli/defaults-configure) — set system-wide default values for common flags like `region` and `stage`.

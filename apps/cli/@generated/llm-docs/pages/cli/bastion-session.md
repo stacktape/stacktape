@@ -1,27 +1,27 @@
-# bastion:session
+# bastion shell
 
-The `bastion:session` command starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
+The `bastion shell` command starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
 
 ## Usage
 
 ```bash
-stacktape bastion:session --stage production --region eu-west-1
+stacktape bastion shell --stage production --region eu-west-1
 ```
 
-Your stack must contain at least one `bastion` resource. The `--bastionResource` flag is optional — use it when the deployed stack has multiple bastions and you need to choose which one to connect to.
+Your stack must contain at least one `bastion` resource. The `--bastion-resource` flag is optional — use it when the deployed stack has multiple bastions and you need to choose which one to connect to.
 
 ```bash
-stacktape bastion:session --stage production --region eu-west-1 --bastionResource myBastion
+stacktape bastion shell --stage production --region eu-west-1 --bastion-resource myBastion
 ```
 
 The command does not modify your stack and does not require a Stacktape configuration file.
 
 ## How it works
 
-When you run `bastion:session`, Stacktape initializes stack services, resolves the bastion EC2 instance ID from the deployed stack overview, and starts an SSM shell session in the selected region. Your terminal becomes an interactive shell on the bastion host.
+When you run `bastion shell`, Stacktape initializes stack services, resolves the bastion EC2 instance ID from the deployed stack overview, and starts an SSM shell session in the selected region. Your terminal becomes an interactive shell on the bastion host.
 
 
-> **Info:** The `bastion:session` command resolves the bastion EC2 instance ID from the deployed stack overview and starts an SSM shell session in the target region. If Stacktape cannot resolve the instance ID, verify that the target stack includes the selected bastion resource.
+> **Info:** The `bastion shell` command resolves the bastion EC2 instance ID from the deployed stack overview and starts an SSM shell session in the target region. If Stacktape cannot resolve the instance ID, verify that the target stack includes the selected bastion resource.
 
 
 ## CLI reference
@@ -48,10 +48,10 @@ When you run `bastion:session`, Stacktape initializes stack services, resolves t
 
 ### Connect to the only bastion in a stack
 
-When your stack has a single bastion resource, you can omit `--bastionResource`.
+When your stack has a single bastion resource, you can omit `--bastion-resource`.
 
 ```bash
-stacktape bastion:session --stage dev --region us-east-1
+stacktape bastion shell --stage dev --region us-east-1
 ```
 
 ### Connect to a specific bastion by name
@@ -59,23 +59,23 @@ stacktape bastion:session --stage dev --region us-east-1
 When your configuration defines more than one bastion, specify which one to connect to.
 
 ```bash
-stacktape bastion:session --stage production --region eu-west-1 --bastionResource vpnBastion
+stacktape bastion shell --stage production --region eu-west-1 --bastion-resource vpnBastion
 ```
 
 ### Use a specific AWS profile
 
 ```bash
-stacktape bastion:session --stage staging --region eu-central-1 --profile my-aws-profile
+stacktape bastion shell --stage staging --region eu-central-1 --profile my-aws-profile
 ```
 
 ## Troubleshooting
 
 The command requires a deployed `bastion` resource in the target stack. If Stacktape cannot resolve a bastion resource from the deployed stack, the command fails. Ensure you have deployed a stack that includes at least one bastion before running this command.
 
-When using `--bastionResource`, the value must match the name of a bastion resource in your configuration. If the name does not match any bastion in the deployed stack, the command reports an error.
+When using `--bastion-resource`, the value must match the name of a bastion resource in your configuration. If the name does not match any bastion in the deployed stack, the command reports an error.
 
 ## Related commands
 
-- [`bastion:tunnel`](/cli/bastion-tunnel) — create a secure tunnel through a bastion to reach a private resource (database, Redis, OpenSearch) from your local machine.
-- [`query:sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastionResource` to tunnel through a bastion when the database is VPC-only.
-- [`query:redis`](/cli/query-redis) — query a deployed Redis cluster. Also supports `--bastionResource` for VPC-only clusters.
+- [`bastion tunnel`](/cli/bastion-tunnel) — create a secure tunnel through a bastion to reach a private resource (database, Redis, OpenSearch) from your local machine.
+- [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastion-resource` to tunnel through a bastion when the database is VPC-only.
+- [`query redis`](/cli/query-redis) — query a deployed Redis cluster. Also supports `--bastion-resource` for VPC-only clusters.

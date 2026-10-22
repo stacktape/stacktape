@@ -23,68 +23,68 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [CI/CD and GitOps Overview](/ci-cd-and-gitops/overview) - source: apps/docs/content/ci-cd-and-gitops/overview.mdx
 - [Self-Hosted GitHub Actions Runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) - source: apps/docs/content/ci-cd-and-gitops/self-hosted-github-actions-runners.mdx
 - [Stacks per Git Branch Pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) - source: apps/docs/content/ci-cd-and-gitops/stacks-per-git-branch-pattern.mdx
-- [ai:connect](/cli/ai-connect) - source: apps/docs/content/cli/ai-connect.mdx
-- [ai:disconnect](/cli/ai-disconnect) - source: apps/docs/content/cli/ai-disconnect.mdx
-- [alarms](/cli/alarms) - source: apps/docs/content/cli/alarms.mdx
-- [aws:call](/cli/aws-call) - source: apps/docs/content/cli/aws-call.mdx
-- [aws-profile:create](/cli/aws-profile-create) - source: apps/docs/content/cli/aws-profile-create.mdx
-- [aws-profile:delete](/cli/aws-profile-delete) - source: apps/docs/content/cli/aws-profile-delete.mdx
-- [aws-profile:list](/cli/aws-profile-list) - source: apps/docs/content/cli/aws-profile-list.mdx
-- [aws-profile:update](/cli/aws-profile-update) - source: apps/docs/content/cli/aws-profile-update.mdx
-- [bastion:session](/cli/bastion-session) - source: apps/docs/content/cli/bastion-session.mdx
-- [bastion:tunnel](/cli/bastion-tunnel) - source: apps/docs/content/cli/bastion-tunnel.mdx
-- [bucket:sync](/cli/bucket-sync) - source: apps/docs/content/cli/bucket-sync.mdx
-- [cf-module:update](/cli/cf-module-update) - source: apps/docs/content/cli/cf-module-update.mdx
-- [cf:rollback](/cli/cf-rollback) - source: apps/docs/content/cli/cf-rollback.mdx
-- [container:exec](/cli/container-exec) - source: apps/docs/content/cli/container-exec.mdx
-- [container:session](/cli/container-session) - source: apps/docs/content/cli/container-session.mdx
-- [defaults:configure](/cli/defaults-configure) - source: apps/docs/content/cli/defaults-configure.mdx
-- [defaults:list](/cli/defaults-list) - source: apps/docs/content/cli/defaults-list.mdx
+- [ai connect](/cli/ai-connect) - source: apps/docs/content/cli/ai-connect.mdx
+- [ai disconnect](/cli/ai-disconnect) - source: apps/docs/content/cli/ai-disconnect.mdx
+- [alarm list](/cli/alarms) - source: apps/docs/content/cli/alarms.mdx
+- [aws call](/cli/aws-call) - source: apps/docs/content/cli/aws-call.mdx
+- [aws-profile create](/cli/aws-profile-create) - source: apps/docs/content/cli/aws-profile-create.mdx
+- [aws-profile delete](/cli/aws-profile-delete) - source: apps/docs/content/cli/aws-profile-delete.mdx
+- [aws-profile list](/cli/aws-profile-list) - source: apps/docs/content/cli/aws-profile-list.mdx
+- [aws-profile update](/cli/aws-profile-update) - source: apps/docs/content/cli/aws-profile-update.mdx
+- [bastion shell](/cli/bastion-session) - source: apps/docs/content/cli/bastion-session.mdx
+- [bastion tunnel](/cli/bastion-tunnel) - source: apps/docs/content/cli/bastion-tunnel.mdx
+- [bucket sync](/cli/bucket-sync) - source: apps/docs/content/cli/bucket-sync.mdx
+- [stack update-modules](/cli/cf-module-update) - source: apps/docs/content/cli/cf-module-update.mdx
+- [stack recover](/cli/cf-rollback) - source: apps/docs/content/cli/cf-rollback.mdx
+- [container exec](/cli/container-exec) - source: apps/docs/content/cli/container-exec.mdx
+- [container shell](/cli/container-session) - source: apps/docs/content/cli/container-session.mdx
+- [defaults set](/cli/defaults-configure) - source: apps/docs/content/cli/defaults-configure.mdx
+- [defaults list](/cli/defaults-list) - source: apps/docs/content/cli/defaults-list.mdx
 - [delete](/cli/delete) - source: apps/docs/content/cli/delete.mdx
 - [deploy](/cli/deploy) - source: apps/docs/content/cli/deploy.mdx
-- [deployment-script:run](/cli/deployment-script-run) - source: apps/docs/content/cli/deployment-script-run.mdx
-- [dev:stop](/cli/dev-stop) - source: apps/docs/content/cli/dev-stop.mdx
+- [deployment-script run](/cli/deployment-script-run) - source: apps/docs/content/cli/deployment-script-run.mdx
+- [dev stop](/cli/dev-stop) - source: apps/docs/content/cli/dev-stop.mdx
 - [dev](/cli/dev) - source: apps/docs/content/cli/dev.mdx
 - [diff](/cli/diff) - source: apps/docs/content/cli/diff.mdx
-- [domain:add](/cli/domain-add) - source: apps/docs/content/cli/domain-add.mdx
-- [errors:ignore](/cli/errors-ignore) - source: apps/docs/content/cli/errors-ignore.mdx
-- [errors:list](/cli/errors-list) - source: apps/docs/content/cli/errors-list.mdx
-- [errors:reopen](/cli/errors-reopen) - source: apps/docs/content/cli/errors-reopen.mdx
-- [errors:resolve](/cli/errors-resolve) - source: apps/docs/content/cli/errors-resolve.mdx
+- [domain add](/cli/domain-add) - source: apps/docs/content/cli/domain-add.mdx
+- [error ignore](/cli/errors-ignore) - source: apps/docs/content/cli/errors-ignore.mdx
+- [error list](/cli/errors-list) - source: apps/docs/content/cli/errors-list.mdx
+- [error reopen](/cli/errors-reopen) - source: apps/docs/content/cli/errors-reopen.mdx
+- [error resolve](/cli/errors-resolve) - source: apps/docs/content/cli/errors-resolve.mdx
 - [help](/cli/help) - source: apps/docs/content/cli/help.mdx
-- [incidents:ack](/cli/incidents-ack) - source: apps/docs/content/cli/incidents-ack.mdx
-- [incidents:resolve](/cli/incidents-resolve) - source: apps/docs/content/cli/incidents-resolve.mdx
-- [incidents:show](/cli/incidents-show) - source: apps/docs/content/cli/incidents-show.mdx
-- [incidents:watch](/cli/incidents-watch) - source: apps/docs/content/cli/incidents-watch.mdx
-- [incidents](/cli/incidents) - source: apps/docs/content/cli/incidents.mdx
-- [info:operations](/cli/info-operations) - source: apps/docs/content/cli/info-operations.mdx
-- [info:stack](/cli/info-stack) - source: apps/docs/content/cli/info-stack.mdx
-- [info:stacks](/cli/info-stacks) - source: apps/docs/content/cli/info-stacks.mdx
-- [info:whoami](/cli/info-whoami) - source: apps/docs/content/cli/info-whoami.mdx
+- [incident ack](/cli/incidents-ack) - source: apps/docs/content/cli/incidents-ack.mdx
+- [incident resolve](/cli/incidents-resolve) - source: apps/docs/content/cli/incidents-resolve.mdx
+- [incident show](/cli/incidents-show) - source: apps/docs/content/cli/incidents-show.mdx
+- [incident watch](/cli/incidents-watch) - source: apps/docs/content/cli/incidents-watch.mdx
+- [incident list](/cli/incidents) - source: apps/docs/content/cli/incidents.mdx
+- [stack history](/cli/info-operations) - source: apps/docs/content/cli/info-operations.mdx
+- [status](/cli/info-stack) - source: apps/docs/content/cli/info-stack.mdx
+- [stack list](/cli/info-stacks) - source: apps/docs/content/cli/info-stacks.mdx
+- [whoami](/cli/info-whoami) - source: apps/docs/content/cli/info-whoami.mdx
 - [init](/cli/init) - source: apps/docs/content/cli/init.mdx
 - [login](/cli/login) - source: apps/docs/content/cli/login.mdx
 - [logout](/cli/logout) - source: apps/docs/content/cli/logout.mdx
 - [logs](/cli/logs) - source: apps/docs/content/cli/logs.mdx
-- [mcp:add](/cli/mcp-add) - source: apps/docs/content/cli/mcp-add.mdx
-- [mcp:remove](/cli/mcp-remove) - source: apps/docs/content/cli/mcp-remove.mdx
+- [mcp add](/cli/mcp-add) - source: apps/docs/content/cli/mcp-add.mdx
+- [mcp remove](/cli/mcp-remove) - source: apps/docs/content/cli/mcp-remove.mdx
 - [mcp](/cli/mcp) - source: apps/docs/content/cli/mcp.mdx
 - [metrics](/cli/metrics) - source: apps/docs/content/cli/metrics.mdx
-- [org:create](/cli/org-create) - source: apps/docs/content/cli/org-create.mdx
-- [org:delete](/cli/org-delete) - source: apps/docs/content/cli/org-delete.mdx
-- [org:list](/cli/org-list) - source: apps/docs/content/cli/org-list.mdx
+- [org create](/cli/org-create) - source: apps/docs/content/cli/org-create.mdx
+- [org delete](/cli/org-delete) - source: apps/docs/content/cli/org-delete.mdx
+- [org list](/cli/org-list) - source: apps/docs/content/cli/org-list.mdx
 - [package](/cli/package) - source: apps/docs/content/cli/package.mdx
-- [param:get](/cli/param-get) - source: apps/docs/content/cli/param-get.mdx
-- [project:create](/cli/project-create) - source: apps/docs/content/cli/project-create.mdx
-- [project:list](/cli/project-list) - source: apps/docs/content/cli/project-list.mdx
-- [query:dynamodb](/cli/query-dynamodb) - source: apps/docs/content/cli/query-dynamodb.mdx
-- [query:opensearch](/cli/query-opensearch) - source: apps/docs/content/cli/query-opensearch.mdx
-- [query:redis](/cli/query-redis) - source: apps/docs/content/cli/query-redis.mdx
-- [query:sql](/cli/query-sql) - source: apps/docs/content/cli/query-sql.mdx
+- [param get](/cli/param-get) - source: apps/docs/content/cli/param-get.mdx
+- [project create](/cli/project-create) - source: apps/docs/content/cli/project-create.mdx
+- [project list](/cli/project-list) - source: apps/docs/content/cli/project-list.mdx
+- [query dynamodb](/cli/query-dynamodb) - source: apps/docs/content/cli/query-dynamodb.mdx
+- [query opensearch](/cli/query-opensearch) - source: apps/docs/content/cli/query-opensearch.mdx
+- [query redis](/cli/query-redis) - source: apps/docs/content/cli/query-redis.mdx
+- [query sql](/cli/query-sql) - source: apps/docs/content/cli/query-sql.mdx
 - [rollback](/cli/rollback) - source: apps/docs/content/cli/rollback.mdx
-- [script:run](/cli/script-run) - source: apps/docs/content/cli/script-run.mdx
-- [secret:delete](/cli/secret-delete) - source: apps/docs/content/cli/secret-delete.mdx
-- [secret:get](/cli/secret-get) - source: apps/docs/content/cli/secret-get.mdx
-- [secret:set](/cli/secret-set) - source: apps/docs/content/cli/secret-set.mdx
+- [script run](/cli/script-run) - source: apps/docs/content/cli/script-run.mdx
+- [secret delete](/cli/secret-delete) - source: apps/docs/content/cli/secret-delete.mdx
+- [secret get](/cli/secret-get) - source: apps/docs/content/cli/secret-get.mdx
+- [secret set](/cli/secret-set) - source: apps/docs/content/cli/secret-set.mdx
 - [synth](/cli/synth) - source: apps/docs/content/cli/synth.mdx
 - [upgrade](/cli/upgrade) - source: apps/docs/content/cli/upgrade.mdx
 - [validate](/cli/validate) - source: apps/docs/content/cli/validate.mdx

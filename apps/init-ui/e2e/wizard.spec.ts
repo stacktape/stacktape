@@ -143,8 +143,8 @@ test('secrets the deploy needs are listed with their commands, and an empty repo
   await expect(page.getByText(/through the rmq_url secret, which you create before deploying/)).toBeVisible();
   await expect(page.getByText(/points at something we are not creating/)).toHaveCount(0);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  await expect(page.getByText('stacktape secret:set --secretName rmq_url --region eu-west-1')).toBeVisible();
-  await expect(page.getByText('stacktape secret:set --secretName nats_url --region eu-west-1')).toBeVisible();
+  await expect(page.getByText('stacktape secret set rmq_url --region eu-west-1')).toBeVisible();
+  await expect(page.getByText('stacktape secret set nats_url --region eu-west-1')).toBeVisible();
 
   const empty = await startWizard({ project: 'empty', agents: [] });
   await page.goto(empty.url);
@@ -163,7 +163,7 @@ test('a stack left behind by a failed first deploy says how to clear it, and can
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
   await page.getByRole('button', { name: 'Check exact AWS target' }).click();
   await expect(page.getByText('A failed first deploy left this stack behind')).toBeVisible();
-  await expect(page.getByText('stacktape delete --configPath stacktape.yml')).toBeVisible();
+  await expect(page.getByText('stacktape delete --config stacktape.yml')).toBeVisible();
   // After cleaning up, the developer checks again from the same button; it is never a dead end.
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
 });

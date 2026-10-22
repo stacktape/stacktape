@@ -1,14 +1,14 @@
-# script:run
+# script run
 
-The `script:run` command executes a script defined in the `scripts` section of your Stacktape configuration. It requires `--scriptName` and `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assumeRoleOfResource`. Use `script:run` when you need to execute a named script from the `scripts` section without deploying the full stack.
+The `script run` command executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
 
 ## Usage
 
 ```bash
-stacktape script:run --scriptName myMigration --stage production
+stacktape script run myMigration --stage production
 ```
 
-`script:run` requires `--scriptName` and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults:configure`](/cli/defaults-configure)).
+`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-configure)).
 
 
 ## CLI Options: `stacktape script run`
@@ -35,25 +35,25 @@ stacktape script:run --scriptName myMigration --stage production
 Add `--region` when you want to override or avoid relying on a configured default region:
 
 ```bash
-stacktape script:run --scriptName migrate --stage staging --region eu-west-1
+stacktape script run migrate --stage staging --region eu-west-1
 ```
 
 Pass extra environment variables to a seed script:
 
 ```bash
-stacktape script:run --scriptName seed --stage dev --env SEED_FILE=./data/seed.json --env VERBOSE=true
+stacktape script run seed --stage dev --env SEED_FILE=./data/seed.json --env VERBOSE=true
 ```
 
 Run a script while assuming the IAM role of a deployed resource (so the script operates with that resource's AWS permissions):
 
 ```bash
-stacktape script:run --scriptName exportData --stage production --assumeRoleOfResource dataProcessor
+stacktape script run exportData --stage production --assume-role-of-resource dataProcessor
 ```
 
 Use a custom config path when the configuration is not at the default location:
 
 ```bash
-stacktape script:run --scriptName cleanup --stage dev --configPath ./infra/stacktape.ts
+stacktape script run cleanup --stage dev --config ./infra/stacktape.ts
 ```
 
 
@@ -62,9 +62,9 @@ stacktape script:run --scriptName cleanup --stage dev --configPath ./infra/stack
 
 ## Errors
 
-If the `--scriptName` value does not match any key in the `scripts` section of your configuration, the command throws `stpErrors.e20({ scriptName })`. The command looks up the script by key in `scripts`, so the `--scriptName` value must exactly match a key defined in your configuration.
+If the script name does not match any key in the `scripts` section of your configuration, the command throws `stpErrors.e20({ scriptName })`. The command looks up the script by key in `scripts`, so the script name must exactly match a key defined in your configuration.
 
 ## Related commands
 
-- [`deployment-script:run`](/cli/deployment-script-run) — runs a [deployment script](/resources/advanced/deployment-scripts) resource (only updates the script's source code; use [`deploy`](/cli/deploy) to update environment variables or other configuration).
+- [`deployment-script run`](/cli/deployment-script-run) — runs a [deployment script](/resources/advanced/deployment-scripts) resource (only updates the script's source code; use [`deploy`](/cli/deploy) to update environment variables or other configuration).
 - [`deploy`](/cli/deploy) — deploys the full stack, including any changes to script configuration.

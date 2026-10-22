@@ -1,21 +1,21 @@
 ---
-title: 'query:opensearch'
+title: 'query opensearch'
 order: 171
-seoTitle: 'query:opensearch CLI Command | Stacktape Docs'
+seoTitle: 'query opensearch CLI Command | Stacktape Docs'
 seoDescription: 'Run read-only queries against a deployed OpenSearch domain from the terminal. List indices, count documents, inspect mappings, retrieve by ID, and search with Query DSL using Stacktape CLI.'
 ---
 
-# query:opensearch
+# query opensearch
 
-The `query:opensearch` command runs read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from your terminal. Use it to list indices, check document counts, inspect field mappings, retrieve individual documents, or search with Query DSL — without setting up a separate OpenSearch client or dashboard.
+The `query opensearch` command runs read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from your terminal. Use it to list indices, check document counts, inspect field mappings, retrieve individual documents, or search with Query DSL — without setting up a separate OpenSearch client or dashboard.
 
 ## Usage
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation indices
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation indices
 ```
 
-Three flags are always required: `--stage`, `--region`, and `--resourceName`. The `--resourceName` must match an OpenSearch domain resource defined in your Stacktape configuration. Additional flags depend on the operation.
+The command takes the domain's resource name as a positional argument (`query opensearch <resource-name>`) and always requires `--stage` and `--region`. The resource name must match an OpenSearch domain resource defined in your Stacktape configuration. Additional flags depend on the operation.
 
 ## Operations
 
@@ -26,7 +26,7 @@ The `--operation` flag selects what kind of query to run. Five operations are av
 Lists all indices in the OpenSearch domain. This is the default operation and the best starting point when exploring an unfamiliar domain. No additional flags are needed.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation indices
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation indices
 ```
 
 ### mapping
@@ -34,7 +34,7 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Returns the field mapping for a specific index — useful for understanding the index schema before writing search queries. Requires `--index`.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation mapping --index users
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation mapping --index users
 ```
 
 ### count
@@ -42,13 +42,13 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Returns the document count. You can pass `--index` to count documents in a specific index; omit it to count across all indices.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation count --index orders
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation count --index orders
 ```
 
 Count across the entire domain (no `--index`):
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation count
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation count
 ```
 
 ### get
@@ -56,7 +56,7 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Retrieves a single document by ID. Requires both `--index` and `--id`.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation get --index users --id doc123
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation get --index users --id doc123
 ```
 
 ### search
@@ -64,13 +64,13 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Runs an OpenSearch Query DSL search. Requires `--query` with a valid JSON string. You can optionally scope the search to a specific index with `--index` and control result count with `--limit` (defaults to 10).
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation search --query "{\"match_all\": {}}"
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation search --query "{\"match_all\": {}}"
 ```
 
 Search within a specific index with a limited result set:
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation search --index users --query "{\"match\": {\"name\": \"alice\"}}" --limit 5
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation search --index users --query "{\"match\": {\"name\": \"alice\"}}" --limit 5
 ```
 
 <Info>
@@ -84,10 +84,10 @@ The `--query` flag accepts [OpenSearch Query DSL](https://opensearch.org/docs/la
 When running with `--agent`, the command prints a structured JSON object containing `ok`, `resource`, `operation`, and the operation result. This makes it suitable for programmatic consumption by AI coding assistants and automation scripts.
 
 ```bash
-stacktape query:opensearch --agent --stage prod --region eu-west-1 --resourceName mySearch --operation indices
+stacktape query opensearch mySearch --agent --stage prod --region eu-west-1 --operation indices
 ```
 
-For automation, prefer `--agent`. The global `--outputFormat` flag is documented in the flags reference below.
+For automation, prefer `--agent`. The global `--output-format` flag is documented in the flags reference below.
 
 ## Flags reference
 
@@ -100,7 +100,7 @@ For automation, prefer `--agent`. The global `--outputFormat` flag is documented
 Start here when exploring an unfamiliar OpenSearch domain. The `indices` operation is the default, so `--operation` can be omitted.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch
+stacktape query opensearch mySearch --stage prod --region eu-west-1
 ```
 
 ### Inspect field mappings for an index
@@ -108,7 +108,7 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Useful for understanding the schema before writing search queries.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation mapping --index products
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation mapping --index products
 ```
 
 ### Count all documents in the domain
@@ -116,7 +116,7 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Omit `--index` to get a total count across every index.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation count
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation count
 ```
 
 ### Count documents in a specific index
@@ -124,13 +124,13 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Pass `--index` to scope the count.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation count --index orders
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation count --index orders
 ```
 
 ### Retrieve a specific document by ID
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation get --index users --id user-42
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation get --index users --id user-42
 ```
 
 ### Run a full-text search
@@ -138,13 +138,13 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 The `--query` flag takes OpenSearch Query DSL as a JSON string. This example searches for error-level log entries across the `logs` index.
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation search --index logs --query "{\"match\": {\"level\": \"error\"}}" --limit 20
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation search --index logs --query "{\"match\": {\"level\": \"error\"}}" --limit 20
 ```
 
 ### Match all documents in an index
 
 ```bash
-stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation search --index products --query "{\"match_all\": {}}" --limit 50
+stacktape query opensearch mySearch --stage prod --region eu-west-1 --operation search --index products --query "{\"match_all\": {}}" --limit 50
 ```
 
 ### Use agent mode for automation
@@ -152,15 +152,15 @@ stacktape query:opensearch --stage prod --region eu-west-1 --resourceName mySear
 Parse the JSON result programmatically in a CI pipeline or AI coding assistant.
 
 ```bash
-stacktape query:opensearch --agent --stage prod --region eu-west-1 --resourceName mySearch --operation count --index users
+stacktape query opensearch mySearch --agent --stage prod --region eu-west-1 --operation count --index users
 ```
 
 ## Related commands
 
-- [`query:sql`](/cli/query-sql) — run read-only SQL queries against a deployed relational database.
-- [`query:dynamodb`](/cli/query-dynamodb) — query a deployed DynamoDB table.
-- [`query:redis`](/cli/query-redis) — query a deployed Redis cluster.
-- [`aws:call`](/cli/aws-call) — execute read-only AWS SDK commands against any deployed resource.
+- [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed relational database.
+- [`query dynamodb`](/cli/query-dynamodb) — query a deployed DynamoDB table.
+- [`query redis`](/cli/query-redis) — query a deployed Redis cluster.
+- [`aws call`](/cli/aws-call) — execute read-only AWS SDK commands against any deployed resource.
 - [`logs`](/cli/logs) — fetch and analyze logs from deployed resources.
 
 ## FAQ
@@ -171,16 +171,16 @@ The `mapping` operation requires `--index`. The `get` operation requires both `-
 
 ### Do I need a bastion host to query OpenSearch?
 
-No. The command reads the deployed domain endpoint from the stack, connects over HTTPS, and authenticates using debug-agent credentials when available or your configured AWS credentials otherwise. Unlike [`query:sql`](/cli/query-sql) or [`query:redis`](/cli/query-redis), `query:opensearch` does not accept a `--bastionResource` flag.
+No. The command reads the deployed domain endpoint from the stack, connects over HTTPS, and authenticates using debug-agent credentials when available or your configured AWS credentials otherwise. Unlike [`query sql`](/cli/query-sql) or [`query redis`](/cli/query-redis), `query opensearch` does not accept a `--bastion-resource` flag.
 
 ### What format does the --query flag expect?
 
 The `--query` flag accepts a JSON string containing an [OpenSearch Query DSL](https://opensearch.org/docs/latest/query-dsl/) query body. The command parses the JSON before sending it. If the JSON is malformed, the command rejects it with `Invalid JSON in --query` and the hint `Provide valid OpenSearch query DSL JSON`. On Windows, escape inner double quotes with backslashes; on Linux/macOS, wrap the entire value in single quotes.
 
-### How is query:opensearch different from OpenSearch Dashboards?
+### How is query opensearch different from OpenSearch Dashboards?
 
-`query:opensearch` is a CLI tool for quick, ad-hoc inspection from your terminal — checking an index exists, verifying document counts, or running a one-off search. OpenSearch Dashboards provides a full web UI with visualizations, saved queries, and interactive exploration. Use the CLI for fast debugging; use Dashboards for ongoing analytics and dashboard building.
+`query opensearch` is a CLI tool for quick, ad-hoc inspection from your terminal — checking an index exists, verifying document counts, or running a one-off search. OpenSearch Dashboards provides a full web UI with visualizations, saved queries, and interactive exploration. Use the CLI for fast debugging; use Dashboards for ongoing analytics and dashboard building.
 
 ### What happens if the OpenSearch domain is not deployed?
 
-The command looks up the domain endpoint from the deployed stack. If the resource does not exist in the stack or the domain is not yet provisioned, the command fails with an error indicating it could not retrieve the OpenSearch endpoint. Verify the stack is deployed and the `--resourceName` matches a resource in your configuration.
+The command looks up the domain endpoint from the deployed stack. If the resource does not exist in the stack or the domain is not yet provisioned, the command fails with an error indicating it could not retrieve the OpenSearch endpoint. Verify the stack is deployed and the `--resource-name` matches a resource in your configuration.

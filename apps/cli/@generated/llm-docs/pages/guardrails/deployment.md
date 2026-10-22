@@ -70,7 +70,7 @@ If your team operates across many regions intentionally — for example, deployi
 
 ## Command restriction
 
-Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` intentionally remain available so a developer can inspect and diagnose a policy violation.
+Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. Read-only `diff` and `validate` intentionally remain available so a developer can inspect and diagnose a policy violation.
 
 Command restriction is most useful for protecting production stacks from destructive operations by policy. Listing `delete` in `blockedCommands` is a way to signal that stack removal is not an allowed action under the active guardrail.
 

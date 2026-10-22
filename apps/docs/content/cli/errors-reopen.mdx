@@ -1,20 +1,20 @@
 ---
-title: 'errors:reopen'
+title: 'error reopen'
 order: 193
-seoTitle: 'errors:reopen CLI Command | Stacktape Docs'
+seoTitle: 'error reopen CLI Command | Stacktape Docs'
 seoDescription: 'Reopen a resolved or ignored runtime issue in Stacktape, restoring it to OPEN status. CLI reference with usage examples and flags.'
 ---
 
-# errors:reopen
+# error reopen
 
-The `errors:reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`errors:list`](/cli/errors-list) with OPEN status.
+The `error reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`error list`](/cli/errors-list) with OPEN status.
 
 ## Usage
 
-The `errors:reopen` command takes one required flag, `--issueId`, to identify the issue to reopen. It requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)).
+The `error reopen` command takes one required argument, the issue ID, to identify the issue to reopen. It requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)).
 
 ```bash
-stacktape errors:reopen --issueId iss_abc123def456
+stacktape error reopen iss_abc123def456
 ```
 
 On success, the command calls the Stacktape API and prints `Issue <issueId> reopened.`
@@ -24,24 +24,24 @@ On success, the command calls the Stacktape API and prints `Issue <issueId> reop
 Reopen an issue by its ID:
 
 ```bash
-stacktape errors:reopen --issueId iss_abc123def456
+stacktape error reopen iss_abc123def456
 ```
 
 Reopen using the short alias:
 
 ```bash
-stacktape errors:reopen -iid iss_abc123def456
+stacktape error reopen iss_abc123def456
 ```
 
 Reopen in agent mode for programmatic consumption:
 
 ```bash
-stacktape errors:reopen --issueId iss_abc123def456 --agent
+stacktape error reopen iss_abc123def456 --agent
 ```
 
 ## Arguments reference
 
-The table below lists all accepted flags for `errors:reopen`.
+The table below lists all accepted flags for `error reopen`.
 
 <CliCommandsApiReference command="errors:reopen" />
 
@@ -49,6 +49,6 @@ The table below lists all accepted flags for `errors:reopen`.
 
 The issue lifecycle commands — list, resolve, ignore, and reopen — let you triage runtime issues from the CLI.
 
-- [`errors:list`](/cli/errors-list) — List detected runtime issues with their error message, type, function name, project/stage, occurrence count, and status.
-- [`errors:resolve`](/cli/errors-resolve) — Mark an issue as resolved. It will reopen automatically if the same error occurs again.
-- [`errors:ignore`](/cli/errors-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences.
+- [`error list`](/cli/errors-list) — List detected runtime issues with their error message, type, function name, project/stage, occurrence count, and status.
+- [`error resolve`](/cli/errors-resolve) — Mark an issue as resolved. It will reopen automatically if the same error occurs again.
+- [`error ignore`](/cli/errors-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences.

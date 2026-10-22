@@ -16,7 +16,7 @@ An organization groups related projects, team members, and settings. In the Cons
 
 An organization's setup commands run before every deployment on a build runner, for every project.
 
-You can manage organizations from the CLI with [`stacktape org:create`](/cli/org-create) and [`stacktape org:list`](/cli/org-list).
+You can manage organizations from the CLI with [`stacktape org create`](/cli/org-create) and [`stacktape org list`](/cli/org-list).
 
 ### Projects
 
@@ -47,7 +47,7 @@ To deploy a stage, you need a Stacktape configuration that describes which resou
 
 Projects start in the CLI. Run [`stacktape init`](/cli/init) in your repository; the first deploy creates the project, and it appears in the Console. **New project** in the Console shows these commands and opens the project once its first deployment starts.
 
-You can also create an empty project with [`stacktape project:create`](/cli/project-create).
+You can also create an empty project with [`stacktape project create`](/cli/project-create).
 
 ### Step 2 — Create a stage
 
@@ -60,7 +60,7 @@ Once a stage is created, clicking it in the sidebar navigates to the deployment 
 Use [`stacktape deploy`](/cli/deploy) for CLI deployment — see that page for required options — or trigger a deployment through [GitOps](/ci-cd-and-gitops/gitops-with-console).
 
 ```bash
-stacktape deploy --projectName my-app --stage production --region eu-west-1
+stacktape deploy --project my-app --stage production --region eu-west-1
 ```
 
 Once a stage has been deployed, clicking it in the sidebar navigates to that stage's overview route (`/projects/{project}/{stage}/overview`). The project details query refetches every 6 seconds except on the create-new-stage page, so deployment status updates while the page is open.

@@ -67,10 +67,10 @@ The `image` property accepts any valid container image reference: a Docker Hub s
 
 To pull from a private registry that requires authentication, store your credentials in AWS Secrets Manager and reference the secret ARN via `repositoryCredentialsSecretArn`. The secret must be a JSON object with `username` and `password` keys.
 
-Create the secret using the Stacktape CLI [`secret:set`](/cli/secret-set) command. The command accepts `--secretName` to set the secret name and `--secretValue` to provide the JSON credentials inline. See the [CLI reference](/cli/secret-set) for the full list of flags (including `--secretFile` and `--region`).
+Create the secret using the Stacktape CLI [`secret set`](/cli/secret-set) command. The command accepts `--secret-name` to set the secret name and `--value` to provide the JSON credentials inline. See the [CLI reference](/cli/secret-set) for the full list of flags (including `--file` and `--region`).
 
 ```bash
-stacktape secret:set --secretName my-registry-creds --secretValue '{"username":"my-user","password":"my-token"}'
+stacktape secret set my-registry-creds --value '{"username":"my-user","password":"my-token"}'
 ```
 
 Then reference the secret ARN in your config:

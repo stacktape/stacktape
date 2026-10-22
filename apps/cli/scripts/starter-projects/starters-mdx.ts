@@ -27,7 +27,7 @@ export const addReadme = async ({
   const genProjectSection = `To initialize the project, use
 
 \`\`\`bash
-stacktape init --starterId ${starterProjectId}
+stacktape init --starter-id ${starterProjectId}
 \`\`\``;
 
   const res = `
@@ -138,7 +138,7 @@ ${
 To perform the deployment, use the following command:
 
 \`\`\`bash
-stacktape deploy --projectName <<project-name>> --stage <<stage>> --region <<region>>
+stacktape deploy --project <<project-name>> --stage <<stage>> --region <<region>>
 \`\`\`
 
 \`stage\` is an arbitrary name of your environment (for example **staging**, **production** or **dev-john**)
@@ -265,9 +265,9 @@ const generateMdxHotSwapDeploy = (
 ) => {
   return `- When only your source code changed, \`stacktape deploy\` updates the changed functions and containers directly, which takes seconds.
 - Changes to infrastructure are deployed through [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html), which takes longer.
-- To deploy everything through CloudFormation, add \`--fullDeploy\`:
+- To deploy everything through CloudFormation, add \`--full\`:
 \`\`\`bash
-stacktape deploy --fullDeploy --stage <<stage>> --region <<region>> --projectName <<project-name>>
+stacktape deploy --full --stage <<stage>> --region <<region>> --project <<project-name>>
 \`\`\``;
 };
 

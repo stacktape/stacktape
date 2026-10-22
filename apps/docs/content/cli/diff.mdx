@@ -44,13 +44,13 @@ Replaced resources are destroyed and recreated. For databases or stateful resour
 
 **`--region`** (required) — the AWS region where the stack is deployed.
 
-**`--configPath`** — path to your Stacktape configuration file, relative to the current working directory.
+**`--config`** — path to your Stacktape configuration file, relative to the current working directory.
 
-**`--preserveTempFiles`** — keeps the synthesized CloudFormation template and packaged artifacts in `.stacktape/[invocation-id]` after the command finishes. Useful for inspecting exactly what Stacktape generated.
+**`--keep-temp-files`** — keeps the synthesized CloudFormation template and packaged artifacts in `.stacktape/[invocation-id]` after the command finishes. Useful for inspecting exactly what Stacktape generated.
 
-**`--agent`** — selects agent-oriented output (implies `--outputFormat jsonl`). Each resource change prints a primary line (symbol, name, type, action label) plus optional sub-lines for highlights, will-replace, and may-replace properties.
+**`--agent`** — selects agent-oriented output (implies `--json`). Each resource change prints a primary line (symbol, name, type, action label) plus optional sub-lines for highlights, will-replace, and may-replace properties.
 
-**`--profile`** — the AWS profile to use. Manage profiles with [`aws-profile:create`](/cli/aws-profile-create) and set a default with [`defaults:configure`](/cli/defaults-configure).
+**`--profile`** — the AWS profile to use. Manage profiles with [`aws-profile create`](/cli/aws-profile-create) and set a default with [`defaults set`](/cli/defaults-configure).
 
 ## Examples
 
@@ -63,13 +63,13 @@ stacktape diff --stage staging --region us-east-1
 Preview changes using a specific config file and AWS profile:
 
 ```bash
-stacktape diff --stage production --region eu-west-1 --configPath ./infra/stacktape.ts --profile my-aws-profile
+stacktape diff --stage production --region eu-west-1 --config ./infra/stacktape.ts --profile my-aws-profile
 ```
 
 Preview changes and keep the generated template for inspection:
 
 ```bash
-stacktape diff --stage dev --region us-west-2 --preserveTempFiles
+stacktape diff --stage dev --region us-west-2 --keep-temp-files
 ```
 
 Use agent mode for machine-readable output:
@@ -137,7 +137,7 @@ CloudFormation sometimes reports changes to internal bookkeeping resources. Stac
 
 ### How do I get machine-readable diff output for scripts or PR comments?
 
-Use `--agent` (which implies `--outputFormat jsonl`) for NDJSON, or `--outputFormat plain` for plain text. In agent mode each resource change prints a primary line with a symbol (`+`, `~`, `!`, `-`), resource name, type, and action label, plus optional sub-lines for highlights, will-replace, and may-replace properties — straightforward to parse in scripts or surface in pull request comments.
+Use `--agent` (which implies `--json`) for NDJSON, or `--output-format plain` for plain text. In agent mode each resource change prints a primary line with a symbol (`+`, `~`, `!`, `-`), resource name, type, and action label, plus optional sub-lines for highlights, will-replace, and may-replace properties — straightforward to parse in scripts or surface in pull request comments.
 
 ### What is the difference between "will replace" and "may replace"?
 

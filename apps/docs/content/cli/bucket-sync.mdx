@@ -1,28 +1,28 @@
 ---
-title: 'bucket:sync'
+title: 'bucket sync'
 order: 162
-seoTitle: 'bucket:sync CLI Command | Stacktape Docs'
+seoTitle: 'bucket sync CLI Command | Stacktape Docs'
 seoDescription: 'Sync a local directory to an S3 bucket with Stacktape. Mirrors files, removes stale objects, invalidates CDN cache, and applies HTTP header presets.'
 ---
 
-# bucket:sync
+# bucket sync
 
-The `bucket:sync` command synchronizes the contents of a local directory with an S3 bucket. It mirrors the source directory into the bucket, removing any files from the bucket that no longer exist locally. Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.
+The `bucket sync` command synchronizes the contents of a local directory with an S3 bucket. It mirrors the source directory into the bucket, removing any files from the bucket that no longer exist locally. Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.
 
 ## Usage
 
 There are two ways to specify which bucket to sync to.
 
-**Using your Stacktape configuration** — provide `--stage` and `--resourceName`. Stacktape resolves the bucket from your deployed stack and uses the `directoryUpload.directoryPath` defined in your config. Additional `directoryUpload` settings — `excludeFilesPatterns`, `fileOptions`, and `headersPreset` — are also applied automatically from the resource's configuration:
+**Using your Stacktape configuration** — provide `--stage` and the resource name (`bucket sync <resource-name>`). Stacktape resolves the bucket from your deployed stack and uses the `directoryUpload.directoryPath` defined in your config. Additional `directoryUpload` settings — `excludeFilesPatterns`, `fileOptions`, and `headersPreset` — are also applied automatically from the resource's configuration:
 
 ```bash
-stacktape bucket:sync --stage production --resourceName myHostingBucket --region eu-west-1
+stacktape bucket sync myHostingBucket --stage production --region eu-west-1
 ```
 
-**Using a bucket ID directly** — provide `--bucketId` (the AWS bucket name or physical resource ID) and `--sourcePath`:
+**Using a bucket ID directly** — provide `--bucket-id` (the AWS bucket name or physical resource ID) and `--source-path`:
 
 ```bash
-stacktape bucket:sync --bucketId my-app-assets-bucket --sourcePath ./dist --region eu-west-1
+stacktape bucket sync --bucket-id my-app-assets-bucket --source-path ./dist --region eu-west-1
 ```
 
 <Warning>
@@ -35,21 +35,21 @@ Files in the destination bucket that are not present in the source directory are
 
 ## Important flags
 
-The `bucket:sync` command accepts several optional flags that control caching headers, CDN invalidation, and source-path resolution. The flags below cover the most commonly used options beyond `--stage`, `--resourceName`, `--bucketId`, and `--region`.
+The `bucket sync` command accepts several optional flags that control caching headers, CDN invalidation, and source-path resolution. The flags below cover the most commonly used options beyond the resource name, `--stage`, `--bucket-id`, and `--region`.
 
-### `--invalidateCdnCache`
+### `--invalidate-cdn-cache`
 
 When set to `true`, Stacktape finds any CloudFront distributions connected to the synced bucket and creates an invalidation for all paths (`/*`). Use this after updating a static site or SPA so users see the new content immediately instead of waiting for the CDN cache TTL to expire.
 
 ```bash
-stacktape bucket:sync --stage production --resourceName website --region eu-west-1 --invalidateCdnCache
+stacktape bucket sync website --stage production --region eu-west-1 --invalidate-cdn-cache
 ```
 
 CDN invalidation starts immediately but may take a few seconds to propagate to all edge locations.
 
-### `--headersPreset`
+### `--headers-preset`
 
-Configures HTTP headers on uploaded files based on a selected preset. The presets mainly control caching behavior for static websites and common frontend framework output directories. If you are syncing via config mode (`--stage` + `--resourceName`), this can also be set in your Stacktape configuration's `directoryUpload.headersPreset` property — the CLI flag overrides it.
+Configures HTTP headers on uploaded files based on a selected preset. The presets mainly control caching behavior for static websites and common frontend framework output directories. If you are syncing via config mode (`--stage` + `--resource-name`), this can also be set in your Stacktape configuration's `directoryUpload.headersPreset` property — the CLI flag overrides it.
 
 Available presets:
 
@@ -63,14 +63,14 @@ Available presets:
 | `nuxt-static-website` | `_nuxt/**` assets marked immutable |
 
 ```bash
-stacktape bucket:sync --bucketId my-spa-bucket --sourcePath ./build --region us-east-1 --headersPreset single-page-app
+stacktape bucket sync --bucket-id my-spa-bucket --source-path ./build --region us-east-1 --headers-preset single-page-app
 ```
 
-### `--sourcePath`
+### `--source-path`
 
-Path to the local directory to sync. Can be absolute or relative to the current working directory. `--sourcePath` is only valid with `--bucketId`; providing `--sourcePath` without `--bucketId` causes a validation error. In config mode (`--stage` + `--resourceName`), the source directory is always read from `directoryUpload.directoryPath` in your Stacktape configuration.
+Path to the local directory to sync. Can be absolute or relative to the current working directory. `--source-path` is only valid with `--bucket-id`; providing `--source-path` without `--bucket-id` causes a validation error. In config mode (`--stage` + `--resource-name`), the source directory is always read from `directoryUpload.directoryPath` in your Stacktape configuration.
 
-### `--resourceName`
+### `<resource-name>`
 
 The name of the bucket resource as defined in your Stacktape configuration. Used together with `--stage` to identify the target bucket from your deployed stack. The source directory and headers preset are read from the resource's `directoryUpload` config.
 
@@ -79,19 +79,19 @@ The name of the bucket resource as defined in your Stacktape configuration. Used
 Sync a React SPA build folder to a hosting bucket and invalidate CDN cache:
 
 ```bash
-stacktape bucket:sync --stage prod --resourceName frontend --region eu-west-1 --invalidateCdnCache
+stacktape bucket sync frontend --stage prod --region eu-west-1 --invalidate-cdn-cache
 ```
 
-Sync to an arbitrary S3 bucket with a preset for Astro. In `--bucketId` mode, Stacktape uses the explicit `--sourcePath` and `--headersPreset` CLI inputs; config-only `directoryUpload` options such as `excludeFilesPatterns` and `fileOptions` are read only when syncing by `--stage` and `--resourceName`.
+Sync to an arbitrary S3 bucket with a preset for Astro. In `--bucket-id` mode, Stacktape uses the explicit `--source-path` and `--headers-preset` CLI inputs; config-only `directoryUpload` options such as `excludeFilesPatterns` and `fileOptions` are read only when syncing by `--stage` and `--resource-name`.
 
 ```bash
-stacktape bucket:sync --bucketId my-astro-site-bucket --sourcePath ./dist --region us-east-1 --headersPreset astro-static-website
+stacktape bucket sync --bucket-id my-astro-site-bucket --source-path ./dist --region us-east-1 --headers-preset astro-static-website
 ```
 
 Sync with a specific AWS profile:
 
 ```bash
-stacktape bucket:sync --stage staging --resourceName assets --region eu-central-1 --profile my-aws-profile
+stacktape bucket sync assets --stage staging --region eu-central-1 --profile my-aws-profile
 ```
 
 ## Related commands

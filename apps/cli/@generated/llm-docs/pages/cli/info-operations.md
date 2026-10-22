@@ -1,55 +1,55 @@
-# info:operations
+# stack history
 
-The `info:operations` command lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user.
+The `stack history` command lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user.
 
 ## Usage
 
 ```bash
-stacktape info:operations
+stacktape stack history
 ```
 
-`info:operations` returns the 25 most recent operations across all projects and stages in your organization. You must be logged in with a valid API key — run [`stacktape login`](/cli/login) first if you haven't already.
+`stack history` returns the 25 most recent operations across all projects and stages in your organization. You must be logged in with a valid API key — run [`stacktape login`](/cli/login) first if you haven't already.
 
 ## Filtering results
 
 Filter by project name to see operations for a single project.
 
 ```bash
-stacktape info:operations --projectName my-api
+stacktape stack history --project my-api
 ```
 
 Filter by stage to see operations for a specific stage across all projects.
 
 ```bash
-stacktape info:operations --stage production
+stacktape stack history --stage production
 ```
 
-Combine `--projectName` and `--stage` to narrow results to a single project and stage.
+Combine `--project` and `--stage` to narrow results to a single project and stage.
 
 ```bash
-stacktape info:operations --projectName my-api --stage production
+stacktape stack history --project my-api --stage production
 ```
 
 Show only operations triggered by your own API key.
 
 ```bash
-stacktape info:operations --currentUserOnly
+stacktape stack history --current-user-only
 ```
 
 ## Controlling output size
 
-By default, `info:operations` returns the 25 most recent operations. Use `--limit` to change this.
+By default, `stack history` returns the 25 most recent operations. Use `--limit` to change this.
 
 ```bash
-stacktape info:operations --limit 50
+stacktape stack history --limit 50
 ```
 
 ## Machine-readable output
 
-Use `--agent` or `--outputFormat jsonl` to get machine-readable output suitable for scripts or AI coding agents. See the flags reference below for details on each output format.
+Use `--agent` or `--json` to get machine-readable output suitable for scripts or AI coding agents. See the flags reference below for details on each output format.
 
 ```bash
-stacktape info:operations --agent
+stacktape stack history --agent
 ```
 
 ## Flags reference
@@ -70,6 +70,6 @@ stacktape info:operations --agent
 
 ## Related commands
 
-- [`info:stacks`](/cli/info-stacks) — list all deployed stacks in a region with their status and estimated spend.
-- [`info:stack`](/cli/info-stack) — show detailed outputs and resources for a specific deployed stack.
-- [`info:whoami`](/cli/info-whoami) — verify your API key and see which organization, AWS accounts, and projects you have access to.
+- [`stack list`](/cli/info-stacks) — list all deployed stacks in a region with their status and estimated spend.
+- [`status`](/cli/info-stack) — show detailed outputs and resources for a specific deployed stack.
+- [`whoami`](/cli/info-whoami) — verify your API key and see which organization, AWS accounts, and projects you have access to.

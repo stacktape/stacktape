@@ -19,7 +19,7 @@ type KafkaMTLSAuthProps = {
 The ARN of a secret containing the client certificate.
 
 This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.
 
 ## Property: `serverRootCaCertificate`
 
@@ -28,4 +28,4 @@ You can create secrets using the `stacktape secret:create` command.
 
 The ARN of a secret containing the server's root CA certificate.
 
-You can create secrets using the `stacktape secret:create` command.
+You can create secrets using the `stacktape secret set` command.

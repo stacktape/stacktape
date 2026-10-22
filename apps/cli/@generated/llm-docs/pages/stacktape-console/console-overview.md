@@ -66,7 +66,7 @@ Open **SSM parameters** in the Configuration group to manage values stored in AW
 
 Alarms are defined in the Stacktape configuration, in the `alarms` list of a resource, and are created when the stack is deployed. The **Alarms** page in the Alerting group shows the current state of the CloudWatch alarms in your connected AWS accounts. See [Alarms](/observability/alarms).
 
-Alarm rules created in the Console earlier are legacy. They are listed under **Legacy alarm rules** on the Alarms page and keep applying to matching deployments until the stack's configuration defines its alarms. Run `stacktape alarms:export` to move them into your configuration.
+Alarm rules created in the Console earlier are legacy. They are listed under **Legacy alarm rules** on the Alarms page and keep applying to matching deployments until the stack's configuration defines its alarms. Run `stacktape alarm export` to move them into your configuration.
 
 ### Tracking runtime errors
 
@@ -147,7 +147,7 @@ Yes. Stacktape uses a cross-account IAM role to manage resources in your AWS acc
 
 ### Where do I configure alarms?
 
-In the Stacktape configuration, in the `alarms` list of each resource. The alarms are created when the stack is deployed. The Console's Alarms page shows their state. Alarm rules created in the Console earlier are listed under **Legacy alarm rules**; export them into your configuration with `stacktape alarms:export`.
+In the Stacktape configuration, in the `alarms` list of each resource. The alarms are created when the stack is deployed. The Console's Alarms page shows their state. Alarm rules created in the Console earlier are listed under **Legacy alarm rules**; export them into your configuration with `stacktape alarm export`.
 
 ### How does Stacktape track AWS costs, and why is the Costs page empty?
 

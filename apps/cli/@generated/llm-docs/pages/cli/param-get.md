@@ -1,23 +1,23 @@
-# param:get
+# param get
 
-Retrieve the runtime value of a [referenceable parameter](/configuration/referenceable-parameters) from a resource in a deployed stack. Use `param:get` to fetch URLs, connection strings, ARNs, and other outputs directly from the CLI — without opening the AWS Console or parsing CloudFormation outputs. The three required arguments are `--region`, `--resourceName`, and `--paramName`.
+Retrieve the runtime value of a [referenceable parameter](/configuration/referenceable-parameters) from a resource in a deployed stack. Use `param get` to fetch URLs, connection strings, ARNs, and other outputs directly from the CLI — without opening the AWS Console or parsing CloudFormation outputs. The three required arguments are `--region`, `--resource-name`, and `--param-name`.
 
 ## Usage
 
 ```bash
-stacktape param:get --region eu-west-1 --resourceName myApi --paramName url
+stacktape param get myApi url --region eu-west-1
 ```
 
-The command does not require a local Stacktape configuration file. The required CLI arguments are `--region`, `--resourceName`, and `--paramName`; optional stack-selection arguments such as `--stage` or `--projectName` can still be used when needed to identify the target stack. `--stage` is optional; pass it when you need to target a specific stage explicitly.
+The command does not require a local Stacktape configuration file. The command takes the resource name and the parameter name as positional arguments (`param get <resource-name> <param-name>`) and requires `--region`; optional stack-selection arguments such as `--stage` or `--project` can still be used when needed to identify the target stack. `--stage` is optional; pass it when you need to target a specific stage explicitly.
 
-Common scenarios for `param:get`:
+Common scenarios for `param get`:
 
 - Feed an endpoint URL into a local script or test harness.
 - Retrieve a database connection string for a one-off migration tool.
 - Read a resource ARN to pass into another CLI command or CI step.
 - Verify the actual deployed value of a parameter after a deploy completes.
 
-If you need a broader overview of all stack outputs and resources at once, use [`info:stack`](/cli/info-stack) instead.
+If you need a broader overview of all stack outputs and resources at once, use [`status`](/cli/info-stack) instead.
 
 ## Arguments reference
 
@@ -45,19 +45,19 @@ If you need a broader overview of all stack outputs and resources at once, use [
 Retrieve a parameter from a deployed resource.
 
 ```bash
-stacktape param:get --region us-east-1 --resourceName api --paramName url
+stacktape param get api url --region us-east-1
 ```
 
-Pass `--stage` when you want to target a specific stage explicitly. Include it unless you have set a default stage via [`defaults:configure`](/cli/defaults-configure).
+Pass `--stage` when you want to target a specific stage explicitly. Include it unless you have set a default stage via [`defaults set`](/cli/defaults-configure).
 
 ```bash
-stacktape param:get --region eu-west-1 --stage production --resourceName mainDatabase --paramName connectionString
+stacktape param get mainDatabase connectionString --region eu-west-1 --stage production
 ```
 
-For programmatic consumption in scripts or CI steps, use `--agent` or `--outputFormat jsonl` to get machine-readable JSONL output. The default interactive output includes formatting that is not suitable for shell variable capture.
+For programmatic consumption in scripts or CI steps, use `--agent` or `--json` to get machine-readable JSONL output. The default interactive output includes formatting that is not suitable for shell variable capture.
 
 ```bash
-stacktape param:get --region eu-west-1 --resourceName api --paramName url --agent
+stacktape param get api url --region eu-west-1 --agent
 ```
 
 
@@ -66,7 +66,7 @@ stacktape param:get --region eu-west-1 --resourceName api --paramName url --agen
 
 ## Error handling
 
-If the resource name does not exist in the deployed stack overview, the command throws the missing-resource error (`e77`) for that stack and resource lookup. Double-check the `--resourceName` value matches the key used in your Stacktape configuration.
+If the resource name does not exist in the deployed stack overview, the command throws the missing-resource error (`e77`) for that stack and resource lookup. Double-check that the resource name matches the key used in your Stacktape configuration.
 
 If the parameter name is not found for the given resource, the command throws the invalid-parameter error (`e78`) and passes the resource type plus the available referenceable parameter names to the error handler. This makes it straightforward to discover the correct parameter name without leaving the terminal.
 
@@ -74,22 +74,22 @@ If the parameter name is not found for the given resource, the command throws th
 
 ### How do I find the available parameter names for a resource?
 
-Each Stacktape resource type exposes a specific set of referenceable parameters. The full list is documented at [referenceable parameters](/configuration/referenceable-parameters). You can also trigger the `e78` error intentionally by passing an invalid `--paramName` — the error output includes the valid parameter names for that resource type.
+Each Stacktape resource type exposes a specific set of referenceable parameters. The full list is documented at [referenceable parameters](/configuration/referenceable-parameters). You can also trigger the `e78` error intentionally by passing an invalid `--param-name` — the error output includes the valid parameter names for that resource type.
 
-### Does param:get require a deployed stack?
+### Does param get require a deployed stack?
 
-Yes. The command queries a deployed stack to read the parameter's runtime value. If the stack has not been deployed yet, there is nothing to retrieve. Deploy first with [`deploy`](/cli/deploy), then use `param:get` to read outputs.
+Yes. The command queries a deployed stack to read the parameter's runtime value. If the stack has not been deployed yet, there is nothing to retrieve. Deploy first with [`deploy`](/cli/deploy), then use `param get` to read outputs.
 
 ### How do I capture the value in a shell script or CI step?
 
-Pass `--agent` or `--outputFormat jsonl` to get machine-readable JSONL output (one JSON object per line). The default interactive output includes colors and formatting that are not suitable for capturing into a shell variable or parsing in a pipeline step.
+Pass `--agent` or `--json` to get machine-readable JSONL output (one JSON object per line). The default interactive output includes colors and formatting that are not suitable for capturing into a shell variable or parsing in a pipeline step.
 
-### What is the difference between param:get and info:stack?
+### What is the difference between param get and status?
 
-[`param:get`](/cli/param-get) retrieves a single parameter value from a single resource — ideal for scripting and automation. [`info:stack`](/cli/info-stack) returns a broader overview of all outputs and AWS resources in the stack — better for exploration and discovery after a deployment.
+[`param get`](/cli/param-get) retrieves a single parameter value from a single resource — ideal for scripting and automation. [`status`](/cli/info-stack) returns a broader overview of all outputs and AWS resources in the stack — better for exploration and discovery after a deployment.
 
 ## Related commands
 
-- [`info:stack`](/cli/info-stack) — view all outputs and resources in a deployed stack.
+- [`status`](/cli/info-stack) — view all outputs and resources in a deployed stack.
 - [`synth`](/cli/synth) — compile your Stacktape configuration into a CloudFormation template for inspection before deployment.
-- [`defaults:configure`](/cli/defaults-configure) — set default region and stage so you can omit them from repeated commands.
+- [`defaults set`](/cli/defaults-configure) — set default region and stage so you can omit them from repeated commands.

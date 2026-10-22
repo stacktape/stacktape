@@ -221,7 +221,7 @@ export function DeployStep({
                     <p className="wizard-lede mb-3">
                       Rolls the stack back to the version that worked before this deploy.
                     </p>
-                    <CopyableCommand command={stackCommand('cf:rollback', target)} />
+                    <CopyableCommand command={stackCommand('stack recover', target)} />
                   </section>
                 )}
               </div>
@@ -784,7 +784,7 @@ function BlockedTargetAlert({
         {copy.body}
       </Alert>
       {copy.fix !== undefined && (
-        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'cf:rollback', command)} />
+        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', command)} />
       )}
     </div>
   );

@@ -659,7 +659,7 @@ Standard RDS starts at ~$12/month for `db.t4g.micro` and scales up with instance
 
 ### Can I connect to my Stacktape database from my local machine?
 
-Yes. By default, databases use `internet` accessibility mode (except Aurora Serverless, which requires VPC modes), so you can connect from anywhere with the credentials. For VPC-restricted databases, use a [bastion host](/resources/security/bastion-host) and the [`stacktape bastion:tunnel`](/cli/bastion-tunnel) command to create a secure tunnel. You can also whitelist your IP address using `accessibility.whitelistedIps` in `vpc` or `scoping-workloads-in-vpc` modes.
+Yes. By default, databases use `internet` accessibility mode (except Aurora Serverless, which requires VPC modes), so you can connect from anywhere with the credentials. For VPC-restricted databases, use a [bastion host](/resources/security/bastion-host) and the [`stacktape bastion tunnel`](/cli/bastion-tunnel) command to create a secure tunnel. You can also whitelist your IP address using `accessibility.whitelistedIps` in `vpc` or `scoping-workloads-in-vpc` modes.
 
 ### How do I back up and restore my database?
 

@@ -562,10 +562,10 @@ export default defineConfig(() => {
 ```
 
 
-Run the script with [`stacktape script:run`](/cli/script-run):
+Run the script with [`stacktape script run`](/cli/script-run):
 
 ```bash
-stacktape script:run --scriptName migrate --stage production --region eu-west-1
+stacktape script run migrate --stage production --region eu-west-1
 ```
 
 The `local-script-with-bastion-tunneling` type tunnels connections through a [bastion host](/resources/security/bastion-host), giving your local machine secure access to VPC-only databases. The injected environment variables are automatically adjusted to route through the tunnel. Use `local-script` for commands that can reach their targets from the machine running Stacktape; use `local-script-with-bastion-tunneling` when the target must be reached through a bastion tunnel. Three script types support `connectTo`: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`. The example uses `executeCommand`; local scripts can also use `executeCommands`, `executeScript`, or `executeScripts`, while bastion scripts support `executeCommand` and `executeCommands`.

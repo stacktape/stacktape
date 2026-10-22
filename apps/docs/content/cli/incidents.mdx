@@ -1,26 +1,26 @@
 ---
-title: 'incidents'
+title: 'incident list'
 order: 180
-seoTitle: 'incidents CLI Command | Stacktape Docs'
-seoDescription: 'List active or historical Stacktape incidents from the terminal with stacktape incidents. Filter by status, project, or stage and see which signals are still active.'
+seoTitle: 'incident list CLI Command | Stacktape Docs'
+seoDescription: 'List active or historical Stacktape incidents from the terminal with stacktape incident list. Filter by status, project, or stage and see which signals are still active.'
 ---
 
-# incidents
+# incident list
 
-The `incidents` command lists incidents: everything that needs (or needed) a reaction, such as downtime, failing synthetic tests, firing alarms, production errors, unhealthy stacks, and expiring certificates. It shows each incident's ID, status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents.
+The `incident list` command lists incidents: everything that needs (or needed) a reaction, such as downtime, failing synthetic tests, firing alarms, production errors, unhealthy stacks, and expiring certificates. It shows each incident's ID, status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents.
 
 ## Usage
 
 List active incidents (returns up to 25 incidents when no limit is provided):
 
 ```bash
-stacktape incidents
+stacktape incident list
 ```
 
 List active incidents for a specific project and stage:
 
 ```bash
-stacktape incidents --projectName my-app --stage production
+stacktape incident list --project my-app --stage production
 ```
 
 ## Flags reference
@@ -32,13 +32,13 @@ stacktape incidents --projectName my-app --stage production
 List resolved incidents, up to 50:
 
 ```bash
-stacktape incidents --incidentStatus RESOLVED --limit 50
+stacktape incident list --status RESOLVED --limit 50
 ```
 
 Get JSON output for scripting or AI coding assistants. In agent mode, the command prints the returned incidents as a pretty-printed JSON array instead of a table.
 
 ```bash
-stacktape incidents --agent --projectName my-app --stage production
+stacktape incident list --agent --project my-app --stage production
 ```
 
 ## Output
@@ -56,13 +56,13 @@ In interactive mode, the command prints a table with the following columns:
 | Opened   | When the incident opened                                                             |
 | Signals  | Each contributing signal, prefixed with ✗ while it is active and ✓ once it recovered |
 
-Accepted `--incidentStatus` values are `ACTIVE` (the default: open and acknowledged), `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `ALL`.
+Accepted `--status` values are `ACTIVE` (the default: open and acknowledged), `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `ALL`.
 
 ## Related commands
 
-- [`incidents:show`](/cli/incidents-show) — print an incident's self-contained handoff bundle for a developer or coding agent
-- [`incidents:ack`](/cli/incidents-ack) — record that someone is working on the incident
-- [`incidents:watch`](/cli/incidents-watch) — wait until the incident stays resolved after a fix
-- [`incidents:resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix
+- [`incident show`](/cli/incidents-show) — print an incident's self-contained handoff bundle for a developer or coding agent
+- [`incident ack`](/cli/incidents-ack) — record that someone is working on the incident
+- [`incident watch`](/cli/incidents-watch) — wait until the incident stays resolved after a fix
+- [`incident resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix
 
 See [Incidents](/observability/incidents) for what opens an incident, its lifecycle, and how signals recover.

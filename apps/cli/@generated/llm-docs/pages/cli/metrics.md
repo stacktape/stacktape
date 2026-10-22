@@ -5,7 +5,7 @@ The `stacktape metrics` command fetches CloudWatch metrics for a deployed resour
 ## Usage
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric Invocations
+stacktape metrics myApi Invocations --stage prod --region eu-west-1
 ```
 
 The command sends a CloudWatch `GetMetricData` query with the chosen statistic and period, then renders the returned datapoints as a terminal chart. With `--agent`, the command disables the interactive chart and prints machine-readable metric data containing `resource`, `metric`, `period`, `stat`, `unit`, and `datapoints`.
@@ -21,56 +21,56 @@ The `metrics` command supports four resource types. Each type exposes a fixed se
 | Relational database (`relational-database`) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
 | HTTP API Gateway (`http-api-gateway`) | `Count`, `4XXError`, `5XXError`, `Latency`, `IntegrationLatency` |
 
-For a supported resource type, passing an invalid `--metric` value returns an error with a remediation line such as `Available metrics: ...` listing the valid metric names. For an unsupported resource type, the error lists the supported resource-type keys instead.
+For a supported resource type, passing an invalid metric name returns an error with a remediation line such as `Available metrics: ...` listing the valid metric names. For an unsupported resource type, the error lists the supported resource-type keys instead.
 
 ## Important flags
 
-**`--metric`** (required) — the CloudWatch metric name to fetch. Must match one of the supported metrics for the target resource type (see table above). Examples: `Invocations`, `CPUUtilization`, `DatabaseConnections`.
+**`<metric>`** (required, second positional argument) — the CloudWatch metric name to fetch. Must match one of the supported metrics for the target resource type (see table above). Examples: `Invocations`, `CPUUtilization`, `DatabaseConnections`.
 
-**`--resourceName`** (required) — the name of the resource as defined in your Stacktape configuration. The command looks up the resource in the deployed stack to determine its type and the correct CloudWatch dimension.
+**`<resource-name>`** (required, first positional argument) — the name of the resource as defined in your Stacktape configuration. The command looks up the resource in the deployed stack to determine its type and the correct CloudWatch dimension.
 
 **`--period`** — aggregation period in seconds. Defaults to `300` (5 minutes). Use shorter periods like `60` for higher-resolution data during active debugging, or longer periods like `3600` for broader trends.
 
 **`--stat`** — the statistic to compute for each period. Defaults to `Average`. Supported values include `Sum`, `Average`, `Maximum`, `Minimum`, and percentiles like `p99`. Use `Sum` for count-based metrics like `Invocations` or `Errors`, `Average` or `Maximum` for utilization metrics, and `p99` for latency tail analysis.
 
-**`--startTime`** — how far back to look. Accepts relative shorthand (`1h`, `30m`, `1d`, `30s`) or any value the JavaScript `Date` constructor accepts (e.g. `2025-01-15T10:00:00Z`). Defaults to 1 hour ago.
+**`--since`** — how far back to look. Accepts relative shorthand (`1h`, `30m`, `1d`, `30s`) or any value the JavaScript `Date` constructor accepts (e.g. `2025-01-15T10:00:00Z`). Defaults to 1 hour ago.
 
 ## Examples
 
 Check the invocation count for a Lambda function over the last hour, aggregated in 5-minute windows.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric Invocations --stat Sum
+stacktape metrics myApi Invocations --stage prod --region eu-west-1 --stat Sum
 ```
 
 Check error count for the last 24 hours with 1-hour aggregation.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric Errors --stat Sum --startTime 1d --period 3600
+stacktape metrics myApi Errors --stage prod --region eu-west-1 --stat Sum --since 1d --period 3600
 ```
 
 Check CPU utilization for a multi-container workload.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName myBackend --metric CPUUtilization --stat Average
+stacktape metrics myBackend CPUUtilization --stage prod --region eu-west-1 --stat Average
 ```
 
 Check tail latency (p99) for an HTTP API Gateway over the last 30 minutes.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName myGateway --metric Latency --stat p99 --startTime 30m
+stacktape metrics myGateway Latency --stage prod --region eu-west-1 --stat p99 --since 30m
 ```
 
 Check database connections on a relational database.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName mainDatabase --metric DatabaseConnections --stat Maximum --startTime 6h
+stacktape metrics mainDatabase DatabaseConnections --stage prod --region eu-west-1 --stat Maximum --since 6h
 ```
 
 Get machine-readable output for use in scripts or AI agents.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric Duration --agent
+stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent
 ```
 
 
@@ -102,8 +102,8 @@ stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric 
 ## Related commands
 
 - [`stacktape logs`](/cli/logs) — fetch and filter log events from a deployed resource.
-- [`stacktape alarms`](/cli/alarms) — view CloudWatch alarm states for stack resources.
-- [`stacktape container:exec`](/cli/container-exec) — run a command inside a deployed container to inspect runtime state.
+- [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for stack resources.
+- [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container to inspect runtime state.
 
 ## FAQ
 
@@ -113,7 +113,7 @@ The `stacktape metrics` command supports four deployed resource types: `function
 
 ### What is the default time range and aggregation period?
 
-By default, the command fetches the last 1 hour of data with a 300-second (5-minute) aggregation period. Use `--startTime` to look further back (e.g. `--startTime 1d` for 24 hours) and `--period` to change the granularity. Shorter periods give more data points but may return empty values for low-traffic resources.
+By default, the command fetches the last 1 hour of data with a 300-second (5-minute) aggregation period. Use `--since` to look further back (e.g. `--since 1d` for 24 hours) and `--period` to change the granularity. Shorter periods give more data points but may return empty values for low-traffic resources.
 
 ### Which `--stat` should I use for a given metric?
 
@@ -125,7 +125,7 @@ Yes. The `metrics` command queries AWS CloudWatch directly — it does not conne
 
 ### How do I see all available metrics for my resource?
 
-For a supported resource type, pass an invalid `--metric` value and the error remediation includes a line listing the valid metrics (e.g. `Available metrics: Invocations, Errors, Duration, Throttles, ConcurrentExecutions`). For an unsupported resource type, the error lists the supported resource-type keys instead.
+For a supported resource type, pass an invalid metric name and the error remediation includes a line listing the valid metrics (e.g. `Available metrics: Invocations, Errors, Duration, Throttles, ConcurrentExecutions`). For an unsupported resource type, the error lists the supported resource-type keys instead.
 
 ### When should I use metrics vs logs?
 
