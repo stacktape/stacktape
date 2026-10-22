@@ -108,7 +108,13 @@ export type WizardState = {
   preferences?: DeploymentPreferences;
   recommendedPreferences?: DeploymentPreferences;
   /** Set once the configuration is on disk. `existingPath` means this is a file written beside one. */
-  configFile?: { path: string; filename: string; format: 'yaml' | 'typescript'; existingPath?: string };
+  configFile?: {
+    path: string;
+    filename: string;
+    format: 'yaml' | 'typescript';
+    existingPath?: string;
+    region?: string;
+  };
   /** Who this machine is to AWS. Absent until the check has answered. */
   awsIdentity?:
     | { available: true; accountId: string; arn: string; region?: string }

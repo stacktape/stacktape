@@ -601,11 +601,14 @@ export const describeCliCommand = (name: string) => {
 export const prepareCliRun = ({
   command,
   args,
-  confirm
+  confirm,
+  configSettings
 }: {
   command: string;
   args?: Record<string, unknown>;
   confirm?: boolean;
+  /** Project settings the command will read from its config; they satisfy the matching required arguments. */
+  configSettings?: Readonly<Partial<Record<'projectName' | 'region', string>>>;
 }): PreparedCliRun => {
   const invocation = normalizeCliInvocation(command, args);
   command = invocation.command ?? command;
@@ -683,7 +686,10 @@ export const prepareCliRun = ({
   }
 
   const requiredArgs = getMcpRequiredArgs(command).filter((argName) => argName !== 'secretValue or secretFile');
-  const missingRequiredArgs = requiredArgs.filter((argName) => !hasValue(operationArgs[argName]));
+  const missingRequiredArgs = requiredArgs.filter(
+    (argName) =>
+      !hasValue(operationArgs[argName]) && !configSettings?.[argName as keyof NonNullable<typeof configSettings>]
+  );
   if (missingRequiredArgs.length > 0) {
     return {
       ok: false,

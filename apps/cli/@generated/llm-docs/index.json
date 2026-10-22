@@ -17114,6 +17114,7 @@
         "page:/configuration/configuration-files#when-to-use-yaml",
         "page:/configuration/configuration-files#typescript-configuration",
         "page:/configuration/configuration-files#the-defineconfig-callback",
+        "page:/configuration/configuration-files#project-name-and-region",
         "page:/configuration/configuration-files#conditional-logic-and-loops",
         "page:/configuration/configuration-files#splitting-config-across-files",
         "page:/configuration/configuration-files#ide-experience",

@@ -69,6 +69,7 @@ export const getStackContext = (): StackContext =>
 export const getConfigResolverContext = (stackContext?: StackContext): ConfigResolverContext => {
   const args = globalStateManager.args;
   const user = globalStateManager.userData;
+  const target = globalStateManager.invocationTarget;
   const authoringParams: GetConfigParams = {
     projectName: stackContext?.projectName || globalStateManager.targetStack?.projectName || args.projectName,
     stage: stackContext?.stage || globalStateManager.targetStack?.stage || args.stage,
@@ -106,6 +107,11 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
     },
     configPath: globalStateManager.configPath,
     presetConfig: globalStateManager.presetConfig,
+    // Evaluation checks that the config declares the settings this invocation's target was resolved from.
+    projectSettings:
+      target?.configPath !== undefined && target.configPath === globalStateManager.configPath
+        ? target.settings
+        : undefined,
     workingDir: stackContext?.workingDir || globalStateManager.workingDir
   };
 };
@@ -618,6 +624,7 @@ export const initializeStackServicesForDevPhase1 = async () => {
     if (!globalStateManager.args.stage) {
       globalStateManager.args.stage = DEFAULT_LOCAL_STAGE;
     }
+    // A region declared in the config is already among the arguments, so this fallback never replaces it.
     if (!globalStateManager.args.region && !process.env.AWS_DEFAULT_REGION) {
       globalStateManager.args.region = DEFAULT_LOCAL_REGION;
     }

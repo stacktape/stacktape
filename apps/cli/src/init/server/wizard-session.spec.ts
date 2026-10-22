@@ -484,6 +484,52 @@ describe('startWizardSession', () => {
       expect(((await response.json()) as { configFile?: { format: string } }).configFile?.format).toBe('typescript');
     });
 
+    it('declares the region in the written file and deploys only to that region', async () => {
+      const declared: Array<string | undefined> = [];
+      let deploys = 0;
+      session = await startWizardSession({
+        projectName: 'demo',
+        result: resultFor(factsWith({})),
+        write: async ({ region }) => {
+          declared.push(region);
+          return { path: '/repo/stacktape.yml', filename: 'stacktape.yml', ...(region ? { region } : {}) };
+        },
+        deploy: async () => {
+          deploys += 1;
+          return new Promise(() => {});
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+      const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+
+      const written = await fetch(`${origin}/api/write`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ format: 'yaml' })
+      });
+      expect(declared).toEqual(['eu-west-1']);
+      expect(((await written.json()) as { configFile?: { region?: string } }).configFile?.region).toBe('eu-west-1');
+
+      const deployTo = (region: string) =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region, expected: { kind: 'create' } })
+        });
+      // Later commands read the region from the file, so a stack elsewhere would be one they never find.
+      await deployTo('us-east-1');
+      expect(deploys).toBe(0);
+      await deployTo('eu-west-1');
+      expect(deploys).toBe(1);
+    });
+
     it('streams a deploy to the page and ends with its outcome', async () => {
       let emit: ((event: unknown) => void) | undefined;
       let settle:

@@ -7,7 +7,7 @@ executionCounts.module += 1;
 
 export const getExecutionCounts = (): ExecutionCounts => ({ ...executionCounts });
 
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'execution-config-project' }, () => {
   executionCounts.factory += 1;
 
   const uploads = new Bucket({
@@ -17,7 +17,6 @@ export default defineConfig(() => {
   });
 
   return {
-    projectName: 'execution-config-project',
     resources: { uploads },
     finalTransform: (template) => ({
       ...template,

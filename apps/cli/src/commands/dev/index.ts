@@ -2,6 +2,7 @@ import { publicFlag } from '../../config/cli/public-names';
 import { operationReporter } from '@application-services/operation-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { createSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinner';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -25,6 +26,7 @@ import {
   buildAgentReadyMessage,
   deleteAgentLockFile,
   getLockFilePath,
+  getCustomArgsSuffix,
   getRunningAgent,
   spawnAgentDaemon,
   writeAgentLockFile
@@ -334,24 +336,11 @@ export const commandDev = async () => {
       });
     }
 
-    // Build args for daemon (remove --agent and --agentPort with its value, add --agent-child)
-    const allArgs = process.argv.slice(2);
-    const originalArgs: string[] = [];
-    for (let i = 0; i < allArgs.length; i++) {
-      const arg = allArgs[i];
-      if (arg === '--agent') continue;
-      if (arg === '--agentPort' || arg === '-ap') {
-        i++; // Skip next arg (the port value)
-        continue;
-      }
-      if (arg.startsWith('--agentPort=') || arg.startsWith('-ap=')) continue;
-      originalArgs.push(arg);
-    }
-
     tuiManager.info('Starting dev agent daemon...');
     tuiManager.printLines(['']);
     const result = await spawnAgentDaemon({
-      originalArgs,
+      explicitArgs: globalStateManager.explicitArgs,
+      customArgs: getCustomArgsSuffix(),
       agentPort,
       timeoutMs: 600000 // 10 minutes for stack deployment + startup
     });

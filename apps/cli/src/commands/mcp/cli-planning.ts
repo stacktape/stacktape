@@ -22,6 +22,7 @@ import {
   type CliCommandSafety
 } from './cli-command-tools';
 import { scanStacktapeProject } from './project-scan';
+import { readCommandProjectSettings } from '@domain-services/config-manager/project-settings';
 import { maskSecretString, maskSensitiveValues, type ToolOutput } from './tool-output';
 
 const CLI_CREDENTIAL_GUIDANCE = {
@@ -329,9 +330,54 @@ const findProjectScript = ({
 };
 
 /**
- * Arguments for action=run: `args` wins over the top-level convenience arguments, and a missing project name or region
- * comes from the project's Stacktape package script, the way action=plan resolves them. The stage is never inferred:
- * a project usually deploys several, and reading the wrong one is worse than asking.
+ * Project settings the command will read from the config these arguments select, read statically: planning never
+ * imports or runs project code. A config whose settings cannot be read is an error only for commands it would stop.
+ */
+export const readPlannedProjectSettings = async ({
+  command,
+  cwd,
+  args
+}: {
+  command: string;
+  cwd?: string;
+  args: Record<string, unknown>;
+}): Promise<{
+  configPath?: string;
+  settings: Readonly<Partial<Record<'projectName' | 'region', string>>>;
+  error?: ToolOutput;
+}> => {
+  const description = describeCliCommand(command);
+  if (!description) return { settings: {} };
+  const read = await readCommandProjectSettings({
+    command: description.canonicalCommand,
+    cwd: resolve(cwd || process.cwd()),
+    configPath: typeof args.configPath === 'string' ? args.configPath : undefined,
+    currentWorkingDirectory: typeof args.currentWorkingDirectory === 'string' ? args.currentWorkingDirectory : undefined
+  });
+  return {
+    ...(read.configPath ? { configPath: read.configPath } : {}),
+    settings: read.settings,
+    ...(read.error
+      ? {
+          error: {
+            ok: false,
+            code: 'VALIDATION_ERROR',
+            message: read.error.message,
+            data: { errorCode: read.error.code, configPath: read.configPath },
+            nextActions: [
+              'Ask the user to fix the projectName/region settings in the Stacktape config, or pass both as explicit arguments.'
+            ]
+          } satisfies ToolOutput
+        }
+      : {})
+  };
+};
+
+/**
+ * Arguments for action=run: `args` wins over the top-level convenience arguments. A project name or region the config
+ * declares is left to the CLI, which reads it from the config; any other missing one comes from the project's
+ * Stacktape package script, the way action=plan resolves them. The stage is never inferred: a project usually deploys
+ * several, and reading the wrong one is worse than asking.
  */
 export const resolveRunArgs = async ({
   command,
@@ -353,8 +399,9 @@ export const resolveRunArgs = async ({
     ),
     ...normalizeCliArgsForCommand(command, args || {})
   };
+  const { settings } = await readPlannedProjectSettings({ command, cwd, args: runArgs });
   const missing = (['projectName', 'region'] as const).filter(
-    (argName) => allowedArgs.has(argName) && runArgs[argName] === undefined
+    (argName) => allowedArgs.has(argName) && runArgs[argName] === undefined && settings[argName] === undefined
   );
   if (missing.length === 0) return runArgs;
   const script = findProjectScript({
@@ -537,6 +584,23 @@ export const buildCliPlan = async ({
   if (typeof planArgs.currentWorkingDirectory === 'string' && !isAbsolute(planArgs.currentWorkingDirectory)) {
     planArgs.currentWorkingDirectory = resolve(scan.cwd, planArgs.currentWorkingDirectory);
   }
+  const projectSettings = await readPlannedProjectSettings({
+    command: canonicalCommand,
+    cwd: scan.cwd,
+    args: planArgs
+  });
+  if (projectSettings.error) return projectSettings.error;
+  // The config is the declaration of the project's target. A package script's flag would override it, so a guessed
+  // script value is dropped where the config declares one; only explicit arguments override the config.
+  for (const name of ['projectName', 'region'] as const) {
+    if (projectSettings.settings[name] !== undefined && name in scriptArgs && !(name in allowedExplicitArgs)) {
+      delete planArgs[name];
+      if (matchedScriptData) {
+        delete (matchedScriptData.usedParsedArgs as Record<string, unknown>)[name];
+        matchedScriptData.droppedParsedArgs.push(name);
+      }
+    }
+  }
 
   const requiresLocalConfig = ['deploy', 'diff', 'synth', 'validate', 'package'].includes(canonicalCommand);
   if (requiresLocalConfig && allowedArgs.has('configPath') && !planArgs.configPath) {
@@ -567,7 +631,8 @@ export const buildCliPlan = async ({
     // Planning never executes the command. Passing confirmation here lets the
     // argument-aware policy be returned in the plan without treating the plan
     // itself as approval for a later run.
-    confirm: true
+    confirm: true,
+    configSettings: projectSettings.settings
   });
 
   if (prepared.ok === false) {
@@ -638,7 +703,11 @@ export const buildCliPlan = async ({
       resolvedContext: {
         cwd: scan.cwd,
         currentWorkingDirectory:
-          typeof prepared.args.currentWorkingDirectory === 'string' ? prepared.args.currentWorkingDirectory : undefined
+          typeof prepared.args.currentWorkingDirectory === 'string' ? prepared.args.currentWorkingDirectory : undefined,
+        // Values the CLI takes from the config when the plan's arguments do not set them.
+        ...(Object.keys(projectSettings.settings).length
+          ? { projectSettings: { configPath: projectSettings.configPath, ...projectSettings.settings } }
+          : {})
       },
       credentialGuidance: CLI_CREDENTIAL_GUIDANCE,
       scan: summarizeScanForPlan(scan),

@@ -5,7 +5,9 @@ import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 
 export const awsRegion = z.enum(SUPPORTED_AWS_REGIONS).describe(`#### AWS Region
 ---
-The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).`);
+The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).
+
+Inside a project whose config declares \`region\`, the flag is optional and overrides the config.`);
 
 export const logLevel = z.enum(['info', 'debug', 'error']).describe(`#### Log Level
 ---
@@ -44,7 +46,9 @@ Without it, the account is chosen by \`--profile\`, \`AWS_PROFILE\` or AWS crede
 
 export const projectName = z.string().describe(`#### Project Name
 ---
-The name of the Stacktape project for this operation.`);
+The name of the Stacktape project for this operation.
+
+Commands that target a stack take it from \`projectName\` in the project's config when the flag is absent.`);
 
 export const organizationName = z.string().describe(`#### Organization Name
 ---

@@ -104,9 +104,12 @@ export function DeployStep({
   const signInBlocks = account?.signedIn !== true;
   const [stage, setStage] = useState('dev');
   const [showRemoval, setShowRemoval] = useState(false);
-  const [region, setRegion] = useState(
+  const [chosenRegion, setRegion] = useState(
     identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1'
   );
+  // A file that declares its region deploys there, and every later command in the project reads it from the file.
+  const declaredRegion = file?.region;
+  const region = declaredRegion ?? chosenRegion;
   const priceRegion = state.composition?.price?.region;
   /** The last region a price was asked for, so a slow or failed answer is not asked for again on every render. */
   const requestedPriceRegion = useRef<string | undefined>(undefined);
@@ -480,7 +483,15 @@ export function DeployStep({
             </Alert>
           )}
           <div className="wizard-target-fields">
-            <RegionPicker onChange={setRegion} value={region} />
+            {declaredRegion === undefined ? (
+              <RegionPicker onChange={setRegion} value={region} />
+            ) : (
+              <p className="wizard-target-note">
+                Region <span className="wizard-code">{declaredRegion}</span>, declared in{' '}
+                <span className="wizard-code">{file?.filename}</span>. Change{' '}
+                <span className="wizard-code">region</span> there to deploy elsewhere.
+              </p>
+            )}
             <TextField
               label="Stage"
               maxLength={12}
@@ -492,7 +503,8 @@ export function DeployStep({
             />
           </div>
           <p className="wizard-target-note">
-            Pick the region closest to your users. A stage is one environment of the app, such as dev or production.
+            {declaredRegion === undefined ? 'Pick the region closest to your users. ' : ''}A stage is one environment of
+            the app, such as dev or production.
           </p>
         </div>
       </section>

@@ -9,6 +9,7 @@ import {
   shortFlags
 } from '../../config/cli/public-names';
 import { getCommandInfo } from '../../config/cli/utils';
+import { projectSettingsForCommand } from '../../domain/config-manager/project-settings';
 import { CliError } from '../../utils/errors';
 
 const groups: Record<string, readonly string[]> = {
@@ -98,11 +99,21 @@ export const renderHelp = (path?: string): string[] => {
         ''
       );
     lines.push('Options:');
+    const fromConfig = command ? projectSettingsForCommand(command) : [];
     for (const [arg, metadata] of Object.entries(info.args)) {
       if (hiddenArgs.has(arg) || globalArgs.has(arg)) continue;
       const label = `${shortFlags[arg] ? `-${shortFlags[arg]}, ` : '    '}--${publicFlag(arg)}${metadata.allowedTypes.includes('boolean') ? '' : ` <${arg === 'stage' ? 'name' : metadata.allowedTypes.includes('number') ? 'number' : 'value'}>`}`;
       const desc = summary(argDescription(metadata.description));
-      lines.push(`  ${label.padEnd(32)} ${desc}${metadata.required ? ' (required)' : ''}`);
+      // Inside a project, the config's `projectName` and `region` settings supply these.
+      const settable = fromConfig.includes(arg as 'projectName' | 'region');
+      const note = metadata.required
+        ? settable
+          ? ' (required unless set in the config)'
+          : ' (required)'
+        : settable
+          ? ' (default: from the config)'
+          : '';
+      lines.push(`  ${label.padEnd(32)} ${desc}${note}`);
     }
     lines.push('');
   }

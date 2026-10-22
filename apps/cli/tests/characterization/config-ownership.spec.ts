@@ -142,6 +142,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
         'resources',
         'scripts',
         'projectName',
+        'region',
         'stackConfig',
         'deploymentConfig'
       ].sort()

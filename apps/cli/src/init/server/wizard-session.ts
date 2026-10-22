@@ -156,7 +156,9 @@ export const startWizardSession = async ({
   write?: (input: {
     composition: CompositionResult;
     format: 'yaml' | 'typescript';
-  }) => Promise<{ path: string; filename: string; existingPath?: string }>;
+    /** Region the file declares. The Deploy step then deploys there; changing it means editing the file. */
+    region?: string;
+  }) => Promise<{ path: string; filename: string; existingPath?: string; region?: string }>;
   /**
    * Deploys the written configuration, reporting the CLI's own event stream as it goes.
    *
@@ -379,12 +381,14 @@ export const startWizardSession = async ({
     verification = undefined;
     deployTarget = undefined;
     configFile = undefined;
-    configText = { yaml: renderYaml(next) };
+    // The preview shows the file exactly as it will be written, region included.
+    configTextRegion = declaredRegion();
+    configText = { yaml: renderYaml(next, { region: configTextRegion }) };
     // The request that caused this change gets the new state in its response, but other connected
     // tabs only hear broadcasts. Publish the synchronous YAML state now rather than making them
     // wait for pricing or TypeScript rendering to finish successfully.
     publish(buildState());
-    void renderTypeScript(next).then((text) => {
+    void renderTypeScript(next, { region: configTextRegion }).then((text) => {
       if (composition !== next || configText === undefined) return;
       configText = { ...configText, typescript: text };
       publish(buildState());
@@ -396,6 +400,10 @@ export const startWizardSession = async ({
   let running = false;
   let configFile: WizardState['configFile'];
   let identity: WizardAwsIdentity | undefined;
+  /** The region the previewed configuration declares; the written file declares the same one. */
+  let configTextRegion: string | undefined;
+  /** The Deploy step's default: the region this machine's AWS environment names, otherwise the one prices use. */
+  const declaredRegion = () => (identity?.available ? identity.region : undefined) ?? DEFAULT_PRICING_REGION;
   let account: WizardState['stacktapeAccount'];
   /** Set once the server exists. Its step is published; what it holds to authenticate never is. */
   let signInFlow: WizardSignInFlow | undefined;
@@ -516,9 +524,11 @@ export const startWizardSession = async ({
         facts = repaired.facts;
         adoptComposition(repaired.composition);
         if (write !== undefined && previousConfigFile !== undefined) {
-          const written = await write({ composition: repaired.composition, format: previousConfigFile.format }).catch(
-            () => undefined
-          );
+          const written = await write({
+            composition: repaired.composition,
+            format: previousConfigFile.format,
+            region: previousConfigFile.region
+          }).catch(() => undefined);
           if (written !== undefined) configFile = { ...previousConfigFile, ...written };
         }
         publish(buildState());
@@ -745,6 +755,9 @@ export const startWizardSession = async ({
         if (
           deploy === undefined ||
           configFile === undefined ||
+          // The file declares the region, and later commands in the project read it there. Deploying elsewhere
+          // would leave the stack where those commands do not look.
+          (configFile.region !== undefined && configFile.region !== region) ||
           checkingDeployTarget ||
           deployment?.status === 'running' ||
           deployment?.status === 'repairing' ||
@@ -1014,7 +1027,11 @@ export const startWizardSession = async ({
             const previousConfigFile = configFile!;
             facts = repaired.facts;
             adoptComposition(repaired.composition);
-            const written = await write!({ composition, format: previousConfigFile.format });
+            const written = await write!({
+              composition,
+              format: previousConfigFile.format,
+              region: previousConfigFile.region
+            });
             configFile = { ...previousConfigFile, ...written };
 
             deployment = {
@@ -1093,7 +1110,7 @@ export const startWizardSession = async ({
         // Nothing composed means nothing to write. Not an error: a page that asks early is a page
         // that raced the run, and the state it gets back says plainly that there is no file.
         if (write === undefined || composition === undefined || deploymentInFlight()) return;
-        const written = await write({ composition, format });
+        const written = await write({ composition, format, region: configTextRegion });
         configFile = { ...written, format };
         deployTarget = undefined;
         publish(buildState());

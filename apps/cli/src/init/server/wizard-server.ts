@@ -148,7 +148,13 @@ export type WizardState = {
    * `existingPath` is set when the repository already had a configuration, which is why the file
    * written is a `.generated.` one — the page has to say so rather than imply the project is ready.
    */
-  configFile?: { path: string; filename: string; format: 'yaml' | 'typescript'; existingPath?: string };
+  configFile?: {
+    path: string;
+    filename: string;
+    format: 'yaml' | 'typescript';
+    existingPath?: string;
+    region?: string;
+  };
   /** Who this machine is to AWS, resolved before the deploy step offers a button. */
   awsIdentity?: WizardAwsIdentity;
   /**

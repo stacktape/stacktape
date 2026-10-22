@@ -2,7 +2,7 @@ import { pathExists, readFile } from 'fs-extra';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
-import { summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
+import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
 import { toToolText, type ToolOutput } from './tool-output';
@@ -225,8 +225,18 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
   }
   delete (startArgs as Record<string, unknown>).fullDeploy;
 
+  // Values the config declares are read by the CLI itself. A deploy script's guess must not override them.
+  const projectSettings = await readPlannedProjectSettings({ command: 'dev', cwd: scan.cwd, args: startArgs });
+  if (projectSettings.error) return projectSettings.error;
+  const startArgsRecord = startArgs as Record<string, unknown>;
+  for (const name of ['projectName', 'region'] as const) {
+    if (projectSettings.settings[name] !== undefined && typeof toolArgs[name] !== 'string')
+      delete startArgsRecord[name];
+  }
+
   const missingArgs = ['stage', 'region', 'configPath'].filter(
-    (argName) => !startArgs[argName as keyof typeof startArgs]
+    (argName) =>
+      !startArgsRecord[argName] && !projectSettings.settings[argName as keyof typeof projectSettings.settings]
   );
   return {
     ok: missingArgs.length === 0,
@@ -248,7 +258,10 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
       },
       resolvedContext: {
         cwd: scan.cwd,
-        currentWorkingDirectory: startArgs.currentWorkingDirectory
+        currentWorkingDirectory: startArgs.currentWorkingDirectory,
+        ...(Object.keys(projectSettings.settings).length
+          ? { projectSettings: { configPath: projectSettings.configPath, ...projectSettings.settings } }
+          : {})
       },
       scan: summarizeScanForPlan(scan),
       matchedPackageScript: summarizeMatchedScriptForPlan(
