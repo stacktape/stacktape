@@ -19,9 +19,19 @@ import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
-import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
+import { copy, emptyDir, ensureDir, outputJSON, readFile, remove } from 'fs-extra';
 import { IGNORED_MODULES } from '../es/config';
 import { createPackageAnalysisCache, getProductionDependencies } from '../es/installed-packages';
+import {
+  createOwnCodeAnchorPlugin,
+  createOwnCodeAnchorSource,
+  getPackageBytes,
+  hasMixedChunk,
+  isInstalledPackagePath,
+  isOwnCodeAnchorOutput,
+  isOwnSourcePath,
+  OWN_CODE_ANCHOR_ENTRY
+} from './own-code-anchor';
 import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
@@ -53,6 +63,9 @@ import { resolvePrisma } from '../bundlers/es/utils';
 import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
+
+/** How much more package code than without it the own-code anchor may keep before the build goes without it. */
+const MAX_ANCHOR_PACKAGE_GROWTH = 0.01;
 
 /**
  * Bundle multiple Lambda entrypoints together using Bun's code splitting.
@@ -252,43 +265,30 @@ const executeBunBuild = async ({
   bunBuildStartedAt: number;
   bunBuildFinishedAt: number;
 }> => {
-  const analyzePlugin = createAnalyzePlugin({
-    cwd,
-    monorepoRoot,
-    excludeDependencies,
-    dependenciesToExcludeFromBundle,
-    bundleAwsSdk,
-    isLambda,
-    nodeTarget,
-    shouldIgnoreAllDeps,
-    aliases,
-    tracker,
-    packageAnalysisCache
-  });
-
-  const nativeModulesPlugin = createNativeNodeModulesPlugin();
-  const bunFfiShimPlugin = createBunFfiShimPlugin();
   const banner = await getSourceMapBanner(sourceMapBannerType);
-
-  // A packaging manager can rebuild the same invocation paths in dev mode. Bun does not remove outputs that are no
-  // longer emitted, so retaining this directory would leak stale chunks and source maps into later artifacts.
-  await emptyDir(sharedOutdir);
-  let result: Awaited<ReturnType<typeof Bun.build>>;
-  const bunBuildStartedAt = performance.now();
-
-  try {
-    // Use monorepo root for module resolution if available, otherwise cwd
-    const buildRoot = monorepoRoot || cwd;
-
-    result = await Bun.build({
-      entrypoints: entrypoints.map((ep) => ep.entryfilePath),
-      outdir: sharedOutdir,
+  // Use monorepo root for module resolution if available, otherwise cwd
+  const buildRoot = monorepoRoot || cwd;
+  const entryPaths = entrypoints.map((ep) => ep.entryfilePath);
+  const runBunBuild = ({
+    anchorSource,
+    outdir,
+    buildTracker
+  }: {
+    /** An extra entry point, `createOwnCodeAnchorSource`'s, that keeps own code and packages in separate chunks. */
+    anchorSource?: string | undefined;
+    /** Without one, Bun keeps the outputs in memory. */
+    outdir?: string | undefined;
+    buildTracker: DependencyTracker;
+  }) =>
+    Bun.build({
+      entrypoints: anchorSource ? [...entryPaths, OWN_CODE_ANCHOR_ENTRY] : entryPaths,
+      ...(outdir ? { outdir } : {}),
       target: 'node',
       format: 'esm',
       splitting: true,
       minify: getBunMinifyConfig({ minify, minifyIdentifiers }),
-      sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
-      external: ['fsevents', ...tracker.externalModules.map((m) => m.name)],
+      sourcemap: !outdir || sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
+      external: ['fsevents', ...buildTracker.externalModules.map((m) => m.name)],
       define: {
         // Avoid baking the packaging process's development mode into every deployed Lambda.
         'process.env.NODE_ENV': 'process.env.NODE_ENV',
@@ -296,11 +296,24 @@ const executeBunBuild = async ({
         __filename: '__stp_filename'
       },
       plugins: [
-        bunFfiShimPlugin,
-        analyzePlugin,
-        nativeModulesPlugin,
+        createBunFfiShimPlugin(),
+        createAnalyzePlugin({
+          cwd,
+          monorepoRoot,
+          excludeDependencies,
+          dependenciesToExcludeFromBundle,
+          bundleAwsSdk,
+          isLambda,
+          nodeTarget,
+          shouldIgnoreAllDeps,
+          aliases,
+          tracker: buildTracker,
+          packageAnalysisCache
+        }),
+        createNativeNodeModulesPlugin(),
         createPrismaLambdaClientPlugin(),
-        createWindowsPathNormalizationPlugin({ cwd, monorepoRoot })
+        createWindowsPathNormalizationPlugin({ cwd, monorepoRoot }),
+        ...(anchorSource ? [createOwnCodeAnchorPlugin(anchorSource)] : [])
       ],
       root: buildRoot,
       ...(sourceMapBannerType === 'pre-compiled' && banner ? { banner } : {}),
@@ -313,6 +326,41 @@ const executeBunBuild = async ({
       metafile: true,
       throw: false
     });
+
+  // A packaging manager can rebuild the same invocation paths in dev mode. Bun does not remove outputs that are no
+  // longer emitted, so retaining this directory would leak stale chunks and source maps into later artifacts.
+  await emptyDir(sharedOutdir);
+  let result: Awaited<ReturnType<typeof Bun.build>>;
+  const bunBuildStartedAt = performance.now();
+
+  try {
+    // A build in memory shows which chunks would mix own code and packages. The anchor is only an optimization: when
+    // it cannot be prepared, the build goes on without it, as it did before.
+    const plan =
+      entrypoints.length > 1
+        ? await runBunBuild({ buildTracker: createDependencyTracker() }).catch(() => undefined)
+        : undefined;
+    const planMetafile = plan?.success ? (plan.metafile as BuildMetafile) : undefined;
+    const anchorSource =
+      planMetafile &&
+      (await createOwnCodeAnchorSource({
+        metafile: planMetafile,
+        resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
+      }).catch(() => undefined));
+    result = await runBunBuild({ anchorSource, outdir: sharedOutdir, buildTracker: tracker });
+    // Without the anchor when Bun rejects it, when a chunk still mixes the two (its order was not checked), or when it
+    // kept package code that tree shaking removes without it.
+    if (
+      anchorSource &&
+      planMetafile &&
+      (!result.success ||
+        hasMixedChunk(result.metafile as BuildMetafile) ||
+        getPackageBytes(result.metafile as BuildMetafile) >
+          getPackageBytes(planMetafile) * (1 + MAX_ANCHOR_PACKAGE_GROWTH) + 16 * 1024)
+    ) {
+      await emptyDir(sharedOutdir);
+      result = await runBunBuild({ outdir: sharedOutdir, buildTracker: tracker });
+    }
   } catch (error) {
     const errorDetails = formatBuildError(error);
     throw createPackagingError({
@@ -333,10 +381,23 @@ const executeBunBuild = async ({
     });
   }
 
+  // The anchor's own output is not part of any function.
+  await Promise.all(result.outputs.filter(({ path }) => isOwnCodeAnchorOutput(path)).map(({ path }) => remove(path)));
+  const builtOutputs = result.outputs.filter(({ path }) => !isOwnCodeAnchorOutput(path));
+  const builtMetafile: BuildMetafile = {
+    inputs: result.metafile!.inputs,
+    outputs: Object.fromEntries(
+      Object.entries(result.metafile!.outputs).filter(
+        ([path, output]) =>
+          !isOwnCodeAnchorOutput(path) && !(output.entryPoint && isOwnCodeAnchorOutput(output.entryPoint))
+      )
+    )
+  };
+
   // Point asset references at `/var/task`, shifting each output's source map with the edits before normalization.
-  const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
+  const assetFiles = builtOutputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
   await rewriteLambdaAssetReferences(
-    result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    builtOutputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     assetFiles
   );
 
@@ -348,12 +409,12 @@ const executeBunBuild = async ({
     return projectRelativeSource(existsSync(absolute) ? realpathSync(absolute) : absolute, monorepoRoot || cwd);
   };
   const renames = await normalizeSplitBuildIdentity({
-    javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    javascriptFiles: builtOutputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
     projectRoot: monorepoRoot || cwd,
     sourcesResolveFrom: sharedOutdir,
     chunkNaming,
     chunkKeys: new Map(
-      Object.entries(result.metafile!.outputs)
+      Object.entries(builtMetafile.outputs)
         .filter(([path]) => /^chunk-[a-z0-9]{8}\.js$/.test(basename(path)))
         .map(([path, output]) => [
           basename(path, '.js'),
@@ -368,12 +429,12 @@ const executeBunBuild = async ({
   });
   const renamed = (text: string) => text.replace(/chunk-[a-z0-9]{8}/g, (name) => renames.get(name) ?? name);
   const outputs = await Promise.all(
-    result.outputs.map(async ({ path, kind }) => {
+    builtOutputs.map(async ({ path, kind }) => {
       const finalPath = renamed(path);
       return { path: finalPath, kind, size: (await stat(finalPath)).size };
     })
   );
-  const metafile = JSON.parse(renamed(JSON.stringify(result.metafile))) as BuildMetafile;
+  const metafile = JSON.parse(renamed(JSON.stringify(builtMetafile))) as BuildMetafile;
 
   return {
     buildResult: { outputs },
@@ -754,7 +815,14 @@ const getTrackedDependenciesForInputs = (
   );
   const seen = new Set<string>();
   return dependencies.filter((dependency) => {
-    const identity = [dependency.name, dependency.version, dependency.note ?? '', dependency.path].join('\0');
+    // An optional-peer copy must not hide the same package needed outright; the optional one may be filtered out later.
+    const identity = [
+      dependency.name,
+      dependency.version,
+      dependency.note ?? '',
+      dependency.path,
+      Boolean(dependency.optionalPeer)
+    ].join('\0');
     if (seen.has(identity)) return false;
     seen.add(identity);
     return true;
@@ -1022,6 +1090,13 @@ const processLambdaEntrypointWithMetafile = async ({
  * emitted it with (`sourceMapBytes`, by path), not its size on disk after the asset and `sources` edits, so layer
  * assignment does not depend on those edits.
  */
+/** Whose code a chunk holds, by its inputs. */
+const getChunkCode = (inputs: string[]): ChunkUsageAnalysis['code'] => {
+  const own = inputs.some(isOwnSourcePath);
+  const packages = inputs.some(isInstalledPackagePath);
+  return own && packages ? 'mixed' : own ? 'own' : 'packages';
+};
+
 const buildChunkAnalysisFromMetafile = (
   metafile: BuildMetafile,
   chunkUsageMap: Map<string, Set<string>>,
@@ -1055,7 +1130,8 @@ const buildChunkAnalysisFromMetafile = (
       usedByLambdas,
       usageCount,
       deduplicationValue,
-      dependsOn
+      dependsOn,
+      code: getChunkCode(Object.keys(chunkMeta.inputs))
     });
   }
 

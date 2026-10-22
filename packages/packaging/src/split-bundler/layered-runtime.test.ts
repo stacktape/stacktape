@@ -130,7 +130,12 @@ test('functions load their shared chunk from the layer mount and only ship the a
       if (chunk.endsWith('.map')) expect(JSON.parse(orders.toString()).sourcesContent).toBeUndefined();
     })
   );
-  const layerAssignment = assignChunksToLayers(split.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, minChunkSize: 1 });
+  // The shared code is the project's own, which normally stays in the functions; this layers it as large own code is.
+  const layerAssignment = assignChunksToLayers(split.chunkAnalysis, {
+    ...DEFAULT_LAYER_CONFIG,
+    minChunkSize: 1,
+    maxOwnCodeInFunctions: 0
+  });
   const { layerArtifacts } = await createLayerArtifacts({
     lambdaOutputs: split.lambdaOutputs,
     layerAssignment,
@@ -172,4 +177,181 @@ test('functions load their shared chunk from the layer mount and only ship the a
   const health = await invoke({ functionDirectory: join(root, 'functions', 'health') });
   expect(health.status, health.stderr).toBe(0);
   expect(JSON.parse(health.stdout)).toEqual({ function: 'health' });
+}, 30_000);
+
+const readLayerCode = (layer: { layerPath: string; chunks: string[] }) =>
+  Promise.all(layer.chunks.map((chunk) => readFile(join(layer.layerPath, 'nodejs', 'chunks', chunk), 'utf8')));
+
+test("an edit of the project's shared code changes the functions, not the layer of installed packages", async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-layered-own-code-'));
+  temporaryDirectories.push(root);
+  const files: Record<string, string> = {
+    'package.json': JSON.stringify({ name: 'layered-own-code', private: true, dependencies: { pricing: '1.0.0' } }),
+    // An ESM package with more exports than the code uses: the anchor must not keep the unused one.
+    'node_modules/pricing/package.json': JSON.stringify({
+      name: 'pricing',
+      version: '1.0.0',
+      type: 'module',
+      main: 'index.js'
+    }),
+    'node_modules/pricing/index.js': [
+      'export const total = (lines) => lines.reduce((sum, line) => sum + line, 0);',
+      `export const unusedTable = ${JSON.stringify('unused-'.repeat(512))};`
+    ].join('\n'),
+    'src/lib/orders.ts':
+      "import { total } from 'pricing'; export const revision = 'one'; export const sum = () => total([1, 2]);",
+    'src/orders.ts':
+      "import { revision, sum } from './lib/orders'; export const handler = async () => ({ revision, sum: sum() });",
+    'src/reports.ts':
+      "import { revision, sum } from './lib/orders'; export const handler = async () => ({ revision, sum: sum() });"
+  };
+  await Promise.all(
+    Object.entries(files).map(async ([path, contents]) => {
+      await mkdir(join(root, path, '..'), { recursive: true });
+      await writeFile(join(root, path), contents);
+    })
+  );
+  const build = async (label: string) => {
+    const split = await buildSplitBundle({
+      entrypoints: ['orders', 'reports'].map((name) => ({
+        name,
+        jobName: name,
+        entryfilePath: join(root, 'src', `${name}.ts`),
+        distFolderPath: join(root, label, name)
+      })),
+      sharedOutdir: join(root, label, 'shared'),
+      cwd: root,
+      installDependencies: async () => {},
+      createPackagingError
+    });
+    const layerAssignment = assignChunksToLayers(split.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, minChunkSize: 1 });
+    const { layerArtifacts } = await createLayerArtifacts({
+      lambdaOutputs: split.lambdaOutputs,
+      layerAssignment,
+      layerBasePath: join(root, label, 'layers')
+    });
+    return { split, layerArtifacts };
+  };
+
+  const first = await build('first');
+  // No chunk holds both the project's code and the package's, and only the package's chunk is layered.
+  expect(first.split.chunkAnalysis.map(({ code }) => code).toSorted()).toEqual(['own', 'packages']);
+  expect(first.layerArtifacts).toHaveLength(1);
+  const layerCode = (await readLayerCode(first.layerArtifacts[0]!)).join('');
+  expect(layerCode).toContain('reduce');
+  expect(layerCode).not.toContain('unused-');
+  expect(layerCode).not.toContain('"one"');
+  for (const name of ['orders', 'reports']) {
+    // oxlint-disable-next-line no-await-in-loop -- Functions are invoked one at a time, each in its own Node process.
+    const execution = await invoke({
+      functionDirectory: join(root, 'first', name),
+      layerDirectory: first.layerArtifacts[0]!.layerPath
+    });
+    expect(execution.status, `${name}: ${execution.stderr}`).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual({ revision: 'one', sum: 3 });
+  }
+
+  await writeFile(
+    join(root, 'src', 'lib', 'orders.ts'),
+    "import { total } from 'pricing'; export const revision = 'two'; export const sum = () => total([1, 2]);"
+  );
+  const second = await build('second');
+  expect(second.layerArtifacts.map(({ contentHash }) => contentHash)).toEqual(
+    first.layerArtifacts.map(({ contentHash }) => contentHash)
+  );
+  // The new function package runs against the layer the first build published.
+  const execution = await invoke({
+    functionDirectory: join(root, 'second', 'orders'),
+    layerDirectory: first.layerArtifacts[0]!.layerPath
+  });
+  expect(execution.status, execution.stderr).toBe(0);
+  expect(JSON.parse(execution.stdout)).toEqual({ revision: 'two', sum: 3 });
+}, 30_000);
+
+/** Writes the project, then split-builds the two functions `a` and `b` and assigns their chunks to layers. */
+const buildTwoFunctions = async (files: Record<string, string>) => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-layered-order-'));
+  temporaryDirectories.push(root);
+  await Promise.all(
+    Object.entries(files).map(async ([path, contents]) => {
+      await mkdir(join(root, path, '..'), { recursive: true });
+      await writeFile(join(root, path), contents);
+    })
+  );
+  const split = await buildSplitBundle({
+    entrypoints: ['a', 'b'].map((name) => ({
+      name,
+      jobName: name,
+      entryfilePath: join(root, 'src', `${name}.ts`),
+      distFolderPath: join(root, 'functions', name)
+    })),
+    sharedOutdir: join(root, 'shared'),
+    cwd: root,
+    installDependencies: async () => {},
+    createPackagingError
+  });
+  const layerAssignment = assignChunksToLayers(split.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, minChunkSize: 1 });
+  const { layerArtifacts } = await createLayerArtifacts({
+    lambdaOutputs: split.lambdaOutputs,
+    layerAssignment,
+    layerBasePath: join(root, 'layers')
+  });
+  return { root, split, layerArtifacts };
+};
+
+const esmPackage = (name: string, code: Record<string, string>) => ({
+  [`node_modules/${name}/package.json`]: JSON.stringify({ name, version: '1.0.0', type: 'module', main: 'index.js' }),
+  ...Object.fromEntries(Object.entries(code).map(([file, contents]) => [`node_modules/${name}/${file}`, contents]))
+});
+
+const twoHandlers = (body: string) => ({
+  'src/a.ts': `import { read } from './lib/shared'; export const handler = async () => (${body});`,
+  'src/b.ts': `import { read } from './lib/shared'; export const handler = async () => (${body});`
+});
+
+test('own setup code still runs before the packages it was imported before', async () => {
+  // An env, polyfill or tracing bootstrap the shared code imports first, then a package that reads it when it loads.
+  const { root, layerArtifacts } = await buildTwoFunctions({
+    'package.json': JSON.stringify({ name: 'layered-order', private: true, type: 'module' }),
+    ...esmPackage('esm-config', {
+      'index.js': `export const mode = process.env.MODE;\nexport const padding = ${JSON.stringify('config-'.repeat(256))};`
+    }),
+    'src/lib/setup.ts': "process.env.MODE ??= 'configured';",
+    'src/lib/shared.ts':
+      "import './setup';\nimport { mode, padding } from 'esm-config';\nexport const read = () => ({ mode, size: padding.length });",
+    ...twoHandlers('read()')
+  });
+  const execution = await invoke({
+    functionDirectory: join(root, 'functions', 'a'),
+    ...(layerArtifacts[0] ? { layerDirectory: layerArtifacts[0].layerPath } : {})
+  });
+  expect(execution.status, execution.stderr).toBe(0);
+  expect(JSON.parse(execution.stdout)).toEqual({ mode: 'configured', size: 'config-'.repeat(256).length });
+}, 30_000);
+
+test('separating own code keeps tree shaking of a namespace the code reads members of', async () => {
+  // zod exports `z` as a namespace of every schema type; code that calls `z.string()` needs only that one.
+  const { root, split, layerArtifacts } = await buildTwoFunctions({
+    'package.json': JSON.stringify({ name: 'layered-namespace', private: true, type: 'module' }),
+    ...esmPackage('schemas', {
+      'index.js': "export * as s from './all.js';",
+      'all.js': [
+        `export const used = () => ${JSON.stringify('used-'.repeat(256))};`,
+        `export const unused = () => ${JSON.stringify('unused-'.repeat(512))};`
+      ].join('\n')
+    }),
+    'src/lib/shared.ts': "import { s } from 'schemas';\nexport const read = () => s.used().length;",
+    ...twoHandlers('{ size: read() }')
+  });
+  expect(split.chunkAnalysis.map(({ code }) => code).toSorted()).toEqual(['own', 'packages']);
+  expect(layerArtifacts).toHaveLength(1);
+  const layerCode = (await readLayerCode(layerArtifacts[0]!)).join('');
+  expect(layerCode).toContain('used-');
+  expect(layerCode).not.toContain('unused-');
+  const execution = await invoke({
+    functionDirectory: join(root, 'functions', 'b'),
+    layerDirectory: layerArtifacts[0]!.layerPath
+  });
+  expect(execution.status, execution.stderr).toBe(0);
+  expect(JSON.parse(execution.stdout)).toEqual({ size: 'used-'.repeat(256).length });
 }, 30_000);
