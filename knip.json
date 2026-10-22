@@ -65,7 +65,8 @@
         "playwright*.config.ts",
         "e2e/*fixture.tsx",
         "e2e/ui-capture/*.capture.ts",
-        "src/dev/auth-review/main.tsx"
+        "src/dev/auth-review/main.tsx",
+        "src/backdrop/main.tsx"
       ],
       "project": ["**/*.{ts,tsx}"]
     },
