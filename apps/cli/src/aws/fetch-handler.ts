@@ -12,7 +12,10 @@ import { Readable } from 'node:stream';
 export const createFetchHandler = ({ requestTimeout = 30_000 }: { requestTimeout?: number } = {}) => {
   // Smithy's fetch timeout is a Promise.race timer which survives successful requests. Own the deadline here so
   // a short CLI command does not wait another 30 seconds to exit after its last AWS response.
-  const handler = new FetchHttpHandler({ requestTimeout: 0 });
+  // `fetch` follows redirects by default and drops the `Authorization` header when the target is another host. S3
+  // answers a fresh bucket's accelerated or global requests with a 307 to its regional host, so the followed request
+  // reached S3 unsigned ("No AWSAccessKey was presented"). The SDK must see the redirect and sign the retried request.
+  const handler = new FetchHttpHandler({ requestTimeout: 0, requestInit: () => ({ redirect: 'manual' }) });
   const originalHandle = handler.handle.bind(handler);
 
   handler.handle = async (request, options) => {

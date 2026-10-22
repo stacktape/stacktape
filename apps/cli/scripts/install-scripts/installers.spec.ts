@@ -207,6 +207,49 @@ test
   }
 });
 
+// A new macOS account uses zsh but has no zsh configuration file yet. The installer creates `.zshrc` in zsh's
+// configuration directory (ZDOTDIR when set), so the next terminal finds the CLI. An existing `.zshenv` is used instead.
+test.skipIf(process.platform === 'win32').each(
+  installers
+    .filter((installer) => installer !== 'alpine')
+    .flatMap((installer) => [
+      { installer, account: 'an empty HOME', zdotdir: '', existing: '', expected: '.zshrc' },
+      { installer, account: 'ZDOTDIR', zdotdir: '.config/zsh', existing: '', expected: '.config/zsh/.zshrc' },
+      { installer, account: 'only .zshenv', zdotdir: '', existing: '.zshenv', expected: '.zshenv' }
+    ])
+)(
+  '$installer installer sets up PATH for a zsh login shell with $account',
+  async ({ installer, zdotdir, existing, expected }) => {
+    const { root, bin, home, run } = await fixture(installer);
+    try {
+      await rm(join(home, '.bashrc'));
+      await rm(join(home, '.profile'));
+      const zshEnvironment = zdotdir ? { ZDOTDIR: join(home, zdotdir) } : {};
+      if (zdotdir) await mkdir(join(home, zdotdir), { recursive: true });
+      if (existing) await writeFile(join(home, existing), '# customer shell\n');
+      const result = run({ SHELL: '/bin/zsh', ...zshEnvironment });
+      expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
+      expect(result.stdout.toString()).not.toContain('No config file found');
+      expect(await readFile(join(home, expected), 'utf8')).toContain(`export PATH="${bin}:$PATH"`);
+      // Nothing else is written to HOME: no `.zshrc` beside an existing `.zshenv`, no files for other shells.
+      expect(readdirSync(home).sort()).toEqual(['.stacktape', expected.split('/')[0]].sort());
+      // The customer opens a new terminal: a zsh login shell with only the account's files and the system PATH.
+      const shell = Bun.spawnSync({
+        cmd: [Bun.which('zsh')!, '-l', '-i', '-c', 'command -v stacktape'],
+        env: { HOME: home, PATH: '/usr/bin:/bin', TERM: 'dumb', ...zshEnvironment },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 15_000
+      });
+      expect(shell.exitCode, shell.stderr.toString()).toBe(0);
+      expect(shell.stdout.toString().trim()).toBe(join(bin, 'stacktape'));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  30_000
+);
+
 // A visitor may copy the installer for the other architecture, for instance when the website guesses Apple silicon for
 // an Intel Mac. Every Linux and macOS installer installs the build the machine's processor runs.
 test.skipIf(process.platform === 'win32').each([

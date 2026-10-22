@@ -157,6 +157,13 @@ for file in $config_files; do
     fi
 done
 
+# A new macOS account uses zsh but has no zsh configuration file yet. Create .zshrc where zsh reads it, as other CLI
+# installers do, so the next terminal finds the CLI.
+if [ -z "$config_file" ] && [ "$current_shell" = zsh ] && ! echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
+    config_file="${ZDOTDIR:-$HOME}/.zshrc"
+    touch "$config_file" 2>/dev/null || config_file=""
+fi
+
 # Add to PATH if not already there
 add_to_path() {
     cfg_file=$1
