@@ -14,6 +14,8 @@ suites. It is a test helper with real consumers, not a general AWS utility area.
   emulator keys state by. Do not share containers between runs or reuse a name.
 - `stop()` removes the container and its volumes and verifies both are gone. A fixture that cannot verify cleanup fails
   the run.
+- A run killed before `stop()` (SIGKILL, `timeout`, Ctrl-C) is cleaned up by a detached watchdog that removes the
+  containers labelled with the run's ID once the owning process is gone. Keep that label on every container you add.
 - The package imports no application code and no AWS SDK at runtime; consumers bring their own clients and pass
   `clientConfig()` to them.
 - `emulator/` holds Python the fixture loads into the emulator process for services MiniStack lacks, one file per

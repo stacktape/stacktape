@@ -7,7 +7,7 @@
  * with `pnpm --filter @stacktape/ministack test:fixture`.
  */
 import { afterAll, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import {
   ApplicationAutoScalingClient,
@@ -339,4 +339,49 @@ describe('MiniStack fixture', () => {
       await ministack.stop();
     }
   }, 120_000);
+
+  // A runner killed by `timeout` or Ctrl-C never reaches `afterAll`; aborted runs used to leave emulators running for
+  // hours. GNU timeout signals the whole process group and then sends SIGKILL, so the owner gets no chance to clean up.
+  test('removes the emulator, relay and volumes when the owning process group is killed before stop()', async () => {
+    const owner = spawn(
+      process.execPath,
+      [
+        '-e',
+        `import { createServer } from 'node:http';
+import { startMiniStack } from ${JSON.stringify(new URL('./fixture.ts', import.meta.url).pathname)};
+const ministack = await startMiniStack({ label: 'fixture-killed' });
+const server = createServer((_, response) => response.end('ok'));
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+await ministack.forwardHostPort(server.address().port);
+console.log(JSON.stringify({ containerName: ministack.containerName, volumes: ministack.volumes }));
+setInterval(() => undefined, 60_000);`
+      ],
+      { detached: true, stdio: ['ignore', 'pipe', 'inherit'] }
+    );
+    const orphan = await new Promise<{ containerName: string; volumes: string[] }>((resolve, reject) => {
+      let output = '';
+      owner.stdout!.on('data', (chunk) => {
+        output += chunk;
+        if (output.includes('\n')) resolve(JSON.parse(output));
+      });
+      owner.once('exit', (code) => reject(new Error(`The owner exited with ${code} before MiniStack started.`)));
+    });
+    const leftovers = () =>
+      [
+        dockerExists('container', orphan.containerName) && orphan.containerName,
+        dockerExists('container', `${orphan.containerName}-host-relay`) && `${orphan.containerName}-host-relay`,
+        ...orphan.volumes.filter((volume) => dockerExists('volume', volume))
+      ].filter(Boolean);
+    try {
+      expect(leftovers()).toHaveLength(2 + orphan.volumes.length);
+      process.kill(-owner.pid!, 'SIGKILL');
+      const deadline = Date.now() + 30_000;
+      // oxlint-disable-next-line no-await-in-loop -- polls Docker until the watchdog has removed everything.
+      while (leftovers().length > 0 && Date.now() < deadline) await Bun.sleep(500);
+      expect(leftovers()).toEqual([]);
+    } finally {
+      spawnSync('docker', ['rm', '--force', '--volumes', `${orphan.containerName}-host-relay`], { stdio: 'ignore' });
+      spawnSync('docker', ['rm', '--force', '--volumes', orphan.containerName], { stdio: 'ignore' });
+    }
+  }, 180_000);
 });
