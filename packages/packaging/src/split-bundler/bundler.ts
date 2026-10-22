@@ -825,7 +825,6 @@ const processLambdaOutputsWithMetafile = async ({
   lambdaOutputs: Map<string, LambdaSplitOutput>;
   chunkUsageMap: Map<string, Set<string>>;
 }> => {
-  const lambdaOutputs = new Map<string, LambdaSplitOutput>();
   const chunkUsageMap = new Map<string, Set<string>>();
   const assetsFor = await createAssetAttribution(assetFiles, javascriptFiles);
 
@@ -864,9 +863,9 @@ const processLambdaOutputsWithMetafile = async ({
     if (existsSync(`${source}.map`)) await copy(`${source}.map`, `${destination}.map`);
   };
 
-  // Process all lambdas in parallel
-  await Promise.all(
-    entrypoints.map(async (entrypoint) => {
+  // Process all lambdas in parallel. Outputs keep the entrypoints' order, not the order in which functions finish.
+  const outputs = await Promise.all(
+    entrypoints.map(async (entrypoint): Promise<[string, LambdaSplitOutput]> => {
       // Find output file for this entrypoint using metafile's entryPoint field
       const normalizedEntryPath = canonicalizeEntrypointPath(entrypoint.entryfilePath);
       const outputPath = entryPointToOutput.get(normalizedEntryPath);
@@ -944,25 +943,28 @@ const processLambdaOutputsWithMetafile = async ({
         sourcePaths: sourceFiles.map(({ path }) => canonicalizeEntrypointPath(path)),
         cache: packageAnalysisCache
       });
-      lambdaOutputs.set(entrypoint.name, {
-        name: entrypoint.name,
-        entryFile: join(entrypoint.distFolderPath, 'index.js'),
-        files: [
-          join(entrypoint.distFolderPath, 'index.js'),
-          ...Array.from(absoluteChunkPaths, (path) => join(entrypoint.distFolderPath, 'chunks', basename(path))),
-          ...lambdaAssetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
-        ],
-        sourceFiles,
-        externalDependencies: getTrackedDependenciesForInputs(tracker, inputPaths).filter(
-          (dependency) => !dependency.optionalPeer || productionDependencies.has(dependency.name)
-        ),
-        productionDependencies: [...productionDependencies].toSorted(),
-        resolvedModules: getTrackedModulesForInputs(tracker, inputPaths)
-      });
+      return [
+        entrypoint.name,
+        {
+          name: entrypoint.name,
+          entryFile: join(entrypoint.distFolderPath, 'index.js'),
+          files: [
+            join(entrypoint.distFolderPath, 'index.js'),
+            ...Array.from(absoluteChunkPaths, (path) => join(entrypoint.distFolderPath, 'chunks', basename(path))),
+            ...lambdaAssetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
+          ],
+          sourceFiles,
+          externalDependencies: getTrackedDependenciesForInputs(tracker, inputPaths).filter(
+            (dependency) => !dependency.optionalPeer || productionDependencies.has(dependency.name)
+          ),
+          productionDependencies: [...productionDependencies].toSorted(),
+          resolvedModules: getTrackedModulesForInputs(tracker, inputPaths)
+        }
+      ];
     })
   );
 
-  return { lambdaOutputs, chunkUsageMap };
+  return { lambdaOutputs: new Map(outputs), chunkUsageMap };
 };
 
 /** The edit that renames the map a file's `sourceMappingURL` comment names. */

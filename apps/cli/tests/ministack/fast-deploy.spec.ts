@@ -293,7 +293,7 @@ const splitHandler = (name: string, version: string) =>
  * records the release. CloudFormation takes the layer back on a rollback or a full deployment, and the versions the
  * fast deployments published are deleted once nothing runs them.
  */
-test('a change to shared code publishes the layer directly, and CloudFormation takes it back on rollback and full deploys', async () => {
+test('a change to shared code publishes the layer from its S3 object, and CloudFormation takes it back on rollback and full deploys', async () => {
   const out = await mkdtemp(join(tmpdir(), 'stp-fast-deploy-shared-'));
   const ministack = await startMiniStack({ label: 'fast-deploy-shared' });
   const cloudFormation = new CloudFormationClient(ministack.clientConfig());
@@ -324,7 +324,8 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
   let publicationSeen = false;
   let heldUploads = 0;
   let uploadTimeouts = 0;
-  let localPublications = 0;
+  const layerPublications: string[] = [];
+  let inlinePublications = 0;
   let failCodeUpdate = false;
   let rejectedCodeUpdates = 0;
   let collectProofReads = false;
@@ -367,15 +368,20 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
       if (request.method === 'PUT' && /\/(?:first|second)\/v[^/]+\.zip$/.test(url.pathname)) functionUploads++;
       if (request.method === 'POST' && /\/layers\/[^/]+\/versions$/.test(url.pathname)) {
         const content = (
-          JSON.parse(new TextDecoder().decode(body)) as { Content?: { S3Key?: string; ZipFile?: string } }
+          JSON.parse(new TextDecoder().decode(body)) as {
+            Content?: { S3Bucket?: string; S3Key?: string; ZipFile?: string };
+          }
         ).Content;
         if (content?.S3Key || content?.ZipFile) publicationSeen = true;
-        if (content?.ZipFile) localPublications++;
+        if (content?.S3Key) layerPublications.push(`${content.S3Bucket}/${content.S3Key}`);
+        if (content?.ZipFile) inlinePublications++;
       }
+      // Publication needs only the layer's own S3 object. Function ZIPs and the layer's source maps are held until it
+      // starts, so a publication that waits for every upload times out here.
       if (
         holdFunctionUploads &&
         request.method === 'PUT' &&
-        /(?:\/(?:first|second)\/v[^/]+\.zip$|\/shared-layer-1\/|\/source-maps\/shared-layer-1\/)/.test(url.pathname)
+        /(?:\/(?:first|second)\/v[^/]+\.zip$|\/source-maps\/shared-layer-1\/)/.test(url.pathname)
       ) {
         heldUploads++;
         for (let attempt = 0; attempt < 100; attempt++) {
@@ -752,11 +758,11 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(await state()).toEqual(afterDrift);
     expect((await releaseTemplates()).length).toBe(13);
 
-    // A compatible mixed edit keeps stable names and attaches the final layer before code. Publication from the
-    // local ZIP starts while function uploads are held.
+    // A compatible mixed edit keeps stable names and attaches the final layer before code. The layer version is
+    // published from the uploaded layer object while function uploads are still held.
     publicationSeen = false;
     holdFunctionUploads = true;
-    const mixedPublicationsBefore = localPublications;
+    const mixedPublicationsBefore = layerPublications.length;
     const mixedCodeBefore = codeUpdates;
     const mixedLayersBefore = layerUpdates;
     await writeProjectFiles(project, { 'shared.ts': sharedSource('s6'), 'first.ts': splitHandler('first', 'v3') });
@@ -770,10 +776,16 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(heldUploads).toBeGreaterThan(0);
     expect(uploadTimeouts).toBe(0);
     expect(missingImports).toEqual([]);
-    expect(localPublications - mixedPublicationsBefore).toBe(1);
+    holdFunctionUploads = false;
     expect(codeUpdates - mixedCodeBefore).toBe(1);
     expect(layerUpdates - mixedLayersBefore).toBe(2);
     const afterMixed = await state();
+    const mixedIdentity = identityOf(afterMixed[0]!.tag);
+    expect(layerPublications.slice(mixedPublicationsBefore)).toEqual([`${bucket}/shared-layer-1/${mixedIdentity}.zip`]);
+    expect(afterMixed.map(({ layers }) => layers)).toEqual([afterMixed[0]!.layers, afterMixed[0]!.layers]);
+    expect((await layerVersions()).find(({ arn }) => arn === afterMixed[0]!.layers[0])!.description).toContain(
+      `(stp:fast-deployment ${mixedIdentity})`
+    );
     expect(
       await runInRuntime({ prefix: 'first', code: afterMixed[0]!.code, identity: identityOf(afterMixed[0]!.tag) })
     ).toBe(`first-v3:s6:${sharedPayload.length}`);
@@ -808,7 +820,7 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     layerReads.length = 0;
     collectProofReads = true;
     const retryLayersBefore = layerUpdates;
-    const retryPublicationsBefore = localPublications;
+    const retryPublicationsBefore = layerPublications.length;
     const retriedCode = await runSourceCli({
       project,
       step: 'update',
@@ -820,7 +832,7 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     const mountedArn = interrupted[0]!.layers[0]!;
     expect(layerReads.filter((arn) => arn === mountedArn)).toHaveLength(1);
     expect(layerUpdates - retryLayersBefore).toBe(1);
-    expect(localPublications - retryPublicationsBefore).toBe(0);
+    expect(layerPublications.length - retryPublicationsBefore).toBe(0);
     const recovered = await state();
     expect(recovered[0]!.layers).toEqual(interrupted[0]!.layers);
     expect(recovered[0]!.tag).toBe(recovered[1]!.tag);
@@ -859,7 +871,7 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     ).toBe(`first-v3:s6:${sharedPayload.length}`);
 
     const layersBeforeExport = layerUpdates;
-    const publicationsBeforeExport = localPublications;
+    const publicationsBeforeExport = layerPublications.length;
     await writeProjectFiles(project, {
       'shared.ts': sharedSource('s7') + 'export const added = () => "new-export";\n',
       'first.ts': splitHandler('first', 'v4')
@@ -878,9 +890,12 @@ test('a change to shared code publishes the layer directly, and CloudFormation t
     expect(addedExport.exitCode, addedExport.tail).toBe(0);
     expect(layerUpdates - layersBeforeExport).toBe(2);
     // A new used export is safe in the forward direction and needs only the final layer.
-    expect(localPublications - publicationsBeforeExport).toBe(1);
     expect(missingImports).toEqual([]);
     const afterExport = await state();
+    expect(layerPublications.slice(publicationsBeforeExport)).toEqual([
+      `${bucket}/shared-layer-1/${identityOf(afterExport[0]!.tag)}.zip`
+    ]);
+    expect(inlinePublications).toBe(0);
     expect(
       await runInRuntime({ prefix: 'first', code: afterExport[0]!.code, identity: identityOf(afterExport[0]!.tag) })
     ).toBe(`first-v4:new-export:s7:${sharedPayload.length}`);

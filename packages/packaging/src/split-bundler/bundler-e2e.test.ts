@@ -28,6 +28,41 @@ const createRoot = async () => {
 };
 
 describe('split bundler end-to-end regressions', () => {
+  test('returns function outputs in entrypoint order, whichever function finishes postprocessing first', async () => {
+    const root = await createRoot();
+    // The large function's entry and source map take far longer to rewrite than the small one's.
+    const large = Array.from({ length: 20_000 }, (_, index) => `export const value${index} = () => '${index}';`);
+    await Promise.all([
+      writeFile(join(root, 'package.json'), manifest('app')),
+      writeFile(join(root, 'values.ts'), large.join('\n')),
+      writeFile(
+        join(root, 'large.ts'),
+        `import * as values from './values'; export const handler = async () => values;`
+      ),
+      writeFile(join(root, 'small.ts'), 'export const handler = async () => 1;')
+    ]);
+    for (const names of [
+      ['large', 'small'],
+      ['small', 'large']
+    ]) {
+      const label = names.join('-');
+      const result = await buildSplitBundle({
+        entrypoints: names.map((name) => ({
+          name,
+          jobName: name,
+          entryfilePath: join(root, `${name}.ts`),
+          distFolderPath: join(root, label, name)
+        })),
+        sharedOutdir: join(root, label, 'shared'),
+        cwd: root,
+        sourceMaps: 'external',
+        installDependencies: async () => {},
+        createPackagingError
+      });
+      expect([...result.lambdaOutputs.keys()]).toEqual(names);
+    }
+  });
+
   test('shared edits keep function imports stable beside dynamic CommonJS import wrappers', async () => {
     const root = await createRoot();
     const files = {
