@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { exists, readFile } from 'fs-extra';
 
@@ -47,7 +48,7 @@ export const getBundleDigest = ({
 export const getSourceFiles = ({ rootPath }: { rootPath: string }) =>
   getSourceFilesFromGlobs({ rootPath, fileGlobs: FILE_GLOBS, extraFiles: EXTRA_FILES });
 
-export const resolvePythonDependencyFile = async ({
+export const resolvePythonDependencyFile = ({
   cwd,
   sourcePath,
   packageManagerFile
@@ -70,13 +71,8 @@ export const resolvePythonDependencyFile = async ({
     });
   });
 
-  for (const candidate of candidates) {
-    // oxlint-disable-next-line no-await-in-loop -- Dependency files are chosen by precedence; later paths must not win.
-    if (await exists(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
+  // Dependency files are chosen by precedence; later paths must not win.
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
 };
 
 export const getPythonDependencyFileType = (dependencyFilePath?: string | null) => {

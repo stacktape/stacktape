@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { HELPER_LAMBDA_NAMES, type HelperLambdaName } from '@config';
 import { buildSupervisor } from './code-swap/build-supervisor';
 import {
   DIST_FOLDER_PATH,
@@ -14,11 +15,12 @@ import { createCliPackagingError } from '@domain-services/packaging-manager/erro
 import { execDocker } from '@utils/docker';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { localBuildTsConfigPath } from '@utils/misc';
+import { writeHelperLambdaManifest } from '@utils/helper-lambdas';
 import { archiveItem } from '@utils/zip';
 import fsExtra, { remove } from 'fs-extra';
 import { generateLambdaTracingRuntime, generateSourceMapInstall } from './release/build-cli-sources';
 
-const helperLambdas = {
+const helperLambdas: Record<HelperLambdaName, { filePath: string; bundleSizeLimit: number }> = {
   stacktapeServiceLambda: {
     filePath: join(HELPER_LAMBDAS_SOURCE_FOLDER_PATH, 'stacktapeServiceLambda/index.ts'),
     bundleSizeLimit: 35
@@ -58,8 +60,10 @@ export const packageHelperLambdas = async ({
   await remove(lambdasDistFolderPath);
   await fsExtra.ensureDir(lambdasDistFolderPath);
 
-  for (const [name, { filePath, bundleSizeLimit }] of Object.entries(helperLambdas)) {
-    await buildJsBundleLambda({
+  const artifacts = {} as Record<HelperLambdaName, string>;
+  for (const name of HELPER_LAMBDA_NAMES) {
+    const { filePath, bundleSizeLimit } = helperLambdas[name];
+    const { artifactPath } = await buildJsBundleLambda({
       existingDigests: [],
       sizeLimit: bundleSizeLimit,
       includeFiles: [],
@@ -90,10 +94,14 @@ export const packageHelperLambdas = async ({
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH,
       invocationId: `${packagingRunId}-${name}`
     });
+    if (!artifactPath) throw new Error(`Helper Lambda ${name} produced no artifact.`);
+    artifacts[name] = basename(artifactPath);
     await remove(join(lambdasDistFolderPath, name));
   }
 
   await buildSupervisor(lambdasDistFolderPath);
+  // Written last: the CLI deploys only the ZIPs this build lists, so a partial build fails instead of mixing builds.
+  await writeHelperLambdaManifest({ helperLambdasDir: lambdasDistFolderPath, artifacts });
   logSuccess('Helper lambdas packaged successfully.');
 };
 

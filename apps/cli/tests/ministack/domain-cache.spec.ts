@@ -86,8 +86,7 @@ test('cached pending certificates become usable in both regions and the refreshe
       manager.resolveCurrentNameServersForDomain = async () => ['ns-1.example.net'];
       await manager.init({
         domains: [domainName],
-        fromParameterStore: true,
-        loadDefaultDomainsFromControlPlane: false
+        fromParameterStore: true
       });
       return manager;
     };

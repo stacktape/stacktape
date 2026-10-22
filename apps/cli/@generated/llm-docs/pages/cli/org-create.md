@@ -64,5 +64,5 @@ stacktape org create production-team --debug
 Commands commonly used alongside `org create`:
 
 - [`org list`](/cli/org-list) — list all organizations accessible with your current user.
-- [`org delete`](/cli/org-delete) — delete organization access for your user.
+- [`org delete`](/cli/org-delete) — delete the organization of your API key.
 - [`login`](/cli/login) — configure your API key, including switching to the new organization's key.

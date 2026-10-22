@@ -4468,6 +4468,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-src-layout/**',
       'packages/packaging/src/bundlers/py/**',
       'packages/packaging/src/buildpacks/py-lambda-buildpack.ts',
       'packages/packaging/src/image/railpack-python.ts'
@@ -4476,12 +4477,14 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
+      'apps/cli/tests/synthesis-families/language-handlers.spec.ts',
       'packages/packaging/src/bundlers/py/utils.test.ts',
       'packages/packaging/src/image/railpack-python.test.ts'
     ],
     lanes: [
       'packaging-test',
       'language-lambdas',
+      'synthesis-families',
       'packaging-images',
       'packaging-images-2',
       'project-qualification',
@@ -4559,11 +4562,18 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/buildpacks/project-root.ts',
       'packages/packaging/src/buildpacks/rb-lambda-buildpack.ts',
       'packages/packaging/scripts/lambda-e2e/fixtures/ruby/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/ruby-src-layout/**',
       'packages/packaging/src/bundlers/ruby/**'
     ],
     tests: ['packages/packaging/scripts/lambda-e2e/ruby.test.ts'],
-    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
-    contributors: ['S27']
+    lanes: [
+      'packaging-test',
+      'language-lambdas',
+      'synthesis-families',
+      'project-qualification',
+      'project-qualification-2'
+    ],
+    contributors: ['S21', 'S27']
   },
   {
     id: 'S26',

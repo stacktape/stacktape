@@ -845,11 +845,11 @@ Shows organization name, role, number of connected AWS accounts, and whether it'
   },
 
   'org:delete': {
-    description: `Deletes organization access for your user.
+    description: `Deletes the organization of your API key.
 
-In interactive mode, you'll pick an organization. In agent mode, provide --organization-id.
+In interactive mode, you'll confirm the deletion. In agent mode, provide --organization-id with the ID of that organization.
 
-This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts.`,
+This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts. To delete another organization, log in with an API key of that organization first.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),

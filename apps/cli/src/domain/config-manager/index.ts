@@ -492,7 +492,7 @@ export class ConfigManager {
         type: 'function',
         packaging,
         artifactName: name,
-        handler: getLambdaHandler({ name, packaging }),
+        handler: getLambdaHandler({ name, packaging, workingDir: this.stackContext.workingDir }),
         resourceName: awsResourceNames.lambda(name, this.stackContext.stackName),
         cfLogicalName: cfLogicalNames.lambda(name),
         aliasLogicalName:
@@ -708,7 +708,8 @@ export class ConfigManager {
             name: stpName,
             handler: getLambdaHandler({
               name: stpName,
-              packaging: customResourceDefinition.packaging
+              packaging: customResourceDefinition.packaging,
+              workingDir: this.stackContext.workingDir
             }),
             resourceName: awsResourceNames.lambda(stpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(stpName),
@@ -753,7 +754,11 @@ export class ConfigManager {
               nameChain: [...deploymentScript.nameChain, deploymentScriptFunctionIdentifier],
               parentResourceType: deploymentScript.type
             }),
-            handler: getLambdaHandler({ name: stpName, packaging: deploymentScript.packaging }),
+            handler: getLambdaHandler({
+              name: stpName,
+              packaging: deploymentScript.packaging,
+              workingDir: this.stackContext.workingDir
+            }),
             resourceName: awsResourceNames.lambda(stpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(stpName),
             artifactName: stpName,
@@ -875,7 +880,11 @@ export class ConfigManager {
       );
       return {
         ...edgeLambda,
-        handler: getLambdaHandler({ name: edgeLambda.name, packaging: edgeLambda.packaging }),
+        handler: getLambdaHandler({
+          name: edgeLambda.name,
+          packaging: edgeLambda.packaging,
+          workingDir: this.stackContext.workingDir
+        }),
         resourceName: lambdaResourceName,
         artifactName: edgeLambda.name,
         events: [],
