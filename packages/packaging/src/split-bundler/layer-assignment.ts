@@ -20,7 +20,9 @@ export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   minUsageCount: 2, // Chunk must be used by at least 2 lambdas
   minChunkSize: 1024, // At least 1KB
   maxLayers: 3, // Use up to 3 layers (leave 2 for user's custom layers)
-  maxLayerSize: 50 * 1024 * 1024 // 50MB per layer (conservative limit)
+  maxLayerSize: 50 * 1024 * 1024, // 50MB per layer (conservative limit)
+  // Publishing a layer version takes about 5 s however small it is; uploading this much again per function is faster.
+  maxOwnCodeInFunctions: 2 * 1024 * 1024
 };
 
 /**
@@ -98,6 +100,30 @@ export const assignChunksToLayers = (
     }
   }
 
+  // Which chunks import a given chunk, for when a chunk turns out not to be layerable after all.
+  const importersOf = new Map<string, string[]>();
+  for (const chunk of chunkAnalysis) {
+    for (const dep of chunk.dependsOn) {
+      const importers = importersOf.get(dep);
+      if (importers) {
+        importers.push(chunk.chunkName);
+      } else {
+        importersOf.set(dep, [chunk.chunkName]);
+      }
+    }
+  }
+
+  /** Leaves the chunks out of the layers together with everything that transitively imports them. */
+  const dropWithImporters = (chunkNames: string[]) => {
+    const toDrop = [...chunkNames];
+    while (toDrop.length > 0) {
+      const chunkName = toDrop.pop()!;
+      // `delete` reports whether the chunk was still a candidate, which also keeps import cycles finite.
+      if (!layerCandidates.delete(chunkName)) continue;
+      toDrop.push(...(importersOf.get(chunkName) ?? []));
+    }
+  };
+
   // Step 3: Calculate total size of all candidates to check if they fit
   let totalCandidateSize = 0;
   for (const chunkName of layerCandidates) {
@@ -138,25 +164,20 @@ export const assignChunksToLayers = (
     }
   }
 
+  // The project's own shared code goes with the functions, so editing it is a code update. Installed packages, which
+  // change rarely, stay in the layers. This needs the split bundler to have kept the two in separate chunks.
+  const ownCodeChunks = chunkAnalysis.filter(({ code }) => code === 'own');
+  const ownCodeSize = ownCodeChunks.reduce((sum, chunk) => sum + chunk.sizeBytes, 0);
+  if (!chunkAnalysis.some(({ code }) => code === 'mixed') && ownCodeSize <= (config.maxOwnCodeInFunctions ?? 0)) {
+    dropWithImporters(ownCodeChunks.map(({ chunkName }) => chunkName));
+  }
+
   // Step 4: Assign eligible chunks to layers using FFD bin-packing
   // Sort candidates by size descending for better bin packing
   let sortedCandidates = [...layerCandidates]
     .map((name) => chunkByName.get(name)!)
     .filter(Boolean)
     .toSorted((a, b) => b.sizeBytes - a.sizeBytes);
-
-  // Which chunks import a given chunk, for when a chunk turns out not to be layerable after all.
-  const importersOf = new Map<string, string[]>();
-  for (const chunk of chunkAnalysis) {
-    for (const dep of chunk.dependsOn) {
-      const importers = importersOf.get(dep);
-      if (importers) {
-        importers.push(chunk.chunkName);
-      } else {
-        importersOf.set(dep, [chunk.chunkName]);
-      }
-    }
-  }
 
   // Step 5: Fitting in aggregate is not enough. First fit stops filling a layer as soon as the next chunk is
   // too big for it, so the free space ends up split across the layers and a chunk larger than every one of
@@ -166,13 +187,7 @@ export const assignChunksToLayers = (
   // remaining candidates are packed again from scratch rather than patched.
   let packing = packIntoLayers(sortedCandidates, config);
   while (packing.unplaced.length > 0) {
-    const toDrop = packing.unplaced.map((chunk) => chunk.chunkName);
-    while (toDrop.length > 0) {
-      const chunkName = toDrop.pop()!;
-      // `delete` reports whether the chunk was still a candidate, which also keeps import cycles finite.
-      if (!layerCandidates.delete(chunkName)) continue;
-      toDrop.push(...(importersOf.get(chunkName) ?? []));
-    }
+    dropWithImporters(packing.unplaced.map((chunk) => chunk.chunkName));
 
     sortedCandidates = sortedCandidates.filter((chunk) => layerCandidates.has(chunk.chunkName));
     packing = packIntoLayers(sortedCandidates, config);

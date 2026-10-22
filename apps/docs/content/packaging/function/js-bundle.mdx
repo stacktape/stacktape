@@ -233,7 +233,7 @@ Stacktape caches deployment packages based on a checksum, so unchanged code is n
 
 ## Shared code between functions
 
-When a stack has two or more JavaScript or TypeScript Lambda functions that can be packaged together, it builds them in a single pass and moves the code they have in common — your own modules and their npm dependencies — into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Each function package then contains only its own code. Nothing needs to be configured, and your imports do not change.
+When a stack has two or more JavaScript or TypeScript Lambda functions that can be packaged together, it builds them in a single pass and moves the npm dependencies they have in common into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Your own shared modules stay in each function's package while they total 2 MB or less, so editing them deploys as a code update, as fast as editing a handler, without publishing a new layer version. When a shared module runs setup code as it loads (for example, it sets `process.env` or starts tracing) before packages load, the packages and your modules stay in the shared layers together, so they still load in the original order. Nothing needs to be configured, and your imports do not change.
 
 The effect grows with the number of functions. Twenty-five functions that share a library and the AWS SDK produce twenty-five small packages plus one layer, instead of twenty-five packages that each carry a full copy of the shared code.
 
@@ -254,7 +254,7 @@ A function is packaged individually, without a shared layer, when it uses an opt
 Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `keepSourceMapsInPackage`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
 
 <Info>
-Changing shared code changes every package that depends on it, because each function's entry file references the shared chunk by a content hash. Changing one handler's own code changes only that one package.
+Changing your own shared code changes the package of every function that uses it, and the layers stay as they are. Changing one handler's own code changes only that one package. Changing a shared npm dependency publishes a new layer version.
 </Info>
 
 ## Processor architecture

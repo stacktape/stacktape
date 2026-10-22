@@ -358,6 +358,45 @@ describe('packages a Lambda gets beside its bundle', () => {
     expect(JSON.parse(execution.stdout)).toEqual(['sqlite-driver', ['fonts', 'fast-zlib']]);
   });
 
+  test('leave out an optional peer that a bundled package imports itself, unless the project depends on it', async () => {
+    // cosmiconfig has this shape: it imports TypeScript, its optional peer, only to read a `.ts` configuration file.
+    // TypeScript 7 is native, so shipping it would add its 27 MB compiler binary to every function.
+    const configLoader = {
+      'node_modules/config-loader/package.json': manifest('config-loader', {
+        main: 'dist/index.js',
+        peerDependencies: { typescript: '*' },
+        peerDependenciesMeta: { typescript: { optional: true } }
+      }),
+      'node_modules/config-loader/dist/package.json': JSON.stringify({ type: 'commonjs' }),
+      'node_modules/config-loader/dist/index.js':
+        "exports.load = async () => { try { return (await import('typescript')).name; } catch { return 'no typescript'; } };"
+    };
+    const cwd = await createProject({
+      'package.json': projectManifest({ dependencies: { 'config-loader': '*' }, devDependencies: { typescript: '*' } }),
+      'handler.ts': "import { load } from 'config-loader'; export default async () => load();",
+      ...configLoader,
+      ...nativePackage('typescript')
+    });
+
+    const result = await bundle(cwd, { packageExternalDependencies: true });
+
+    expect(result.languageSpecificBundleOutput.es.externalDependencies).toEqual([]);
+    const { artifact, installed } = await copyArtifact(cwd);
+    expect(existsSync(join(installed, 'typescript'))).toBe(false);
+    const execution = runHandler(artifact);
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toBe('no typescript');
+
+    await writeFile(
+      join(cwd, 'package.json'),
+      projectManifest({ dependencies: { 'config-loader': '*', typescript: '*' } })
+    );
+    await bundle(cwd, { packageExternalDependencies: true });
+    const shipped = runHandler((await copyArtifact(cwd)).artifact);
+    expect(shipped.status, shipped.stderr).toBe(0);
+    expect(JSON.parse(shipped.stdout)).toBe('typescript');
+  });
+
   test('include an optional peer that a left-out package loads by a name no code spells out, once the project depends on it', async () => {
     const cwd = await createProject({
       'package.json': projectManifest({ dependencies: { '@swc/core': '*' } }),
