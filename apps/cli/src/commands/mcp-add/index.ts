@@ -25,8 +25,22 @@ const tildify = (path: string) => {
 const canPrompt = () => !isAgentMode() && !globalStateManager.args.autoConfirmOperation && tuiManager.isTTY;
 
 const requestedAgents = (): CodingAgent[] | undefined => {
-  const requested = globalStateManager.args.codingAgents as CodingAgentId[] | undefined;
-  return requested && requested.length > 0 ? requested.map(getCodingAgent) : undefined;
+  // The documented `--coding-agents claude-code,cursor` arrives as one comma-separated value.
+  const requested = (globalStateManager.args.codingAgents as string[] | undefined)
+    ?.flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!requested?.length) return undefined;
+  const unknown = requested.filter((id) => !CODING_AGENTS.some((agent) => agent.id === id));
+  if (unknown.length > 0) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'MCP_CODING_AGENT_UNKNOWN',
+      message: `Unknown coding agent: ${unknown.join(', ')}.`,
+      hints: [`Choose from: ${CODING_AGENTS.map((agent) => agent.id).join(', ')}.`]
+    });
+  }
+  return [...new Set(requested)].map((id) => getCodingAgent(id as CodingAgentId));
 };
 
 const CHANGE_LABELS = {

@@ -77,7 +77,8 @@ const deleteCall = {
 };
 
 describe('stacktape mcp over stdio', () => {
-  for (const protocolVersion of ['2025-11-25', '2025-06-18', '2025-03-26', '2026-07-28']) {
+  // The compiled scenario connects 2025-11-25 and 2026-07-28 clients to the shipped binary.
+  for (const protocolVersion of ['2025-06-18', '2025-03-26']) {
     test(`a ${protocolVersion} client connects on its own version and sees every tool`, async () => {
       const client = await connect({ protocolVersion, capabilities: {} });
 

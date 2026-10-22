@@ -4,8 +4,9 @@
  * The fixture is a small TypeScript project outside this repository with three functions and a hand-installed
  * `node_modules` (a CommonJS and an ESM-only package; nothing is downloaded):
  *
- * - `esm` and `plain` share the default configuration, so the CLI packages them in one split build: the module they
- *   both import is large enough to become a shared chunk layer. `esm` also loads a module through a dynamic
+ * - `esm` and `plain` share the default configuration, so the CLI packages them in one split build: the installed
+ *   package their shared module re-exports is large enough to become a shared chunk layer, while the project's own
+ *   shared module stays in each function. `esm` also loads a module through a dynamic
  *   `import()`, imports a file asset, uses the ESM-only package and imports `@aws-sdk/client-s3`, which the AWS SDK
  *   rule leaves to the runtime;
  * - `legacy` is a CommonJS entry file (`require`, `module.exports`, `__dirname`) packaged for Node.js 22 with
@@ -90,7 +91,7 @@ const SHARED_PAYLOAD = 'shared-'.repeat(1024);
 const ASSET = Buffer.from(`asset-${'x'.repeat(2048)}\n`);
 
 const writeFixture = async (project: string) => {
-  const dependencies = { 'fixture-cjs-dep': '1.0.0', 'fixture-esm-dep': '1.0.0' };
+  const dependencies = { 'fixture-cjs-dep': '1.0.0', 'fixture-esm-dep': '1.0.0', 'fixture-shared-dep': '1.0.0' };
   await file(
     join(project, 'package.json'),
     `${JSON.stringify({ name: 'node-lambda-fixture', version: '1.0.0', private: true, type: 'module', dependencies }, null, 2)}\n`
@@ -106,7 +107,8 @@ const writeFixture = async (project: string) => {
         packages: {
           '': { name: 'node-lambda-fixture', version: '1.0.0', dependencies },
           'node_modules/fixture-cjs-dep': { version: '1.0.0' },
-          'node_modules/fixture-esm-dep': { version: '1.0.0' }
+          'node_modules/fixture-esm-dep': { version: '1.0.0' },
+          'node_modules/fixture-shared-dep': { version: '1.0.0' }
         }
       },
       null,
@@ -147,13 +149,21 @@ const writeFixture = async (project: string) => {
     '.pnpm/fixture-linked-dep@1.0.0/node_modules/fixture-linked-dep',
     join(nodeModules, 'fixture-linked-dep')
   );
+  await file(
+    join(nodeModules, 'fixture-shared-dep', 'package.json'),
+    `${JSON.stringify({ name: 'fixture-shared-dep', version: '1.0.0', type: 'module', main: 'index.js' })}\n`
+  );
+  await file(
+    join(nodeModules, 'fixture-shared-dep', 'index.js'),
+    `export const payload = ${JSON.stringify(SHARED_PAYLOAD)};\n`
+  );
   await writeInstallMarker(project);
 
   await file(join(project, 'src', 'assets', 'template.bin'), ASSET);
   await file(
     join(project, 'src', 'lib', 'shared.ts'),
     [
-      `export const payload = ${JSON.stringify(SHARED_PAYLOAD)};`,
+      "export { payload } from 'fixture-shared-dep';",
       '',
       'export const explode = (): never => {',
       '  // The line below is what the source map must point at.',
