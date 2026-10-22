@@ -394,6 +394,48 @@ describe('split bundler end-to-end regressions', () => {
     expect(execution.stdout.trim()).toBe('pure-build-copy');
   });
 
+  test('keeps a native optional peer a dependency imports out of functions unless their own code imports it', async () => {
+    // cosmiconfig imports TypeScript, its optional peer, to read `.ts` configuration files. A project with TypeScript
+    // only in devDependencies has none in production, and TypeScript 7's compiler binary is 27 MB.
+    const root = await createRoot();
+    const files = {
+      'package.json': manifest('app', { dependencies: { 'config-loader': '*' }, devDependencies: { typescript: '*' } }),
+      'reader.ts': "import { load } from 'config-loader'; export const handler = () => load();",
+      'compiler.ts':
+        "import { load } from 'config-loader'; import ts from 'typescript'; export const handler = () => [load(), ts.name];",
+      'node_modules/config-loader/package.json': manifest('config-loader', {
+        peerDependencies: { typescript: '*' },
+        peerDependenciesMeta: { typescript: { optional: true } }
+      }),
+      'node_modules/config-loader/index.js': "exports.load = () => import('typescript').catch(() => 'no typescript');",
+      'node_modules/typescript/package.json': manifest('typescript'),
+      'node_modules/typescript/index.js': "exports.name = 'typescript';",
+      'node_modules/typescript/prebuilds/linux-x64/addon.node': 'addon'
+    };
+    for (const [path, contents] of Object.entries(files)) {
+      await mkdir(join(root, path, '..'), { recursive: true });
+      await writeFile(join(root, path), contents);
+    }
+
+    const result = await buildSplitBundle({
+      entrypoints: ['reader', 'compiler'].map((name) => ({
+        name,
+        jobName: name,
+        entryfilePath: join(root, `${name}.ts`),
+        distFolderPath: join(root, 'dist', name)
+      })),
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      installDependencies: async () => {},
+      createPackagingError
+    });
+
+    const shipped = (functionName: string) =>
+      result.lambdaOutputs.get(functionName)!.externalDependencies.map(({ name }) => name);
+    expect(shipped('reader')).toEqual([]);
+    expect(shipped('compiler')).toEqual(['typescript']);
+  });
+
   test('gives a function the optional peers the project root depends on when the build runs from a subdirectory', async () => {
     // The CLI runs from `infra/`, which has a manifest of its own, so `infra/` is detected as the project root. The
     // handlers come from `../src`, and the repository's root manifest lists `@swc/helpers`, which `@swc/core` loads

@@ -754,7 +754,14 @@ const getTrackedDependenciesForInputs = (
   );
   const seen = new Set<string>();
   return dependencies.filter((dependency) => {
-    const identity = [dependency.name, dependency.version, dependency.note ?? '', dependency.path].join('\0');
+    // An optional-peer copy must not hide the same package needed outright; the optional one may be filtered out later.
+    const identity = [
+      dependency.name,
+      dependency.version,
+      dependency.note ?? '',
+      dependency.path,
+      Boolean(dependency.optionalPeer)
+    ].join('\0');
     if (seen.has(identity)) return false;
     seen.add(identity);
     return true;

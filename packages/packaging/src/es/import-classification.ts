@@ -14,7 +14,7 @@
  */
 import { existsSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
-import { dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
 import { isBareImportSpecifier } from './bun-plugins';
 import { determineIfAlias, isRequireImportKind } from './bundler-helpers';
@@ -374,7 +374,25 @@ export const classifyResolvedModule = async ({
     cache
   });
   const self = externalDependencies.find((dependency) => dependency.path === modulePath);
-  return self
-    ? { outcome: 'external', note: self.note ?? 'EXTERNAL', externalDependencies }
-    : { outcome: 'bundle', externalDependencies };
+  if (!self) return { outcome: 'bundle', externalDependencies };
+  // cosmiconfig imports TypeScript, its optional peer, to read `.ts` configuration files. A production install has the
+  // peer only when the project needs it for another reason, so the bundler ships it only then (`optionalPeer`).
+  if (importer && (await isOptionalPeerOfImporter(importer, moduleName))) self.optionalPeer = true;
+  return { outcome: 'external', note: self.note ?? 'EXTERNAL', externalDependencies };
+};
+
+/** Whether the installed package that contains `importer` lists `name` only as an optional peer. */
+const isOptionalPeerOfImporter = async (importer: string, name: string) => {
+  if (!isAbsolute(importer) || !/[\\/]node_modules[\\/]/.test(importer)) return false;
+  const directories: string[] = [];
+  for (let directory = dirname(importer); basename(directory) !== 'node_modules'; directory = dirname(directory)) {
+    directories.push(directory);
+    if (dirname(directory) === directory) break;
+  }
+  // A nested `package.json` without a name, such as `dist/package.json` setting the module type, is not the package's.
+  const manifests = await Promise.all(
+    directories.map((directory) => readPackageManifest(directory).catch(() => undefined))
+  );
+  const manifest = manifests.find((candidate) => candidate?.name);
+  return manifest ? isOptionalPeer(manifest, name) : false;
 };
