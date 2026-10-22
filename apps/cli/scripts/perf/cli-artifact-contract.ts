@@ -3,9 +3,9 @@
  * and the checks of inspected samples (`artifact-inspection.ts`) against it.
  *
  * The contract. Every command that initializes its global state snapshots the install's helper Lambdas into
- * `<invocation>/helper-lambdas/` (`loadHelperLambdaDetails`, the newest ZIP of each name), before any packaging. So
- * every sample, a failed one included, must hold exactly the install's helper-Lambda ZIPs there, byte for byte as
- * `install.json` records them. The packaging outputs are all under `<invocation>/build/`:
+ * `<invocation>/helper-lambdas/` (`loadHelperLambdaDetails`, the ZIPs the install's manifest lists), before any
+ * packaging. So every sample, a failed one included, must hold exactly the install's helper-Lambda ZIPs there, byte for
+ * byte as `install.json` records them. The packaging outputs are all under `<invocation>/build/`:
  * - `lambdas/<job>-<digest>.zip`, one per packaged function, and the function's unzipped dist folder `lambdas/<job>/`
  *   beside it. The per-function build (`js-bundle-lambda.ts`) and the split path
  *   (`#packageNodeLambdasWithSplitBundling`) both zip the dist folder to `<dist>.zip` and rename that to
