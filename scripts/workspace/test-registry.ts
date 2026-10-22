@@ -862,7 +862,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network'],
     release: 'affected-external-contract',
     proves:
-      "CloudFront serves a redeployed hosting bucket's new page on the first request after the deploy, and the stack deletion removes its distribution, buckets, default domain and the Lambda@Edge roles and log groups in every edge region."
+      "CloudFront serves a redeployed hosting bucket's new page on the first request after the deploy, and the stack deletion removes its distribution, buckets, default domain, the us-east-1 edge deployment bucket and the Lambda@Edge roles and log groups in every edge region."
   },
   {
     id: 'container-fast-deploy-live',

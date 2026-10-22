@@ -210,9 +210,10 @@ pnpm test:aws --aws-scenario=lambda-http-api-scoped-access
 This deploys `_test-stacks/static-site`: one hosting bucket behind CloudFront, with no build step. The canary writes the
 fixture's ignored `site/` directory before each deploy. CloudFront must serve the first page and then a cached copy of
 it. After a redeploy with new content, the first request must return the new page. The canary then deletes the stack and
-verifies that the stack, distribution, buckets, functions and roles are gone. It also checks the two Lambda@Edge
-functions, which a custom resource creates in `us-east-1` with a log group in every regional edge-cache region. A run
-takes about fifteen minutes.
+verifies that the stack, distribution, buckets, functions, roles and default domain are gone. It also checks what custom
+resources create outside the stack: the two Lambda@Edge functions in `us-east-1`, their roles, their log groups in every
+regional edge-cache region, and the `us-east-1` edge deployment bucket. Anything the stack deletion left there fails the
+run, after the canary removes it. A run takes about fifteen minutes.
 
 AWS deletes a Lambda@Edge function only after CloudFront has removed its replicas, usually within a few hours of the
 distribution's deletion. Until then the cleanup reports the function as pending and prints the `--cleanup-only` command

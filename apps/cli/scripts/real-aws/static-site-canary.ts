@@ -34,7 +34,7 @@ import {
   ListRolePoliciesCommand
 } from '@aws-sdk/client-iam';
 import { DeleteFunctionCommand, GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda';
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteBucketCommand, HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -72,6 +72,8 @@ type Owned = {
   /** Edge function resources the stack deletion left and the canary removed: a product defect, not a cleanup gap. */
   edgeLeftByStack?: string[];
   domains?: string[];
+  /** The us-east-1 bucket a custom resource creates for edge function code. */
+  edgeBuckets?: string[];
   buckets?: string[];
   distributionIds?: string[];
   functionNames?: string[];
@@ -88,6 +90,7 @@ type Clients = {
   logs: CloudWatchLogsClient;
   edgeLogs: CloudWatchLogsClient[];
   s3: S3Client;
+  edgeS3: S3Client;
   sts: STSClient;
 };
 type Runner = ReturnType<typeof createSourceCliRunner>;
@@ -117,6 +120,7 @@ const createClients = ({ profile, region }: CanaryOptions): Clients => {
       (edgeRegion) => new CloudWatchLogsClient({ ...config, region: edgeRegion })
     ),
     s3: new S3Client(config),
+    edgeS3: new S3Client({ ...config, region: 'us-east-1' }),
     sts: new STSClient(config)
   };
 };
@@ -131,6 +135,9 @@ const describeOwned = (resources: StackResource[]): Owned => {
       ?.PhysicalResourceId,
     buckets: physical('AWS::S3::Bucket'),
     distributionIds: physical('AWS::CloudFront::Distribution'),
+    edgeBuckets: resources
+      .filter(({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.customResourceEdgeLambdaBucket())
+      .flatMap(({ PhysicalResourceId }) => PhysicalResourceId ?? []),
     // A custom resource creates the default domain in Stacktape's zone; its physical id is the domain name.
     domains: resources
       .filter(({ LogicalResourceId }) => LogicalResourceId?.endsWith('DefaultDomainCustomResource'))
@@ -166,9 +173,16 @@ const readEdgeFunctions = async (clients: Clients, stackName: string): Promise<E
  * delete a function until CloudFront has removed its replicas, which can take hours; such a function is returned as
  * pending, and a later `--cleanup-only` run deletes it.
  */
-const cleanupEdgeFunctions = async (clients: Clients, edgeFunctions: EdgeFunction[]) => {
+const cleanupEdgeFunctions = async (clients: Clients, edgeFunctions: EdgeFunction[], edgeBuckets: string[]) => {
   const leftByStack: string[] = [];
   const pendingFunctions: string[] = [];
+  for (const bucket of edgeBuckets) {
+    const head = () => clients.edgeS3.send(new HeadBucketCommand({ Bucket: bucket }));
+    if (await gone(head, ['NotFound', 'NoSuchBucket'])) continue;
+    leftByStack.push(`bucket ${bucket}`);
+    await emptyBucket(clients.edgeS3, bucket);
+    await clients.edgeS3.send(new DeleteBucketCommand({ Bucket: bucket }));
+  }
   for (const { functionName, roleName, logGroupName } of edgeFunctions) {
     for (const logs of clients.edgeLogs) {
       const region = await logs.config.region();
@@ -205,7 +219,15 @@ const cleanupEdgeFunctions = async (clients: Clients, edgeFunctions: EdgeFunctio
 const mergeOwned = (state: State, owned: Owned) => {
   const merge = (left: string[] = [], right: string[] = []) => [...new Set([...left, ...right])];
   state.deploymentBucket ??= owned.deploymentBucket;
-  for (const key of ['buckets', 'distributionIds', 'domains', 'functionNames', 'roleNames', 'logGroupNames'] as const) {
+  for (const key of [
+    'buckets',
+    'distributionIds',
+    'domains',
+    'edgeBuckets',
+    'functionNames',
+    'roleNames',
+    'logGroupNames'
+  ] as const) {
     state[key] = merge(state[key], owned[key]);
   }
 };
@@ -328,7 +350,7 @@ const cleanup = async (clients: Clients, options: CanaryOptions, runner: Runner,
     ...(state.functionNames ?? []).map((name) => `/aws/lambda/${name}`)
   ]);
   verification.domains = await awaitDomainsReleased(state.domains ?? []);
-  const edge = await cleanupEdgeFunctions(clients, state.edgeFunctions ?? []);
+  const edge = await cleanupEdgeFunctions(clients, state.edgeFunctions ?? [], state.edgeBuckets ?? []);
   state.edgeLeftByStack = [...new Set([...(state.edgeLeftByStack ?? []), ...edge.leftByStack])];
   await writeState(options, state);
   verification.edgeFunctions = { count: state.edgeFunctions?.length ?? 0, ...edge };
