@@ -42,13 +42,16 @@ export const redirectPlugin = {
           return await next(args);
         } catch (err) {
           if (err.Code === 'TemporaryRedirect' && err.Endpoint) {
-            // S3 reports the endpoint as `{bucket-name}.{regional-endpoint}`.
-            const [, ...regionalEndpointParts] = (err.Endpoint as string).split('.');
+            // S3 reports the endpoint as `{bucket-name}.{regional-endpoint}`. A virtual-hosted request keeps the bucket
+            // in its host name; a path-style request already carries it in the path.
+            const endpoint = err.Endpoint as string;
+            const bucketPrefix = `${err.Bucket ?? endpoint.split('.')[0]}.`;
+            const regionalHost = endpoint.startsWith(bucketPrefix) ? endpoint.slice(bucketPrefix.length) : endpoint;
             return next({
               ...args,
               request: new HttpRequest({
                 ...originalRequest,
-                hostname: regionalEndpointParts.join('.')
+                hostname: originalRequest.hostname.startsWith(bucketPrefix) ? endpoint : regionalHost
               })
             });
           }
