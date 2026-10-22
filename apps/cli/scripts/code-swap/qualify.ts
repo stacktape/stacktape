@@ -2,7 +2,11 @@ import { cp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
+import { SWAP_DRAIN_SECONDS } from '../../src/domain/code-swap/ecs-budget';
 import { buildSupervisor } from './build-supervisor';
+
+// A scenario that has not finished by then is stuck; stop it so the lane reports the failure instead of hanging.
+const SCENARIO_TIMEOUT_MS = 8 * 60000;
 
 export const prepareQualification = async (directory: string) => {
   await mkdir(directory, { recursive: true });
@@ -36,7 +40,7 @@ export const prepareQualification = async (directory: string) => {
   }
   await writeFile(
     join(directory, 'Dockerfile'),
-    'FROM public.ecr.aws/docker/library/node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392\nCOPY stacktape-supervisor /stacktape-supervisor\nCOPY apps/ /qualification/apps/\nCOPY bundles/ /qualification/bundles/\nCOPY qualification.mjs /qualification/qualification.mjs\nENTRYPOINT ["node", "/qualification/qualification.mjs"]\n'
+    `FROM public.ecr.aws/docker/library/node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392\nCOPY stacktape-supervisor /stacktape-supervisor\nCOPY apps/ /qualification/apps/\nCOPY bundles/ /qualification/bundles/\nCOPY qualification.mjs /qualification/qualification.mjs\nENV QUAL_SWAP_DRAIN_S=${SWAP_DRAIN_SECONDS}\nENTRYPOINT ["node", "/qualification/qualification.mjs"]\n`
   );
 };
 const main = async () => {
@@ -53,9 +57,19 @@ const main = async () => {
         syscalls: [{ names: ['ptrace'], action: 'SCMP_ACT_ERRNO', errnoRet: 1 }]
       })
     );
-  const run = async (args: string[]) => {
+  const run = async (args: string[], timeoutMs?: number) => {
     const child = Bun.spawn(args, { stdout: 'inherit', stderr: 'inherit' });
-    if (await child.exited) throw new Error(`Failed: ${args.slice(0, 2).join(' ')}`);
+    let timedOut = false;
+    const timer =
+      timeoutMs &&
+      setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, timeoutMs);
+    const code = await child.exited;
+    if (timer) clearTimeout(timer);
+    if (timedOut) throw new Error(`Timed out after ${timeoutMs / 1000} s: ${args.slice(0, 2).join(' ')}`);
+    if (code) throw new Error(`Failed: ${args.slice(0, 2).join(' ')}`);
   };
   const reports: Record<string, unknown> = {};
   await writeFile(
@@ -75,24 +89,27 @@ const main = async () => {
       'stop-old-shutdown'
     ]) {
       try {
-        await run([
-          'docker',
-          'run',
-          '--name',
-          name,
-          '--init',
-          ...(denyTrace ? ['--security-opt', `seccomp=${seccomp}`] : []),
-          '--oom-score-adj=-998',
-          '--memory=1024m',
-          '--memory-swap=1024m',
-          '--shm-size=32m',
-          '-e',
-          'STP_BENCH_TASK_MIB=1024',
-          '-e',
-          `QUAL_SCENARIO=${scenario}`,
-          ...(process.env.QUAL_STOP_GRACE ? ['-e', `QUAL_STOP_GRACE=${process.env.QUAL_STOP_GRACE}`] : []),
-          name
-        ]);
+        await run(
+          [
+            'docker',
+            'run',
+            '--name',
+            name,
+            '--init',
+            ...(denyTrace ? ['--security-opt', `seccomp=${seccomp}`] : []),
+            '--oom-score-adj=-998',
+            '--memory=1024m',
+            '--memory-swap=1024m',
+            '--shm-size=32m',
+            '-e',
+            'STP_BENCH_TASK_MIB=1024',
+            '-e',
+            `QUAL_SCENARIO=${scenario}`,
+            ...(process.env.QUAL_STOP_GRACE ? ['-e', `QUAL_STOP_GRACE=${process.env.QUAL_STOP_GRACE}`] : []),
+            name
+          ],
+          SCENARIO_TIMEOUT_MS
+        );
       } finally {
         const logs = Bun.spawn(['docker', 'logs', name], { stdout: 'pipe', stderr: 'pipe' });
         const [output, errors] = await Promise.all([
