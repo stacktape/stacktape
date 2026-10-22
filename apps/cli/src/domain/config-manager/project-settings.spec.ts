@@ -55,6 +55,11 @@ describe('reading project settings from TypeScript and JavaScript without runnin
       "import * as stacktape from 'stacktape';\nexport default stacktape.defineConfig({ projectName: 'shop' }, () => ({ resources: {} }));",
       { projectName: 'shop' }
     ],
+    [
+      'an `export { config as default }` of a top-level const',
+      "export const config = defineConfig({ projectName: 'shop', region: 'eu-west-1' }, () => ({ resources: {} }));\nexport { config as default };",
+      { projectName: 'shop', region: 'eu-west-1' }
+    ],
     ['the one-argument form', 'export default defineConfig(({ stage }) => ({ resources: {} }));', {}],
     [
       'the one-argument form with a function reference',
@@ -122,6 +127,21 @@ describe('reading project settings from TypeScript and JavaScript without runnin
       '`projectName` must contain only lowercase letters, numbers and dashes. Received `My Shop`.'
     ],
     [
+      'a settings call wrapped in another call',
+      "const wrap = (config) => config;\nexport default wrap(defineConfig({ projectName: 'shop', region: 'eu-west-1' }, () => ({ resources: {} })));",
+      'could not find the `defineConfig(settings, fn)` call as the default export'
+    ],
+    [
+      'a settings call that is not exported by default',
+      "export const config = defineConfig({ region: 'eu-west-1' }, () => ({ resources: {} }));\nexport default { resources: {} };",
+      'could not find the `defineConfig(settings, fn)` call as the default export'
+    ],
+    [
+      'a settings call inside a function',
+      "const make = () => defineConfig({ region: 'eu-west-1' }, () => ({ resources: {} }));\nexport default make();",
+      'could not find the `defineConfig(settings, fn)` call as the default export'
+    ],
+    [
       'three arguments',
       "export default defineConfig({ projectName: 'shop' }, () => ({ resources: {} }), {});",
       '`defineConfig` takes the settings object and the config function, nothing else.'
@@ -150,6 +170,22 @@ describe('reading project settings from TypeScript and JavaScript without runnin
       projectName: 'shop',
       region: 'eu-west-1'
     });
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  test('rejects an unfollowable settings call without running the file', async () => {
+    const directory = project({});
+    const marker = join(directory, 'executed.marker');
+    writeFileSync(
+      join(directory, 'stacktape.ts'),
+      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\nconst wrap = (config) => config;\nexport default wrap(defineConfig({ region: 'eu-west-1' }, () => ({ resources: {} })));\n`
+    );
+
+    const error = await readProjectSettingsFile(join(directory, 'stacktape.ts')).then(
+      () => undefined,
+      (caught: unknown) => caught as { code: string }
+    );
+    expect(error?.code).toBe('CONFIG_PROJECT_SETTINGS_INVALID');
     expect(existsSync(marker)).toBe(false);
   });
 });

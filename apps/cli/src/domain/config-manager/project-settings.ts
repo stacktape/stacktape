@@ -187,9 +187,19 @@ const unwrap = (ts: Ts, expression: Expression): Expression => {
   return current;
 };
 
-const findDefaultExport = (ts: Ts, sourceFile: SourceFile): Expression | undefined => {
+/** The default-exported expression, or the local name exported by `export { config as default }`. */
+const findDefaultExport = (ts: Ts, sourceFile: SourceFile): Expression | string | undefined => {
   for (const statement of sourceFile.statements) {
     if (ts.isExportAssignment(statement)) return statement.expression;
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      const specifier = statement.exportClause.elements.find((element) => element.name.text === 'default');
+      if (specifier) return (specifier.propertyName ?? specifier.name).text;
+    }
     // CommonJS `module.exports = ...` in a stacktape.js config.
     if (
       ts.isExpressionStatement(statement) &&
@@ -201,6 +211,19 @@ const findDefaultExport = (ts: Ts, sourceFile: SourceFile): Expression | undefin
     }
   }
   return undefined;
+};
+
+/** Every `defineConfig(settings, fn)` call in the file, wherever it is written. */
+const findSettingsCalls = (ts: Ts, sourceFile: SourceFile, names: Set<string>) => {
+  const calls: import('typescript').CallExpression[] = [];
+  const visit = (node: Node) => {
+    if (ts.isCallExpression(node) && node.arguments.length >= 2 && isDefineConfigCallee(ts, node.expression, names)) {
+      calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return calls;
 };
 
 const findTopLevelConst = (ts: Ts, sourceFile: SourceFile, name: string): Expression | undefined => {
@@ -258,20 +281,26 @@ export const projectSettingsFromSource = async ({
   );
   const fail = (problem: string) => settingsError({ filePath, problem, form: TYPESCRIPT_FORM });
 
-  let exported = findDefaultExport(ts, sourceFile);
+  const names = defineConfigNames(ts, sourceFile);
+  const defaultExport = findDefaultExport(ts, sourceFile);
+  let exported = typeof defaultExport === 'string' ? findTopLevelConst(ts, sourceFile, defaultExport) : defaultExport;
   if (exported && ts.isIdentifier(unwrap(ts, exported))) {
     exported = findTopLevelConst(ts, sourceFile, (unwrap(ts, exported) as import('typescript').Identifier).text);
   }
-  const call = exported && unwrap(ts, exported);
-  if (
-    !call ||
-    !ts.isCallExpression(call) ||
-    !isDefineConfigCallee(ts, call.expression, defineConfigNames(ts, sourceFile))
-  ) {
-    // No default-exported defineConfig call to read. Evaluation checks that the loaded config declares no settings.
-    return {};
+  const unwrapped = exported && unwrap(ts, exported);
+  const call =
+    unwrapped && ts.isCallExpression(unwrapped) && isDefineConfigCallee(ts, unwrapped.expression, names)
+      ? unwrapped
+      : undefined;
+  // A settings call the reader cannot tie to the default export would otherwise be ignored here and only noticed after
+  // credentials were resolved and the config ran, or reported as a missing region.
+  if (findSettingsCalls(ts, sourceFile, names).some((settingsCall) => settingsCall !== call)) {
+    throw fail(
+      'Stacktape could not find the `defineConfig(settings, fn)` call as the default export. Export the call directly or through a top-level `const`.'
+    );
   }
-  if (call.arguments.length < 2) return {};
+  // No settings call to read. Evaluation checks that the loaded config declares no settings.
+  if (!call || call.arguments.length < 2) return {};
   if (call.arguments.length > 2) {
     throw fail('`defineConfig` takes the settings object and the config function, nothing else.');
   }

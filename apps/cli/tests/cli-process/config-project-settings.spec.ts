@@ -6,7 +6,7 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, test as bunTest } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -349,6 +349,64 @@ describe('precedence of the target', () => {
   });
 });
 
+describe('init declares the region later commands would have used', () => {
+  const APP_FILES = {
+    'package.json': JSON.stringify({ name: 'project', version: '1.0.0', scripts: { start: 'node index.js' } }),
+    'index.js':
+      "require('node:http').createServer((_, response) => response.end('ok')).listen(process.env.PORT || 3000);\n"
+  };
+  const declaredRegion = async (project: string) =>
+    /^region: (.+)$/m.exec(await readFile(join(project, 'stacktape.yml'), 'utf8'))?.[1];
+
+  test('a named AWS profile’s region is declared, and the next command deploys there', async () => {
+    const controlPlane = await startConsole('project');
+    const aws = await startAwsFake();
+    const { home, project } = await createHome({
+      files: APP_FILES,
+      awsConfig: '[default]\nregion = us-west-2\n[profile other]\nregion = ap-southeast-2\n'
+    });
+    const init = await runCli({
+      home,
+      cwd: project,
+      args: ['init', '--headless', '--codingAgent', 'none'],
+      controlPlane,
+      awsEndpoint: aws.endpoint,
+      environment: { AWS_PROFILE: 'other' }
+    });
+    expect(init.exitCode, init.output).toBe(0);
+    expect(await declaredRegion(project), init.output).toBe('ap-southeast-2');
+
+    // Without the profile now: the file carries the region.
+    const run = await runCli({
+      home,
+      cwd: project,
+      args: ['status', '--stage', 'test'],
+      controlPlane,
+      awsEndpoint: aws.endpoint
+    });
+    expect(controlPlane.calls.find(({ procedure }) => procedure === 'stackDetails')?.input, run.output).toMatchObject({
+      stackName: 'project-test',
+      region: 'ap-southeast-2'
+    });
+  });
+
+  test('an AWS_REGION Stacktape does not deploy to is never written into the file', async () => {
+    const controlPlane = await startConsole('project');
+    const aws = await startAwsFake();
+    const { home, project } = await createHome({ files: APP_FILES, awsConfig: '[default]\nregion = us-west-2\n' });
+    const init = await runCli({
+      home,
+      cwd: project,
+      args: ['init', '--headless', '--codingAgent', 'none'],
+      controlPlane,
+      awsEndpoint: aws.endpoint,
+      environment: { AWS_REGION: 'mars-north-1' }
+    });
+    expect(init.exitCode, init.output).toBe(0);
+    expect(await declaredRegion(project), init.output).toBe('eu-west-1');
+  });
+});
+
 describe('alternate config locations', () => {
   test('--config selects a YAML config in another directory and its settings', async () => {
     const controlPlane = await startConsole('yamlproj');
@@ -411,6 +469,35 @@ export default defineConfig({ projectName: 'cfgproj', region }, () => ({ resourc
     expect(aws.requests).toEqual([]);
   });
 
+  test('a settings call that is not the default export stops the command before credentials or the config run', async () => {
+    const controlPlane = await startConsole();
+    const aws = await startAwsFake();
+    const { home, project } = await createHome({ files: {}, awsConfig: '[default]\nregion = ap-southeast-2\n' });
+    const marker = join(home, 'config-ran.marker');
+    await writeFile(
+      join(project, 'stacktape.ts'),
+      `import { writeFileSync } from 'node:fs';
+import { Bucket, defineConfig } from 'stacktape';
+writeFileSync(${JSON.stringify(marker)}, 'project code ran');
+const wrap = <T>(config: T) => config;
+export default wrap(defineConfig({ projectName: 'cfgproj', region: 'eu-central-1' }, () => ({ resources: { uploads: new Bucket({}) } })));
+`
+    );
+    const run = await runCli({
+      home,
+      cwd: project,
+      args: ['delete', '--stage', 'test', '--yes'],
+      controlPlane,
+      awsEndpoint: aws.endpoint
+    });
+
+    expect(run.error?.code, run.output).toBe('CONFIG_PROJECT_SETTINGS_INVALID');
+    expect(run.output).toContain('could not find the `defineConfig(settings, fn)` call as the default export');
+    expect(controlPlane.calls).toEqual([]);
+    expect(aws.requests).toEqual([]);
+    expect(existsSync(marker), run.output).toBe(false);
+  });
+
   test('never blocks a command that does not use the config', async () => {
     const controlPlane = await startConsole();
     const aws = await startAwsFake();
@@ -439,10 +526,11 @@ export default defineConfig({ projectName: 'cfgproj', region }, () => ({ resourc
     const aws = await startAwsFake();
     const { home, project } = await createHome({
       files: {
-        // Not the documented default export, so the static read finds no settings; the loaded config declares some.
-        'stacktape.ts': `import { Bucket, defineConfig } from 'stacktape';
-const config = defineConfig({ projectName: 'cfgproj', region: 'eu-central-1' }, () => ({ resources: { uploads: new Bucket({}) } }));
-export { config as default };
+        // \`defineConfig\` reached through a variable the static read cannot follow, so it finds no settings; the loaded
+        // config declares some.
+        'stacktape.ts': `import * as stacktape from 'stacktape';
+const define = stacktape.defineConfig;
+export default define({ projectName: 'cfgproj', region: 'eu-central-1' }, () => ({ resources: { uploads: new stacktape.Bucket({}) } }));
 `
       }
     });

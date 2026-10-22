@@ -31,9 +31,9 @@ export type AwsIdentity =
       detail: string;
     };
 
-/** The region a deploy would default to, taken from the environment the way every AWS tool does. */
-const defaultRegion = (env: NodeJS.ProcessEnv = process.env): string | undefined =>
-  env.AWS_REGION ?? env.AWS_DEFAULT_REGION;
+/** The region the environment names, for callers that do not resolve the CLI's region themselves. */
+const environmentRegion = (env: NodeJS.ProcessEnv = process.env): string | undefined =>
+  env.AWS_DEFAULT_REGION || env.AWS_REGION || undefined;
 
 /**
  * Ask AWS who these credentials belong to.
@@ -43,11 +43,15 @@ const defaultRegion = (env: NodeJS.ProcessEnv = process.env): string | undefined
  * wizard would sit on a spinner with nothing to say.
  */
 export const resolveAwsIdentity = async ({
-  region = defaultRegion() ?? 'us-east-1',
+  region = environmentRegion(),
   timeoutMs = 8_000
-}: { region?: string; timeoutMs?: number } = {}): Promise<AwsIdentity> => {
+}: {
+  /** The region this machine deploys to, reported with the identity. `init` passes the one the CLI resolved. */
+  region?: string;
+  timeoutMs?: number;
+} = {}): Promise<AwsIdentity> => {
   const client = new STSClient({
-    region,
+    region: region ?? 'us-east-1',
     credentials: fromNodeProviderChain({ timeout: timeoutMs, maxRetries: 1 }),
     // Bun's `node:https` stalls against the AWS SDK; every client in this CLI uses fetch instead.
     requestHandler: createFetchHandler({ requestTimeout: timeoutMs }),
@@ -63,7 +67,7 @@ export const resolveAwsIdentity = async ({
       available: true,
       accountId: identity.Account,
       arn: identity.Arn,
-      ...(defaultRegion() === undefined ? {} : { region: defaultRegion()! })
+      ...(region === undefined ? {} : { region })
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

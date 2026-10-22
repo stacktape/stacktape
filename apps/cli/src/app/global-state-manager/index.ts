@@ -32,7 +32,7 @@ import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@st
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { propertyFromObjectOrNull } from '@utils/misc';
-import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
+import { listAwsProfiles, loadAwsConfigFileContent, profileRegionFromConfig } from '@utils/aws-config';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { timeAsync } from '@utils/timings';
@@ -296,7 +296,8 @@ export class GlobalStateManager {
 
   /** Region of the selected AWS profile in the AWS config file. */
   get profileRegion(): string | undefined {
-    return this.awsConfigFileContent?.[this.awsProfileName]?.region;
+    if (!this.awsConfigFileContent) return undefined;
+    return profileRegionFromConfig(this.awsConfigFileContent, this.awsProfileName);
   }
 
   /**

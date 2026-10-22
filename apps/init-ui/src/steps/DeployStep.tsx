@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button, ButtonLink } from '@stacktape/ui-react/button';
@@ -60,7 +60,6 @@ export function DeployStep({
   onSignIn,
   onVerify,
   onDismissVerification,
-  onRegionChange,
   isBusy
 }: {
   state: WizardState;
@@ -79,8 +78,6 @@ export function DeployStep({
   onVerify: () => void;
   /** Sets a failed try-out aside: results stay visible, the deploy button comes back. */
   onDismissVerification: () => void;
-  /** The price follows the region picked here. */
-  onRegionChange: (region: string) => void;
   /** Which action is in flight, so only the button that was pressed shows a spinner. */
   isBusy: 'deploy' | 'pipeline' | 'recheck' | 'verify' | 'coding-agent' | undefined;
 }) {
@@ -105,20 +102,13 @@ export function DeployStep({
   const [stage, setStage] = useState('dev');
   const [showRemoval, setShowRemoval] = useState(false);
   const [chosenRegion, setRegion] = useState(
-    identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1'
+    state.region ??
+      (identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1')
   );
   // A file that declares its region deploys there, and every later command in the project reads it from the file.
   const declaredRegion = file?.region;
   const region = declaredRegion ?? chosenRegion;
   const priceRegion = state.composition?.price?.region;
-  /** The last region a price was asked for, so a slow or failed answer is not asked for again on every render. */
-  const requestedPriceRegion = useRef<string | undefined>(undefined);
-  // The price was quoted before a region was picked; the region on screen is the one to quote.
-  useEffect(() => {
-    if (file === undefined || priceRegion === region || requestedPriceRegion.current === region) return;
-    requestedPriceRegion.current = region;
-    onRegionChange(region);
-  }, [file, priceRegion, region, onRegionChange]);
 
   const model = useMemo(
     () =>

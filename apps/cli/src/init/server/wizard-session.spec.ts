@@ -530,6 +530,111 @@ describe('startWizardSession', () => {
       expect(deploys).toBe(1);
     });
 
+    describe('the region the file declares', () => {
+      type RegionState = {
+        region?: string;
+        configFile?: { region?: string };
+        composition?: { configText?: { yaml: string } };
+      };
+      const connect = async () => {
+        const origin = `http://127.0.0.1:${session!.server.port}`;
+        const token = new URL(session!.server.url).hash.replace('#token=', '');
+        const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+          method: 'POST',
+          headers: { Origin: origin }
+        });
+        const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+        const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+        const headers = {
+          Origin: origin,
+          Cookie: cookie,
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        };
+        const post = async (path: string, body: unknown = {}) =>
+          (await (
+            await fetch(`${origin}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
+          ).json()) as RegionState;
+        const state = async () => (await (await fetch(`${origin}/api/state`, { headers })).json()) as RegionState;
+        return { post, state };
+      };
+      const until = async (condition: () => Promise<boolean>) => {
+        for (let attempt = 0; attempt < 100 && !(await condition()); attempt++) await Bun.sleep(10);
+      };
+
+      it('is decided when the file is written, after an identity check that answered late, and follows a recheck', async () => {
+        const declared: Array<string | undefined> = [];
+        const identityRegions = ['us-east-1', 'ap-southeast-2'];
+        let answerIdentity: () => void = () => {};
+        const identityAnswered = new Promise<void>((resolveAnswer) => {
+          answerIdentity = resolveAnswer;
+        });
+        let checks = 0;
+        session = await startWizardSession({
+          projectName: 'demo',
+          result: resultFor(factsWith({})),
+          machineRegion: 'eu-central-1',
+          awsIdentity: async () => {
+            const region = identityRegions[checks++]!;
+            if (checks === 1) await identityAnswered;
+            return { available: true, accountId: '123456789012', arn: 'arn:aws:iam::123456789012:user/dev', region };
+          },
+          write: async ({ region }) => {
+            declared.push(region);
+            return { path: '/repo/stacktape.yml', filename: 'stacktape.yml', ...(region ? { region } : {}) };
+          }
+        });
+        const { post, state } = await connect();
+
+        // Before the identity answers, the machine's region is what the file would declare.
+        expect((await state()).region).toBe('eu-central-1');
+        expect((await state()).composition?.configText?.yaml).toContain('region: eu-central-1');
+
+        answerIdentity();
+        await until(async () => (await state()).region === 'us-east-1');
+        expect((await state()).composition?.configText?.yaml).toContain('region: us-east-1');
+
+        const rechecked = await post('/api/recheck');
+        expect(rechecked.region).toBe('ap-southeast-2');
+        expect(rechecked.composition?.configText?.yaml).toContain('region: ap-southeast-2');
+
+        const written = await post('/api/write', { format: 'yaml' });
+        expect(declared).toEqual(['ap-southeast-2']);
+        expect(written.configFile?.region).toBe('ap-southeast-2');
+      });
+
+      it('is the region the user picks before writing, and stays the written file’s afterwards', async () => {
+        const declared: Array<string | undefined> = [];
+        session = await startWizardSession({
+          projectName: 'demo',
+          result: resultFor(factsWith({})),
+          awsIdentity: async () => ({
+            available: true,
+            accountId: '123456789012',
+            arn: 'arn:aws:iam::123456789012:user/dev',
+            region: 'us-east-1'
+          }),
+          write: async ({ region }) => {
+            declared.push(region);
+            return { path: '/repo/stacktape.yml', filename: 'stacktape.yml', ...(region ? { region } : {}) };
+          }
+        });
+        const { post, state } = await connect();
+        await until(async () => (await state()).region === 'us-east-1');
+
+        const picked = await post('/api/region', { region: 'eu-north-1' });
+        expect(picked.region).toBe('eu-north-1');
+        expect(picked.composition?.configText?.yaml).toContain('region: eu-north-1');
+        // A region the CLI cannot deploy to is never written into the file.
+        expect((await post('/api/region', { region: 'xx-nowhere-1' })).region).toBe('eu-north-1');
+
+        await post('/api/write', { format: 'yaml' });
+        expect(declared).toEqual(['eu-north-1']);
+        // The written file declares the region; the page says where to change it rather than deploying elsewhere.
+        expect((await post('/api/region', { region: 'us-west-2' })).region).toBe('eu-north-1');
+      });
+    });
+
     it('streams a deploy to the page and ends with its outcome', async () => {
       let emit: ((event: unknown) => void) | undefined;
       let settle:

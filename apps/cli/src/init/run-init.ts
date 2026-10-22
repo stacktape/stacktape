@@ -40,6 +40,7 @@ import type { DeploymentPreferences } from '@stacktape/config-inference/compose/
 import type { WizardAgentOption } from './server/wizard-server';
 import type { WizardSignInDependencies } from './server/wizard-sign-in';
 import { startWizardSession, toTimelineEntry } from './server/wizard-session';
+import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 import { DEFAULT_PRICING_REGION, estimateMonthlyCost } from './pricing';
 import { reportInitTelemetry } from './telemetry';
 import {
@@ -59,6 +60,11 @@ export type InitOptions = {
   projectName?: string;
   /** Connected Stacktape AWS account name, required when no default disambiguates multiple accounts. */
   awsAccount?: string;
+  /**
+   * The region the CLI would deploy to on this machine: `AWS_DEFAULT_REGION`, `AWS_REGION`, the machine-wide default
+   * (`stacktape defaults`), then the AWS profile's region. The new config declares it unless the user picks another.
+   */
+  machineRegion?: string;
   /** Forced by `--headless`; otherwise decided by whether a browser can plausibly be opened. */
   presentation?: InitPresentation;
   /**
@@ -223,6 +229,15 @@ export type InitOutcome = {
   whenClosedItself?: Promise<void>;
 };
 
+/**
+ * The region a new config declares unless the user picks one: the region the CLI would deploy to on this machine when
+ * Stacktape deploys there, otherwise the one prices use. An unsupported `AWS_REGION` is never written into the file.
+ */
+export const regionForNewConfig = (machineRegion: string | undefined): string =>
+  machineRegion !== undefined && (SUPPORTED_AWS_REGIONS as readonly string[]).includes(machineRegion)
+    ? machineRegion
+    : DEFAULT_PRICING_REGION;
+
 export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> => {
   const repositoryRoot = resolve(options.repositoryRoot ?? process.cwd());
   const projectName = options.projectName ?? basename(repositoryRoot);
@@ -298,7 +313,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     // otherwise needs nothing. No answer means no line, not an error.
     // The file declares where the project deploys: the region this machine's AWS environment names, otherwise the
     // one prices use. The price describes that same file and region.
-    const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? DEFAULT_PRICING_REGION;
+    const region = regionForNewConfig(options.machineRegion);
     const price = await (options.estimateCost ?? estimateMonthlyCost)(
       renderYaml(result.composition, { region }),
       region
@@ -473,7 +488,8 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             return repaired;
           }
         }),
-    awsIdentity: () => resolveAwsIdentity(),
+    awsIdentity: () => resolveAwsIdentity({ region: regionForNewConfig(options.machineRegion) }),
+    machineRegion: regionForNewConfig(options.machineRegion),
     stacktapeAccount: () => resolveStacktapeAccount(),
     ...(options.signIn === undefined ? {} : { signIn: options.signIn }),
     ...(repository === undefined ? {} : { gitHost: repository.host }),

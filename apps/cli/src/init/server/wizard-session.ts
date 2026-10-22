@@ -27,6 +27,7 @@ import type { GreenfieldResult } from '../missions/greenfield';
 import { summariseFailure, type DeployFailure } from '../deploy/failure';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
 import { getStackName } from '@stacktape/naming/stacks';
+import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
 import { DEFAULT_PRICING_REGION, estimateMonthlyCost, formatMonthlyDelta, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
@@ -115,6 +116,7 @@ export const startWizardSession = async ({
   verify,
   repair,
   awsIdentity,
+  machineRegion,
   stacktapeAccount,
   signIn,
   gitHost,
@@ -217,6 +219,12 @@ export const startWizardSession = async ({
   }) => Promise<{ facts: ProjectFacts; composition: CompositionResult; changed: boolean }>;
   /** Resolves who this machine is to AWS. Awaited lazily, so a slow answer never delays the page. */
   awsIdentity?: () => Promise<WizardAwsIdentity>;
+  /**
+   * The region this machine's AWS setup names, resolved the way the CLI resolves it (`AWS_DEFAULT_REGION`,
+   * `AWS_REGION`, the machine-wide Stacktape default, the AWS profile). The file declares it unless the user picks
+   * another region or the identity check reports one.
+   */
+  machineRegion?: string;
   /** Whether this machine is signed in to Stacktape, which deploying requires and generating does not. */
   stacktapeAccount?: () => Promise<NonNullable<WizardState['stacktapeAccount']>>;
   /**
@@ -258,8 +266,6 @@ export const startWizardSession = async ({
   let price: PriceEstimate | undefined;
   /** The last price request came back empty, so the page says so instead of waiting for it. */
   let priceUnavailable = false;
-  /** Where the price is quoted. The Deploy step's region, once the user picks one there. */
-  let priceRegion: string | undefined;
   /** The configuration as text, exactly as writing it would produce. Shown on the Review step. */
   let configText: { yaml: string; typescript?: string } | undefined =
     composition === undefined ? undefined : { yaml: renderYaml(composition) };
@@ -274,12 +280,13 @@ export const startWizardSession = async ({
   const repriceInBackground = (): void => {
     const current = composition;
     if (current === undefined) return;
-    const region = priceRegion;
+    // Quoted where the file deploys.
+    const region = declaredRegion();
     price = undefined;
     priceUnavailable = false;
     void priceWithOptions(current, region).then((estimate) => {
       // Another recomposition or region may have come in while this was in flight. Its own call publishes.
-      if (composition !== current || priceRegion !== region) return;
+      if (composition !== current || declaredRegion() !== region) return;
       price = estimate;
       priceUnavailable = estimate === undefined;
       publish(buildState());
@@ -381,18 +388,31 @@ export const startWizardSession = async ({
     verification = undefined;
     deployTarget = undefined;
     configFile = undefined;
-    // The preview shows the file exactly as it will be written, region included.
-    configTextRegion = declaredRegion();
-    configText = { yaml: renderYaml(next, { region: configTextRegion }) };
+    renderConfigText(next);
     // The request that caused this change gets the new state in its response, but other connected
     // tabs only hear broadcasts. Publish the synchronous YAML state now rather than making them
     // wait for pricing or TypeScript rendering to finish successfully.
     publish(buildState());
-    void renderTypeScript(next, { region: configTextRegion }).then((text) => {
-      if (composition !== next || configText === undefined) return;
+    repriceInBackground();
+  };
+  /** The preview shows the file exactly as writing it would produce it, region included. */
+  const renderConfigText = (next: NonNullable<typeof composition>): void => {
+    const region = declaredRegion();
+    configTextRegion = region;
+    configText = { yaml: renderYaml(next, { region }) };
+    void renderTypeScript(next, { region }).then((text) => {
+      if (composition !== next || configTextRegion !== region || configText === undefined) return;
       configText = { ...configText, typescript: text };
       publish(buildState());
     });
+  };
+  /**
+   * Re-render the preview and the price when the region the file would declare has changed: the identity check
+   * answered late, a recheck found another region, or the user picked one. The caller publishes.
+   */
+  const followDeclaredRegion = (): void => {
+    if (composition === undefined || declaredRegion() === configTextRegion) return;
+    renderConfigText(composition);
     repriceInBackground();
   };
   let failure: string | undefined;
@@ -402,8 +422,19 @@ export const startWizardSession = async ({
   let identity: WizardAwsIdentity | undefined;
   /** The region the previewed configuration declares; the written file declares the same one. */
   let configTextRegion: string | undefined;
-  /** The Deploy step's default: the region this machine's AWS environment names, otherwise the one prices use. */
-  const declaredRegion = () => (identity?.available ? identity.region : undefined) ?? DEFAULT_PRICING_REGION;
+  /** The region the user picked before the file was written, kept once a file declares it. */
+  let chosenRegion: string | undefined;
+  /**
+   * The region the file declares, or would declare if written now: the written file's, the user's pick, the region the
+   * identity check reports, the region this machine's AWS setup names, otherwise the one prices use. Computed on use,
+   * because the identity answers after the page has rendered.
+   */
+  const declaredRegion = (): string =>
+    configFile?.region ??
+    chosenRegion ??
+    (identity?.available ? identity.region : undefined) ??
+    machineRegion ??
+    DEFAULT_PRICING_REGION;
   let account: WizardState['stacktapeAccount'];
   /** Set once the server exists. Its step is published; what it holds to authenticate never is. */
   let signInFlow: WizardSignInFlow | undefined;
@@ -576,6 +607,7 @@ export const startWizardSession = async ({
     ...(agents.length === 0 ? {} : { agents }),
     ...(choice === undefined ? {} : { choice }),
     ...(configFile === undefined ? {} : { configFile }),
+    region: declaredRegion(),
     ...(identity === undefined ? {} : { awsIdentity: identity }),
     ...(account === undefined ? {} : { stacktapeAccount: account }),
     // Only while signed out: once the account check passes there is no step left to render.
@@ -647,6 +679,7 @@ export const startWizardSession = async ({
     } catch {
       identity = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
     }
+    followDeclaredRegion();
     publish(buildState());
   };
 
@@ -1090,11 +1123,14 @@ export const startWizardSession = async ({
         }
         return buildState();
       },
-      onPriceRegion: (region) => {
-        // A region already quoted, or being quoted, is not asked for twice. A failed quote for another region is.
-        if (region === (priceRegion ?? DEFAULT_PRICING_REGION)) return buildState();
-        priceRegion = region;
-        repriceInBackground();
+      onRegion: (region) => {
+        // A written file declares its region; it is picked before writing. Only a region the CLI deploys to can be
+        // written into the file.
+        if (configFile !== undefined || !(SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)) {
+          return buildState();
+        }
+        chosenRegion = region;
+        followDeclaredRegion();
         return buildState();
       },
       onPreference: (change: DeploymentPreferenceChange) => {
@@ -1110,7 +1146,11 @@ export const startWizardSession = async ({
         // Nothing composed means nothing to write. Not an error: a page that asks early is a page
         // that raced the run, and the state it gets back says plainly that there is no file.
         if (write === undefined || composition === undefined || deploymentInFlight()) return;
-        const written = await write({ composition, format, region: configTextRegion });
+        // Decided now, not when the preview was rendered: the identity check may have answered since.
+        const region = declaredRegion();
+        const written = await write({ composition, format, region });
+        // A later change of decisions rewrites the file to the region the user has already seen in it.
+        chosenRegion = written.region ?? region;
         configFile = { ...written, format };
         deployTarget = undefined;
         publish(buildState());

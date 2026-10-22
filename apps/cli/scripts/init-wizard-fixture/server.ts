@@ -293,7 +293,8 @@ const main = async () => {
       const composition = composeConfig({ facts, projectName, engineVersions: versionJson.rds });
       return { facts, composition, verification: [], completeness: checkFactsCompleteness(facts) };
     },
-    write: ({ composition, format }) => writeComposedConfig({ repositoryRoot, composition, format }),
+    write: ({ composition, format, region }) =>
+      writeComposedConfig({ repositoryRoot, composition, format, ...(region === undefined ? {} : { region }) }),
     verify: async ({ composition }) => {
       await sleep(300);
       if (scenario.verify === 'unavailable') return { status: 'unavailable', services: [] };

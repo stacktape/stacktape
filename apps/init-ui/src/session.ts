@@ -115,6 +115,8 @@ export type WizardState = {
     existingPath?: string;
     region?: string;
   };
+  /** The region the file declares: the written file's, otherwise the one writing it would declare. */
+  region?: string;
   /** Who this machine is to AWS. Absent until the check has answered. */
   awsIdentity?:
     | { available: true; accountId: string; arn: string; region?: string }
@@ -307,8 +309,8 @@ export type Session = {
   connectCodingAgent: () => Promise<WizardState>;
   /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
   recheck: () => Promise<WizardState>;
-  /** Price the configuration for the region picked on the Deploy step. The new price is published when it arrives. */
-  setPriceRegion: (region: string) => Promise<WizardState>;
+  /** Pick the region the file declares, before it is written. The preview follows; the new price arrives later. */
+  setRegion: (region: string) => Promise<WizardState>;
   /** Take one step of signing in to Stacktape. What it led to is in the returned state's `signIn`. */
   signIn: (request: SignInRequest) => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
@@ -474,14 +476,14 @@ export const connect = async (): Promise<Session> => {
       publish((await checked.json()) as WizardState);
       return current;
     },
-    setPriceRegion: async (region) => {
-      const priced = await fetch('/api/price-region', {
+    setRegion: async (region) => {
+      const priced = await fetch('/api/region', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
         body: JSON.stringify({ region })
       });
       if (!priced.ok) {
-        throw new SessionError('The price for that region could not be requested.');
+        throw new SessionError('That region could not be chosen.');
       }
       publish((await priced.json()) as WizardState);
       return current;

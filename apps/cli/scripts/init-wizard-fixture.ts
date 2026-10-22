@@ -270,7 +270,11 @@ const start = async () => {
     projectName: 'stacktape-init-demo',
     repositoryPath: process.cwd(),
     result: { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] },
-    write: async () => ({ path: `${process.cwd()}/stacktape.yml`, filename: 'stacktape.yml' }),
+    write: async ({ region }) => ({
+      path: `${process.cwd()}/stacktape.yml`,
+      filename: 'stacktape.yml',
+      ...(region === undefined ? {} : { region })
+    }),
     awsIdentity: async () => ({
       available: true,
       accountId: '123456789012',
