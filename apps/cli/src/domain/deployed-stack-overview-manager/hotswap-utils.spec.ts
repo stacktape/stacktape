@@ -1,8 +1,11 @@
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import { describe, expect, test } from 'bun:test';
+import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import {
   getTriggerOfUnchangedDeploymentScript,
+  compareEcsTaskDefinitions,
   isCodeOnlyFunctionChange,
+  isContentOnlyLayerChange,
   isImageOnlyTaskDefinitionChange
 } from './hotswap-utils';
 
@@ -116,4 +119,129 @@ describe('deployment scripts', () => {
     ).toBeUndefined();
     expect(getTriggerOfUnchangedDeploymentScript(change({ codeDigest: 'a' }, { codeDigest: 'b' }))).toBeUndefined();
   });
+});
+
+describe('shared chunk layers', () => {
+  const layer = (s3Key: string, extra: Record<string, unknown> = {}) => ({
+    LayerName: 'shop-prod-shared-chunk-layer-1',
+    Description: 'Shared chunk layer 1 for code splitting',
+    CompatibleRuntimes: ['nodejs22.x'],
+    Content: { S3Bucket: 'bucket', S3Key: s3Key },
+    ...extra
+  });
+
+  test.each([
+    ['new content', layer('shared-layer-1/bbbbbbbbbbbb.zip'), true],
+    ['the same content', layer('shared-layer-1/aaaaaaaaaaaa.zip'), true],
+    [
+      'new content in another bucket',
+      { ...layer('shared-layer-1/bbbbbbbbbbbb.zip'), Content: { S3Bucket: 'other', S3Key: 'x' } },
+      true
+    ],
+    ['a new runtime', layer('shared-layer-1/bbbbbbbbbbbb.zip', { CompatibleRuntimes: ['nodejs24.x'] }), false],
+    ['a new description', layer('shared-layer-1/bbbbbbbbbbbb.zip', { Description: 'renamed' }), false],
+    ['a new name', layer('shared-layer-1/bbbbbbbbbbbb.zip', { LayerName: 'other' }), false]
+  ])('%s', (_, after, fast) => {
+    expect(isContentOnlyLayerChange(change(layer('shared-layer-1/aaaaaaaaaaaa.zip'), after))).toBe(fast);
+  });
+
+  test('a function whose shared layers tag and code changed is still a code-only change', () => {
+    const fn = (digest: string, layers: string) => ({
+      Runtime: 'nodejs22.x',
+      Code: { S3Bucket: 'bucket', S3Key: `api/v000002-${digest}.zip` },
+      Layers: [{ 'Fn::GetAtt': ['StpSharedChunkLayer1LayerVersion', 'LayerVersionArn'] }],
+      Tags: [
+        { Key: 'stp:code-digest', Value: digest },
+        { Key: 'stp:shared-layers', Value: layers }
+      ]
+    });
+    expect(isCodeOnlyFunctionChange(change(fn('d1', '1:aaaaaaaaaaaa'), fn('d2', '1:bbbbbbbbbbbb')))).toBe(true);
+    // The tag appearing for the first time, on a stack deployed before layers were tagged, is a code-only change too.
+    const untagged = fn('d1', '');
+    untagged.Tags = untagged.Tags.filter(({ Key }) => Key === 'stp:code-digest');
+    expect(isCodeOnlyFunctionChange(change(untagged, fn('d2', '1:bbbbbbbbbbbb')))).toBe(true);
+    expect(isCodeOnlyFunctionChange(change(fn('d1', '1:a'), { ...fn('d2', '1:b'), Layers: [] }))).toBe(false);
+  });
+
+  // The differences the deploy judges come from the template differ, not from hand-made objects.
+  test('a shared change in a real template diff changes only the layer content and the functions’ code', () => {
+    const template = (hash: string) => ({
+      Resources: {
+        StpSharedChunkLayer1LayerVersion: {
+          Type: 'AWS::Lambda::LayerVersion',
+          Properties: layer(`shared-layer-1/${hash}.zip`)
+        },
+        ApiFunction: {
+          Type: 'AWS::Lambda::Function',
+          Properties: {
+            Code: { S3Bucket: 'bucket', S3Key: `api/v000002-${hash}.zip` },
+            Layers: [{ 'Fn::GetAtt': ['StpSharedChunkLayer1LayerVersion', 'LayerVersionArn'] }],
+            Tags: [
+              { Key: 'stp:code-digest', Value: hash },
+              { Key: 'stp:shared-layers', Value: `1:${hash}` }
+            ]
+          }
+        }
+      }
+    });
+    const diff = diffTemplate(template('aaaaaaaaaaaa'), template('bbbbbbbbbbbb'));
+    expect(Object.keys(diff.resources.changes).toSorted()).toEqual(['ApiFunction', 'StpSharedChunkLayer1LayerVersion']);
+    expect(isContentOnlyLayerChange(diff.resources.changes.StpSharedChunkLayer1LayerVersion!)).toBe(true);
+    expect(isCodeOnlyFunctionChange(diff.resources.changes.ApiFunction!)).toBe(true);
+  });
+});
+
+test('ECS container ordering does not turn an image-only update into a task configuration change', () => {
+  const current = {
+    containerDefinitions: [
+      { name: 'stp-cloudmap-drain', image: 'drain:1', essential: false },
+      {
+        name: 'service-container',
+        image: 'app:1',
+        essential: true,
+        environment: [{ name: 'MODE', value: 'production' }]
+      }
+    ]
+  };
+  const calculated: Parameters<typeof compareEcsTaskDefinitions>[0]['calculatedTaskDefinition'] = {
+    Type: 'AWS::ECS::TaskDefinition',
+    Properties: {
+      ContainerDefinitions: [
+        {
+          Name: 'service-container',
+          Image: 'app:2',
+          Essential: true,
+          Environment: [{ Name: 'MODE', Value: 'production' }]
+        },
+        { Name: 'stp-cloudmap-drain', Image: 'drain:1', Essential: false }
+      ]
+    }
+  };
+  expect(
+    compareEcsTaskDefinitions({
+      currentTaskDefinition: current,
+      calculatedTaskDefinition: calculated,
+      ignoreImages: true
+    }).needsUpdate
+  ).toBe(false);
+  expect(
+    compareEcsTaskDefinitions({ currentTaskDefinition: current, calculatedTaskDefinition: calculated }).needsUpdate
+  ).toBe(true);
+  current.containerDefinitions[0]!.image = 'drain:2';
+  expect(
+    compareEcsTaskDefinitions({
+      currentTaskDefinition: current,
+      calculatedTaskDefinition: calculated,
+      ignoreImages: true
+    }).needsUpdate
+  ).toBe(true);
+  current.containerDefinitions[0]!.image = 'drain:1';
+  current.containerDefinitions[1]!.environment![0]!.value = 'changed';
+  expect(
+    compareEcsTaskDefinitions({
+      currentTaskDefinition: current,
+      calculatedTaskDefinition: calculated,
+      ignoreImages: true
+    }).needsUpdate
+  ).toBe(true);
 });

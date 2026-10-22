@@ -9,44 +9,31 @@ export const commandOrgDelete = async () => {
 
   const { apiClient } = await initializeControlPlaneOperation({ args });
   const organizations = await apiClient.listOrganizations();
-
-  if (!organizations.length) {
-    throw new ExpectedError('CLI', 'No organizations found for this user.');
+  // An API key acts in one organization, and the Console deletes only that one.
+  const currentOrganization = organizations.find((organization) => organization.isCurrent);
+  if (!currentOrganization) {
+    throw new ExpectedError('CLI', 'The organization of your API key was not found.');
   }
 
   const organizationIdFromArgs = args.organizationId?.trim();
-  let organizationId = organizationIdFromArgs;
-
-  if (agentMode) {
-    if (!organizationId) {
-      throw new ExpectedError(
-        'CLI',
-        'Missing required flag: --organizationId',
-        'Provide --organizationId <organization-id>'
-      );
-    }
-  } else if (!organizationId) {
-    organizationId = await tuiManager.promptSelect({
-      message: 'Choose organization to delete:',
-      options: organizations.map((organization) => ({
-        value: organization.id,
-        label: `${organization.name}${organization.isCurrent ? ' (current)' : ''}`
-      }))
-    });
-  }
-
-  const selectedOrganization = organizations.find((organization) => organization.id === organizationId);
-  if (!selectedOrganization) {
+  if (agentMode && !organizationIdFromArgs) {
     throw new ExpectedError(
       'CLI',
-      `Organization with ID ${organizationId} is not available to this user.`,
-      `Available IDs: ${organizations.map((organization) => organization.id).join(', ')}`
+      'Missing required flag: --organization-id',
+      `Provide --organization-id ${currentOrganization.id} to delete ${currentOrganization.name}.`
+    );
+  }
+  if (organizationIdFromArgs && organizationIdFromArgs !== currentOrganization.id) {
+    throw new ExpectedError(
+      'CLI',
+      `Only the organization of your API key, ${currentOrganization.name} (${currentOrganization.id}), can be deleted.`,
+      `To delete organization ${organizationIdFromArgs}, log in with an API key of that organization, then run this command again.`
     );
   }
 
   if (!agentMode) {
     const confirmed = await tuiManager.promptConfirm({
-      message: `Remove your access to organization ${tuiManager.makeBold(selectedOrganization.name)}?`,
+      message: `Delete organization ${tuiManager.makeBold(currentOrganization.name)}? Its API keys stop working.`,
       defaultValue: false
     });
     if (!confirmed) {
@@ -55,7 +42,8 @@ export const commandOrgDelete = async () => {
     }
   }
 
-  const result = await apiClient.deleteOrganization({ id: selectedOrganization.id });
-  tuiManager.success(`Access to organization ${tuiManager.makeBold(selectedOrganization.name)} removed.`);
+  const result = await apiClient.deleteOrganization({ id: currentOrganization.id });
+  tuiManager.success(`Organization ${tuiManager.makeBold(currentOrganization.name)} deleted.`);
+  tuiManager.hint('Log in with an API key of another organization to keep using Stacktape.');
   return result;
 };

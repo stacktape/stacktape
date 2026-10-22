@@ -4,6 +4,7 @@
  * machine-readable result record and the CloudFormation stack the emulator holds; the family table owns the effect
  * assertions.
  */
+import type { SecurityScanningLevel } from '@stacktape/console-api/security';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -66,12 +67,12 @@ export const createFamilyProject = async ({
   familyName,
   out,
   ministack,
-  securityScanningEnabled = false
+  securityScanning = 'OFF'
 }: {
   familyName: string;
   out: string;
   ministack: MiniStack;
-  securityScanningEnabled?: boolean;
+  securityScanning?: SecurityScanningLevel;
 }): Promise<FamilyProject> => {
   const projectName = `mini${familyName.replaceAll(/[^a-z0-9]/gi, '')}`.toLowerCase();
   const directory = join(out, familyName);
@@ -86,7 +87,12 @@ export const createFamilyProject = async ({
   const controlPlane = await startControlPlaneFake({
     projectName,
     awsAccountId: ministack.defaultAccount.accountId,
-    securityScanningEnabled
+    securityScanning
+  });
+  // The CLI writes this endpoint into the service Lambda's environment; MiniStack runs that Lambda in its container.
+  await ministack.forwardHostPort(Number(new URL(controlPlane.endpoint).port)).catch(async (error) => {
+    await controlPlane.close();
+    throw error;
   });
   return {
     projectName,

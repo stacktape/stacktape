@@ -1,11 +1,11 @@
-# aws-profile:delete
+# aws-profile delete
 
-The `aws-profile:delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
+The `aws-profile delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
 
 ## Usage
 
 ```bash
-stacktape aws-profile:delete
+stacktape aws-profile delete
 ```
 
 The command is fully interactive — it reads all profiles configured in your AWS credentials and config files, then prompts you to select which one to delete. No flags are required.
@@ -17,11 +17,13 @@ The command is fully interactive — it reads all profiles configured in your AW
 ## Arguments reference
 
 
-## CLI Options: `stacktape aws-profile:delete`
+## CLI Options: `stacktape aws-profile delete`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Examples
@@ -29,11 +31,11 @@ The command is fully interactive — it reads all profiles configured in your AW
 Delete a profile with debug logging enabled:
 
 ```bash
-stacktape aws-profile:delete --logLevel debug
+stacktape aws-profile delete --debug
 ```
 
 ## Related commands
 
-- [`aws-profile:create`](/cli/aws-profile-create) — create a new AWS profile on your system.
-- [`aws-profile:update`](/cli/aws-profile-update) — update credentials for an existing AWS profile.
-- [`aws-profile:list`](/cli/aws-profile-list) — list all AWS profiles configured on your system.
+- [`aws-profile create`](/cli/aws-profile-create) — create a new AWS profile on your system.
+- [`aws-profile update`](/cli/aws-profile-update) — update credentials for an existing AWS profile.
+- [`aws-profile list`](/cli/aws-profile-list) — list all AWS profiles configured on your system.

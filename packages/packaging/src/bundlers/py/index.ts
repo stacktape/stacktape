@@ -60,7 +60,7 @@ export const buildPythonArtifact = async ({
     description: 'Calculating checksum for caching'
   });
   const artifactFileSelection = await resolveArtifactFileSelection({ cwd, includeFiles, lambdaZip });
-  const dependencyFilePath = await resolvePythonDependencyFile({
+  const dependencyFilePath = resolvePythonDependencyFile({
     cwd,
     sourcePath,
     packageManagerFile: languageSpecificConfig?.packageManagerFile

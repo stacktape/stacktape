@@ -1,16 +1,10 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-  Client,
-  ProtocolError,
-  ProtocolErrorCode,
-  isInputRequiredResult,
-  type InputRequiredResult
-} from '@modelcontextprotocol/client';
+import { Client, isInputRequiredResult, type InputRequiredResult } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { getPlatform } from '@utils/bin-executable';
 import { isWindowsPlatform } from '@utils/platform';
@@ -136,6 +130,19 @@ const envelope = (result: Awaited<ReturnType<Client['callTool']>>): Envelope => 
   assert.equal(result.isError, !parsed.ok);
   return parsed;
 };
+
+// Project-level agent config files; the CLI's own `.stacktape` folder is not one of them.
+const PROJECT_AGENT_CONFIGS = [
+  '.mcp.json',
+  '.cursor',
+  '.vscode',
+  '.codex',
+  '.opencode',
+  'opencode.json',
+  'opencode.jsonc'
+];
+const agentConfigsIn = async (directory: string) =>
+  (await readdir(directory)).filter((name) => PROJECT_AGENT_CONFIGS.includes(name));
 
 const deadline = async <T>(promise: Promise<T>, label: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout>;
@@ -316,13 +323,11 @@ const verify = async () => {
       env,
       stderr: 'pipe'
     });
+    // Most agents still negotiate a 2025 revision through `initialize`; they must get every tool, not an empty list.
     try {
-      await assert.rejects(legacyClient.connect(legacyTransport, { timeout: 5_000 }), (error: unknown) => {
-        assert(error instanceof ProtocolError);
-        assert.equal(error.code, ProtocolErrorCode.UnsupportedProtocolVersion);
-        assert.deepEqual((error.data as { supported: string[] }).supported, ['2026-07-28']);
-        return true;
-      });
+      await legacyClient.connect(legacyTransport, { timeout: 30_000 });
+      assert.equal(legacyClient.getNegotiatedProtocolVersion(), '2025-11-25');
+      assert.equal((await legacyClient.listTools()).tools.length, 5);
     } finally {
       await legacyClient.close();
       await legacyTransport.close();
@@ -419,14 +424,28 @@ const verify = async () => {
       )
     );
     for (const [route, expected] of [
-      ['/cli/aws-profile-update', '--logLevel'],
-      ['/getting-started/starter-projects', 'stacktape init --starterId'],
+      ['/cli/aws-profile-update', '--log-level'],
+      ['/getting-started/starter-projects', 'stacktape init --starter-id'],
       ['/config-reference/alarms', 'notificationChannels']
     ]) {
       const rendered = await call('stacktape_docs', { action: 'get', route, includeFullPage: true });
       assert.equal(rendered.ok, true);
       assert(String(rendered.data?.content).includes(expected), `${route}: missing rendered content ${expected}`);
       assert(!String(rendered.data?.content).includes('@@LLM_DOCS_'));
+    }
+    const errorCommands = await call('stacktape_cli', { action: 'list', category: 'errors' });
+    assert.equal(errorCommands.ok, true);
+    const errorCommandNames = (errorCommands.data?.commands as Array<{ command: string }>).map(
+      ({ command }) => command
+    );
+    for (const action of ['list', 'ignore', 'resolve', 'reopen']) {
+      assert(errorCommandNames.includes(`error ${action}`));
+      const described = await call('stacktape_cli', { action: 'describe', command: `errors:${action}` });
+      assert.equal(described.ok, true);
+      assert.equal(described.data?.safety, action === 'list' ? 'readOnly' : 'mutating');
+      const removed = await call('stacktape_cli', { action: 'describe', command: `issues:${action}` });
+      assert.equal(removed.ok, true, 'Legacy command spellings remain supported');
+      assert.equal(removed.data?.canonicalCommand, `errors:${action}`);
     }
     const listed = await call('stacktape_cli', { action: 'list', category: 'deployment' });
     assert((listed.data?.commands as Array<{ command: string }>).some((command) => command.command === 'deploy'));
@@ -456,7 +475,7 @@ const verify = async () => {
     assert.equal((override.data?.args as Record<string, unknown>).autoConfirmOperation, true);
     for (const [safety, commands] of [
       ['destructive', ['delete', 'secret:delete', 'aws-profile:delete', 'org:delete']],
-      ['mutating', ['deploy', 'rollback', 'domain:add', 'issues:resolve', 'container:exec']],
+      ['mutating', ['deploy', 'rollback', 'domain:add', 'errors:resolve', 'container:exec']],
       ['interactive', ['login', 'init', 'dev', 'dev:stop', 'bastion:session', 'bastion:tunnel', 'container:session']]
     ] as const) {
       for (const command of commands) {
@@ -567,20 +586,17 @@ const verify = async () => {
     );
     const otherProject = join(directory, 'explicit-cwd');
     await mkdir(otherProject);
-    await writeFile(join(otherProject, 'package.json'), JSON.stringify({ dependencies: { stacktape: '*' } }));
-    const installed = await call('stacktape_cli', {
+    const removed = await call('stacktape_cli', {
       action: 'run',
-      command: 'mcp:add',
+      command: 'mcp:remove',
       cwd: otherProject,
       confirm: true
     });
-    assert.equal(installed.ok, true);
-    const context = installed.data?.resolvedContext as { cwd: string };
+    assert.equal(removed.ok, true);
+    const context = removed.data?.resolvedContext as { cwd: string };
     assert.equal(await realpath(context.cwd), await realpath(otherProject));
-    const otherConfig = JSON.parse(await readFile(join(otherProject, '.mcp.json'), 'utf8'));
-    assert.equal(otherConfig.mcpServers.stacktape.command, 'node_modules/.bin/stacktape');
-    await assert.rejects(stat(join(project, '.mcp.json')), { code: 'ENOENT' });
-    console.info('PASS executable MCP explicit cwd writes only the selected project');
+    assert.deepEqual(await agentConfigsIn(otherProject), [], 'Agent setup must never write into a project');
+    console.info('PASS executable MCP explicit cwd reaches the CLI child');
     const scan = await call('stacktape_project', { action: 'scan' });
     assert.equal(scan.ok, true);
     assert.deepEqual(scan.data?.suggestedDefaults, { configPath: 'stacktape.ts', currentWorkingDirectory: '.' });
@@ -647,8 +663,7 @@ const verify = async () => {
       ['query:dynamodb', { stage: 'dev', region: 'eu-west-1', resourceName: 'data', operation: 'write' }],
       ['query:opensearch', { stage: 'dev', region: 'eu-west-1', resourceName: 'search', operation: 'write' }],
       ['secret:set', { region: 'eu-west-1', secretName: 'db.password' }],
-      ['secret:get', { region: 'eu-west-1' }],
-      ['package', { stage: 'dev', region: 'eu-west-1', configPath: 'stacktape.ts' }]
+      ['secret:get', { region: 'eu-west-1' }]
     ] as const) {
       assert.equal(
         (await call('stacktape_cli', { action: 'run', command, args, confirm: true })).code,
@@ -656,6 +671,19 @@ const verify = async () => {
         command
       );
     }
+    // A project's Stacktape package script supplies the project name; a folder without one still has to name it.
+    assert.equal(
+      (
+        await call('stacktape_cli', {
+          action: 'run',
+          command: 'package',
+          cwd: home,
+          args: { stage: 'dev', region: 'eu-west-1', configPath: 'stacktape.ts' },
+          confirm: true
+        })
+      ).code,
+      'VALIDATION_ERROR'
+    );
     assert.equal((await call('stacktape_incident', { action: 'show' })).code, 'VALIDATION_ERROR');
     assert.equal(
       (await call('stacktape_cli', { action: 'describe', command: 'aws:call' })).data?.requiresConfirmation,
@@ -855,128 +883,130 @@ const waitForExit = async (pid: number) => {
   throw new Error(`CLI child ${pid} did not exit`);
 };
 
+type AgentOutcome = { agent: string; ok: boolean; server?: { change: string } };
+
+// `mcp:add` and `mcp:remove` against a home directory with five agents installed and none of their commands on PATH:
+// user-level entries only, the user's own content kept, backups, idempotence, and refusal to touch broken files.
 const verifyClientConfigs = async (binary: string, project: string, env: Record<string, string>) => {
-  const run = async (overrides: Record<string, string> = {}, cwd = project) => {
-    const process = Bun.spawn({
-      cmd: [binary, 'mcp:add', '--agent'],
-      cwd,
-      env: { ...env, ...overrides },
+  const home = `${project}-agents-home`;
+  const xdg = join(home, '.config');
+  const agentEnv = { ...env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: xdg, PATH: join(home, 'no-tools') };
+  const run = async (command: 'mcp:add' | 'mcp:remove') => {
+    const child = Bun.spawn({
+      cmd: [binary, command, '--agent'],
+      cwd: project,
+      env: agentEnv,
       stdout: 'pipe',
-      stderr: 'pipe',
-      timeout: 30_000
+      stderr: 'pipe'
     });
-    const [stdout, stderr, status] = await Promise.all([
-      new Response(process.stdout).text(),
-      new Response(process.stderr).text(),
-      process.exited
-    ]);
-    assert.equal(status, 0, `mcp:add failed: ${stderr}`);
+    const [stdout, status] = await Promise.all([new Response(child.stdout).text(), child.exited]);
     const result = stdout
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line) as { type: string; data?: { result?: { result?: Record<string, unknown> } } })
+      .map((line) => JSON.parse(line) as { type: string; data?: { result?: { result?: { agents?: AgentOutcome[] } } } })
       .find(({ type }) => type === 'result');
-    assert(result, 'mcp:add must emit a final agent result');
-    return result.data?.result?.result;
+    const agents = result?.data?.result?.result?.agents ?? [];
+    const count = (change: string) => agents.filter((agent) => agent.ok && agent.server?.change === change).length;
+    return { status, count };
   };
-  assert.equal((await run())?.created, 6);
-  const targets = [
-    ['.mcp.json', 'mcpServers', 'claude-code'],
-    ['.cursor/mcp.json', 'mcpServers', 'cursor'],
-    ['.vscode/mcp.json', 'servers', 'vscode'],
-    ['opencode.jsonc', 'mcp', 'opencode'],
-    ['.codeium/windsurf/mcp_config.json', 'mcpServers', 'windsurf']
+
+  const json: Array<[string, string, string]> = [
+    [join(home, '.cursor', 'mcp.json'), 'mcpServers', 'cursor'],
+    [join(xdg, 'Code', 'User', 'mcp.json'), 'servers', 'vscode'],
+    [join(xdg, 'opencode', 'opencode.json'), 'mcp', 'opencode'],
+    [join(home, '.codeium', 'windsurf', 'mcp_config.json'), 'mcpServers', 'windsurf']
   ];
-  for (const [path, rootKey, name] of targets) {
-    const config = JSON.parse(await readFile(join(project, path), 'utf8')) as Record<
-      string,
-      Record<string, Record<string, unknown>>
-    >;
+  for (const [path] of json) await mkdir(join(path, '..'), { recursive: true });
+  const codexPath = join(home, '.codex', 'config.toml');
+  await mkdir(join(codexPath, '..'), { recursive: true });
+  // Claude Code's state file is only ever changed by `claude mcp add`; without that command it must stay untouched.
+  const claudeState = '{"mcpServers":{"other":{"command":"j12-other"}}}';
+  await writeFile(join(home, '.claude.json'), claudeState);
+
+  const added = await run('mcp:add');
+  assert.equal(added.status, 0);
+  assert.equal(added.count('created'), 5);
+  assert.deepEqual(await agentConfigsIn(project), [], 'Agent setup must never write into a project');
+  for (const [path, rootKey, name] of json) {
+    const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, Record<string, Record<string, unknown>>>;
     const expected =
       name === 'opencode'
-        ? {
-            type: 'local',
-            command: ['node_modules/.bin/stacktape', 'mcp'],
-            enabled: true,
-            environment: { STACKTAPE_MCP_CLIENT_NAME: name }
-          }
+        ? { type: 'local', command: [binary, 'mcp'], enabled: true, environment: { STACKTAPE_MCP_CLIENT_NAME: name } }
         : {
             ...(name === 'windsurf' ? {} : { type: 'stdio' }),
-            command: 'node_modules/.bin/stacktape',
+            command: binary,
             args: ['mcp'],
             env: { STACKTAPE_MCP_CLIENT_NAME: name }
           };
     assert.deepEqual(config[rootKey].stacktape, expected, `${name} MCP launch configuration`);
-    // Preserve another server and unrelated client options, and keep an exact backup before replacing the config.
+    // An outdated entry next to another server, unrelated options and a comment: only the entry may change.
+    config[rootKey].stacktape = { command: 'old' };
     config[rootKey].other = { command: 'j12-other' };
     config.theme = { name: { value: 'dark' } };
-    const original = `${JSON.stringify(config)}\n`;
-    await writeFile(join(project, path), original);
+    await writeFile(path, `// keep me\n${JSON.stringify(config, null, 2)}\n`);
   }
-  const codexPath = join(project, '.codex/config.toml');
-  const codex = Bun.TOML.parse(await readFile(codexPath, 'utf8')) as {
-    mcp_servers: { stacktape: Record<string, unknown> };
-  };
+  const codex = Bun.TOML.parse(await readFile(codexPath, 'utf8')) as { mcp_servers: { stacktape: unknown } };
   assert.deepEqual(codex.mcp_servers.stacktape, {
-    command: 'node_modules/.bin/stacktape',
+    command: binary,
     args: ['mcp'],
-    enabled: true,
     env: { STACKTAPE_MCP_CLIENT_NAME: 'codex' }
   });
   await writeFile(
     codexPath,
     '[mcp_servers.stacktape]\ncommand = "old"\n\n[mcp_servers.other]\ncommand = "j12-other"\n\n[mcp_servers.stacktape.env]\nSTALE = "remove-me"\n'
   );
-  assert.equal((await run())?.updated, 6);
+
+  assert.equal((await run('mcp:add')).count('updated'), 5);
   const updatedCodex = Bun.TOML.parse(await readFile(codexPath, 'utf8')) as {
-    mcp_servers: { stacktape: Record<string, unknown>; other: Record<string, unknown> };
+    mcp_servers: { stacktape: unknown; other: { command: string } };
   };
   assert.deepEqual(updatedCodex.mcp_servers.stacktape, codex.mcp_servers.stacktape);
   assert.equal(updatedCodex.mcp_servers.other.command, 'j12-other');
-  for (const [path, rootKey] of targets) {
-    const config = JSON.parse(await readFile(join(project, path), 'utf8'));
+  for (const [path, rootKey] of json) {
+    const text = await readFile(path, 'utf8');
+    assert(text.startsWith('// keep me'), `${path} lost its comment`);
+    const config = Bun.JSONC.parse(text) as Record<string, Record<string, { command: string }>> & {
+      theme: { name: { value: string } };
+    };
     assert.equal(config[rootKey].other.command, 'j12-other');
     assert.equal(config.theme.name.value, 'dark');
-    const backups = (await readdir(join(project, path, '..'))).filter((name) =>
-      name.startsWith(path.split('/').at(-1)! + '.bak.')
-    );
-    assert.equal(backups.length, 1);
-    const backup = JSON.parse(await readFile(join(project, path, '..', backups[0]), 'utf8'));
-    assert.equal(backup[rootKey].other.command, 'j12-other');
+    const fileName = path.split(/[\\/]/).at(-1)!;
+    const backups = (await readdir(join(path, '..'))).filter((name) => name.startsWith(`${fileName}.bak.`));
+    assert.equal(backups.length, 1, `${path} needs exactly one backup`);
   }
-  assert.equal((await run())?.unchanged, 6, 'Repeated installation should not rewrite configs');
-  const validCodexRaw = await readFile(codexPath, 'utf8');
-  const literalHeaders = 'note = """\n[mcp_servers.stacktape]\nkeep this user text\n[unrelated]\n"""\n' + validCodexRaw;
-  await writeFile(codexPath, literalHeaders);
-  assert.equal((await run())?.failed, 1, 'Unsupported TOML must fail safely instead of changing unrelated values');
-  assert.equal(
-    await readFile(codexPath, 'utf8'),
-    literalHeaders,
-    'Table-looking text inside a multiline string must remain intact'
-  );
-  await writeFile(codexPath, validCodexRaw);
-  const invalidPath = join(project, '.cursor/mcp.json');
-  await writeFile(invalidPath, '{ invalid json');
-  assert.equal((await run())?.failed, 1);
-  assert.equal(await readFile(invalidPath, 'utf8'), '{ invalid json', 'Invalid config must remain intact');
-  await writeFile(codexPath, '[invalid TOML');
-  assert.equal((await run())?.failed, 2);
-  assert.equal(await readFile(codexPath, 'utf8'), '[invalid TOML', 'Invalid TOML must remain intact');
+  assert.equal((await run('mcp:add')).count('unchanged'), 5, 'Repeated installation should not rewrite configs');
 
-  const globalHome = `${project}-home`;
-  const otherProject = join(project, 'other-project');
-  await mkdir(globalHome);
-  await mkdir(otherProject);
-  await writeFile(join(globalHome, '.claude.json'), '{"mcpServers":{"other":{"command":"j12-other"}}}');
-  // The home shares the project path's prefix but is outside it. A user config must use the global executable.
-  await rm(join(project, '.mcp.json'));
-  const globalResult = await run({ HOME: globalHome, USERPROFILE: globalHome }, project);
-  assert.equal(globalResult?.failed, 2);
-  const globalConfig = JSON.parse(await readFile(join(globalHome, '.claude.json'), 'utf8'));
-  assert.equal(globalConfig.mcpServers.stacktape.command, 'stacktape');
-  // With no local dependency, a project config also uses the executable found on PATH.
-  assert.equal((await run({ HOME: globalHome, USERPROFILE: globalHome }, otherProject))?.unchanged, 1);
-  console.info('PASS executable mcp:add client formats, preservation, backups, idempotence and invalid input');
+  // Table-looking text inside a multi-line string is content, not a table.
+  const validCodex = await readFile(codexPath, 'utf8');
+  const literalHeaders = `note = """\n[mcp_servers.stacktape]\nkeep this user text\n[unrelated]\n"""\n${validCodex}`;
+  await writeFile(codexPath, literalHeaders);
+  assert.equal((await run('mcp:add')).status, 0);
+  assert.equal(await readFile(codexPath, 'utf8'), literalHeaders, 'Multi-line string content must remain intact');
+  await writeFile(codexPath, validCodex);
+
+  const invalidPath = json[0][0];
+  await writeFile(invalidPath, '{ invalid json');
+  assert.notEqual((await run('mcp:add')).status, 0, 'A broken config must fail the setup');
+  assert.equal(await readFile(invalidPath, 'utf8'), '{ invalid json', 'Invalid config must remain intact');
+  await rm(invalidPath);
+  await writeFile(codexPath, '[invalid TOML');
+  assert.notEqual((await run('mcp:add')).status, 0);
+  assert.equal(await readFile(codexPath, 'utf8'), '[invalid TOML', 'Invalid TOML must remain intact');
+  await writeFile(codexPath, validCodex);
+  assert.equal((await run('mcp:add')).status, 0);
+  assert.equal(await readFile(join(home, '.claude.json'), 'utf8'), claudeState, "Claude Code's state file was edited");
+
+  const removed = await run('mcp:remove');
+  assert.equal(removed.status, 0);
+  assert.equal(removed.count('removed'), 5);
+  for (const [path, rootKey] of json.slice(1)) {
+    const config = Bun.JSONC.parse(await readFile(path, 'utf8')) as Record<string, Record<string, unknown>>;
+    assert.equal(config[rootKey].stacktape, undefined);
+    assert.deepEqual(config[rootKey].other, { command: 'j12-other' });
+  }
+  console.info(
+    'PASS executable mcp:add/mcp:remove user-level formats, preservation, backups, idempotence and invalid input'
+  );
 };
 
 verify().catch((error: unknown) => {

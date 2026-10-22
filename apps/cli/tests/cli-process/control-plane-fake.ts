@@ -3,6 +3,7 @@
  * uses. It answers the few procedures a stack operation needs, records every call, and refuses anything else with a
  * tRPC `NOT_FOUND` error so an unexpected dependency on the Console shows up in the test instead of hanging.
  */
+import type { SecurityScanningLevel } from '@stacktape/console-api/security';
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
@@ -33,23 +34,36 @@ const listen = (server: Server) =>
     });
   });
 
+class ProcedureRefusal extends Error {
+  constructor(
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
 export const startControlPlaneFake = async ({
   projectName,
   permissions = ['deployments:delete-non-production', 'deployments:delete-production', 'deployments:deploy'],
   awsAccountId = FAKE_AWS_ACCOUNT_ID,
-  securityScanningEnabled = false,
+  securityScanning = 'OFF',
   connectedAwsAccounts,
-  awsAccountCredentials
+  awsAccountCredentials,
+  freePlanLimit
 }: {
   projectName: string;
   permissions?: string[];
   /** The connected account's ID; the CLI compares it with STS, so an emulator-backed run passes the emulator's. */
   awsAccountId?: string;
-  securityScanningEnabled?: boolean;
+  /** Every connected account's scanning level; off keeps runs from downloading Trivy. */
+  securityScanning?: SecurityScanningLevel;
   /** Replaces the single default connection, for scenarios that choose between accounts. */
   connectedAwsAccounts?: Array<{ name: string; awsAccountId: string; connectionMode: 'BASIC' | 'PRIVILEGED' }>;
   /** Answers `awsAccountCredentials` for privileged connections with these keys per account name. */
   awsAccountCredentials?: Record<string, { accessKeyId: string; secretAccessKey: string }>;
+  /** A Free organization over its cost limit: `canDeploy` refuses, and so does recording a deploy, as the API does. */
+  freePlanLimit?: { monthToDateCostsUsd: number; limitUsd: number; month: string; upgradeUrl: string };
 }): Promise<ControlPlaneFake> => {
   const calls: ControlPlaneCall[] = [];
   const unexpectedProcedures: string[] = [];
@@ -61,7 +75,6 @@ export const startControlPlaneFake = async ({
         id: 'org-cli-process',
         name: 'CLI process organization',
         role: 'OWNER',
-        securityScanningEnabled,
         issuesEnabled: false
       },
       connectedAwsAccounts: (
@@ -72,6 +85,7 @@ export const startControlPlaneFake = async ({
         state: 'ACTIVE',
         primaryRegions: ['eu-west-1'],
         defaultRegion: 'eu-west-1',
+        securityScanning,
         ...account
       })),
       projects: [
@@ -86,7 +100,12 @@ export const startControlPlaneFake = async ({
       permissions,
       isProjectScoped: false
     }),
-    recordStackOperation: () => ({ recorded: true }),
+    recordStackOperation: (input) => {
+      if (freePlanLimit && (input as { command?: string }).command === 'deploy') {
+        throw new ProcedureRefusal('FORBIDDEN', 'Deploys are paused for this organization.');
+      }
+      return { recorded: true };
+    },
     recordSecurityReport: () => ({ accepted: true }),
     globalConfig: () => ({ alarms: [], notificationChannels: [], deploymentNotifications: [], guardrails: [] }),
     syncUptimeChecks: () => ({ missingChannelNames: [] }),
@@ -95,9 +114,15 @@ export const startControlPlaneFake = async ({
       certDomainSuffix: '.stacktape-app.com',
       version: 1
     }),
-    canDeploy: () => ({ canDeploy: true }),
+    canDeploy: () =>
+      freePlanLimit
+        ? { canDeploy: false, message: 'Deploys are paused for this organization.', freePlanLimit }
+        : { canDeploy: true },
     reportEvent: () => ({ accepted: true }),
     deleteUndeployedStageFromCli: () => ({ deleted: true }),
+    // The AWS-identity procedures a stack's default-domain custom resource calls from inside the deployment.
+    upsertDefaultDomainDnsRecord: () => null,
+    deleteDefaultDomainDnsRecord: () => null,
     ...(awsAccountCredentials
       ? {
           awsAccountCredentials: (input: unknown) => {
@@ -146,7 +171,14 @@ export const startControlPlaneFake = async ({
           }
         };
       }
-      return { result: { data: answer(input) } };
+      try {
+        return { result: { data: answer(input) } };
+      } catch (error) {
+        if (!(error instanceof ProcedureRefusal)) throw error;
+        return {
+          error: { message: error.message, code: -32003, data: { code: error.code, httpStatus: 403, path: procedure } }
+        };
+      }
     });
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(isBatch ? results : results[0]));

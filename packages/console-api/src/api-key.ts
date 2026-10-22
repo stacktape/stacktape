@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { GuardrailDefinition } from './guardrails.js';
-import type { RecordSecurityReportParams, RecordSecurityReportResponse } from './security.js';
+import type { RecordSecurityReportParams, RecordSecurityReportResponse, SecurityScanningLevel } from './security.js';
 import { sourceMapManifestSchema } from './source-maps.js';
 
 /**
@@ -163,7 +163,12 @@ export const awsAccountCredentialsInputSchema = z.object({
 export const defaultDomainsInfoInputSchema = z.object({
   stackName: z.string(),
   region: z.string(),
-  awsAccountId: z.string()
+  awsAccountId: z.string(),
+  /**
+   * The default-domain version of the deployed stack's existing default domains, read by the CLI from the deployed
+   * template; `null` when the stack has none. CLIs that omit it get the version the Console reads from the stack.
+   */
+  deployedVersion: z.number().int().positive().nullable().optional()
 });
 
 export const createProjectFromCliInputSchema = z.object({
@@ -220,11 +225,11 @@ export const listIncidentsInputSchema = z.object({
 
 export const incidentActionInputSchema = z.object({ incidentId: z.string() });
 
-/** The providers whose subscription a member can connect from the CLI, as `--aiProvider` names them. */
+/** The providers whose subscription a member can connect from the CLI, as the `ai connect` command names them. */
 export const aiSubscriptionProviderSchema = z.enum(['claude', 'codex', 'grok', 'opencode']);
 
 /**
- * `stacktape ai:connect`: a member's own sign-in with one provider, as that provider's agent keeps it. Claude: the
+ * `stacktape ai connect`: a member's own sign-in with one provider, as that provider's agent keeps it. Claude: the
  * token `claude setup-token` prints. Codex: the ChatGPT tokens `codex login` writes, never an API key. Grok and
  * OpenCode: the sign-in file `grok login` or `opencode auth login` writes.
  */
@@ -248,7 +253,7 @@ export const connectAiSubscriptionInputSchema = z.discriminatedUnion('provider',
   z.object({ provider: z.literal('opencode'), authFile: z.record(z.string().max(200), z.unknown()) }).strict()
 ]);
 
-/** `stacktape ai:disconnect`: the provider whose sign-in to remove. */
+/** `stacktape ai disconnect`: the provider whose sign-in to remove. */
 export const disconnectAiSubscriptionInputSchema = z.object({ provider: aiSubscriptionProviderSchema }).strict();
 
 /**
@@ -452,8 +457,6 @@ export type CurrentUserAndOrgDataResponse = {
     id: string;
     name: string;
     role: string;
-    /** The organization-wide switch for security scanning; the CLI skips its evaluation when this is false. */
-    securityScanningEnabled?: boolean;
     /** The organization-wide Issues switch; the Console enforces it when error events arrive. */
     issuesEnabled?: boolean;
     [otherProperties: string]: unknown;
@@ -468,6 +471,8 @@ export type CurrentUserAndOrgDataResponse = {
     defaultRegion: string | null;
     connectionMode: 'PRIVILEGED' | 'BASIC' | null;
     deleted?: boolean | null;
+    /** What a deploy into this account is checked for; an older Console omits it and scanning follows the config. */
+    securityScanning?: SecurityScanningLevel;
     [otherProperties: string]: unknown;
   }>;
   projects: Array<{
@@ -480,6 +485,8 @@ export type CurrentUserAndOrgDataResponse = {
   }>;
   permissions: string[];
   isProjectScoped: boolean;
+  /** The member reaches only the AWS accounts assigned to them; `connectedAwsAccounts` lists only those. */
+  isAwsAccountScoped?: boolean;
 };
 
 export type Ec2DeployFromCliResponse = {
@@ -518,6 +525,14 @@ export type AwsAccountCredentialsResponse = {
 export type CanDeployResponse = {
   canDeploy: boolean;
   message?: string;
+  /** Present when a Free organization's managed AWS costs this calendar month (UTC) passed the plan's limit. */
+  freePlanLimit?: {
+    monthToDateCostsUsd: number;
+    limitUsd: number;
+    /** `2026-10` */
+    month: string;
+    upgradeUrl: string;
+  };
 };
 
 export type DefaultDomainsInfoResponse = {

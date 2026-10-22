@@ -168,8 +168,8 @@ export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandD
 };
 
 const bucketSyncInputHints = [
-  'To sync a configured bucket, provide both `--stage` and `--resourceName`. Stacktape resolves the bucket from the deployed stack and the source directory from your configuration.',
-  'To sync directly to a bucket, provide both `--bucketId` and `--sourcePath`. `--bucketId` accepts an AWS physical ID or bucket name. For a Stacktape-managed bucket, find its ID with `stacktape info:stack`.'
+  'To sync a configured bucket, provide both `--stage` and `--resource-name`. Stacktape resolves the bucket from the deployed stack and the source directory from your configuration.',
+  'To sync directly to a bucket, provide both `--bucket-id` and `--source-path`. `--bucket-id` accepts an AWS physical ID or bucket name. For a Stacktape-managed bucket, find its ID with `stacktape status`.'
 ];
 
 export const validateBucketSyncInput = (args: Readonly<StacktapeCliArgs>) => {

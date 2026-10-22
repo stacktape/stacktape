@@ -40,6 +40,10 @@ export type WizardFixtureScenario = {
   /** `held` stops mid-way through CloudFormation until `deploy` arrives on stdin, then succeeds. */
   deploy?: 'succeed' | 'fail' | 'held';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
+  /** What connecting the coding agent to Stacktape does after a successful deploy. */
+  agentSetup?: 'succeed' | 'fail';
+  /** A project name other than the recorded scan's, e.g. a long one for heavy-data captures. */
+  projectName?: string;
 };
 
 // Wrapped rather than top-level awaits: the CLI's TypeScript settings do not allow them in scripts.
@@ -160,7 +164,7 @@ const main = async () => {
   const facts = JSON.parse(
     readFileSync(join(fixtureDirectory, 'projects', `${scenario.project}.json`), 'utf8')
   ) as ProjectFacts;
-  const projectName = scenario.project;
+  const projectName = scenario.projectName ?? scenario.project;
   const repositoryRoot = await mkdtemp(join(tmpdir(), `stacktape-wizard-${projectName}-`));
   const repositoryPath = `/home/dev/code/${projectName}`;
   if (scenario.existingConfig === true) {
@@ -289,7 +293,8 @@ const main = async () => {
       const composition = composeConfig({ facts, projectName, engineVersions: versionJson.rds });
       return { facts, composition, verification: [], completeness: checkFactsCompleteness(facts) };
     },
-    write: ({ composition, format }) => writeComposedConfig({ repositoryRoot, composition, format }),
+    write: ({ composition, format, region }) =>
+      writeComposedConfig({ repositoryRoot, composition, format, ...(region === undefined ? {} : { region }) }),
     verify: async ({ composition }) => {
       await sleep(300);
       if (scenario.verify === 'unavailable') return { status: 'unavailable', services: [] };
@@ -388,6 +393,25 @@ const main = async () => {
             };
           }
         }),
+    codingAgentSetup: {
+      describe: (agentId) =>
+        agentId === 'claude-code' || agentId === 'codex'
+          ? {
+              label: agentId === 'claude-code' ? 'Claude Code' : 'Codex',
+              command: `stacktape mcp:add --codingAgents ${agentId}`
+            }
+          : undefined,
+      setUp: async () => {
+        await sleep(300);
+        return scenario.agentSetup === 'fail'
+          ? {
+              ok: false,
+              detail:
+                'Claude Code refused the change: ~/.claude.json is not valid JSON. To set it up by hand: claude mcp add stacktape -- stacktape mcp'
+            }
+          : { ok: true, detail: 'Restart Claude Code so it loads the Stacktape tools.' };
+      }
+    },
     inspectDeployTarget: async ({ stage, region }) => {
       await sleep(250);
       const identity = {
@@ -438,7 +462,17 @@ const main = async () => {
         ok: result.ok,
         code: result.code,
         message: result.message,
-        ...(result.ok ? { urls: [`https://${projectName}-dev-7f3a9c.stacktape-app.com`] } : {})
+        // One address per public resource, as the CLI reads them from the deployed stack.
+        ...(result.ok
+          ? {
+              urls: resources
+                .filter(([, resource]) => /^(web-service|hosting-bucket|[a-z-]+-web)$/.test(resource.type))
+                .map(([resourceName], index) => ({
+                  resourceName,
+                  url: `https://${projectName}-dev-${['7f3a9c', '2b81e4', 'c05d17'][index % 3]}.stacktape-app.com`
+                }))
+            }
+          : {})
       };
     },
     staticRoot: bundle

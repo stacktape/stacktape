@@ -155,6 +155,85 @@ pnpm test:aws --aws-scenario=dev-mode-local-loop
 `STP_AWS_DEV_CANARY_SCENARIOS` selects a comma-separated subset; `first-run-agent` must come first. If cleanup does not
 finish, the canary prints one exact `--cleanup-only` command.
 
+## HTTP API container continuity
+
+The container canary also supports a minimal Node service behind an HTTP API → VPC link → Cloud Map, without a load
+balancer, application health check, code-swap runtime or application shutdown sleep. It logs the AWS-side times at which
+it listens and handles SIGTERM. It disables the HTTP server's idle keep-alive timeout to isolate retirement from backend
+idle-socket races; the SIGTERM handler still closes the server immediately. With an authenticated source CLI, set the
+container canary's guarded account/profile, owner and absolute state/report paths described in
+`container-fast-deploy-canary.ts`, plus:
+
+```sh
+export STP_AWS_CONTAINER_CANARY_HTTP_API_ONLY=1
+export STP_AWS_CONTAINER_CANARY_MEASUREMENTS=10
+pnpm --filter @stacktape/cli run test:real-aws-container-canary
+```
+
+The runner warms the public connection before each measurement. Traffic continues until the old tasks have stopped and
+the new release has answered alone for 15 seconds. The report's per-release evidence files retain each probe,
+application clock samples, routing observations and ECS timestamps. Use application response times, CloudWatch
+application/access logs and CloudTrail registration/deregistration events for cross-machine correlation; a laptop's
+monotonic clock may drift. An HTTP 503 proves a server response, while a client timeout alone does not prove an AWS
+failure. Keep the fixture's immediate SIGTERM close: an application sleep would hide a regression in the platform's
+retirement delay. Cleanup and `--cleanup-only` follow the same owned-state contract as the other container canary mode.
+
+## Scoped access canary
+
+This deploys `_test-stacks/scoped-access`: one function behind an HTTP API, two DynamoDB tables, two buckets and a
+queue. It proves what only real IAM and CloudFormation show:
+
+- `connectTo` grants exactly its targets, and the unconnected table and bucket are denied;
+- an update that moves `connectTo` to other targets revokes the removed ones and injects only the matching `STP_*`
+  variables;
+- a `$Secret()` reference serves the value pinned at deploy time, and the next deploy serves a rotated value;
+- a route added by the update answers through the real API, and the default `*.stacktape-app.com` domain serves the
+  function.
+
+The canary creates its own tagged Secrets Manager secret, deletes the stack with the CLI and then verifies that the
+stack, buckets, tables, queue, functions, roles, repository, API, log groups and secret are gone. The default domain
+must stop resolving at its zone's authoritative name servers; a dangling record would point at a deleted API Gateway
+domain that anyone could claim. The same account-preflight and connection rules as the alias canary apply. A run takes
+about five minutes.
+
+```sh
+export STP_AWS_SCOPED_CANARY_DEPLOY=1
+export STP_AWS_SCOPED_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_SCOPED_CANARY_PROFILE='<profile>'
+export STP_AWS_SCOPED_CANARY_OWNER="local-scoped-$(date -u +%s)"
+export STP_AWS_SCOPED_CANARY_STATE_FILE="$(pwd)/.stacktape-scoped-canary-${STP_AWS_SCOPED_CANARY_OWNER}.json"
+pnpm test:aws --aws-scenario=lambda-http-api-scoped-access
+```
+
+## Static site canary
+
+This deploys `_test-stacks/static-site`: one hosting bucket behind CloudFront, with no build step. The canary writes the
+fixture's ignored `site/` directory before each deploy. CloudFront must serve the first page and then a cached copy of
+it. After a redeploy with new content, the first request must return the new page. The canary then deletes the stack and
+verifies that the stack, distribution, buckets, functions, roles and default domain are gone. It also checks what custom
+resources create outside the stack: the two Lambda@Edge functions in `us-east-1`, their roles, their log groups in every
+regional edge-cache region, and the `us-east-1` edge deployment bucket. Anything the stack deletion left there fails the
+run, after the canary removes it. A run takes about fifteen minutes.
+
+AWS deletes a replicated Lambda@Edge function only after CloudFront has removed its replicas, usually 40 to 60 minutes
+after the distribution's deletion, and the product deliberately leaves such a function behind. The canary treats it as
+deferred cleanup: it records the function as `pendingEdgeFunctions` in the state file, reports the run as passed with
+`cleanupPending` in the report, and prints the exact `--cleanup-only` command. Run that command later with the same
+environment; it deletes the pending functions and verifies they are gone, and exits nonzero while AWS still refuses. A
+leftover role, log group, bucket or stack resource still fails the run.
+
+```sh
+export STP_AWS_STATIC_CANARY_DEPLOY=1
+export STP_AWS_STATIC_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_STATIC_CANARY_PROFILE='<profile>'
+export STP_AWS_STATIC_CANARY_OWNER="local-static-$(date -u +%s)"
+export STP_AWS_STATIC_CANARY_STATE_FILE="$(pwd)/.stacktape-static-canary-${STP_AWS_STATIC_CANARY_OWNER}.json"
+pnpm test:aws --aws-scenario=hosting-bucket-cdn-update
+```
+
+Both canaries share their guardrails through `source-cli-canary.ts`. Each prints one exact `--cleanup-only` command when
+cleanup does not finish.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its

@@ -22,7 +22,7 @@ type WebSocketApiGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape info:stack`.
+Find resource logical IDs with `stacktape status`.
 
 ### Example 1 (yaml)
 

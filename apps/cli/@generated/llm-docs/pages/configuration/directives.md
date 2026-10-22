@@ -237,7 +237,7 @@ References an exported output from another deployed CloudFormation stack. The re
 
 Arguments: `$StackOutput('stackName', 'outputName')` with an optional third argument for `region` when importing from a stack in another AWS region.
 
-The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Use [`stacktape info:stack`](/cli/info-stack) to discover available output keys for a deployed stack.
+The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Use [`stacktape status`](/cli/info-stack) to discover available output keys for a deployed stack.
 
 
 > **Warning:** The referenced output must be exported from its stack. Unexported outputs cannot be referenced and will cause a deployment error. The referenced stack must also be deployed before the stack that uses the directive.
@@ -261,7 +261,7 @@ Runtime directives resolve during CloudFormation deployment. Depending on the di
 
 ### $Secret()
 
-References a secret stored in AWS Secrets Manager. The named secret must be readable by Stacktape during deployment. Create secrets using [`stacktape secret:set`](/cli/secret-set) or through the [Stacktape Console](/configuration/secrets).
+References a secret stored in AWS Secrets Manager. The named secret must be readable by Stacktape during deployment. Create secrets using [`stacktape secret set`](/cli/secret-set) or through the [Stacktape Console](/configuration/secrets).
 
 
 Example (TypeScript):
@@ -284,7 +284,7 @@ export default defineConfig(() => {
 ```
 
 
-Deployment fails with an error if Stacktape cannot fetch the named secret, with a hint to create it using [`stacktape secret:set`](/cli/secret-set).
+Deployment fails with an error if Stacktape cannot fetch the named secret, with a hint to create it using [`stacktape secret set`](/cli/secret-set).
 
 
 > **Warning:** The secret's `VersionId` is baked into the CloudFormation template at deploy time. If you update a secret in AWS Secrets Manager after deployment, the running stack continues using the old version until you redeploy. This means secret rotation requires a redeployment to take effect.
@@ -321,7 +321,7 @@ export default defineConfig(() => {
 Create a JSON secret with the CLI:
 
 ```bash
-stacktape secret:set --region us-east-1
+stacktape secret set --region us-east-1
 ```
 
 When prompted, provide a name (e.g., `api-keys`) and a JSON value (e.g., `{"stripe": "sk_...", "sendgrid": "SG..."}`).
@@ -606,7 +606,7 @@ Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For 
 
 ### What happens if a referenced secret doesn't exist?
 
-Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret:set`](/cli/secret-set). Similarly, a missing `$SsmParam` parameter fails deployment with a directive error. Always create secrets and parameters before deploying stacks that reference them.
+Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret set`](/cli/secret-set). Similarly, a missing `$SsmParam` parameter fails deployment with a directive error. Always create secrets and parameters before deploying stacks that reference them.
 
 ### How does $CfStackOutput prevent accidental deletion?
 
@@ -614,7 +614,7 @@ Deployment fails with an error identifying the missing secret and suggesting you
 
 ### Can I import an output from a stack in another region?
 
-Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region — cross-region imports don't work with it. Use [`stacktape info:stack`](/cli/info-stack) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
+Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region — cross-region imports don't work with it. Use [`stacktape status`](/cli/info-stack) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
 
 ### How do I access JSON properties from $Secret?
 

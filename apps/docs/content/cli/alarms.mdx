@@ -1,18 +1,18 @@
 ---
-title: 'alarms'
+title: 'alarm list'
 order: 159
-seoTitle: 'View CloudWatch Alarm States | stacktape alarms CLI | Stacktape Docs'
+seoTitle: 'View CloudWatch Alarm States | stacktape alarm list CLI | Stacktape Docs'
 seoDescription: 'Check CloudWatch alarm states for your deployed Stacktape stack from the CLI. Filter by resource or state (OK, ALARM, INSUFFICIENT_DATA) and get JSON output for automation.'
 ---
 
-# alarms
+# alarm list
 
-The `stacktape alarms` command displays the current state of CloudWatch alarms for a deployed stack. Use it to check which alarms are firing, which are healthy, and when each alarm last changed state — without opening the AWS Console.
+The `stacktape alarm list` command displays the current state of CloudWatch alarms for a deployed stack. Use it to check which alarms are firing, which are healthy, and when each alarm last changed state — without opening the AWS Console.
 
 ## Usage
 
 ```bash
-stacktape alarms --stage prod --region eu-west-1
+stacktape alarm list --stage prod --region eu-west-1
 ```
 
 This queries CloudWatch alarms whose names start with the stack name and prints the matching alarms. Each alarm is mapped to its name, matched Stacktape resource (when identified), current state, metric, threshold, comparison operator, and last state change time. Alarms in the `ALARM` state also include the reason they triggered.
@@ -21,10 +21,10 @@ This queries CloudWatch alarms whose names start with the stack name and prints 
 
 ### Filter by resource
 
-Use `--resourceName` to narrow results to alarms belonging to a single Stacktape resource. The resource name must match the key used in your Stacktape configuration.
+Use `--resource-name` to narrow results to alarms belonging to a single Stacktape resource. The resource name must match the key used in your Stacktape configuration.
 
 ```bash
-stacktape alarms --stage prod --region eu-west-1 --resourceName myApi
+stacktape alarm list --stage prod --region eu-west-1 --resource-name myApi
 ```
 
 ### Filter by state
@@ -34,27 +34,27 @@ Use `--state` to show only alarms in a specific state. Accepted values are `OK`,
 Show only alarms that are currently firing:
 
 ```bash
-stacktape alarms --stage prod --region eu-west-1 --state ALARM
+stacktape alarm list --stage prod --region eu-west-1 --state ALARM
 ```
 
 Show only healthy alarms:
 
 ```bash
-stacktape alarms --stage prod --region eu-west-1 --state OK
+stacktape alarm list --stage prod --region eu-west-1 --state OK
 ```
 
 You can combine both filters to check whether a specific resource has any firing alarms:
 
 ```bash
-stacktape alarms --stage prod --region eu-west-1 --resourceName myApi --state ALARM
+stacktape alarm list --stage prod --region eu-west-1 --resource-name myApi --state ALARM
 ```
 
 ## Agent mode
 
-Pass `--agent` for machine-readable output. For the `alarms` command, agent mode emits a JSON object with an `alarms` array. Each entry contains the alarm's `name`, matched `resource` (if any), `state`, `metric`, `threshold`, `comparison`, `lastUpdated`, and (for alarms in the `ALARM` state) `reason`.
+Pass `--agent` for machine-readable output. For the `alarm list` command, agent mode emits a JSON object with an `alarms` array. Each entry contains the alarm's `name`, matched `resource` (if any), `state`, `metric`, `threshold`, `comparison`, `lastUpdated`, and (for alarms in the `ALARM` state) `reason`.
 
 ```bash
-stacktape alarms --stage prod --region eu-west-1 --agent
+stacktape alarm list --stage prod --region eu-west-1 --agent
 ```
 
 ## Flags reference
@@ -65,13 +65,13 @@ stacktape alarms --stage prod --region eu-west-1 --agent
 
 - [`stacktape logs`](/cli/logs) — fetch and search logs from a deployed resource.
 - [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics for a deployed resource.
-- [`stacktape issues:list`](/cli/issues-list) — list detected runtime issues (errors) across your deployed functions and containers.
+- [`stacktape error list`](/cli/errors-list) — list detected runtime issues (errors) across your deployed functions and containers.
 
 ## FAQ
 
 ### What alarms does this command show?
 
-The `alarms` command queries all CloudWatch alarms whose name starts with the stack name. In practice, this targets alarms associated with the Stacktape stack. It does not show alarms created outside of Stacktape unless they happen to share the stack name prefix. For details on configuring alarm rules, see [Alarms](/observability/alarms).
+The `alarm list` command queries all CloudWatch alarms whose name starts with the stack name. In practice, this targets alarms associated with the Stacktape stack. It does not show alarms created outside of Stacktape unless they happen to share the stack name prefix. For details on configuring alarm rules, see [Alarms](/observability/alarms).
 
 ### What do the alarm states mean?
 

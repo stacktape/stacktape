@@ -217,7 +217,7 @@ const transformChildResourceProperties = ({
   const unsupported = (propertyName: string) =>
     new Error(
       `${operation === 'override' ? 'Override' : 'Transform'} of property ${propertyName} of resource ${resourceName} is not supported.\n\n` +
-        `Remove the ${operation}, run 'stacktape compile:template' command, and find the logical name of the resource you want to ${operation} manually. Then add it to the ${operation}s object.`
+        `Remove the ${operation}, run 'stacktape synth' command, and find the logical name of the resource you want to ${operation} manually. Then add it to the ${operation}s object.`
     );
 
   for (const [propertyName, value] of Object.entries(values)) {
@@ -473,7 +473,11 @@ export type AuthoringResourceProps<Type extends StacktapeResourceType> = WithAut
 > &
   (Type extends ResourcesWithoutCloudFormationCustomization ? Record<never, never> : AuthoringResourceCustomization);
 
-export type AuthoringStacktapeConfig = Omit<StacktapeConfig, 'resources' | 'scripts'> & {
+/**
+ * The object a `defineConfig` callback returns. The project name and region are not part of it: they are declared in
+ * the settings object, the first argument of `defineConfig`, so the CLI can read them before it runs the callback.
+ */
+export type AuthoringStacktapeConfig = Omit<StacktapeConfig, 'resources' | 'scripts' | 'projectName' | 'region'> & {
   resources: Record<string, BaseResource | StacktapeResourceDefinition>;
   scripts?: Record<string, BaseTypeProperties | NonNullable<StacktapeConfig['scripts']>[string]>;
   finalTransform?: FinalTransform;
@@ -487,12 +491,30 @@ export type CompiledStacktapeConfig = {
   readonly finalTransform: FinalTransform | null;
 };
 
+/**
+ * Project settings declared in the first argument of `defineConfig`. The CLI reads them from the file without running
+ * it, so the values must be string literals:
+ *
+ * ```ts
+ * export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, ({ stage }) => ({ resources: {} }));
+ * ```
+ */
+export type ConfigSettings = {
+  /** Identifies the Stacktape project. Together with the stage, it determines the stack name `{projectName}-{stage}`. */
+  projectName?: string;
+  /** AWS region the project deploys to. A `--region` argument overrides it for one command. */
+  region?: StacktapeConfig['region'];
+};
+
+// Symbol.for() keeps the settings readable when the config imports an installed copy of the `stacktape` package.
+const configSettingsSymbol = Symbol.for('stacktape:configSettings');
+
 export type DefinedStacktapeConfig = (params: GetConfigParams) => CompiledStacktapeConfig;
 
 export type GetConfigParams = {
   /**
-   * Project name selected before the configuration is evaluated. This is absent when the project name is declared
-   * by the configuration itself rather than supplied by a CLI/default value.
+   * Project name of this operation. It is always present when the config declares `projectName` in the settings
+   * object of `defineConfig`; otherwise it is the value of `--project` or the machine-wide default, when there is one.
    */
   projectName?: string;
   /**
@@ -528,14 +550,93 @@ export type GetConfigParams = {
   };
 };
 
+/** Parameters of a config that declares project settings: a declared project name is always passed to the callback. */
+export type GetConfigParamsWithSettings<Settings extends ConfigSettings = ConfigSettings> = GetConfigParams &
+  (Settings extends { projectName: string } ? { projectName: string } : unknown);
+
+const SETTINGS_FORM =
+  "export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, ({ stage }) => ({ resources: { ... } }))";
+
+const validateConfigSettings = (settings: unknown): Readonly<ConfigSettings> => {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new TypeError(`The first argument of defineConfig must be the project settings object: ${SETTINGS_FORM}.`);
+  }
+  for (const [key, value] of Object.entries(settings)) {
+    if (key !== 'projectName' && key !== 'region') {
+      throw new TypeError(
+        `defineConfig settings accept only \`projectName\` and \`region\`, not \`${key}\`. Return other configuration from the callback: ${SETTINGS_FORM}.`
+      );
+    }
+    if (typeof value !== 'string' || value === '') {
+      throw new TypeError(`defineConfig setting \`${key}\` must be a non-empty string literal: ${SETTINGS_FORM}.`);
+    }
+  }
+  return Object.freeze({ ...(settings as ConfigSettings) });
+};
+
+const rejectReturnedSettings = (config: unknown) => {
+  if (!config || typeof config !== 'object') return;
+  const misplaced = (['projectName', 'region'] as const).filter((key) => Object.hasOwn(config, key));
+  if (misplaced.length) {
+    throw new TypeError(
+      `Declare ${misplaced.map((key) => `\`${key}\``).join(' and ')} in the first argument of defineConfig instead of returning it from the callback: ${SETTINGS_FORM}.`
+    );
+  }
+};
+
+/** The settings a loaded `defineConfig` result declares, or undefined for `defineConfig(fn)` and any other value. */
+export const getConfigSettings = (value: unknown): Readonly<ConfigSettings> | undefined =>
+  typeof value === 'function'
+    ? (Reflect.get(value, configSettingsSymbol) as Readonly<ConfigSettings> | undefined)
+    : undefined;
+
 /**
- * Helper function to define a config with automatic transformation
- * Use this when exporting your config for the Stacktape CLI
+ * Define a Stacktape TypeScript configuration. Export the result as the module's default export.
+ *
+ * Declare the project name and region in the settings object so commands need only `--stage`:
+ *
+ * ```ts
+ * export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, ({ stage }) => ({ resources: {} }));
+ * ```
  */
-export const defineConfig =
-  (configFn: (params: GetConfigParams) => AuthoringStacktapeConfig): DefinedStacktapeConfig =>
-  (params) =>
-    compileAuthoringConfig(configFn(params));
+export function defineConfig<const Settings extends ConfigSettings>(
+  settings: Settings,
+  configFn: (params: GetConfigParamsWithSettings<Settings>) => AuthoringStacktapeConfig
+): DefinedStacktapeConfig;
+export function defineConfig(configFn: (params: GetConfigParams) => AuthoringStacktapeConfig): DefinedStacktapeConfig;
+export function defineConfig(
+  settingsOrFn: ConfigSettings | ((params: GetConfigParams) => AuthoringStacktapeConfig),
+  configFn?: (params: GetConfigParamsWithSettings) => AuthoringStacktapeConfig
+): DefinedStacktapeConfig {
+  if (typeof settingsOrFn === 'function') {
+    if (configFn !== undefined) {
+      throw new TypeError(`Pass the project settings object first and the config function second: ${SETTINGS_FORM}.`);
+    }
+    return (params) => {
+      const config = settingsOrFn(params);
+      rejectReturnedSettings(config);
+      return compileAuthoringConfig(config);
+    };
+  }
+  const settings = validateConfigSettings(settingsOrFn);
+  if (typeof configFn !== 'function') {
+    throw new TypeError(`The second argument of defineConfig must be the config function: ${SETTINGS_FORM}.`);
+  }
+  const defined = (params: GetConfigParams): CompiledStacktapeConfig => {
+    const config = configFn({
+      ...params,
+      projectName: params.projectName || settings.projectName,
+      region: params.region || settings.region
+    } as GetConfigParamsWithSettings);
+    rejectReturnedSettings(config);
+    const compiled = compileAuthoringConfig(config);
+    // The serializable config carries the declared settings like a YAML config does, so tooling and the CLI read the
+    // project name in one place.
+    return { ...compiled, config: { ...settings, ...compiled.config } as StacktapeConfig };
+  };
+  Object.defineProperty(defined, configSettingsSymbol, { value: settings, enumerable: false });
+  return defined as DefinedStacktapeConfig;
+}
 
 export const isCompiledStacktapeConfig = (value: unknown): value is CompiledStacktapeConfig =>
   value !== null &&

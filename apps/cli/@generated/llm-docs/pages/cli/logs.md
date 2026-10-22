@@ -5,7 +5,7 @@ The `stacktape logs` command fetches logs from a deployed resource's CloudWatch 
 If the resource uses `logging.logClass: infrequent-access`, the ordinary command automatically runs a bounded Logs Insights snapshot and preserves the usual formatted or JSON event shape. CloudWatch does not support live tail or filter-pattern reads for this class, so the command exits after the snapshot. Use `--query` instead of `--filter` when you need to narrow an Infrequent Access group.
 
 
-> **Info:** This command requires a Stacktape configuration file (set via `--configPath` or auto-detected in the working directory). The configuration is used to resolve the deployed stack and locate the correct CloudWatch log group for the specified resource.
+> **Info:** This command requires a Stacktape configuration file (set via `--config` or auto-detected in the working directory). The configuration is used to resolve the deployed stack and locate the correct CloudWatch log group for the specified resource.
 
 
 ## Usage
@@ -13,23 +13,23 @@ If the resource uses `logging.logClass: infrequent-access`, the ordinary command
 Fetch the last hour of logs from a resource named `myApi`.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi
+stacktape logs myApi --stage prod --region eu-west-1
 ```
 
 Fetch logs from a container workload. Use `--container` to specify which container's log group to target.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myService --container main
+stacktape logs myService --stage prod --region eu-west-1 --container main
 ```
 
 ## Two modes
 
 ### Standard mode
 
-Standard mode fetches recent log events from the resource's CloudWatch log group. By default it returns up to 100 events from the last hour. Narrow results with `--startTime`, `--filter`, and `--limit`.
+Standard mode fetches recent log events from the resource's CloudWatch log group. By default it returns up to 100 events from the last hour. Narrow results with `--since`, `--filter`, and `--limit`.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime "2h" --filter "ERROR" --limit 50
+stacktape logs myApi --stage prod --region eu-west-1 --since "2h" --filter "ERROR" --limit 50
 ```
 
 The command resolves log streams for the target log group, fetches matching events, and either formats them for terminal display or outputs JSON when `--raw` or `--agent` is set.
@@ -39,7 +39,7 @@ The command resolves log streams for the target log group, fetches matching even
 Pass a `--query` flag to run a CloudWatch Logs Insights query instead. Insights mode lets you aggregate, sort, and transform log data using the [Logs Insights query language](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html). When `--query` is provided, the command calls CloudWatch Logs Insights and prints the returned results.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
+stacktape logs myApi --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
 In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, the output is a JSON object containing the log group name, the query string, and the results array.
@@ -56,7 +56,7 @@ Controls how far back to fetch logs. Accepts two formats:
 When omitted, defaults to 1 hour ago.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime "6h"
+stacktape logs myApi --stage prod --region eu-west-1 --since "6h"
 ```
 
 ### filter
@@ -66,13 +66,13 @@ A CloudWatch Logs filter pattern applied server-side before events are returned.
 Match any log line containing the word "ERROR".
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --filter "ERROR"
+stacktape logs myApi --stage prod --region eu-west-1 --filter "ERROR"
 ```
 
 Match structured JSON logs where the `level` field equals `"error"`.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --filter "{ $.level = \"error\" }"
+stacktape logs myApi --stage prod --region eu-west-1 --filter "{ $.level = \"error\" }"
 ```
 
 ### query
@@ -80,7 +80,7 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myApi --filter "{ 
 A CloudWatch Logs Insights query string. When provided, the command switches to Insights mode. Insights queries support aggregation (`stats count(*)`), pattern matching (`parse`), and field extraction — useful for understanding error rates, latency distributions, or any structured analysis across large volumes of logs.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --query "stats count(*) by bin(5m) as period"
+stacktape logs myApi --stage prod --region eu-west-1 --query "stats count(*) by bin(5m) as period"
 ```
 
 ### limit
@@ -88,7 +88,7 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myApi --query "sta
 Maximum number of log events to return in standard mode. Defaults to 100. Increase for deeper debugging sessions; keep low for quick checks.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --limit 500
+stacktape logs myApi --stage prod --region eu-west-1 --limit 500
 ```
 
 ### container
@@ -96,7 +96,7 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myApi --limit 500
 Specifies which container's log group to target. This flag is optional in the CLI schema and is passed to the log group resolver. Use it when the deployed resource has more than one container (e.g., a [multi-container workload](/resources/compute/multi-container-workload)) and Stacktape needs a container name to identify the correct log group.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myWorkload --container sidecar
+stacktape logs myWorkload --stage prod --region eu-west-1 --container sidecar
 ```
 
 ### raw
@@ -104,7 +104,7 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myWorkload --conta
 Outputs logs as JSON instead of the default formatted view. In standard mode, the output is a JSON object with `logGroup` and `events` fields, where each event has `timestamp`, `message`, and `logStream`. Useful for piping into `jq` or other tools.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --raw
+stacktape logs myApi --stage prod --region eu-west-1 --raw
 ```
 
 ### agent
@@ -112,7 +112,7 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myApi --raw
 Optimizes CLI output for programmatic and LLM consumption. For `stacktape logs`, `--agent` makes the command print a JSON object instead of formatted terminal text. In standard mode, the output structure matches `--raw` — a JSON object with `logGroup` and `events`. In Insights mode, the output is a JSON object with `logGroup`, `query`, and `results`.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --agent
+stacktape logs myApi --stage prod --region eu-west-1 --agent
 ```
 
 ## Output format
@@ -152,7 +152,7 @@ In Insights mode with `--agent`, the output includes the query and results:
 
 ## How log group resolution works
 
-The command initializes the deployed stack and resolves the CloudWatch log group for the resource name you pass with `--resourceName`. The optional `--container` flag is forwarded to the resolver so it can target the intended container when the resource has multiple containers.
+The command initializes the deployed stack and resolves the CloudWatch log group for the resource name you pass as the first argument. The optional `--container` flag is forwarded to the resolver so it can target the intended container when the resource has multiple containers.
 
 The resolver works with compute resources that write to CloudWatch Logs. For container resources with multiple containers, pass `--container` so the resolver can identify the correct log group.
 
@@ -161,37 +161,37 @@ The resolver works with compute resources that write to CloudWatch Logs. For con
 Fetch the last 30 minutes of logs.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime "30m"
+stacktape logs myApi --stage prod --region eu-west-1 --since "30m"
 ```
 
 Fetch only error-level logs from the last day.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime "1d" --filter "ERROR"
+stacktape logs myApi --stage prod --region eu-west-1 --since "1d" --filter "ERROR"
 ```
 
 Run a Logs Insights query to count errors by 5-minute window.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --query "filter @message like /ERROR/ | stats count(*) by bin(5m)"
+stacktape logs myApi --stage prod --region eu-west-1 --query "filter @message like /ERROR/ | stats count(*) by bin(5m)"
 ```
 
 Get raw JSON output for piping into another tool.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --raw | jq '.events[] | select(.message | contains("timeout"))'
+stacktape logs myApi --stage prod --region eu-west-1 --raw | jq '.events[] | select(.message | contains("timeout"))'
 ```
 
 Fetch logs from a specific container in a multi-container workload.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myWorkload --container worker --startTime "2h" --limit 200
+stacktape logs myWorkload --stage prod --region eu-west-1 --container worker --since "2h" --limit 200
 ```
 
 Use agent mode for structured output in a CI script.
 
 ```bash
-stacktape logs --stage prod --region eu-west-1 --resourceName myApi --agent --startTime "30m" --filter "ERROR"
+stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --filter "ERROR"
 ```
 
 ## Flags reference
@@ -201,33 +201,32 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myApi --agent --st
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--resourceName (-rn)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
-| `--stage (-s)` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--container (-cnt)` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--filter (-f)` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--limit (-lim)` | no | `number` | Limit — Maximum number of items to return. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--query (-q)` | no | `string` | Logs Query — CloudWatch Logs Insights query string. Example: "fields @timestamp, @message \| filter @message like /ERROR/ \| limit 50" | - |
-| `--raw (-rw)` | no | `boolean` | Raw — If `true`, prints logs in raw JSON format instead of pretty-printing them. | - |
-| `--startTime (-st)` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
+| `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--query` | no | `string` | Logs Query — CloudWatch Logs Insights query string. Example: "fields @timestamp, @message \| filter @message like /ERROR/ \| limit 50" | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--raw` | no | `boolean` | Raw — If `true`, prints logs in raw JSON format instead of pretty-printing them. | - |
+| `--since` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
 
 
 ## Related commands
 
 - [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics (invocations, CPU, memory, errors) for a deployed resource.
-- [`stacktape alarms`](/cli/alarms) — view CloudWatch alarm states for resources in your stack.
-- [`stacktape container:exec`](/cli/container-exec) — run a command inside a deployed container for live debugging.
-- [`stacktape query:sql`](/cli/query-sql) — run read-only SQL queries against a deployed database from the command line.
+- [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for resources in your stack.
+- [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container for live debugging.
+- [`stacktape query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database from the command line.
 
 ## FAQ
 
@@ -241,11 +240,11 @@ The `--filter` flag applies a CloudWatch Logs filter pattern in standard mode �
 
 ### How far back can I fetch logs?
 
-The `--startTime` flag controls how far back the command looks — there is no hard limit in the CLI itself, only what CloudWatch has retained for the log group's retention period. When omitted, `--startTime` defaults to 1 hour ago. It accepts relative shorthand (`1h`, `30m`, `1d`, `5s`) or any string the JavaScript `Date` constructor parses, such as `2026-05-28T14:00:00Z`.
+The `--since` flag controls how far back the command looks — there is no hard limit in the CLI itself, only what CloudWatch has retained for the log group's retention period. When omitted, `--since` defaults to 1 hour ago. It accepts relative shorthand (`1h`, `30m`, `1d`, `5s`) or any string the JavaScript `Date` constructor parses, such as `2026-05-28T14:00:00Z`.
 
 ### Does stacktape logs live-tail?
 
-The `stacktape logs` command fetches a snapshot of log events for a time window — it does not live-tail. You can approximate tailing by running the command repeatedly with a short `--startTime` (e.g., `--startTime "1m"`). For log viewing in the browser, see [Logs](/observability/logs).
+The `stacktape logs` command fetches a snapshot of log events for a time window — it does not live-tail. You can approximate tailing by running the command repeatedly with a short `--since` (e.g., `--since "1m"`). For log viewing in the browser, see [Logs](/observability/logs).
 
 ### How much does CloudWatch Logs cost?
 

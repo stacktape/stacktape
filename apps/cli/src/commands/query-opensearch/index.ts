@@ -39,8 +39,8 @@ export const commandQueryOpensearch = async () => {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_OPENSEARCH_RESOURCE_REQUIRED',
-      message: 'Missing required flag `--resourceName`.',
-      hints: 'Provide `--resourceName <opensearchDomainName>`.'
+      message: 'Missing required flag `--resource-name`.',
+      hints: 'Provide `--resource-name <opensearchDomainName>`.'
     });
   }
 
@@ -68,7 +68,7 @@ export const commandQueryOpensearch = async () => {
       category: 'CLI',
       code: 'CLI_OPENSEARCH_RESOURCE_TYPE_INVALID',
       message: `Resource \`${resourceName}\` is not an OpenSearch domain (type: \`${resource.resourceType}\`).`,
-      hints: '`query:opensearch` supports `open-search-domain` resources only.'
+      hints: '`query opensearch` supports `open-search-domain` resources only.'
     });
   }
 

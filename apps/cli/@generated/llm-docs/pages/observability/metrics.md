@@ -20,10 +20,10 @@ The [`stacktape metrics`](/cli/metrics) command fetches a single CloudWatch metr
 
 ### Basic usage
 
-The command validates that `--resourceName` (the resource name from your Stacktape config) and `--metric` (the CloudWatch metric name) are provided. The command runs against the target stack identified by `--stage` and `--region`.
+The command validates that `--resource-name` (the resource name from your Stacktape config) and `--metric` (the CloudWatch metric name) are provided. The command runs against the target stack identified by `--stage` and `--region`.
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName api --metric Invocations
+stacktape metrics api Invocations --stage prod --region eu-west-1
 ```
 
 If the specified metric is not valid for the resource type, Stacktape raises an error whose guidance lists the available metrics.
@@ -43,23 +43,23 @@ The CLI resolves metrics based on the deployed resource's `resourceType`. Resour
 
 ### Time range
 
-By default, the CLI fetches the last 1 hour of data. Use `--startTime` to set the start of the time window and `--endTime` to set the end.
+By default, the CLI fetches the last 1 hour of data. Use `--since` to set the start of the time window and `--until` to set the end.
 
-`--startTime` accepts either a relative duration or an absolute ISO 8601 timestamp. Relative durations use a number followed by a unit: `s` (seconds), `m` (minutes), `h` (hours), or `d` (days).
+`--since` accepts either a relative duration or an absolute ISO 8601 timestamp. Relative durations use a number followed by a unit: `s` (seconds), `m` (minutes), `h` (hours), or `d` (days).
 
 Fetch the last 30 minutes of CPU data for an ECS workload:
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName backend --metric CPUUtilization --startTime 30m
+stacktape metrics backend CPUUtilization --stage prod --region eu-west-1 --since 30m
 ```
 
 Fetch metrics from a specific absolute time window:
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName api --metric Errors --startTime "2025-05-16T08:00:00Z" --endTime "2025-05-16T12:00:00Z"
+stacktape metrics api Errors --stage prod --region eu-west-1 --since "2025-05-16T08:00:00Z" --until "2025-05-16T12:00:00Z"
 ```
 
-When `--endTime` is omitted, the command uses the current time.
+When `--until` is omitted, the command uses the current time.
 
 ### Aggregation and statistics
 
@@ -70,7 +70,7 @@ The `--stat` flag selects the CloudWatch statistic and defaults to **Average**. 
 Fetch maximum Lambda duration with 60-second granularity over the last hour:
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName api --metric Duration --stat Maximum --period 60 --startTime 1h
+stacktape metrics api Duration --stage prod --region eu-west-1 --stat Maximum --period 60 --since 1h
 ```
 
 
@@ -110,7 +110,7 @@ Different resource types expose different CloudWatch metrics. Knowing which metr
 Check for throttled invocations over the last 24 hours:
 
 ```bash
-stacktape metrics --stage prod --region eu-west-1 --resourceName api --metric Throttles --stat Sum --startTime 24h
+stacktape metrics api Throttles --stage prod --region eu-west-1 --stat Sum --since 24h
 ```
 
 ### Container workload metrics
@@ -147,7 +147,7 @@ The Console metrics grid can render charts for nine metric types — Lambda, ECS
 
 ### How far back can I view metrics?
 
-AWS CloudWatch retains metric data at varying resolutions: 1-minute datapoints for 15 days, 5-minute datapoints for 63 days, and 1-hour datapoints for 455 days (approximately 15 months). The Console uses time range presets (default: 7d). The CLI accepts relative durations (e.g. `--startTime 60d`) and absolute ISO 8601 timestamps, so you can query older data — CloudWatch determines which retained datapoints are available for the requested range.
+AWS CloudWatch retains metric data at varying resolutions: 1-minute datapoints for 15 days, 5-minute datapoints for 63 days, and 1-hour datapoints for 455 days (approximately 15 months). The Console uses time range presets (default: 7d). The CLI accepts relative durations (e.g. `--since 60d`) and absolute ISO 8601 timestamps, so you can query older data — CloudWatch determines which retained datapoints are available for the requested range.
 
 ### Can I create custom application metrics?
 

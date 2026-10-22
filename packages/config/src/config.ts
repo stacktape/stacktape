@@ -1,6 +1,7 @@
 import type { BastionScript, DeploymentConfig, DirectiveDefinition, Hooks, LocalScript, LocalScriptWithBastionTunneling, StackConfig, StacktapeResourceDefinition } from './shared';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { MongoDbAtlasProvider, UpstashProvider } from './providers';
+import type { SupportedAWSRegion } from './aws-regions';
 export interface StacktapeConfig {
   /**
    * #### Project name
@@ -10,8 +11,9 @@ export interface StacktapeConfig {
    * Identifies the Stacktape project. Together with the selected stage, this determines the
    * CloudFormation stack name: `{projectName}-{stage}`.
    *
-   * Must be alphanumeric and can contain dashes. Must match the regex `[a-zA-Z][-a-zA-Z0-9]*`.
-   * The CLI's `--projectName` option overrides this value.
+   * Must contain only lowercase letters, numbers and dashes. The CLI's `--project` option overrides
+   * this value for one command. The CLI reads it from the file without running the config, so it
+   * must be a plain string: in TypeScript, declare it in the first argument of `defineConfig`.
    *
    * ---
    *
@@ -20,6 +22,7 @@ export interface StacktapeConfig {
    * ```yaml
    * # stp-focus
    * projectName: my-web-app
+   * region: eu-west-1
    * # stp-end-focus
    * resources:
    *   api:
@@ -39,7 +42,9 @@ export interface StacktapeConfig {
    * ```ts
    * import { WebService, defineConfig } from 'stacktape';
    *
-   * export default defineConfig(() => {
+   * // stp-focus
+   * export default defineConfig({ projectName: 'my-web-app', region: 'eu-west-1' }, () => {
+   *   // stp-end-focus
    *   const api = new WebService({
    *     packaging: {
    *       type: 'js-bundle',
@@ -48,16 +53,50 @@ export interface StacktapeConfig {
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
-   *   return {
-   *     // stp-focus
-   *     projectName: 'my-web-app',
-   *     // stp-end-focus
-   *     resources: { api }
-   *   };
+   *   return { resources: { api } };
    * });
    * ```
    */
   projectName?: string;
+  /**
+   * #### Region
+   *
+   * ---
+   *
+   * AWS region this project deploys to. With `projectName` and `region` in the config, most commands
+   * need only `--stage`. The CLI's `--region` option overrides this value for one command. Without it,
+   * the region comes from `AWS_DEFAULT_REGION`, the machine-wide default or the AWS profile.
+   *
+   * The CLI reads it from the file without running the config, so it must be a plain string: in
+   * TypeScript, declare it in the first argument of `defineConfig`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * projectName: my-web-app
+   * # stp-focus
+   * region: eu-west-1
+   * # stp-end-focus
+   * resources:
+   *   uploads:
+   *     type: bucket
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Bucket, defineConfig } from 'stacktape';
+   *
+   * // stp-focus
+   * export default defineConfig({ projectName: 'my-web-app', region: 'eu-west-1' }, () => ({
+   *   // stp-end-focus
+   *   resources: { uploads: new Bucket({}) }
+   * }));
+   * ```
+   */
+  region?: SupportedAWSRegion;
   /**
    * #### Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash).
    *
@@ -283,7 +322,7 @@ export interface StacktapeConfig {
    * ---
    *
    * Use `connectTo` in a script to auto-inject database URLs, API keys, etc. as environment variables.
-   * Run scripts with `stacktape script:run --scriptName myScript` or attach them to `hooks`.
+   * Run scripts with `stacktape script run myScript` or attach them to `hooks`.
    *
    * **Script types:**
    * - **`local-script`**: Runs on your machine (or CI). Good for migrations, builds, seed scripts.
@@ -572,7 +611,7 @@ export interface StacktapeConfig {
    * ---
    *
    * Each entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages
-   * the underlying AWS resources for you. Use `stacktape info:stack` to inspect them.
+   * the underlying AWS resources for you. Use `stacktape status` to inspect them.
    *
    * **Example (YAML):**
    *
@@ -633,7 +672,7 @@ export interface StacktapeConfig {
    * ---
    *
    * For advanced use cases where Stacktape doesn't have a built-in resource type.
-   * These are merged into the CloudFormation template as-is. Use `stacktape info:stack`
+   * These are merged into the CloudFormation template as-is. Use `stacktape status`
    * to check existing logical names and avoid conflicts.
    *
    * Does not count towards your resource limit.

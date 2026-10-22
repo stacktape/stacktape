@@ -85,9 +85,39 @@ The `defineConfig` function receives a callback whose argument provides deploy-t
 | ------------- | ---------- | ------------------------------------------------------------ |
 | `stage`       | `string`   | Current stage name (e.g. `dev`, `production`)                |
 | `region`      | `string`   | AWS region for this deployment (e.g. `eu-west-1`)            |
-| `projectName` | `string`   | Project name passed via CLI                                  |
+| `projectName` | `string`   | Project name: `--project`, the settings object, or the machine-wide default |
 | `command`     | `string`   | The CLI command being run (`deploy`, `delete`, `dev`, etc.)  |
 | `cliArgs`     | `string[]`   | Additional CLI arguments passed after `--`                   |
+
+### Project name and region
+
+Declare the project name and region in the first argument of `defineConfig`. Commands run inside the project then need only `--stage`: `stacktape deploy --stage dev`, `stacktape logs api --stage dev`, `stacktape status --stage dev`.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, Bucket } from 'stacktape';
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, ({ stage }) => ({
+  resources: { uploads: new Bucket({}) }
+}));
+```
+
+
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  uploads:
+    type: bucket
+```
+
+
+Stacktape reads these two values before it runs the config, because choosing credentials and the AWS region comes first. Write them as plain strings: a variable, an environment variable or another computed value is rejected with the supported form. Return everything else from the callback; the callback always receives the effective `projectName` and `region`.
+
+A `--project` or `--region` flag overrides the config for one command. Without a value in the config, the region comes from `AWS_DEFAULT_REGION`, the machine-wide default (`stacktape defaults set region`) and then the AWS profile, in that order. Commands that do not use the config, such as `stacktape secret get`, take only the region from it and never fail because of it.
 
 ### Conditional logic and loops
 
@@ -238,10 +268,10 @@ export default defineConfig(({ stage }) => {
 
 ## Config file detection
 
-Stacktape auto-detects configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can point to a different location with the `--configPath` option. See the [`deploy`](/cli/deploy) command reference for details.
+Stacktape auto-detects configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can point to a different location with the `--config` option. See the [`deploy`](/cli/deploy) command reference for details.
 
 ```bash
-stacktape deploy --stage production --configPath ./infrastructure/stacktape.ts
+stacktape deploy --stage production --config ./infrastructure/stacktape.ts
 ```
 
 ## Directives in configuration

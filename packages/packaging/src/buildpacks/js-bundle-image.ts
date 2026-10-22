@@ -40,12 +40,29 @@ export const buildJsBundleImage = async ({
   devMode,
   runtime = 'node',
   runtimeTools,
+  imageExtension,
   ...otherProps
 }: StpBuildpackInput &
   JsBundleOptions &
   ImageBuildActions &
   DockerImageInspectionActions &
   EsBuildActions & {
+    imageExtension?: {
+      digestInput: unknown;
+      existingDigests: string[];
+      transform: (input: {
+        packagingDigest: string;
+        dockerfileContents: string;
+        buildContextPath: string;
+        runtime: string;
+        nodeVersion: number;
+        nodeTarget: string;
+        minify: boolean;
+        dockerBuildOutputArchitecture: string;
+        languageSpecificBundleOutput: LanguageSpecificBundleOutput;
+        nodeBaseDigest?: string;
+      }) => Promise<string>;
+    };
     requiresGlibcBinaries: boolean;
     nodeTarget: string;
     minify: boolean;
@@ -61,6 +78,7 @@ export const buildJsBundleImage = async ({
 
   const bundlingOutput = await createEsBundle({
     ...otherProps,
+    ...(imageExtension && { existingDigests: imageExtension.existingDigests }),
     ...(otherProps.disableSourceMaps && { sourceMaps: 'disabled' }),
     bundleTarget: runtime === 'bun' ? 'bun' : 'node',
     externals: [],
@@ -71,6 +89,7 @@ export const buildJsBundleImage = async ({
     name,
     progressLogger,
     additionalDigestInput: objectHash({
+      ...(imageExtension && { imageExtension: imageExtension.digestInput }),
       bundleOptions: pickJsBundleOptions(otherProps),
       runtime,
       runtimeTools,
@@ -145,7 +164,7 @@ export const buildJsBundleImage = async ({
 
   // Production mode: full Docker build with code baked in
   await progressLogger.startEvent({ eventType: 'CREATE_DOCKERFILE', description: 'Creating Dockerfile' });
-  const dockerfileContents = await createEsDockerFile({
+  let dockerfileContents = await createEsDockerFile({
     languageSpecificBundleOutput,
     requiresGlibcBinaries,
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
@@ -161,6 +180,41 @@ export const buildJsBundleImage = async ({
     },
     buildContextPath
   });
+  let nodeBaseDigest: string | undefined;
+  if (
+    imageExtension &&
+    !cacheFromRef &&
+    !cacheToRef &&
+    (languageSpecificBundleOutput.es?.externalDependencies?.length ?? 0) > 0 &&
+    dockerfileContents.includes('COPY . /app\nCOPY --from=deps /install-dir/package.json /app/package.json')
+  ) {
+    // This generated install reads only its manifest. Its actual image ID covers the runtime and installed bytes,
+    // including changed transitive packages, without the application's changing source layer.
+    const base = await buildGeneratedDockerImage({
+      dockerfileContents: dockerfileContents.replace('COPY . /app\n', ''),
+      buildDockerImage,
+      imageTag: `${name}-code-swap-base`,
+      buildContextPath,
+      dockerBuildOutputArchitecture,
+      cacheFromRef,
+      cacheToRef
+    });
+    nodeBaseDigest = base.id;
+    dockerfileContents = `FROM ${name}-code-swap-base\nCOPY . /app\nWORKDIR /app\nENV NODE_ENV=production\nCMD ["node", "index.js"]\n`;
+  }
+  if (imageExtension)
+    dockerfileContents = await imageExtension.transform({
+      packagingDigest: digest,
+      dockerfileContents,
+      buildContextPath,
+      runtime,
+      nodeVersion,
+      nodeTarget,
+      minify,
+      dockerBuildOutputArchitecture: dockerBuildOutputArchitecture ?? 'linux/amd64',
+      languageSpecificBundleOutput,
+      ...(nodeBaseDigest && { nodeBaseDigest })
+    });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });

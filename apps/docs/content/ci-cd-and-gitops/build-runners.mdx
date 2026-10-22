@@ -24,7 +24,7 @@ Local CLI commands and [custom CI/CD pipelines](/ci-cd-and-gitops/custom-ci-cd) 
 
 ## Runner configuration
 
-Runner settings are configured per project in the Stacktape Console. Open the project, select **Configure runner**, and choose the EC2 instance type. The runner region is selected when you create a Git-backed project.
+Runner settings are configured per project in the Stacktape Console. Open **Runners**, select the project's runner and open its **Settings** tab to choose the instance size, the build cache limit, what happens when the runner is idle and the project's setup commands. The runner region is selected when you create a Git-backed project.
 
 ### Instance types
 
@@ -54,11 +54,20 @@ The runner region determines where its EC2 instance, EBS volume, and supporting 
 Choose a runner region close to the regions where you usually deploy. This can reduce latency and cross-region data transfer during builds and uploads.
 </Tip>
 
-### Organization install commands
+### Setup commands
 
-Organization administrators can configure additional build commands from the Projects page. Stacktape runs these commands while preparing deployment jobs, which is useful for installing organization-specific tools that are not part of the runner image.
+Setup commands are shell commands that each deployment on a runner runs before `stacktape deploy`, in a fresh checkout
+of your code. Use them to install tools your build needs, point a package manager at a private registry, or export
+environment variables for the build (`export NAME=value`).
 
-Treat these commands as privileged build configuration. Keep them deterministic, pin external tool versions, and avoid printing credentials or other secrets.
+- **Every project:** owners and admins edit them in the **Setup commands** section of the **Runners** page.
+- **One project:** edit them on the **Settings** tab of the project's runner. They run after the commands for every
+  project.
+
+The commands run in order in Bash as a user without root, so install tools into the home directory (for example
+`pip install --user` or `npm install -g`). If a command fails, the deployment stops and its log shows the output.
+Deletes, rollbacks and GitHub Actions jobs do not run setup commands. A line starting with `#` names the commands under
+it, and a blank line starts a new group. Keep the commands deterministic, pin tool versions and do not print secrets.
 
 ## Lifecycle and cost
 
@@ -76,7 +85,7 @@ Rates vary by region and change over time. Use the [AWS Pricing Calculator](http
 
 The runner stores package-manager, source, and build caches on its persistent volume. This avoids downloading and rebuilding unchanged inputs on every deployment. Stacktape isolates individual operation work directories while reusing the caches that make repeated jobs faster.
 
-Use `--noCache` for a CLI deployment when you need Stacktape to rebuild artifacts without its normal build cache. That flag does not delete the runner or all operating-system-level caches.
+Use `--no-cache` for a CLI deployment when you need Stacktape to rebuild artifacts without its normal build cache. That flag does not delete the runner or all operating-system-level caches.
 
 ## FAQ
 

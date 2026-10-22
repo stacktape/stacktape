@@ -239,7 +239,7 @@ CMD ["node", "src/server.js"]
 
 By copying `package.json` and running `npm ci` before copying the rest of the source, Docker reuses the cached dependency layer whenever only application code changes. This is standard Dockerfile hygiene and helps whenever the build environment has a warm cache. Stacktape's `dockerfile` packaging controls only the Dockerfile, build context, args, command, and entry point — caching behavior depends on Docker itself.
 
-On your machine, Stacktape builds with Docker's local build cache. In CI, where a runner usually starts without that cache, Stacktape also stores the layer cache in the stack's ECR repository and reuses it in the next CI build. `--disableDockerRemoteCache` turns the ECR cache off.
+On your machine, Stacktape builds with Docker's local build cache. In CI, where a runner usually starts without that cache, Stacktape also stores the layer cache in the stack's ECR repository and reuses it in the next CI build. `--no-remote-cache` turns the ECR cache off.
 
 ## Using with batch jobs
 

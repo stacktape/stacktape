@@ -1,26 +1,30 @@
-# defaults:list
+# defaults list
 
-The `defaults:list` command prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
+The `defaults list` command prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
 
 ## Usage
 
 ```bash
-stacktape defaults:list
+stacktape defaults list
 ```
 
-This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults:configure`](/cli/defaults-configure).
+This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults set`](/cli/defaults-configure).
 
 ## Command reference
 
 
-## CLI Options: `stacktape defaults:list`
+## CLI Options: `stacktape defaults list`
 
-No available options.
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## What gets displayed
 
-The output shows all defaults you've previously set with [`defaults:configure`](/cli/defaults-configure). Configurable defaults include:
+The output shows all defaults you've previously set with [`defaults set`](/cli/defaults-configure). Configurable defaults include:
 
 - `region` — AWS region used for deployments
 - `stage` — default stage name
@@ -28,7 +32,7 @@ The output shows all defaults you've previously set with [`defaults:configure`](
 - `projectName` — default project name
 - `awsAccount` — AWS account identifier
 
-`defaults:list` also prints other stored defaults, such as default executables for resolving Node.js directives, when configured.
+`defaults list` also prints other stored defaults, such as default executables for resolving Node.js directives, when configured.
 
 Each default appears as a `key: value` pair. Stacktape uses these values as fallback arguments for commands that accept the corresponding options.
 
@@ -38,6 +42,6 @@ Each default appears as a `key: value` pair. Stacktape uses these values as fall
 
 ## Related commands
 
-- [`defaults:configure`](/cli/defaults-configure) — set or update system-wide defaults
-- [`info:whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
+- [`defaults set`](/cli/defaults-configure) — set or update system-wide defaults
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

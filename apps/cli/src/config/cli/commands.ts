@@ -2,6 +2,7 @@ import {
   apiKey,
   agent,
   aiProvider,
+  codingAgents,
   agentChild,
   agentPort,
   awsAccount,
@@ -27,6 +28,7 @@ import {
   filter,
   headersPreset,
   fullDeploy,
+  recoverOperation,
   headless,
   noBrowser,
   codingAgent,
@@ -73,6 +75,7 @@ import {
   starterId,
   starterProject,
   startTime,
+  endTime,
   universalArgs,
   watch,
   withPackage,
@@ -110,8 +113,9 @@ export const commandDefinitions = {
   deploy: {
     description: `Deploys your stack to AWS.
 
-If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (usually \`stacktape.ts\`, with \`stacktape.yml\` still supported) in the current directory, or you can specify a path using the \`--configPath\` option.`,
+If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (usually \`stacktape.ts\`, with \`stacktape.yml\` still supported) in the current directory, or you can specify a path using the \`--config\` option.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -167,9 +171,9 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
 
 Use this command to gracefully stop a dev agent that was started with \`dev --agent\`.
 
-If multiple agents are running, you'll be prompted to specify which one to stop using \`--agentPort\`.
+If multiple agents are running, you'll be prompted to specify which one to stop using \`--agent-port\`.
 
-Use \`--cleanupContainers\` to remove orphaned Docker containers left behind by crashed dev sessions.`,
+Use \`--cleanup-containers\` to remove orphaned Docker containers left behind by crashed dev sessions.`,
     args: {
       ...universalArgs,
       agentPort: agentPort.optional(),
@@ -196,6 +200,7 @@ This command only updates the script's source code. To update environment variab
 
 This action is irreversible and will permanently remove all resources in the stack. Be sure to back up any data you want to keep. If you don't provide a configuration file, \`beforeDelete\` hooks will not be executed.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -221,7 +226,7 @@ This action is irreversible and will permanently remove all resources in the sta
   synth: {
     description: `Compiles your Stacktape configuration into a CloudFormation template.
 
-By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--outFile\` option to specify a different path.`,
+By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--out\` option to specify a different path.`,
     args: {
       ...localUniversalArgs,
       ...stackArgs,
@@ -235,7 +240,7 @@ By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--o
   validate: {
     description: `Validates your Stacktape project without writing deployment artifacts.
 
-By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--withPackage\` to also validate workload packaging, and \`--thorough\` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template. Use \`--outFile\` to write the successfully validated template.`,
+By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--with-package\` to also validate workload packaging, and \`--thorough\` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template. Use \`--out\` to write the successfully validated template.`,
     args: {
       ...localUniversalArgs,
       ...stackArgs,
@@ -312,7 +317,7 @@ AWS CloudFormation infrastructure modules are used to integrate third-party serv
 
 This secret can then be referenced in your configuration using the \`$Secret('secret-name')\` directive. This is useful for storing sensitive data like passwords, API keys, or other credentials.
 
-In agent mode, use --secretName with either --secretValue or --secretFile. Use --forceUpdate to update existing secrets without prompting.`,
+In agent mode, use --secret-name with either --value or --file. Use --force-update to update existing secrets without prompting.`,
     args: {
       ...universalArgs,
       region: awsRegion.optional(),
@@ -327,7 +332,7 @@ In agent mode, use --secretName with either --secretValue or --secretFile. Use -
   'secret:get': {
     description: `Prints details about a specified secret to the console.
 
-In agent mode, use --secretName to specify the secret.`,
+In agent mode, use --secret-name to specify the secret.`,
     args: {
       ...universalArgs,
       region: awsRegion.optional(),
@@ -339,7 +344,7 @@ In agent mode, use --secretName to specify the secret.`,
   'secret:delete': {
     description: `Deletes a specified secret.
 
-In agent mode, use --secretName to specify the secret to delete.`,
+In agent mode, use --secret-name to specify the secret to delete.`,
     args: {
       ...universalArgs,
       region: awsRegion.optional(),
@@ -353,10 +358,11 @@ In agent mode, use --secretName to specify the secret to delete.`,
 
 Downloads the CloudFormation template from a previous version and deploys it. Artifacts (Lambda zips, container images) from that version are reused — no rebuild is required.
 
-Use \`--listVersions\` to see available versions. Specify a target with \`--targetVersion v000003\` or \`--rollbackSteps N\` (default: 1).
+Use \`--list-versions\` to see available versions. Specify a target with \`--target-version v000003\` or \`--rollback-steps N\` (default: 1).
 
-For recovering from \`UPDATE_FAILED\` state, use \`cf:rollback\` instead.`,
+For recovering from \`UPDATE_FAILED\` state, use \`stack recover\` instead.`,
     args: {
+      recoverOperation: recoverOperation.optional(),
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
@@ -414,8 +420,8 @@ Supports two modes:
 - **Insights**: Runs CloudWatch Logs Insights query with --query flag
 
 Examples:
-  stacktape logs --stage prod --resourceName myLambda --startTime "1h"
-  stacktape logs --stage prod --resourceName myLambda --query "fields @timestamp, @message | filter @message like /ERROR/"`,
+  stacktape logs --stage prod --resource-name myLambda --since "1h"
+  stacktape logs --stage prod --resource-name myLambda --query "fields @timestamp, @message | filter @message like /ERROR/"`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -423,6 +429,7 @@ Examples:
       resourceName: resourceName.optional(),
       container: container.optional(),
       startTime: startTime.optional(),
+      endTime: endTime.optional(),
       filter: filter.optional(),
       raw: raw.optional(),
       query: logsQuery.optional(),
@@ -460,7 +467,8 @@ Supported metrics by resource type:
       metric: metric.optional(),
       period: period.optional(),
       stat: stat.optional(),
-      startTime: startTime.optional()
+      startTime: startTime.optional(),
+      endTime: endTime.optional()
     },
     requiredArgs: ['stage', 'region', 'resourceName', 'metric'] as const
   },
@@ -476,7 +484,7 @@ By default, runs an interactive wizard that:
 5. Offers to deploy immediately
 
 Alternative modes:
-- **Starter project:** Use \`--starterProject\` or \`--starterId\` to initialize from a pre-configured template.`,
+- **Starter project:** Use \`--starter-project\` or \`--starter-id\` to initialize from a pre-configured template.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -519,7 +527,7 @@ Files in the bucket that are not present in the source directory will be removed
   'bastion:session': {
     description: `Starts an interactive session with a bastion host.
 
-Your stack must include a \`bastion\` resource. If you have multiple bastions, you can specify which one to connect to with the \`--bastionResource\` argument. The session is established over a secure SSM connection.
+Your stack must include a \`bastion\` resource. If you have multiple bastions, you can specify which one to connect to with the \`--bastion-resource\` argument. The session is established over a secure SSM connection.
 
 For more information, refer to the [bastion documentation](https://docs.stacktape.com/bastion-servers/#connecting-to-bastion-interactive-session).`,
     args: {
@@ -534,7 +542,7 @@ For more information, refer to the [bastion documentation](https://docs.stacktap
   'bastion:tunnel': {
     description: `Creates a secure tunnel to a resource through a bastion host.
 
-Your stack must include a \`bastion\` resource. This is useful for accessing resources in a private VPC. If you have multiple bastions, you can specify one with the \`--bastionResource\` argument. The command will print the tunneled endpoints to the terminal.
+Your stack must include a \`bastion\` resource. This is useful for accessing resources in a private VPC. If you have multiple bastions, you can specify one with the \`--bastion-resource\` argument. The command will print the tunneled endpoints to the terminal.
 
 For more information, refer to the [bastion tunnel documentation](https://docs.stacktape.com/bastion-servers/#creating-bastion-tunnel).`,
     args: {
@@ -570,12 +578,12 @@ For more information, refer to the [container session documentation](https://doc
 
 Runs a command inside a deployed container workload (web-service, private-service, worker-service, or multi-container-workload) using ECS Exec. The command output is captured and returned as JSON.
 
-Use --taskArn to specify which task to connect to when multiple instances are running (defaults to first available). Use --container to specify which container for multi-container workloads.
+Use --task-arn to specify which task to connect to when multiple instances are running (defaults to first available). Use --container to specify which container for multi-container workloads.
 
 Examples:
-  stacktape container:exec --stage prod --resourceName myService --command "ls -la"
-  stacktape container:exec --stage prod --resourceName myService --command "cat /app/config.json"
-  stacktape container:exec --stage prod --resourceName myService --taskArn abc123 --command "env"`,
+  stacktape container exec --stage prod --resource-name myService --command "ls -la"
+  stacktape container exec --stage prod --resource-name myService --command "cat /app/config.json"
+  stacktape container exec --stage prod --resource-name myService --task-arn abc123 --command "env"`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -593,11 +601,11 @@ Examples:
 
 Use this first when you need to check a row, run a SELECT, or inspect a production PostgreSQL/MySQL database from the command line. Only read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) are allowed.
 
-If the database is VPC-only, use --bastionResource to tunnel through a bastion host for the duration of the query. Use bastion:tunnel only when you need a persistent tunnel for a local database client.
+If the database is VPC-only, use --bastion-resource to tunnel through a bastion host for the duration of the query. Use bastion tunnel only when you need a persistent tunnel for a local database client.
 
 Examples:
-  stacktape query:sql --stage prod --resourceName myDatabase --sql "SELECT * FROM users LIMIT 10"
-  stacktape query:sql --stage prod --resourceName myDatabase --bastionResource myBastion --sql "SHOW TABLES"`,
+  stacktape query sql --stage prod --resource-name myDatabase --sql "SELECT * FROM users LIMIT 10"
+  stacktape query sql --stage prod --resource-name myDatabase --bastion-resource myBastion --sql "SHOW TABLES"`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -619,9 +627,9 @@ Provides direct access to AWS SDK v3 for inspecting deployed resources. Each sup
 This name check is the only guard: the call uses the deployed stack's debug role when one is available and falls back to your own AWS credentials when it is not, so an accepted operation runs with whatever those credentials allow.
 
 Examples:
-  stacktape aws:call --stage prod --service lambda --command ListFunctions
-  stacktape aws:call --stage prod --service dynamodb --command Scan --input '{"TableName": "my-table", "Limit": 10}'
-  stacktape aws:call --stage prod --service logs --command FilterLogEvents --input '{"logGroupName": "/aws/lambda/my-func"}'`,
+  stacktape aws call --stage prod --service lambda --command ListFunctions
+  stacktape aws call --stage prod --service dynamodb --command Scan --input '{"TableName": "my-table", "Limit": 10}'
+  stacktape aws call --stage prod --service logs --command FilterLogEvents --input '{"logGroupName": "/aws/lambda/my-func"}'`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -638,11 +646,11 @@ Examples:
 Supports operations: scan, query, get, schema, sample. All operations are read-only.
 
 Examples:
-  stacktape query:dynamodb --stage prod --resourceName myTable --operation sample
-  stacktape query:dynamodb --stage prod --resourceName myTable --operation schema
-  stacktape query:dynamodb --stage prod --resourceName myTable --operation scan --limit 50
-  stacktape query:dynamodb --stage prod --resourceName myTable --operation query --pk '{"userId": "123"}'
-  stacktape query:dynamodb --stage prod --resourceName myTable --operation get --pk '{"userId": "123"}' --sk '{"timestamp": 1234}'`,
+  stacktape query dynamodb --stage prod --resource-name myTable --operation sample
+  stacktape query dynamodb --stage prod --resource-name myTable --operation schema
+  stacktape query dynamodb --stage prod --resource-name myTable --operation scan --limit 50
+  stacktape query dynamodb --stage prod --resource-name myTable --operation query --pk '{"userId": "123"}'
+  stacktape query dynamodb --stage prod --resource-name myTable --operation get --pk '{"userId": "123"}' --sk '{"timestamp": 1234}'`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -662,13 +670,13 @@ Examples:
 
 Supports operations: keys, get, ttl, info, type. All operations are read-only.
 
-If the Redis cluster is VPC-only, use --bastionResource to tunnel through a bastion host.
+If the Redis cluster is VPC-only, use --bastion-resource to tunnel through a bastion host.
 
 Examples:
-  stacktape query:redis --stage prod --resourceName myRedis --operation info
-  stacktape query:redis --stage prod --resourceName myRedis --operation keys --pattern "user:*"
-  stacktape query:redis --stage prod --resourceName myRedis --operation get --key "session:abc123"
-  stacktape query:redis --stage prod --resourceName myRedis --bastionResource myBastion --operation info`,
+  stacktape query redis --stage prod --resource-name myRedis --operation info
+  stacktape query redis --stage prod --resource-name myRedis --operation keys --pattern "user:*"
+  stacktape query redis --stage prod --resource-name myRedis --operation get --key "session:abc123"
+  stacktape query redis --stage prod --resource-name myRedis --bastion-resource myBastion --operation info`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -690,11 +698,11 @@ Examples:
 Supports operations: search, get, indices, mapping, count. All operations are read-only.
 
 Examples:
-  stacktape query:opensearch --stage prod --resourceName mySearch --operation indices
-  stacktape query:opensearch --stage prod --resourceName mySearch --operation mapping --index users
-  stacktape query:opensearch --stage prod --resourceName mySearch --operation count --index users
-  stacktape query:opensearch --stage prod --resourceName mySearch --operation get --index users --id doc123
-  stacktape query:opensearch --stage prod --resourceName mySearch --operation search --query '{"match_all": {}}'`,
+  stacktape query opensearch --stage prod --resource-name mySearch --operation indices
+  stacktape query opensearch --stage prod --resource-name mySearch --operation mapping --index users
+  stacktape query opensearch --stage prod --resource-name mySearch --operation count --index users
+  stacktape query opensearch --stage prod --resource-name mySearch --operation get --index users --id doc123
+  stacktape query opensearch --stage prod --resource-name mySearch --operation search --query '{"match_all": {}}'`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -720,7 +728,15 @@ You can set defaults for:
 - \`awsAccount\`
 
 You can also configure default executables for resolving Node.js directives.`,
-    args: {},
+    args: {
+      agent: agent.optional(),
+      key: command
+        .optional()
+        .describe(
+          'Default setting to update: region, stage, profile, project, aws-account, api-key, executable-python or executable-javascript.'
+        ),
+      value: command.optional().describe('New value for the selected default setting.')
+    },
     requiredArgs: [] as const
   },
 
@@ -804,7 +820,7 @@ In a local terminal, this starts the Stacktape login flow and stores CLI authent
   'org:create': {
     description: `Creates a new organization in your Stacktape account.
 
-In interactive mode, you'll be prompted for the organization name. In agent mode, provide --organizationName.
+In interactive mode, you'll be prompted for the organization name. In agent mode, provide --organization-name.
 
 The command returns new organization credentials scoped to the created organization. Treat any returned key material as sensitive and store it outside chat transcripts or logs.`,
     args: {
@@ -829,11 +845,11 @@ Shows organization name, role, number of connected AWS accounts, and whether it'
   },
 
   'org:delete': {
-    description: `Deletes organization access for your user.
+    description: `Deletes the organization of your API key.
 
-In interactive mode, you'll pick an organization. In agent mode, provide --organizationId.
+In interactive mode, you'll confirm the deletion. In agent mode, provide --organization-id with the ID of that organization.
 
-This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts.`,
+This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts. To delete another organization, log in with an API key of that organization first.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -846,7 +862,7 @@ This operation is allowed only for organization OWNER and only when there are no
   'project:create': {
     description: `Creates a new project in the current organization.
 
-If you omit --projectName in interactive mode, you'll be prompted for it. In agent mode, provide --projectName.`,
+If you omit --project in interactive mode, you'll be prompted for it. In agent mode, provide --project.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -886,14 +902,14 @@ which projects and stages it currently applies to.`,
   'ai:connect': {
     description: `Connects your own AI subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
 
-Asks which provider to connect (or takes \`--aiProvider\`) and explains what will happen before anything runs. Each provider comes with its coding agent, whose CLI must be installed:
+Asks which provider to connect (or takes \`--ai-provider\`) and explains what will happen before anything runs. Each provider comes with its coding agent, whose CLI must be installed:
 
 - **Claude** (Claude Code): runs \`claude setup-token\`, signs you in through your browser and stores the long-lived token it prints.
 - **Codex** (ChatGPT plan): uses the ChatGPT sign-in of your Codex CLI, running \`codex login\` first when needed, and stores the tokens Codex keeps in \`~/.codex/auth.json\`. An OpenAI API key is not a subscription and is never read.
 - **Grok** (Grok sign-in): uses the sign-in of your Grok CLI, running \`grok login\` first when needed (with a device code where no browser can open), and stores the sign-in Grok keeps in \`~/.grok/auth.json\`, without your name, email or picture.
 - **OpenCode**: uses what your OpenCode CLI is signed in to, running \`opencode auth login\` first when it has nothing, and stores \`~/.local/share/opencode/auth.json\`.
 
-Only runs you request use it; remove it with \`stacktape ai:disconnect\`. A run may refresh a sign-in; if the provider then replaces its refresh token, connect it again. Outside a terminal, pass \`--aiProvider\`; only a sign-in that is already there can be connected then. Alternatively, an Admin or Owner can connect the organization's Anthropic, OpenAI or xAI API key in the Console.`,
+Only runs you request use it; remove it with \`stacktape ai disconnect\`. A run may refresh a sign-in; if the provider then replaces its refresh token, connect it again. Outside a terminal, pass \`--ai-provider\`; only a sign-in that is already there can be connected then. Alternatively, an Admin or Owner can connect the organization's Anthropic, OpenAI or xAI API key in the Console.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -903,7 +919,7 @@ Only runs you request use it; remove it with \`stacktape ai:disconnect\`. A run 
     requiredArgs: [] as const
   },
   'ai:disconnect': {
-    description: `Removes your own AI subscription with one provider from Stacktape. Asks which provider to disconnect (or takes \`--aiProvider\`). Hosted AI incident runs you request can no longer be funded by that subscription until you connect it again with \`stacktape ai:connect\`. The sign-in on your own machine stays as it is.`,
+    description: `Removes your own AI subscription with one provider from Stacktape. Asks which provider to disconnect (or takes \`--ai-provider\`). Hosted AI incident runs you request can no longer be funded by that subscription until you connect it again with \`stacktape ai connect\`. The sign-in on your own machine stays as it is.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -946,8 +962,8 @@ Shows operation history including success/failure status, timestamps, and error 
 Returns stack outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Useful for discovering endpoints after deployment.
 
 You can identify the stack in two ways:
-- Using --stackName directly (e.g., --stackName my-project-prod)
-- Using --projectName and --stage (e.g., --projectName my-project --stage prod)`,
+- Using --stack-name directly (e.g., --stack-name my-project-prod)
+- Using --project and --stage (e.g., --project my-project --stage prod)`,
     args: {
       logLevel: logLevel.optional(),
       stackName: stackName.optional(),
@@ -962,9 +978,9 @@ You can identify the stack in two ways:
   },
 
   mcp: {
-    description: `Starts a local MCP (Model Context Protocol) server that provides Stacktape tools and documentation to AI coding agents.
+    description: `Starts the local Stacktape MCP (Model Context Protocol) server for coding agents.
 
-The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, Codex, VS Code/Copilot, OpenCode, Windsurf, etc.) and exposes four tools: \`stacktape_docs\` for documentation search/fetch, \`stacktape_project\` for project scanning, \`stacktape_cli\` for CLI discovery/planning/execution, and \`stacktape_dev\` for dev-mode lifecycle operations.`,
+Coding agents start it themselves over stdio after \`stacktape mcp add\` set them up; you do not run it by hand. It serves both the 2026-07-28 protocol and the earlier 2025 revisions, and exposes five tools: \`stacktape_incident\` to start an incident investigation, \`stacktape_docs\` for documentation search, \`stacktape_project\` for project scanning, \`stacktape_cli\` to plan and run CLI commands, and \`stacktape_dev\` for dev mode.`,
     args: {
       logLevel: logLevel.optional()
     },
@@ -972,12 +988,27 @@ The server communicates over stdio using the MCP protocol. It is spawned by MCP-
   },
 
   'mcp:add': {
-    description: `Installs Stacktape MCP server config into popular coding-agent clients on this machine.
+    description: `Connects your coding agents to Stacktape: Claude Code, Codex, Cursor, VS Code (GitHub Copilot), GitHub Copilot CLI, Windsurf and OpenCode.
 
-Detects client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, Windsurf), then adds or updates a \`stacktape\` MCP server entry that runs \`stacktape mcp\`. Creates timestamped backups before modifying existing files.`,
+For each agent you pick, it adds the Stacktape MCP server at user level (Claude Code and Codex through their own \`mcp add\` commands, the others by editing their config file in place, with a backup), then starts the server once to check that it works. In a terminal it asks which agents to set up, with the ones found on this machine preselected; \`--coding-agents\` skips the question. Safe to run again, for example after moving the CLI.`,
     args: {
       logLevel: logLevel.optional(),
       autoConfirmOperation: autoConfirmOperation.optional(),
+      codingAgents: codingAgents.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'mcp:remove': {
+    description: `Removes the user-level Stacktape MCP server entry that \`stacktape mcp add\` added to your coding agents.
+
+Project-level entries (such as a committed \`.mcp.json\`) are shared with your team, so they are listed but not changed.`,
+    args: {
+      logLevel: logLevel.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional(),
+      codingAgents: codingAgents.optional(),
       agent: agent.optional(),
       outputFormat: outputFormat.optional()
     },
@@ -1044,8 +1075,8 @@ The command succeeds only after the incident remains RESOLVED for the stability 
     },
     requiredArgs: ['incidentId'] as const
   },
-  'issues:list': {
-    description: `Lists detected runtime issues (errors) across your deployed functions and containers.
+  'errors:list': {
+    description: `Lists detected runtime errors across your deployed functions and containers.
 
 Shows error message, type, function name, project/stage, occurrence count, and status. Filter by status, project, or stage.`,
     args: {
@@ -1059,7 +1090,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
     },
     requiredArgs: [] as const
   },
-  'issues:resolve': {
+  'errors:resolve': {
     description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,
     args: {
       logLevel: logLevel.optional(),
@@ -1069,7 +1100,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
     },
     requiredArgs: ['issueId'] as const
   },
-  'issues:ignore': {
+  'errors:ignore': {
     description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,
     args: {
       logLevel: logLevel.optional(),
@@ -1079,7 +1110,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
     },
     requiredArgs: ['issueId'] as const
   },
-  'issues:reopen': {
+  'errors:reopen': {
     description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,
     args: {
       logLevel: logLevel.optional(),
@@ -1105,6 +1136,7 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'dev',
   'mcp',
   'mcp:add',
+  'mcp:remove',
   'version',
   'help',
   'upgrade',
@@ -1120,6 +1152,7 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'logout',
   'mcp',
   'mcp:add',
+  'mcp:remove',
   'version',
   'help',
   'defaults:list',

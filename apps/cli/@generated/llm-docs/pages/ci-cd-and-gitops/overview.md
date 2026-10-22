@@ -60,10 +60,10 @@ jobs:
       - name: Deploy to production
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        run: npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
-The CLI authenticates via the `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. The `--autoConfirmOperation` flag skips the interactive confirmation prompt that would block a CI runner. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
+The CLI authenticates via the `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. The `--yes` flag skips the interactive confirmation prompt that would block a CI runner. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
 
 ## When to use custom CI/CD
 
@@ -100,13 +100,13 @@ For PR-opened GitOps configurations, the Console displays the stage name as `pr-
 Deploy a PR stage:
 
 ```bash
-npx stacktape deploy --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
+npx stacktape deploy --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
 ```
 
 Clean up when the PR closes:
 
 ```bash
-npx stacktape delete --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
+npx stacktape delete --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
 ```
 
 Stage names must be lowercase alphanumeric with dashes only (regex `[a-z0-9-]+`), at least 2 characters, and at most 10 characters. Branch names containing uppercase letters, underscores, or slashes must be sanitized before use as stage names. Use short, stable names because stage names are reused in generated stack and resource names, and downstream AWS resources have their own length limits.

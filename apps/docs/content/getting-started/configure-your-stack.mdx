@@ -163,7 +163,7 @@ The context object passed to the `defineConfig` callback includes:
 | ------------- | ------------------------------------------------ | ---------------------------------------------------------- |
 | `stage`       | `string`                                         | Current stage name (e.g., `dev`, `production`)             |
 | `region`      | `string`                                         | AWS region (e.g., `us-east-1`, `eu-west-1`)                |
-| `projectName` | `string`                                         | Project name                                               |
+| `projectName` | `string`                                         | Project name, always set when the config declares it ([project settings](/configuration/configuration-files#project-name-and-region)) |
 | `command`     | `string`                                         | CLI command being run (`deploy`, `delete`, `dev`, etc.)     |
 | `cliArgs`     | `Record<string, string \| number \| boolean>`    | Key-value arguments passed via the `--arg` CLI flag        |
 

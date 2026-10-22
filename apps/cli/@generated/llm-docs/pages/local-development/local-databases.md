@@ -187,18 +187,18 @@ Referenceable parameters available for the local domain include `domainEndpoint`
 
 ## Using remote databases
 
-By default, supported databases run locally. To connect to the real deployed AWS resource instead, set `dev.remote: true` on the resource in your config, or use the `--remoteResources` CLI flag at runtime without editing config.
+By default, supported databases run locally. To connect to the real deployed AWS resource instead, set `dev.remote: true` on the resource in your config, or use the `--remote-resources` CLI flag at runtime without editing config.
 
 To switch a single resource to remote at runtime:
 
 ```bash
-stacktape dev --remoteResources mainDb
+stacktape dev --remote-resources mainDb
 ```
 
 To switch multiple resources, separate names with commas:
 
 ```bash
-stacktape dev --remoteResources mainDb,cache
+stacktape dev --remote-resources mainDb,cache
 ```
 
 Alternatively, set `dev.remote: true` on the resource in your config for a persistent setting:
@@ -242,13 +242,13 @@ For most day-to-day development, local databases are faster (no network latency)
 
 ## Resetting local data
 
-Data from local databases persists across dev sessions in a local data directory mounted into the container. The primary way to reset all local databases is the `--freshDb` flag:
+Data from local databases persists across dev sessions in a local data directory mounted into the container. The primary way to reset all local databases is the `--fresh-db` flag:
 
 ```bash
-stacktape dev --freshDb
+stacktape dev --fresh-db
 ```
 
-This deletes the data directory for every local database before starting, giving you a clean state. Note that `--freshDb` resets **all** local databases for the stage, not just one.
+This deletes the data directory for every local database before starting, giving you a clean state. Note that `--fresh-db` resets **all** local databases for the stage, not just one.
 
 To reset a single resource selectively, stop dev mode, delete that resource's data directory, and restart. Data is stored at `.stacktape/dev-data/<stage>/<resourceName>/data/` relative to your project root. For example, to reset only a database named `mainDb` on stage `dev-john`:
 
@@ -276,7 +276,7 @@ Oracle and SQL Server engines are not mapped to a local container type. MongoDB 
 
 ### Does local database data persist when I restart dev mode?
 
-Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --freshDb`, or delete a single resource's directory under `.stacktape/dev-data/<stage>/<resourceName>/data/`.
+Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --fresh-db`, or delete a single resource's directory under `.stacktape/dev-data/<stage>/<resourceName>/data/`.
 
 ### Can I run multiple stages locally at the same time?
 

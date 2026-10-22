@@ -191,7 +191,7 @@ stacktape init
 Example (bash):
 
 ```bash
-stacktape deploy --stage dev --region us-east-1 --projectName {your-project-name}
+stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
 ```
 
 
@@ -290,7 +290,7 @@ export default defineConfig(() => {
 Example (bash):
 
 ```bash
-stacktape script:run --scriptName migrate --stage dev --region us-east-1
+stacktape script run migrate --stage dev --region us-east-1
 ```
 
 

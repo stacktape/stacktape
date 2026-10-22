@@ -1,3 +1,4 @@
+import { publicFlag, publicCommandName } from '../../../config/cli/public-names';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import { createMemo, createSignal, For, Show } from 'solid-js';
 import { useKeyboard } from '@opentui/solid';
@@ -85,7 +86,9 @@ const InteractiveLauncherAppInner = (props: LauncherAppProps) => {
     if (!isPaletteOpen()) return [];
     const q = paletteQuery();
     const recentMatches = props.recentCommands.filter((r) => `${r.command} ${r.label}`.toLowerCase().includes(q));
-    const commandMatches = q ? allCommands.filter((c) => c.command.toLowerCase().includes(q)) : allCommands;
+    const commandMatches = q
+      ? allCommands.filter((c) => `${c.command} ${c.label}`.toLowerCase().includes(q))
+      : allCommands;
     const entries: PaletteEntry[] = [];
     if (recentMatches.length) {
       entries.push({ kind: 'header', title: 'recent' });
@@ -139,7 +142,7 @@ const InteractiveLauncherAppInner = (props: LauncherAppProps) => {
         return {
           type: 'arg',
           argName,
-          label: `--${argName}`,
+          label: `--${publicFlag(argName)}`,
           description: info.description ? firstLine(info.description) : ''
         };
       });
@@ -180,7 +183,7 @@ const InteractiveLauncherAppInner = (props: LauncherAppProps) => {
     const entered = input();
     const launcherRequired = getLauncherRequiredArgs(command).includes(argName);
     if (!entered.trim() && !hasArgValue(args()[argName]) && launcherRequired) {
-      setErrorMessage(`${argName} is required.`);
+      setErrorMessage(`--${publicFlag(argName)} is required.`);
       return;
     }
     const nextArgs = {
@@ -209,7 +212,11 @@ const InteractiveLauncherAppInner = (props: LauncherAppProps) => {
     const validation = validateCommandArgs(command, args());
     if (!validation.success) {
       const issue = validation.error.issues[0];
-      setErrorMessage(issue ? `${issue.path.join('.') || command}: ${issue.message}` : 'Invalid command arguments.');
+      setErrorMessage(
+        issue
+          ? `${issue.path.length ? publicFlag(String(issue.path[0])) : publicCommandName(command)}: ${issue.message}`
+          : 'Invalid command arguments.'
+      );
       setMode('review');
       return;
     }
@@ -410,7 +417,7 @@ const InteractiveLauncherAppInner = (props: LauncherAppProps) => {
     if (mode() === 'arg') {
       const argName = currentArg();
       if (!argName) return '';
-      return argInfo()?.allowedValues?.length ? `pick a value or type to filter` : `enter ${argName}`;
+      return argInfo()?.allowedValues?.length ? `pick a value or type to filter` : `enter ${publicFlag(argName)}`;
     }
     return '';
   };
@@ -425,7 +432,7 @@ const InteractiveLauncherAppInner = (props: LauncherAppProps) => {
       if (!cmd || !argName) return '';
       return `> ${formatCommandLine(cmd, {
         ...args(),
-        [argName]: input().trim() || `{${argName}}`
+        [argName]: input().trim() || `{${publicFlag(argName)}}`
       })}`;
     }
     if (mode() === 'optional') {
@@ -562,7 +569,7 @@ const PaletteList = (props: { entries: PaletteEntry[]; selectedIndex: number }) 
   const colWidth = createMemo(() => {
     const labels: string[] = [];
     for (const entry of props.entries) {
-      if (entry.kind === 'recent') labels.push(entry.recent.command);
+      if (entry.kind === 'recent') labels.push(publicCommandName(entry.recent.command));
       else if (entry.kind === 'command') labels.push(entry.command.label);
     }
     return maxLabelWidth(labels);
@@ -694,7 +701,7 @@ const RecentRow = (props: { recent: RecentCommandSuggestion; selected: boolean; 
         fg={props.selected ? ACCENT_TEXT : theme.textBright}
         bg={props.selected ? theme.running : PANEL_BG}
       >
-        <b>{padRight(props.recent.command, props.colWidth)}</b>
+        <b>{padRight(publicCommandName(props.recent.command), props.colWidth)}</b>
       </text>
       <text
         flexShrink={1}
@@ -724,7 +731,7 @@ const ArgHeader = (props: { argName: string | null; description?: string; requir
     <box flexDirection="column" paddingX={2} paddingY={0}>
       <box flexDirection="row">
         <text fg={theme.textBright}>
-          Enter <b>{props.argName ?? ''}</b>
+          Enter <b>{props.argName ? publicFlag(props.argName) : ''}</b>
         </text>
         <Show when={props.required}>
           <text fg={theme.muted}> (required)</text>

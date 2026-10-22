@@ -5,7 +5,9 @@ import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 
 export const awsRegion = z.enum(SUPPORTED_AWS_REGIONS).describe(`#### AWS Region
 ---
-The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).`);
+The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).
+
+Inside a project whose config declares \`region\`, the flag is optional and overrides the config.`);
 
 export const logLevel = z.enum(['info', 'debug', 'error']).describe(`#### Log Level
 ---
@@ -14,9 +16,13 @@ The level of logs to print to the console.
 - \`error\`: Only errors.
 - \`debug\`: Detailed information for debugging.`);
 
+export const quiet = z.boolean().describe(`#### Quiet
+---
+Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed.`);
+
 export const stage = z.string().describe(`#### Stage
 ---
-The stage for the operation (e.g., \`production\`, \`staging\`, \`dev-john\`). You can set a default stage using the \`defaults:configure\` command. The maximum length is 12 characters.`);
+The stage for the operation (e.g., \`production\`, \`staging\`, \`dev-john\`). You can set a default stage using the \`defaults set\` command. The maximum length is 12 characters.`);
 
 export const configPath = z.string().describe(`#### Config File Path
 ---
@@ -24,9 +30,9 @@ The path to your Stacktape configuration file, relative to the current working d
 
 const profile = z.string().describe(`#### AWS Profile
 ---
-The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults:configure\`.
+The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults set\`.
 
-For commands that use a connected AWS account, \`--profile\` (or \`AWS_PROFILE\`) selects the connected account the profile belongs to, unless \`--awsAccount\` is set. The command fails if that account is not connected.`);
+For commands that use a connected AWS account, \`--profile\` (or \`AWS_PROFILE\`) selects the connected account the profile belongs to, unless \`--aws-account\` is set. The command fails if that account is not connected.`);
 
 const help = z.string().describe(`#### Show Help
 ---
@@ -36,11 +42,13 @@ export const awsAccount = z.string().describe(`#### AWS Account
 ---
 The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
 
-Without it, the account is chosen by \`--profile\`, \`AWS_PROFILE\` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. \`--awsAccount\` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.`);
+Without it, the account is chosen by \`--profile\`, \`AWS_PROFILE\` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. \`--aws-account\` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.`);
 
 export const projectName = z.string().describe(`#### Project Name
 ---
-The name of the Stacktape project for this operation.`);
+The name of the Stacktape project for this operation.
+
+Commands that target a stack take it from \`projectName\` in the project's config when the flag is absent.`);
 
 export const organizationName = z.string().describe(`#### Organization Name
 ---
@@ -56,7 +64,7 @@ The ID of the issue to act on.`);
 
 export const issueStatus = z.enum(['OPEN', 'RESOLVED', 'IGNORED']).describe(`#### Issue Status Filter
 ---
-Filter issues by status (OPEN, RESOLVED, IGNORED).`);
+Filter tracked errors by status (OPEN, RESOLVED, IGNORED).`);
 
 export const incidentId = z.string().describe(`#### Incident ID
 ---
@@ -70,6 +78,12 @@ Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
 export const aiProvider = z.enum(['claude', 'codex', 'grok', 'opencode']).describe(`#### AI Provider
 ---
 The AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: \`claude\` (a Claude subscription for Claude Code, through \`claude setup-token\`), \`codex\` (a ChatGPT plan for Codex, from \`codex login\`), \`grok\` (a Grok sign-in, from \`grok login\`) or \`opencode\` (what OpenCode is signed in to, from \`opencode auth login\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
+
+export const codingAgents = z.array(
+  z.enum(['claude-code', 'codex', 'cursor', 'vscode', 'copilot', 'windsurf', 'opencode'])
+).describe(`#### Coding Agents
+---
+The coding agents to set up (or remove), for example \`--coding-agents claude-code,cursor\`. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds.`);
 
 export const incidentWatchTimeoutSeconds = z.number().int().min(1).max(86_400).describe(`#### Incident Watch Timeout
 ---
@@ -122,7 +136,13 @@ Controls where deployment build and packaging work runs.
 
 export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values
 ---
-If \`true\`, includes sensitive values in the output of commands such as \`info:stack\`, \`deploy\`, and \`param:get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+If \`true\`, includes sensitive values in the output of commands such as \`status\`, \`deploy\`, and \`param get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+
+export const recoverOperation = z
+  .string()
+  .describe(
+    'Recover the named code-swap invocation after stopping it and settling its AWS changes. Repairs interrupted swaps with an image deploy.'
+  );
 
 export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---
@@ -150,7 +170,7 @@ Disables automatic tunneling for Lambda functions. Stacktape creates tunnels (us
 
 export const remoteResources = z.array(z.string()).describe(`#### Remote Resources
 ---
-Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: \`--remoteResources myDb\`, \`--remoteResources postgres,redis\`.`);
+Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: \`--remote-resources myDb\`, \`--remote-resources postgres,redis\`.`);
 
 export const resources = z.array(z.string()).describe(`#### Resources
 ---
@@ -158,7 +178,7 @@ Specify which resources to run in dev mode. Can include workloads (containers, f
 
 export const skipResources = z.array(z.string()).describe(`#### Skip Resources
 ---
-Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: \`--skipResources myHeavyDb\`, \`--skipResources fn1,fn2\`.`);
+Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: \`--skip-resources myHeavyDb\`, \`--skip-resources fn1,fn2\`.`);
 
 export const outputFormat = z.enum(['jsonl', 'plain', 'tty']).describe(`#### Output Format
 ---
@@ -166,7 +186,7 @@ Controls the CLI output format:
 - \`jsonl\`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
 - \`plain\`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
 - \`tty\`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.`);
+If not specified, the format is auto-detected from the environment. --agent implies --output-format jsonl.`);
 
 const ui = z.enum(['auto', 'stream', 'dashboard']).describe(`#### Terminal UI
 ---
@@ -181,7 +201,7 @@ export const agent = z.boolean().describe(`#### Agent Mode
 Optimizes CLI output for programmatic/LLM consumption:
 - Uses strict JSONL/NDJSON output (one JSON object per line)
 - Disables interactive terminal UI
-- Automatically confirms operations (equivalent to --autoConfirmOperation)
+- Automatically confirms operations (equivalent to --yes)
 For dev command: also enables HTTP server for programmatic control.`);
 
 export const agentPort = z.number().describe(`#### Agent Port
@@ -204,6 +224,10 @@ export const startTime = z.union([z.number(), z.string()]).describe(`#### Start 
 ---
 The start time from which to print logs. This can be any format accepted by the JavaScript \`Date\` constructor.`);
 
+export const endTime = z.union([z.number(), z.string()]).describe(`#### End Time
+---
+The end of the time window. This can be any format accepted by the JavaScript \`Date\` constructor. Defaults to now; a relative \`--since\` value counts back from it.`);
+
 export const filter = z.string().describe(`#### Filter
 ---
 A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).`);
@@ -220,7 +244,7 @@ export const command = z.string().describe(`#### Command
 ---
 This argument has different meanings depending on the command:
 - With \`stacktape help\`, it specifies a command to show detailed help for.
-- With \`stacktape container:session\`, it specifies a command to run inside the container to start the interactive session.`);
+- With \`stacktape container shell\`, it specifies a command to run inside the container to start the interactive session.`);
 
 export const outFile = z.string().describe(`#### Output File
 ---
@@ -261,7 +285,7 @@ The name of the bastion resource as defined in your Stacktape configuration.`);
 
 export const localTunnelingPort = z.number().describe(`#### Local Tunneling Port
 ---
-Specifies the local port for tunneling when using the \`bastion:tunnel\` command. If not specified, Stacktape automatically selects an available port.`);
+Specifies the local port for tunneling when using the \`bastion tunnel\` command. If not specified, Stacktape automatically selects an available port.`);
 
 export const paramName = z.string().describe(`#### Parameter Name
 ---
@@ -347,7 +371,7 @@ The name of the secret in AWS Secrets Manager.`);
 
 export const secretValue = z.string().describe(`#### Secret Value
 ---
-The value to store in the secret. For sensitive values, consider using --secretFile instead.`);
+The value to store in the secret. For sensitive values, consider using --file instead.`);
 
 export const secretFile = z.string().describe(`#### Secret File
 ---
@@ -436,7 +460,7 @@ ID of the document to retrieve (for OpenSearch get operation).`);
 export const onlyWorkloads = z.array(z.string()).describe(`#### Only Workloads
 ---
 Package only the specified workloads. Provide a comma-separated list of workload names to package.
-Other workloads will be skipped. Example: \`--onlyWorkloads myFunction,myContainer\`.`);
+Other workloads will be skipped. Example: \`--only-workloads myFunction,myContainer\`.`);
 
 export const withPackage = z.boolean().describe(`#### With Package
 ---
@@ -448,11 +472,11 @@ If \`true\`, runs the most complete validation path: validates workload packagin
 
 export const rollbackVersion = z.string().describe(`#### Rollback Version
 ---
-The target deployment version to rollback to (e.g., \`v000003\`). Use \`--listVersions\` to see available versions.`);
+The target deployment version to rollback to (e.g., \`v000003\`). Use \`--list-versions\` to see available versions.`);
 
 export const rollbackSteps = z.number().describe(`#### Rollback Steps
 ---
-Number of versions to rollback. Defaults to \`1\` (previous version). For example, \`--rollbackSteps 2\` rolls back two versions.`);
+Number of versions to rollback. Defaults to \`1\` (previous version). For example, \`--rollback-steps 2\` rolls back two versions.`);
 
 export const listVersions = z.boolean().describe(`#### List Versions
 ---
@@ -463,6 +487,7 @@ Lists available deployment versions that can be rolled back to, then exits witho
 export const universalArgs = {
   profile: profile.optional(),
   logLevel: logLevel.optional(),
+  quiet: quiet.optional(),
   help: help.optional(),
   awsAccount: awsAccount.optional(),
   agent: agent.optional(),
@@ -473,6 +498,7 @@ export const universalArgs = {
 export const localUniversalArgs = {
   profile: profile.optional(),
   logLevel: logLevel.optional(),
+  quiet: quiet.optional(),
   help: help.optional(),
   agent: agent.optional(),
   outputFormat: outputFormat.optional(),
@@ -578,6 +604,7 @@ export const argAliases = {
 // ============ Combined Args Schema ============
 
 export const allCliArgsSchema = z.object({
+  value: z.string().optional(),
   help: help.optional(),
   stage: stage.optional(),
   configPath: configPath.optional(),
@@ -594,6 +621,7 @@ export const allCliArgsSchema = z.object({
   remoteResources: remoteResources.optional(),
   command: command.optional(),
   logLevel: logLevel.optional(),
+  quiet: quiet.optional(),
   startTime: startTime.optional(),
   filter: filter.optional(),
   raw: raw.optional(),
@@ -617,6 +645,7 @@ export const allCliArgsSchema = z.object({
   newVersion: newVersion.optional(),
   projectDirectory: projectDirectory.optional(),
   initializeProjectTo: initializeProjectTo.optional(),
+  recoverOperation: recoverOperation.optional(),
   fullDeploy: fullDeploy.optional(),
   runner: deployRunner.optional(),
   disableLayerOptimization: disableLayerOptimization.optional(),
@@ -630,6 +659,7 @@ export const allCliArgsSchema = z.object({
   incidentId: incidentId.optional(),
   incidentStatus: incidentStatus.optional(),
   aiProvider: aiProvider.optional(),
+  codingAgents: codingAgents.optional(),
   incidentWatchTimeoutSeconds: incidentWatchTimeoutSeconds.optional(),
   incidentWatchStabilitySeconds: incidentWatchStabilitySeconds.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),

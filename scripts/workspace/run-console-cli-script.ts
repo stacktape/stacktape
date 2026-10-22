@@ -11,7 +11,15 @@ const cliDirectory = join(workspaceRoot, 'apps', 'cli');
 const cliDevScript = join(cliDirectory, 'scripts', 'dev.ts');
 
 const unsupportedShellCharacter = /[;&|<>`$\r\n]/;
-const pathOptions = new Set(['--configPath', '--cp', '--currentWorkingDirectory', '--cwd']);
+const pathOptions = new Set([
+  '--config',
+  '--configPath',
+  '--cp',
+  '-c',
+  '--current-working-directory',
+  '--currentWorkingDirectory',
+  '--cwd'
+]);
 
 const tokenizeLiteralCommand = (command: string): string[] => {
   const tokens: string[] = [];
@@ -125,18 +133,15 @@ export const sourceCliArgsForConsoleScript = ({
   const hasWorkingDirectory = cliArgs.some(
     (arg) =>
       arg === '--currentWorkingDirectory' ||
+      arg === '--current-working-directory' ||
       arg === '--cwd' ||
       arg.startsWith('--currentWorkingDirectory=') ||
+      arg.startsWith('--current-working-directory=') ||
       arg.startsWith('--cwd=')
   );
   if (hasWorkingDirectory) return args;
-  if (separatorIndex === -1) return [...args, '--currentWorkingDirectory', workingDirectory];
-  return [
-    ...args.slice(0, separatorIndex),
-    '--currentWorkingDirectory',
-    workingDirectory,
-    ...args.slice(separatorIndex)
-  ];
+  if (separatorIndex === -1) return [...args, '--cwd', workingDirectory];
+  return [...args.slice(0, separatorIndex), '--cwd', workingDirectory, ...args.slice(separatorIndex)];
 };
 
 const loadConsoleScripts = async (): Promise<Record<string, string>> => {

@@ -23,7 +23,7 @@ export const resolveInfoStackName = ({
     category: 'CLI',
     code: 'CLI_STACK_TARGET_REQUIRED',
     message: 'A stack target is required.',
-    hints: 'Provide `--stackName`, or provide both `--projectName` and `--stage`.'
+    hints: 'Provide `--stack-name`, or provide both `--project` and `--stage`.'
   });
 };
 

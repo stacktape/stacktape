@@ -9,7 +9,7 @@ Lambda functions are dev-compatible workloads that deploy to the AWS-backed dev 
 Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Subsequent runs reuse the existing dev stack, making startup faster. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
 
 1. **Load config** — Stacktape reads your configuration and discovers dev-compatible resources (functions, containers, databases)
-2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skipResources` flags
+2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skip-resources` flags
 3. **Deploy dev stack** — A dev stack is deployed automatically on first run
 4. **Start local databases** — Selected databases run as Docker containers on your machine
 5. **Set up tunnels and environment** — TCP tunnels connect deployed Lambda functions to local databases; an "Injecting environment" setup step configures the active dev session
@@ -34,13 +34,13 @@ stacktape dev --stage dev --resources myApi,myWorker
 Run everything except specific resources:
 
 ```bash
-stacktape dev --stage dev --skipResources heavyBatchJob
+stacktape dev --stage dev --skip-resources heavyBatchJob
 ```
 
-Without `--resources` or `--skipResources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
+Without `--resources` or `--skip-resources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
 
 
-> **Info:** If you specify a resource name that doesn't exist in your config, Stacktape suggests similar names using fuzzy matching. The `--resources` and `--skipResources` flags accept comma-separated values.
+> **Info:** If you specify a resource name that doesn't exist in your config, Stacktape suggests similar names using fuzzy matching. The `--resources` and `--skip-resources` flags accept comma-separated values.
 
 
 Here is a minimal config with a [Lambda function](/resources/compute/lambda-function). This function is dev-compatible and will appear in the resource picker when you run `stacktape dev`:
@@ -125,12 +125,12 @@ The Stacktape dev TUI shows logs for running workloads during the dev session, g
 
 ### Historical logs with logs
 
-Outside of dev mode, use [`stacktape logs`](/cli/logs) to fetch logs for a Stacktape resource in a deployed stack. For Lambda debugging, pass the Lambda function resource name with `--resourceName`.
+Outside of dev mode, use [`stacktape logs`](/cli/logs) to fetch logs for a Stacktape resource in a deployed stack. For Lambda debugging, pass the Lambda function resource name with `--resource-name`.
 
 View logs for a specific function:
 
 ```bash
-stacktape logs --resourceName myApi --stage production
+stacktape logs myApi --stage production
 ```
 
 By default, `stacktape logs` uses a one-hour start time and returns up to 100 events.
@@ -138,22 +138,22 @@ By default, `stacktape logs` uses a one-hour start time and returns up to 100 ev
 View the last 30 minutes of logs:
 
 ```bash
-stacktape logs --resourceName myApi --stage production --startTime 30m
+stacktape logs myApi --stage production --since 30m
 ```
 
 Filter logs containing a specific pattern:
 
 ```bash
-stacktape logs --resourceName myApi --stage production --filter "ERROR"
+stacktape logs myApi --stage production --filter "ERROR"
 ```
 
 Run a CloudWatch Logs Insights query for structured searching:
 
 ```bash
-stacktape logs --resourceName myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
+stacktape logs myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
 ```
 
-The `--startTime` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--endTime` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
+The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--until` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
 
 
 > **Warning:** CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned. For high-volume functions, use narrow time ranges and specific filters to control cost.
@@ -163,29 +163,29 @@ The `--startTime` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and abs
 
 When selected [local databases](/local-development/local-databases) are included in your dev session — relational databases (mapped to Postgres, MySQL, or MariaDB), Redis clusters, DynamoDB tables, and OpenSearch domains — Lambda functions deployed on AWS cannot directly reach `localhost` on your machine. Stacktape solves this with TCP tunnels that make local database ports reachable from the deployed Lambda functions.
 
-When selected local databases exist and the `--noTunnel` flag is not set, dev mode runs additional setup steps during startup:
+When selected local databases exist and the `--no-tunnel` flag is not set, dev mode runs additional setup steps during startup:
 
 1. **Lambda tunnels** — TCP tunnels are created for each local database, exposing them through publicly reachable endpoints
 2. **Injecting environment** — a Lambda environment-injection step runs to wire functions up to the active dev session's connectivity
 
-The "Injecting environment" setup step is registered whenever selected non-remote local resources exist. When `--noTunnel` is set, only the tunnel step is skipped — the environment injection step still runs.
+The "Injecting environment" setup step is registered whenever selected non-remote local resources exist. When `--no-tunnel` is set, only the tunnel step is skipped — the environment injection step still runs.
 
 ### Disabling tunnels
 
 If tunnels cause issues (corporate firewall restrictions, network policy, or other connectivity problems), disable them:
 
 ```bash
-stacktape dev --stage dev --noTunnel
+stacktape dev --stage dev --no-tunnel
 ```
 
-`--noTunnel` skips the Lambda tunnel setup step. When selected non-remote local resources exist, dev mode still registers the "Injecting environment" step. Resources configured as remote are excluded from local resource registration in dev mode. See [local databases](/local-development/local-databases) for remote-resource configuration.
+`--no-tunnel` skips the Lambda tunnel setup step. When selected non-remote local resources exist, dev mode still registers the "Injecting environment" step. Resources configured as remote are excluded from local resource registration in dev mode. See [local databases](/local-development/local-databases) for remote-resource configuration.
 
 ## Using deployed databases
 
-Dev mode uses an isolated dev stack and emulates supported databases locally. When a function needs a real deployed database or Redis resource, pass its name through `--remoteResources`:
+Dev mode uses an isolated dev stack and emulates supported databases locally. When a function needs a real deployed database or Redis resource, pass its name through `--remote-resources`:
 
 ```bash
-stacktape dev --stage dev --remoteResources myDatabase
+stacktape dev --stage dev --remote-resources myDatabase
 ```
 
 This keeps the dev stack isolated while wiring the selected resource to its deployed AWS counterpart.
@@ -216,10 +216,10 @@ For AI-assisted debugging workflows, dev mode supports an `--agent` flag that st
 stacktape dev --stage dev --agent
 ```
 
-The agent daemon starts on port 7331 when available. If you do not pass `--agentPort`, Stacktape finds an available port starting at 7331. Use `--agentPort` to request a specific agent port. Stop a running agent with [`stacktape dev:stop`](/cli/dev-stop):
+The agent daemon starts on port 7331 when available. If you do not pass `--agent-port`, Stacktape finds an available port starting at 7331. Use `--agent-port` to request a specific agent port. Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
 
 ```bash
-stacktape dev:stop --agentPort 7331
+stacktape dev stop --agent-port 7331
 ```
 
 When agent mode is enabled, dev mode updates agent state with workload and local-resource details and registers rebuild handlers. For endpoint-level details, API documentation, integration with coding assistants, and common workflows, see [agent mode in dev](/using-with-ai/agent-mode-in-dev).
@@ -296,7 +296,7 @@ Lambda functions are included as dev-compatible workloads, and dev mode deploys 
 
 ### Can I debug only some functions while keeping others untouched?
 
-Yes. Use `--resources myApi,myWorker` to select specific functions, or `--skipResources heavyBatchJob` to exclude some. Only selected resources are started and rendered in the dev TUI during the session. This is useful when you're iterating on one function and don't want to rebuild or disrupt others.
+Yes. Use `--resources myApi,myWorker` to select specific functions, or `--skip-resources heavyBatchJob` to exclude some. Only selected resources are started and rendered in the dev TUI during the session. This is useful when you're iterating on one function and don't want to rebuild or disrupt others.
 
 ### Why does dev mode refuse to start on my stage?
 
@@ -304,7 +304,7 @@ Dev mode and full deployments share the same stage namespace, so running `stackt
 
 ### How do my local databases connect to functions running on AWS?
 
-Lambda functions in dev mode run on AWS and cannot reach `localhost` on your machine, so Stacktape creates TCP tunnels that expose each selected [local database](/local-development/local-databases) through a publicly reachable endpoint, plus an "Injecting environment" step that wires the functions to the active session. If tunnels are blocked by a corporate firewall or network policy, pass `--noTunnel` — the environment-injection step still runs.
+Lambda functions in dev mode run on AWS and cannot reach `localhost` on your machine, so Stacktape creates TCP tunnels that expose each selected [local database](/local-development/local-databases) through a publicly reachable endpoint, plus an "Injecting environment" step that wires the functions to the active session. If tunnels are blocked by a corporate firewall or network policy, pass `--no-tunnel` — the environment-injection step still runs.
 
 ### How much does running dev mode cost?
 
@@ -312,4 +312,4 @@ Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges
 
 ### How do I view logs from a Lambda function that's already deployed?
 
-Use [`stacktape logs`](/cli/logs) with `--resourceName` and `--stage` to fetch CloudWatch logs from any deployed stage. By default, it returns the last hour of logs (up to 100 events). Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
+Use [`stacktape logs`](/cli/logs) with `--resource-name` and `--stage` to fetch CloudWatch logs from any deployed stage. By default, it returns the last hour of logs (up to 100 events). Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).

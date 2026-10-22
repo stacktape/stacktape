@@ -67,7 +67,7 @@ describe('runAgentSessionWithRetry', () => {
       retryDelaysMs: [100, 100],
       spawner: async ({ args }) => {
         attempts += 1;
-        startedAt.push(Date.now());
+        startedAt.push(performance.now());
         if (attempts === 1) {
           return claudeResult({ exitCode: 1, stdout: '', stderr: '429 too many requests' });
         }

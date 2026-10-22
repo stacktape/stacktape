@@ -76,7 +76,7 @@ export default defineConfig(() => {
 
 Scripts to run after deleting the stack.
 
-Only runs when `--configPath` and `--stage` are provided to the delete command.
+Only runs when `--config` and `--stage` are provided to the delete command.
 
 ### Example 1 (yaml)
 
@@ -278,7 +278,7 @@ export default defineConfig(() => {
 
 Scripts to run before deleting the stack. Common use: export data, clean up external resources.
 
-Only runs when `--configPath` and `--stage` are provided to the delete command.
+Only runs when `--config` and `--stage` are provided to the delete command.
 
 ### Example 1 (yaml)
 

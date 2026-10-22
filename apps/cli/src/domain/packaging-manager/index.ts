@@ -17,7 +17,13 @@ import type {
 import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { readFile, readdir } from 'node:fs/promises';
+import AdmZip from 'adm-zip';
+import {
+  archiveFiles,
+  createSharedLayerCompatibilityCheck
+} from '@domain-services/deployment-artifact-manager/shared-layer-compatibility';
+import { dirname, isAbsolute, join, resolve, relative } from 'node:path';
 import ci from 'ci-info';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -25,6 +31,14 @@ import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import {
+  getTagValue,
+  parseSharedLayersTag,
+  layerNameOfArn
+} from '@domain-services/deployment-artifact-manager/shared-layers';
+import { tagNames } from '@stacktape/naming/tag-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
@@ -49,6 +63,7 @@ import {
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 
+import { codeSwapIntegration } from '../code-swap/integration';
 import { buildJsBundleImage } from '@stacktape/packaging/buildpacks/js-bundle-image';
 import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
 import { buildGoLambda } from '@stacktape/packaging/buildpacks/go-lambda-buildpack';
@@ -230,6 +245,43 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  // Packaging and transition preparation inspect the same deployed generation before any function mutation.
+  #deployedFunctions = new Map<string, ReturnType<typeof awsSdkManager.lambda.getFunctionDeployment>>();
+  #deployedFunctionZips = new Map<string, Promise<AdmZip>>();
+  #deployedLayerZips = new Map<string, Promise<AdmZip>>();
+
+  getDeployedFunction = (lambdaResourceName: string) => {
+    if (!this.#deployedFunctions.has(lambdaResourceName))
+      this.#deployedFunctions.set(
+        lambdaResourceName,
+        awsSdkManager.lambda.getFunctionDeployment({ lambdaResourceName })
+      );
+    return this.#deployedFunctions.get(lambdaResourceName)!;
+  };
+
+  getDeployedFunctionZip = (lambdaResourceName: string): Promise<AdmZip> => {
+    if (!this.#deployedFunctionZips.has(lambdaResourceName))
+      this.#deployedFunctionZips.set(
+        lambdaResourceName,
+        (async () => {
+          const current = await this.getDeployedFunction(lambdaResourceName);
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: current.Code?.Location }));
+        })()
+      );
+    return this.#deployedFunctionZips.get(lambdaResourceName)!;
+  };
+
+  getDeployedLayerZip = (arn: string): Promise<AdmZip> => {
+    if (!this.#deployedLayerZips.has(arn))
+      this.#deployedLayerZips.set(
+        arn,
+        (async () => {
+          const version = await awsSdkManager.lambda.getLayerVersion({ arn });
+          return new AdmZip(await awsSdkManager.lambda.downloadArtifact({ location: version.Content?.Location }));
+        })()
+      );
+    return this.#deployedLayerZips.get(arn)!;
+  };
   #layerArtifacts: Array<{
     layerNumber: number;
     layerPath: string;
@@ -382,6 +434,9 @@ export class PackagingManager {
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
+    this.#deployedFunctions.clear();
+    this.#deployedFunctionZips.clear();
+    this.#deployedLayerZips.clear();
     this.#layerArtifacts = [];
     this.#nativeBinaryLayers = [];
     this.#lambdaLayerMap.clear();
@@ -566,7 +621,8 @@ export class PackagingManager {
   #packageNodeLambdasWithSplitBundling = async ({
     nodeLambdas,
     commandCanUseCache,
-    packageAnalysisCache
+    packageAnalysisCache,
+    chunkNaming = 'input-set'
   }: {
     nodeLambdas: Array<{
       name: string;
@@ -577,6 +633,7 @@ export class PackagingManager {
     }>;
     commandCanUseCache: boolean;
     packageAnalysisCache: PackageAnalysisCache;
+    chunkNaming?: 'input-set' | 'content';
   }): Promise<void> => {
     if (nodeLambdas.length === 0) return;
     this.#layerArtifacts = [];
@@ -665,6 +722,7 @@ export class PackagingManager {
     // Every function in a split build has the same architecture.
     const architecture = nodeLambdas[0]?.architecture === 'arm64' ? 'arm64' : 'x64';
     const splitResult = await buildSplitBundle({
+      chunkNaming,
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
       cwd: globalStateManager.workingDir,
@@ -850,7 +908,7 @@ export class PackagingManager {
     // Finish the shared layer build with clear summary
     let finalMessage: string;
     if (skipLayers) {
-      finalMessage = `Shared layers disabled (--disableLayerOptimization)`;
+      finalMessage = `Shared layers disabled (--no-layer-optimization)`;
     } else if (layerArtifactsWithS3Keys.length > 0) {
       const totalLayerBytes = layerArtifactsWithS3Keys.reduce((sum, l) => sum + l.sizeBytes, 0);
       const totalLayerSizeMB = (totalLayerBytes / (1024 * 1024)).toFixed(1);
@@ -924,12 +982,7 @@ export class PackagingManager {
       const endDigest = startTiming('split:function-digest', { job: jobName });
       const digest = await getSplitFunctionDigest({
         distFolderPath,
-        sourceMapsSha256: sourceMaps?.sha256,
-        chunkLayers: Array.from(layerNumbers ?? []).map((layerNumber) => ({
-          layerNumber,
-          contentHash: this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber)?.contentHash
-        })),
-        nativeLayer: nativeLayer ? { layerNumber: nativeLayer.layerNumber, contentHash: nativeLayer.contentHash } : null
+        sourceMapsSha256: sourceMaps?.sha256
       });
       endDigest();
 
@@ -1020,6 +1073,102 @@ export class PackagingManager {
     });
 
     await this.#waitForAllOrThrow(zipPromises);
+    if (chunkNaming === 'input-set' && (await this.#stableChunksNeedContentNames(nodeLambdas))) {
+      // Only incompatible module interfaces need content names so both generations can coexist in a bridge.
+      const jobs = new Set(nodeLambdas.map(({ name, type }) => getJobName({ workloadName: name, workloadType: type })));
+      this.#packagedJobs = this.#packagedJobs.filter(({ jobName }) => !jobs.has(jobName));
+      await this.#packageNodeLambdasWithSplitBundling({
+        nodeLambdas,
+        commandCanUseCache,
+        packageAnalysisCache,
+        chunkNaming: 'content'
+      });
+    }
+  };
+
+  #stableChunksNeedContentNames = async (nodeLambdas: { name: string; type: string }[]): Promise<boolean> => {
+    if (stackManager.stackActionType !== 'update' || !this.#layerArtifacts.length) return false;
+    const endCompatibility = startTiming('split:check-layer-compatibility');
+    const compatible = createSharedLayerCompatibilityCheck();
+    const nextFiles = new Map<string, Buffer>();
+    for (const layer of this.#layerArtifacts)
+      for (const chunk of layer.chunks)
+        nextFiles.set(`nodejs/chunks/${chunk}`, await readFile(join(layer.layerPath, 'nodejs', 'chunks', chunk)));
+    const chunkLayerNames = new Set(
+      this.#layerArtifacts.map(({ layerNumber }) =>
+        awsResourceNames.sharedChunkLayer({
+          stackName: globalStateManager.targetStack.stackName,
+          layerNumber
+        })
+      )
+    );
+    const check = async ({ name, type }: { name: string; type: string }): Promise<boolean> => {
+      const resource = configManager.allUserCodeLambdas.find((lambda) => lambda.name === name);
+      if (!resource || !('cfLogicalName' in resource)) return false;
+      const deployed = stackManager.existingStackResources.find(
+        ({ LogicalResourceId }) => LogicalResourceId === resource.cfLogicalName
+      );
+      const artifactDigest = getTagValue(deployed?.tags, tagNames.artifactDigest());
+      const output = this.getPackagingOutputForJob(getJobName({ workloadName: name, workloadType: type }));
+      // Older builds used content names and cannot conflict with input-set names. The first deployment adopts them.
+      if (!artifactDigest || artifactDigest === output?.digest) return false;
+      const identities = parseSharedLayersTag(getTagValue(deployed?.tags, tagNames.sharedLayers()));
+      const changedLayer = [...(this.#lambdaLayerMap.get(name) ?? [])].some(
+        (number) => identities?.get(number) !== this.getLayerArtifact(number)?.contentHash
+      );
+      if (!changedLayer) return false;
+      const current = await this.getDeployedFunction(resource.resourceName);
+      const oldFiles = new Map<string, Buffer>();
+      let conflict = false;
+      for (const { Arn: arn } of current.Configuration?.Layers ?? []) {
+        if (!arn || !chunkLayerNames.has(layerNameOfArn(arn)!)) continue;
+        for (const entry of (await this.getDeployedLayerZip(arn)).getEntries()) {
+          if (entry.isDirectory) continue;
+          const data = entry.getData();
+          oldFiles.set(`/opt/${entry.entryName}`, data);
+          const next = nextFiles.get(entry.entryName);
+          if (next && !next.equals(data)) conflict = true;
+        }
+      }
+      if (conflict) {
+        const oldFunction = await this.getDeployedFunctionZip(resource.resourceName);
+        const nextPath = fsPaths.absoluteLambdaArtifactFolderPath({
+          jobName: getJobName({ workloadName: name, workloadType: type }),
+          invocationId: globalStateManager.invocationId
+        });
+        const functionFiles = new Map<string, Buffer>();
+        const collect = async (dir: string) => {
+          for (const entry of await readdir(dir, { withFileTypes: true })) {
+            const path = join(dir, entry.name);
+            if (entry.isDirectory()) await collect(path);
+            else functionFiles.set(`/var/task/${relative(nextPath, path).replaceAll('\\', '/')}`, await readFile(path));
+          }
+        };
+        await collect(nextPath);
+        if (
+          !compatible({
+            oldFunction: archiveFiles(oldFunction, '/var/task'),
+            nextFunction: functionFiles,
+            oldLayers: oldFiles,
+            nextLayers: new Map([...nextFiles].map(([path, data]) => [`/opt/${path}`, data]))
+          }).layerFirst
+        )
+          return true;
+      }
+      return false;
+    };
+    let cursor = 0;
+    let incompatible = false;
+    const results = await Promise.allSettled(
+      Array.from({ length: Math.min(4, nodeLambdas.length) }, async () => {
+        while (!incompatible && cursor < nodeLambdas.length)
+          if (await check(nodeLambdas[cursor++]!)) incompatible = true;
+      })
+    );
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed?.status === 'rejected') throw failed.reason;
+    endCompatibility({ incompatible });
+    return incompatible;
   };
 
   packageAllWorkloads = async ({
@@ -1567,6 +1716,7 @@ export class PackagingManager {
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
+        imageExtension: devMode ? undefined : await codeSwapIntegration.pythonExtension(workloadName),
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare,
         pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage
       });
@@ -1652,6 +1802,7 @@ export class PackagingManager {
           distFolderPath,
           additionalDigestInput,
           devMode,
+          imageExtension: devMode ? undefined : await codeSwapIntegration.imageExtension(workloadName),
           runtimeTools: imageRuntimeTools
         })
       );

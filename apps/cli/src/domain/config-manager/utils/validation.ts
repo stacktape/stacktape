@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../../config/cli/public-names';
 import type { SupportedFileExt } from '@utils/file-types';
 import type { AllSupportedPackagingConfig } from '@domain-services/packaging-manager/types';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
@@ -42,7 +43,7 @@ import { validateSsrWebConfig } from './ssr-webs';
 import { validateRelationalDatabaseConfig } from './relational-databases';
 import { validateSnsTopicConfig } from './sns-topics';
 import { validateEmailSenderConfig, validateEmailSenderIdentityUniqueness } from './email-senders';
-import { validateSqsQueueConfig } from './sqs-queues';
+import { getDeadLetterQueueNames, validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
 import type { StacktapeConfig } from '@stacktape/config';
 import type {
@@ -96,8 +97,7 @@ const validatePackagingProps = ({
   const workloadDescription = `${capitalizeFirstLetter(workloadType)} \`${workloadName}\`${
     containerName && workloadType === 'multi-container-workload' ? ` (container \`${containerName}\`)` : ''
   }`;
-  const cwdHint =
-    'Paths are resolved relative to `--currentWorkingDirectory` or the directory containing the Stacktape config.';
+  const cwdHint = 'Paths are resolved relative to `--cwd` or the directory containing the Stacktape config.';
   const entryFileProperties =
     packaging.type === 'js-bundle'
       ? packaging.properties
@@ -232,8 +232,7 @@ export const validateAwsCdkConstructProps = ({
   workingDir: string;
 }) => {
   const constructDescription = `${capitalizeFirstLetter('aws-cdk-construct')} \`${construct.name}\``;
-  const cwdHint =
-    'Paths are resolved relative to `--currentWorkingDirectory` or the directory containing the Stacktape config.';
+  const cwdHint = 'Paths are resolved relative to `--cwd` or the directory containing the Stacktape config.';
 
   const { entryfilePath } = construct;
   if (!entryfilePath) {
@@ -360,7 +359,7 @@ export const validateGuardrails = ({
           throw guardrailViolation(
             guardrail.type,
             'GUARDRAIL_COMMAND_BLOCKED',
-            `Command \`${stackContext.command}\` is blocked. Blocked commands: ${blockedCommands.map((command) => `\`${command}\``).join(', ')}.`
+            `Command \`${publicCommandName(stackContext.command)}\` is blocked. Blocked commands: ${blockedCommands.map((command) => `\`${publicCommandName(command)}\``).join(', ')}.`
           );
         }
         break;
@@ -436,8 +435,9 @@ export const validateGuardrails = ({
       }
       case 'require-dead-letter-queue': {
         if (!hasConfig || !guardrail.properties.enabled) break;
+        const deadLetterQueues = getDeadLetterQueueNames(configManager.sqsQueues as StpSqsQueue[]);
         for (const queue of configManager.sqsQueues) {
-          if (!(queue as StpSqsQueue).redrivePolicy) {
+          if (!(queue as StpSqsQueue).redrivePolicy && !deadLetterQueues.has(queue.name)) {
             throw guardrailViolation(
               guardrail.type,
               'GUARDRAIL_SQS_DEAD_LETTER_QUEUE_REQUIRED',

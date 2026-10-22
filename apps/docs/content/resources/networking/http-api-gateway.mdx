@@ -191,7 +191,7 @@ Set `allowCredentials: true` if your frontend sends cookies or `Authorization` h
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `api.example.com`) to an HTTP API Gateway. Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain:add`](/cli/domain-add) to set one up.
+Stacktape can attach your own domain (e.g., `api.example.com`) to an HTTP API Gateway. Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
 
 <CodeBlock
   intellisense
@@ -332,7 +332,7 @@ export default defineConfig(() => {
 
 ## Alarms
 
-Stacktape supports two alarm types for HTTP API Gateway: **error rate** (percentage of 4xx/5xx responses) and **latency** (request-to-response time). Alarm notification targets are configured per-alarm through the shared notification integrations — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Alarms defined on the resource are merged with any global alarms configured in the Stacktape Console.
+Stacktape supports two alarm types for HTTP API Gateway: **error rate** (percentage of 4xx/5xx responses) and **latency** (request-to-response time). Alarm notification targets are configured per-alarm through the shared notification integrations — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config.
 
 <CodeBlock
   intellisense
@@ -377,7 +377,7 @@ With the example settings and the default comparison operator (`GreaterThanThres
 
 You can fine-tune alarm sensitivity with the `evaluation` property: set the evaluation `period` (default 60 seconds), `evaluationPeriods` (how many recent periods to examine), and `breachedPeriods` (how many must breach to fire). This prevents alarms from firing on brief spikes.
 
-To exclude specific global alarms from this gateway, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
+To exclude specific legacy Console rules during migration, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
 
 ## Referenceable parameters
 

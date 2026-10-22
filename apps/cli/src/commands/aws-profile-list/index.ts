@@ -13,7 +13,7 @@ export const commandAwsProfileList = async () => {
 
   if (!rows.length) {
     tuiManager.warn(
-      `No AWS profiles found. Create one with \`${tuiManager.colorize('yellow', 'stacktape aws-profile:create')}\`.`
+      `No AWS profiles found. Create one with \`${tuiManager.colorize('yellow', 'stacktape aws-profile create')}\`.`
     );
   } else {
     tuiManager.printTable({

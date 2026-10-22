@@ -20,28 +20,34 @@ export const escapeCloudformationSecretDynamicReference = (node: any): any => {
 };
 
 export const locallyResolveSensitiveValue = async ({ ssmParameterName }: { ssmParameterName: string }) => {
-  let parameterValue = await locallyResolveSSMParameter({ ssmParameterName });
-  const inlinedSecretValuesToResolve = parameterValue.match(captureSecretsRegex) || [];
-  await Promise.all(
-    inlinedSecretValuesToResolve.map(async (escapedSecretString) => {
-      const cleanedReference = escapedSecretString.slice(
-        CF_ESCAPED_DYNAMIC_REFERENCE_START.length,
-        -CF_ESCAPED_DYNAMIC_REFERENCE_END.length
-      );
-      const [, serviceName, ...referenceKey] = cleanedReference.split(':');
-      let resolvedValue: string;
-      if (serviceName === 'ssm-secure') {
-        const parameterReference = referenceKey.join(':');
-        resolvedValue = await locallyResolveSSMParameter({ ssmParameterName: parameterReference });
-      }
-      if (serviceName === 'secretsmanager') {
-        const [secretId, , jsonKey, versionStage, versionId] = referenceKey;
-        resolvedValue = await locallyResolveSecret({ secretId, versionId, versionStage, jsonKey });
-      }
-      parameterValue = parameterValue.replace(escapedSecretString, resolvedValue);
-    })
+  const parameterValue = await locallyResolveSSMParameter({ ssmParameterName });
+  const inlinedSecretValuesToResolve = [...new Set(parameterValue.match(captureSecretsRegex) || [])];
+  const resolvedValues = new Map(
+    await Promise.all(
+      inlinedSecretValuesToResolve.map(
+        async (escapedSecretString) =>
+          [escapedSecretString, await locallyResolveEscapedReference(escapedSecretString)] as const
+      )
+    )
   );
-  return parameterValue;
+  // A replacement function inserts each value as it is, even one that contains `$&` or `$$`.
+  return parameterValue.replace(captureSecretsRegex, (match) => resolvedValues.get(match) ?? match);
+};
+
+const locallyResolveEscapedReference = async (escapedSecretString: string) => {
+  const cleanedReference = escapedSecretString.slice(
+    CF_ESCAPED_DYNAMIC_REFERENCE_START.length,
+    -CF_ESCAPED_DYNAMIC_REFERENCE_END.length
+  );
+  const [, serviceName, ...referenceKey] = cleanedReference.split(':');
+  if (serviceName === 'ssm-secure') {
+    return locallyResolveSSMParameter({ ssmParameterName: referenceKey.join(':') });
+  }
+  if (serviceName === 'secretsmanager') {
+    const [secretId, , jsonKey, versionStage, versionId] = referenceKey;
+    return locallyResolveSecret({ secretId, versionId, versionStage, jsonKey });
+  }
+  return undefined;
 };
 
 const locallyResolveSSMParameter = async ({ ssmParameterName }: { ssmParameterName: string }) => {

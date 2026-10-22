@@ -158,7 +158,7 @@ resources:
 
 ## Current boundaries
 
-Stacktape v1 creates a single-region DSQL cluster using its public service endpoint. It does not yet configure multi-region peering, PrivateLink VPC endpoints, AWS Backup plans, adoption of an existing cluster, local emulation, or `query:sql` support. A DSQL resource therefore fails the `require-vpc-databases` and `require-data-backups` guardrails closed. These boundaries are explicit so a short configuration does not silently create cross-region infrastructure or account-level backup resources.
+Stacktape v1 creates a single-region DSQL cluster using its public service endpoint. It does not yet configure multi-region peering, PrivateLink VPC endpoints, AWS Backup plans, adoption of an existing cluster, local emulation, or `query sql` support. A DSQL resource therefore fails the `require-vpc-databases` and `require-data-backups` guardrails closed. These boundaries are explicit so a short configuration does not silently create cross-region infrastructure or account-level backup resources.
 
 Stacktape validates regional availability before deployment. Within Stacktape's region catalog, DSQL is supported in
 US East (N. Virginia and Ohio), US West (Oregon), Hong Kong, Mumbai, Osaka, Seoul, Singapore, Sydney, Tokyo, Canada

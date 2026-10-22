@@ -30,6 +30,8 @@ test('the actual CI runner generates sources, executes only available PR lanes a
     const id = process.argv.slice(2).join(' ');
     fs.appendFileSync(${JSON.stringify(record)}, JSON.stringify({ id, cwd: process.cwd() }) + '\\n');
     if (id === process.env.STP_CI_FAIL_LANE) process.exitCode = 7;
+    // The runner's timeout ends a hung lane with a signal, which leaves no exit code.
+    if (id === process.env.STP_CI_SIGNAL_LANE) process.kill(process.pid, 'SIGKILL');
   `
   );
   const registry = [
@@ -41,12 +43,18 @@ test('the actual CI runner generates sources, executes only available PR lanes a
   ];
   const registryPath = join(root, 'scripts/workspace/test-registry.ts');
   await writeFile(registryPath, `export const lanes = ${JSON.stringify(registry)};`);
-  const run = (fail = '') =>
+  const run = (fail = '', signal = '') =>
     spawnSync(process.execPath, [runner], {
       cwd: root,
       encoding: 'utf8',
       timeout: 15_000,
-      env: { PATH: process.env.PATH, npm_execpath: shim, npm_node_execpath: process.execPath, STP_CI_FAIL_LANE: fail }
+      env: {
+        PATH: process.env.PATH,
+        npm_execpath: shim,
+        npm_node_execpath: process.execPath,
+        STP_CI_FAIL_LANE: fail,
+        STP_CI_SIGNAL_LANE: signal
+      }
     });
   const results = async () =>
     (await readFile(record, 'utf8'))
@@ -78,6 +86,14 @@ test('the actual CI runner generates sources, executes only available PR lanes a
   assert.deepEqual(
     (await results()).map(({ id }) => id),
     ['exec turbo run generate --output-logs=errors-only', 'public', 'private']
+  );
+  await rm(record);
+  result = run('', 'public');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /public failed \(exit 1\)/);
+  assert.deepEqual(
+    (await results()).map(({ id }) => id),
+    ['exec turbo run generate --output-logs=errors-only', 'public']
   );
   await rm(record);
   // Lanes read generated sources, so a failed generation stops the tier before any lane runs.

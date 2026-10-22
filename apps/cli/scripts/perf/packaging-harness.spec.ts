@@ -165,7 +165,8 @@ describe('offline packaging run', () => {
     expect(states.cold.samples[0].result.split.bundle.bunBuildMs).toBeGreaterThan(0);
     expect(states.unchanged.comparedToColdBuild.changedFunctions).toEqual([]);
     expect(states.handler.comparedToColdBuild.changedFunctions).toEqual(['handler01']);
-    expect(states.shared.comparedToColdBuild.changedFunctions).toEqual(['handler01', 'handler02']);
+    expect(states.shared.comparedToColdBuild.changedFunctions).toEqual([]);
+    expect(states.shared.comparedToColdBuild.changedLayers.length).toBeGreaterThan(0);
     expect(reportText).not.toContain(directory);
   }, 120_000);
 

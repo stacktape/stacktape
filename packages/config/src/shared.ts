@@ -356,7 +356,7 @@ export type StacktapeWorkloadDefinition =
  * ---
  *
  * Use dot-notation paths to override specific properties on any child resource.
- * Find resource logical IDs with `stacktape info:stack`.
+ * Find resource logical IDs with `stacktape status`.
  *
  * **Example (YAML):**
  *
@@ -520,7 +520,7 @@ export interface Hooks {
    *
    * ---
    *
-   * Only runs when `--configPath` and `--stage` are provided to the delete command.
+   * Only runs when `--config` and `--stage` are provided to the delete command.
    *
    * **Example (YAML):**
    *
@@ -581,7 +581,7 @@ export interface Hooks {
    *
    * ---
    *
-   * Only runs when `--configPath` and `--stage` are provided to the delete command.
+   * Only runs when `--config` and `--stage` are provided to the delete command.
    *
    * **Example (YAML):**
    *
@@ -1398,7 +1398,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    *
    * The path to a script file to execute. The script can be written in JavaScript, TypeScript, or Python and runs in a separate process.
    *
-   * The executable is determined by `defaults:configure` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+   * The executable is determined by `stacktape defaults set` or the system default (`node` for JS/TS, `python` for Python). You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
    *
    * **Example (YAML):**
    *
@@ -1492,7 +1492,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    *
    * A list of script files to execute sequentially. Each script runs in a separate process.
    *
-   * The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `defaults:configure` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
+   * The script can be written in JavaScript, TypeScript, or Python. The executable is determined by `stacktape defaults set` or the system default. You can only use one of `executeScript`, `executeScripts`, `executeCommand`, or `executeCommands`.
    *
    * **Example (YAML):**
    *
@@ -2087,15 +2087,15 @@ export interface SecurityScanningConfig {
   stages?: string[];
 }
 
-export interface IssuesConfig {
+export interface ErrorTrackingConfig {
   /**
-   * #### Records runtime errors from this stack's logs as Issues in the Stacktape Console.
+   * #### Records runtime errors from this stack's logs in the Stacktape Console.
    *
    * ---
    *
    * When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
-   * detector. Matching error lines are grouped into Issues (one per distinct error and resource) with their stack
-   * traces and occurrence counts, shown on the Issues page and by `stacktape issues:list`.
+   * detector. Matching error lines are grouped into issues (one per distinct error and resource) with their stack
+   * traces and occurrence counts, shown on the Error tracking page and by `stacktape error list`.
    *
    * What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
    * the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
@@ -2103,23 +2103,23 @@ export interface IssuesConfig {
    * the event is sent. Logs themselves stay in your account.
    *
    * When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an
-   * organization-wide switch that turns Issues off for every stack at once.
+   * organization-wide switch that turns error tracking off for every stack at once.
    *
    * @default true
    */
   enabled?: boolean;
   /**
-   * #### Stages that record Issues. When omitted or empty, every stage does.
+   * #### Stages that record errors. When omitted or empty, every stage does.
    *
    * ---
    *
-   * Use it to keep short-lived preview stages out of the Issues page while production and staging report.
+   * Use it to keep short-lived preview stages out of the Error tracking page while production and staging report.
    *
    * **Example (YAML):**
    *
    * ```yaml
    * deploymentConfig:
-   *   issues:
+   *   errorTracking:
    *     # stp-focus
    *     stages: [production, staging]
    *     # stp-end-focus
@@ -2145,7 +2145,8 @@ export interface DeploymentConfig {
    * Enabled by default for every stage. The findings appear in the deploy output and in the Security section of
    * the Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn
    * scanning off for a stack, or limit it to selected stages, when a stack must not report anything. An
-   * organization administrator can also disable it for all projects in the Console.
+   * organization administrator can also choose per AWS account, in the Console's security settings, to skip the
+   * dependency checks or turn scanning off; that choice applies to every stack deployed into the account.
    *
    * **Example (YAML):**
    *
@@ -2190,11 +2191,11 @@ export interface DeploymentConfig {
    */
   securityScanning?: SecurityScanningConfig;
   /**
-   * #### Issues: runtime errors read from this stack's logs and grouped in the Console.
+   * #### Error tracking: runtime errors read from this stack's logs and grouped in the Console.
    *
    * ---
    *
-   * On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+   * On by default for every stage. Turn it off here, or limit it to some stages. See `ErrorTrackingConfig` for what is sent
    * and how sensitive text is masked.
    *
    * **Example (YAML):**
@@ -2202,7 +2203,7 @@ export interface DeploymentConfig {
    * ```yaml
    * deploymentConfig:
    *   # stp-focus
-   *   issues:
+   *   errorTracking:
    *     enabled: false
    *   # stp-end-focus
    * resources:
@@ -2222,7 +2223,7 @@ export interface DeploymentConfig {
    *
    * export default defineConfig(() => ({
    *   // stp-focus
-   *   deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+   *   deploymentConfig: { errorTracking: { stages: ['production', 'staging'] } },
    *   // stp-end-focus
    *   resources: {
    *     api: new LambdaFunction({
@@ -2232,7 +2233,7 @@ export interface DeploymentConfig {
    * }));
    * ```
    */
-  issues?: IssuesConfig;
+  errorTracking?: ErrorTrackingConfig;
   /**
    * #### Prevents accidental stack deletion. Must be disabled before you can delete.
    *
@@ -4350,7 +4351,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *
    * ---
    *
-   * Enables `stacktape container:session` to open an interactive shell inside the container.
+   * Enables `stacktape container shell` to open an interactive shell inside the container.
    * Adds a small SSM agent that uses minimal CPU/memory.
    *
    *

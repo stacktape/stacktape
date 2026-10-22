@@ -1,12 +1,12 @@
 /**
  * The resource families the offline deploy loop qualifies, one row each: a small config, the meaningful update the
  * second version makes, and the effects the real AWS SDK must observe against MiniStack after create, update and the
- * unchanged redeploy. A row with `knownGap` stays in the table but is skipped with the upstream issue as the reason;
- * delete the field once the fix is released and re-qualified.
+ * unchanged redeploy. A row with `knownGap` stays in the table but is skipped with the blocking reason;
+ * delete the field once the gap is fixed and re-qualified.
  */
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { ApiGatewayV2Client, GetRoutesCommand } from '@aws-sdk/client-apigatewayv2';
+import { ApiGatewayV2Client, GetRoutesCommand, GetStagesCommand } from '@aws-sdk/client-apigatewayv2';
 import {
   CloudFormationClient,
   DescribeStacksCommand,
@@ -15,7 +15,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { DescribeTableCommand, DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { DescribeEventBusCommand, EventBridgeClient } from '@aws-sdk/client-eventbridge';
+import { DescribeEventBusCommand, EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   GetFunctionConfigurationCommand,
   GetLayerVersionByArnCommand,
@@ -34,6 +34,7 @@ import {
 import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import { GetQueueAttributesCommand, SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { MiniStack } from '@stacktape/ministack/fixture';
+import type { ControlPlaneCall } from '../cli-process/control-plane-fake';
 import type { DeployStep } from './harness';
 import { splitLambdaFamily } from './split-lambda-family';
 
@@ -82,21 +83,25 @@ export type EffectContext = {
   physical: (logicalId: string) => string;
   /** Physical IDs of every stack resource of this CloudFormation type. */
   physicalOfType: (type: string) => string[];
+  /** Every call the control-plane fake received so far, from the CLI and from code running in the stack. */
+  controlPlaneCalls: readonly ControlPlaneCall[];
   /** What the effects proved, for the lane report. */
   checks: string[];
 };
 
 export type Family = {
   name: string;
-  /** Why the row cannot pass yet; the upstream issue that unblocks it. */
+  /** Why the row cannot pass yet; include the upstream issue when the emulator blocks it. */
   knownGap?: string;
   /** The Stacktape config at a version; version 2 is the meaningful update. */
   config: (version: Version) => Record<string, unknown>;
   /** Project files besides `stacktape.yml`, by name. */
   files: (version: Version) => Record<string, string>;
   assertEffects: (context: EffectContext) => Promise<void>;
+  /** Runs after a successful `delete`, for effects outside the stack. */
+  assertDeleted?: (context: Pick<EffectContext, 'stackName' | 'controlPlaneCalls' | 'checks'>) => void;
   /** Runs before `delete`: removes what would stop the stack from deleting (objects in buckets). */
-  beforeDelete?: (context: Omit<EffectContext, 'step' | 'version' | 'checks'>) => Promise<void>;
+  beforeDelete?: (context: Omit<EffectContext, 'step' | 'version' | 'checks' | 'controlPlaneCalls'>) => Promise<void>;
 };
 
 const handlerSource = (version: Version, extra = '') =>
@@ -136,6 +141,18 @@ const awaitLogLine = async (
     await delay(200);
   }
 };
+
+type DefaultDomainRecord = { domainName: string; stackName: string; targetInfo: { domainName: string } };
+
+/** The default-domain DNS record calls the service Lambda made for one stack. */
+const defaultDomainCalls = (
+  { controlPlaneCalls, stackName }: Pick<EffectContext, 'controlPlaneCalls' | 'stackName'>,
+  procedure: 'upsertDefaultDomainDnsRecord' | 'deleteDefaultDomainDnsRecord'
+) =>
+  controlPlaneCalls
+    .filter((call) => call.procedure === procedure)
+    .map((call) => call.input as DefaultDomainRecord)
+    .filter((input) => input.stackName === stackName);
 
 const assertFunctionRuns = async (context: EffectContext, functionName: string) => {
   const configuration = await context.clients.lambda.send(
@@ -177,8 +194,6 @@ export const families: Family[] = [
   splitLambdaFamily,
   {
     name: 'lambda-http-api',
-    knownGap:
-      "MiniStack's Ref of AWS::ApiGatewayV2::Stage returns `<apiId>/<stageName>`, and Stacktape passes that Ref as the Stage of the default-domain ApiMapping; MiniStack then fails the mapping with BadRequestException 'Invalid stage identifier specified' (AWS returns the stage name). ministackorg/ministack#2164.",
     config: (version) => ({
       resources: {
         gateway: { type: 'http-api-gateway' },
@@ -200,13 +215,31 @@ export const families: Family[] = [
         routes.some((route) => route.RouteKey === 'GET /'),
         `the HTTP API has no GET / route (${routes.map((route) => route.RouteKey).join(', ')})`
       );
-      const [stage] = context.physicalOfType('AWS::ApiGatewayV2::Stage');
-      // MiniStack's Stage Ref is `<apiId>/<stageName>`; AWS returns the stage name alone.
-      const stageName = stage?.split('/').at(-1) ?? '$default';
+      const stages = (await context.clients.apiGateway.send(new GetStagesCommand({ ApiId: apiId }))).Items ?? [];
+      assert.equal(stages.length, 1, 'the HTTP API must have one deployed stage');
+      const stageName = stages[0].StageName;
+      assert.ok(stageName, 'the HTTP API stage has no name');
       const response = await fetch(`${context.endpoint}/_aws/execute-api/${apiId}/${stageName}/`);
       assert.equal(response.status, 200, `GET through the HTTP API answered ${response.status}`);
       assert.equal(await response.text(), `ministack-v${context.version}`, 'the HTTP API did not reach the function');
       context.checks.push(`GET / through the HTTP API returns version ${context.version}`);
+      // The default-domain custom resource runs in Stacktape's service Lambda inside the emulator and registers the
+      // API's domain with the control plane once; updates that do not touch the domain do not call it again.
+      const upserts = defaultDomainCalls(context, 'upsertDefaultDomainDnsRecord');
+      assert.equal(upserts.length, 1, `default-domain registrations: ${JSON.stringify(upserts)}`);
+      assert.match(upserts[0].domainName, /-00000000\.stacktape-app\.com$/, 'the registered default domain');
+      assert.ok(upserts[0].targetInfo.domainName, 'the registration has no API Gateway target domain');
+      context.checks.push(`the service Lambda registered ${upserts[0].domainName} with the control plane once`);
+    },
+    assertDeleted: (context) => {
+      const [upsert] = defaultDomainCalls(context, 'upsertDefaultDomainDnsRecord');
+      const deletions = defaultDomainCalls(context, 'deleteDefaultDomainDnsRecord');
+      assert.deepEqual(
+        deletions.map(({ domainName }) => domainName),
+        [upsert?.domainName],
+        'delete must remove the registered default domain once'
+      );
+      context.checks.push(`the service Lambda removed ${upsert?.domainName} from the control plane`);
     }
   },
   {
@@ -355,8 +388,6 @@ export const families: Family[] = [
   },
   {
     name: 'event-bus-function',
-    knownGap:
-      'MiniStack CloudFormation stores an EventBridge rule under the bus ARN, so PutEvents on the bus never reaches the function (ministackorg/ministack#2161; fixed upstream, unreleased).',
     config: (version) => ({
       resources: {
         bus: { type: 'event-bus' },
@@ -374,7 +405,22 @@ export const families: Family[] = [
       const [bus] = context.physicalOfType('AWS::Events::EventBus');
       assert.ok(bus, 'the stack has no event bus');
       await context.clients.events.send(new DescribeEventBusCommand({ Name: bus }));
-      await awaitLogLine(context, handler, 'ministack.probe', 'a bus event');
+      const probe = `bus-event-${context.step}-v${context.version}`;
+      const published = await context.clients.events.send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              EventBusName: bus,
+              Source: 'ministack.probe',
+              DetailType: 'deploy-probe',
+              Detail: JSON.stringify({ probe })
+            }
+          ]
+        })
+      );
+      assert.equal(published.FailedEntryCount, 0, 'the event bus rejected the probe event');
+      assert.ok(published.Entries?.[0]?.EventId, 'the event bus returned no event ID');
+      await awaitLogLine(context, handler, probe, 'a bus event');
     }
   },
   {

@@ -177,6 +177,8 @@ export type BuildSplitBundleOptions = {
   minifyIdentifiers?: boolean | undefined;
   sourceMaps?: 'inline' | 'external' | 'disabled' | undefined;
   sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled' | undefined;
+  /** Stable input-set names normally; content names isolate a mixed code/layer update when Bun changes entries. */
+  chunkNaming?: 'input-set' | 'content' | undefined;
   excludeDependencies?: string[] | undefined;
   dependenciesToExcludeFromBundle?: string[] | undefined;
   /** Bundle `@aws-sdk/*` from `node_modules` instead of leaving it to the Lambda runtime. */

@@ -409,7 +409,7 @@ export default defineConfig(() => {
 
 ## Overrides
 
-Like all Stacktape resources, the AgentCore Gateway supports [CloudFormation overrides](/configuration/overrides-and-escape-hatches) for advanced customization. Use [`stacktape info:stack`](/cli/info-stack) to inspect stack details before writing overrides.
+Like all Stacktape resources, the AgentCore Gateway supports [CloudFormation overrides](/configuration/overrides-and-escape-hatches) for advanced customization. Use [`stacktape status`](/cli/info-stack) to inspect stack details before writing overrides.
 
 ## API Reference
 

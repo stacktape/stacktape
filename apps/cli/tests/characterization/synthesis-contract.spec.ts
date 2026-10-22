@@ -2149,3 +2149,83 @@ describe('enabled-CDN predicate', () => {
     expect(hasEnabledCdn(bucketWith({ enabled: false }))).toBe(false);
   });
 });
+
+test('the public codeSwap opt-in adds the protected runtime while ordinary synthesis stays unchanged', async () => {
+  const { codeSwapIntegration } = await import('../../src/domain/code-swap/integration');
+  const { installCodeSwap } = await import('../../src/domain/code-swap/install');
+  const { templateManager } = await import('../../src/domain/template-manager');
+  let previousTable: CloudFormationTemplate['Resources'][string] | undefined;
+  const fixture = (codeSwap?: boolean, architecture?: 'arm64', desiredCount?: number, extraService = false) =>
+    synthesizeFixture({
+      compiledConfig: defineConfig(() => ({
+        resources: {
+          ...(extraService
+            ? {
+                billing: new WebService({
+                  packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
+                  resources: { cpu: 0.25, memory: 1024 }
+                })
+              }
+            : {}),
+          orders: new WebService({
+            ...(codeSwap === undefined ? {} : { codeSwap }),
+            packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
+            resources: { cpu: 0.25, memory: 1024, ...(architecture && { architecture }) },
+            scaling: { minInstances: 1, maxInstances: 2 }
+          })
+        }
+      }))({
+        projectName: 'characterization',
+        stage: 'baseline',
+        region: 'eu-west-1',
+        cliArgs: {},
+        command: 'synth',
+        awsProfile: '',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
+      }),
+      beforeFinalize: () => {
+        if (extraService && previousTable) templateManager.oldTemplate.Resources.StacktapeCodeSwapTable = previousTable;
+        if (desiredCount !== undefined) {
+          const service = templateManager.template.Resources[cfLogicalNames.ecsService('orders', false)];
+          service.Properties = { ...service.Properties, DesiredCount: desiredCount };
+        }
+      },
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+    });
+  const previous = { ...codeSwapIntegration };
+  try {
+    codeSwapIntegration.template = async () => {};
+    const baseline = structuredClone(await fixture());
+    installCodeSwap();
+    codeSwapIntegration.imageHasSupervisor = new Map();
+    expect(await fixture()).toEqual(baseline);
+    expect(await fixture(false)).toEqual(baseline);
+    const enabled = await fixture(true);
+    expect(enabled.Resources.StacktapeCodeSwapTable).toMatchObject({
+      Type: 'AWS::DynamoDB::Table',
+      Metadata: { CodeSwapServices: ['orders'] }
+    });
+    const definition = JSON.stringify(enabled.Resources[cfLogicalNames.ecsTaskDefinition('orders')]);
+    expect(definition).toContain('/stacktape-supervisor');
+    expect(definition).toContain('"StopTimeout":60');
+    const role = JSON.stringify(enabled.Resources[cfLogicalNames.ecsTaskRole('orders')]);
+    expect(role).toContain('code-swap-table-protection');
+    expect(role).toContain('code-swap-runtime');
+    await expect(fixture(true, undefined, 6)).rejects.toThrow('final template cannot run');
+    previousTable = enabled.Resources.StacktapeCodeSwapTable;
+    const optingOut = await fixture(true, undefined, undefined, true);
+    expect(optingOut.Resources.StacktapeCodeSwapTable).toBeDefined();
+    for (const name of ['orders', 'billing']) {
+      expect(JSON.stringify(optingOut.Resources[cfLogicalNames.ecsTaskRole(name)])).toContain(
+        'code-swap-table-protection'
+      );
+    }
+    const unsupported = await fixture(true, 'arm64');
+    expect(unsupported.Resources.StacktapeCodeSwapTable).toBeUndefined();
+    expect(JSON.stringify(unsupported.Resources[cfLogicalNames.ecsTaskDefinition('orders')])).not.toContain(
+      '/stacktape-supervisor'
+    );
+  } finally {
+    Object.assign(codeSwapIntegration, previous);
+  }
+});

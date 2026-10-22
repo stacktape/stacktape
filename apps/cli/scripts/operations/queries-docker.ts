@@ -61,7 +61,9 @@ const postgresScenario = async (cliPath: string) => {
   let client: Client;
   try {
     if (process.env.J9_QUERY_FAIL_AFTER_START === '1') throw new Error('Deliberate J9 failure after container startup');
-    await waitUntilReady(() => docker(['exec', database.name, 'pg_isready', '-U', 'j9', '-d', 'j9']));
+    await waitUntilReady(() =>
+      docker(['exec', database.name, 'pg_isready', '-h', '127.0.0.1', '-U', 'j9', '-d', 'j9'])
+    );
     // Query:sql uses TLS for deployed RDS. Enable it on the disposable PostgreSQL rather than replacing that client.
     await docker([
       'exec',

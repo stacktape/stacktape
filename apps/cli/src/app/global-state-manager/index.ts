@@ -32,7 +32,7 @@ import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@st
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { propertyFromObjectOrNull } from '@utils/misc';
-import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
+import { listAwsProfiles, loadAwsConfigFileContent, profileRegionFromConfig } from '@utils/aws-config';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { timeAsync } from '@utils/timings';
@@ -53,6 +53,13 @@ import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-k
 import { selectAwsCredentialProfile } from './credential-source';
 import { getPersistedApiKey, withPersistedApiKey } from './api-key-storage';
 import { consumeRunnerCredentials } from './runner-credentials';
+import {
+  configProvidedArgs,
+  resolveInvocationTarget,
+  resolveRegionValue,
+  type InvocationTarget,
+  type TargetValue
+} from './invocation-target';
 import {
   accountIdFromProfile,
   createProfileCredentialsProvider,
@@ -78,6 +85,10 @@ export class GlobalStateManager {
   helperLambdaDetails: HelperLambdaDetails;
   rawCommands: StacktapeCommand[];
   rawArgs: StacktapeArgs;
+  /** The arguments as the user gave them, before project settings from the config were added. */
+  explicitArgs: Readonly<StacktapeArgs> = {};
+  /** Project and region of this invocation with where each came from. Resolved once, before arguments are validated. */
+  invocationTarget?: InvocationTarget;
   presetConfig?: StacktapeConfig;
   additionalArgs: Record<string, string | boolean>;
   systemId: string;
@@ -104,6 +115,8 @@ export class GlobalStateManager {
   projects: GlobalStateProject[];
   permissions: string[] = [];
   isProjectScoped = false;
+  /** The member reaches only the AWS accounts assigned to them, and `connectedAwsAccounts` lists only those. */
+  isAwsAccountScoped = false;
   // populated with initial dummy variables so that resource resolving can work without using trpc api
   targetStack: {
     stackName: string;
@@ -136,7 +149,7 @@ export class GlobalStateManager {
     if (
       !runnerCredentials.apiKey &&
       runnerCredentials.githubActionsToken &&
-      !['version', 'help', 'login', 'logout', 'upgrade', 'mcp:add'].includes(this.command)
+      !['version', 'help', 'login', 'logout', 'upgrade', 'mcp:add', 'mcp:remove'].includes(this.command)
     ) {
       const client = new ApiKeyProtectedClient();
       await client.init({ apiKey: runnerCredentials.githubActionsToken });
@@ -156,25 +169,41 @@ export class GlobalStateManager {
         listAwsProfiles(),
         loadHelperLambdaDetails({ invocationId: this.invocationId })
       ]);
-    if (config) {
-      this.presetConfig = config;
-    }
+    this.presetConfig = config;
+    this.explicitArgs = Object.freeze({ ...this.rawArgs });
+
+    // Resolved before the arguments are validated or captured and before credentials are chosen: all of them depend on
+    // the target. Reading the config's settings is static and never runs project code.
+    this.invocationTarget = await timeAsync('context:invocation-target', () =>
+      resolveInvocationTarget({
+        command: this.command,
+        args: this.rawArgs,
+        presetConfig: this.presetConfig,
+        defaults: this.persistedState?.cliArgsDefaults,
+        envRegion: process.env.AWS_DEFAULT_REGION,
+        profileRegion: this.profileRegion,
+        onIgnoredError: (error) =>
+          tuiManager.debug(
+            `Ignoring the project settings of the config: ${error instanceof Error ? error.message : String(error)}`
+          )
+      })
+    );
+    Object.assign(this.rawArgs, configProvidedArgs(this.invocationTarget));
 
     // Check if region is required but missing - we'll prompt for it in TTY mode
     const requiredArgs = getRequiredArgs(this.command);
     const commandRequiresRegion = requiredArgs?.includes('region');
-    const regionFromArgs =
-      this.rawArgs.region ||
-      process.env.AWS_DEFAULT_REGION ||
-      this.persistedState?.cliArgsDefaults?.region ||
-      this.awsConfigFileContent?.[this.rawArgs.profile || process.env.AWS_PROFILE || 'default']?.region;
-    const regionIsMissing = commandRequiresRegion && !regionFromArgs;
+    const regionIsMissing = commandRequiresRegion && !this.regionValue;
     const shouldPromptForRegion = regionIsMissing && process.stdout.isTTY;
 
     validateArgs({
       rawArgs: this.rawArgs,
       command: this.command,
-      defaults: this.persistedState.cliArgsDefaults,
+      defaults: {
+        ...this.persistedState.cliArgsDefaults,
+        // The profile's region is the last fallback, after the machine-wide default, exactly as the region getter.
+        region: this.persistedState.cliArgsDefaults?.region || this.profileRegion
+      },
       fromEnv: {
         region: process.env.AWS_DEFAULT_REGION,
         profile: process.env.AWS_PROFILE,
@@ -265,13 +294,29 @@ export class GlobalStateManager {
     return this.rawArgs.profile || process.env.AWS_PROFILE || this.persistedState?.cliArgsDefaults.profile || 'default';
   }
 
+  /** Region of the selected AWS profile in the AWS config file. */
+  get profileRegion(): string | undefined {
+    if (!this.awsConfigFileContent) return undefined;
+    return profileRegionFromConfig(this.awsConfigFileContent, this.awsProfileName);
+  }
+
+  /**
+   * The effective region with its source. Arguments already contain a config-declared region, so the order is: flag,
+   * project config, `AWS_DEFAULT_REGION`, machine-wide default, AWS profile.
+   */
+  get regionValue(): TargetValue | undefined {
+    const resolved = this.invocationTarget?.region;
+    if (this.args.region && resolved?.source === 'config' && resolved.value === this.args.region) return resolved;
+    return resolveRegionValue({
+      flag: this.args.region,
+      envRegion: process.env.AWS_DEFAULT_REGION,
+      defaultRegion: this.persistedState?.cliArgsDefaults.region,
+      profileRegion: this.profileRegion
+    });
+  }
+
   get region() {
-    const region =
-      this.args.region ||
-      process.env.AWS_DEFAULT_REGION ||
-      this.persistedState?.cliArgsDefaults.region ||
-      this.awsConfigFileContent?.[this.awsProfileName]?.region;
-    return region as AWSRegion;
+    return this.regionValue?.value as AWSRegion;
   }
 
   get cloudformationRegistryBucketName() {
@@ -301,13 +346,17 @@ export class GlobalStateManager {
         throw stpErrors.e65({
           accountName: awsAccount,
           organizationName: this.organizationData.name,
-          connectedAwsAccounts: this.connectedAwsAccounts
+          connectedAwsAccounts: this.connectedAwsAccounts,
+          isAwsAccountScoped: this.isAwsAccountScoped
         });
       }
       return account;
     }
     if (this.connectedAwsAccounts.length < 1) {
-      throw stpErrors.e66({ organizationName: this.organizationData.name });
+      throw stpErrors.e66({
+        organizationName: this.organizationData.name,
+        isAwsAccountScoped: this.isAwsAccountScoped
+      });
     }
     if (this.connectedAwsAccounts.length > 1) {
       throw stpErrors.e67({
@@ -550,6 +599,7 @@ export class GlobalStateManager {
     this.projects = data.projects;
     this.permissions = data.permissions;
     this.isProjectScoped = data.isProjectScoped;
+    this.isAwsAccountScoped = data.isAwsAccountScoped ?? false;
   };
 
   loadValidatedAwsCredentials = async (): Promise<ValidatedAwsCredentials> => {
@@ -558,9 +608,9 @@ export class GlobalStateManager {
 
     // loading method API
     const loadCredentialsUsingApi = async (): Promise<LoadedAwsCredentials> => {
-      const { credentials } = await stacktapeTrpcApiManager.apiClient.awsAccountCredentials({
-        awsAccountName: this.targetAwsAccount.name
-      });
+      const { credentials } = await timeAsync('credentials:console', () =>
+        stacktapeTrpcApiManager.apiClient.awsAccountCredentials({ awsAccountName: this.targetAwsAccount.name })
+      );
       return { ...credentials, expiration: new Date(credentials.expiration), source: 'api' } as LoadedAwsCredentials;
     };
 
@@ -851,7 +901,9 @@ export class GlobalStateManager {
       return userSpecifiedExistingProject;
     }
 
-    const projectNameComesFromConfig = projectName === configProjectName;
+    // Arguments carry a config-declared name too, so the resolved target, not the argument, tells where it came from.
+    const projectNameComesFromConfig =
+      this.invocationTarget?.projectName?.source === 'config' || projectName === configProjectName;
 
     // A project declared in config is intentional, so it can be created without a second confirmation.
     if (!this.projects?.length || (this.args as StacktapeCliArgs).autoConfirmOperation || projectNameComesFromConfig) {

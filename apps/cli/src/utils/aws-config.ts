@@ -43,6 +43,21 @@ export const loadAwsConfigFileContent = () => {
   return getIniFileContent(fsPaths.awsConfigFilePath());
 };
 
+/**
+ * The region of a profile in a parsed AWS config file. The config file names a profile's section `[profile name]` and
+ * the default one `[default]`; a bare `[name]` section is accepted too, as the AWS CLI does for the credentials file.
+ */
+export const profileRegionFromConfig = (content: unknown, profile: string): string | undefined => {
+  if (!content || typeof content !== 'object') return undefined;
+  const sections = content as Record<string, unknown>;
+  for (const sectionName of profile === 'default' ? ['default'] : [`profile ${profile}`, profile]) {
+    const section = sections[sectionName];
+    const region = section && typeof section === 'object' ? (section as Record<string, unknown>).region : undefined;
+    if (typeof region === 'string' && region) return region;
+  }
+  return undefined;
+};
+
 export const listAwsProfiles = async (credentialsFilePath = fsPaths.awsCredentialsFilePath()) => {
   const credsFileContent = (await getIniFileContent(credentialsFilePath)) || {};
 

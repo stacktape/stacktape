@@ -12,6 +12,7 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import { serialize } from '@utils/misc';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -29,12 +30,14 @@ import { expectedV3UpgradeChanges } from './expected-v3-upgrade-changes';
 const updateV4Baselines = process.env.STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES === '1';
 const templateOutputDirectory = process.env.STACKTAPE_DATA_SAFETY_TEMPLATE_OUTPUT_DIR;
 
-const synthesizeCurrent = async (caseName: string) => {
+/** Synthesizes the case's v4 config as an update of `deployedTemplate`, or as a new stack without it. */
+const synthesizeCurrent = async (caseName: string, deployedTemplate?: CloudFormationTemplate) => {
   const workingDir = join(baselineCaseDirectory(caseName), 'v4');
   const template = await synthesizeFixture({
     configPath: join(workingDir, 'stacktape.yml'),
     workingDir,
-    identity: baselineIdentity
+    identity: baselineIdentity,
+    deployedTemplate
   });
   const calculatedStackInfoMap = serialize(calculatedStackOverviewManager.stackInfoMap);
   if (templateOutputDirectory) {
@@ -56,14 +59,15 @@ describe('data safety: updates and the v3 upgrade keep stateful resources', asyn
   for (const caseName of cases) {
     describe(caseName, () => {
       test('updating a stack deployed by the current v4 keeps every stateful resource', async () => {
-        const { template, calculatedStackInfoMap } = await synthesizeCurrent(caseName);
         if (updateV4Baselines) {
+          const { template: newStack } = await synthesizeCurrent(caseName);
           await writeFile(
             join(baselineCaseDirectory(caseName), baselineTemplateFileName('v4')),
-            `${JSON.stringify(template, null, 2)}\n`
+            `${JSON.stringify(newStack, null, 2)}\n`
           );
         }
         const baseline = await readBaselineTemplate(caseName, 'v4');
+        const { template, calculatedStackInfoMap } = await synthesizeCurrent(caseName, baseline);
         const result = computeOfflineChangePlan({
           baselineTemplate: baseline,
           currentTemplate: template,
@@ -80,8 +84,8 @@ describe('data safety: updates and the v3 upgrade keep stateful resources', asyn
       });
 
       test('upgrading a stack deployed by the last v3 CLI keeps every stateful resource', async () => {
-        const { template, calculatedStackInfoMap } = await synthesizeCurrent(caseName);
         const baseline = await readBaselineTemplate(caseName, 'v3');
+        const { template, calculatedStackInfoMap } = await synthesizeCurrent(caseName, baseline);
         const result = computeOfflineChangePlan({
           baselineTemplate: baseline,
           currentTemplate: template,

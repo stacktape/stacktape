@@ -1,0 +1,1060 @@
+package main
+
+// Source-only runtime qualification harness. No installed CLI activation or deployment authority.
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math/rand"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
+)
+
+type generation struct {
+	cmd            *exec.Cmd
+	pid            int
+	port           int
+	revision       string
+	proxy          *httputil.ReverseProxy
+	inflight       atomic.Int64
+	exited         atomic.Bool
+	membership     map[int]string
+	treeMu         sync.Mutex
+	termAt         time.Time
+	drainUntil     time.Time
+	treeFailure    atomic.Bool
+	traceFailure   atomic.Bool
+	traced         atomic.Bool
+	detachRequests chan chan error
+	terminateMu    sync.Mutex
+	requestsMu     sync.Mutex
+	requests       map[*requestLease]bool
+}
+type requestLease struct {
+	cancel context.CancelFunc
+	conn   net.Conn
+}
+type bundleIdentity struct {
+	Revision, Key, Sha256 string
+	Size                  int64
+}
+type proposalIdentity struct {
+	Revision, Key, Sha256, Attempt string
+	Size                           int64
+}
+type record struct {
+	Seq                          int64
+	TaskDefinition               string
+	Committed                    *bundleIdentity
+	Proposed                     *proposalIdentity
+	HistoryVersion               *string
+	Revision, Key, Sha256, Phase string
+	Size                         int64
+	BootstrapDelayS              int
+}
+
+var current, candidate, oldGeneration atomic.Pointer[generation]
+var routing sync.Mutex
+var taskID, app, table, bucket, baseline, taskDefinition string
+var privateIP = "127.0.0.1"
+var siblings bool
+var proxyPort = 8080
+var local = &http.Client{Timeout: 2 * time.Second}
+var stopping atomic.Bool
+var stop = make(chan struct{})
+var stopAt atomic.Pointer[time.Time]
+var bootstrapDeadline atomic.Pointer[time.Time]
+var grace, drain = 2 * time.Second, 2 * time.Second
+
+// An image deploy lets an old task finish requests through the 35 s Cloud Map drain and the 30 s default stop timeout.
+// A swap gives the old process the same time to finish in-flight requests. It stops waiting as soon as none remain.
+var swapDrain = 65 * time.Second
+
+// Status writes retry with backoff from 100 ms to 2 s, up to about 9 s in total, through throttling and endpoint blips.
+var statusRetryDelays = []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, 1600 * time.Millisecond, 2 * time.Second, 2 * time.Second, 2 * time.Second}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func now() int64             { return time.Now().UnixMilli() }
+func ms(t time.Time) float64 { return float64(time.Since(t).Microseconds()) / 1000 }
+
+// put retries a failed write and returns its last error. A status write never stops the serving process.
+func put(key string, value any) error {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("{\"benchmarkEvent\":\"status\",\"atMs\":%d,\"data\":%s}\n", now(), b)
+	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
+		if err := os.WriteFile(dir+"/"+key+".tmp", b, 0600); err != nil {
+			return err
+		}
+		return os.Rename(dir+"/"+key+".tmp", dir+"/"+key+".json")
+	}
+	item := map[string]any{"TableName": table, "Item": map[string]any{"pk": map[string]string{"S": key}, "data": map[string]string{"S": string(b)}}}
+	return retryStatusWrite(func() error { return putItem(item) }, func(d time.Duration) { time.Sleep(d) })
+}
+
+var putItem = func(item map[string]any) error {
+	return awsJSON("dynamodb", "DynamoDB_20120810.PutItem", item, nil)
+}
+
+func retryStatusWrite(write func() error, sleep func(time.Duration)) error {
+	err := write()
+	for _, delay := range statusRetryDelays {
+		if err == nil {
+			return nil
+		}
+		sleep(delay/2 + time.Duration(rand.Int63n(int64(delay/2)+1)))
+		err = write()
+	}
+	return err
+}
+func read() (record, error) {
+	var r record
+	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
+		b, err := os.ReadFile(dir + "/release.json")
+		if os.IsNotExist(err) {
+			return r, nil
+		}
+		if err != nil {
+			return r, err
+		}
+		return r, json.Unmarshal(b, &r)
+	}
+	var out struct{ Item map[string]map[string]string }
+	if err := awsJSON("dynamodb", "DynamoDB_20120810.GetItem", map[string]any{"TableName": table, "Key": map[string]any{"pk": map[string]string{"S": "release#" + app}}, "ConsistentRead": true}, &out); err != nil {
+		return r, err
+	}
+	if d, ok := out.Item["data"]; ok {
+		if err := json.Unmarshal([]byte(d["S"]), &r); err != nil {
+			return r, err
+		}
+		if os.Getenv("STP_BENCH_PHASE4") == "1" {
+			if r.Seq <= 0 || out.Item["seq"]["N"] != strconv.FormatInt(r.Seq, 10) || r.TaskDefinition == "" {
+				return r, fmt.Errorf("invalid release record sequence or task definition")
+			}
+		}
+		return r, nil
+	}
+	return r, nil
+}
+
+// Proposals never replace the durable desired code of a newly started task.
+func bootstrapIdentity(r record, revision string) record {
+	if r.TaskDefinition[strings.LastIndex(r.TaskDefinition, "/")+1:] == revision && r.Committed != nil {
+		c := r.Committed
+		r.Revision, r.Key, r.Sha256, r.Size, r.Phase = c.Revision, c.Key, c.Sha256, c.Size, "commit"
+	} else {
+		r.Revision, r.Phase = "", "abort"
+	}
+	return r
+}
+
+func bootstrapRead() (record, error) {
+	deadline := time.Now().Add(60 * time.Second)
+	if at := bootstrapDeadline.Load(); at != nil {
+		deadline = *at
+	}
+	var last error
+	for !stopping.Load() {
+		r, err := read()
+		if err == nil {
+			return r, nil
+		}
+		last = err
+		if !time.Now().Before(deadline) {
+			break
+		}
+		select {
+		case <-stop:
+			return record{}, fmt.Errorf("task stopping")
+		case <-time.After(time.Second):
+		}
+	}
+	return record{}, fmt.Errorf("bootstrap record unavailable: %w", last)
+}
+func health(port int, rev string, prep bool) bool {
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s:%d/", privateIP, port), nil)
+	if prep {
+		req.Header.Set("X-Lab-Prepare", "1")
+	}
+	req.Header.Set("X-Lab-Check", "1")
+	passed := false
+	u := current.Load()
+	defer func() {
+		if !prep && port == proxyPort && u != nil && u.revision == rev {
+			checked.Store(&checkedGeneration{u, time.Now(), passed})
+		}
+	}()
+	resp, err := local.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	passed = err == nil && (port != proxyPort || resp.Header.Get("X-Lab-Revision") == rev)
+	return passed
+}
+func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, error) {
+	if stopping.Load() {
+		return nil, fmt.Errorf("task stopping")
+	}
+	entry := os.Getenv("STP_BENCH_ENTRY")
+	if entry == "" {
+		entry = "index.mjs"
+	}
+	value := -998
+	if isCandidate {
+		value = 500
+	}
+	port := 20000 + rand.Intn(12000)
+	// A native shell waits for tracing, then verifies its own score and execs
+	// the app without forking. Avoid a second Go runtime's threads at startup.
+	argv := []string{"node", entry}
+	if command := os.Getenv("STP_CODE_SWAP_COMMAND"); command != "" {
+		argv = []string{"/bin/sh", "-c", "exec " + command}
+	}
+	args := append([]string{"-c", `
+read -r start <&3 || exit 126
+exec 3<&-
+printf '%s' "$1" > /proc/self/oom_score_adj || exit 126
+read -r actual < /proc/self/oom_score_adj || exit 126
+[ "$actual" = "$1" ] || exit 126
+shift
+exec "$@"
+`, "code-swap-launch", strconv.Itoa(value)}, argv...)
+	c := exec.Command("/bin/sh", args...)
+	c.Dir = dir
+	c.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", port))
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	t["spawnAtMs"] = now()
+	started := time.Now()
+	u := &generation{cmd: c, port: port, revision: rev, membership: map[int]string{}, requests: map[*requestLease]bool{}}
+	var startErr error
+	if isCandidate {
+		startErr = u.startTraced()
+	} else {
+		startErr = u.startUntraced()
+	}
+	if err := startErr; err != nil {
+		if u.pid != 0 {
+			return u, err
+		}
+		return nil, err
+	}
+	fmt.Printf("{\"benchmarkEvent\":\"preparing\",\"pid\":%d,\"revision\":%q}\n", u.pid, rev)
+	target, _ := url.Parse(fmt.Sprintf("http://%s:%d", privateIP, port))
+	u.proxy = httputil.NewSingleHostReverseProxy(target)
+	u.proxy.FlushInterval = -1
+	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second, ResponseHeaderTimeout: 30 * time.Second}
+	u.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		fmt.Printf("{\"benchmarkEvent\":\"proxyError\",\"atMs\":%d,\"revision\":%q}\n", now(), rev)
+		http.Error(w, "upstream unavailable", 502)
+	}
+	for {
+		_, treeErr := u.members()
+		if stopping.Load() || u.exited.Load() || treeErr != nil || time.Since(started) > 30*time.Second {
+			return u, fmt.Errorf("candidate startup failed: exit=%t tree=%v", u.exited.Load(), treeErr)
+		}
+		if health(port, rev, false) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t["startupMs"] = ms(started)
+	t["readyAtMs"] = now()
+	return u, nil
+}
+
+// Hijacked WebSocket connections remain counted until the reverse proxy returns.
+type trackedWriter struct {
+	http.ResponseWriter
+	u     *generation
+	lease *requestLease
+}
+
+func (w *trackedWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *trackedWriter) Flush()                      { http.NewResponseController(w.ResponseWriter).Flush() }
+func (w *trackedWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	c, b, err := http.NewResponseController(w.ResponseWriter).Hijack()
+	if err == nil {
+		w.u.requestsMu.Lock()
+		w.lease.conn = c
+		w.u.requestsMu.Unlock()
+	}
+	return c, b, err
+}
+func proxy(w http.ResponseWriter, r *http.Request) {
+	routing.Lock()
+	u := current.Load()
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if r.Header.Get("X-Lab-Prepare") == "1" && host == privateIP {
+		if c := candidate.Load(); c != nil {
+			u = c
+		}
+	}
+	if u == nil {
+		routing.Unlock()
+		http.Error(w, "not serving", 503)
+		return
+	}
+	u.inflight.Add(1)
+	routing.Unlock()
+	ctx, cancel := context.WithCancel(r.Context())
+	lease := &requestLease{cancel: cancel}
+	u.requestsMu.Lock()
+	u.requests[lease] = true
+	u.requestsMu.Unlock()
+	defer func() {
+		cancel()
+		u.requestsMu.Lock()
+		delete(u.requests, lease)
+		u.requestsMu.Unlock()
+		u.inflight.Add(-1)
+	}()
+	r = r.WithContext(ctx)
+	r.Header.Del("X-Lab-Prepare")
+	r.Header.Del("X-Lab-Check")
+	w.Header().Set("X-Lab-Now-Ms", fmt.Sprint(now()))
+	w.Header().Set("X-Lab-Task", taskID)
+	w.Header().Set("X-Lab-Revision", u.revision)
+	u.proxy.ServeHTTP(&trackedWriter{w, u, lease}, r)
+}
+func (u *generation) closeRequests() {
+	u.requestsMu.Lock()
+	defer u.requestsMu.Unlock()
+	deadline := time.Now().Add(100 * time.Millisecond)
+	for lease := range u.requests {
+		if lease.conn != nil {
+			lease.conn.SetWriteDeadline(deadline)
+			lease.conn.Write([]byte{0x88, 2, 3, 0xe9})
+			lease.conn.Close()
+		}
+		lease.cancel()
+	}
+}
+
+var revisionPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)
+
+func prepare(r record, t map[string]any) (*generation, error) {
+	if !revisionPattern.MatchString(r.Revision) {
+		return nil, fmt.Errorf("unsafe revision")
+	}
+	t["memoryBefore"] = memory()
+	started := time.Now()
+	var data []byte
+	if os.Getenv("STP_BENCH_LOCAL") != "" {
+		b, err := os.ReadFile(r.Key)
+		if err != nil {
+			return nil, err
+		}
+		data = b
+	} else {
+		var obj *s3Result
+		var err error
+		for {
+			obj, err = s3Get(bucket, r.Key, "")
+			deadline := bootstrapDeadline.Load()
+			if err == nil || deadline == nil || !time.Now().Before(*deadline) || stopping.Load() {
+				break
+			}
+			// Only transport/throttle/server failures are transient. Integrity,
+			// missing artifacts and permission failures never execute the image.
+			if obj != nil && obj.Status != 429 && obj.Status < 500 {
+				break
+			}
+			select {
+			case <-stop:
+			case <-time.After(time.Second):
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		if obj.NotFound {
+			return nil, fmt.Errorf("missing bundle")
+		}
+		data = obj.Body
+	}
+	t["downloadMs"] = ms(started)
+	t["bundleBytes"] = len(data)
+	started = time.Now()
+	dir := filepath.Join(os.TempDir(), "stp-code-swap", r.Revision)
+	if err := applyBundle(data, r.Sha256, r.Size, dir); err != nil {
+		return nil, err
+	}
+	t["extractMs"] = ms(started)
+	if current.Load() == nil {
+		bootstrapDeadline.Store(nil)
+	}
+	u, err := spawn(dir, r.Revision, t, current.Load() != nil)
+	if err != nil {
+		if u == nil {
+			os.RemoveAll(dir)
+		}
+		return u, err
+	}
+	candidate.Store(u)
+	started = time.Now()
+	if current.Load() != nil && !health(proxyPort, r.Revision, true) {
+		return u, fmt.Errorf("prepare proxy check failed")
+	}
+	t["prepareHealthMs"] = ms(started)
+	t["preparedAtMs"] = now()
+	return u, nil
+}
+
+// Retain a failed cleanup tree so task shutdown can retry it; never authorize fallback on an unverified reap.
+func cleanupPrepare(u *generation, t map[string]any, cause error) error {
+	t["candidateReaped"] = false
+	if u != nil {
+		candidate.Store(u)
+		if err := u.terminate(); err != nil {
+			return errors.Join(cause, err)
+		}
+		candidate.Store(nil)
+		u.remove()
+	}
+	t["candidateReaped"] = true
+	return cause
+}
+
+func transitionCheck(u *generation, oom int64) error {
+	if stopping.Load() {
+		return fmt.Errorf("task stopping")
+	}
+	count := oomCount()
+	if count < 0 || count != oom {
+		return fmt.Errorf("OOM counter changed or unavailable")
+	}
+	if u.exited.Load() {
+		return fmt.Errorf("candidate exited")
+	}
+	if _, err := u.members(); err != nil {
+		return err
+	}
+	if u.traceFailure.Load() {
+		return fmt.Errorf("process exit observation failed")
+	}
+	if u.treeFailure.Load() {
+		if count := oomCount(); count < 0 || count != oom {
+			return fmt.Errorf("OOM counter changed or unavailable")
+		}
+		return fmt.Errorf("unexplained worker SIGKILL during overlap")
+	}
+	return nil
+}
+func activate(u *generation, t map[string]any, oom int64) error {
+	if err := transitionCheck(u, oom); err != nil {
+		return err
+	}
+	rev := u.revision
+	desiredRevision.Store(&rev)
+	t["commitDetectedAtMs"] = now()
+	routing.Lock()
+	old := current.Load()
+	deadline := time.Now().Add(swapDrain)
+	old.drainUntil = deadline
+	oldGeneration.Store(old)
+	current.Store(u)
+	candidate.Store(nil)
+	routing.Unlock()
+	t["switchedAtMs"] = now()
+	started := time.Now()
+	if !health(proxyPort, u.revision, false) {
+		return fmt.Errorf("post-switch check failed")
+	}
+	t["postHealthMs"] = ms(started)
+	t["postHealthAtMs"] = now()
+	started = time.Now()
+	nextCheck := time.Now().Add(time.Second)
+	for old.inflight.Load() > 0 && time.Now().Before(deadline) {
+		if err := transitionCheck(u, oom); err != nil {
+			return err
+		}
+		if time.Now().After(nextCheck) {
+			if !health(proxyPort, u.revision, false) {
+				return fmt.Errorf("drain check failed")
+			}
+			nextCheck = time.Now().Add(time.Second)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t["drainMs"] = ms(started)
+	t["oldInflightAtTerm"] = old.inflight.Load()
+	t["forcedDrain"] = old.inflight.Load() > 0
+	if old.inflight.Load() > 0 {
+		old.closeRequests()
+	}
+	started = time.Now()
+	t["oldPid"] = old.pid
+	// Continue transition monitoring during the old tree's shutdown grace.
+	finished := make(chan error, 1)
+	go func() { finished <- old.terminate() }()
+	for {
+		select {
+		case err := <-finished:
+			if err != nil {
+				return err
+			}
+			goto reaped
+		case <-time.After(5 * time.Millisecond):
+			if err := transitionCheck(u, oom); err != nil {
+				<-finished
+				return err
+			}
+		}
+	}
+reaped:
+	t["oldExitMs"] = ms(started)
+	t["oldReapedAtMs"] = now()
+	if err := transitionCheck(u, oom); err != nil {
+		return err
+	}
+	if !health(proxyPort, u.revision, false) {
+		return fmt.Errorf("final proxy check failed")
+	}
+	if err := u.protect(); err != nil {
+		return err
+	}
+	if err := u.detach(); err != nil {
+		return err
+	}
+	t["newPid"] = u.pid
+	t["memoryAfter"] = memory()
+	old.remove()
+	oldGeneration.Store(nil)
+	return nil
+}
+
+// status reports an attempt's state. When the write fails even after retries, the CLI sees no answer from this task
+// and gives up on the attempt; the task keeps serving its current code.
+func status(state, rev string, t map[string]any, reason string) error {
+	err := put(statusKey(), map[string]any{"state": state, "revision": rev, "task": taskID, "timings": t, "reason": reason})
+	if err != nil {
+		fmt.Printf("{\"benchmarkEvent\":\"statusWriteFailed\",\"state\":%q,\"revision\":%q,\"reason\":%q}\n", state, rev, err.Error())
+	}
+	return err
+}
+func fail(u *generation, t map[string]any, err error) {
+	// A failed attempt remains sticky until a different revision. Never report restored baseline as swap success.
+	t["candidateReaped"] = false
+	t["oomAfter"] = oomCount()
+	status("failed", u.revision, t, err.Error())
+	if old := oldGeneration.Load(); old != nil {
+		if !old.exited.Load() && !old.terminating() && health(old.port, old.revision, false) {
+			routing.Lock()
+			current.Store(old)
+			routing.Unlock()
+			t["localRevert"] = "warm"
+			oldGeneration.Store(nil)
+		}
+	}
+	if stopping.Load() {
+		if current.Load() != u {
+			candidate.Store(u)
+		}
+		return
+	}
+	if current.Load() == u {
+		// The baseline may already be reaped. Restart and check it before routing; preserve its directory until then.
+		dir := baseline
+		rev := "baseline"
+		if old := oldGeneration.Load(); old != nil {
+			dir = old.cmd.Dir
+			rev = old.revision
+		}
+		replacement, e := spawn(dir, rev, map[string]any{}, false)
+		if e != nil {
+			if stopping.Load() {
+				if replacement != nil {
+					candidate.Store(replacement)
+				}
+				return
+			}
+			panic(fmt.Errorf("baseline restart failed: %w", e))
+		}
+		routing.Lock()
+		current.Store(replacement)
+		routing.Unlock()
+		t["localRevert"] = "restart"
+		t["baselineRestartedAtMs"] = now()
+	}
+	u.closeRequests()
+	if e := u.terminate(); e != nil {
+		t["candidateReaped"] = false
+		candidate.Store(u)
+		status("failed", u.revision, t, errors.Join(err, e).Error())
+		return
+	}
+	candidate.Store(nil)
+	u.remove()
+	if old := oldGeneration.Load(); old != nil {
+		if e := old.terminate(); e != nil {
+			t["candidateReaped"] = true
+			status("failed", u.revision, t, errors.Join(err, e).Error())
+			return
+		}
+		if old.cmd.Dir != current.Load().cmd.Dir {
+			old.remove()
+		}
+		oldGeneration.Store(nil)
+	}
+	t["candidateReaped"] = true
+	status("failed", u.revision, t, err.Error())
+}
+func shutdown(server *http.Server) {
+	// Task-stop qualification only. ECS timeout synthesis/readiness remains Phase 3.
+	stopping.Store(true)
+	begin := time.Now()
+	if at := stopAt.Load(); at != nil {
+		begin = *at
+	}
+	candidateTree := candidate.Swap(nil)
+	d := 30 * time.Second
+	if drain > d {
+		d = drain
+	}
+	deadline := begin.Add(d)
+	terminations := map[*generation]chan error{}
+	terminateAsync := func(u *generation) {
+		if u == nil || terminations[u] != nil {
+			return
+		}
+		u.closeRequests()
+		done := make(chan error, 1)
+		terminations[u] = done
+		go func() { done <- u.terminate() }()
+	}
+	// A retained candidate may still be unreapable. Its cleanup must not
+	// shorten the serving generation's cached-routing drain or SIGTERM grace.
+	if candidateTree != current.Load() {
+		terminateAsync(candidateTree)
+	}
+	for time.Now().Before(deadline) {
+		if old := oldGeneration.Load(); old != nil && (old.inflight.Load() == 0 || !time.Now().Before(old.drainUntil)) {
+			terminateAsync(old)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	server.Close()
+	terminateAsync(current.Load())
+	terminateAsync(oldGeneration.Load())
+	for u, done := range terminations {
+		if err := <-done; err != nil {
+			fmt.Printf("{\"benchmarkEvent\":\"cleanupFailed\",\"revision\":%q,\"reason\":%q}\n", u.revision, err.Error())
+			continue
+		}
+		u.remove()
+	}
+
+}
+func main() {
+	if len(os.Args) == 2 && os.Args[1] == "readiness" {
+		if err := readinessCommand(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) == 6 && os.Args[1] == "apply" {
+		data, err := os.ReadFile(os.Args[2])
+		must(err)
+		size, err := strconv.ParseInt(os.Args[4], 10, 64)
+		must(err)
+		must(applyBundle(data, os.Args[3], size, os.Args[5]))
+		return
+	}
+	// Kernel exit observation owns leader waits; also adopt and reap orphaned grandchildren.
+	_, _, errno := syscall.Syscall6(syscall.SYS_PRCTL, 36, 1, 0, 0, 0, 0)
+	if errno != 0 {
+		panic(errno)
+	}
+	if n, err := strconv.Atoi(os.Getenv("STP_BENCH_PORT")); err == nil {
+		proxyPort = n
+	}
+	app = os.Getenv("STP_CODE_SWAP_SERVICE")
+	if app == "" {
+		app = "node"
+	}
+	table = os.Getenv("STP_BENCH_TABLE")
+	bucket = os.Getenv("STP_BENCH_BUCKET")
+	baseline = os.Getenv("STP_BENCH_BASELINE")
+	if baseline == "" {
+		baseline = "/app"
+	}
+	if n, err := strconv.Atoi(os.Getenv("STP_BENCH_GRACE_S")); err == nil {
+		grace = time.Duration(n) * time.Second
+	}
+	drain = grace
+	if grace < 0 || grace > 59*time.Second {
+		panic("unsupported task stop budget")
+	}
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	go func() { <-signals; at := time.Now(); stopAt.Store(&at); stopping.Store(true); close(stop) }()
+	if os.Getenv("STP_BENCH_LOCAL") != "" {
+		taskID = "local"
+	} else {
+		resp, err := local.Get(os.Getenv("ECS_CONTAINER_METADATA_URI_V4") + "/task")
+		must(err)
+		var meta struct {
+			TaskARN    string
+			Family     string
+			Revision   string
+			Limits     struct{ Memory int64 }
+			Containers []struct {
+				Name     string
+				Limits   struct{ Memory int64 }
+				Networks []struct{ IPv4Addresses []string }
+			}
+		}
+		must(json.NewDecoder(resp.Body).Decode(&meta))
+		resp.Body.Close()
+		applications := 0
+		reservedMiB := int64(0)
+		for _, c := range meta.Containers {
+			if os.Getenv("STP_BENCH_PHASE3") == "1" && c.Name == "stp-cloudmap-drain" && c.Limits.Memory == 16 {
+				reservedMiB += 16
+				continue
+			}
+			applications++
+		}
+		siblings = applications != 1
+		meta.Limits.Memory -= reservedMiB
+		if meta.Limits.Memory > 0 {
+			must(os.Setenv("STP_BENCH_TASK_MIB", strconv.FormatInt(meta.Limits.Memory, 10)))
+		} else {
+			must(os.Unsetenv("STP_BENCH_TASK_MIB"))
+		}
+		taskID = meta.TaskARN[strings.LastIndex(meta.TaskARN, "/")+1:]
+		taskDefinition = meta.Family + ":" + meta.Revision
+		for _, c := range meta.Containers {
+			for _, n := range c.Networks {
+				if len(n.IPv4Addresses) > 0 {
+					privateIP = n.IPv4Addresses[0]
+				}
+			}
+		}
+	}
+	closeReadiness, readinessErr := serveReadiness()
+	if readinessErr != nil {
+		fmt.Fprintln(os.Stderr, readinessErr)
+		return
+	}
+	defer closeReadiness()
+	deadline := time.Now().Add(60 * time.Second)
+	bootstrapDeadline.Store(&deadline)
+	boot := time.Now()
+	t := map[string]any{"bootAtMs": now()}
+	r, err := bootstrapRead()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	if os.Getenv("STP_BENCH_PHASE4") == "1" {
+		r = bootstrapIdentity(r, taskDefinition)
+	}
+	var u *generation
+	if r.BootstrapDelayS > 0 && r.BootstrapDelayS <= 60 {
+		select {
+		case <-stop:
+			return
+		case <-time.After(time.Duration(r.BootstrapDelayS) * time.Second):
+		}
+	}
+	if r.BootstrapDelayS > 0 {
+		ioDeadline := time.Now().Add(60 * time.Second)
+		bootstrapDeadline.Store(&ioDeadline)
+	}
+	// Refuse unsupported protection before executing any application; no unsafe score approximation.
+	must(score(os.Getpid(), -998))
+	if r.Revision != "" && r.Phase == "commit" {
+		u, err = prepare(r, t)
+	} else {
+		bootstrapDeadline.Store(nil)
+		u, err = spawn(baseline, "baseline", t, false)
+	}
+	if err != nil {
+		err = cleanupPrepare(u, t, err)
+		fmt.Printf("{\"benchmarkEvent\":\"bootstrapFailed\",\"reason\":%q}\n", err.Error())
+		return
+	}
+	must(u.protect())
+	current.Store(u)
+	candidate.Store(nil)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", proxyPort))
+	must(err)
+	t["listenerAtMs"] = now()
+	t["bootToServingMs"] = ms(boot)
+	t["memoryAfter"] = memory()
+	server := &http.Server{Handler: http.HandlerFunc(proxy), IdleTimeout: 75 * time.Second}
+	go func() { server.Serve(listener) }()
+	if !health(proxyPort, u.revision, false) {
+		shutdown(server)
+		return
+	}
+	if r.Phase == "commit" {
+		rev := r.Revision
+		desiredRevision.Store(&rev)
+	}
+	go monitorReadiness()
+	status("complete", u.revision, t, "")
+	var prepared *generation
+	var p record
+	var timing map[string]any
+	var oom int64
+	failed := ""
+	appliedSeq := r.Seq
+	for !stopping.Load() {
+		if current.Load().exited.Load() {
+			panic("serving process exited")
+		}
+		next, readErr := read()
+		if readErr != nil {
+			// Keep verified serving code through an outage; never begin another
+			// transition based on an absent/unreadable release record.
+			select {
+			case <-stop:
+			case <-time.After(time.Second):
+			}
+			continue
+		}
+		if os.Getenv("STP_BENCH_PHASE4") == "1" {
+			if next.Seq < appliedSeq || next.TaskDefinition[strings.LastIndex(next.TaskDefinition, "/")+1:] != taskDefinition {
+				select {
+				case <-stop:
+				case <-time.After(time.Second):
+				}
+				continue
+			}
+			appliedSeq = next.Seq
+		}
+		r = next
+		if prepared != nil {
+			err := transitionCheck(prepared, oom)
+			if err != nil {
+				fail(prepared, timing, err)
+				failed = p.Revision
+				prepared = nil
+			} else if r.Revision != p.Revision || r.Phase == "abort" {
+				if e := cleanupPrepare(prepared, timing, nil); e != nil {
+					status("failed", p.Revision, timing, e.Error())
+					failed = p.Revision
+				} else {
+					status("aborted", p.Revision, timing, "")
+				}
+				prepared = nil
+			}
+		}
+		if r.Revision != "" && r.Revision != current.Load().revision && r.Revision != failed {
+			if prepared == nil && candidate.Load() == nil && oldGeneration.Load() == nil && r.Phase == "prepare" {
+				timing = map[string]any{"detectedAtMs": now()}
+				m := memory()
+				timing["memoryBefore"] = m
+				if !m["allowed"].(bool) {
+					status("refused", r.Revision, timing, "memory_screen")
+					failed = r.Revision
+					continue
+				}
+				if err := current.Load().protect(); err != nil {
+					status("refused", r.Revision, timing, "unprotected_tree")
+					failed = r.Revision
+					continue
+				}
+				oom = oomCount()
+				if oom < 0 {
+					status("refused", r.Revision, timing, "unknown_oom_counter")
+					failed = r.Revision
+					continue
+				}
+				timing["oomBefore"] = oom
+				p = r
+				prepared, err = prepare(r, timing)
+				if err != nil {
+					err = cleanupPrepare(prepared, timing, err)
+					prepared = nil
+					status("failed", r.Revision, timing, err.Error())
+					failed = r.Revision
+					continue
+				}
+				if err = transitionCheck(prepared, oom); err != nil {
+					fail(prepared, timing, err)
+					failed = r.Revision
+					prepared = nil
+					continue
+				}
+				if err := status("prepared", r.Revision, timing, ""); err != nil {
+					// Without a recorded preparation the CLI cannot commit; stop the idle candidate now.
+					if e := cleanupPrepare(prepared, timing, nil); e != nil {
+						status("failed", r.Revision, timing, errors.Join(err, e).Error())
+					} else {
+						status("failed", r.Revision, timing, err.Error())
+					}
+					prepared = nil
+					failed = r.Revision
+				}
+			}
+			if prepared != nil && r.Phase == "commit" && r.Revision == p.Revision {
+				if err := activate(prepared, timing, oom); err != nil {
+					if !stopping.Load() {
+						fail(prepared, timing, err)
+						failed = r.Revision
+					}
+				} else {
+					status("complete", r.Revision, timing, "")
+				}
+				prepared = nil
+			}
+		}
+		delay := 800 + rand.Intn(401)
+		if prepared != nil {
+			delay = 180 + rand.Intn(41)
+		}
+		select {
+		case <-stop:
+		case <-time.After(time.Duration(delay) * time.Millisecond):
+		}
+	}
+	shutdown(server)
+}
+
+func parseHTTPDate(h http.Header, key string) time.Time { t, _ := http.ParseTime(h.Get(key)); return t }
+func memory() map[string]any {
+	base, version := memoryController()
+	taskMiB, _ := strconv.ParseInt(os.Getenv("STP_BENCH_TASK_MIB"), 10, 64)
+	return memoryAt(base, version, taskMiB, siblings)
+}
+func memoryAt(base string, version int, taskMiB int64, siblings bool) map[string]any {
+	peakFile, limitFile, usageFile := "memory.max_usage_in_bytes", "memory.limit_in_bytes", "memory.usage_in_bytes"
+	if version == 2 {
+		peakFile, limitFile, usageFile = "memory.peak", "memory.max", "memory.current"
+	}
+
+	readNum := func(f string) int64 {
+		b, err := os.ReadFile(base + f)
+		if err != nil {
+			return -1
+		}
+		n, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
+		if err != nil {
+			return -1
+		}
+		return n
+	}
+	peak := readNum(peakFile)
+	rawLimit := readNum(limitFile)
+	limit := taskMiB * 1024 * 1024
+	if rawLimit > 0 && rawLimit < limit {
+		limit = rawLimit
+	}
+	need := 2.5*float64(peak) + 64*1024*1024
+	return map[string]any{"atMs": now(), "cgroupVersion": version, "peakFile": base + peakFile, "peakBytes": peak, "rawLimitBytes": rawLimit, "effectiveLimitBytes": limit, "usageBytes": readNum(usageFile), "requiredBytes": need, "allowed": version > 0 && !siblings && screen(peak, limit)}
+}
+
+// Resolve the actual containing controller; a new kernel alone says nothing about Fargate's cgroup version.
+func memoryController() (string, int) {
+	groups, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return "/unknown/", 0
+	}
+	mounts, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return "/unknown/", 0
+	}
+	for _, group := range strings.Split(string(groups), "\n") {
+		fields := strings.SplitN(group, ":", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		version := 1
+		if fields[0] == "0" && fields[1] == "" {
+			version = 2
+		} else if !strings.Contains(","+fields[1]+",", ",memory,") {
+			continue
+		}
+		for _, line := range strings.Split(string(mounts), "\n") {
+			parts := strings.SplitN(line, " - ", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			left, right := strings.Fields(parts[0]), strings.Fields(parts[1])
+			if len(left) < 5 || len(right) < 3 {
+				continue
+			}
+			if version == 1 && (right[0] != "cgroup" || !strings.Contains(","+right[2]+",", ",memory,")) {
+				continue
+			}
+			if version == 2 && right[0] != "cgroup2" {
+				continue
+			}
+			root, mount := left[3], left[4]
+			relative := strings.TrimPrefix(fields[2], root)
+			if root != "/" && !strings.HasPrefix(fields[2], root) {
+				continue
+			}
+			path := mount + "/" + strings.TrimPrefix(relative, "/")
+			if !strings.HasSuffix(path, "/") {
+				path += "/"
+			}
+			return path, version
+		}
+	}
+	return "/unknown/", 0
+}
+
+func oomCount() int64 {
+	base, version := memoryController()
+	name := "memory.oom_control"
+	field := "oom_kill"
+	if version == 2 {
+		name = "memory.events"
+	}
+	b, err := os.ReadFile(base + name)
+	if err != nil {
+		return -1
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 && f[0] == field {
+			n, err := strconv.ParseInt(f[1], 10, 64)
+			if err == nil {
+				return n
+			}
+		}
+	}
+	return -1
+}
+
+func screen(peak, limit int64) bool {
+	return peak > 0 && limit > 0 && peak <= (9*limit-640*(1<<20))/25 && limit < 1<<50
+}
+
+func bootstrapRequestContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if deadline := bootstrapDeadline.Load(); deadline != nil {
+		return context.WithDeadline(parent, *deadline)
+	}
+	return context.WithCancel(parent)
+}

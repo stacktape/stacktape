@@ -5,7 +5,20 @@ import { DEFAULT_RUBY_VERSION } from '../bundlers/constants';
 import { buildRubyArtifact } from '../bundlers/ruby';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { SupportedRubyVersion } from '@stacktape/config/deployment-artifacts';
-import { findNearestProjectRoot } from './project-root';
+import { findNearestProjectRoot, getEntryPathInArtifact } from './project-root';
+
+type RubyLambdaLocation = { cwd: string; entryfilePath: string };
+
+/** The directory that becomes the ZIP root: the nearest one with a Gemfile, or the entry file's without one. */
+const resolveRubyLambdaRoot = ({ cwd, entryfilePath }: RubyLambdaLocation) =>
+  findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['Gemfile', 'gems.rb'] });
+
+/**
+ * The file Lambda loads the handler from: the entry file's path inside the ZIP, without `.rb`. With a Gemfile at the
+ * project root, `src/handler.rb` is `src/handler`; beside its Gemfile it is `handler`.
+ */
+export const getRubyLambdaHandlerFile = (location: RubyLambdaLocation) =>
+  getEntryPathInArtifact({ ...location, artifactRoot: resolveRubyLambdaRoot(location) });
 
 export const buildRubyLambda = async ({
   progressLogger,
@@ -20,7 +33,7 @@ export const buildRubyLambda = async ({
     /** From the function's runtime; the buildpack default otherwise. */
     rubyVersion?: SupportedRubyVersion | undefined;
   }): Promise<PackagingOutput> => {
-  const absoluteSourcePath = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['Gemfile', 'gems.rb'] });
+  const absoluteSourcePath = resolveRubyLambdaRoot({ cwd, entryfilePath });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildRubyArtifact({

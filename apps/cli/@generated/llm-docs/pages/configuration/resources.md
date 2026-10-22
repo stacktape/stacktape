@@ -162,7 +162,7 @@ See [Directives](/configuration/directives) for all built-in directives and [Ref
 
 Each Stacktape resource produces one or more CloudFormation resources. When you run [`stacktape deploy`](/cli/deploy), Stacktape resolves your configuration (variables, directives, secrets), translates each resource into CloudFormation definitions with the necessary IAM roles and security groups, and submits the resulting template to AWS for provisioning.
 
-You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape info:stack`](/cli/info-stack) to see deployed resource details.
+You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape status`](/cli/info-stack) to see deployed resource details.
 
 
 > **Info:** Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer.
@@ -172,7 +172,7 @@ You can inspect the generated template with [`stacktape synth`](/cli/synth) befo
 
 Most Stacktape resources expose an `overrides` property that lets you modify the underlying CloudFormation resources directly. This is the escape hatch for edge cases where Stacktape's abstraction doesn't expose a specific AWS property you need. A few resource types that don't map to CloudFormation (such as MongoDB Atlas clusters) do not support overrides.
 
-Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape info:stack`.
+Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape status`.
 
 For full details, see [Overrides and escape hatches](/configuration/overrides-and-escape-hatches).
 

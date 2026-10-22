@@ -10,19 +10,25 @@ stacktape version
 
 The command outputs the installed version number and exits. No AWS credentials, project configuration, or login are required.
 
+`stacktape --version` and `stacktape -v` print the same output.
+
 ## Flags reference
 
 
 ## CLI Options: `stacktape version`
 
-No available options.
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Related commands
 
 - [`upgrade`](/cli/upgrade) — upgrade Stacktape to the latest version or a specific version.
 - [`help`](/cli/help) — display help information for any Stacktape command.
-- [`info:whoami`](/cli/info-whoami) — verify your API key, organization, and connected AWS accounts.
+- [`whoami`](/cli/info-whoami) — verify your API key, organization, and connected AWS accounts.
 
 ## FAQ
 

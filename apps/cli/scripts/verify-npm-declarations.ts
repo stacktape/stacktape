@@ -107,11 +107,11 @@ const rawBucketFromSubpath = cfnResourceFromSubpath('AWS::S3::Bucket', { BucketN
 const waitConditionHandle = cfnResource('AWS::CloudFormation::WaitConditionHandle', {});
 const thirdPartyResource = cfnResourceUnchecked('Example::Service::Resource', { TargetArn: bucketArn });
 
-export const config = defineConfig(() => ({
-  projectName: 'consumer-fixture',
+export const config = defineConfig({ projectName: 'consumer-fixture', region: 'eu-west-1' }, ({ projectName }) => ({
   resources: { api, site, uploads, backend, gateway, namedConnection, workflow },
   scripts: { seed },
-  variables: { alarmThreshold, secret: $Secret('db-password'), iot: iotTrigger.type, iotSql, minimalIot: minimalIotTrigger.type, mountPath, route: route.type },
+  // A declared project name reaches the callback as a string.
+  variables: { project: projectName satisfies string, alarmThreshold, secret: $Secret('db-password'), iot: iotTrigger.type, iotSql, minimalIot: minimalIotTrigger.type, mountPath, route: route.type },
   finalTransform
 }));
 export const compiledConfig = config({

@@ -662,7 +662,12 @@ const replaceSelfClosingMdxComponent = (
   return result;
 };
 
-const cliCommandReferenceToMarkdown = (command: string, args: any[]): string => {
+const cliCommandReferenceToMarkdown = (
+  command: string,
+  reference: { publicName: string; positionals: readonly string[]; args: GeneratedCliArg[] }
+): string => {
+  const { args } = reference;
+  command = reference.publicName;
   if (args.length === 0) return `\n\n## CLI Options: \`stacktape ${command}\`\n\nNo available options.\n\n`;
   const lines = [
     `\n\n## CLI Options: \`stacktape ${command}\``,
@@ -671,13 +676,8 @@ const cliCommandReferenceToMarkdown = (command: string, args: any[]): string => 
     '| --- | --- | --- | --- | --- |'
   ];
   for (const arg of args) {
-    const option = `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`;
-    const description = [
-      markdownToTableText(arg.shortDescription || arg.description),
-      markdownToTableText(arg.longDescription)
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const option = `${arg.alias ? `-${arg.alias}, ` : ''}--${arg.flag}${arg.positional !== undefined ? ` (positional ${arg.positional + 1})` : ''}`;
+    const description = markdownToTableText(arg.description);
     lines.push(
       `| \`${escapeMarkdownTableCell(option)}\` | ${arg.required ? 'yes' : 'no'} | \`${escapeMarkdownTableCell((arg.allowedTypes || []).join(' | ') || 'unknown')}\` | ${escapeMarkdownTableCell(description) || '-'} | ${escapeMarkdownTableCell((arg.allowedValues || []).map((value: string) => `\`${value}\``).join(', ') || '-')} |`
     );
@@ -703,7 +703,14 @@ const getGeneratedCliArgs = (command: string): GeneratedCliArg[] => {
 const cliCommandReferenceData = Object.fromEntries(
   Object.keys(generatedCommandSchemaInfo)
     .sort(compareLlmDocPaths)
-    .map((command) => [command, getGeneratedCliArgs(command)])
+    .map((command) => [
+      command,
+      {
+        publicName: generatedCommandSchemaInfo[command].publicName,
+        positionals: generatedCommandSchemaInfo[command].positionals,
+        args: getGeneratedCliArgs(command)
+      }
+    ])
 );
 
 const transformComponents = (body: string): string => {
@@ -844,7 +851,7 @@ const cleanMdxForLlms = async (body: string): Promise<string> => {
     .replace(/<LandingCover\s*\/>/g, '')
     .replace(
       /<StarterProjectGallery\s*\/>/g,
-      '\n\nBrowse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starterId <starter-id>`.\n\n'
+      '\n\nBrowse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starter-id <starter-id>`.\n\n'
     )
     .replace(
       /<OpenSourceBanner\s*\/>/g,

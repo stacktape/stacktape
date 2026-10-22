@@ -8,7 +8,7 @@ The `stacktape delete` command permanently removes a deployed stack and all its 
 stacktape delete --stage production --region eu-west-1
 ```
 
-`--region` is the only required flag. To avoid deleting the wrong stack, pass the identifying flags you normally use, such as `--stage`, `--projectName`, and `--configPath` when applicable.
+`--region` is the only required flag. To avoid deleting the wrong stack, pass the identifying flags you normally use, such as `--stage`, `--project`, and `--config` when applicable.
 
 
 > **Warning:** The delete command removes all resources managed by the stack according to CloudFormation's deletion behavior. Back up or export anything you need before deletion — this operation cannot be undone.
@@ -16,28 +16,26 @@ stacktape delete --stage production --region eu-west-1
 
 ## Important flags
 
-**`--autoConfirmOperation`** — Skips the interactive confirmation prompt. Required for CI/CD and non-interactive scripts.
+**`--yes`** — Skips the interactive confirmation prompt. Required for CI/CD and non-interactive scripts.
 
-**`--configPath`** — When provided, Stacktape loads the configuration file and runs any `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) before deletion. Without it, hooks are skipped.
+**`--config`** — When provided, Stacktape loads the configuration file and runs any `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) before deletion. Without it, hooks are skipped.
 
 
 ## CLI Options: `stacktape delete`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--autoConfirmOperation (-aco, yes, y)` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
 
 
 ## Lifecycle hooks
@@ -61,13 +59,13 @@ stacktape delete --stage staging --region eu-west-1
 Delete with automatic confirmation, suitable for CI/CD pipelines.
 
 ```bash
-stacktape delete --stage staging --region eu-west-1 --autoConfirmOperation
+stacktape delete --stage staging --region eu-west-1 --yes
 ```
 
 Delete with hooks enabled by providing the config file.
 
 ```bash
-stacktape delete --stage production --region eu-west-1 --configPath ./stacktape.ts
+stacktape delete --stage production --region eu-west-1 --config ./stacktape.ts
 ```
 
 Delete from the connected AWS account that an AWS profile belongs to.
@@ -79,14 +77,14 @@ stacktape delete --stage dev-john --region us-east-1 --profile my-aws-profile
 Enable debug-level logging for troubleshooting.
 
 ```bash
-stacktape delete --stage staging --region eu-west-1 --logLevel debug
+stacktape delete --stage staging --region eu-west-1 --debug
 ```
 
 ## Related commands
 
 - [`deploy`](/cli/deploy) — Create or update a stack.
 - [`rollback`](/cli/rollback) — Roll back to a previous deployment version instead of deleting.
-- [`info:stacks`](/cli/info-stacks) — List all deployed stacks in a region to find what to delete.
+- [`stack list`](/cli/info-stacks) — List all deployed stacks in a region to find what to delete.
 
 ## FAQ
 
@@ -96,11 +94,11 @@ The delete command deletes deployment artifacts and then deletes the CloudFormat
 
 ### Can I delete a stack without a configuration file?
 
-Yes. The config file is optional — you can identify the stack with `--projectName`, `--stage`, and `--region` directly. The trade-off is that `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) only run when you pass `--configPath`, so without it any data export or cleanup hooks are skipped.
+Yes. The config file is optional — you can identify the stack with `--project`, `--stage`, and `--region` directly. The trade-off is that `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) only run when you pass `--config`, so without it any data export or cleanup hooks are skipped.
 
 ### How do I delete a stack in a CI/CD pipeline?
 
-Use `--autoConfirmOperation` to skip the interactive confirmation prompt in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --autoConfirmOperation`. You can also use `--agent` which implies auto-confirm and switches output to JSONL format.
+Use `--yes` to skip the interactive confirmation prompt in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. You can also use `--agent` which implies auto-confirm and switches output to JSONL format.
 
 ### How do I delete a stack with termination protection?
 

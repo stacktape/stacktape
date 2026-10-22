@@ -1,28 +1,28 @@
-# incidents:ack
+# incident ack
 
-The `incidents:ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it.
+The `incident ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it.
 
 ## Usage
 
 ```bash
-stacktape incidents:ack --incidentId <incident-id>
+stacktape incident ack <incident-id>
 ```
 
-You need the incident ID. Use [`incidents`](/cli/incidents) to find it. Acknowledging an incident that is not `OPEN` changes nothing and reports so.
+You need the incident ID. Use [`incident list`](/cli/incidents) to find it. Acknowledging an incident that is not `OPEN` changes nothing and reports so.
 
 ## Flags reference
 
-The only required flag is `--incidentId`.
+The only required argument is the incident ID.
 
 
-## CLI Options: `stacktape incidents:ack`
+## CLI Options: `stacktape incident ack`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--incidentId (-incid)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `--incident-id (positional 1)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Examples
@@ -30,11 +30,11 @@ The only required flag is `--incidentId`.
 Acknowledge an incident in agent mode for use in scripts or AI coding assistants:
 
 ```bash
-stacktape incidents:ack --incidentId inc_abc123def456 --agent
+stacktape incident ack inc_abc123def456 --agent
 ```
 
 ## Related commands
 
-- [`incidents`](/cli/incidents) — list incidents and find their IDs
-- [`incidents:show`](/cli/incidents-show) — print the incident's handoff bundle
-- [`incidents:resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix
+- [`incident list`](/cli/incidents) — list incidents and find their IDs
+- [`incident show`](/cli/incidents-show) — print the incident's handoff bundle
+- [`incident resolve`](/cli/incidents-resolve) — resolve an incident manually after verifying a fix

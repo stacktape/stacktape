@@ -28,7 +28,10 @@ For automatically-run upgrades (native and global installs), Stacktape executes 
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--newVersion (-nv)` | no | `string` | New Version — The version of Stacktape to install. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--new-version (positional 1)` | no | `string` | New Version — The version of Stacktape to install. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 When run without flags, Stacktape resolves and installs the latest published version automatically.
@@ -67,4 +70,4 @@ Stacktape classifies your install as `native`, `package-global`, `package-local`
 
 ### Can I downgrade or pin a specific Stacktape version?
 
-The command exposes an optional `--newVersion` (`--nv`) flag for choosing the version to install; run without it, `upgrade` resolves and installs the latest published version automatically. For a reliable downgrade, use your package manager directly rather than relying on `upgrade`.
+The command exposes an optional version argument (`stacktape upgrade <new-version>`) for choosing the version to install; run without it, `upgrade` resolves and installs the latest published version automatically. For a reliable downgrade, use your package manager directly rather than relying on `upgrade`.

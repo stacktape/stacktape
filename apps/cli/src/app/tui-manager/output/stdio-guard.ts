@@ -5,6 +5,7 @@ type ConsoleLogLevel = 'info' | 'warn' | 'error';
 type ConsoleInterceptorHandlers = {
   onMessage: (props: { level: ConsoleLogLevel; source: string; message: string }) => void;
   passthrough?: boolean;
+  shouldWrite?: (level: ConsoleLogLevel) => boolean;
 };
 
 type JsonlViolationHandler = (props: { level: 'warn' | 'error'; source: string; message: string }) => void;
@@ -159,7 +160,7 @@ export class ConsoleInterceptor {
 
   private dispatching = false;
 
-  start({ onMessage, passthrough = false }: ConsoleInterceptorHandlers) {
+  start({ onMessage, passthrough = false, shouldWrite = () => true }: ConsoleInterceptorHandlers) {
     if (this.originalConsole) return;
 
     this.originalConsole = {
@@ -170,6 +171,7 @@ export class ConsoleInterceptor {
     };
 
     console.log = (...args: unknown[]) => {
+      if (!shouldWrite('info')) return;
       if (this.dispatching) {
         this.originalConsole?.log(...args);
         return;
@@ -185,6 +187,7 @@ export class ConsoleInterceptor {
       }
     };
     console.info = (...args: unknown[]) => {
+      if (!shouldWrite('info')) return;
       if (this.dispatching) {
         this.originalConsole?.info(...args);
         return;
@@ -200,6 +203,7 @@ export class ConsoleInterceptor {
       }
     };
     console.warn = (...args: unknown[]) => {
+      if (!shouldWrite('warn')) return;
       if (this.dispatching) {
         this.originalConsole?.warn(...args);
         return;
@@ -215,6 +219,7 @@ export class ConsoleInterceptor {
       }
     };
     console.error = (...args: unknown[]) => {
+      if (!shouldWrite('error')) return;
       if (this.dispatching) {
         this.originalConsole?.error(...args);
         return;

@@ -1,3 +1,4 @@
+import { publicCommandName } from './config/cli/public-names';
 import type { RunCommandOptions } from '@application-services/global-state-manager/types';
 import type { StacktapeCommand } from 'src/config/cli/types';
 import { announcementsManager } from '@application-services/announcements-manager';
@@ -68,6 +69,7 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
   'info:stacks': { ui: 'none' },
   mcp: { ui: 'none' },
   'mcp:add': { ui: 'none' },
+  'mcp:remove': { ui: 'none' },
   'param:get': { ui: 'none' },
   'secret:set': { ui: 'none' },
   'secret:delete': { ui: 'none' },
@@ -77,10 +79,10 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
   'incidents:watch': { ui: 'none' },
   'incidents:ack': { ui: 'none' },
   'incidents:resolve': { ui: 'none' },
-  'issues:list': { ui: 'none' },
-  'issues:resolve': { ui: 'none' },
-  'issues:ignore': { ui: 'none' },
-  'issues:reopen': { ui: 'none' },
+  'errors:list': { ui: 'none' },
+  'errors:resolve': { ui: 'none' },
+  'errors:ignore': { ui: 'none' },
+  'errors:reopen': { ui: 'none' },
   logs: { ui: 'none' },
   alarms: { ui: 'none' },
   metrics: { ui: 'none' },
@@ -97,7 +99,7 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
   'cf-module:update': { ui: 'none' }
 };
 
-export const runCommand = async (opts: RunCommandOptions) => {
+export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unknown) => {
   // Spawned by a coding agent as its MCP server, not invoked by a person. Triggered by environment
   // rather than by a subcommand so it needs no entry in the command registry and cannot be reached
   // by anyone reading `--help`; it speaks MCP on stdout and would be meaningless to a human.
@@ -117,7 +119,8 @@ export const runCommand = async (opts: RunCommandOptions) => {
     }
     if (opts.args.ui) tuiManager.setTtyView(opts.args.ui);
     // Output must be configured before argument validation so early failures use the requested machine format.
-    tuiManager.init({ logLevel: opts.args.logLevel });
+    tuiManager.init({ logLevel: opts.args.logLevel, quiet: opts.args.quiet });
+    if (bootstrapError) throw bootstrapError;
     const endDeleteTemp = startTiming('command:delete-temp-folder');
     await deleteTempFolder();
     endDeleteTemp();
@@ -126,6 +129,10 @@ export const runCommand = async (opts: RunCommandOptions) => {
     endGlobalState();
     await commandLifecycle.init();
     const command = globalStateManager.command;
+    if (['deploy', 'delete', 'rollback', 'package', 'synth', 'diff', 'validate'].includes(command)) {
+      const { installCodeSwap } = await import('./domain/code-swap/install');
+      installCodeSwap();
+    }
     const showsNotices = !commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl';
     await announcementsManager.init({ enabled: showsNotices });
     initAgentMode();
@@ -175,7 +182,7 @@ export const runCommand = async (opts: RunCommandOptions) => {
     tuiManager.emitJsonlResult({
       ok: true,
       code: 'OK',
-      message: `${globalStateManager.command} completed`,
+      message: `${publicCommandName(globalStateManager.command)} completed`,
       ...((commandResult !== undefined || commandLifecycle.hookFailures.length) && {
         data: {
           ...(commandResult !== undefined ? { result: commandResult } : {}),
@@ -303,13 +310,14 @@ const commandLoaders = {
   'incidents:watch': async () => (await import('./commands/incidents-watch')).commandIncidentsWatch,
   'incidents:ack': async () => (await import('./commands/incidents-ack')).commandIncidentsAck,
   'incidents:resolve': async () => (await import('./commands/incidents-resolve')).commandIncidentsResolve,
-  'issues:list': async () => (await import('./commands/issues-list')).commandIssuesList,
-  'issues:resolve': async () => (await import('./commands/issues-resolve')).commandIssuesResolve,
-  'issues:ignore': async () => (await import('./commands/issues-ignore')).commandIssuesIgnore,
-  'issues:reopen': async () => (await import('./commands/issues-reopen')).commandIssuesReopen,
+  'errors:list': async () => (await import('./commands/errors-list')).commandErrorsList,
+  'errors:resolve': async () => (await import('./commands/errors-resolve')).commandErrorsResolve,
+  'errors:ignore': async () => (await import('./commands/errors-ignore')).commandErrorsIgnore,
+  'errors:reopen': async () => (await import('./commands/errors-reopen')).commandErrorsReopen,
   'info:stack': async () => (await import('./commands/info-stack')).commandInfoStack,
   mcp: async () => (await import('./commands/mcp')).commandMcp,
-  'mcp:add': async () => (await import('./commands/mcp-add')).commandMcpAdd
+  'mcp:add': async () => (await import('./commands/mcp-add')).commandMcpAdd,
+  'mcp:remove': async () => (await import('./commands/mcp-add')).commandMcpRemove
 } satisfies Record<StacktapeCommand, () => Promise<CommandExecutor>>;
 
 const getCommandExecutor = (command: StacktapeCommand): Promise<CommandExecutor> => commandLoaders[command]();

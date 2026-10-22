@@ -1,65 +1,63 @@
-# secret:get
+# secret get
 
 Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, value, creation date, and ARN. Use this to verify secret contents before referencing them in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
 
 ## Usage
 
 ```bash
-stacktape secret:get --region eu-west-1
+stacktape secret get --region eu-west-1
 ```
 
-In interactive mode, you are prompted to enter the secret name. In agent mode, pass `--secretName` explicitly:
+In interactive mode, you are prompted to enter the secret name. In agent mode, pass the secret name as an argument:
 
 ```bash
-stacktape secret:get --region eu-west-1 --secretName my-api-key --agent
+stacktape secret get my-api-key --region eu-west-1 --agent
 ```
 
 ## API reference
 
 
-## CLI Options: `stacktape secret:get`
+## CLI Options: `stacktape secret get`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--secretName (-secn)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--secret-name (positional 1)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
 
 
 ## Output
 
 In interactive mode, the command prints a formatted box containing the secret's name, creation date, ARN, and value. If the value is valid JSON, it is pretty-printed.
 
-For `secret:get`, agent mode prints a JSON-formatted payload containing `name`, `value`, `created`, and `arn`. The shared CLI `--agent` flag also disables interactive prompts, so pass `--secretName` when using it.
+For `secret get`, agent mode prints a JSON-formatted payload containing `name`, `value`, `created`, and `arn`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
 
 ## Examples
 
 Retrieve a secret interactively (you'll be prompted for the name):
 
 ```bash
-stacktape secret:get --region us-east-1
+stacktape secret get --region us-east-1
 ```
 
 Retrieve a specific secret by name in a CI script:
 
 ```bash
-stacktape secret:get --region eu-west-1 --secretName DATABASE_PASSWORD --agent
+stacktape secret get DATABASE_PASSWORD --region eu-west-1 --agent
 ```
 
 Use a named AWS profile:
 
 ```bash
-stacktape secret:get --region eu-west-1 --profile production
+stacktape secret get --region eu-west-1 --profile production
 ```
 
 ## Related commands
 
-- [`secret:set`](/cli/secret-set) — create a new secret in AWS Secrets Manager.
-- [`secret:delete`](/cli/secret-delete) — delete a secret from AWS Secrets Manager.
+- [`secret set`](/cli/secret-set) — create a new secret in AWS Secrets Manager.
+- [`secret delete`](/cli/secret-delete) — delete a secret from AWS Secrets Manager.
 - [Secrets configuration](/configuration/secrets) — how to reference secrets in your Stacktape config using `$Secret()`.

@@ -1,3 +1,4 @@
+import { shellQuote } from '../../config/cli/public-names';
 /**
  * Deployment pipelines, one per host we support.
  *
@@ -120,11 +121,11 @@ jobs:
           STACKTAPE_API_KEY: \${{ secrets.STACKTAPE_API_KEY }}
         run: |
           stacktape deploy \\
-            --configPath ${configPath} \\
-            --projectName ${projectName} \\
-            --stage ${stage} \\
-            --region ${region} \\
-            --autoConfirmOperation
+            --config ${shellQuote(configPath)} \\
+            --project ${shellQuote(projectName)} \\
+            --stage ${shellQuote(stage)} \\
+            --region ${shellQuote(region)} \\
+            --yes
 `
 });
 
@@ -154,11 +155,11 @@ deploy:
     - npm install -g stacktape@${cliVersion}
     - >
       stacktape deploy
-      --configPath ${configPath}
-      --projectName ${projectName}
-      --stage ${stage}
-      --region ${region}
-      --autoConfirmOperation
+      --config ${shellQuote(configPath)}
+      --project ${shellQuote(projectName)}
+      --stage ${shellQuote(stage)}
+      --region ${shellQuote(region)}
+      --yes
 `
 });
 
@@ -185,11 +186,11 @@ pipelines:
             - npm install -g stacktape@${cliVersion}
             - >
               stacktape deploy
-              --configPath ${configPath}
-              --projectName ${projectName}
-              --stage ${stage}
-              --region ${region}
-              --autoConfirmOperation
+              --config ${shellQuote(configPath)}
+              --project ${shellQuote(projectName)}
+              --stage ${shellQuote(stage)}
+              --region ${shellQuote(region)}
+              --yes
     master:
       - step: *deploy
 `

@@ -120,7 +120,7 @@ function StarterCard({ project }: { project: Project }) {
 
       <div className="flex gap-[10px] mt-auto items-center justify-end">
         <code className="mr-auto text-[0.8rem] break-all">
-          npx stacktape init --starterId {project.starterProjectId}
+          npx stacktape init --starter-id {project.starterProjectId}
         </code>
         <Button
           icon={<BiLogoGithub size={18} />}

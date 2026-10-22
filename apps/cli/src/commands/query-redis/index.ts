@@ -32,8 +32,8 @@ export const commandQueryRedis = async () => {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_REDIS_RESOURCE_REQUIRED',
-      message: 'Missing required flag `--resourceName`.',
-      hints: 'Provide `--resourceName <redisClusterName>`.'
+      message: 'Missing required flag `--resource-name`.',
+      hints: 'Provide `--resource-name <redisClusterName>`.'
     });
   }
 
@@ -61,7 +61,7 @@ export const commandQueryRedis = async () => {
       category: 'CLI',
       code: 'CLI_REDIS_RESOURCE_TYPE_INVALID',
       message: `Resource \`${resourceName}\` is not a Redis cluster (type: \`${resource.resourceType}\`).`,
-      hints: '`query:redis` supports `redis-cluster` resources only.'
+      hints: '`query redis` supports `redis-cluster` resources only.'
     });
   }
 

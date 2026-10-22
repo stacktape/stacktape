@@ -16,8 +16,10 @@ import type { StackContext } from '@domain-services/stack-context';
 import { SECURITY_RULES, SECURITY_SEVERITY_RANK } from '@stacktape/console-api/security';
 import { classifyStage } from '@stacktape/console-api/stages';
 import type { StacktapeConfig } from '@stacktape/config';
-import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import type { SecurityScanningConfig, StpIamRoleStatement } from '@stacktape/config/shared';
 import type { ConfigManager } from '../index';
+import type { SecurityScanningAccount } from '../context';
+import { getDeadLetterQueueNames } from './sqs-queues';
 
 /**
  * Security posture: what the resolved configuration says about how exposed and how recoverable this stack is.
@@ -374,8 +376,9 @@ const resilienceRules = ({ configManager, isProduction }: RuleContext): Security
       }
     }
   }
+  const deadLetterQueues = getDeadLetterQueueNames(configManager.sqsQueues as StpSqsQueue[]);
   for (const queue of configManager.sqsQueues as (StpSqsQueue & NamedResource)[]) {
-    if (!queue.redrivePolicy) {
+    if (!queue.redrivePolicy && !deadLetterQueues.has(queue.name)) {
       findings.push(
         createFinding('queue-without-dead-letter-queue', {
           resourceName: queue.name,
@@ -496,7 +499,7 @@ const secretRules = ({ rawConfig }: RuleContext): SecurityReportFinding[] => {
             resourceType: resource?.type,
             fingerprintSuffix: `${path.join('.')}.${name}`,
             message: `Environment variable \`${name}\` on \`${resourceName}\`${location} holds a value that looks like a credential (${pattern.replaceAll('-', ' ')}).`,
-            remediation: `Store the value with \`stacktape secret:set\`, reference it as \`$Secret('...')\`, remove it from the configuration, and rotate the credential: a value committed to Git stays valid until it is revoked.`,
+            remediation: `Store the value with \`stacktape secret set\`, reference it as \`$Secret('...')\`, remove it from the configuration, and rotate the credential: a value committed to Git stays valid until it is revoked.`,
             details: { pattern, variableName: name, path }
           })
         );
@@ -571,6 +574,46 @@ const sortFindings = (findings: SecurityReportFinding[]) =>
       SECURITY_SEVERITY_RANK[a.severity] - SECURITY_SEVERITY_RANK[b.severity] ||
       a.fingerprint.localeCompare(b.fingerprint)
   );
+
+export type SecurityScanningPolicy = { enabled: boolean; dependencies: boolean; reason: string };
+
+/**
+ * Whether a stack's configuration is evaluated for security findings, and whether its dependencies are recorded for
+ * the Console to check. The target AWS account's level in the Console wins; then `deploymentConfig.securityScanning`
+ * decides per stack and stage. Both are on by default.
+ */
+export const resolveSecurityScanningPolicy = ({
+  account,
+  setting,
+  stage
+}: {
+  account: SecurityScanningAccount | undefined;
+  setting: SecurityScanningConfig | undefined;
+  stage: string;
+}): SecurityScanningPolicy => {
+  if (account?.securityScanning === 'OFF') {
+    return {
+      enabled: false,
+      dependencies: false,
+      reason: `turned off for AWS account \`${account.name}\` in the Stacktape Console`
+    };
+  }
+  if (setting?.enabled === false) {
+    return { enabled: false, dependencies: false, reason: 'disabled by `deploymentConfig.securityScanning.enabled`' };
+  }
+  if (setting?.stages?.length && !setting.stages.includes(stage)) {
+    return {
+      enabled: false,
+      dependencies: false,
+      reason: `stage \`${stage}\` is not listed in \`deploymentConfig.securityScanning.stages\``
+    };
+  }
+  return {
+    enabled: true,
+    dependencies: account?.securityScanning !== 'CONFIGURATION',
+    reason: setting ? 'enabled by `deploymentConfig.securityScanning`' : 'enabled by default'
+  };
+};
 
 export const assessSecurityPosture = ({
   configManager,

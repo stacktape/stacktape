@@ -33,9 +33,9 @@ Before creating a GitOps configuration, you need:
 
 ## Provider permissions for security fix pull requests
 
-When you ask Stacktape to prepare a security fix, it creates a `stacktape/*` branch, commits the selected file changes,
-opens a pull request, and reports the security result on that commit. It never force-pushes or writes directly to the
-repository's default branch. The Console requires `security:manage` access to that project before it can start these
+When you ask Stacktape to prepare a security fix, it creates a `stacktape/*` branch, commits the selected file changes
+and opens a pull request. It never force-pushes, writes directly to the repository's default branch, closes pull
+requests or sets commit statuses. The Console requires `security:manage` access to that project before it can start these
 writes.
 
 The connected provider grants must allow the same bounded workflow:
@@ -62,6 +62,20 @@ Push-to-deploy is the most common GitOps pattern. Every push to a specified bran
 On the GitOps screen, click **New GitOps configuration** to open the creation modal. Saved configurations appear in a list showing their deployment trigger (either **Push to Branch** or **PR Opened**), branch, stage name, AWS region, and connected AWS account.
 
 You can create multiple push-to-deploy configurations for the same project — for example, `main` → `prod` and `develop` → `staging`, each targeting different AWS accounts or regions.
+
+Connecting Git deployments prepares a runner in the background in the selected AWS account and region. It starts the
+installed tools, then hibernates until the first push; it does not clone your repository or install project dependencies
+during setup. A push that arrives during preparation uses the same runner. With the keep-running setting, the runner
+stays running instead.
+
+Stopped runners have no EC2 compute charge, but their disks remain billable. The default 50 GiB root disk and 50 GiB
+cache disk cost about **$8.80/month in Ireland**, using gp3's included IOPS and throughput; prices vary by region and
+cache growth increases storage costs. Preparing a runner also incurs a short, one-time EC2 charge. The Console's
+Runners page shows regional cost estimates. See [AWS EBS pricing](https://aws.amazon.com/ebs/pricing/).
+
+The disks stay billed until the runner is removed. Stacktape removes it, with its disks, build cache and IAM role, when
+you delete the project or the last Git deployment that uses its AWS account and region. A deployment that is already
+running finishes first. If the project's GitHub Actions runner uses the same account and region, the runner stays.
 
 ### Multiple configurations per branch
 

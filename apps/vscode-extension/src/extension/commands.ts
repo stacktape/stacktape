@@ -102,6 +102,7 @@ const runStacktape = async (
     return;
   }
 
+  // The project's own (possibly older) CLI runs this, so it keeps the original flag spelling every version accepts.
   const args = [subcommand, '--stage', stage, '--region', region, '--configPath', configPath];
   const profile = workspace.getConfiguration('stacktape').get<string>('profile');
   if (profile) {

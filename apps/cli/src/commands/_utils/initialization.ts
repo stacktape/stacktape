@@ -69,6 +69,7 @@ export const getStackContext = (): StackContext =>
 export const getConfigResolverContext = (stackContext?: StackContext): ConfigResolverContext => {
   const args = globalStateManager.args;
   const user = globalStateManager.userData;
+  const target = globalStateManager.invocationTarget;
   const authoringParams: GetConfigParams = {
     projectName: stackContext?.projectName || globalStateManager.targetStack?.projectName || args.projectName,
     stage: stackContext?.stage || globalStateManager.targetStack?.stage || args.stage,
@@ -106,16 +107,39 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
     },
     configPath: globalStateManager.configPath,
     presetConfig: globalStateManager.presetConfig,
+    // Evaluation checks that the config declares the settings this invocation's target was resolved from.
+    projectSettings:
+      target?.configPath !== undefined && target.configPath === globalStateManager.configPath
+        ? target.settings
+        : undefined,
     workingDir: stackContext?.workingDir || globalStateManager.workingDir
   };
 };
 
+/** Of the connections to one AWS account, the one that checks the least, so no connection's choice is exceeded. */
+const SCANNING_RESTRICTIVENESS = { OFF: 2, CONFIGURATION: 1, CONFIGURATION_AND_DEPENDENCIES: 0 } as const;
+
+const securityScanningAccount = (accountId: string) =>
+  (globalStateManager.connectedAwsAccounts ?? [])
+    .filter((account) => account.awsAccountId === accountId)
+    .toSorted(
+      (a, b) =>
+        SCANNING_RESTRICTIVENESS[b.securityScanning ?? 'CONFIGURATION_AND_DEPENDENCIES'] -
+        SCANNING_RESTRICTIVENESS[a.securityScanning ?? 'CONFIGURATION_AND_DEPENDENCIES']
+    )[0];
+
 export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => {
-  const organization = globalStateManager.organizationData;
   return {
     helperLambdaDetails: globalStateManager.helperLambdaDetails,
     securityScanning: {
-      organization: organization ? { securityScanningEnabled: organization.securityScanningEnabled } : undefined
+      awsAccount: () => {
+        // Without a control plane there are no levels; with local credentials not yet matched to a connection (validate),
+        // the target account is unknown and scanning follows the config file alone.
+        if (!globalStateManager.connectedAwsAccounts?.length) return undefined;
+        if (globalStateManager.localCredentialsProvider && !globalStateManager.localTargetAwsAccount) return undefined;
+        const account = securityScanningAccount(stackContext.accountId);
+        return account && { name: account.name, securityScanning: account.securityScanning };
+      }
     },
     resolver: getConfigResolverContext(stackContext),
     stack: stackContext
@@ -249,11 +273,17 @@ export const initializeStackOperationLifecycle = async ({
   let globalConfig: GlobalConfigResponse | undefined;
   if (requiresControlPlane) {
     await loadUserCredentials();
+    const subscriptionCheck = requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined;
     const [, subscription, fetchedGlobalConfig] = await settleAllBeforeThrowing([
       recordStackOperationStart(),
-      requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined,
+      subscriptionCheck,
       loadGlobalConfig ? stacktapeTrpcApiManager.apiClient.globalConfig() : undefined
-    ]);
+    ]).catch(async (error) => {
+      // The API also refuses to record a deploy it does not allow; the refusal's own explanation is the one to show.
+      const refusal = await subscriptionCheck?.catch(() => undefined);
+      if (refusal && !refusal.canDeploy) throw stpErrors.e502(refusal);
+      throw error;
+    });
     globalConfig = fetchedGlobalConfig;
 
     const userProvidedProjectName = globalStateManager.args.projectName;
@@ -266,7 +296,7 @@ export const initializeStackOperationLifecycle = async ({
     }
 
     if (subscription && !subscription.canDeploy) {
-      throw stpErrors.e502({ message: subscription.message });
+      throw stpErrors.e502(subscription);
     }
     await loadTargetStackContext({ skipRawConfig: skipRawConfigForTarget });
     assertCommandPermissions({
@@ -304,7 +334,15 @@ export const initializeStackOperationLifecycle = async ({
       parentEventType: 'LOAD_METADATA_FROM_AWS',
       whileLoadingResourceDetails: () =>
         Promise.all([
-          templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+          templateManager
+            .init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName })
+            .then(() =>
+              domainManager.loadDefaultDomainsInfo({
+                stackName: stackContext.stackName,
+                deployedTemplate: stackManager.existingStackDetails ? templateManager.oldTemplate : undefined,
+                fromControlPlane: requiresControlPlane
+              })
+            ),
           deploymentArtifactManager.init({
             packagingSource: packagingManager,
             accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -324,10 +362,8 @@ export const initializeStackOperationLifecycle = async ({
     }),
     budgetManager.init({ parentEventType: 'LOAD_METADATA_FROM_AWS' }),
     domainManager.init({
-      stackName: globalStateManager.targetStack.stackName,
       domains: configManager.allUsedDomainsInConfig,
       fromParameterStore: true,
-      loadDefaultDomainsFromControlPlane: requiresControlPlane,
       parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     ...(requiresControlPlane
@@ -594,12 +630,17 @@ export const initializeStackServicesForDevPhase1 = async () => {
     if (!globalStateManager.args.stage) {
       globalStateManager.args.stage = DEFAULT_LOCAL_STAGE;
     }
+    // A region declared in the config is already among the arguments, so this fallback never replaces it.
     if (!globalStateManager.args.region && !process.env.AWS_DEFAULT_REGION) {
       globalStateManager.args.region = DEFAULT_LOCAL_REGION;
     }
   }
 
   await globalStateManager.loadUserCredentials();
+  // Dev mode deploys and updates a dev stack, so it follows the deploy rules: a Free organization over its monthly
+  // limit cannot start it. This runs before anything is prompted, created or deployed; `dev:stop` stays available.
+  const subscription = await stacktapeTrpcApiManager.apiClient.canDeploy();
+  if (!subscription.canDeploy) throw stpErrors.e502(subscription);
   awsSdkManager.init({
     credentials: () => globalStateManager.credentials,
     region: globalStateManager.region,
@@ -641,11 +682,19 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     }),
     domainManager.init({
-      stackName: stackContext.stackName,
       domains: configManager.allUsedDomainsInConfig,
       fromParameterStore: true
     })
   ]);
+  const deployedStack = stackManager.existingStackDetails;
+  await domainManager.loadDefaultDomainsInfo({
+    stackName: stackContext.stackName,
+    deployedTemplate:
+      deployedStack && deployedStack.StackStatus !== 'DELETE_COMPLETE'
+        ? await awsSdkManager.cloudFormation.getTemplate(deployedStack.StackName)
+        : undefined,
+    fromControlPlane: true
+  });
 
   await Promise.all([
     deployedStackOverviewManager.init({
@@ -830,7 +879,8 @@ const recordStackOperationStart = async () => {
           interrupted,
           error: err,
           // Tells the Console whether this deployment wired Issues for the stack, so it can show coverage.
-          issuesEnabled: globalStateManager.command === 'deploy' ? configManager.issuesEnabledForRecording : undefined
+          issuesEnabled:
+            globalStateManager.command === 'deploy' ? configManager.errorTrackingEnabledForRecording : undefined
         });
       });
     }

@@ -1,3 +1,5 @@
+import { publicCommandName, resolveCommandName } from '../../config/cli/public-names';
+import { parseCliInput, resolveFlagName } from '../../utils/cli';
 import type { StacktapeCommand } from '../../config/cli/commands';
 import { cliCommands } from '../../config/cli/commands';
 import {
@@ -23,7 +25,7 @@ export type CliCommandCategory =
   | 'dev'
   | 'diagnostics'
   | 'docs'
-  | 'issues'
+  | 'errors'
   | 'local'
   | 'project'
   | 'secrets'
@@ -38,7 +40,7 @@ export type CliCommandPolicy = {
 };
 
 export type CliCommandSummary = {
-  command: StacktapeCommand;
+  command: string;
   canonicalCommand: StacktapeCommand;
   description: string;
   category: CliCommandCategory;
@@ -185,15 +187,15 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
   'domain:add': { category: 'config', safety: 'mutating' },
   'cf-module:update': { category: 'config', safety: 'mutating' },
 
-  incidents: { category: 'issues', safety: 'readOnly' },
-  'incidents:show': { category: 'issues', safety: 'readOnly' },
-  'incidents:watch': { category: 'issues', safety: 'readOnly' },
-  'incidents:ack': { category: 'issues', safety: 'mutating' },
-  'incidents:resolve': { category: 'issues', safety: 'mutating' },
-  'issues:list': { category: 'issues', safety: 'readOnly' },
-  'issues:resolve': { category: 'issues', safety: 'mutating' },
-  'issues:ignore': { category: 'issues', safety: 'mutating' },
-  'issues:reopen': { category: 'issues', safety: 'mutating' },
+  incidents: { category: 'errors', safety: 'readOnly' },
+  'incidents:show': { category: 'errors', safety: 'readOnly' },
+  'incidents:watch': { category: 'errors', safety: 'readOnly' },
+  'incidents:ack': { category: 'errors', safety: 'mutating' },
+  'incidents:resolve': { category: 'errors', safety: 'mutating' },
+  'errors:list': { category: 'errors', safety: 'readOnly' },
+  'errors:resolve': { category: 'errors', safety: 'mutating' },
+  'errors:ignore': { category: 'errors', safety: 'mutating' },
+  'errors:reopen': { category: 'errors', safety: 'mutating' },
 
   mcp: {
     category: 'docs',
@@ -201,64 +203,104 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
     unsupportedReason: 'Running an MCP server from inside MCP is unsupported.'
   },
   'mcp:add': { category: 'docs', safety: 'mutating' },
+  'mcp:remove': { category: 'docs', safety: 'mutating' },
   help: { category: 'utility', safety: 'readOnly' },
   version: { category: 'utility', safety: 'readOnly' },
   upgrade: { category: 'utility', safety: 'mutating' },
   'bucket:sync': { category: 'deployment', safety: 'mutating' }
 };
 
-const toCamelCase = (value: string): string => value.replace(/[_-]([a-z])/g, (_, char: string) => char.toUpperCase());
-
-export const normalizeCliArgs = (args?: Record<string, unknown>): Record<string, unknown> => {
-  if (!args) return {};
-  const normalized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(args)) {
-    normalized[ARG_ALIASES[key] || toCamelCase(key)] = value;
-  }
-  return normalized;
-};
+export const normalizeCliArgs = (args?: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(args ?? {}).map(([key, value]) => [
+      ARG_ALIASES[key] ?? key.replace(/[_-]([a-z])/g, (_, c: string) => c.toUpperCase()),
+      value
+    ])
+  );
 
 const isStacktapeCommand = (command: string): command is StacktapeCommand => cliCommandSet.has(command);
 
-export const normalizeCliArgsForCommand = (
-  command: string,
-  args?: Record<string, unknown>
-): Record<string, unknown> => {
-  const normalized = normalizeCliArgs(args);
-  if (command === 'query:sql' && normalized.query !== undefined && normalized.sql === undefined) {
+/** One pure normalization boundary for scripts, plans, runs and dev. JSON output keeps internal camelCase. */
+export const normalizeCliInvocation = (command: string, args?: Record<string, unknown>) => {
+  const id = resolveCommandName(command, cliCommands);
+  const normalized: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(args ?? {})) {
+    const key = resolveFlagName(ARG_ALIASES[name] ?? name.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()), id);
+    normalized[key] = value;
+  }
+  if (id === 'query:sql' && normalized.query !== undefined && normalized.sql === undefined) {
     normalized.sql = normalized.query;
     delete normalized.query;
   }
-  return normalized;
+  return { command: id, args: normalized };
 };
+export const normalizeCliArgsForCommand = (command: string, args?: Record<string, unknown>) =>
+  normalizeCliInvocation(command, args).args;
 
-const tokenizeCommand = (command: string): string[] =>
-  command.match(/"([^"\\]|\\.)*"|'([^'\\]|\\.)*'|\S+/g)?.map((token) => token.replace(/^['"]|['"]$/g, '')) || [];
-
+// Shell tokenization is only for discovering simple package scripts, never for executing them.
+const tokenizeCommand = (command: string): string[] => {
+  const tokens: string[] = [];
+  let value = '';
+  let quote: string | undefined;
+  let started = false;
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index];
+    if (char === quote) {
+      quote = undefined;
+      continue;
+    }
+    if (quote === "'") {
+      value += char;
+      continue;
+    }
+    if (
+      char === '\\' &&
+      index + 1 < command.length &&
+      (command[index + 1] === quote || command[index + 1] === '\\' || (!quote && /[\s'"]/.test(command[index + 1])))
+    ) {
+      value += command[++index];
+      started = true;
+      continue;
+    }
+    if (quote) {
+      value += char;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      started = true;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (started) tokens.push(value);
+      value = '';
+      started = false;
+      continue;
+    }
+    value += char;
+    started = true;
+  }
+  if (quote) return [];
+  if (started) tokens.push(value);
+  return tokens;
+};
 const isStacktapeExecutableToken = (token: string): boolean => /(?:^|[\\/])stacktape(?:\.(?:cmd|exe))?$/.test(token);
 
 export const parseStacktapeScriptCommand = (scriptCommand: string): ParsedStacktapeScriptCommand | undefined => {
   const tokens = tokenizeCommand(scriptCommand);
-  const stacktapeIndex = tokens.findIndex(isStacktapeExecutableToken);
-  const command = stacktapeIndex === -1 ? undefined : tokens[stacktapeIndex + 1];
-  if (!command || !isStacktapeCommand(command)) return undefined;
-
-  const args: Record<string, unknown> = {};
-  for (let index = stacktapeIndex + 2; index < tokens.length; index++) {
-    const token = tokens[index];
-    if (!token.startsWith('--')) continue;
-
-    const [rawName, inlineValue] = token.slice(2).split('=', 2);
-    const nextToken = tokens[index + 1];
-    const hasSeparateValue = nextToken && !nextToken.startsWith('-');
-    args[rawName] = inlineValue ?? (hasSeparateValue ? nextToken : true);
-    if (hasSeparateValue && inlineValue === undefined) index++;
+  const index = tokens.findIndex(isStacktapeExecutableToken);
+  if (index < 0) return undefined;
+  // Shell operators delimit the invocation; never discover flags in a following command.
+  const suffix = tokens.slice(index + 1);
+  const end = suffix.findIndex((token) => ['&&', '||', ';', '|'].includes(token));
+  try {
+    const parsed = parseCliInput(end < 0 ? suffix : suffix.slice(0, end));
+    const normalized = normalizeCliInvocation(parsed.commands[0], parsed.options);
+    if (!normalized.command) return undefined;
+    return { command: normalized.command, args: normalized.args };
+  } catch {
+    return undefined;
   }
-
-  return {
-    command,
-    args: normalizeCliArgs(args)
-  };
 };
 
 const commandMatchesScriptName = (command: StacktapeCommand, scriptName: string): boolean => {
@@ -367,7 +409,7 @@ const validateReadOnlyDiagnosticArgs = ({
       return {
         ok: false,
         code: 'VALIDATION_ERROR',
-        message: '`query:sql` only supports read-only SQL; write-like or ambiguous statements cannot be executed.',
+        message: '`query sql` only supports read-only SQL; write-like or ambiguous statements cannot be executed.',
         data: { supportedReadOnlyStatements: ['SELECT', 'WITH', 'VALUES', 'SHOW', 'DESCRIBE', 'EXPLAIN'] },
         nextActions: [
           'Use a single read-only `SELECT`, `WITH`, `VALUES`, `SHOW`, `DESCRIBE`, or `EXPLAIN` statement.',
@@ -385,13 +427,13 @@ const validateReadOnlyDiagnosticArgs = ({
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: `\`aws:call\` sends only reviewed read-only operations, and \`${args.service}\` \`${args.command}\` is not one of them.`,
+      message: `\`aws call\` sends only reviewed read-only operations, and \`${args.service}\` \`${args.command}\` is not one of them.`,
       data: acceptedOperations.length
         ? { acceptedOperations }
         : { supportedServices: Object.keys(AWS_READ_ONLY_OPERATIONS) },
       nextActions: [
-        'Choose an accepted operation; stacktape_cli action=describe command=aws:call lists them for every service.',
-        'Writes and the Secrets Manager and SSM value reads are not available through aws:call.'
+        'Choose an accepted operation; stacktape_cli action=describe command=aws call lists them for every service.',
+        'Writes and the Secrets Manager and SSM value reads are not available through aws call.'
       ]
     };
   }
@@ -404,7 +446,7 @@ const validateReadOnlyDiagnosticArgs = ({
   return {
     ok: false,
     code: 'VALIDATION_ERROR',
-    message: `Unsupported read-only operation \`${String(args.operation)}\` for \`${command}\`.`,
+    message: `Unsupported read-only operation \`${String(args.operation)}\` for \`${publicCommandName(command)}\`.`,
     data: { supportedReadOnlyOperations: alternatives },
     nextActions: [
       `Choose one of the supported read-only operations: ${alternatives.map((operation) => `\`${operation}\``).join(', ')}.`,
@@ -444,7 +486,7 @@ const validateMcpSpecificArgs = ({
       return {
         ok: false,
         code: 'VALIDATION_ERROR',
-        message: `Missing required argument(s) for ${command}: secretName`,
+        message: `Missing required argument(s) for ${publicCommandName(command)}: secretName`,
         data: { requiredArgs: ['region', 'secretName', 'secretValue or secretFile'] }
       };
     }
@@ -454,7 +496,7 @@ const validateMcpSpecificArgs = ({
       return {
         ok: false,
         code: 'VALIDATION_ERROR',
-        message: `Missing required argument for ${command}. Provide one of: secretValue, secretFile`,
+        message: `Missing required argument for ${publicCommandName(command)}. Provide one of: secretValue, secretFile`,
         data: { requiredAny: ['secretValue', 'secretFile'] }
       };
     }
@@ -462,7 +504,7 @@ const validateMcpSpecificArgs = ({
       return {
         ok: false,
         code: 'VALIDATION_ERROR',
-        message: `Invalid argument(s) for ${command}. Provide only one of: secretValue, secretFile`,
+        message: `Invalid argument(s) for ${publicCommandName(command)}. Provide only one of: secretValue, secretFile`,
         data: { exclusiveArgs: ['secretValue', 'secretFile'] }
       };
     }
@@ -472,13 +514,20 @@ const validateMcpSpecificArgs = ({
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: `Missing required argument(s) for ${command}: secretName`,
+      message: `Missing required argument(s) for ${publicCommandName(command)}: secretName`,
       data: { requiredArgs: ['region', 'secretName'] }
     };
   }
 
   return undefined;
 };
+
+// The MCP server runs every command with --agent and reads its JSON output, so these output-mode arguments are not the
+// agent's to set; listing them only invites calls that break the run.
+const MCP_MANAGED_ARGS = new Set(['agent', 'outputFormat', 'ui', 'help']);
+
+const getMcpAllowedArgs = (command: StacktapeCommand) =>
+  getAllowedArgs(command).filter((argName) => !MCP_MANAGED_ARGS.has(argName));
 
 const getMcpRequiredArgs = (command: StacktapeCommand): readonly string[] => {
   const baseRequiredArgs = getRequiredArgs(command);
@@ -512,7 +561,7 @@ export const listCliCommandSummaries = ({
     .map((command) => {
       const policy = getCliCommandPolicy(command);
       return {
-        command,
+        command: publicCommandName(command),
         canonicalCommand: command,
         description: getCommandDescription(command).split('\n')[0],
         category: policy.category,
@@ -523,14 +572,15 @@ export const listCliCommandSummaries = ({
     })
     .filter((summary) => (!category || summary.category === category) && (!safety || summary.safety === safety));
 
-export const describeCliCommand = (command: string) => {
-  if (!isStacktapeCommand(command)) {
+export const describeCliCommand = (name: string) => {
+  const command = normalizeCliInvocation(name).command;
+  if (!command) {
     return undefined;
   }
 
   const policy = getCliCommandPolicy(command);
   return {
-    command,
+    command: publicCommandName(command),
     canonicalCommand: command,
     description: getCommandDescription(command),
     category: policy.category,
@@ -539,8 +589,10 @@ export const describeCliCommand = (command: string) => {
     sensitiveOutput: policy.sensitiveOutput ?? false,
     unsupportedReason: policy.unsupportedReason,
     requiredArgs: getMcpRequiredArgs(command),
-    allowedArgs: getAllowedArgs(command),
-    args: getCommandInfo(command).args,
+    allowedArgs: getMcpAllowedArgs(command),
+    args: Object.fromEntries(
+      Object.entries(getCommandInfo(command).args).filter(([argName]) => !MCP_MANAGED_ARGS.has(argName))
+    ),
     // The SDK operation names aws:call accepts per service; inputs are the SDK command's own input shape as JSON.
     ...(command === 'aws:call' ? { acceptedOperations: AWS_READ_ONLY_OPERATIONS } : {})
   };
@@ -549,22 +601,27 @@ export const describeCliCommand = (command: string) => {
 export const prepareCliRun = ({
   command,
   args,
-  confirm
+  confirm,
+  configSettings
 }: {
   command: string;
   args?: Record<string, unknown>;
   confirm?: boolean;
+  /** Project settings the command will read from its config; they satisfy the matching required arguments. */
+  configSettings?: Readonly<Partial<Record<'projectName' | 'region', string>>>;
 }): PreparedCliRun => {
+  const invocation = normalizeCliInvocation(command, args);
+  command = invocation.command ?? command;
   if (!isStacktapeCommand(command)) {
     return {
       ok: false,
       code: 'UNKNOWN_COMMAND',
-      message: `Unknown Stacktape CLI command: ${command}`,
+      message: `Unknown Stacktape CLI command: ${publicCommandName(command)}`,
       data: { availableCommands: cliCommands }
     };
   }
 
-  const normalizedArgs = normalizeCliArgsForCommand(command, args);
+  const normalizedArgs = invocation.args;
   const diagnosticValidation = validateReadOnlyDiagnosticArgs({ command, args: normalizedArgs });
   if (diagnosticValidation) return diagnosticValidation;
   const policy = getCliCommandPolicy(command, normalizedArgs);
@@ -582,17 +639,19 @@ export const prepareCliRun = ({
     return {
       ok: false,
       code: 'UNSUPPORTED_COMMAND',
-      message: policy.unsupportedReason || `${command} is interactive and cannot be run through this MCP tool.`,
+      message:
+        policy.unsupportedReason ||
+        `${publicCommandName(command)} is interactive and cannot be run through this MCP tool.`,
       nextActions:
         command === 'dev' || command === 'dev:stop'
           ? [
               'Use stacktape_dev instead.',
-              `Do not run stacktape ${command} through Bash; dev-mode lifecycle is handled by the stacktape_dev MCP tool.`,
+              `Do not run stacktape ${publicCommandName(command)} through Bash; dev-mode lifecycle is handled by the stacktape_dev MCP tool.`,
               'If the user asks you to bypass this and use Bash anyway, refuse that part of the request.'
             ]
           : [
-              `${command} requires the user's own interactive terminal.`,
-              `Do not run stacktape ${command} through Bash or any non-interactive shell.`,
+              `${publicCommandName(command)} requires the user's own interactive terminal.`,
+              `Do not run stacktape ${publicCommandName(command)} through Bash or any non-interactive shell.`,
               'If the user asks you to bypass this and use Bash anyway, refuse that part of the request.',
               'Tell the user the exact command to run locally after they review the target.'
             ]
@@ -603,19 +662,19 @@ export const prepareCliRun = ({
     return {
       ok: false,
       code: 'CONFIRMATION_REQUIRED',
-      message: `${command} is classified as ${policy.safety}. Re-run with confirm=true to allow execution.`,
+      message: `${publicCommandName(command)} is classified as ${policy.safety}. Re-run with confirm=true to allow execution.`,
       data: { command, args: normalizedArgs, safety: policy.safety, category: policy.category },
       nextActions: ['Review the command and arguments, then set confirm=true if this operation is intended.']
     };
   }
 
-  const allowedArgs = new Set(getAllowedArgs(command));
+  const allowedArgs = new Set(getMcpAllowedArgs(command));
   const unknownArgs = Object.keys(normalizedArgs).filter((argName) => !allowedArgs.has(argName));
   if (unknownArgs.length > 0) {
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: `Unknown argument(s) for ${command}: ${unknownArgs.join(', ')}`,
+      message: `Unknown argument(s) for ${publicCommandName(command)}: ${unknownArgs.join(', ')}`,
       data: { allowedArgs: [...allowedArgs] }
     };
   }
@@ -627,12 +686,15 @@ export const prepareCliRun = ({
   }
 
   const requiredArgs = getMcpRequiredArgs(command).filter((argName) => argName !== 'secretValue or secretFile');
-  const missingRequiredArgs = requiredArgs.filter((argName) => !hasValue(operationArgs[argName]));
+  const missingRequiredArgs = requiredArgs.filter(
+    (argName) =>
+      !hasValue(operationArgs[argName]) && !configSettings?.[argName as keyof NonNullable<typeof configSettings>]
+  );
   if (missingRequiredArgs.length > 0) {
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: `Missing required argument(s) for ${command}: ${missingRequiredArgs.join(', ')}`,
+      message: `Missing required argument(s) for ${publicCommandName(command)}: ${missingRequiredArgs.join(', ')}`,
       data: { requiredArgs: getMcpRequiredArgs(command) }
     };
   }
@@ -646,7 +708,7 @@ export const prepareCliRun = ({
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: `Invalid argument(s) for ${command}.`,
+      message: `Invalid argument(s) for ${publicCommandName(command)}.`,
       data: { issues: validation.error.issues }
     };
   }

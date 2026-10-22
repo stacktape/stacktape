@@ -139,13 +139,13 @@ Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This 
 To start with a clean database:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --freshDb
+stacktape dev --stage dev --region eu-west-1 --fresh-db
 ```
 
 To skip local emulation and connect to an already-deployed database on AWS:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remoteResources myDatabase
+stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
 ```
 
 ## Environment variables
@@ -172,11 +172,11 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 | Flag | Description |
 |---|---|
 | `--resources` | Which resources to run (`all` or comma-separated names) |
-| `--skipResources` | Exclude specific resources |
+| `--skip-resources` | Exclude specific resources |
 | `--watch` | Auto-rebuild on file changes |
-| `--freshDb` | Delete local database data before starting |
-| `--remoteResources` | Connect to deployed AWS resources instead of local emulation |
-| `--noTunnel` | Disable Lambda-to-local-database tunneling |
+| `--fresh-db` | Delete local database data before starting |
+| `--remote-resources` | Connect to deployed AWS resources instead of local emulation |
+| `--no-tunnel` | Disable Lambda-to-local-database tunneling |
 
 
 > **Tip:** Run `stacktape help dev` to see all available flags and their short aliases.

@@ -1,3 +1,4 @@
+import { publicCommandLine } from '../../config/cli/public-names';
 /**
  * Running the first deploy, from the wizard.
  *
@@ -117,22 +118,14 @@ export const deployArgs = (request: DeployRequest): string[] => [
  * working-directory flag — rather than echoing the child's absolute-path form.
  */
 export const deployCommandLine = (request: DeployRequest): string =>
-  [
-    'stacktape',
-    'deploy',
-    '--configPath',
-    request.configPath,
-    '--stage',
-    request.stage,
-    '--region',
-    request.region,
-    '--projectName',
-    request.projectName,
-    ...(request.profile === undefined ? [] : ['--profile', request.profile]),
-    ...(request.awsAccount === undefined ? [] : ['--awsAccount', request.awsAccount])
-  ]
-    .map((part) => (part.includes(' ') ? `"${part}"` : part))
-    .join(' ');
+  publicCommandLine('deploy', {
+    configPath: request.configPath,
+    stage: request.stage,
+    region: request.region,
+    projectName: request.projectName,
+    profile: request.profile,
+    awsAccount: request.awsAccount
+  });
 
 /**
  * Read one typed resource URL after a successful deploy.

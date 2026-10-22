@@ -1,12 +1,12 @@
 # Alert Channels
 
-Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
+Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
 
 Stacktape supports six channel types: **Slack (Stacktape app)**, **Slack** (your own bot token), **Microsoft Teams**, **Discord**, **Email**, and **Webhook**.
 
 ## When to use alert channels
 
-Alert channels are Console-managed destinations that can be reused across rules. Create a channel when you want a named target that [notification rules](/observability/notifications), [alarm rules](/observability/alarms), or [budget alerts](/managing-costs/budgets) can reference. Once a channel exists, rules across your organization can deliver to it without duplicating configuration.
+Alert channels are Console-managed destinations that can be reused across rules. Create a channel when you want a named target that [notification rules](/observability/notifications), [config alarms](/observability/alarms#notification-targets), or [budget alerts](/managing-costs/budgets) can reference. Once a channel exists, rules across your organization can deliver to it without duplicating configuration.
 
 ## When NOT to use alert channels
 
@@ -14,7 +14,7 @@ Alert channels are a Console-only feature. If your team does not use the Stackta
 
 ## Channel types
 
-Stacktape supports five channel types. When a channel has properties named `webhookUrl`, `accessToken`, or `secret`, the details modal masks them as sensitive values.
+Stacktape supports six channel types. A channel's page masks properties named `webhookUrl`, `accessToken` or `secret` as sensitive values.
 
 ### Slack (Stacktape app)
 
@@ -73,15 +73,23 @@ For most teams, start with **Slack** or **Teams** for real-time visibility, and 
 
 ## Creating a channel in the Console
 
-Alert channels are listed on the **Channels** page in the Stacktape Console. The **New alert channel** button opens the channel creation dialog. Create channels here, then use them in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
+Alert channels are listed on the **Channels** page in the Stacktape Console, with what each one receives and its last alert. The **New alert channel** button opens the channel creation dialog; after you create a channel, its page opens.
 
-Alert channel management is available in the Stacktape Console. The Console uses channels in [notification rules](/observability/notifications), [alarm rules](/observability/alarms), and [budget alerts](/managing-costs/budgets).
+## The channel page
+
+Click a channel to open its page:
+
+- **What it receives**: its [notification rules](/observability/notifications), with **New rule** to add one, and the [budgets](/managing-costs/budgets) that alert it.
+- **Recent alerts**: the last alerts sent to it and whether each was accepted. Click one for the delivery details.
+- **Settings**: the channel's destination. Delivery credentials such as webhook URLs and tokens are not shown after they are saved.
+
+**Send test** sends a test message to check the channel, and **Delete** removes it once no rule uses it. Both need the `org:manage-alert-channels` permission.
 
 ## Using channels with rules
 
-Channels are used by notification rules, alarm rules, and budget alerts to deliver alerts. They serve as delivery targets for three types of rules in the Stacktape Console:
+Channels are delivery targets for Console notification rules and budget alerts. Config alarms can also reference them:
 
-- **[Alarm rules](/observability/alarms)** monitor AWS metrics (Lambda error rates, database CPU, API latency) and deliver an alert to the configured channel when a threshold is breached. The underlying CloudWatch alarms and EventBridge routing are created or updated on the next deployment of each matching stage.
+- **[Config alarms](/observability/alarms#notification-targets)** monitor AWS metrics (Lambda error rates, database CPU, API latency). Reference a named channel with `type: console-channel` in the alarm's `notificationChannels` and deploy the stack to apply changes. A firing alarm also opens an incident, which Console notification rules can route to channels.
 - **[Notification rules](/observability/notifications)** deliver alerts when deployment events happen — a deploy succeeds, fails, or is canceled. Each notification rule specifies which events to watch and which channel to deliver the alert to.
 - **[Budget alerts](/managing-costs/budgets)** fire when AWS spending crosses a defined threshold.
 
@@ -95,11 +103,11 @@ The Channels page includes a delete action for each listed channel. When the del
 
 ### Can I use the same channel for alarms, notifications, and budgets?
 
-Yes — this is the main reason to use Console-managed channels. Create a channel once and reference it from [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Channels are scoped to the selected organization, so you don't recreate them per project or stage.
+Yes — this is the main reason to use Console-managed channels. Create a channel once and reference it from [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Channels are scoped to the selected organization, so you don't recreate them per project or stage.
 
 ### When should I use a Console channel instead of config-level alarm options?
 
-Use Console-managed channels when the destination is shared across multiple rules, or when non-developers need to manage alert routing without touching config files. If you'd rather define alarms that deploy alongside your stack from your Stacktape config, see [alarm configuration](/observability/alarms) instead.
+Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. See [alarm notification targets](/observability/alarms#notification-targets).
 
 ### Can I send alerts to multiple Slack channels?
 
@@ -107,7 +115,7 @@ Yes, but you create a separate alert channel for each Slack channel you want to 
 
 ### How do I tell whether an alert was actually delivered?
 
-Check [Alert history](/observability/alert-history) in the Console. It lists every alert sent to a channel with its delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
+Open the channel in the Console: its page shows the last alert and whether it was sent, and its recent alerts. [Sent alerts](/observability/alert-history) lists every alert across channels. If an alert shows as sent but the destination never received it, check the receiving system's own logs.
 
 ### Why can't I delete a channel?
 
@@ -115,4 +123,4 @@ The delete fails when the channel is still referenced by a rule — the API retu
 
 ### Is there a CLI command for managing alert channels?
 
-No. Alert channels are a Console-only feature — they are created, viewed, and deleted from the **Channels** page in the [Stacktape Console](/stacktape-console/console-overview). The CLI's observability commands like [`stacktape logs`](/cli/logs) and [`stacktape alarms`](/cli/alarms) are for runtime debugging, not channel management.
+No. Alert channels are a Console-only feature — they are created, viewed, and deleted from the **Channels** page in the [Stacktape Console](/stacktape-console/console-overview). The CLI's observability commands like [`stacktape logs`](/cli/logs) and [`stacktape alarm list`](/cli/alarms) are for runtime debugging, not channel management.

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkTestRegistry } from './check-test-registry.ts';
-import { lanes, type Lane, type Slice } from './test-registry.ts';
+import { lanes, matchesPath, type Lane, type Slice } from './test-registry.ts';
 
 const lane: Lane = {
   id: 'rules',
@@ -191,4 +191,26 @@ test('each active path pattern must match a tracked file', async (context) => {
   });
   assert.equal(errors.length, 2);
   assert.ok(errors.every((error) => error.includes('matches no tracked file') && error.includes('Update slice.paths')));
+});
+test('path patterns match exact files, whole subtrees and single-segment globs only', async (context) => {
+  for (const [pattern, path, expected] of [
+    ['packages/rules/rule.ts', 'packages/rules/rule.ts', true],
+    ['packages/rules/rule.ts', 'packages/rules/rule.tsx', false],
+    ['packages/rules/**', 'packages/rules', true],
+    ['packages/rules/**', 'packages/rules/deep/nested/file.ts', true],
+    ['packages/rules/**', 'packages/rules-extra/file.ts', false],
+    ['apps/cli/_test-stacks/*/tsconfig.json', 'apps/cli/_test-stacks/smoke/tsconfig.json', true],
+    ['apps/cli/_test-stacks/*/tsconfig.json', 'apps/cli/_test-stacks/smoke/nested/tsconfig.json', false],
+    ['apps/console/ui/playwright*.ts', 'apps/console/ui/playwright/fixtures.ts', false]
+  ] as const)
+    assert.equal(matchesPath(pattern, path), expected, `${pattern} vs ${path}`);
+  const root = await fixture(context);
+  const errors = await checkTestRegistry({
+    root,
+    registeredLanes: [lane],
+    registeredSlices: [{ ...slice, paths: [...slice.paths, 'packages/**/rule.test.ts'] }],
+    tooling: []
+  });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0]!, /packages\/\*\*\/rule.test.ts uses \*\* before its end/);
 });

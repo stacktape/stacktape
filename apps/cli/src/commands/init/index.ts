@@ -1,6 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { resolveRegionValue } from '@application-services/global-state-manager/invocation-target';
 import { runInit } from 'src/init/run-init';
 import { openBrowser } from '../_utils/browser';
 import { isAgentMode } from '../_utils/agent-mode';
@@ -25,6 +26,14 @@ export const commandInit = async () => {
   // user asked for.
   const headless = args.headless === true || isAgentMode();
 
+  // The region later commands would use on this machine, in the CLI's order. `AWS_REGION`, which the AWS SDKs read,
+  // counts too: init used it before Stacktape deploys looked at the config.
+  const machineRegion = resolveRegionValue({
+    envRegion: process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION,
+    defaultRegion: globalStateManager.persistedState?.cliArgsDefaults?.region,
+    profileRegion: globalStateManager.profileRegion
+  })?.value;
+
   const outcome = await runInit({
     repositoryRoot,
     ...(headless ? { presentation: 'terminal' as const } : {}),
@@ -32,6 +41,7 @@ export const commandInit = async () => {
     ...(args.configFormat === undefined ? {} : { configFormat: args.configFormat }),
     ...(args.infrastructureType === undefined ? {} : { mode: args.infrastructureType }),
     ...(args.awsAccount === undefined ? {} : { awsAccount: args.awsAccount }),
+    ...(machineRegion === undefined ? {} : { machineRegion }),
     // `--noBrowser` still starts the wizard and still prints its address; it only stops us from
     // deciding which browser sees it. That matters over a forwarded port, and for anyone whose
     // default browser is not the one they work in.

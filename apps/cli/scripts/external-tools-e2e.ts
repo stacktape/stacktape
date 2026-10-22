@@ -29,10 +29,18 @@ import AdmZip from 'adm-zip';
 import * as tar from 'tar';
 
 type Tool = 'railpack' | 'session-manager-plugin';
-type Platform = 'linux' | 'alpine' | 'linux-arm' | 'macos' | 'macos-arm' | 'win';
+type Platform = 'linux' | 'alpine' | 'linux-arm' | 'macos' | 'macos-arm' | 'win' | 'win-arm';
 type Asset = { url: string; sha256: string; bytes: number; archive: 'tar.gz' | 'zip' | 'deb'; executable: string };
 type Manifest = Record<Tool, { version: string; assets: Partial<Record<Platform, Asset>> }>;
-type DriverResult = { ok: boolean; path?: string; output?: string; message?: string; code?: string };
+type DownloadStart = { tool: Tool; version: string; bytes: number };
+type DriverResult = {
+  ok: boolean;
+  path?: string;
+  output?: string;
+  message?: string;
+  code?: string;
+  downloadStarts?: DownloadStart[];
+};
 
 const CLI_ROOT = resolve(import.meta.dir, '..');
 const VERSIONS: Record<Tool, string> = { railpack: '0.40.1', 'session-manager-plugin': '1.2.707.0' };
@@ -67,13 +75,15 @@ const runDriver = async () => {
       const manifest = JSON.parse(await readFile(argument('manifest')!, 'utf8')) as Manifest;
       const idleMs = argument('idle-timeout-ms');
       const totalMs = argument('total-timeout-ms');
+      const downloadStarts: DownloadStart[] = [];
       const path = await resolveExternalTool({
         tool,
         platform: argument('platform') as Platform,
         manifest,
+        onDownloadStart: (details) => downloadStarts.push(details),
         ...(idleMs && totalMs ? { downloadBounds: { idleMs: Number(idleMs), totalMs: Number(totalMs) } } : {})
       });
-      result = { ok: true, path };
+      result = { ok: true, path, downloadStarts };
     }
   } catch (error) {
     result = {
@@ -115,7 +125,10 @@ const syntheticExecutable = (tool: Tool) =>
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
-/** A tarball holding `entry` (written at `entry` below `root`), gzipped as the upstream releases are. */
+/**
+ * A tarball holding `entry` (written at `entry` below `root`), gzipped as the upstream releases are. Debian's
+ * dpkg-deb names members `./usr/...`; pass `./usr` to get that form.
+ */
 const tarball = async (root: string, entry: string) => {
   const file = `${root}.tar.gz`;
   await tar.c({ gzip: true, file, cwd: root, portable: true }, [entry]);
@@ -166,7 +179,7 @@ const findEscapedMembers = async (directory: string): Promise<string[]> => {
   return found;
 };
 
-type Route = { body: Uint8Array; mode: 'ok' | 'refuse' | 'stall' | 'slow' | 'hang' };
+type Route = { body: Uint8Array; mode: 'ok' | 'refuse' | 'stall' | 'slow' | 'hang' | 'trickle' };
 
 const main = async () => {
   if (process.platform === 'win32') {
@@ -205,7 +218,7 @@ const main = async () => {
     body: debPackage([
       ['debian-binary', new TextEncoder().encode('2.0\n')],
       ['control.tar.gz', await tarball(controlRoot, 'control')],
-      ['data.tar.gz', await tarball(debRoot, 'usr')]
+      ['data.tar.gz', await tarball(debRoot, './usr')]
     ]),
     archive: 'deb',
     executable: debExecutable
@@ -245,6 +258,23 @@ const main = async () => {
             start: async (controller) => {
               controller.enqueue(half);
               await stallReleased;
+              controller.close();
+            }
+          }),
+          { headers: { 'content-length': String(route.body.length) } }
+        );
+      }
+      if (route.mode === 'trickle') {
+        // A slow link: the whole body over about two seconds, in chunks spaced well inside the idle bound.
+        const chunks = 5;
+        const size = Math.ceil(route.body.length / chunks);
+        return new Response(
+          new ReadableStream({
+            start: async (controller) => {
+              for (let index = 0; index < chunks; index++) {
+                if (index > 0) await Bun.sleep(400);
+                controller.enqueue(route.body.slice(index * size, (index + 1) * size));
+              }
               controller.close();
             }
           }),
@@ -356,7 +386,8 @@ const main = async () => {
     'linux-arm': 'linux-arm64-glibc',
     macos: 'darwin-x64',
     'macos-arm': 'darwin-arm64',
-    win: 'win32-x64'
+    win: 'win32-x64',
+    'win-arm': 'win32-arm64'
   };
   const executableName = (tool: Tool) => tool;
   const finalPath = (tool: Tool, platform: Platform, version = VERSIONS[tool]) =>
@@ -382,13 +413,43 @@ const main = async () => {
         requests.get(railpackLinux) === 1,
       JSON.stringify({ result: cold, requests: requests.get(railpackLinux) ?? 0 })
     );
+    // The command says why it pauses, with the tool, version and size the manifest pins.
+    const railpackAsset = manifest.railpack.assets.linux!;
+    check(
+      'a first use announces the download once with the pinned tool, version and size',
+      JSON.stringify(cold.downloadStarts) ===
+        JSON.stringify([{ tool: 'railpack', version: VERSIONS.railpack, bytes: railpackAsset.bytes }]),
+      JSON.stringify({ downloadStarts: cold.downloadStarts, bytes: railpackAsset.bytes })
+    );
 
     // Warm use: no request.
     const warm = await resolveIn('railpack', 'linux');
     check(
-      'warm use makes no request',
-      warm.ok && warm.path === finalPath('railpack', 'linux') && requests.get(railpackLinux) === 1,
+      'warm use makes no request and announces nothing',
+      warm.ok &&
+        warm.path === finalPath('railpack', 'linux') &&
+        requests.get(railpackLinux) === 1 &&
+        warm.downloadStarts?.length === 0,
       JSON.stringify({ result: warm, requests: requests.get(railpackLinux) ?? 0 })
+    );
+
+    // Preseeding and offline instructions name this path; it is the same for every platform and version.
+    const { externalToolPath: toolPath } = await import('src/utils/external-tools');
+    const layout = (Object.keys(platformKeys) as Platform[]).map((platform) => ({
+      platform,
+      actual: toolPath({ tool: 'railpack', platform, manifest, toolsDirectory }),
+      expected: join(
+        toolsDirectory,
+        'railpack',
+        VERSIONS.railpack,
+        platformKeys[platform],
+        platform.startsWith('win') ? 'railpack.exe' : 'railpack'
+      )
+    }));
+    check(
+      'the tool path is <tools>/<tool>/<version>/<os-arch-libc>/<executable> on every platform',
+      layout.every(({ actual, expected }) => actual === expected),
+      JSON.stringify(layout.filter(({ actual, expected }) => actual !== expected))
     );
 
     // The deb (ar + data.tar.gz) and the macOS zip bundle, read in-process.
@@ -430,8 +491,9 @@ const main = async () => {
     const refused = await resolveIn('railpack', 'alpine');
     const refusedAsset = manifest.railpack.assets.alpine!;
     check(
-      'a refused download names the asset URL, its checksum and the path to place it offline',
+      'a refused download names the HTTP status, the asset URL, its checksum and the path to place it offline',
       !refused.ok &&
+        refused.message.includes('HTTP 403') &&
         refused.message.includes(refusedAsset.url) &&
         refused.message.includes(refusedAsset.sha256) &&
         refused.message.includes(finalPath('railpack', 'alpine')) &&
@@ -493,6 +555,32 @@ const main = async () => {
         versionOf(first.path) === 'railpack synthetic 0.40.1' &&
         leftovers('railpack').length === 0,
       JSON.stringify({ first, second, requests: requests.get(concurrentRoute) ?? 0, left: leftovers('railpack') })
+    );
+
+    // A slow but healthy download: data keeps arriving inside the idle bound, so neither bound may end it.
+    await rm(dirname(finalPath('railpack', 'linux-arm')), { recursive: true, force: true });
+    const trickleRoute = serve('railpack', 'linux-arm', 'railpack.tar.gz', 'trickle');
+    const trickled = await finish(
+      startDriver([
+        '--manifest',
+        manifestPath,
+        '--tool',
+        'railpack',
+        '--platform',
+        'linux-arm',
+        '--idle-timeout-ms',
+        '1000',
+        '--total-timeout-ms',
+        '60000'
+      ])
+    );
+    check(
+      'a slow download that keeps delivering data completes',
+      trickled.ok &&
+        versionOf(trickled.path!) === 'railpack synthetic 0.40.1' &&
+        requests.get(trickleRoute) === 2 &&
+        leftovers('railpack').length === 0,
+      JSON.stringify({ trickled, requests: requests.get(trickleRoute) ?? 0 })
     );
 
     // A stalled download: headers and 64 bytes, then nothing. Commands allow 30 s without data and 10 minutes in all;
@@ -684,10 +772,9 @@ const main = async () => {
     }
 
     // Preseeded: the CLI's call sites use a file already at the resolver's path, without any request.
-    const { externalToolPath } = await import('src/utils/external-tools');
     const project = join(work, 'project');
     await mkdir(project, { recursive: true });
-    const preseeded = externalToolPath({ tool: 'railpack', toolsDirectory });
+    const preseeded = toolPath({ tool: 'railpack', toolsDirectory });
     await mkdir(dirname(preseeded), { recursive: true });
     await writeFile(preseeded, syntheticExecutable('railpack'));
     await chmod(preseeded, 0o755);

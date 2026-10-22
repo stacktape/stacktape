@@ -6,6 +6,7 @@ import { parse } from 'yaml';
 import { composeConfig } from '@stacktape/config-inference/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import * as authoring from '@stacktape/config-authoring';
+import { projectSettingsFromSource } from '@domain-services/config-manager/project-settings';
 import { renderTypeScript, renderYaml, writeComposedConfig } from './write-config';
 
 let root: string;
@@ -142,6 +143,22 @@ describe('the two formats', () => {
 
     expect(fromTypeScript.resources).toEqual(fromYaml.resources);
     expect(fromTypeScript.projectName).toEqual(fromYaml.projectName);
+  });
+
+  it('declare the project name and region where the CLI reads them without running the config', async () => {
+    const composed = composition();
+    const typescript = await renderTypeScript(composed, { region: 'eu-central-1' });
+    const yaml = parse(renderYaml(composed, { region: 'eu-central-1' })) as Record<string, unknown>;
+
+    expect(typescript).toContain(
+      "export default defineConfig({ projectName: 'orders', region: 'eu-central-1' }, () => {"
+    );
+    expect(await projectSettingsFromSource({ source: typescript, filePath: 'stacktape.ts' })).toEqual({
+      projectName: 'orders',
+      region: 'eu-central-1'
+    });
+    expect(Object.keys(yaml).slice(0, 2)).toEqual(['projectName', 'region']);
+    expect(evaluateEmitted(typescript)).toMatchObject({ projectName: 'orders', region: 'eu-central-1' });
   });
 });
 

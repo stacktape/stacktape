@@ -40,10 +40,10 @@ describe('requiredSecrets', () => {
   });
 
   it('builds a command that prompts for the value', () => {
-    expect(secretCommand('rmq_url', 'eu-west-1')).toBe('stacktape secret:set --secretName rmq_url --region eu-west-1');
+    expect(secretCommand('rmq_url', 'eu-west-1')).toBe('stacktape secret set rmq_url --region eu-west-1');
     // The account the wizard was started with, kept in one argument even when its name has spaces.
     expect(secretCommand('rmq_url', 'eu-west-1', 'Development Account')).toBe(
-      'stacktape secret:set --secretName rmq_url --region eu-west-1 --awsAccount "Development Account"'
+      'stacktape secret set rmq_url --region eu-west-1 --aws-account "Development Account"'
     );
   });
 });

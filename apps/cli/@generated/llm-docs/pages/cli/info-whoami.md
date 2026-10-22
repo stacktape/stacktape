@@ -1,11 +1,11 @@
-# info:whoami
+# whoami
 
-The `stacktape info:whoami` command shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
+The `stacktape whoami` command shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
 
 ## Usage
 
 ```bash
-stacktape info:whoami
+stacktape whoami
 ```
 
 This command requires a valid API key. If you haven't logged in yet, run [`stacktape login`](/cli/login) first.
@@ -23,35 +23,35 @@ The output includes:
 Verify your identity and check which organization you're operating in.
 
 ```bash
-stacktape info:whoami
+stacktape whoami
 ```
 
 Get machine-readable JSON output (one JSON object per line) for scripting or CI pipelines.
 
 ```bash
-stacktape info:whoami --outputFormat jsonl
+stacktape whoami --json
 ```
 
 Enable debug-level logging to troubleshoot API key issues.
 
 ```bash
-stacktape info:whoami --logLevel debug
+stacktape whoami --debug
 ```
 
 ## Flags
 
 
-## CLI Options: `stacktape info:whoami`
+## CLI Options: `stacktape whoami`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Related commands
 
 - [`login`](/cli/login) — configure your Stacktape API key.
-- [`org:list`](/cli/org-list) — list all organizations you can access.
-- [`project:list`](/cli/project-list) — list all projects and their deployed stages in your organization.
+- [`org list`](/cli/org-list) — list all organizations you can access.
+- [`project list`](/cli/project-list) — list all projects and their deployed stages in your organization.

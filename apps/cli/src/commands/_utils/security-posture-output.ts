@@ -12,7 +12,7 @@ const LISTED_FINDINGS_LIMIT = 8;
 export const describeSecurityReportRejection = (reason: RecordSecurityReportResponse['reason']): string => {
   switch (reason) {
     case 'disabled-by-organization':
-      return 'security scanning is turned off for your organization in the Stacktape Console';
+      return 'security scanning is turned off for this AWS account in the Stacktape Console';
     case 'operation-not-found':
       return 'the Console has no record of this deployment';
     case 'operation-not-a-deployment':
@@ -42,6 +42,9 @@ export const assessAndPrintSecurityPosture = ({
   if (!policy.enabled) {
     tui.info(`Security scanning: off (${policy.reason}).`);
     return null;
+  }
+  if (!policy.dependencies) {
+    tui.info('Dependency checks: off (this AWS account is set to configuration checks only in the Stacktape Console).');
   }
   const assessment = config.assessSecurityPosture();
   const { findings } = assessment;

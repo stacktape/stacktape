@@ -48,7 +48,7 @@ describe('interactive launcher data helpers', () => {
       region: 'eu-west-1',
       projectName: 'api'
     });
-    expect(suggestions[0].label).toBe('stacktape deploy --stage dev --region eu-west-1 --projectName api');
+    expect(suggestions[0].label).toBe('stacktape deploy --stage dev --region eu-west-1 --project api');
     // Login accepts apiKey; a deploy-only fixture would drop it as an unknown argument even without redaction.
     const login = toRecentCommandSuggestions([
       createActivity({ command: 'login', commandArgs: { apiKey: 'do-not-replay-this-key' } })
@@ -56,7 +56,7 @@ describe('interactive launcher data helpers', () => {
     expect(login[0].args).toEqual({});
     expect(login[0].label).toBe('stacktape login');
     expect(formatCommandLine('login', { apiKey: 'do-not-replay-this-key' })).toBe(
-      'stacktape login --apiKey <redacted>'
+      "stacktape login --api-key '<redacted>'"
     );
   });
 
@@ -74,9 +74,7 @@ describe('interactive launcher data helpers', () => {
         autoConfirmOperation: true,
         resourcesToSkip: ['a', 'b']
       })
-    ).toBe(
-      'stacktape deploy --stage dev --region eu-west-1 --autoConfirmOperation --resourcesToSkip a --resourcesToSkip b'
-    );
+    ).toBe('stacktape deploy --stage dev --region eu-west-1 --yes --resources-to-skip a b');
   });
 
   test('normalizes primitive arg values', () => {

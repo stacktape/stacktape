@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import {
   CreateBucketCommand,
@@ -15,6 +15,7 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3';
+import type { SupportedHeaderPreset } from '@stacktape/config/buckets';
 import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
 import { AwsS3, type S3SyncInfo } from '../../src/aws/s3';
 import { S3Sync } from '../../src/aws/s3-sync';
@@ -65,6 +66,9 @@ afterAll(async () => {
   }
 }, 120_000);
 
+const REVALIDATE = 'public, max-age=0, s-maxage=31536000, must-revalidate';
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+
 const capability = (client: S3Client, sync: S3Sync) =>
   new AwsS3({
     createClient: () => client,
@@ -75,6 +79,21 @@ const capability = (client: S3Client, sync: S3Sync) =>
       throw new Error(message, { cause });
     }
   });
+/** A real SDK client and the product's sync engine for one scenario's account namespace. */
+const createSyncScenario = () => {
+  const config = ministack.clientConfig(ministack.account());
+  const client = new S3Client(config);
+  const sync = new S3Sync({ clientArgs: config, s3Plugins: [] });
+  return {
+    client,
+    sync,
+    s3: capability(client, sync),
+    destroy: () => {
+      sync.s3.destroy();
+      client.destroy();
+    }
+  };
+};
 
 const readObject = async (client: S3Client, bucket: string, key: string) => {
   const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -87,13 +106,28 @@ const readObject = async (client: S3Client, bucket: string, key: string) => {
 };
 const keys = async (client: S3Client, bucket: string) =>
   (await client.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents?.map((object) => object.Key).sort() ?? [];
+/** `page-0000` … `page-<count - 1>`, enough distinct keys to cross S3's 1,000-entry listing page. */
+const putPages = async (client: S3Client, bucket: string, count: number) => {
+  for (let start = 0; start < count; start += 25) {
+    await Promise.all(
+      Array.from({ length: Math.min(25, count - start) }, (_, offset) =>
+        client.send(
+          new PutObjectCommand({ Bucket: bucket, Key: `page-${String(start + offset).padStart(4, '0')}`, Body: 'page' })
+        )
+      )
+    );
+  }
+};
+const writeTree = async (root: string, files: Record<string, string>) => {
+  for (const [name, content] of Object.entries(files)) {
+    await mkdir(dirname(join(root, name)), { recursive: true });
+    await writeFile(join(root, name), content);
+  }
+};
 
 test('directory sync stores headers, tags and bytes, preserves optional removals and restores an old version', async () => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-static-sync-'));
-  const config = ministack.clientConfig(ministack.account());
-  const client = new S3Client(config);
-  const sync = new S3Sync({ clientArgs: config, s3Plugins: [] });
-  const s3 = capability(client, sync);
+  const { client, sync, s3, destroy } = createSyncScenario();
   const bucket = 'static-content';
   const progressUpdates: S3SyncInfo[] = [];
   let releaseUpload = () => {};
@@ -116,11 +150,14 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
     await client.send(
       new PutBucketVersioningCommand({ Bucket: bucket, VersioningConfiguration: { Status: 'Enabled' } })
     );
-    await mkdir(join(root, 'static'));
-    await writeFile(join(root, 'index.html'), '<h1>Release one</h1>');
-    await writeFile(join(root, 'static/app.js'), 'console.log("release one");');
-    await writeFile(join(root, 'static/app.js.map'), 'excluded source map');
-    await writeFile(join(root, 'removed.html'), 'remove me');
+    await writeTree(root, {
+      'index.html': '<h1>Release one</h1>',
+      'static/app.js': 'console.log("release one");',
+      'static/app.js.map': 'excluded source map',
+      'removed.html': 'remove me'
+    });
+    // A build that links an alias to a hashed asset expects the alias under its own name in the bucket.
+    await symlink('app.js', join(root, 'static/latest.js'));
     const uploadConfiguration = {
       directoryPath: root,
       disableS3TransferAcceleration: true,
@@ -157,12 +194,12 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
     ).toBe(true);
     expect(completedUpload).toMatchObject({
       activeTransfers: 0,
-      filesFound: 3,
-      progressAmount: 56,
-      progressTotal: 56,
+      filesFound: 4,
+      progressAmount: 83,
+      progressTotal: 83,
       progressPercent: '100.00'
     });
-    expect(await keys(client, bucket)).toEqual(['index.html', 'removed.html', 'static/app.js']);
+    expect(await keys(client, bucket)).toEqual(['index.html', 'removed.html', 'static/app.js', 'static/latest.js']);
     expect(await readObject(client, bucket, 'index.html')).toEqual({
       body: '<h1>Release one</h1>',
       cacheControl: 'no-cache',
@@ -171,12 +208,14 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
     });
     expect(await readObject(client, bucket, 'static/app.js')).toMatchObject({
       body: 'console.log("release one");',
-      cacheControl: 'public, max-age=31536000, immutable',
+      cacheControl: IMMUTABLE,
       contentType: 'text/javascript'
     });
-    expect((await readObject(client, bucket, 'removed.html')).cacheControl).toBe(
-      'public, max-age=0, s-maxage=31536000, must-revalidate'
-    );
+    expect(await readObject(client, bucket, 'static/latest.js')).toMatchObject({
+      body: 'console.log("release one");',
+      cacheControl: IMMUTABLE
+    });
+    expect((await readObject(client, bucket, 'removed.html')).cacheControl).toBe(REVALIDATE);
     expect((await client.send(new GetObjectTaggingCommand({ Bucket: bucket, Key: 'index.html' }))).TagSet).toEqual([
       { Key: 'release channel', Value: 'v4/preview' }
     ]);
@@ -188,10 +227,16 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
     await writeFile(join(root, 'new.html'), 'new page');
     await rm(join(root, 'removed.html'));
     await s3.syncDirectory({ bucketName: bucket, uploadConfiguration, deleteRemoved: false, onProgress() {} });
-    expect(await keys(client, bucket)).toEqual(['index.html', 'new.html', 'removed.html', 'static/app.js']);
+    expect(await keys(client, bucket)).toEqual([
+      'index.html',
+      'new.html',
+      'removed.html',
+      'static/app.js',
+      'static/latest.js'
+    ]);
     expect((await readObject(client, bucket, 'index.html')).body).toBe('<h1>Release two</h1>');
     await s3.syncDirectory({ bucketName: bucket, uploadConfiguration, deleteRemoved: true, onProgress() {} });
-    expect(await keys(client, bucket)).toEqual(['index.html', 'new.html', 'static/app.js']);
+    expect(await keys(client, bucket)).toEqual(['index.html', 'new.html', 'static/app.js', 'static/latest.js']);
     await expect(client.send(new GetObjectCommand({ Bucket: bucket, Key: 'removed.html' }))).rejects.toMatchObject({
       name: 'NoSuchKey'
     });
@@ -218,11 +263,91 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
   } finally {
     clearTimeout(progressDeadline);
     releaseUpload();
-    sync.s3.destroy();
-    client.destroy();
+    destroy();
     await rm(root, { recursive: true, force: true });
   }
 }, 60_000);
+
+test('each hosting content type stores the cache headers its framework expects', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-static-presets-'));
+  const { client, s3, destroy } = createSyncScenario();
+  const html = ['index.html', 'docs/index.html'];
+  const files = [
+    ...html,
+    'static/app.js',
+    // Gatsby's `static/` holds hashed images and fonts too; only its folder rule makes them immutable, not `**/*.js`.
+    'static/logo.png',
+    '_astro/app.js',
+    '_app/app.js',
+    '_nuxt/app.js',
+    'page-data/index.json',
+    'app-data.json',
+    'sw.js',
+    'robots.txt'
+  ];
+  // HTML must be revalidated so a release shows up; hashed framework assets are safe to cache forever.
+  const presets: { preset: SupportedHeaderPreset; immutable: string[]; revalidate: string[] }[] = [
+    { preset: 'static-website', immutable: [], revalidate: files },
+    { preset: 'single-page-app', immutable: ['static/app.js', 'static/logo.png'], revalidate: html },
+    { preset: 'astro-static-website', immutable: ['_astro/app.js'], revalidate: html },
+    { preset: 'sveltekit-static-website', immutable: ['_app/app.js'], revalidate: html },
+    { preset: 'nuxt-static-website', immutable: ['_nuxt/app.js'], revalidate: html },
+    {
+      preset: 'gatsby-static-website',
+      immutable: ['static/app.js', 'static/logo.png', '_astro/app.js', '_app/app.js', '_nuxt/app.js'],
+      revalidate: [...html, 'page-data/index.json', 'app-data.json', 'sw.js']
+    }
+  ];
+  try {
+    await writeTree(root, Object.fromEntries(files.map((file) => [file, `content of ${file}`])));
+    for (const { preset, immutable, revalidate } of presets) {
+      const bucket = `preset-${preset}`;
+      await client.send(new CreateBucketCommand({ Bucket: bucket }));
+      await s3.syncDirectory({
+        bucketName: bucket,
+        uploadConfiguration: { directoryPath: root, headersPreset: preset, disableS3TransferAcceleration: true },
+        deleteRemoved: true,
+        onProgress() {}
+      });
+      const stored = Object.fromEntries(
+        await Promise.all(files.map(async (file) => [file, (await readObject(client, bucket, file)).cacheControl]))
+      );
+      const expected = Object.fromEntries(
+        files.map((file) => [
+          file,
+          immutable.includes(file) ? IMMUTABLE : revalidate.includes(file) ? REVALIDATE : undefined
+        ])
+      );
+      expect({ preset, ...stored }).toEqual({ preset, ...expected });
+    }
+  } finally {
+    destroy();
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120_000);
+
+test('directory sync deletes stale objects beyond the first listing page', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-static-large-'));
+  const { client, s3, destroy } = createSyncScenario();
+  const bucket = 'large-static-content';
+  try {
+    await client.send(new CreateBucketCommand({ Bucket: bucket }));
+    await putPages(client, bucket, 1001);
+    expect((await client.send(new ListObjectsV2Command({ Bucket: bucket }))).IsTruncated).toBe(true);
+    await writeFile(join(root, 'index.html'), '<h1>Trimmed release</h1>');
+    const stats = await s3.syncDirectory({
+      bucketName: bucket,
+      uploadConfiguration: { directoryPath: root, disableS3TransferAcceleration: true },
+      deleteRemoved: true,
+      onProgress() {}
+    });
+    expect(stats).toMatchObject({ filesFound: 1, deleteTotal: 1001, deleteAmount: 1001 });
+    expect(await keys(client, bucket)).toEqual(['index.html']);
+  } finally {
+    destroy();
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120_000);
 
 test('the CLI installs a nested static project dependency before building its deep page and asset', async () => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-static-package-'));
@@ -386,7 +511,7 @@ test('direct bucket sync runs without a usable config, updates content and delet
     assertProcessSucceeded(await runSync());
     expect(await readObject(client, bucket, 'index.html')).toMatchObject({
       body: '<h1>Direct release one</h1>',
-      cacheControl: 'public, max-age=0, s-maxage=31536000, must-revalidate'
+      cacheControl: REVALIDATE
     });
     expect(await keys(client, bucket)).toEqual(['index.html', 'static/old.js']);
     await writeFile(join(root, 'dist/index.html'), '<h1>Direct release two</h1>');
@@ -406,7 +531,7 @@ test('direct bucket sync runs without a usable config, updates content and delet
   }
 }, 180_000);
 
-test('configured bucket sync resolves the deployed resource and source directory without touching another bucket', async () => {
+test('deploys publish the configured directory, and configured bucket sync updates only that bucket', async () => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-static-configured-'));
   const client = new S3Client(ministack.clientConfig());
   const cloudFormation = new CloudFormationClient(ministack.clientConfig());
@@ -439,14 +564,30 @@ test('configured bucket sync resolves the deployed resource and source directory
     )?.PhysicalResourceId;
     expect(bucket).toBeDefined();
     expect(unrelatedBucket).toBeDefined();
+    expect(await keys(client, bucket!)).toEqual(['index.html', 'removed.html']);
     await client.send(
       new PutObjectCommand({ Bucket: unrelatedBucket!, Key: 'keep.txt', Body: 'other resource content' })
     );
+
+    // A redeploy with only content changes publishes the new files and removes the deleted one.
     await writeProjectFiles(project, {
-      'public/index.html': '<h1>Configured sync update</h1>',
+      'public/index.html': '<h1>Redeployed</h1>',
       'public/added.html': 'new configured page'
     });
     await rm(join(project.directory, 'public/removed.html'));
+    const redeployed = await runSourceCli({ project, step: 'update', ministack });
+    expect(redeployed.exitCode, redeployed.tail).toBe(0);
+    expect(await keys(client, bucket!)).toEqual(['added.html', 'index.html']);
+    expect(await readObject(client, bucket!, 'index.html')).toMatchObject({
+      body: '<h1>Redeployed</h1>',
+      cacheControl: REVALIDATE
+    });
+
+    await writeProjectFiles(project, {
+      'public/index.html': '<h1>Configured sync update</h1>',
+      'public/synced.html': 'synced page'
+    });
+    await rm(join(project.directory, 'public/added.html'));
     const account = ministack.defaultAccount;
     const result = await runProcess({
       command: process.execPath,
@@ -489,9 +630,9 @@ test('configured bucket sync resolves the deployed resource and source directory
     assertProcessSucceeded(result);
     expect(await readObject(client, bucket!, 'index.html')).toMatchObject({
       body: '<h1>Configured sync update</h1>',
-      cacheControl: 'public, max-age=0, s-maxage=31536000, must-revalidate'
+      cacheControl: REVALIDATE
     });
-    expect(await keys(client, bucket!)).toEqual(['added.html', 'index.html']);
+    expect(await keys(client, bucket!)).toEqual(['index.html', 'synced.html']);
     expect(await keys(client, unrelatedBucket!)).toEqual(['keep.txt']);
     expect((await readObject(client, unrelatedBucket!, 'keep.txt')).body).toBe('other resource content');
   } finally {
@@ -503,13 +644,11 @@ test('configured bucket sync resolves the deployed resource and source directory
       await rm(root, { recursive: true, force: true });
     }
   }
-}, 180_000);
+}, 240_000);
 
 test('listing and batch deletion reach every object version and delete marker beyond the first page', async () => {
-  const config = ministack.clientConfig(ministack.account());
-  const client = new S3Client(config);
-  const sync = new S3Sync({ clientArgs: config, s3Plugins: [] });
-  // MiniStack 1.5.26 accepts oversized batches. Inject AWS's documented rejection; valid requests still
+  const { client, s3, destroy } = createSyncScenario();
+  // MiniStack 1.5.27 accepts oversized batches. Inject AWS's documented rejection; valid requests still
   // reach the emulator, and the assertion below observes that every stored version and marker was deleted.
   client.middlewareStack.add(
     (next, context) => async (args) => {
@@ -523,7 +662,6 @@ test('listing and batch deletion reach every object version and delete marker be
     },
     { step: 'initialize', name: 'rejectOversizedS3DeleteBatch' }
   );
-  const s3 = capability(client, sync);
   const bucket = 'paged-static-content';
   try {
     await client.send(new CreateBucketCommand({ Bucket: bucket }));
@@ -531,19 +669,7 @@ test('listing and batch deletion reach every object version and delete marker be
       new PutBucketVersioningCommand({ Bucket: bucket, VersioningConfiguration: { Status: 'Enabled' } })
     );
     // 1,001 distinct keys exercise both object and version pagination and the service's delete batch boundary.
-    for (let start = 0; start < 1001; start += 25) {
-      await Promise.all(
-        Array.from({ length: Math.min(25, 1001 - start) }, (_, offset) =>
-          client.send(
-            new PutObjectCommand({
-              Bucket: bucket,
-              Key: `page-${String(start + offset).padStart(4, '0')}`,
-              Body: 'page'
-            })
-          )
-        )
-      );
-    }
+    await putPages(client, bucket, 1001);
     expect((await client.send(new ListObjectsV2Command({ Bucket: bucket }))).IsTruncated).toBe(true);
     const objects = await s3.listObjects(bucket);
     expect(objects).toHaveLength(1001);
@@ -564,7 +690,6 @@ test('listing and batch deletion reach every object version and delete marker be
     expect((await client.send(new ListObjectVersionsCommand({ Bucket: bucket }))).Versions ?? []).toEqual([]);
     expect((await client.send(new ListObjectVersionsCommand({ Bucket: bucket }))).DeleteMarkers ?? []).toEqual([]);
   } finally {
-    sync.s3.destroy();
-    client.destroy();
+    destroy();
   }
 }, 120_000);

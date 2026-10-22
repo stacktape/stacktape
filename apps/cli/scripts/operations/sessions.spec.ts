@@ -2,6 +2,13 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createServer, type AddressInfo } from 'node:net';
+import {
+  CloudWatchLogsClient,
+  CreateLogGroupCommand,
+  CreateLogStreamCommand,
+  PutLogEventsCommand
+} from '@aws-sdk/client-cloudwatch-logs';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { externalToolPath } from '../../src/utils/external-tools';
 import { buildOperationsCli, createOperationsFixture, seedDeployedStack, targetArgs } from './cli-process';
@@ -118,7 +125,7 @@ const seedBastion = async (fixture: Awaited<ReturnType<typeof create>>, sessionI
   fixture.aws.on('ssm.TerminateSession', () => ({ kind: 'json', body: { SessionId: sessionId } }));
 };
 
-// MiniStack 1.5.26 rejects StartSession with InvalidAction; session transport and runtime availability are supplied deliberately here.
+// MiniStack 1.5.27 rejects StartSession with InvalidAction; session transport and runtime availability are supplied deliberately here.
 // The Windows plugin is bundled rather than resolved through STACKTAPE_TOOLS_DIR. This fixture exercises the POSIX cache boundary.
 test.skipIf(process.platform === 'win32')(
   'bastion shell selects the newest instance, forwards terminal stdin, and terminates the session',
@@ -162,12 +169,21 @@ test.skipIf(process.platform === 'win32')(
         serverTerminated = true;
         return { kind: 'json', body: {} };
       });
+      // A fixed local port lets a database client keep its saved connection.
+      const localPort = await new Promise<number>((resolve) => {
+        const server = createServer().listen(0, '127.0.0.1', () => {
+          const { port } = server.address() as AddressInfo;
+          server.close(() => resolve(port));
+        });
+      });
       const child = fixture.start([
         'bastion:tunnel',
         '--resourceName',
         'cache',
         '--bastionResource',
         'bastion',
+        '--localTunnelingPort',
+        String(localPort),
         ...targetArgs,
         '--agent'
       ]);
@@ -176,11 +192,9 @@ test.skipIf(process.platform === 'win32')(
       expect(fixture.aws.callsTo('ssm.StartSession')[0].input).toMatchObject({
         Target: 'i-j9-current',
         DocumentName: 'AWS-StartPortForwardingSessionToRemoteHost',
-        Parameters: { host: ['redis.j9.internal'], portNumber: ['6379'] }
+        Parameters: { host: ['redis.j9.internal'], portNumber: ['6379'], localPortNumber: [String(localPort)] }
       });
-      expect(
-        Number((state.target as unknown as { Parameters: { localPortNumber: string[] } }).Parameters.localPortNumber[0])
-      ).toBeGreaterThan(0);
+      expect(child.output()).toContain(`127.0.0.1:${localPort}`);
       child.child.kill('SIGINT');
       const result = await child.finished;
       expect(result.exitCode).toBe(0);
@@ -574,3 +588,193 @@ test('tunnel reconnects a disconnected target but fails immediately on terminal 
     }
   }
 }, 60_000);
+
+test.skipIf(process.platform === 'win32')(
+  'a tunneled local script runs every command in its directory against local endpoints and closes the session',
+  async () => {
+    for (const outcome of ['success', 'failure'] as const) {
+      const fixture = await create();
+      try {
+        await seedBastion(fixture, 'tunnel');
+        await mkdir(join(fixture.directory, 'scripts'));
+        await writeFile(
+          join(fixture.directory, 'stacktape.yml'),
+          JSON.stringify({
+            resources: {
+              bastion: { type: 'bastion', properties: {} },
+              cache: {
+                type: 'redis-cluster',
+                properties: { instanceSize: 'cache.t4g.micro', defaultUserPassword: 'j9-synthetic-redis-password' }
+              }
+            },
+            scripts: {
+              migrate: {
+                type: 'local-script-with-bastion-tunneling',
+                properties: {
+                  bastionResource: 'bastion',
+                  connectTo: ['cache'],
+                  cwd: 'scripts',
+                  executeCommands: [
+                    'env | grep ^STP_CACHE_ | sort > ../tunnel-env.txt',
+                    outcome === 'success' ? 'pwd > ../second-command.txt' : 'exit 3'
+                  ]
+                }
+              }
+            }
+          })
+        );
+        const result = await fixture.run(['script:run', '--scriptName', 'migrate', ...targetArgs, '--agent']);
+        const { result: final } = parseCliJsonl(result.stdout, 'script:run');
+        expect(result.exitCode, final.message).toBe(outcome === 'success' ? 0 : 1);
+        const state = await record(fixture);
+        const localPort = (state.target as unknown as { Parameters: { localPortNumber: string[] } }).Parameters
+          .localPortNumber[0];
+        expect(fixture.aws.callsTo('ssm.StartSession')[0].input).toMatchObject({
+          Target: 'i-j9-current',
+          Parameters: { host: ['redis.j9.internal'], portNumber: ['6379'], localPortNumber: [localPort] }
+        });
+        const env = Object.fromEntries(
+          (await readFile(join(fixture.directory, 'tunnel-env.txt'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)])
+        );
+        expect(env).toMatchObject({
+          STP_CACHE_HOST: '127.0.0.1',
+          STP_CACHE_PORT: localPort,
+          STP_CACHE_CONNECTION_STRING: `redis://127.0.0.1:${localPort}`,
+          STP_CACHE_TLS_SERVER_NAME: 'redis.j9.internal'
+        });
+        if (outcome === 'success') {
+          expect((await readFile(join(fixture.directory, 'second-command.txt'), 'utf8')).trim()).toEndWith('/scripts');
+        } else expect(final.code).toBe('SCRIPT_ERROR');
+        expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual(['tunnel']);
+        await expectStopped(state.pid);
+        expect(result.stdout + result.stderr).not.toContain(token);
+        assertRequests(fixture);
+      } finally {
+        await fixture.close();
+      }
+    }
+  },
+  60_000
+);
+
+// MiniStack has no SSM Run Command. The fake runs the sent document with a local shell and stores its output in
+// MiniStack logs, where the CLI reads it the way it reads CloudWatch.
+test.skipIf(process.platform === 'win32')(
+  'a bastion script runs its commands with exact environment values and stops at the first failing command',
+  async () => {
+    for (const outcome of ['success', 'failure'] as const) {
+      const fixture = await create();
+      const logs = new CloudWatchLogsClient(fixture.clientConfig());
+      try {
+        await seedBastion(fixture, 'unused');
+        await writeFile(
+          join(fixture.directory, 'stacktape.yml'),
+          JSON.stringify({
+            resources: { bastion: { type: 'bastion', properties: {} } },
+            scripts: {
+              remote: {
+                type: 'bastion-script',
+                properties: {
+                  bastionResource: 'bastion',
+                  cwd: '/srv/app',
+                  environment: [{ name: 'J9_SECRET', value: `pa$$word "quoted" \\ 'single'` }],
+                  executeCommands: [
+                    'printf "%s" "$J9_SECRET" > received-env.txt; echo "j9-remote-ran in $(basename "$PWD")"',
+                    ...(outcome === 'failure' ? ['false', 'echo j9-after-failure > after-failure.txt'] : [])
+                  ]
+                }
+              }
+            }
+          })
+        );
+        const remoteRoot = join(fixture.directory, 'bastion-root');
+        let status = 'InProgress';
+        fixture.aws.on('ssm.SendCommand', async ({ input }) => {
+          const { commands, workingDirectory } = input.Parameters as Record<string, string[]>;
+          const cwd = join(remoteRoot, workingDirectory[0]);
+          await mkdir(cwd, { recursive: true });
+          const shell = Bun.spawnSync(['bash', '-c', commands.join('\n')], { cwd, env: { PATH: process.env.PATH } });
+          status = shell.exitCode === 0 ? 'Success' : 'Failed';
+          const logGroupName = '/aws/ssm/AWS-RunShellScript';
+          const logStreamName = 'j9-command/i-j9-current/aws-runShellScript/stdout';
+          await logs.send(new CreateLogGroupCommand({ logGroupName }));
+          await logs.send(new CreateLogStreamCommand({ logGroupName, logStreamName }));
+          await logs.send(
+            new PutLogEventsCommand({
+              logGroupName,
+              logStreamName,
+              logEvents: [{ timestamp: Date.now(), message: shell.stdout.toString() || '(no output)' }]
+            })
+          );
+          return { kind: 'json', body: { Command: { CommandId: 'j9-command' } } };
+        });
+        fixture.aws.on('ssm.ListCommandInvocations', () => ({
+          kind: 'json',
+          body: {
+            CommandInvocations: [
+              {
+                CommandId: 'j9-command',
+                InstanceId: 'i-j9-current',
+                Status: status,
+                RequestedDateTime: Math.floor(Date.now() / 1000) - 60
+              }
+            ]
+          }
+        }));
+        const result = await fixture.run(['script:run', '--scriptName', 'remote', ...targetArgs, '--agent']);
+        const { result: final } = parseCliJsonl(result.stdout, 'script:run');
+        expect(result.exitCode, final.message).toBe(outcome === 'success' ? 0 : 1);
+        expect(fixture.aws.callsTo('ssm.SendCommand')[0].input).toMatchObject({ InstanceIds: ['i-j9-current'] });
+        expect(await readFile(join(remoteRoot, 'srv/app/received-env.txt'), 'utf8')).toBe(
+          `pa$$word "quoted" \\ 'single'`
+        );
+        expect(result.stdout).toContain('j9-remote-ran in app');
+        if (outcome === 'failure') {
+          expect(final.code).toBe('SCRIPT_ERROR');
+          expect(await Bun.file(join(remoteRoot, 'srv/app/after-failure.txt')).exists()).toBe(false);
+        }
+        assertRequests(fixture);
+      } finally {
+        logs.destroy();
+        await fixture.close();
+      }
+    }
+  },
+  60_000
+);
+
+test.skipIf(process.platform === 'win32')(
+  'public container exec positionals reach the ECS command unchanged',
+  async () => {
+    const fixture = await create();
+    try {
+      await seedContainer(fixture, 'exec');
+      const child = await fixture.run([
+        'container',
+        'exec',
+        'service',
+        'printf j9-command',
+        '--container',
+        'sidecar',
+        '--task-arn',
+        'second',
+        ...targetArgs,
+        '--json'
+      ]);
+      expect(child.exitCode, child.stdout + child.stderr).toBe(0);
+      expect(fixture.aws.callsTo('ecs.ExecuteCommand')[0].input).toMatchObject({
+        command: 'printf j9-command',
+        container: 'sidecar',
+        task: taskArn('second')
+      });
+      expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual(['exec']);
+      assertRequests(fixture);
+    } finally {
+      await fixture.close();
+    }
+  },
+  60_000
+);

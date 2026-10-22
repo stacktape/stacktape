@@ -38,7 +38,7 @@ After the stack is stable, Stacktape completes several post-deployment tasks: sy
 
 ## Running a deployment
 
-Every Stacktape deployment targets a specific stage and AWS region. The stage name identifies an isolated copy of your infrastructure — each stage maps to one CloudFormation stack — while the region determines where AWS provisions your resources. Both flags are required unless you have configured defaults with [`stacktape defaults:configure`](/cli/defaults-configure).
+Every Stacktape deployment targets a specific stage and AWS region. The stage name identifies an isolated copy of your infrastructure — each stage maps to one CloudFormation stack — while the region determines where AWS provisions your resources. Both flags are required unless you have configured defaults with [`stacktape defaults set`](/cli/defaults-configure).
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1
@@ -46,10 +46,10 @@ stacktape deploy --stage dev --region eu-west-1
 
 A **stage** is an isolated copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names are limited to 12 characters. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
 
-Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory by default. Use `--configPath` to point to a different file.
+Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory by default. Use `--config` to point to a different file.
 
 
-> **Tip:** Use [`stacktape defaults:configure`](/cli/defaults-configure) to set a default stage, region, and AWS profile. After that, you can run `stacktape deploy` without flags during development.
+> **Tip:** Use [`stacktape defaults set`](/cli/defaults-configure) to set a default stage, region, and AWS profile. After that, you can run `stacktape deploy` without flags during development.
 
 
 ### Key options
@@ -58,16 +58,16 @@ Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory
 | --- | --- |
 | `--stage` (`-s`) | **(required)** Stage name — `dev`, `staging`, `production`, etc. Max 12 characters. |
 | `--region` (`-r`) | **(required)** AWS region — `eu-west-1`, `us-east-1`, etc. |
-| `--configPath` | Path to config file. Defaults to `stacktape.ts` or `stacktape.yml`. |
-| `--fullDeploy` | Deploy every change through CloudFormation, even when only code changed. |
-| `--autoConfirmOperation` | Skip the confirmation prompt. Required for CI/CD pipelines. |
-| `--disableAutoRollback` | Keep failed CloudFormation state for debugging instead of rolling back. |
-| `--noCache` | Force fresh builds, ignoring cached artifacts. |
-| `--preserveTempFiles` | Keep generated CloudFormation templates for inspection. |
-| `--logLevel` | Set to `debug` for verbose output. |
-| `--awsAccount` | Connected AWS account to deploy to. |
-| `--profile` (`-p`) | AWS profile. Without `--awsAccount`, the deploy goes to the connected account this profile belongs to. |
-| `--projectName` | Stacktape project name. |
+| `--config` | Path to config file. Defaults to `stacktape.ts` or `stacktape.yml`. |
+| `--full` | Deploy every change through CloudFormation, even when only code changed. |
+| `--yes` | Skip the confirmation prompt. Required for CI/CD pipelines. |
+| `--no-auto-rollback` | Keep failed CloudFormation state for debugging instead of rolling back. |
+| `--no-cache` | Force fresh builds, ignoring cached artifacts. |
+| `--keep-temp-files` | Keep generated CloudFormation templates for inspection. |
+| `--log-level` | Set to `debug` for verbose output. |
+| `--aws-account` | Connected AWS account to deploy to. |
+| `--profile` (`-p`) | AWS profile. Without `--aws-account`, the deploy goes to the connected account this profile belongs to. |
+| `--project` | Stacktape project name. |
 
 For the full flag reference with all available options and short aliases, see the [`deploy` CLI reference](/cli/deploy).
 
@@ -93,7 +93,7 @@ Every `stacktape deploy` picks one of two modes on its own: a full deployment th
 Stacktape generates a CloudFormation template and lets CloudFormation create, update, or delete resources as needed. CloudFormation handles dependency ordering, parallelizes independent resource operations, and can roll back the entire stack if any resource fails.
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --fullDeploy
+stacktape deploy --stage production --region eu-west-1 --full
 ```
 
 Full deploys are the only mode that can add or remove resources, change IAM permissions, update API routes, or modify resource configuration like memory and timeouts.
@@ -108,9 +108,9 @@ A deployment uses CloudFormation when:
 - stack settings changed, such as tags or termination protection,
 - a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
 - the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
-- you pass `--fullDeploy`.
+- you pass `--full`.
 
-A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--fullDeploy`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
+A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
 ## Automatic rollback
 
@@ -123,13 +123,13 @@ For new stacks that fail on first creation, CloudFormation rolls back and delete
 To inspect a failed deployment before it rolls back, disable auto-rollback:
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --disableAutoRollback
+stacktape deploy --stage dev --region eu-west-1 --no-auto-rollback
 ```
 
-If a stack is left in `UPDATE_FAILED` state after a failed update, Stacktape includes cleanup logic that runs when you successfully deploy over that state. Inspect CloudFormation events in the AWS console to diagnose the issue, fix the problem in your config, then deploy again. You can also recover the stack with [`stacktape cf:rollback`](/cli/cf-rollback).
+If a stack is left in `UPDATE_FAILED` state after a failed update, Stacktape includes cleanup logic that runs when you successfully deploy over that state. Inspect CloudFormation events in the AWS console to diagnose the issue, fix the problem in your config, then deploy again. You can also recover the stack with [`stacktape stack recover`](/cli/cf-rollback).
 
 
-> **Warning:** Don't leave production stacks in a failed state. Fix the issue and redeploy promptly, or recover the stack with [`stacktape cf:rollback`](/cli/cf-rollback).
+> **Warning:** Don't leave production stacks in a failed state. Fix the issue and redeploy promptly, or recover the stack with [`stacktape stack recover`](/cli/cf-rollback).
 
 
 ## Deployment confirmation
@@ -140,14 +140,14 @@ Ordinary creates and updates continue without an extra confirmation. Stacktape a
 
 The default deploy path still submits the template directly to CloudFormation; creating the local plan adds no AWS change-set request and no second packaging pass. Use [`stacktape diff`](/cli/diff) when you want AWS's property-level replacement assessment before deploying. Its plan records `aws-change-set` as its evidence source; the faster deploy plan records `local-template-diff`.
 
-In non-interactive CI/CD, explicitly skip the protected-resource confirmation with `--autoConfirmOperation`:
+In non-interactive CI/CD, explicitly skip the protected-resource confirmation with `--yes`:
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+stacktape deploy --stage production --region eu-west-1 --yes
 ```
 
 
-> **Tip:** Pass `--autoConfirmOperation` only in a pipeline where deployment approval is handled outside Stacktape. Without it, a risky non-interactive deployment fails closed instead of waiting for input.
+> **Tip:** Pass `--yes` only in a pipeline where deployment approval is handled outside Stacktape. Without it, a risky non-interactive deployment fails closed instead of waiting for input.
 
 
 > **Info:** The plan ID is a same-invocation audit fingerprint of semantic templates, workload build inputs, target identity, and the displayed Stacktape resource changes. It is not a checksum of uploaded bytes, a signature, or a reusable cross-job approval token. Portable approvals, signed plans, and immutable cross-account artifact promotion are separate workflows.
@@ -174,7 +174,7 @@ Every Stacktape stage maps to one AWS CloudFormation stack, and each stack has a
 | `CREATE_COMPLETE` | Stack created and healthy | Deploy updates, delete |
 | `UPDATE_COMPLETE` | Last update succeeded | Deploy updates, delete |
 | `UPDATE_ROLLBACK_COMPLETE` | Last update failed and rolled back | Deploy again (fix the issue first), delete |
-| `UPDATE_FAILED` | Update failed, auto-rollback was disabled | Fix and redeploy, or [recover with `cf:rollback`](/cli/cf-rollback) |
+| `UPDATE_FAILED` | Update failed, auto-rollback was disabled | Fix and redeploy, or [recover with `stack recover`](/cli/cf-rollback) |
 | `ROLLBACK_COMPLETE` | Initial creation failed and rolled back | Delete the stack and try again |
 | `*_IN_PROGRESS` | Operation running | Wait for it to finish |
 | `DELETE_COMPLETE` | Stack deleted | Deploy to create a new stack |
@@ -234,14 +234,14 @@ Common causes of slow Stacktape deployments:
 - **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
 - **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.
 
-Run with `--logLevel debug` to see detailed timing for each phase.
+Run with `--debug` to see detailed timing for each phase.
 
 ### Secrets prompt blocking CI/CD
 
-If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret:set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
+If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
-stacktape secret:set --name mySecret --stage production --region eu-west-1
+stacktape secret set --name mySecret --stage production --region eu-west-1
 ```
 
 ## FAQ
@@ -252,7 +252,7 @@ Deployment duration depends on the number and type of resources in your stack, t
 
 ### What happens if a CloudFormation deployment fails midway?
 
-When auto-rollback is enabled (the default), CloudFormation reverts the entire stack to its previous working state. Resources that were partially created are deleted, and modified resources are reverted. Stacktape also cleans up deployment artifacts from the rolled-back attempt. You can disable auto-rollback with `--disableAutoRollback` to keep the failed state for inspection. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for manual rollback options.
+When auto-rollback is enabled (the default), CloudFormation reverts the entire stack to its previous working state. Resources that were partially created are deleted, and modified resources are reverted. Stacktape also cleans up deployment artifacts from the rolled-back attempt. You can disable auto-rollback with `--no-auto-rollback` to keep the failed state for inspection. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for manual rollback options.
 
 ### Can I deploy multiple stages from the same config?
 
@@ -260,7 +260,7 @@ Yes. The same `stacktape.ts` config produces independent stacks per stage. Deplo
 
 ### Do I have to choose between a fast and a full deployment?
 
-No. `stacktape deploy` updates code directly when only code changed and uses CloudFormation for everything else. Pass `--fullDeploy` to always use CloudFormation.
+No. `stacktape deploy` updates code directly when only code changed and uses CloudFormation for everything else. Pass `--full` to always use CloudFormation.
 
 ### Do fast deployments cause CloudFormation drift?
 

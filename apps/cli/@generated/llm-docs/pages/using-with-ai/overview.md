@@ -4,17 +4,17 @@
 > **Warning:** Preview — in active development. The Stacktape MCP server is under active development. Available tools, safety behavior, and integration details may change between releases.
 
 
-Stacktape includes built-in support for AI coding assistants through an MCP server for deploying, inspecting, and debugging stacks from your editor; an agent mode that exposes an HTTP API for iterative local development; and an [`mcp:add`](/cli/mcp-add) command for registering the MCP server with supported editors. AI coding assistants can also use Stacktape docs and project context to help draft or edit `stacktape.ts` configuration files.
+Stacktape includes built-in support for AI coding assistants through an MCP server for deploying, inspecting, and debugging stacks from your editor; an agent mode that exposes an HTTP API for iterative local development; and an [`mcp add`](/cli/mcp-add) command for registering the MCP server with supported editors. AI coding assistants can also use Stacktape docs and project context to help draft or edit `stacktape.ts` configuration files.
 
 ## Start here
 
 For most users, the shortest path is:
 
 ```bash
-stacktape mcp:add
+stacktape mcp add
 ```
 
-Select your coding assistant, reload its workspace, and ask it to “use Stacktape tools to inspect this project.” The assistant should discover four tools: `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. See [MCP server setup](/using-with-ai/mcp-server-setup) for verification, permissions, and troubleshooting.
+It connects the coding agents installed on your machine (Claude Code, Codex, Cursor, VS Code, Copilot CLI, Windsurf and OpenCode) to Stacktape: it adds the Stacktape MCP server to each one you pick, then checks that the server starts. Start a new session in your agent and ask it to “use Stacktape to show what this project deploys.” The agent gets five tools: `stacktape_incident`, `stacktape_docs`, `stacktape_project`, `stacktape_cli` and `stacktape_dev`. See [MCP server setup](/using-with-ai/mcp-server-setup) for what it changes, manual setup and troubleshooting.
 
 ## The AI-assisted development workflow
 
@@ -47,7 +47,7 @@ The server exposes five tools:
 
 ### How assistants use the MCP server
 
-An assistant investigating an incident starts with `stacktape_incident`, which returns the incident's context in one call. It then reads what it needs through `stacktape_cli`: read-only, diagnostic and local commands such as `logs`, `metrics`, `info:stack` and `aws:call` run directly with `action=run` and validated arguments, without a plan or your confirmation. `action=list` and `action=describe` help it find commands and their arguments.
+An assistant investigating an incident starts with `stacktape_incident`, which returns the incident's context in one call. It then reads what it needs through `stacktape_cli`: read-only, diagnostic and local commands such as `logs`, `metrics`, `status` and `aws call` run directly with `action=run` and validated arguments, without a plan or your confirmation. `action=list` and `action=describe` help it find commands and their arguments.
 
 This is the local path: your assistant on your machine. For a hosted run instead, the Console can start a coding agent (Claude Code, Codex, Grok or OpenCode) on the project's runner to investigate an incident or propose a fix as a draft pull request, funded by your organization's API key with the agent's provider or your own subscription. See [AI assessment, investigation and fixes](/observability/incident-ai).
 
@@ -63,14 +63,14 @@ The MCP server categorizes every CLI command by safety level and enforces approp
 
 | Safety level | Behavior | Examples |
 |---|---|---|
-| `readOnly` | Runs without confirmation | `info:stack`, `info:stacks`, `logs`, `metrics` |
-| `diagnostic` | Runs without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
+| `readOnly` | Runs without confirmation | `status`, `stack list`, `logs`, `metrics` |
+| `diagnostic` | Runs without confirmation | `query sql`, `query dynamodb`, `query redis`, `query opensearch` |
 | `local` | Runs without confirmation | `synth`, `validate`, `package` |
-| `mutating` | Requires explicit user approval (`confirm: true`) | `deploy`, `secret:set`, `domain:add` |
-| `destructive` | Requires direct user confirmation for the exact command and target | `delete`, `secret:delete` |
+| `mutating` | Requires explicit user approval (`confirm: true`) | `deploy`, `secret set`, `domain add` |
+| `destructive` | Requires direct user confirmation for the exact command and target | `delete`, `secret delete` |
 | `interactive` | Rejected — must use user's terminal or `stacktape_dev` | `dev`, `init` |
 
-Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, but their query text can still modify data; review SQL, Redis, DynamoDB, and OpenSearch operations carefully. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server presents a confirmation dialog directly to the user, and the operation proceeds only if the user confirms the exact command and target. If the MCP client does not support confirmation forms, destructive commands are refused entirely and the user is told to run them in their own terminal.
+Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, because the server accepts only read operations for them and refuses anything else. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server presents a confirmation dialog directly to the user, and the operation proceeds only if the user confirms the exact command and target. If the MCP client does not support confirmation forms, destructive commands are refused entirely and the user is told to run them in their own terminal.
 
 Interactive commands like [`stacktape dev`](/cli/dev) and [`stacktape init`](/cli/init) require a terminal UI and are rejected by `stacktape_cli`. Dev mode lifecycle is handled through the dedicated `stacktape_dev` tool instead.
 
@@ -91,7 +91,7 @@ Agent mode controls Stacktape dev mode through HTTP endpoints for status, logs, 
 - **Workload rebuilds** — trigger rebuilds of specific workloads or all workloads after code changes
 - **Database queries** — execute SQL, Redis commands, and DynamoDB operations against locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases
 
-The `stacktape_dev` MCP tool controls the session lifecycle: plan, start, status, logs, rebuild a specific workload, rebuild all workloads, and stop. Agent mode also exposes HTTP endpoints for querying local PostgreSQL, MySQL, Redis, and DynamoDB databases — see [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the endpoint reference. For querying deployed (remote) databases in production or staging stacks, use [`stacktape query:sql`](/cli/query-sql), [`stacktape query:redis`](/cli/query-redis), [`stacktape query:dynamodb`](/cli/query-dynamodb), or [`stacktape query:opensearch`](/cli/query-opensearch) through the MCP server's `stacktape_cli` tool.
+The `stacktape_dev` MCP tool controls the session lifecycle: plan, start, status, logs, rebuild a specific workload, rebuild all workloads, and stop. Agent mode also exposes HTTP endpoints for querying local PostgreSQL, MySQL, Redis, and DynamoDB databases — see [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the endpoint reference. For querying deployed (remote) databases in production or staging stacks, use [`stacktape query sql`](/cli/query-sql), [`stacktape query redis`](/cli/query-redis), [`stacktape query dynamodb`](/cli/query-dynamodb), or [`stacktape query opensearch`](/cli/query-opensearch) through the MCP server's `stacktape_cli` tool.
 
 ## When to use agent mode
 
@@ -111,22 +111,20 @@ To generate a config from an existing codebase, run [`stacktape init`](/cli/init
 
 ## Coding assistant setup
 
-The [`stacktape mcp:add`](/cli/mcp-add) command automates MCP server registration for supported editors. Availability and the supported client list depend on the installed Stacktape CLI version. See the [MCP server setup guide](/using-with-ai/mcp-server-setup) for current client-specific registration steps.
+The [`stacktape mcp add`](/cli/mcp-add) command connects your coding agents to Stacktape in one step. See the [MCP server setup guide](/using-with-ai/mcp-server-setup) for each agent and for manual setup.
 
 ```bash
-stacktape mcp:add
+stacktape mcp add
 ```
 
 The [`stacktape mcp`](/cli/mcp) command starts a local stdio MCP server. Clients that support launching local stdio MCP servers can connect to it.
-
-For per-assistant setup walkthroughs, see [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations).
 
 ## Choosing the right approach
 
 
 ## Feature Comparison
 
-| Feature | MCP server | Agent mode | Config generation | mcp:add |
+| Feature | MCP server | Agent mode | Config generation | mcp add |
 | --- | --- | --- | --- | --- |
 | What it does | Structured Stacktape operations from your editor | HTTP API for iterative local development | Generate stacktape.ts from your codebase | Register MCP server in your editor |
 | When to use | Ongoing development with AI | AI-driven build-test-fix loops | Starting a new Stacktape project | One-time setup per editor |
@@ -135,17 +133,17 @@ For per-assistant setup walkthroughs, see [AI coding assistant integrations](/us
 | Queries databases | Deployed databases | Local databases | no | no |
 
 
-**For most teams**, run `stacktape mcp:add` once to set up your editor, then use the MCP server for day-to-day work. The MCP server handles documentation lookup, CLI execution, and dev mode control through a single integration. Agent mode is useful when the AI assistant needs to run a sustained development loop — starting dev mode, writing code, reading logs, and iterating until the application works.
+**For most teams**, run `stacktape mcp add` once to set up your editor, then use the MCP server for day-to-day work. The MCP server handles documentation lookup, CLI execution, and dev mode control through a single integration. Agent mode is useful when the AI assistant needs to run a sustained development loop — starting dev mode, writing code, reading logs, and iterating until the application works.
 
 ## FAQ
 
 ### Which AI coding assistants work with Stacktape?
 
-Stacktape works with any MCP-compatible coding assistant. Run [`stacktape mcp:add`](/cli/mcp-add) to register the MCP server with supported editors — the current client list depends on the installed CLI version. For an assistant that isn't on that list, start the server with [`stacktape mcp`](/cli/mcp) on stdio and point the assistant at the command `stacktape` with argument `mcp`. See [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) for per-assistant setup walkthroughs.
+Stacktape works with any MCP-compatible coding assistant. [`stacktape mcp add`](/cli/mcp-add) sets up Claude Code, Codex, Cursor, VS Code with GitHub Copilot, GitHub Copilot CLI, Windsurf and OpenCode. For any other assistant, point it at the command `stacktape` with the argument `mcp`. See [MCP server setup](/using-with-ai/mcp-server-setup#manual-setup) for each agent's configuration.
 
 ### Can an AI assistant deploy to production through the MCP server?
 
-Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation for the exact command and target that the AI assistant cannot supply on its own, and if the client doesn't support confirmation forms they are refused entirely. The output of secret commands such as `secret:get` and known credential patterns, such as API keys and connection strings with passwords, are masked in MCP responses; other data an assistant reads, such as log lines, comes back as it is.
+Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation for the exact command and target that the AI assistant cannot supply on its own, and if the client doesn't support confirmation forms they are refused entirely. The output of secret commands such as `secret get` and known credential patterns, such as API keys and connection strings with passwords, are masked in MCP responses; other data an assistant reads, such as log lines, comes back as it is.
 
 ### How does agent mode differ from standard dev mode?
 
@@ -157,7 +155,7 @@ No. The MCP server reuses the Stacktape CLI authentication state. If execution f
 
 ### What databases can AI assistants query through agent mode?
 
-Agent mode exposes HTTP endpoints for querying locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases. See the [agent mode guide](/using-with-ai/agent-mode-in-dev) for the endpoint reference. For querying deployed (remote) databases, use [`stacktape query:sql`](/cli/query-sql), [`stacktape query:redis`](/cli/query-redis), [`stacktape query:dynamodb`](/cli/query-dynamodb), or [`stacktape query:opensearch`](/cli/query-opensearch) through the MCP server's `stacktape_cli` tool.
+Agent mode exposes HTTP endpoints for querying locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases. See the [agent mode guide](/using-with-ai/agent-mode-in-dev) for the endpoint reference. For querying deployed (remote) databases, use [`stacktape query sql`](/cli/query-sql), [`stacktape query redis`](/cli/query-redis), [`stacktape query dynamodb`](/cli/query-dynamodb), or [`stacktape query opensearch`](/cli/query-opensearch) through the MCP server's `stacktape_cli` tool.
 
 ### MCP server vs running Stacktape CLI in a terminal — what's the difference?
 

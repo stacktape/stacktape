@@ -15,7 +15,7 @@ The `stacktape mcp` command starts a local MCP (Model Context Protocol) server t
 stacktape mcp
 ```
 
-You typically do not run this command directly. Instead, configure your AI coding agent to spawn it as an MCP server. The [`mcp:add`](/cli/mcp-add) command automates this setup for supported clients.
+You typically do not run this command directly. Instead, configure your AI coding agent to spawn it as an MCP server. The [`mcp add`](/cli/mcp-add) command automates this setup for supported clients.
 
 <CliCommandsApiReference
   command="mcp" />
@@ -34,15 +34,15 @@ The MCP server exposes five focused tools that AI agents use to investigate inci
 
 ## How it works
 
-When an MCP-compatible client starts the server, Stacktape registers the five tools and begins listening over stdio immediately, then initializes its bundled documentation index asynchronously. Incident context (`stacktape_incident`) comes from the same `incidents:show` and `incidents` commands you can run yourself. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
+When an MCP-compatible client starts the server, Stacktape registers the five tools and begins listening over stdio immediately, then initializes its bundled documentation index asynchronously. Incident context (`stacktape_incident`) comes from the same `incident show` and `incidents` commands you can run yourself. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
 
 `stacktape mcp` itself does not require an API key. Operations that run Stacktape CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
 
 ## Client configuration
 
-The fastest way to configure your AI coding agent is to run [`stacktape mcp:add`](/cli/mcp-add), which detects supported clients and adds the MCP server entry automatically.
+Run [`stacktape mcp add`](/cli/mcp-add) to connect your coding agents. It writes the right entry for each agent and checks that the server starts.
 
-To configure manually, add an entry like this to your client's MCP configuration:
+To configure a client by hand, point it at the command `stacktape` with the argument `mcp`, for example:
 
 ```json
 {
@@ -55,21 +55,23 @@ To configure manually, add an entry like this to your client's MCP configuration
 }
 ```
 
-[`stacktape mcp:add`](/cli/mcp-add) detects supported client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf) and adds or updates the `stacktape` server entry automatically, creating timestamped backups before modifying existing files. Prefer `mcp:add` over manual setup — it handles the correct file location for each client.
+[MCP server setup](/using-with-ai/mcp-server-setup#manual-setup) has the exact configuration for each agent.
+
+The server speaks the current MCP revision (`2026-07-28`) and the earlier 2025 revisions, so it also works with agents that still negotiate the older protocol.
 
 ## Examples
 
 Start the MCP server with debug-level logging for troubleshooting connection issues:
 
 ```bash
-stacktape mcp --logLevel debug
+stacktape mcp --debug
 ```
 
 ## FAQ
 
 ### Which AI clients support MCP?
 
-`stacktape mcp:add` can detect Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf configuration files. The `mcp` command communicates over stdio using the MCP protocol, so any client that supports MCP stdio transport can use it. Run [`stacktape mcp:add`](/cli/mcp-add) to auto-detect and configure supported clients on your machine.
+[`stacktape mcp add`](/cli/mcp-add) sets up Claude Code, Codex, Cursor, VS Code with GitHub Copilot, GitHub Copilot CLI, Windsurf and OpenCode. Any other client that can start a local stdio MCP server works too.
 
 ### Do I need an API key to use the MCP server?
 
@@ -77,16 +79,17 @@ The `stacktape mcp` command itself does not require an API key, so docs search a
 
 ### Can the MCP server modify my infrastructure?
 
-Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret:set`, and `logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
+Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret set`, and `logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
 
 For deployment preparation, agents should use `stacktape_cli` with `action: "plan"` and `command: "deploy"` first. Planning is read-only and returns the recommended run arguments, matched package script, inferred config path, working directory, and confirmation requirement without starting a deployment.
 
 ### Do I need to start `stacktape mcp` myself?
 
-No. The MCP-compatible client spawns the server automatically over stdio when it starts, and the process exits when the client disconnects — you do not manage its lifecycle. Run [`stacktape mcp:add`](/cli/mcp-add) once to add the server entry to your client config; you rarely run `stacktape mcp` by hand except with `--logLevel debug` to troubleshoot a connection.
+No. The MCP-compatible client spawns the server automatically over stdio when it starts, and the process exits when the client disconnects — you do not manage its lifecycle. Run [`stacktape mcp add`](/cli/mcp-add) once to add the server entry to your client config; you rarely run `stacktape mcp` by hand except with `--debug` to troubleshoot a connection.
 
 ## Related commands
 
-- [`mcp:add`](/cli/mcp-add) — Automatically installs MCP server configuration into supported AI coding clients.
+- [`mcp add`](/cli/mcp-add) — Connects your coding agents to Stacktape.
+- [`mcp remove`](/cli/mcp-remove) — Removes that setup again.
 - [`dev`](/cli/dev) — Starts local development mode (can also be controlled through the MCP `stacktape_dev` tool).
 - [`login`](/cli/login) — Configures the API key required for infrastructure operations through MCP.

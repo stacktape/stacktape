@@ -83,6 +83,11 @@ export const checkTestRegistry = async ({
       errors.push(
         `${slice.id}: add implementation paths and at least one lane ID to slices in scripts/workspace/test-registry.ts.`
       );
+    for (const pattern of slice.paths)
+      if (pattern.replace(/\/\*\*$/, '').includes('**'))
+        errors.push(
+          `${slice.id}: path pattern ${pattern} uses ** before its end. Use /** only as a final subtree suffix.`
+        );
     if (slice.status === 'active')
       for (const pattern of slice.paths)
         if (present(pattern) && !trackedFiles.some((path) => matchesPath(pattern, path)))

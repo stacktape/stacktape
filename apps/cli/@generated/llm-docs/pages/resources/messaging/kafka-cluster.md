@@ -80,7 +80,7 @@ events:
       remote: true
 ```
 
-You can also select it for one session with `--remoteResources events`. This deploys the real cluster; it is not local
+You can also select it for one session with `--remote-resources events`. This deploys the real cluster; it is not local
 emulation and normal AWS charges apply. Locally running container clients do not automatically gain network access to
 the private cluster. Use a deployed workload or deliberately provide private connectivity to the VPC.
 

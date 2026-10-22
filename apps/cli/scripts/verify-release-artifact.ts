@@ -164,6 +164,10 @@ export const verifyNativeInstallation = async ({
     throw new Error('Native release archive contains an empty source-map-install.js.');
   }
   await verifyHelperLambdaArtifacts({ helperLambdasDir: join(binDirectory, 'helper-lambdas') });
+  const supervisor = await stat(join(binDirectory, 'helper-lambdas', 'stacktape-supervisor'));
+  if (process.platform !== 'win32' && !(supervisor.mode & 0o111)) {
+    throw new Error('Native release archive contains a non-executable code-swap supervisor.');
+  }
 
   // railpack and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`); only Windows
   // still ships the plugin, whose AWS download is an installer. pack and nixpacks, which earlier releases bundled, are
@@ -263,7 +267,7 @@ globalThis.fetch = reject;
     }
   }
   const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { ...runtimeEnv, NODE_PATH: '' } });
-  for (const expected of ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']) {
+  for (const expected of ['Daily:', 'deploy', 'delete', 'package', 'Documentation:']) {
     if (!helpOutput.includes(expected)) {
       throw new Error(`Installed npm launcher help is missing ${expected}:\n${helpOutput}`);
     }

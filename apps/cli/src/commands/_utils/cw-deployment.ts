@@ -1,3 +1,6 @@
+import { codeSwapIntegration } from '@domain-services/code-swap/integration';
+import { packagingManager } from '@domain-services/packaging-manager';
+import { codeSwapSwap, codeSwapResolveRole, codeSwapPending } from '@domain-services/code-swap/runtime';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type {
   KeyValuePair as CfKeyValuePair,
@@ -35,6 +38,7 @@ import { lowerCaseFirstCharacterOfEveryWord, lowerCaseFirstCharacterOfObjectKeys
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloudformation';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { hasEssentialContainerHealthCheck } from './container-health';
 import set from 'lodash/set';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 
@@ -194,7 +198,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
   // we need to go through environment variables and transform them to strings.
   // this is because some of the resolved directives could have resolved to i.e number which is not allowed when registering task definition
   (calculatedTaskDefinition.Properties.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
-    (containerDef.Environment as CfKeyValuePair[]).forEach((envVar) => {
+    (containerDef.Environment as CfKeyValuePair[] | undefined)?.forEach((envVar) => {
       envVar.Value = String(envVar.Value);
     });
   });
@@ -208,11 +212,29 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     Tags: stackManager.getTags()
   };
 
-  const { needsUpdate: ecsTaskDefinitionNeedsUpdate } = compareEcsTaskDefinitions({
+  await codeSwapResolveRole(calculatedTaskDefinition, workload.name);
+  const comparison = structuredClone(calculatedTaskDefinition);
+  for (const container of comparison.Properties.ContainerDefinitions as ContainerDefinition[]) {
+    const job = getJobName({
+      workloadName: workload.name,
+      workloadType: workload.configParentResourceType,
+      containerName: container.Name as string
+    });
+    const packaged = packagingManager.getPackagingOutputForJob(job);
+    if (
+      packaged &&
+      codeSwapIntegration.imageMatchesRunningCode(job, packaged.digest, currentTaskDefinition.taskDefinitionArn)
+    ) {
+      const current = currentTaskDefinition.containerDefinitions.find((item) => item.name === container.Name);
+      if (current) container.Image = current.image;
+    }
+  }
+  const { needsUpdate: imageNeedsUpdate } = compareEcsTaskDefinitions({
     currentTaskDefinition,
-    calculatedTaskDefinition
+    calculatedTaskDefinition: comparison
   });
 
+  const ecsTaskDefinitionNeedsUpdate = imageNeedsUpdate || codeSwapPending(workload.name);
   const ecsServiceNeedsUpdate =
     ecsTaskDefinitionNeedsUpdate || currentEcsService.taskDefinition !== currentTaskDefinition.taskDefinitionArn;
 
@@ -234,6 +256,9 @@ export const updateEcsService = async ({
   ecsTaskDefinition,
   ecsService
 }: Awaited<ReturnType<typeof getECSHotswapInformation>>): Promise<{ finishedWhen?: RollingUpdateFinish }> => {
+  if (await codeSwapSwap({ workload, ecsServiceArn, newCfTaskDefinition, blueGreen, ecsTaskDefinition, ecsService }))
+    return {};
+  await codeSwapResolveRole(newCfTaskDefinition, workload.name);
   const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
     instanceId: workload.name,
@@ -372,7 +397,14 @@ export const updateEcsService = async ({
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
         const { deploymentId } = await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
-        ({ finishedWhen } = await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn, deploymentId }));
+        ({ finishedWhen } = await awsSdkManager.ecs.waitForRollingUpdate({
+          ecsServiceArn,
+          deploymentId,
+          allowUncheckedDiscovery:
+            workload.configParentResourceType === 'web-service' &&
+            workload.containers.some(({ events }) => (events ?? []).some(({ type }) => type === 'http-api-gateway')) &&
+            !hasEssentialContainerHealthCheck(newCfTaskDefinition.Properties.ContainerDefinitions)
+        }));
       }
     } finally {
       statusPoller.stopPolling();
@@ -384,8 +416,11 @@ export const updateEcsService = async ({
         // The load balancer and API Gateway start routing to the new containers within seconds; no AWS API shows when.
         'new-targets-healthy':
           'New version healthy and registered with the load balancer; traffic moves to it within seconds. Old containers drain in the background',
-        'new-instances-discoverable':
-          "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background",
+        'new-instances-discoverable': hasEssentialContainerHealthCheck(
+          newCfTaskDefinition.Properties.ContainerDefinitions
+        )
+          ? "New version healthy and registered with API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background"
+          : "New task running and registered with API Gateway's service discovery; application health is unchecked. Old containers drain in the background",
         'new-targets-healthy-and-instances-discoverable':
           "New version healthy and registered with the load balancer and API Gateway's service discovery; traffic moves to it within seconds. Old containers drain in the background",
         'new-tasks-healthy': 'New version healthy; old containers drain in the background'

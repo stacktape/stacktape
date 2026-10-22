@@ -12,7 +12,9 @@
  * `orange`/`blue`/`green`) that only one consumer still reads.
  *
  * `radius`, `focus` and `motion` exist because `@stacktape/ui-react` renders into both applications
- * and its components have to agree with them on shape, focus affordance and timing.
+ * and its components have to agree with them on shape, focus affordance and timing. `space`,
+ * `fontSize`, `fontWeight` and `dialogWidth` are the scale Console pages and `@stacktape/ui-react`
+ * components are built from: page code may not use a spacing, type size or dialog width outside it.
  *
  * Adding a token here is a claim that at least two consumers must agree on its value. If only one
  * needs it, it belongs in that consumer.
@@ -50,8 +52,10 @@ export const designTokens = {
     primaryLight: 'rgb(34, 166, 166)',
     accent: 'rgb(34, 87, 122)'
   },
-  /** Neutral field focus feedback. Text inputs and selects should not turn into brand actions. */
+  /** Neutral field hover and focus feedback. Text inputs and selects should not turn into brand actions. */
   field: {
+    /** Hover lifts the hairline a step toward the focus border; focus adds the ring. */
+    hoverBorder: 'rgba(110, 116, 116, 0.38)',
     focusBorder: 'rgba(110, 116, 116, 0.56)',
     focusRing: 'rgba(110, 116, 116, 0.12)'
   },
@@ -82,6 +86,41 @@ export const designTokens = {
     durationFast: '150ms',
     durationBase: '250ms',
     easing: 'ease'
+  },
+  /** Spacing stops on a 4 px grid, named by their size: gaps, padding, rhythm between sections. */
+  space: {
+    4: '4px',
+    8: '8px',
+    12: '12px',
+    16: '16px',
+    24: '24px',
+    32: '32px',
+    48: '48px'
+  },
+  /** Type sizes. `body` is the base size of product copy. */
+  fontSize: {
+    /** Captions, table headers, help text under a field. */
+    caption: '0.75rem',
+    body: '0.825rem',
+    /** Section headings and emphasised rows. */
+    heading: '0.9rem',
+    /** Page and dialog titles. */
+    title: '1.15rem',
+    /** Headline numbers on tiles. */
+    display: '1.5rem'
+  },
+  fontWeight: {
+    body: '500',
+    /** Labels, headings and the selected item. */
+    label: '600',
+    /** Headline numbers only. */
+    display: '700'
+  },
+  /** Dialogs come in three widths: a confirmation, a form, and content such as a table or a log. */
+  dialogWidth: {
+    confirm: '440px',
+    form: '560px',
+    content: '800px'
   }
 } as const;
 
@@ -120,6 +159,7 @@ export const tokenVar = {
     accent: 'var(--stp-interactive-accent)'
   },
   field: {
+    hoverBorder: 'var(--stp-field-hover-border)',
     focusBorder: 'var(--stp-field-focus-border)',
     focusRing: 'var(--stp-field-focus-ring)'
   },
@@ -148,6 +188,32 @@ export const tokenVar = {
     durationFast: 'var(--stp-motion-duration-fast)',
     durationBase: 'var(--stp-motion-duration-base)',
     easing: 'var(--stp-motion-easing)'
+  },
+  space: {
+    4: 'var(--stp-space-4)',
+    8: 'var(--stp-space-8)',
+    12: 'var(--stp-space-12)',
+    16: 'var(--stp-space-16)',
+    24: 'var(--stp-space-24)',
+    32: 'var(--stp-space-32)',
+    48: 'var(--stp-space-48)'
+  },
+  fontSize: {
+    caption: 'var(--stp-font-size-caption)',
+    body: 'var(--stp-font-size-body)',
+    heading: 'var(--stp-font-size-heading)',
+    title: 'var(--stp-font-size-title)',
+    display: 'var(--stp-font-size-display)'
+  },
+  fontWeight: {
+    body: 'var(--stp-font-weight-body)',
+    label: 'var(--stp-font-weight-label)',
+    display: 'var(--stp-font-weight-display)'
+  },
+  dialogWidth: {
+    confirm: 'var(--stp-dialog-width-confirm)',
+    form: 'var(--stp-dialog-width-form)',
+    content: 'var(--stp-dialog-width-content)'
   }
 } as const;
 

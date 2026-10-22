@@ -7,7 +7,7 @@ seoDescription: 'Validate your Stacktape configuration, resource resolution, and
 
 # validate
 
-The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--outFile` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
+The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
 
 ## Usage
 
@@ -31,24 +31,24 @@ Stacktape loads the configuration, resolves all resources, validates [guardrails
 stacktape validate --stage dev --region eu-west-1
 ```
 
-### With packaging — add `--withPackage`
+### With packaging — add `--with-package`
 
-The `--withPackage` flag runs workload packaging as part of validation. Stacktape packages all Lambda functions and container workloads, which catches packaging errors surfaced by the normal packaging step — such as missing entry files or misconfigured build settings. Use this when you have changed packaging settings or entry file paths.
+The `--with-package` flag runs workload packaging as part of validation. Stacktape packages all Lambda functions and container workloads, which catches packaging errors surfaced by the normal packaging step — such as missing entry files or misconfigured build settings. Use this when you have changed packaging settings or entry file paths.
 
 ```bash
-stacktape validate --stage dev --region eu-west-1 --withPackage
+stacktape validate --stage dev --region eu-west-1 --with-package
 ```
 
 ### Thorough — add `--thorough`
 
-The `--thorough` flag runs the most complete validation path. It includes everything from `--withPackage` and additionally submits the synthesized CloudFormation template to AWS for server-side validation. CloudFormation validates the template and returns any template validation errors before any stack is created or updated. This requires AWS credentials for the CloudFormation `ValidateTemplate` API call but does not create or modify any stack.
+The `--thorough` flag runs the most complete validation path. It includes everything from `--with-package` and additionally submits the synthesized CloudFormation template to AWS for server-side validation. CloudFormation validates the template and returns any template validation errors before any stack is created or updated. This requires AWS credentials for the CloudFormation `ValidateTemplate` API call but does not create or modify any stack.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1 --thorough
 ```
 
 <Info>
-The `--thorough` flag implies `--withPackage`. You do not need to pass both.
+The `--thorough` flag implies `--with-package`. You do not need to pass both.
 </Info>
 
 ## When to use validate
@@ -61,7 +61,7 @@ The `validate` command is a fast pre-deploy check that confirms your configurati
 
 ## Inspecting the validated template
 
-By default, `validate` produces only a pass/fail result. Add `--outFile <path>` to write the template after every requested validation step succeeds. When packaging is enabled, this is the packaged template and includes generated Lambda layers and their function references.
+By default, `validate` produces only a pass/fail result. Add `--out <path>` to write the template after every requested validation step succeeds. When packaging is enabled, this is the packaged template and includes generated Lambda layers and their function references.
 
 Use [`synth`](/cli/synth) when you only need the faster, un-packaged template compilation. Use [`diff`](/cli/diff) when you need to see what a deployment would change against a live stack.
 
@@ -69,12 +69,12 @@ Use [`synth`](/cli/synth) when you only need the faster, un-packaged template co
 
 | Flag | What it does |
 |------|-------------|
-| `--withPackage` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
-| `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--withPackage`. Requires AWS credentials. |
-| `--outFile` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
+| `--with-package` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
+| `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--with-package`. Requires AWS credentials. |
+| `--out` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
-| `--configPath` | Path to your Stacktape configuration file if it is not in the default location. |
+| `--config` | Path to your Stacktape configuration file if it is not in the default location. |
 | `--agent` | Optimizes CLI output for programmatic/LLM consumption. Uses JSONL/NDJSON output and disables the interactive terminal UI. |
 
 ## Examples
@@ -88,13 +88,13 @@ stacktape validate --stage production --region us-east-1
 Validate with a specific config file path.
 
 ```bash
-stacktape validate --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape validate --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 Run the most thorough validation, including packaging and CloudFormation template validation, before merging a pull request.
 
 ```bash
-stacktape validate --stage ci --region eu-west-1 --thorough --outFile ./validated-template.yaml
+stacktape validate --stage ci --region eu-west-1 --thorough --out ./validated-template.yaml
 ```
 
 Use JSONL output for CI or AI-agent consumption.
@@ -109,10 +109,10 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 ## Related commands
 
-- [`synth`](/cli/synth) — compiles the configuration into an un-packaged CloudFormation template and writes it to a file. Use `validate --withPackage --outFile ...` when you need the packaged template.
+- [`synth`](/cli/synth) — compiles the configuration into an un-packaged CloudFormation template and writes it to a file. Use `validate --with-package --out ...` when you need the packaged template.
 - [`diff`](/cli/diff) — shows a preview of changes that would be applied to a deployed stack. Requires a deployed stack, unlike `validate`.
 - [`deploy`](/cli/deploy) — deploys or updates a stack. Running `validate` before `deploy` catches errors before they reach CloudFormation.
-- [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--withPackage` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
+- [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--with-package` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
 
 ## FAQ
 
@@ -122,7 +122,7 @@ No. The `validate` command does not create, update, or delete any AWS resources 
 
 ### How is validate different from synth?
 
-Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--outFile` is supplied; with `--withPackage` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
+Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--out` is supplied; with `--with-package` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
 
 ### Do I need AWS credentials to run validate in CI?
 
@@ -134,4 +134,4 @@ The default validation catches configuration-level problems: broken references, 
 
 ### Can I use validate with AI agents or in scripts?
 
-Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--outputFormat jsonl` for machine-readable output without the other `--agent` behaviors.
+Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--json` for machine-readable output without the other `--agent` behaviors.

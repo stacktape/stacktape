@@ -4,8 +4,10 @@ This package is the styling-system-neutral source of truth shared by Console (Em
 `@stacktape/ui-react` (plain CSS), and the planned React init wizard.
 
 - Put a value here only when multiple product surfaces must mean the same thing: semantic surfaces, text, borders,
-  interaction/status/AWS-category colours, shared radii, focus, and motion. App-only layout and typography remain in the
-  app.
+  interaction/status/AWS-category colours, shared radii, focus, motion, and the spacing, type and dialog-width scale
+  that Console pages and `@stacktape/ui-react` share. Other app-only layout values remain in the app.
+- The scale is closed. Console page code may not use a literal font size, gap, padding or border radius
+  (`scripts/quality/ast-grep/rules/console-page-scale.yml`); add a stop here only when a design needs it everywhere.
 - `src/tokens.ts` owns both raw typed values and typed `var(--stp-*)` references. The committed `generated/tokens.css`
   is emitted deterministically from it; never hand-edit generated CSS.
 - Keep the package independent of React, Emotion, Astro and Tailwind. Each consumer maps the same CSS variables into its

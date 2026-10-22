@@ -1,11 +1,11 @@
-# defaults:configure
+# defaults set
 
-The `defaults:configure` command sets system-wide default values for common Stacktape CLI arguments like region, stage, and AWS profile. Once configured, you can skip repetitive flags on commands like [`deploy`](/cli/deploy), [`delete`](/cli/delete), and [`logs`](/cli/logs). The command does not require an API key, so you can run it before [`login`](/cli/login).
+The `defaults set` command sets system-wide default values for common Stacktape CLI arguments like region, stage, and AWS profile. Once configured, you can skip repetitive flags on commands like [`deploy`](/cli/deploy), [`delete`](/cli/delete), and [`logs`](/cli/logs). The command does not require an API key, so you can run it before [`login`](/cli/login).
 
 ## Usage
 
 ```bash
-stacktape defaults:configure
+stacktape defaults set
 ```
 
 The command is fully interactive — it prompts you for each configurable property one at a time. Each prompt shows the current value — either the previously saved value or the property's configured default. If the resolved value is `null`, the prompt displays `<< not-set >>`. Sensitive properties use password-style input and their current values are redacted — values longer than four characters are masked except for the last four characters, while values with four or fewer characters are displayed unchanged.
@@ -34,7 +34,7 @@ These defaults apply automatically when the corresponding CLI flag is not explic
 | `projectName` | Project name |
 | `awsAccount` | AWS Account name |
 
-Setting a default `region` and `stage` is the most common use case. For example, [`deploy`](/cli/deploy) requires both `--region` and `--stage`, so defaults for both let you run `stacktape deploy` without extra flags. [`delete`](/cli/delete) requires `--region`, and [`logs`](/cli/logs) requires `--region`, `--stage`, and `--resourceName` (which is not a configurable default).
+Setting a default `region` and `stage` is the most common use case. For example, [`deploy`](/cli/deploy) requires both `--region` and `--stage`, so defaults for both let you run `stacktape deploy` without extra flags. [`delete`](/cli/delete) requires `--region`, and [`logs`](/cli/logs) requires `--region`, `--stage`, and `--resource-name` (which is not a configurable default).
 
 ### Other defaults
 
@@ -73,30 +73,36 @@ After saving, Stacktape prints the local persisted-state file path. This file is
 Configure your region and stage so most commands work without extra flags.
 
 ```bash
-stacktape defaults:configure
+stacktape defaults set
 ```
 
 When the prompts appear, enter `eu-west-1` for region and `production` for stage. Leave other fields blank to skip them. Afterward, commands like `stacktape deploy` use those values automatically.
 
-To check what defaults are currently configured, use [`defaults:list`](/cli/defaults-list).
+To check what defaults are currently configured, use [`defaults list`](/cli/defaults-list).
 
 ```bash
-stacktape defaults:list
+stacktape defaults list
 ```
 
-To reset a single default to its configured default value, run `defaults:configure` again and enter a space character when prompted for that property.
+To reset a single default to its configured default value, run `defaults set` again and enter a space character when prompted for that property.
 
 ## Flags reference
 
 
-## CLI Options: `stacktape defaults:configure`
+## CLI Options: `stacktape defaults set`
 
-No available options.
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--key (positional 1)` | no | `string` | Default setting to update: region, stage, profile, project, aws-account, api-key, executable-python or executable-javascript. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--value (positional 2)` | no | `string` | New value for the selected default setting. | - |
 
 
 ## Related commands
 
-- [`defaults:list`](/cli/defaults-list) — print all currently configured defaults.
+- [`defaults list`](/cli/defaults-list) — print all currently configured defaults.
 - [`login`](/cli/login) — configure your Stacktape API key.
 - [`deploy`](/cli/deploy) — deploy a stack, using configured defaults for region, stage, and project name.
 
@@ -108,12 +114,12 @@ Configured defaults fill in values only when you do not pass the corresponding C
 
 ### How do I clear a single configured default?
 
-Run `stacktape defaults:configure` again. When prompted for the property you want to clear, enter a single space character instead of a value. This resets the property to its configured default value. Other properties remain unchanged — just press Enter to skip them.
+Run `stacktape defaults set` again. When prompted for the property you want to clear, enter a single space character instead of a value. This resets the property to its configured default value. Other properties remain unchanged — just press Enter to skip them.
 
-### Do I need to be logged in to run defaults:configure?
+### Do I need to be logged in to run defaults set?
 
-No. The `defaults:configure` command does not require a Stacktape API key. You can configure region, stage, and profile defaults before running [`login`](/cli/login). This is useful when setting up a new machine — configure your defaults first, then log in when you're ready to deploy.
+No. The `defaults set` command does not require a Stacktape API key. You can configure region, stage, and profile defaults before running [`login`](/cli/login). This is useful when setting up a new machine — configure your defaults first, then log in when you're ready to deploy.
 
 ### Can I set defaults per project, or only globally?
 
-The `defaults:configure` command sets system-wide defaults that apply across all projects on your machine — there is no per-project scope. If one region, stage, and profile cover most of your work, defaults are the simplest option. If you regularly switch between configurations (for example separate staging and production setups), keep your most common values as defaults and pass explicit flags (such as `--region` or `--stage`) on the commands where the defaults don't apply — those flags override the stored defaults for that single invocation.
+The `defaults set` command sets system-wide defaults that apply across all projects on your machine — there is no per-project scope. If one region, stage, and profile cover most of your work, defaults are the simplest option. If you regularly switch between configurations (for example separate staging and production setups), keep your most common values as defaults and pass explicit flags (such as `--region` or `--stage`) on the commands where the defaults don't apply — those flags override the stored defaults for that single invocation.

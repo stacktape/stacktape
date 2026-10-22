@@ -8,6 +8,7 @@ import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { buildBinaryFile } from './release/build-cli-sources';
 import { verifyInteractiveLauncher } from './verify-interactive-launcher';
+import { verifyMcpAgentSetup } from './verify-mcp-agent-setup';
 
 // Compiles the release entrypoint and checks version/help, nested invocation isolation and removed runner input.
 // These paths finish before AWS or announcements initialize. Telemetry is disabled in every child process.
@@ -58,8 +59,23 @@ const verifyCliSmoke = async () => {
     expectOutputToContain({
       args: ['--help'],
       output: runBinary(binaryPath, ['--help']),
-      expected: ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']
+      expected: ['Daily:', 'deploy', 'delete', 'package', 'Documentation:']
     });
+
+    for (const action of ['list', 'ignore', 'resolve', 'reopen']) {
+      const command = `errors:${action}`;
+      expectOutputToContain({
+        args: [command, '--help'],
+        output: runBinary(binaryPath, [command, '--help']),
+        expected: [`error ${action}`, action === 'list' ? '--status' : '--issue-id']
+      });
+      expectOutputToContain({
+        args: [`issues:${action}`, '--help'],
+        output: runBinary(binaryPath, [`issues:${action}`, '--help']),
+        expected: [`error ${action}`]
+      });
+    }
+    console.info('Verified public error commands and legacy errors:* / issues:* spellings.');
 
     const fixtureDirectory = join(directory, 'nested-invocation');
     const fixtureHome = join(directory, 'home');
@@ -123,6 +139,13 @@ const verifyCliSmoke = async () => {
       throw new Error(`Removed CodeBuild runner did not fail with supported alternatives:\n${removedRunnerOutput}`);
     }
     console.info('Verified removed CodeBuild runner fails with the supported local/ec2 alternatives.');
+
+    const agentHome = join(directory, 'agent-home');
+    await mkdir(agentHome, { recursive: true });
+    await verifyMcpAgentSetup({ binaryPath, home: agentHome });
+    console.info(
+      'Verified mcp:add and mcp:remove configure agents, keep their files intact and start a working server.'
+    );
 
     // Bun provides pseudo-terminals on POSIX hosts only.
     if (isWindowsPlatform(platform)) {

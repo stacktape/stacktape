@@ -40,7 +40,7 @@ Deployment restriction guardrails control allowed stages, allowed AWS regions, a
 
 - **Stage restriction** — Only allow deployments to specific stages. Configure an `allowedStages` list (e.g., `["production", "staging"]`); operations targeting any other stage name fail. Useful for enforcing naming conventions or limiting which stages can exist.
 - **Region restriction** — Only allow deployments to specific AWS regions. Configure an `allowedRegions` list (e.g., `["eu-west-1", "us-east-1"]`); operations targeting other regions fail. Essential for data residency compliance and cost control.
-- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
+- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
 - **Require custom domain** — Require web services and hosting buckets to use a domain your organization controls. This is a delivery standard rather than a security boundary.
 
 For full details, see [Deployment guardrails](/guardrails/deployment).
@@ -53,7 +53,7 @@ Security guardrails enforce infrastructure best practices that protect data and 
 - **Require deletion protection** — When enabled, all [relational databases](/resources/databases/relational-database) must have `deletionProtection` set to `true`, reducing accidental deletion risk for database resources.
 - **Require stack termination protection** — Require `deploymentConfig.terminationProtection: true`. CloudFormation then rejects stack deletion through Stacktape, AWS Console, or the AWS API until protection is deliberately disabled and redeployed.
 - **Require recoverable data stores** — Require automated backups for RDS, DynamoDB point-in-time recovery, and EFS automatic backups. This adds backup storage cost and does not replace restore testing.
-- **Require dead-letter queue** — When enabled, all [SQS queues](/resources/messaging/sqs-queue) must have a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing, preventing silent message loss.
+- **Require dead-letter queue** — When enabled, every [SQS queue](/resources/messaging/sqs-queue) must have a `redrivePolicy` (dead-letter queue) configured, except a queue that another queue in the stack uses as its dead-letter queue. In AWS SQS, a dead-letter queue captures messages that fail processing, preventing silent message loss.
 - **Require WAF on load balancers** — When enabled, directly configured application load balancers and those generated for web/private services must reference a configured [web application firewall](/resources/security/web-application-firewall). Internally generated load balancers without a configurable firewall setting are ignored.
 - **Require multiple container instances** — Require `scaling.minInstances` of at least two for user-configurable container services. This removes a single-task failure point and increases baseline compute cost. Fixed internal workloads, currently self-hosted Convex, are ignored because their instance count cannot be changed.
 

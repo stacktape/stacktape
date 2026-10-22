@@ -10,11 +10,11 @@ Use `rollback` when a recent deployment introduced a bug, performance regression
 > **Warning:** Rollback primarily restores the previous CloudFormation template and stored workload artifacts (Lambda zips, container images). For bucket-synced static content, Stacktape also attempts a manifest-based restore after the rollback. Application-side data changes are not undone — treat database migrations and application-written objects as separate recovery work. If your deployment included a schema migration, rolling back the code without rolling back the schema may cause errors.
 
 
-If your stack is stuck in an `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state and cannot accept new updates, use [`cf:rollback`](/cli/cf-rollback) instead — it uses CloudFormation's native recovery mechanism to restore the stack to a working state.
+If your stack is stuck in an `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state and cannot accept new updates, use [`stack recover`](/cli/cf-rollback) instead — it uses CloudFormation's native recovery mechanism to restore the stack to a working state.
 
 ## Usage
 
-The only required argument is `--region`. `--stage` and `--projectName` are optional arguments used to identify the target stack.
+The only required argument is `--region`. `--stage` and `--project` are optional arguments used to identify the target stack.
 
 Roll back one version (the default):
 
@@ -25,40 +25,40 @@ stacktape rollback --region eu-west-1 --stage production
 Roll back to a specific version:
 
 ```bash
-stacktape rollback --region eu-west-1 --stage production --targetVersion v000003
+stacktape rollback --region eu-west-1 --stage production --target-version v000003
 ```
 
 Roll back multiple steps:
 
 ```bash
-stacktape rollback --region eu-west-1 --stage production --rollbackSteps 3
+stacktape rollback --region eu-west-1 --stage production --rollback-steps 3
 ```
 
 List available versions before deciding:
 
 ```bash
-stacktape rollback --region eu-west-1 --stage production --listVersions
+stacktape rollback --region eu-west-1 --stage production --list-versions
 ```
 
 ## Important flags
 
-### `--targetVersion`
+### `--target-version`
 
-Specifies the exact deployment version to roll back to, for example `v000003`. Versions commonly use values like `v000001`, `v000003`; when `--rollbackSteps` is used, Stacktape calculates a six-digit zero-padded target. Use `--listVersions` to see which versions are available in your deployment bucket.
+Specifies the exact deployment version to roll back to, for example `v000003`. Versions commonly use values like `v000001`, `v000003`; when `--rollback-steps` is used, Stacktape calculates a six-digit zero-padded target. Use `--list-versions` to see which versions are available in your deployment bucket.
 
-### `--rollbackSteps`
+### `--rollback-steps`
 
-Number of stored releases to step back from the current one. Defaults to `1` (the previous release). For example, if the current release is `v000008` and all older releases are still stored, `--rollbackSteps 3` targets `v000005`. Releases removed by `previousVersionsToKeep` are skipped. If neither `--targetVersion` nor `--rollbackSteps` is provided, the command rolls back one version.
+Number of stored releases to step back from the current one. Defaults to `1` (the previous release). For example, if the current release is `v000008` and all older releases are still stored, `--rollback-steps 3` targets `v000005`. Releases removed by `previousVersionsToKeep` are skipped. If neither `--target-version` nor `--rollback-steps` is provided, the command rolls back one version.
 
 Targeting the current release re-applies it. Use this when a fast deployment failed partway and left some functions or services on other code.
 
-### `--listVersions`
+### `--list-versions`
 
 When previous versions exist, the command prints the current version and the available rollback versions, then exits without rolling back. If no previous versions exist, it reports that none were found. Use this to inspect what's available before committing to a rollback.
 
-### `--configPath`
+### `--config`
 
-Rollback initializes with `commandRequiresConfig: false`, so a local configuration file is not required. `--configPath` appears in the command's optional arguments because rollback includes common config-dependent CLI arguments.
+Rollback initializes with `commandRequiresConfig: false`, so a local configuration file is not required. `--config` appears in the command's optional arguments because rollback includes common config-dependent CLI arguments.
 
 ## How rollback works
 
@@ -66,7 +66,7 @@ Stacktape stores CloudFormation templates and deployment artifacts for each depl
 
 
 ## Flow
-1. **Version resolution**: The target version is --targetVersion, or the release --rollbackSteps steps back among the stored releases.
+1. **Version resolution**: The target version is --target-version, or the release --rollback-steps steps back among the stored releases.
 2. **Artifact verification**: Stacktape verifies that artifacts for the target version are available in the deployment bucket before proceeding.
 3. **Safety check**: The command reads rollback safety metadata from the deployed stack, when present, and prints warnings for directives, TypeScript transforms, custom directives, or after:deploy hooks.
 4. **Template preparation**: The old CloudFormation template is downloaded and stored as a new release. The function code and container images it uses are copied under the new release, so CloudFormation updates every function and container service to the restored code, including those a fast deployment changed.
@@ -88,9 +88,11 @@ The rollback command reads rollback safety metadata from the deployed stack and 
 
 If the stack was deployed before rollback support was added, the safety metadata may be missing. The rollback still proceeds, but with a warning that results may be unpredictable if the config used `$File`, TypeScript transforms, custom directives, or `after:deploy` hooks.
 
+Shared-layer fast deployments check that the old handler can run on the new layer before attaching it. They do not require the new handler to run on the old layer. CloudFormation restores code and layers separately during rollback: across an edit that added a used export, restoring the old layer first can briefly fail invocations until the old handler is restored. The forward deployment prints a note when it detects this incompatibility. Rollbacks across several releases can also cross incompatible chunk generations. The final restored code and layers are consistent; rollback does not guarantee uninterrupted invocations during that transition.
+
 ## Version availability
 
-Use `--listVersions` to see which versions are still available. If a target version is not found in the deployment bucket, Stacktape reports that it was not found, lists the versions that are available, and notes that old versions may have been cleaned up based on the `previousVersionsToKeep` setting.
+Use `--list-versions` to see which versions are still available. If a target version is not found in the deployment bucket, Stacktape reports that it was not found, lists the versions that are available, and notes that old versions may have been cleaned up based on the `previousVersionsToKeep` setting.
 
 ## Bucket-synced content
 
@@ -103,21 +105,19 @@ If the stack includes static hosting with bucket-synced content, Stacktape attem
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--listVersions (-lv)` | no | `boolean` | List Versions — Lists available deployment versions that can be rolled back to, then exits without performing a rollback. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--rollbackSteps (-rbs)` | no | `number` | Rollback Steps — Number of versions to rollback. Defaults to `1` (previous version). For example, `--rollbackSteps 2` rolls back two versions. | - |
-| `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--targetVersion (-tv)` | no | `string` | Rollback Version — The target deployment version to rollback to (e.g., `v000003`). Use `--listVersions` to see available versions. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--list-versions` | no | `boolean` | List Versions — Lists available deployment versions that can be rolled back to, then exits without performing a rollback. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--rollback-steps` | no | `number` | Rollback Steps — Number of versions to rollback. Defaults to `1` (previous version). For example, `--rollback-steps 2` rolls back two versions. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `--target-version` | no | `string` | Rollback Version — The target deployment version to rollback to (e.g., `v000003`). Use `--list-versions` to see available versions. | - |
 
 
 ## Examples
@@ -130,20 +130,20 @@ The most common use case — revert to the version that was running before the l
 stacktape rollback --region eu-west-1 --stage production
 ```
 
-This is equivalent to `--rollbackSteps 1`. No config file is needed.
+This is equivalent to `--rollback-steps 1`. No config file is needed.
 
 ### Inspect available versions first
 
 Before rolling back, check which versions are available:
 
 ```bash
-stacktape rollback --region eu-west-1 --stage production --listVersions
+stacktape rollback --region eu-west-1 --stage production --list-versions
 ```
 
 The output prints the current version and the available rollback versions. If the current version appears in the listed versions, Stacktape marks it as current. Pick a version and roll back to it:
 
 ```bash
-stacktape rollback --region eu-west-1 --stage production --targetVersion v000005
+stacktape rollback --region eu-west-1 --stage production --target-version v000005
 ```
 
 ### Rollback in CI/CD
@@ -151,16 +151,16 @@ stacktape rollback --region eu-west-1 --stage production --targetVersion v000005
 Use `--agent` for output optimized for programmatic consumption:
 
 ```bash
-stacktape rollback --region eu-west-1 --stage production --rollbackSteps 1 --agent
+stacktape rollback --region eu-west-1 --stage production --rollback-steps 1 --agent
 ```
 
 The `--agent` flag uses JSONL/NDJSON output and disables interactive terminal UI.
 
 ## FAQ
 
-### What is the difference between `rollback` and `cf:rollback`?
+### What is the difference between `rollback` and `stack recover`?
 
-The `rollback` command deploys a previously stored CloudFormation template as a new version — use it when a *successful* deployment introduced a problem in your application. The [`cf:rollback`](/cli/cf-rollback) command uses CloudFormation's native rollback mechanism to recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. Use `rollback` for "the deploy worked but the app is broken" and `cf:rollback` for "the deploy itself failed."
+The `rollback` command deploys a previously stored CloudFormation template as a new version — use it when a *successful* deployment introduced a problem in your application. The [`stack recover`](/cli/cf-rollback) command uses CloudFormation's native rollback mechanism to recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. Use `rollback` for "the deploy worked but the app is broken" and `stack recover` for "the deploy itself failed."
 
 ### Does rollback rebuild my code?
 
@@ -172,7 +172,7 @@ Rollback primarily restores the previous CloudFormation template and stored work
 
 ### How far back can I roll back?
 
-It depends on the `previousVersionsToKeep` setting — older versions may have been cleaned up after successful deployments, and once a version's artifacts are gone you can no longer roll back to it. Use `--listVersions` to see which versions still have their artifacts available in the deployment bucket.
+It depends on the `previousVersionsToKeep` setting — older versions may have been cleaned up after successful deployments, and once a version's artifacts are gone you can no longer roll back to it. Use `--list-versions` to see which versions still have their artifacts available in the deployment bucket.
 
 ### Can I roll forward after a rollback?
 
@@ -184,7 +184,7 @@ No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns 
 
 ## Related commands
 
-- [`cf:rollback`](/cli/cf-rollback) — recover a stack stuck in a failed CloudFormation update state
+- [`stack recover`](/cli/cf-rollback) — recover a stack stuck in a failed CloudFormation update state
 - [`deploy`](/cli/deploy) — deploy your stack to AWS
 - [`diff`](/cli/diff) — preview what a deployment would change before applying it
-- [`info:operations`](/cli/info-operations) — view recent deployment operations and their status
+- [`stack history`](/cli/info-operations) — view recent deployment operations and their status

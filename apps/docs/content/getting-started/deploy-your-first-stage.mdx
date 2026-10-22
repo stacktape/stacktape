@@ -36,7 +36,7 @@ The CLI opens an interactive auth flow. You can authenticate with Google, sign u
 For CI environments or headless servers where a browser is not available, pass an API key directly.
 
 ```bash
-stacktape login --apiKey YOUR_API_KEY
+stacktape login --api-key YOUR_API_KEY
 ```
 
 You can create API keys in the [Stacktape Console](/stacktape-console/api-keys).
@@ -70,7 +70,7 @@ Stages let you run multiple independent copies of your infrastructure — `dev`,
 If your configuration file is not named `stacktape.ts` or is in a different directory, point the CLI at it explicitly.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape deploy --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 ### What happens during deploy
@@ -94,7 +94,7 @@ After a successful CLI deploy, Stacktape includes resource links and a Console U
 https://console.stacktape.com/projects/{project}/{stage}/overview
 ```
 
-The Console URL includes the project name. The project name is set via `--projectName`, a configured default (see [`stacktape defaults:configure`](/cli/defaults-configure)), or an interactive prompt on your first deploy. See the [`stacktape deploy`](/cli/deploy) CLI reference for the full list of flags. Open this URL to manage the deployed stack in the Console.
+The Console URL includes the project name. The project name is set via `--project`, a configured default (see [`stacktape defaults set`](/cli/defaults-configure)), or an interactive prompt on your first deploy. See the [`stacktape deploy`](/cli/deploy) CLI reference for the full list of flags. Open this URL to manage the deployed stack in the Console.
 
 ## What gets created in AWS
 
@@ -135,7 +135,7 @@ Stacktape prepares the CloudFormation template, computes a diff, uploads artifac
 
 ### Code-only changes deploy in seconds
 
-When a deployment changes only the code of functions or container services, Stacktape updates them directly instead of through CloudFormation. You don't need a flag for this. Changes to infrastructure or configuration always go through CloudFormation, and `--fullDeploy` forces it. See [Fast deployments](/cli/deploy#fast-deployments).
+When a deployment changes only the code of functions or container services, Stacktape updates them directly instead of through CloudFormation. You don't need a flag for this. Changes to infrastructure or configuration always go through CloudFormation, and `--full` forces it. See [Fast deployments](/cli/deploy#fast-deployments).
 
 ## Deploying multiple stages
 
@@ -155,7 +155,7 @@ You need to connect an AWS account before deploying. Open the connected AWS acco
 
 ### "belongs to AWS account …, which is not connected"
 
-`--profile`, `AWS_PROFILE` or AWS keys in your environment point to an AWS account that is not connected to your organization. Stacktape deploys to the account your local AWS credentials belong to. Unset them, pass `--awsAccount <name>`, or connect that account. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+`--profile`, `AWS_PROFILE` or AWS keys in your environment point to an AWS account that is not connected to your organization. Stacktape deploys to the account your local AWS credentials belong to. Unset them, pass `--aws-account <name>`, or connect that account. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
 ### Deploy takes longer than expected
 
@@ -163,11 +163,11 @@ First deploys take longer because every resource must be created from scratch. D
 
 ### CloudFormation rollback
 
-If a resource fails to create, CloudFormation automatically rolls back all changes — your stack returns to its previous working state. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For rollback options, see [`stacktape rollback`](/cli/rollback) for version-based rollback and [`stacktape cf:rollback`](/cli/cf-rollback) for CloudFormation-level rollback.
+If a resource fails to create, CloudFormation automatically rolls back all changes — your stack returns to its previous working state. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For rollback options, see [`stacktape rollback`](/cli/rollback) for version-based rollback and [`stacktape stack recover`](/cli/cf-rollback) for CloudFormation-level rollback.
 
 ### Deploy fails during dev mode
 
-You cannot deploy to a stage that currently has an active [dev mode](/getting-started/use-the-dev-mode) session. Stop dev mode first with [`stacktape dev:stop`](/cli/dev-stop), or deploy to a different stage name.
+You cannot deploy to a stage that currently has an active [dev mode](/getting-started/use-the-dev-mode) session. Stop dev mode first with [`stacktape dev stop`](/cli/dev-stop), or deploy to a different stage name.
 
 ## FAQ
 
@@ -181,7 +181,7 @@ Connecting an AWS account is free. AWS resources created by your stacks are bill
 
 ### Can I deploy to any AWS region?
 
-Yes. The AWS account connection stack is created in `eu-west-1`, but your project stacks can deploy to any AWS region. Specify the region with `--region` on each deploy command, or set a default with [`stacktape defaults:configure`](/cli/defaults-configure).
+Yes. The AWS account connection stack is created in `eu-west-1`, but your project stacks can deploy to any AWS region. Specify the region with `--region` on each deploy command, or set a default with [`stacktape defaults set`](/cli/defaults-configure).
 
 ### Is the connection between Stacktape and my AWS account secure?
 
@@ -189,7 +189,7 @@ The connection uses a CloudFormation stack that grants Stacktape cross-account A
 
 ### What happens if I lose internet during a deploy?
 
-CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, check the stack status with [`stacktape info:stack`](/cli/info-stack) before running another deploy.
+CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, check the stack status with [`stacktape status`](/cli/info-stack) before running another deploy.
 
 ### What's the difference between stages and AWS accounts?
 

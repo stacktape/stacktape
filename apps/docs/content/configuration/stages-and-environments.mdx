@@ -285,13 +285,13 @@ instead), and only production gets a WAF. This pattern keeps preview stages fast
 ## Stage-specific secrets
 
 Store separate Stacktape secrets for each stage. Use
-[`stacktape secret:set`](/cli/secret-set) to create them, and the
+[`stacktape secret set`](/cli/secret-set) to create them, and the
 [`$Secret` directive](/configuration/directives) to reference them in config.
 
-Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret:set`](/cli/secret-set):
+Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret set`](/cli/secret-set):
 
 ```bash
-stacktape secret:set --region eu-west-1
+stacktape secret set --region eu-west-1
 ```
 
 Run the command once per secret. See the [CLI reference](/cli/secret-set) for available options.
@@ -366,7 +366,7 @@ This produces:
 | `staging` | `staging.api.example.com` |
 | `dev` | `dev.api.example.com` |
 
-Custom domains are managed separately. See [custom domains](/resources/networking/custom-domains) and [`stacktape domain:add`](/cli/domain-add) for setup.
+Custom domains are managed separately. See [custom domains](/resources/networking/custom-domains) and [`stacktape domain add`](/cli/domain-add) for setup.
 
 ## Sharing resources across stages
 
@@ -457,10 +457,10 @@ This keeps a single database instance serving multiple services within the same 
 
 ## Setting defaults
 
-If you always deploy to the same stage and region during development, use [`stacktape defaults:configure`](/cli/defaults-configure) to set default values for stage and region. See the [CLI reference](/cli/defaults-configure) for details.
+If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-configure) to set default values for stage and region. See the [CLI reference](/cli/defaults-configure) for details.
 
 ```bash
-stacktape defaults:configure
+stacktape defaults set
 ```
 
 Once configured, you can deploy without passing `--stage` and `--region`:
@@ -479,10 +479,10 @@ stacktape deploy --stage production --region us-east-1
 
 ### Listing stacks
 
-Use [`stacktape info:stacks`](/cli/info-stacks) to list deployed stacks in a region. See the [CLI reference](/cli/info-stacks) for available options.
+Use [`stacktape stack list`](/cli/info-stacks) to list deployed stacks in a region. See the [CLI reference](/cli/info-stacks) for available options.
 
 ```bash
-stacktape info:stacks --region eu-west-1
+stacktape stack list --region eu-west-1
 ```
 
 ### Deleting a stage
@@ -497,7 +497,7 @@ Deletion removes the stage's CloudFormation stack. Other stages remain completel
 
 <Warning>
   You cannot run `stacktape deploy` on a stage that is currently running in [dev mode](/local-development/dev-mode-overview).
-  Stop dev mode first with [`stacktape dev:stop`](/cli/dev-stop), then deploy.
+  Stop dev mode first with [`stacktape dev stop`](/cli/dev-stop), then deploy.
 </Warning>
 
 ## Best practices

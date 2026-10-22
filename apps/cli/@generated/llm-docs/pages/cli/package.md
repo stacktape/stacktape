@@ -10,10 +10,10 @@ stacktape package --stage dev --region eu-west-1
 
 The command loads your Stacktape configuration, initializes packaging, and packages all compute resources for the target stack. A valid Stacktape configuration file is required — by default Stacktape looks for one in the current directory.
 
-To use a configuration file in a different location, pass `--configPath`.
+To use a configuration file in a different location, pass `--config`.
 
 ```bash
-stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 
@@ -31,7 +31,7 @@ stacktape package --stage staging --region us-east-1
 Package with debug logging to see detailed build output:
 
 ```bash
-stacktape package --stage dev --region eu-west-1 --logLevel debug
+stacktape package --stage dev --region eu-west-1 --debug
 ```
 
 Package using a specific AWS profile:
@@ -43,7 +43,7 @@ stacktape package --stage prod --region eu-west-1 --profile my-aws-profile
 Package using a configuration file in a subdirectory:
 
 ```bash
-stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 ## Command reference
@@ -53,25 +53,23 @@ stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--stage (-s)` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--onlyWorkloads (-ow)` | no | `array` | Only Workloads — Package only the specified workloads. Provide a comma-separated list of workload names to package. Other workloads will be skipped. Example: `--onlyWorkloads myFunction,myContainer`. | - |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--only-workloads` | no | `array` | Only Workloads — Package only the specified workloads. Provide a comma-separated list of workload names to package. Other workloads will be skipped. Example: `--only-workloads myFunction,myContainer`. | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Related commands
 
 - [`deploy`](/cli/deploy) — creates or updates your stack on AWS. Use `deploy` when you want to deploy; `package` runs the packaging step independently.
 - [`synth`](/cli/synth) — compiles your configuration into a CloudFormation template without packaging compute resources. Use `synth` when you only need to inspect the infrastructure template.
-- [`validate`](/cli/validate) — validates your configuration and optionally includes workload packaging checks with `--withPackage`.
+- [`validate`](/cli/validate) — validates your configuration and optionally includes workload packaging checks with `--with-package`.
 - [`diff`](/cli/diff) — previews what would change in your stack if you deployed. Useful alongside `package` for a full pre-deploy review.
 
 ## FAQ
@@ -80,9 +78,9 @@ stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.
 
 Use `package` when you want to verify that your compute resources package correctly before committing to a deployment — for example, catching build errors, confirming dependencies resolve, or validating that container images build successfully. In normal workflows, [`deploy`](/cli/deploy) handles packaging as part of its pipeline, so `package` is primarily a pre-deploy verification tool.
 
-### How is `package` different from `validate --withPackage`?
+### How is `package` different from `validate --with-package`?
 
-[`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--withPackage` also validates workload packaging. Use `validate --withPackage` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
+[`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--with-package` also validates workload packaging. Use `validate --with-package` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
 
 ### Does `package` use caching?
 
@@ -94,7 +92,7 @@ Only when your configuration reads something from AWS. `package` builds on your 
 
 ### Can I package only specific workloads?
 
-By default, the `package` command packages all compute resources in your configuration. To target a subset, pass `--onlyWorkloads` with a comma-separated list of workload names (for example, `--onlyWorkloads myFunction,myContainer`). Other workloads are skipped.
+By default, the `package` command packages all compute resources in your configuration. To target a subset, pass `--only-workloads` with a comma-separated list of workload names (for example, `--only-workloads myFunction,myContainer`). Other workloads are skipped.
 
 ### What is the difference between `package` and `synth`?
 

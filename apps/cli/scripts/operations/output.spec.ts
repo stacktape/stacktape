@@ -18,8 +18,8 @@ test('redirected help is readable and early failures preserve the JSONL result c
   try {
     const help = await fixture.run(['--help']);
     expect(help.exitCode).toBe(0);
-    expect(help.stdout).toContain('Available commands:');
-    expect(help.stdout).toContain('query:sql');
+    expect(help.stdout).toContain('Daily:');
+    expect(help.stdout).toContain('query sql');
     expect(help.stdout).toBe(stripAnsi(help.stdout));
     expect(help.stderr).toBe('');
     const prompt = await fixture.run(['aws-profile:create']);
@@ -139,6 +139,11 @@ test('a failed script returns a nonzero exit and an actionable final result with
       })
     );
     expect(run.stdout).not.toContain('SCRIPT "fail" COMPLETED');
+    const plain = await fixture.run(['script:run', '--scriptName', 'fail', '--outputFormat', 'plain', ...targetArgs]);
+    expect(plain.exitCode).toBe(1);
+    // CI logs mark the final result; a failure never carries the success marker.
+    expect(plain.stdout).toContain('(SCRIPT_ERROR)');
+    expect(plain.stdout).not.toContain('[+]');
     expect(fixture.api.unexpected).toEqual([]);
     expect(fixture.aws.unexpected).toEqual([]);
   } finally {

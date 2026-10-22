@@ -466,7 +466,7 @@ For most worker services, keep logging enabled and make log output structured en
 
 ## Remote sessions
 
-Set `enableRemoteSessions: true` to allow interactive shell access to running worker containers through [`stacktape container:session`](/cli/container-session). Stacktape adds a small SSM agent sidecar that uses minimal CPU and memory. Remote sessions are disabled by default.
+Set `enableRemoteSessions: true` to allow interactive shell access to running worker containers through [`stacktape container shell`](/cli/container-session). Stacktape adds a small SSM agent sidecar that uses minimal CPU and memory. Remote sessions are disabled by default.
 
 <CodeBlock
   intellisense
@@ -515,7 +515,7 @@ Use a `run-on-init` side container. This container must exit with code 0 before 
 
 ### How do I debug a running worker service?
 
-Start with [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview) to inspect container output. For interactive debugging, enable `enableRemoteSessions` and use [`stacktape container:session`](/cli/container-session) to open a shell inside the running container. Use [`stacktape metrics`](/cli/metrics) to check CPU and memory utilization.
+Start with [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview) to inspect container output. For interactive debugging, enable `enableRemoteSessions` and use [`stacktape container shell`](/cli/container-session) to open a shell inside the running container. Use [`stacktape metrics`](/cli/metrics) to check CPU and memory utilization.
 
 ### What happens when a worker service container crashes?
 

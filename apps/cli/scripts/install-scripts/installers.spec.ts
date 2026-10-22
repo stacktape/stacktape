@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -145,9 +145,14 @@ test.skipIf(process.platform === 'win32').each(installers)(
         expect(result.exitCode).toBe(0);
         expect(result.stdout.toString()).toBe('candidate executable: --version\n');
       }
+      // The installer's TMPDIR is the fixture root: an 80 MB download must not stay behind.
+      expect(readdirSync(root).filter((name) => name.startsWith('stacktape_install_'))).toEqual([]);
       const shellConfig = await readFile(join(home, platform === 'alpine' ? '.profile' : '.bashrc'), 'utf8');
       expect(shellConfig).toContain(bin);
-      expect(run().exitCode).toBe(0);
+      // A GitHub Actions job gets the directory on PATH for its later steps, and shell setup is not repeated.
+      const githubPath = join(root, 'github-path');
+      expect(run({ GITHUB_ACTIONS: 'true', GITHUB_PATH: githubPath }).exitCode).toBe(0);
+      expect(await readFile(githubPath, 'utf8')).toBe(`${bin}\n`);
       expect(await readFile(join(home, platform === 'alpine' ? '.profile' : '.bashrc'), 'utf8')).toBe(shellConfig);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -174,6 +179,75 @@ test.skipIf(process.platform === 'win32')(
       await rm(root, { recursive: true, force: true });
     }
   }
+);
+
+// macOS defaults to zsh and many developers use fish; each gets its own configuration file and syntax. Every
+// installer except Alpine's (ash, `.profile` only) carries its own copy of the shell setup, so each is run.
+const shells = [
+  { shell: '/bin/zsh', file: '.zshrc', line: (bin: string) => `export PATH="${bin}:$PATH"` },
+  { shell: '/usr/bin/fish', file: '.config/fish/config.fish', line: (bin: string) => `fish_add_path ${bin}` }
+];
+test
+  .skipIf(process.platform === 'win32')
+  .each(
+    installers
+      .filter((installer) => installer !== 'alpine')
+      .flatMap((installer) => shells.map((entry) => ({ installer, ...entry })))
+  )('$installer installer adds the directory to PATH for $shell', async ({ installer, shell, file, line }) => {
+  const { root, bin, home, run } = await fixture(installer);
+  try {
+    await mkdir(join(home, file, '..'), { recursive: true });
+    await writeFile(join(home, file), '# customer shell\n');
+    const result = run({ SHELL: shell });
+    expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
+    expect(await readFile(join(home, file), 'utf8')).toContain(line(bin));
+    expect(await readFile(join(home, '.bashrc'), 'utf8')).toBe('# customer shell\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// A new macOS account uses zsh but has no zsh configuration file yet. The installer creates `.zshrc` in zsh's
+// configuration directory (ZDOTDIR when set), so the next terminal finds the CLI. An existing `.zshenv` is used instead.
+test.skipIf(process.platform === 'win32').each(
+  installers
+    .filter((installer) => installer !== 'alpine')
+    .flatMap((installer) => [
+      { installer, account: 'an empty HOME', zdotdir: '', existing: '', expected: '.zshrc' },
+      { installer, account: 'ZDOTDIR', zdotdir: '.config/zsh', existing: '', expected: '.config/zsh/.zshrc' },
+      { installer, account: 'only .zshenv', zdotdir: '', existing: '.zshenv', expected: '.zshenv' }
+    ])
+)(
+  '$installer installer sets up PATH for a zsh login shell with $account',
+  async ({ installer, zdotdir, existing, expected }) => {
+    const { root, bin, home, run } = await fixture(installer);
+    try {
+      await rm(join(home, '.bashrc'));
+      await rm(join(home, '.profile'));
+      const zshEnvironment = zdotdir ? { ZDOTDIR: join(home, zdotdir) } : {};
+      if (zdotdir) await mkdir(join(home, zdotdir), { recursive: true });
+      if (existing) await writeFile(join(home, existing), '# customer shell\n');
+      const result = run({ SHELL: '/bin/zsh', ...zshEnvironment });
+      expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
+      expect(result.stdout.toString()).not.toContain('No config file found');
+      expect(await readFile(join(home, expected), 'utf8')).toContain(`export PATH="${bin}:$PATH"`);
+      // Nothing else is written to HOME: no `.zshrc` beside an existing `.zshenv`, no files for other shells.
+      expect(readdirSync(home).sort()).toEqual(['.stacktape', expected.split('/')[0]].sort());
+      // The customer opens a new terminal: a zsh login shell with only the account's files and the system PATH.
+      const shell = Bun.spawnSync({
+        cmd: [Bun.which('zsh')!, '-l', '-i', '-c', 'command -v stacktape'],
+        env: { HOME: home, PATH: '/usr/bin:/bin', TERM: 'dumb', ...zshEnvironment },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 15_000
+      });
+      expect(shell.exitCode, shell.stderr.toString()).toBe(0);
+      expect(shell.stdout.toString().trim()).toBe(join(bin, 'stacktape'));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  30_000
 );
 
 // A visitor may copy the installer for the other architecture, for instance when the website guesses Apple silicon for

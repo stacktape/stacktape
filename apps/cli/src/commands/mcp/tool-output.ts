@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
 
 export type ToolOutput = {
@@ -98,6 +99,16 @@ const extractJsonLogPayload = (rawTail?: string): Record<string, unknown> | unde
   return undefined;
 };
 
+// Read commands such as logs, metrics, alarms, aws:call and query:* print their agent payload as a JSON log line and
+// return null, which the CLI reports as `{ result: null }`. Without this the agent gets a successful call with no data.
+const withLogPayload = (data: Record<string, unknown> | undefined, rawTail?: string) => {
+  if (data?.result !== undefined && data.result !== null) return data;
+  const payload = extractJsonLogPayload(rawTail);
+  if (!payload) return data;
+  const { result: _empty, ...rest } = data || {};
+  return { ...rest, result: payload };
+};
+
 const MAX_RESPONSE_CHARS = 30000;
 export const GENERIC_AWS_MCP_BOUNDARY =
   'Do not call generic AWS/AWS SDK MCP tools for this Stacktape-managed operation. Use Stacktape MCP to preserve project/stage/resource mapping and safety gates; ask the user for missing Stacktape args if this response is insufficient.';
@@ -176,6 +187,34 @@ const shrinkToolPayload = (payload: ToolOutput | Record<string, unknown>): ToolO
   return compact;
 };
 
+// Read commands return whole lists: log events, table items, datapoints. Rather than failing the call, keep as much of
+// each list as fits (the newest log events, the first entries of anything else) and say how many were left out.
+const trimCliResultLists = (payload: Record<string, unknown>): Record<string, unknown> | undefined => {
+  const data = payload.data as Record<string, unknown> | undefined;
+  const cli = data?.cli as Record<string, unknown> | undefined;
+  const result = cli?.result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
+  const trimmed = { ...(result as Record<string, unknown>) };
+  const omittedItems: Record<string, number> = {};
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const candidate = {
+      ...payload,
+      data: { ...data, cli: { ...cli, result: { ...trimmed, omittedItems } } },
+      truncated: true
+    };
+    if (JSON.stringify(candidate, null, 2).length <= MAX_RESPONSE_CHARS) return candidate;
+    const longest = Object.entries(trimmed)
+      .filter((entry): entry is [string, unknown[]] => Array.isArray(entry[1]) && entry[1].length > 1)
+      .sort(([, left], [, right]) => right.length - left.length)[0];
+    if (!longest) return undefined;
+    const [key, items] = longest;
+    const keep = Math.floor(items.length / 2);
+    trimmed[key] = key === 'events' ? items.slice(-keep) : items.slice(0, keep);
+    omittedItems[key] = (omittedItems[key] ?? 0) + items.length - keep;
+  }
+  return undefined;
+};
+
 const isToolOutput = (payload: ToolOutput | Record<string, unknown>): payload is ToolOutput =>
   typeof payload.ok === 'boolean' && typeof payload.code === 'string' && typeof payload.message === 'string';
 
@@ -207,6 +246,11 @@ export const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
 
     if (text.length > MAX_RESPONSE_CHARS) {
       text = JSON.stringify(shrinkToolPayload(withoutTail), null, 2);
+    }
+
+    if (text.length > MAX_RESPONSE_CHARS) {
+      const trimmedLists = trimCliResultLists(withoutTail);
+      if (trimmedLists) text = JSON.stringify(trimmedLists, null, 2);
     }
 
     if (text.length > MAX_RESPONSE_CHARS) {
@@ -348,7 +392,7 @@ const summarizeInfoStackData = (data?: Record<string, unknown>): Record<string, 
   if (result?.schemaVersion !== INFO_STACK_AGENT_SCHEMA_VERSION) {
     return {
       sourceSchemaVersion: result?.schemaVersion,
-      note: `Stacktape expected ${INFO_STACK_AGENT_SCHEMA_VERSION} from info:stack but received an unsupported result.`
+      note: `Stacktape expected ${INFO_STACK_AGENT_SCHEMA_VERSION} from status but received an unsupported result.`
     };
   }
 
@@ -363,7 +407,7 @@ const summarizeInfoStackData = (data?: Record<string, unknown>): Record<string, 
     description: result.description,
     ...(stackInfoResources ? { stacktapeResources: stackInfoResources } : {}),
     ...(cloudformation ? { cloudformation } : {}),
-    note: 'Full info:stack output was compacted for MCP. It can contain hundreds of CloudFormation records and sensitive-looking metadata; use this Stacktape summary instead of generic AWS MCP tools for Stacktape-managed stacks.'
+    note: 'Full status output was compacted for MCP. It can contain hundreds of CloudFormation records and sensitive-looking metadata; use this Stacktape summary instead of generic AWS MCP tools for Stacktape-managed stacks.'
   };
 };
 
@@ -404,7 +448,8 @@ export const buildCliRunOutput = ({
 }): ToolOutput => {
   let data = summarizeCliDataForAgent({
     command,
-    data: result.data || extractJsonLogPayload(result.rawTail)
+    // A sensitive command's printed payload holds the value itself (secret:get); it never reaches the agent.
+    data: policy.sensitiveOutput ? result.data : withLogPayload(result.data, result.rawTail)
   });
   let rawTail = result.ok && data ? undefined : result.rawTail;
 
@@ -420,7 +465,7 @@ export const buildCliRunOutput = ({
   const failureNextActions = authFailure
     ? STACKTAPE_AUTH_FAILURE_NEXT_ACTIONS
     : [
-        `Do not retry stacktape ${command} through Bash/shell. The MCP result above is the canonical execution result.`,
+        `Do not retry stacktape ${publicCommandName(command)} through Bash/shell. The MCP result above is the canonical execution result.`,
         rawTail
           ? 'Use rawTail to explain the failure, then ask the user for the missing input or auth step if needed.'
           : 'If the CLI produced no raw output, report that limitation and ask the user for the missing input or auth step if needed.',

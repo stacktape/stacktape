@@ -98,7 +98,7 @@ export type WizardState = {
   repositoryPath?: string;
   /** A configuration already in the repository. It is never modified; the new one lands beside it. */
   existingConfig?: string;
-  /** The `--awsAccount` the CLI was started with. Every copyable stack command names it. */
+  /** The `--aws-account` the CLI was started with. Every copyable stack command names it. */
   awsAccount?: string;
   /** How the project can be read. Chosen on the first screen. */
   agents?: WizardAgentOption[];
@@ -108,7 +108,15 @@ export type WizardState = {
   preferences?: DeploymentPreferences;
   recommendedPreferences?: DeploymentPreferences;
   /** Set once the configuration is on disk. `existingPath` means this is a file written beside one. */
-  configFile?: { path: string; filename: string; format: 'yaml' | 'typescript'; existingPath?: string };
+  configFile?: {
+    path: string;
+    filename: string;
+    format: 'yaml' | 'typescript';
+    existingPath?: string;
+    region?: string;
+  };
+  /** The region the file declares: the written file's, otherwise the one writing it would declare. */
+  region?: string;
   /** Who this machine is to AWS. Absent until the check has answered. */
   awsIdentity?:
     | { available: true; accountId: string; arn: string; region?: string }
@@ -120,6 +128,18 @@ export type WizardState = {
   stacktapeAccount?: { signedIn: boolean; detail: string; email?: string; organization?: string };
   /** The sign-in step to render while signed out. Absent when this CLI cannot sign in from the page. */
   signIn?: WizardSignIn;
+  /**
+   * Connecting the coding agent picked on the Start step to Stacktape, offered once a deploy has succeeded. It changes
+   * that agent's user-level configuration, outside the repository, so it happens only on a click.
+   */
+  codingAgentSetup?: {
+    agentId: string;
+    label: string;
+    status: 'offered' | 'running' | 'connected' | 'failed';
+    /** The same change from a terminal. */
+    command: string;
+    detail?: string;
+  };
   /** The git host this project pushes to, when it is one we generate a pipeline for. */
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** The deployment pipeline, once one has been written. */
@@ -137,6 +157,8 @@ export type WizardState = {
     stage: string;
     region: string;
     commandLine: string;
+    /** When this attempt began; the event list is capped, so its first entry cannot say. */
+    startedAt?: string;
     events: unknown[];
     lines: string[];
     outcome?: { ok: boolean; code: string; message: string };
@@ -147,8 +169,8 @@ export type WizardState = {
     repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
     /** A failed attempt left its progress standing (a retry over an existing stack). It still bills. */
     keptPartialProgress?: boolean;
-    /** Typed deployed-resource URLs; never inferred from build or application logs. */
-    urls?: string[];
+    /** Typed deployed-resource URLs, by resource; never inferred from build or application logs. */
+    urls?: Array<{ resourceName: string; url: string }>;
   };
   /** Exact CloudFormation target observed with the credentials the deploy command will use. */
   deployTarget?:
@@ -271,7 +293,7 @@ export type Session = {
   setPreference: (change: DeploymentPreferenceChange) => Promise<WizardState>;
   /** Write the configuration to the repository, in the format chosen on the Review step. */
   write: (format: 'yaml' | 'typescript') => Promise<WizardState>;
-  /** Deploy it. The only thing in this wizard that creates anything outside the repository. */
+  /** Deploy it. Besides connecting a coding agent, the only thing here that changes anything outside the repository. */
   deploy: (
     stage: string,
     region: string,
@@ -283,10 +305,12 @@ export type Session = {
   dismissVerification: () => Promise<WizardState>;
   /** Write a deployment pipeline for the project's git host. */
   pipeline: (stage: string, region: string) => Promise<WizardState>;
+  /** Connect the coding agent picked on the Start step to Stacktape, at user level. */
+  connectCodingAgent: () => Promise<WizardState>;
   /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
   recheck: () => Promise<WizardState>;
-  /** Price the configuration for the region picked on the Deploy step. The new price is published when it arrives. */
-  setPriceRegion: (region: string) => Promise<WizardState>;
+  /** Pick the region the file declares, before it is written. The preview follows; the new price arrives later. */
+  setRegion: (region: string) => Promise<WizardState>;
   /** Take one step of signing in to Stacktape. What it led to is in the returned state's `signIn`. */
   signIn: (request: SignInRequest) => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
@@ -417,6 +441,17 @@ export const connect = async (): Promise<Session> => {
       publish((await written.json()) as WizardState);
       return current;
     },
+    connectCodingAgent: async () => {
+      const connected = await fetch('/api/coding-agent-setup', {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrfToken }
+      });
+      if (!connected.ok) {
+        throw new SessionError('The coding agent could not be connected.');
+      }
+      publish((await connected.json()) as WizardState);
+      return current;
+    },
     setPreference: async (change) => {
       const changed = await fetch('/api/preferences', {
         method: 'POST',
@@ -441,14 +476,14 @@ export const connect = async (): Promise<Session> => {
       publish((await checked.json()) as WizardState);
       return current;
     },
-    setPriceRegion: async (region) => {
-      const priced = await fetch('/api/price-region', {
+    setRegion: async (region) => {
+      const priced = await fetch('/api/region', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
         body: JSON.stringify({ region })
       });
       if (!priced.ok) {
-        throw new SessionError('The price for that region could not be requested.');
+        throw new SessionError('That region could not be chosen.');
       }
       publish((await priced.json()) as WizardState);
       return current;

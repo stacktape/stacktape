@@ -1,3 +1,4 @@
+import { setSpinnerQuiet } from './spinner';
 import type { DeploymentPhase, LoggableEventType } from '@application-services/operation-manager';
 import type { LogLevel } from 'src/config/cli/types';
 import { CliError, type HandledError } from '@utils/errors';
@@ -58,6 +59,9 @@ export type { Spinner } from './spinner';
  * composes the output pipeline (output/), the renderer runtime (runtime/), the
  * progress model (progress/), prompts (prompt/) and formatting (format/).
  */
+// Progress-style messages `--quiet` hides. `info` stays: commands print their data through it.
+const QUIET_HIDDEN_MESSAGES = new Set<TuiMessageType>(['success', 'hint', 'start', 'announcement']);
+
 class TuiManager {
   private presentation = new PresentationController();
   private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
@@ -76,6 +80,8 @@ class TuiManager {
   private _wasEverStarted = false;
   private _devTuiActive = false;
   private logLevel: LogLevel = 'info';
+  /** `--quiet`: no progress UI, banners, success messages or hints; command output, warnings and errors stay. */
+  private quiet = false;
   private ttyView: TtyView = 'auto';
 
   constructor() {
@@ -109,8 +115,11 @@ class TuiManager {
     this.applyOutputMode();
   }
 
-  init(options: { logLevel?: LogLevel } = {}) {
+  init(options: { logLevel?: LogLevel; quiet?: boolean } = {}) {
     this.logLevel = options.logLevel || 'info';
+    this.quiet = Boolean(options.quiet);
+    this.outputRouter.setQuiet(this.quiet);
+    setSpinnerQuiet(this.quiet);
     this.applyOutputMode();
     this.outputRouter.reset();
   }
@@ -142,6 +151,7 @@ class TuiManager {
   }
 
   start(options: { phases?: PhasePreset; view?: TtyView } = {}) {
+    if (this.quiet) return;
     this._isEnabled = true;
     this._wasEverStarted = true;
     this.teardownDone = false;
@@ -305,7 +315,7 @@ class TuiManager {
       this.consoleInterceptor.start({
         passthrough: this.outputMode === 'plain',
         onMessage: ({ level, source, message }) => {
-          this.outputRouter.emit({ type: 'log', level, source, message });
+          this.emitOutputRecord({ type: 'log', level, source, message });
         }
       });
       return;
@@ -318,6 +328,7 @@ class TuiManager {
   }
 
   intro(title: string) {
+    if (this.quiet) return;
     if (!this.isTTY) {
       console.info(`\n[i] ${title}\n`);
       return;
@@ -326,6 +337,7 @@ class TuiManager {
   }
 
   outro(message?: string) {
+    if (this.quiet) return;
     if (!this.isTTY) {
       if (message) console.info(`\n✓ ${message}\n`);
       return;
@@ -480,6 +492,7 @@ class TuiManager {
   }
 
   private log(type: TuiMessageType, message: string) {
+    if (this.quiet && QUIET_HIDDEN_MESSAGES.has(type)) return;
     operationSession.message(type, message);
 
     if (this.outputMode === 'plain' || this.outputMode === 'jsonl') return;
@@ -535,6 +548,7 @@ class TuiManager {
   }
 
   showCommandHeader(header: TuiDeploymentHeader, options: { renderStandalone?: boolean } = {}) {
+    if (this.quiet) return;
     this.setHeader(header);
     if (!options.renderStandalone) return;
     if (this._isEnabled || !this.isTTY || this.outputMode !== 'tty') return;

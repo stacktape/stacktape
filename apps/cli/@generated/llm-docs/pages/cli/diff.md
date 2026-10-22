@@ -37,13 +37,13 @@ For resources that will be replaced, the output distinguishes between **will rep
 
 **`--region`** (required) — the AWS region where the stack is deployed.
 
-**`--configPath`** — path to your Stacktape configuration file, relative to the current working directory.
+**`--config`** — path to your Stacktape configuration file, relative to the current working directory.
 
-**`--preserveTempFiles`** — keeps the synthesized CloudFormation template and packaged artifacts in `.stacktape/[invocation-id]` after the command finishes. Useful for inspecting exactly what Stacktape generated.
+**`--keep-temp-files`** — keeps the synthesized CloudFormation template and packaged artifacts in `.stacktape/[invocation-id]` after the command finishes. Useful for inspecting exactly what Stacktape generated.
 
-**`--agent`** — selects agent-oriented output (implies `--outputFormat jsonl`). Each resource change prints a primary line (symbol, name, type, action label) plus optional sub-lines for highlights, will-replace, and may-replace properties.
+**`--agent`** — selects agent-oriented output (implies `--json`). Each resource change prints a primary line (symbol, name, type, action label) plus optional sub-lines for highlights, will-replace, and may-replace properties.
 
-**`--profile`** — the AWS profile to use. Manage profiles with [`aws-profile:create`](/cli/aws-profile-create) and set a default with [`defaults:configure`](/cli/defaults-configure).
+**`--profile`** — the AWS profile to use. Manage profiles with [`aws-profile create`](/cli/aws-profile-create) and set a default with [`defaults set`](/cli/defaults-configure).
 
 ## Examples
 
@@ -56,13 +56,13 @@ stacktape diff --stage staging --region us-east-1
 Preview changes using a specific config file and AWS profile:
 
 ```bash
-stacktape diff --stage production --region eu-west-1 --configPath ./infra/stacktape.ts --profile my-aws-profile
+stacktape diff --stage production --region eu-west-1 --config ./infra/stacktape.ts --profile my-aws-profile
 ```
 
 Preview changes and keep the generated template for inspection:
 
 ```bash
-stacktape diff --stage dev --region us-west-2 --preserveTempFiles
+stacktape diff --stage dev --region us-west-2 --keep-temp-files
 ```
 
 Use agent mode for machine-readable output:
@@ -114,19 +114,17 @@ Meaningful Stacktape resource changes
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--stage (-s)` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--awsAccount` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--preserveTempFiles (-ptf)` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--keep-temp-files` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Related commands
@@ -148,7 +146,7 @@ CloudFormation sometimes reports changes to internal bookkeeping resources. Stac
 
 ### How do I get machine-readable diff output for scripts or PR comments?
 
-Use `--agent` (which implies `--outputFormat jsonl`) for NDJSON, or `--outputFormat plain` for plain text. In agent mode each resource change prints a primary line with a symbol (`+`, `~`, `!`, `-`), resource name, type, and action label, plus optional sub-lines for highlights, will-replace, and may-replace properties — straightforward to parse in scripts or surface in pull request comments.
+Use `--agent` (which implies `--json`) for NDJSON, or `--output-format plain` for plain text. In agent mode each resource change prints a primary line with a symbol (`+`, `~`, `!`, `-`), resource name, type, and action label, plus optional sub-lines for highlights, will-replace, and may-replace properties — straightforward to parse in scripts or surface in pull request comments.
 
 ### What is the difference between "will replace" and "may replace"?
 

@@ -1,7 +1,8 @@
 import type { StacktapeCommand } from './commands';
 import { z } from 'zod';
 import { cliCommands, commandDefinitions } from './commands';
-import { argAliases } from './options';
+import { allCliArgsSchema, argAliases } from './options';
+import { globalArgs, publicCommandName, publicFlag, shortFlags, commandPositionals, hiddenArgs } from './public-names';
 
 type ArgSchema = z.ZodType;
 type ArgsShape = Record<string, ArgSchema>;
@@ -44,19 +45,24 @@ const getZodTypeInfo = (schema: z.ZodType): { allowedTypes: string[]; allowedVal
   return { allowedTypes: ['string'] };
 };
 
+const presentDescription = (text: string): string =>
+  text?.replace(/\b[a-z-]+:[a-z-]+\b/g, (name) =>
+    cliCommands.includes(name as StacktapeCommand) ? publicCommandName(name) : name
+  );
+
 const getSchemaDescription = (schema: z.ZodType): string | undefined => {
   const schemaAny = schema as any;
   if (schemaAny.description) {
-    return schemaAny.description;
+    return presentDescription(schemaAny.description);
   }
   if (schemaAny.type === 'optional' && schemaAny._zod?.def?.innerType) {
-    return schemaAny._zod.def.innerType.description;
+    return presentDescription(schemaAny._zod.def.innerType.description);
   }
   return undefined;
 };
 
 export const getAllowedArgs = (cmd: StacktapeCommand): string[] => {
-  return Object.keys(commandDefinitions[cmd].args);
+  return [...new Set([...Object.keys(commandDefinitions[cmd].args), ...globalArgs])];
 };
 
 export const getRequiredArgs = (cmd: StacktapeCommand): readonly string[] => {
@@ -64,7 +70,7 @@ export const getRequiredArgs = (cmd: StacktapeCommand): readonly string[] => {
 };
 
 export const getCommandDescription = (cmd: StacktapeCommand): string => {
-  return commandDefinitions[cmd].description;
+  return presentDescription(commandDefinitions[cmd].description);
 };
 
 export const getArgInfo = (
@@ -77,19 +83,21 @@ export const getArgInfo = (
   allowedTypes: string[];
   allowedValues?: string[];
 } => {
-  const argSchema = commandDefinitions[cmd].args[argName];
+  const argSchema =
+    commandDefinitions[cmd].args[argName] ?? (globalArgs.has(argName) ? allCliArgsSchema.shape[argName] : undefined);
   if (!argSchema) {
     return { required: false, allowedTypes: ['string'] };
   }
 
   const typeInfo = getZodTypeInfo(argSchema as z.ZodType);
   const requiredArgs = commandDefinitions[cmd].requiredArgs as readonly string[];
-  const alias = argAliases[argName as keyof typeof argAliases] as string | readonly string[] | undefined;
+  const rawAlias = argAliases[argName as keyof typeof argAliases];
+  const alias = typeof rawAlias === 'string' ? rawAlias : rawAlias?.join(', ');
 
   return {
     description: getSchemaDescription(argSchema as z.ZodType),
     required: requiredArgs.includes(argName),
-    alias: typeof alias === 'string' ? alias : alias?.join(', '),
+    alias,
     ...typeInfo
   };
 };
@@ -97,13 +105,16 @@ export const getArgInfo = (
 export const getCommandInfo = (cmd: StacktapeCommand) => {
   const def = commandDefinitions[cmd];
   return {
-    description: def.description,
-    args: Object.fromEntries(Object.keys(def.args).map((argName) => [argName, getArgInfo(cmd, argName)]))
+    description: presentDescription(def.description),
+    args: Object.fromEntries(getAllowedArgs(cmd).map((argName) => [argName, getArgInfo(cmd, argName)]))
   };
 };
 
 const buildCommandSchema = (cmd: StacktapeCommand) => {
-  return z.object(commandDefinitions[cmd].args as ArgsShape);
+  return z.object({
+    ...commandDefinitions[cmd].args,
+    ...Object.fromEntries([...globalArgs].map((name) => [name, allCliArgsSchema.shape[name]]))
+  } as ArgsShape);
 };
 
 export const validateCommandArgs = (cmd: StacktapeCommand, args: unknown) => {
@@ -117,10 +128,14 @@ export const generateCommandSchemaInfo = () => {
     string,
     {
       description: string;
+      publicName: string;
+      positionals: readonly string[];
       args: Record<
         string,
         {
           description?: string;
+          flag: string;
+          positional?: number;
           required: boolean;
           alias?: string;
           allowedTypes: string[];
@@ -131,7 +146,25 @@ export const generateCommandSchemaInfo = () => {
   > = {};
 
   for (const cmd of cliCommands) {
-    result[cmd] = getCommandInfo(cmd);
+    const info = getCommandInfo(cmd);
+    result[cmd] = {
+      ...info,
+      publicName: publicCommandName(cmd),
+      positionals: commandPositionals[cmd] ?? [],
+      args: Object.fromEntries(
+        Object.entries(info.args)
+          .filter(([name]) => !hiddenArgs.has(name))
+          .map(([name, arg]) => [
+            name,
+            {
+              ...arg,
+              alias: shortFlags[name],
+              flag: publicFlag(name),
+              ...(commandPositionals[cmd]?.includes(name) ? { positional: commandPositionals[cmd].indexOf(name) } : {})
+            }
+          ])
+      )
+    };
   }
 
   return result;

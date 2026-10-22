@@ -1,6 +1,6 @@
 # validate
 
-The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--outFile` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
+The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
 
 ## Usage
 
@@ -24,24 +24,24 @@ Stacktape loads the configuration, resolves all resources, validates [guardrails
 stacktape validate --stage dev --region eu-west-1
 ```
 
-### With packaging — add `--withPackage`
+### With packaging — add `--with-package`
 
-The `--withPackage` flag runs workload packaging as part of validation. Stacktape packages all Lambda functions and container workloads, which catches packaging errors surfaced by the normal packaging step — such as missing entry files or misconfigured build settings. Use this when you have changed packaging settings or entry file paths.
+The `--with-package` flag runs workload packaging as part of validation. Stacktape packages all Lambda functions and container workloads, which catches packaging errors surfaced by the normal packaging step — such as missing entry files or misconfigured build settings. Use this when you have changed packaging settings or entry file paths.
 
 ```bash
-stacktape validate --stage dev --region eu-west-1 --withPackage
+stacktape validate --stage dev --region eu-west-1 --with-package
 ```
 
 ### Thorough — add `--thorough`
 
-The `--thorough` flag runs the most complete validation path. It includes everything from `--withPackage` and additionally submits the synthesized CloudFormation template to AWS for server-side validation. CloudFormation validates the template and returns any template validation errors before any stack is created or updated. This requires AWS credentials for the CloudFormation `ValidateTemplate` API call but does not create or modify any stack.
+The `--thorough` flag runs the most complete validation path. It includes everything from `--with-package` and additionally submits the synthesized CloudFormation template to AWS for server-side validation. CloudFormation validates the template and returns any template validation errors before any stack is created or updated. This requires AWS credentials for the CloudFormation `ValidateTemplate` API call but does not create or modify any stack.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1 --thorough
 ```
 
 
-> **Info:** The `--thorough` flag implies `--withPackage`. You do not need to pass both.
+> **Info:** The `--thorough` flag implies `--with-package`. You do not need to pass both.
 
 
 ## When to use validate
@@ -54,7 +54,7 @@ The `validate` command is a fast pre-deploy check that confirms your configurati
 
 ## Inspecting the validated template
 
-By default, `validate` produces only a pass/fail result. Add `--outFile <path>` to write the template after every requested validation step succeeds. When packaging is enabled, this is the packaged template and includes generated Lambda layers and their function references.
+By default, `validate` produces only a pass/fail result. Add `--out <path>` to write the template after every requested validation step succeeds. When packaging is enabled, this is the packaged template and includes generated Lambda layers and their function references.
 
 Use [`synth`](/cli/synth) when you only need the faster, un-packaged template compilation. Use [`diff`](/cli/diff) when you need to see what a deployment would change against a live stack.
 
@@ -62,12 +62,12 @@ Use [`synth`](/cli/synth) when you only need the faster, un-packaged template co
 
 | Flag | What it does |
 |------|-------------|
-| `--withPackage` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
-| `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--withPackage`. Requires AWS credentials. |
-| `--outFile` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
+| `--with-package` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
+| `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--with-package`. Requires AWS credentials. |
+| `--out` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
-| `--configPath` | Path to your Stacktape configuration file if it is not in the default location. |
+| `--config` | Path to your Stacktape configuration file if it is not in the default location. |
 | `--agent` | Optimizes CLI output for programmatic/LLM consumption. Uses JSONL/NDJSON output and disables the interactive terminal UI. |
 
 ## Examples
@@ -81,13 +81,13 @@ stacktape validate --stage production --region us-east-1
 Validate with a specific config file path.
 
 ```bash
-stacktape validate --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+stacktape validate --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 Run the most thorough validation, including packaging and CloudFormation template validation, before merging a pull request.
 
 ```bash
-stacktape validate --stage ci --region eu-west-1 --thorough --outFile ./validated-template.yaml
+stacktape validate --stage ci --region eu-west-1 --thorough --out ./validated-template.yaml
 ```
 
 Use JSONL output for CI or AI-agent consumption.
@@ -103,28 +103,26 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--stage (-s)` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--configPath (-cp)` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outFile (-out)` | no | `string` | Output File — The path to the file where the operation output will be saved. | - |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--awsAccount` is set. The command fails if that account is not connected. | - |
-| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-o, --out` | no | `string` | Output File — The path to the file where the operation output will be saved. | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--thorough` | no | `boolean` | Thorough — If `true`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template. | - |
-| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
-| `--withPackage` | no | `boolean` | With Package — If `true`, validates workload packaging in addition to resolving the configuration and template. | - |
+| `--with-package` | no | `boolean` | With Package — If `true`, validates workload packaging in addition to resolving the configuration and template. | - |
 
 
 ## Related commands
 
-- [`synth`](/cli/synth) — compiles the configuration into an un-packaged CloudFormation template and writes it to a file. Use `validate --withPackage --outFile ...` when you need the packaged template.
+- [`synth`](/cli/synth) — compiles the configuration into an un-packaged CloudFormation template and writes it to a file. Use `validate --with-package --out ...` when you need the packaged template.
 - [`diff`](/cli/diff) — shows a preview of changes that would be applied to a deployed stack. Requires a deployed stack, unlike `validate`.
 - [`deploy`](/cli/deploy) — deploys or updates a stack. Running `validate` before `deploy` catches errors before they reach CloudFormation.
-- [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--withPackage` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
+- [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--with-package` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
 
 ## FAQ
 
@@ -134,7 +132,7 @@ No. The `validate` command does not create, update, or delete any AWS resources 
 
 ### How is validate different from synth?
 
-Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--outFile` is supplied; with `--withPackage` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
+Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--out` is supplied; with `--with-package` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
 
 ### Do I need AWS credentials to run validate in CI?
 
@@ -146,4 +144,4 @@ The default validation catches configuration-level problems: broken references, 
 
 ### Can I use validate with AI agents or in scripts?
 
-Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--outputFormat jsonl` for machine-readable output without the other `--agent` behaviors.
+Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--json` for machine-readable output without the other `--agent` behaviors.

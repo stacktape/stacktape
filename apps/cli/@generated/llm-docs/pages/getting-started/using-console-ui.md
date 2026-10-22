@@ -26,21 +26,21 @@ Use [`stacktape metrics`](/cli/metrics) for CLI-based metric queries. See [Obser
 
 ## Alarms
 
-Alarms are defined in your Stacktape configuration, in the `alarms` list of a resource such as a Lambda function, database, HTTP API Gateway, Application Load Balancer or SQS queue. Stacktape creates the CloudWatch alarms when the stack is deployed. The **Alarms** page in the Alerting group shows the current state of the CloudWatch alarms in your connected AWS accounts, and [`stacktape alarms`](/cli/alarms) shows the state from the CLI.
+Alarms are defined in your Stacktape configuration, in the `alarms` list of a resource such as a Lambda function, database, HTTP API Gateway, Application Load Balancer or SQS queue. Stacktape creates the CloudWatch alarms when the stack is deployed. The **Alarms** page in the Alerting group shows the current state of the CloudWatch alarms in your connected AWS accounts, and [`stacktape alarm list`](/cli/alarms) shows the state from the CLI.
 
-An alarm sends to the `notificationChannels` listed on it, such as Slack, email or a webhook. A firing alarm also opens an [incident](/observability/incidents), which a [notification rule](/observability/notifications) can send to a Console [alert channel](/observability/alert-channels). Alarm rules created in the Console earlier are legacy; they are listed under **Legacy alarm rules** on the Alarms page, and `stacktape alarms:export` moves them into your configuration. See [Observability: Alarms](/observability/alarms) for the full setup guide.
+An alarm sends to the `notificationChannels` listed on it, such as Slack, email or a webhook. A firing alarm also opens an [incident](/observability/incidents), which a [notification rule](/observability/notifications) can send to a Console [alert channel](/observability/alert-channels). Alarm rules created in the Console earlier are legacy; they are listed under **Legacy alarm rules** on the Alarms page, and `stacktape alarm export` moves them into your configuration. See [Observability: Alarms](/observability/alarms) for the full setup guide.
 
 ## Error tracking
 
 The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
 
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.issues`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
+Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
 
 > Screenshot: Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status Caption: The Error tracking page groups repeated runtime errors so you don't search logs by hand.
 
 
-Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/issues) for configuration details and the CLI commands [`stacktape issues:list`](/cli/issues-list) and [`stacktape issues:resolve`](/cli/issues-resolve).
+Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/error-tracking) for configuration details and the CLI commands [`stacktape error list`](/cli/errors-list) and [`stacktape error resolve`](/cli/errors-resolve).
 
 ## Cost dashboards
 
@@ -52,7 +52,7 @@ The Overview dashboard also surfaces costs by project and by resource type for a
 
 The Secrets page lists AWS Secrets Manager secrets and lets you create, show, update, and delete them. The page asks you to choose an AWS account and AWS region before listing or changing secrets. Reference secrets with `$Secret()` in your Stacktape configuration — the secret value stays in AWS Secrets Manager instead of being committed to your config file or version control. See [Configuration — Secrets](/configuration/secrets) for the runtime details.
 
-You can also manage secrets from the CLI with [`stacktape secret:set`](/cli/secret-set), [`stacktape secret:get`](/cli/secret-get), and [`stacktape secret:delete`](/cli/secret-delete). See [Configuration — Secrets](/configuration/secrets) for the full workflow.
+You can also manage secrets from the CLI with [`stacktape secret set`](/cli/secret-set), [`stacktape secret get`](/cli/secret-get), and [`stacktape secret delete`](/cli/secret-delete). See [Configuration — Secrets](/configuration/secrets) for the full workflow.
 
 ## Quick reference
 
@@ -60,13 +60,13 @@ A deploy gives the Console enough stack metadata to show deployments, costs (whe
 
 | Feature | Where in Console | CLI equivalent | Setup required |
 |---------|-----------------|----------------|----------------|
-| Deployments | Overview | [`stacktape info:operations`](/cli/info-operations) | None — shown when deployed stages exist |
+| Deployments | Overview | [`stacktape stack history`](/cli/info-operations) | None — shown when deployed stages exist |
 | Logs | — | [`stacktape logs`](/cli/logs) | None |
 | Metrics | — | [`stacktape metrics`](/cli/metrics) | None |
-| Alarms | Alerting → Alarms | View state: [`stacktape alarms`](/cli/alarms) | `alarms` on resources in the config + alert channel |
-| Error tracking | Observability → Error tracking | [`stacktape issues:list`](/cli/issues-list) | None, on by default |
+| Alarms | Alerting → Alarms | View state: [`stacktape alarm list`](/cli/alarms) | `alarms` on resources in the config + alert channel |
+| Error tracking | Observability → Error tracking | [`stacktape error list`](/cli/errors-list) | None, on by default |
 | Costs | Organization → Costs | — | None — reports arrive daily |
-| Secrets | Configuration → Secrets | [`stacktape secret:set`](/cli/secret-set) | Connected AWS account + AWS region selection |
+| Secrets | Configuration → Secrets | [`stacktape secret set`](/cli/secret-set) | Connected AWS account + AWS region selection |
 
 ## Next step
 

@@ -35,10 +35,11 @@ const isConsoleStartupPath = (path: string) =>
 const databaseSuites: [flag: string, feature: RegExp, files?: string[], publicFeature?: RegExp][] = [
   [
     'console-access',
-    /console-(access|tenancy|aws-connection|secrets|tenant)|organizations?\/|browser-(access|capabilities)|api-keys|middlewares|billing\/permissions/,
+    /console-(access|tenancy|member-scope|aws-connection|secrets|tenant)|organizations?\/|browser-(access|capabilities)|api-keys|middlewares|billing\/permissions/,
     [
       'console-access-database.test.ts',
       'console-tenancy-database.test.ts',
+      'console-member-scope-database.test.ts',
       'console-aws-connection-database.test.ts',
       'console-secrets-database.test.ts'
     ]

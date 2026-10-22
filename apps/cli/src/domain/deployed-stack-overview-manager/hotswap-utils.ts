@@ -53,12 +53,24 @@ export const isImageOnlyTaskDefinitionChange = (
   );
 };
 
-/** A function can be updated directly when only its code changed. Its code digest tag follows the code. */
+/**
+ * A function can be updated directly when only its code changed. Its code digest tag follows the code, and its shared
+ * layers tag follows the layers' content, which `isContentOnlyLayerChange` judges on the layer resource itself.
+ */
 export const isCodeOnlyFunctionChange = (change: ResourceDifference) =>
   differsOnlyIn(change, ({ Code: _code, Tags = [], ...properties }) => ({
     ...properties,
-    Tags: (Tags as { Key: string }[]).filter(({ Key }) => Key !== tagNames.codeDigest())
+    Tags: (Tags as { Key: string }[]).filter(
+      ({ Key }) => Key !== tagNames.codeDigest() && Key !== tagNames.artifactDigest() && Key !== tagNames.sharedLayers()
+    )
   }));
+
+/**
+ * A shared chunk layer can be published directly when only its content changed: a new version of the same layer with
+ * the same runtimes and description, which is all CloudFormation would do with it.
+ */
+export const isContentOnlyLayerChange = (change: ResourceDifference) =>
+  differsOnlyIn(change, ({ Content: _content, ...properties }) => properties);
 
 /**
  * A deployment script's custom resource carries a timestamp, so it differs on every deployment. When the timestamp is
@@ -103,8 +115,10 @@ const pickComparedContainerProperties = (container: ContainerDefinition): Contai
  */
 export const compareEcsTaskDefinitions = ({
   calculatedTaskDefinition,
-  currentTaskDefinition
+  currentTaskDefinition,
+  ignoreImages = false
 }: {
+  ignoreImages?: boolean;
   calculatedTaskDefinition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
   currentTaskDefinition: SdkTaskDefinition;
 }) => {
@@ -114,5 +128,13 @@ export const compareEcsTaskDefinitions = ({
     ) as ContainerDefinition[]
   ).map(pickComparedContainerProperties);
   const currentContainers = currentTaskDefinition.containerDefinitions.map(pickComparedContainerProperties);
-  return { needsUpdate: !isEqual(calculatedContainers, currentContainers) };
+  const normalize = (containers: ReturnType<typeof pickComparedContainerProperties>[]) =>
+    orderBy(
+      containers.map(({ image, ...container }) => ({
+        ...container,
+        image: ignoreImages && container.essential !== false ? undefined : image
+      })),
+      ['name']
+    );
+  return { needsUpdate: !isEqual(normalize(calculatedContainers), normalize(currentContainers)) };
 };
