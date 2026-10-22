@@ -49,14 +49,25 @@ Build a new helper with its first real consumer, and share it across owners only
 thing. Put Console helpers in the private Console; a public helper never depends on it. No universal `test-utils`
 package, scenario DSL or page object per click.
 
+### Host fakes that emulated code calls
+
+MiniStack runs Lambda functions and custom resources inside its own container, where `127.0.0.1` is the container
+itself. Stacktape's service Lambda calls the tRPC endpoint the CLI wrote into its environment: for an HTTP API's default
+domain it registers the domain on create and removes it on delete. `createFamilyProject` therefore calls the fixture's
+`forwardHostPort` for the control-plane fake, so the Lambda uses the same URL as the CLI, which stays on loopback.
+
+A relay inside the emulator listens on its own `127.0.0.1:<port>` and passes each connection through a Unix socket in a
+shared volume to a sidecar container on Docker's default bridge. Only the sidecar connects to the Docker host
+(`host.docker.internal` through `--add-host host-gateway`), and only to forwarded ports. The emulator gets no route to
+the host: Docker Desktop would deliver every host-gateway port to the host's loopback, including unrelated local
+servers. On Linux the sidecar's connection arrives on the bridge address, where the fixture runs a relay that admits
+only the sidecar. The fixture test checks that an unforwarded host port and the internet stay unreachable.
+
 ### MiniStack gaps
 
 The deploy loop's family table records the gaps with their upstream issues; a row with `knownGap` stays in the table and
 is skipped until the gap is fixed and re-qualified. Current gaps:
 
-- **HTTP API with a default domain:** MiniStack 1.5.27 fixes the Stage Ref and the API mapping creates, but
-  `GatewayDefaultDomainCustomResource` fails with `TRPCClientError: fetch failed` because its Lambda cannot reach the
-  harness's host-loopback Console endpoint from inside the emulator container.
 - **Container workloads:** MiniStack has no Application Auto Scaling, so the scalable target and policy fail template
   validation ([upstream issue #2162](https://github.com/ministackorg/ministack/issues/2162)).
 - **Not emulated or not enforced:** IAM, CloudFormation replacement and rollback semantics, RDS, CloudFront and

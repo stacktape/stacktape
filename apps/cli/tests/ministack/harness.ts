@@ -89,6 +89,11 @@ export const createFamilyProject = async ({
     awsAccountId: ministack.defaultAccount.accountId,
     securityScanning
   });
+  // The CLI writes this endpoint into the service Lambda's environment; MiniStack runs that Lambda in its container.
+  await ministack.forwardHostPort(Number(new URL(controlPlane.endpoint).port)).catch(async (error) => {
+    await controlPlane.close();
+    throw error;
+  });
   return {
     projectName,
     stackName: `${projectName}-${STAGE}`,

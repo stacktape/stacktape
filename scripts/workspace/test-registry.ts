@@ -1271,7 +1271,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe EventBridge delivery, runtime, data, retention and artifacts. HTTP API remains a known gap (default-domain Lambda cannot reach the harness Console endpoint), as do container workloads (Application Auto Scaling, ministackorg/ministack#2162).',
+      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe HTTP API requests, the default-domain registration the service Lambda sends the control-plane fake, EventBridge delivery, runtime, data, retention and artifacts. Container workloads remain a known gap (Application Auto Scaling, ministackorg/ministack#2162).',
     selections: ['ministack-deploy']
   },
   {
@@ -1282,7 +1282,8 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/ministack/src/fixture.test.ts'],
     requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'The shared MiniStack fixture starts ready, isolates accounts, blocks egress and verifies its cleanup.',
+    proves:
+      'The shared MiniStack fixture starts ready, isolates accounts, blocks egress, forwards only the requested host loopback port into the container and verifies its cleanup.',
     selections: ['ministack-fixture']
   },
   {
