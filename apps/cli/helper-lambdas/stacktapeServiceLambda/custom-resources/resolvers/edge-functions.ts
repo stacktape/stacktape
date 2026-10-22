@@ -10,6 +10,7 @@ import {
 } from '@aws-sdk/client-cloudwatch-logs';
 import { IAM, NoSuchEntityException } from '@aws-sdk/client-iam';
 import {
+  InvalidParameterValueException,
   Lambda,
   ResourceNotFoundException as LambdaNotFoundException,
   waitUntilFunctionUpdated
@@ -216,15 +217,50 @@ export const edgeFunctions: ServiceLambdaResolver<StpServiceCustomResourceProper
     })
   );
 
-  // @todo resolve what to do with toBeDeletedFunctions
-  // maybe we can at least try to delete the function. If it was not already associated with cloudfront, we might succeed.
-  // if it fails, we will taint the function for deletion at later stages.
-  toBeDeletedFunctions.map((lambdaProps) => {
-    // deleting all the log groups
-    return deleteLogGroupsInAllRegions({ lambdaProps });
-  });
+  // The handler is frozen once it responds, so every deletion must finish before it returns.
+  await Promise.all(
+    toBeDeletedFunctions.map((lambdaProps) =>
+      // During an update the distribution may still reference a removed function until it is updated after this
+      // resource, so only a deletion removes its role and the function itself.
+      operation === 'Delete' ? deleteEdgeFunction({ lambdaProps }) : deleteLogGroupsInAllRegions({ lambdaProps })
+    )
+  );
 
   return { data: versionsData };
+};
+
+/**
+ * Deletes everything a deleted stack's edge function owns. CloudFormation deletes the distribution first, but AWS keeps
+ * the function's replicas for up to a few hours afterwards and refuses to delete a replicated function until then. That
+ * refusal must not fail the stack deletion: the function stays, and a later stack with the same name reuses it.
+ */
+const deleteEdgeFunction = async ({ lambdaProps }: { lambdaProps: StpServiceCustomResourceEdgeFunctionProps }) => {
+  await deleteLogGroupsInAllRegions({ lambdaProps });
+  await deleteRole(lambdaProps.lambdaRoleResourceName);
+  const lambdaResourceName = lambdaProps.resourceName;
+  try {
+    await lambdaApi.deleteFunction({ FunctionName: lambdaResourceName });
+    console.info(`Deleting edge lambda ${lambdaResourceName} - SUCCESS`);
+  } catch (err) {
+    if (err instanceof LambdaNotFoundException) return;
+    if (err instanceof InvalidParameterValueException && /replicated function/i.test(err.message)) {
+      console.info(`Edge lambda ${lambdaResourceName} still has CloudFront replicas and cannot be deleted yet.`);
+      return;
+    }
+    throw err;
+  }
+};
+
+const deleteRole = async (roleName: string) => {
+  try {
+    const policyNames = await listAllPoliciesForRole(roleName);
+    await Promise.all(policyNames.map((PolicyName) => iamApi.deleteRolePolicy({ PolicyName, RoleName: roleName })));
+    await iamApi.deleteRole({ RoleName: roleName });
+    console.info(`Deleting edge lambda role ${roleName} - SUCCESS`);
+  } catch (err) {
+    if (err instanceof NoSuchEntityException) return;
+    throw err;
+  }
 };
 
 const getDesiredOperations = (

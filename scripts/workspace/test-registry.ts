@@ -843,6 +843,28 @@ export const lanes: readonly Lane[] = [
       'A VPC function reaches the internet through NAT instances, a killed instance fails over to the other zone and back, a rolling replacement and an unchanged redeploy behave, and deletion leaves nothing; the nat-kind-switch scenario of the same runner covers gateway → ha-ec2 → ec2 with a broken instance.'
   },
   {
+    id: 'scoped-access-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=lambda-http-api-scoped-access'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/scoped-access-canary.ts', 'apps/cli/scripts/real-aws/source-cli-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'Through a real HTTP API and its default domain, connectTo grants exactly its targets, an update revokes removed targets and swaps the STP_* variables, a $Secret() reference serves the pinned then the rotated value, and deletion leaves no resource or DNS record.'
+  },
+  {
+    id: 'static-site-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=hosting-bucket-cdn-update'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/static-site-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      "CloudFront serves a redeployed hosting bucket's new page on the first request after the deploy, and the stack deletion removes its distribution, buckets, default domain, the us-east-1 edge deployment bucket and the Lambda@Edge roles and log groups in every edge region; a replicated edge function is deferred to --cleanup-only."
+  },
+  {
     id: 'container-fast-deploy-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=container-fast-deploy-serving'],
     level: 'live-aws',
@@ -3100,7 +3122,9 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
-      'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts'
+      'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/source-cli-canary.spec.ts',
+      'apps/cli/scripts/real-aws/static-site-canary.spec.ts'
     ],
     requires: [],
     release: 'every-candidate'
@@ -4061,7 +4085,14 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/redact-request-input.spec.ts',
       'apps/cli/tests/characterization/aws-secrets.spec.ts'
     ],
-    lanes: ['generated-access', 'synthesis', 'synthesis-2', 'config-loading', 'console-database-cli-console'],
+    lanes: [
+      'generated-access',
+      'synthesis',
+      'synthesis-2',
+      'config-loading',
+      'console-database-cli-console',
+      'scoped-access-live'
+    ],
     contributors: ['S09', 'S18', 'S46']
   },
   {
@@ -4141,11 +4172,17 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/cloudformation-stacks.ts',
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'packages/ministack/**',
-      'apps/cli/scripts/network-guard-preload.ts'
+      'apps/cli/scripts/network-guard-preload.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts'
     ],
-    tests: ['apps/cli/tests/cli-process/stack-operations.spec.ts'],
+    tests: [
+      'apps/cli/tests/cli-process/stack-operations.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
+    ],
     lanes: [
       'cli-stack-operations',
+      'cli-test-helper-lambdas',
+      'static-site-live',
       'ministack-deploy',
       'synthesis',
       'synthesis-2',
@@ -4668,7 +4705,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/static-sites/input.spec.ts',
       'apps/cli/tests/static-sites/content-sync.spec.ts'
     ],
-    lanes: ['static-sites', 'ministack-static-content-sync', 'static-starter-qualification'],
+    lanes: ['static-sites', 'ministack-static-content-sync', 'static-starter-qualification', 'static-site-live'],
     contributors: ['S04']
   },
   {
@@ -6160,6 +6197,8 @@ export const toolingTests: readonly string[] = [
   'apps/cli/scripts/qualification/report.spec.ts',
   'apps/cli/scripts/qualification/runner-integration.spec.ts',
   'apps/cli/scripts/real-aws/packaging-canary.spec.ts',
+  'apps/cli/scripts/real-aws/source-cli-canary.spec.ts',
+  'apps/cli/scripts/real-aws/static-site-canary.spec.ts',
   'apps/cli/scripts/run-source-tests.spec.ts',
   'apps/cli/src/aws/sdk-manager/utils.spec.ts',
   'apps/cli/src/utils/cli.spec.ts',

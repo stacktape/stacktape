@@ -25,7 +25,9 @@ export type AwsQualificationScenario = {
     | 'nat-instance'
     | 'nat-switch'
     | 'dev-mode'
-    | 'container-fast-deploy';
+    | 'container-fast-deploy'
+    | 'scoped-access'
+    | 'static-site';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -97,6 +99,31 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     ],
     reason:
       'dev starts, rebuilds and stops a container, a local database and a dev server against a real dev stack, leaving nothing running.'
+  },
+  {
+    id: 'lambda-http-api-scoped-access',
+    runner: 'scoped-access',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: [
+      'lambda',
+      'http-api',
+      'default-domain',
+      'connect-to-iam',
+      'iam-revocation',
+      'secret-dynamic-reference',
+      'cleanup'
+    ],
+    reason: 'Only real IAM shows that connectTo grants exactly its targets and that an update revokes a removed target.'
+  },
+  {
+    id: 'hosting-bucket-cdn-update',
+    runner: 'static-site',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: ['hosting-bucket', 'cloudfront', 'cdn-invalidation', 'content-update', 'edge-functions', 'cleanup'],
+    reason:
+      'Only a real distribution shows that a redeploy invalidates cached pages and that deletion removes edge functions.'
   },
   {
     id: 'init-static-site',
