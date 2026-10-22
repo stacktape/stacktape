@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findProjectEntries, getCodingAgent } from './agents';
+import { resolveServerCommand } from './server-command';
 import { removeCodingAgents } from './setup';
 
 // Every agent location is derived from these at call time, so a temporary home isolates the real one.
@@ -123,5 +124,34 @@ describe('entries that override the user-level one', () => {
       { agent: { id: 'claude-code' }, shared: false, removeCommand: 'claude mcp remove --scope local stacktape' }
     ]);
     expect(await findProjectEntries(join(home, 'other'))).toEqual([]);
+  });
+});
+
+describe('the command written into agent configs', () => {
+  test('survives upgrades and agents started without the shell PATH', () => {
+    const installScriptDirectory = join(home, '.stacktape', 'bin');
+    const installed = join(installScriptDirectory, process.platform === 'win32' ? 'stacktape.exe' : 'stacktape');
+    const npmGlobal = join(home, 'npm', 'bin', 'stacktape');
+    const downloaded = join(home, 'Downloads', 'stacktape');
+
+    for (const [name, input, expected] of [
+      // GUI agents launched from the Dock or Start menu often lack the shell PATH: use the stable install path.
+      ['install script on PATH', { stacktapeOnPath: installed, execPath: installed }, { command: installed }],
+      ['install script, not on PATH', { execPath: installed }, { command: installed }],
+      // A package-manager install moves on upgrade, while its PATH entry stays.
+      ['npm global on PATH', { stacktapeOnPath: npmGlobal, execPath: downloaded }, { command: 'stacktape' }],
+      ['binary off PATH', { execPath: downloaded }, { command: downloaded, caveat: expect.stringContaining('moves') }],
+      [
+        'source run',
+        { execPath: process.execPath },
+        { command: 'stacktape', caveat: expect.stringContaining('source') }
+      ]
+    ] as const) {
+      // An empty PATH match stands for "not on PATH"; leaving it out would search this machine's PATH.
+      expect(resolveServerCommand({ installScriptDirectory, stacktapeOnPath: '', ...input }), name).toEqual({
+        args: ['mcp'],
+        ...expected
+      });
+    }
   });
 });

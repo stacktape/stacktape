@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
+import { getStacktapeOperationInvocationContext } from '../../../app/operation-invocation-context';
+import { parseCliInput } from '../../../utils/cli';
 
 const readFlag = (name: string): string | undefined => {
   const index = process.argv.indexOf(`--${name}`);
@@ -21,6 +23,22 @@ const main = async () => {
 
   if (mode === 'malformed-result') {
     process.stdout.write(`${JSON.stringify({ type: 'result', ts: now(), ok: 'yes', code: 'OK', message: 'bad' })}\n`);
+    return;
+  }
+
+  if (mode === 'parse') {
+    // What the real CLI reads from this command line and environment, as if it were `stacktape <parseAs> ...`.
+    const { options } = parseCliInput([readFlag('parseAs')!, ...process.argv.slice(2)]);
+    process.stdout.write(
+      `${JSON.stringify({
+        type: 'result',
+        ts: now(),
+        ok: true,
+        code: 'OK',
+        message: 'Fixture parsed its arguments.',
+        data: { options, invocation: getStacktapeOperationInvocationContext(process.env) }
+      })}\n`
+    );
     return;
   }
 

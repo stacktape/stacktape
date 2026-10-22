@@ -177,9 +177,10 @@ const normalizeCliArgs = (args: Record<string, unknown> = {}): string[] => {
       continue;
     }
 
+    // One inline `--flag=item` per item: the CLI collects repeated array flags, keeps commas inside an item and does
+    // not mistake an item such as `--build-arg` for a flag of its own.
     if (Array.isArray(value)) {
-      if (value.length === 0) continue;
-      cliArgs.push(flag, value.map((item) => String(item)).join(','));
+      for (const item of value) cliArgs.push(`${flag}=${String(item)}`);
       continue;
     }
 

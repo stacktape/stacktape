@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { lstat, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile, chmod } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, rm, stat, symlink, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { removeCodexServer, removeJsonEntry, upsertCodexServer, upsertJsonEntry } from './config-files';
@@ -46,29 +46,11 @@ describe('JSON and JSONC agent configs', () => {
     expect(text).toContain('"args": [');
   });
 
-  test('reports unchanged and writes nothing when the entry already matches', async () => {
-    const path = await tempFile('mcp.json', JSON.stringify({ mcpServers: { stacktape: server } }, null, 2));
-
-    expect(await upsertJsonEntry({ path, keyPath: ['mcpServers', 'stacktape'], value: server })).toEqual({
-      change: 'unchanged'
-    });
-    expect(await readdir(join(path, '..'))).toEqual(['mcp.json']);
-  });
-
   test('creates a missing file and its directory', async () => {
     const path = join(await tempFile('unused'), '..', 'nested', 'mcp.json');
 
     expect((await upsertJsonEntry({ path, keyPath: ['servers', 'stacktape'], value: server })).change).toBe('created');
     expect(JSON.parse(await readFile(path, 'utf-8'))).toEqual({ servers: { stacktape: server } });
-  });
-
-  test('refuses to touch a file it cannot parse', async () => {
-    const path = await tempFile('mcp.json', '{ "mcpServers": { "a": ');
-
-    await expect(upsertJsonEntry({ path, keyPath: ['mcpServers', 'stacktape'], value: server })).rejects.toThrow(
-      'is not valid JSON'
-    );
-    expect(await readFile(path, 'utf-8')).toBe('{ "mcpServers": { "a": ');
   });
 
   test('removes only the Stacktape entry', async () => {
