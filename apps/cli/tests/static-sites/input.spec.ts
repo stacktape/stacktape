@@ -17,7 +17,7 @@ test('reports invalid bucket sync modes with a stable, actionable contract', () 
   expect(guidance).toContain('resolves the bucket from the deployed stack');
   expect(guidance).toContain('source directory from your configuration');
   expect(guidance).toContain('accepts an AWS physical ID or bucket name');
-  expect(guidance).toContain('stacktape info:stack');
+  expect(guidance).toContain('stacktape status');
   for (const args of [
     {},
     { stage: 'dev' },
