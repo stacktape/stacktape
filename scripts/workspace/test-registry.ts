@@ -5002,6 +5002,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
+      'apps/console/api/scripts/console-member-scope-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/ui/e2e/isolated-members.test.ts',

@@ -474,6 +474,7 @@ test('runner script, cache and image changes select execution in the isolated Do
 test('batch 1 Console paths select their journey database lanes', () => {
   for (const [path, flags] of [
     ['apps/console/api/scripts/console-tenancy-database.test.ts', ['console-access']],
+    ['apps/console/api/scripts/console-member-scope-database.test.ts', ['console-access']],
     ['apps/console/api/src/organizations/index.ts', ['console-access']],
     ['apps/console/api/scripts/console-tenant-fixtures.ts', ['console-access', 'cli-console', 'billing', 'insights']],
     ['apps/console/api/src/services/stack-operation-progress.ts', ['cli-console']],

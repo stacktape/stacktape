@@ -10,9 +10,9 @@ links. Private Console links are checked when the submodule is initialized.
 | Local tools, applications and development commands                   | [Development](development.md)                                                                                  |
 | Choosing tests for the current change                                | [Short testing policy](testing.md)                                                                             |
 | Target coverage per application, workload and environment            | [Testing strategy](testing/strategy.md)                                                                        |
-| Coordinating the repository-wide testing overhaul                    | [Testing overhaul plan](testing/overhaul.md)                                                                   |
+| Slice registry, tiers and measuring a slice with faults              | [Slices, tiers and fault checks](testing/overhaul.md)                                                          |
 | Existing test helpers, helpers to build and browser conventions      | [Test helpers and E2E conventions](testing/e2e.md)                                                             |
-| Packaging, runtime artifacts and the MiniStack S3 pilot              | [Packaging acceptance](../apps/cli/scripts/packaging-archives/README.md)                                       |
+| Packaging, runtime artifacts and layer uploads on MiniStack          | [Packaging acceptance](../apps/cli/scripts/packaging-archives/README.md)                                       |
 | Console API, database, browser and shared dev reservation            | [Console testing](testing/console.md)                                                                          |
 | Live AWS authorization, ownership, cost and cleanup                  | [Live AWS testing](testing/live-aws.md)                                                                        |
 | Feature examples or diagnosing runtime acceptance failures           | [Feature recipes](testing/feature-scenarios.md) and [runtime diagnosis](testing/runtime-acceptance.md)         |
