@@ -122,7 +122,7 @@ export const commandMcpAdd = async () => {
       code: 'MCP_NO_CODING_AGENTS',
       message: 'No coding agent was found on this machine, so nothing was set up.',
       hints: [
-        `Name the agents to set up, for example: stacktape mcp:add --codingAgents ${CODING_AGENTS.map((agent) => agent.id).join(',')}`,
+        `Name the agents to set up, for example: stacktape mcp add --coding-agents ${CODING_AGENTS.map((agent) => agent.id).join(',')}`,
         `Or add the server by hand, for example in Claude Code: ${getCodingAgent('claude-code')
           .manualSetup(server)
           .replace(/^Run: /, '')}`
@@ -169,7 +169,7 @@ export const commandMcpAdd = async () => {
         failed > 0
           ? `Stacktape could not be set up for ${failed} of ${result.agents.length} agents.`
           : 'The agents are configured, but the Stacktape MCP server did not start with the configured command.',
-      hints: ['The details are printed above. Fix the cause and run `stacktape mcp:add` again; it is safe to repeat.']
+      hints: ['The details are printed above. Fix the cause and run `stacktape mcp add` again; it is safe to repeat.']
     });
   }
 

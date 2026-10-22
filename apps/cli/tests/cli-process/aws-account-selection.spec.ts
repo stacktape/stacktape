@@ -226,7 +226,7 @@ describe('AWS account selection by local credentials', () => {
 
     expect(credentialRequests(controlPlane)).toEqual(['production']);
     expect(run.stdout).toContain(
-      `AWS_PROFILE=missing is ignored: --awsAccount selects \\"production\\" (${PRODUCTION}).`
+      `AWS_PROFILE=missing is ignored: --aws-account selects \\"production\\" (${PRODUCTION}).`
     );
     expect(run.stdout).toContain(`for account production (${PRODUCTION})`);
     expect(aws.requests.every(({ accessKeyId }) => accessKeyId === consoleKeys.production)).toBe(true);

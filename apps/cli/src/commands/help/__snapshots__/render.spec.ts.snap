@@ -1,0 +1,320 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`help for %s 1`] = `
+"Usage: stacktape <command> [options]
+
+Daily:
+  deploy                    Deploys your stack to AWS.
+  dev                       Runs your application locally for development and debugging.
+  dev stop                  Stops a running dev agent.
+  delete                    Deletes your stack from AWS.
+  synth                     Compiles your Stacktape configuration into a CloudFormation template.
+  validate                  Validates your Stacktape project without writing deployment artifacts.
+  rollback                  Rolls back the stack to a previous deployment version.
+  package                   Packages your compute resources and prepares them for deployment.
+  diff                      Shows a preview of the changes that will be made to your stack if you deploy the current configuration.
+  init                      Initializes a new Stacktape project and guides you through deployment.
+  status                    Displays detailed information about a deployed stack including outputs and resources.
+
+Debug:
+  stack recover             Rolls back the CloudFormation stack to the last known good state.
+  logs                      Fetch and analyze logs from a deployed resource.
+  alarm list                View CloudWatch alarm states for stack resources.
+  metrics                   Fetch CloudWatch metrics for a deployed resource.
+  bastion shell             Starts an interactive session with a bastion host.
+  bastion tunnel            Creates a secure tunnel to a resource through a bastion host.
+  container shell           Starts an interactive session inside a deployed container.
+  container exec            Execute a command in a running container and return the output.
+  aws call                  Execute read-only AWS SDK commands against deployed resources.
+  stack list                Lists all stacks deployed in a specified region.
+  alarm export              Exports Console-defined alarm rules as stack-config alarm entries.
+  stack history             Lists recent recorded Stacktape operations with their status.
+  incident list             Lists incidents — everything that needs (or needed) a reaction: downtime, failing synthetics, firing alarms, production errors, unhealthy stacks, expiring certificates.
+  incident show             Prints an incident's handoff: a self-contained markdown document with the incident's state, signals, evidence, release context, timeline, related earlier incidents and AI assessment, and guidance for diagnosing it and watching its recovery read-only.
+  incident watch            Waits for an incident to recover and stay recovered.
+  incident ack              Acknowledges an incident: "someone is on it". The same signal getting worse stops re-paging; a NEW signal joining still notifies.
+  incident resolve          Resolves an incident manually. Use after you deployed and verified a fix for signals that cannot observe recovery on their own (production error groups). A recurring signal reopens the incident automatically.
+  error list                Lists detected runtime errors across your deployed functions and containers.
+  error resolve             Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.
+  error ignore              Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.
+  error reopen              Reopens a resolved or ignored issue, setting its status back to OPEN.
+
+Data:
+  deployment-script run     Runs a deployment script defined in your configuration.
+  bucket sync               Synchronizes the contents of a local directory with an S3 bucket.
+  query sql                 Execute read-only SQL queries against a deployed relational database.
+  query dynamodb            Query a deployed DynamoDB table.
+  query redis               Query a deployed Redis cluster.
+  query opensearch          Query a deployed OpenSearch domain.
+  script run                Executes a script defined in your configuration.
+  param get                 Retrieves a specified parameter from a resource in a deployed stack.
+
+Secrets:
+  secret set                Creates a secret that is securely stored in AWS Secrets Manager.
+  secret get                Prints details about a specified secret to the console.
+  secret delete             Deletes a specified secret.
+
+Account:
+  help                      Displays help information for commands and their options.
+  version                   Prints the current version of Stacktape.
+  aws-profile create        Creates a new AWS profile on your system.
+  aws-profile update        Updates an existing AWS profile on your system.
+  aws-profile delete        Deletes an AWS profile from your system.
+  aws-profile list          Lists all AWS profiles configured on your system.
+  domain add                Adds a domain to your AWS account.
+  defaults set              Sets system-wide default arguments for Stacktape commands.
+  defaults list             Prints all configured system-wide Stacktape defaults.
+  upgrade                   Upgrades Stacktape to the latest version.
+  login                     Authenticates this system with Stacktape.
+  logout                    Removes Stacktape authentication state from the current system.
+  org create                Creates a new organization in your Stacktape account.
+  org list                  Lists organizations accessible with your current Stacktape user.
+  org delete                Deletes organization access for your user.
+  project create            Creates a new project in the current organization.
+  project list              Lists all projects in your organization with their deployed stages, status, and costs.
+  whoami                    Displays information about the current user, organization, connected AWS accounts, and accessible projects.
+
+Coding agents:
+  ai connect                Connects your own AI subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
+  ai disconnect             Removes your own AI subscription with one provider from Stacktape. Asks which provider to disconnect (or takes --ai-provider). Hosted AI incident runs you request can no longer be funded by that subscription until you connect it again with stacktape ai connect. The sign-in on your own machine stays as it is.
+  mcp                       Starts the local Stacktape MCP (Model Context Protocol) server for coding agents.
+  mcp add                   Connects your coding agents to Stacktape: Claude Code, Codex, Cursor, VS Code (GitHub Copilot), GitHub Copilot CLI, Windsurf and OpenCode.
+  mcp remove                Removes the user-level Stacktape MCP server entry that stacktape mcp add added to your coding agents.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Run stacktape help <command> for arguments and options.
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for deploy 1`] = `
+"Usage: stacktape deploy [options]
+
+Deploys your stack to AWS.
+
+Options:
+  -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
+      --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters. (required)
+  -r, --region <value>             The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). (required)
+      --project <value>            The name of the Stacktape project for this operation.
+  -c, --config <value>             The path to your Stacktape configuration file, relative to the current working directory.
+      --cwd <value>                The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.
+      --keep-temp-files            If true, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to .stacktape/[invocation-id].
+      --docker-args <value>        Additional arguments to pass to the docker run or docker build commands.
+      --no-cache                   If true, disables the use of cached artifacts and forces a fresh build of compute resources.
+      --no-remote-cache            In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to true to build without the ECR cache in CI as well.
+      --no-auto-rollback           If true, disables automatic rollback on deployment failure.
+  -y, --yes                        If true, automatically confirms prompts during deploy or delete operations, skipping the manual confirmation step.
+      --show-secrets               If true, includes sensitive values in the output of commands such as status, deploy, and param get. Be cautious when using this flag, as mishandling sensitive data can create security risks.
+      --full                       If true, deploys every change through CloudFormation. By default, when only the code of functions and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.
+      --runner <value>             Controls where deployment build and packaging work runs.
+      --no-layer-optimization      If true, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for secret set 1`] = `
+"Usage: stacktape secret set [secret-name] [options]
+
+Creates a secret that is securely stored in AWS Secrets Manager.
+
+Arguments:
+  secret-name               The name of the secret in AWS Secrets Manager.
+
+Options:
+  -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
+      --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+  -r, --region <value>             The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). (required)
+      --secret-name <value>        The name of the secret in AWS Secrets Manager.
+      --value <value>              The value to store in the secret. For sensitive values, consider using --file instead.
+      --file <value>               Path to a file whose contents will be stored as the secret value.
+      --force-update               If the secret already exists, update it without prompting for confirmation.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for secret 1`] = `
+"Usage: stacktape secret [options]
+
+Commands:
+  secret set                Creates a secret that is securely stored in AWS Secrets Manager.
+  secret get                Prints details about a specified secret to the console.
+  secret delete             Deletes a specified secret.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for stack 1`] = `
+"Usage: stacktape stack [options]
+
+Commands:
+  stack update-modules      Updates AWS CloudFormation infrastructure module private types to the latest compatible version.
+  stack recover             Rolls back the CloudFormation stack to the last known good state.
+  stack list                Lists all stacks deployed in a specified region.
+  stack history             Lists recent recorded Stacktape operations with their status.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for dev 1`] = `
+"Usage: stacktape dev [options]
+
+Runs your application locally for development and debugging.
+
+Commands:
+  dev stop                  Stops a running dev agent.
+
+Options:
+  -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
+      --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters. (required)
+  -r, --region <value>             The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). (required)
+      --project <value>            The name of the Stacktape project for this operation.
+  -c, --config <value>             The path to your Stacktape configuration file, relative to the current working directory.
+      --cwd <value>                The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.
+      --watch                      If true, watches for changes to your source files and automatically re-executes the compute resource when a change is detected.
+      --no-emulation               Disables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed.
+      --keep-temp-files            If true, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to .stacktape/[invocation-id].
+      --docker-args <value>        Additional arguments to pass to the docker run or docker build commands.
+      --no-tunnel                  Disables automatic tunneling for Lambda functions. Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don't need Lambda-to-local connectivity or if tunneling causes issues.
+      --remote-resources <value>   Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: --remote-resources myDb, --remote-resources postgres,redis.
+      --resources <value>          Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use all to run all resources without prompting. Examples: --resources myApi, --resources myApi,myDb, or --resources all.
+      --skip-resources <value>     Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: --skip-resources myHeavyDb, --skip-resources fn1,fn2.
+      --fresh-db                   If true, deletes existing local database data before starting. Use this to start with a clean database state.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for dev stop 1`] = `
+"Usage: stacktape dev stop [options]
+
+Stops a running dev agent.
+
+Options:
+  -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
+      --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+      --cleanup-containers         Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for mcp 1`] = `
+"Usage: stacktape mcp [options]
+
+Starts the local Stacktape MCP (Model Context Protocol) server for coding agents.
+
+Commands:
+  mcp add                   Connects your coding agents to Stacktape: Claude Code, Codex, Cursor, VS Code (GitHub Copilot), GitHub Copilot CLI, Windsurf and OpenCode.
+  mcp remove                Removes the user-level Stacktape MCP server entry that stacktape mcp add added to your coding agents.
+
+Options:
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for mcp add 1`] = `
+"Usage: stacktape mcp add [options]
+
+Connects your coding agents to Stacktape: Claude Code, Codex, Cursor, VS Code (GitHub Copilot), GitHub Copilot CLI, Windsurf and OpenCode.
+
+Options:
+  -y, --yes                        If true, automatically confirms prompts during deploy or delete operations, skipping the manual confirmation step.
+      --coding-agents <value>      The coding agents to set up (or remove), for example --coding-agents claude-code,cursor. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;
+
+exports[`help for defaults set 1`] = `
+"Usage: stacktape defaults set [key] [value] [options]
+
+Sets system-wide default arguments for Stacktape commands.
+
+Arguments:
+  key                       Default setting to update: region, stage, profile, project, aws-account, api-key, executable-python or executable-javascript.
+  value                     New value for the selected default setting.
+
+Options:
+      --key <value>                Default setting to update: region, stage, profile, project, aws-account, api-key, executable-python or executable-javascript.
+      --value <value>              New value for the selected default setting.
+
+Global options:
+  -h, --help               Show help for a command or group
+  -v, --version            Print the CLI version
+      --json               Emit NDJSON (does not confirm operations)
+      --debug              Show debug messages
+      --quiet              Hide progress, banners and hints; output, warnings and errors stay
+      --log-level <level>  info, debug or error
+
+Documentation: https://docs.stacktape.com/cli/"
+`;

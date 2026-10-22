@@ -75,7 +75,7 @@ export const configErrors = {
       message: [
         'This command requires a Stacktape config. Provide it in one of these ways:',
         ` - Stacktape auto-detects config files named ${VALID_CONFIG_PATHS.map(inlineCode).join(', ')} in your project root.`,
-        ` - Specify the config path using ${inlineCode('--configPath')}.`
+        ` - Specify the config path using ${inlineCode('--config')}.`
       ].join('\n'),
       hints: `Create a Stacktape configuration manually, or run ${inlineCode('stacktape init')} to bootstrap one or choose a starter template.`
     });

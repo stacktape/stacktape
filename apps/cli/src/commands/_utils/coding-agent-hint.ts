@@ -11,6 +11,6 @@ export const hintCodingAgentSetupAfterFirstDeploy = async (): Promise<void> => {
   const installed = CODING_AGENTS.filter((agent) => agent.detect());
   if (installed.length === 0 || (await findConfiguredAgents()).length > 0) return;
   tuiManager.hint(
-    `Let ${installed[0].label}${installed.length > 1 ? ' and your other coding agents' : ''} deploy and debug this project with Stacktape: stacktape mcp:add`
+    `Let ${installed[0].label}${installed.length > 1 ? ' and your other coding agents' : ''} deploy and debug this project with Stacktape: stacktape mcp add`
   );
 };

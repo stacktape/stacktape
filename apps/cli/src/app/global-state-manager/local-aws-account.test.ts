@@ -129,7 +129,7 @@ describe('resolveLocalAwsAccount', () => {
     expect(error.message).toBe(
       'Could not find the AWS account of --profile dev: The SSO session associated with this profile has expired.'
     );
-    expect(error.hints).toEqual(['Run "aws sso login --profile dev", or pass --awsAccount <name>.']);
+    expect(error.hints).toEqual(['Run "aws sso login --profile dev", or pass --aws-account <name>.']);
   });
 
   test('fails closed when the profile keys are rejected', async () => {
@@ -140,7 +140,7 @@ describe('resolveLocalAwsAccount', () => {
     const error = await failure(resolveLocalAwsAccount({ selectors: profileSelector('e2e'), sources }));
     expect(error.code).toBe('LOCAL_AWS_ACCOUNT_UNRESOLVED');
     expect(error.hints).toEqual([
-      'Check the credentials of profile "e2e", unset AWS_PROFILE, or pass --awsAccount <name>.'
+      'Check the credentials of profile "e2e", unset AWS_PROFILE, or pass --aws-account <name>.'
     ]);
   });
 
@@ -161,7 +161,7 @@ describe('resolveLocalAwsAccount', () => {
     expect(stsCalls).toEqual(['environment']);
   });
 
-  test('fails closed when environment keys are rejected, without suggesting --awsAccount', async () => {
+  test('fails closed when environment keys are rejected, without suggesting --aws-account', async () => {
     const { sources } = fakeSources({ failure: new Error('AWS_SECRET_ACCESS_KEY is not set') });
     const selectors = detectLocalAwsSelectors({ environment: { AWS_ACCESS_KEY_ID: 'AKIA' } });
     const error = await failure(resolveLocalAwsAccount({ selectors, sources }));
@@ -231,11 +231,11 @@ describe('matchConnectedAwsAccount', () => {
     );
     expect(error?.hints).toEqual([
       `Connected accounts: production (${PRODUCTION}), dev (${DEV}).`,
-      `To fix it, unset AWS_PROFILE, pass --awsAccount <name>, or connect account ${E2E} in the Stacktape Console.`
+      `To fix it, unset AWS_PROFILE, pass --aws-account <name>, or connect account ${E2E} in the Stacktape Console.`
     ]);
   });
 
-  test('does not suggest --awsAccount for environment keys, which still supply the credentials', () => {
+  test('does not suggest --aws-account for environment keys, which still supply the credentials', () => {
     expect(() =>
       matchConnectedAwsAccount({
         localAccount: { accountId: E2E, selector: keys },
@@ -252,7 +252,7 @@ describe('matchConnectedAwsAccount', () => {
     );
   });
 
-  test('requires --awsAccount when several connections share the account ID', () => {
+  test('requires --aws-account when several connections share the account ID', () => {
     expect(() =>
       matchConnectedAwsAccount({
         localAccount: { accountId: DEV, selector: profile },
@@ -263,7 +263,7 @@ describe('matchConnectedAwsAccount', () => {
       expect.objectContaining({
         code: 'LOCAL_AWS_ACCOUNT_AMBIGUOUS',
         message: `AWS account ${DEV} (from AWS_PROFILE=e2e) is connected more than once: dev, dev-again.`,
-        hints: ['Pass --awsAccount <name>.']
+        hints: ['Pass --aws-account <name>.']
       })
     );
   });
@@ -274,7 +274,7 @@ describe('ignoredProfileNotice', () => {
   const basic = { ...production, connectionMode: 'BASIC' as const };
 
   test.each([
-    ['a profile overridden by --awsAccount', { AWS_PROFILE: 'dev' }, production, true],
+    ['a profile overridden by --aws-account', { AWS_PROFILE: 'dev' }, production, true],
     ['a profile that still supplies the credentials of a basic connection', { AWS_PROFILE: 'dev' }, basic, false],
     [
       'a profile next to environment keys, which supply the credentials',
@@ -286,7 +286,7 @@ describe('ignoredProfileNotice', () => {
   ])('%s', (_, environment, account, shown) => {
     const notice = ignoredProfileNotice({ selectors: detectLocalAwsSelectors({ environment }), account });
     expect(notice).toBe(
-      shown ? `AWS_PROFILE=dev is ignored: --awsAccount selects "production" (${PRODUCTION}).` : undefined
+      shown ? `AWS_PROFILE=dev is ignored: --aws-account selects "production" (${PRODUCTION}).` : undefined
     );
   });
 });

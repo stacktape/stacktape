@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { tuiManager } from '@application-services/tui-manager';
 import { initializeControlPlaneOperation } from '../_utils/initialization';
 import { formatAsciiTable } from '@application-services/tui-manager/format/blocks';
@@ -42,7 +43,7 @@ const printOperations = ({
     const time = op.createdAt ? new Date(op.createdAt).toLocaleString() : 'N/A';
 
     return [
-      op.command || 'N/A',
+      op.command ? publicCommandName(op.command) : 'N/A',
       op.projectName || 'N/A',
       op.stage ? tuiManager.colorize('cyan', op.stage) : 'N/A',
       op.region || 'N/A',
@@ -57,7 +58,9 @@ const printOperations = ({
   if (failedOps.length > 0) {
     allLines.push('', tuiManager.makeBold('Error Details:'));
     for (const op of failedOps) {
-      allLines.push(`  ${tuiManager.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
+      allLines.push(
+        `  ${tuiManager.colorize('red', `[${publicCommandName(op.command)}]`)} ${op.projectName}-${op.stage}:`
+      );
       const descLines = (op.description || '').split('\n').slice(0, 5);
       for (const line of descLines) {
         allLines.push(`    ${tuiManager.colorize('gray', line)}`);

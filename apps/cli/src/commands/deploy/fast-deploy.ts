@@ -162,7 +162,7 @@ export const performFastDeploy = async ({
         category: 'DEPLOYMENT',
         code: 'SHARED_LAYER_TRANSITION_FAILED',
         message: `Could not prepare a safe shared-layer transition: ${error instanceof Error ? error.message : String(error)}`,
-        hints: ['Fix the problem and deploy again, or use --fullDeploy.']
+        hints: ['Fix the problem and deploy again, or use --full.']
       })
     })
   );

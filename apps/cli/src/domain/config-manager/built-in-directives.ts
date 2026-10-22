@@ -317,7 +317,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_SECRET_UNRESOLVED',
             message: `Cannot resolve \`$Secret('${secretName}')\`.\n${String(error)}`,
-            hints: `If the secret does not exist yet, create it using \`stacktape secret:set\`.`,
+            hints: `If the secret does not exist yet, create it using \`stacktape secret set\`.`,
             cause: error
           });
         }
@@ -418,7 +418,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_SECRET_UNRESOLVED',
             message: `Cannot resolve container secret \`$Secret('${secretName}')\`.\n${String(error)}`,
-            hints: 'If the secret does not exist yet, create it using `stacktape secret:set`.',
+            hints: 'If the secret does not exist yet, create it using `stacktape secret set`.',
             cause: error
           });
         }
@@ -634,7 +634,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
 };
 
 const getDisableEmulationHint = () =>
-  'Use `--disableEmulation` (`--de`) to disable automatic injection of deployed resource values.';
+  'Use `--no-emulation` (`--de`) to disable automatic injection of deployed resource values.';
 
 const resolveStackOutput = async ({
   directive,

@@ -16,10 +16,22 @@ export const commandSecretSet = async () => {
 
   const agentMode = isAgentMode(args);
 
-  // Agent mode: require flags instead of prompts
-  if (agentMode) {
+  const hasValue = args.secretValue !== undefined;
+  const hasFile = args.secretFile !== undefined;
+  if (hasValue && hasFile)
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SECRET_INPUT_CONFLICT',
+      message: 'Use only one of --value or --file.'
+    });
+  if (!process.stdin.isTTY) requireSecretName(args.secretName);
+  // `echo value | stacktape secret set name` ends the value with a newline that is not part of the secret.
+  const stdinValue =
+    !hasValue && !hasFile && !process.stdin.isTTY ? (await Bun.stdin.text()).replace(/\r?\n$/, '') : undefined;
+  // Explicit input and piped stdin work in ordinary CLI mode as well as agent mode.
+  if (agentMode || hasValue || hasFile || stdinValue !== undefined) {
     const secretName = requireSecretName(args.secretName);
-    requireSecretValueInput({ secretValue: args.secretValue, secretFile: args.secretFile });
+    requireSecretValueInput({ secretValue: args.secretValue ?? stdinValue, secretFile: args.secretFile });
 
     let secretString: string;
     if (args.secretFile) {
@@ -28,7 +40,7 @@ export const commandSecretSet = async () => {
         workingDir
       });
     } else {
-      secretString = args.secretValue;
+      secretString = args.secretValue ?? stdinValue;
     }
 
     await createNamedSecret({
@@ -97,7 +109,7 @@ const createNamedSecret = async ({
   if (matchingSecret) {
     spinner.success({ text: 'Checked existing secrets' });
 
-    if (agentMode) {
+    if (agentMode || forceUpdate) {
       if (forceUpdate) {
         const updateSpinner = tuiManager.createSpinner({ text: 'Updating secret' });
         await awsSdkManager.secrets.update({ secretId: matchingSecret.ARN, value: secretValue });
@@ -109,7 +121,7 @@ const createNamedSecret = async ({
         category: 'CLI',
         code: 'SECRET_ALREADY_EXISTS',
         message: `Secret \`${secretName}\` already exists.`,
-        hints: 'Use `--forceUpdate` to overwrite the existing secret.'
+        hints: 'Use `--force-update` to overwrite the existing secret.'
       });
     }
     const shouldUpdate = await tuiManager.promptConfirm({

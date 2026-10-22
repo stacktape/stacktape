@@ -15394,7 +15394,7 @@
         "page:/cli/alarms#filter-by-state",
         "page:/cli/alarms#agent-mode",
         "page:/cli/alarms#flags-reference",
-        "page:/cli/alarms#cli-options-stacktape-alarms",
+        "page:/cli/alarms#cli-options-stacktape-alarm-list",
         "page:/cli/alarms#related-commands",
         "page:/cli/alarms#faq",
         "page:/cli/alarms#what-alarms-does-this-command-show",
@@ -15533,7 +15533,7 @@
         "page:/cli/bastion-session#usage",
         "page:/cli/bastion-session#how-it-works",
         "page:/cli/bastion-session#cli-reference",
-        "page:/cli/bastion-session#cli-options-stacktape-bastion-session",
+        "page:/cli/bastion-session#cli-options-stacktape-bastion-shell",
         "page:/cli/bastion-session#examples",
         "page:/cli/bastion-session#connect-to-the-only-bastion-in-a-stack",
         "page:/cli/bastion-session#connect-to-a-specific-bastion-by-name",
@@ -15619,7 +15619,7 @@
         "page:/cli/cf-module-update#cf-module-update",
         "page:/cli/cf-module-update#usage",
         "page:/cli/cf-module-update#arguments-reference",
-        "page:/cli/cf-module-update#cli-options-stacktape-cf-module-update",
+        "page:/cli/cf-module-update#cli-options-stacktape-stack-update-modules",
         "page:/cli/cf-module-update#examples",
         "page:/cli/cf-module-update#related-commands"
       ]
@@ -15640,7 +15640,7 @@
         "page:/cli/cf-rollback#cf-rollback",
         "page:/cli/cf-rollback#usage",
         "page:/cli/cf-rollback#arguments-reference",
-        "page:/cli/cf-rollback#cli-options-stacktape-cf-rollback",
+        "page:/cli/cf-rollback#cli-options-stacktape-stack-recover",
         "page:/cli/cf-rollback#what-it-does",
         "page:/cli/cf-rollback#cf-rollback-vs-rollback",
         "page:/cli/cf-rollback#important-flags",
@@ -15711,7 +15711,7 @@
         "page:/cli/container-session#important-flags",
         "page:/cli/container-session#multiple-running-instances",
         "page:/cli/container-session#arguments-reference",
-        "page:/cli/container-session#cli-options-stacktape-container-session",
+        "page:/cli/container-session#cli-options-stacktape-container-shell",
         "page:/cli/container-session#common-errors",
         "page:/cli/container-session#examples",
         "page:/cli/container-session#related-commands"
@@ -15739,7 +15739,7 @@
         "page:/cli/defaults-configure#where-defaults-are-stored",
         "page:/cli/defaults-configure#examples",
         "page:/cli/defaults-configure#flags-reference",
-        "page:/cli/defaults-configure#cli-options-stacktape-defaults-configure",
+        "page:/cli/defaults-configure#cli-options-stacktape-defaults-set",
         "page:/cli/defaults-configure#related-commands",
         "page:/cli/defaults-configure#faq",
         "page:/cli/defaults-configure#do-explicit-cli-flags-override-configured-defaults",
@@ -15998,7 +15998,7 @@
         "page:/cli/errors-ignore#errors-ignore",
         "page:/cli/errors-ignore#usage",
         "page:/cli/errors-ignore#flags-reference",
-        "page:/cli/errors-ignore#cli-options-stacktape-errors-ignore",
+        "page:/cli/errors-ignore#cli-options-stacktape-error-ignore",
         "page:/cli/errors-ignore#examples",
         "page:/cli/errors-ignore#when-to-ignore-vs-resolve",
         "page:/cli/errors-ignore#related-commands"
@@ -16020,7 +16020,7 @@
         "page:/cli/errors-list#errors-list",
         "page:/cli/errors-list#usage",
         "page:/cli/errors-list#flags-reference",
-        "page:/cli/errors-list#cli-options-stacktape-errors-list",
+        "page:/cli/errors-list#cli-options-stacktape-error-list",
         "page:/cli/errors-list#examples",
         "page:/cli/errors-list#output",
         "page:/cli/errors-list#related-commands"
@@ -16043,7 +16043,7 @@
         "page:/cli/errors-reopen#usage",
         "page:/cli/errors-reopen#examples",
         "page:/cli/errors-reopen#arguments-reference",
-        "page:/cli/errors-reopen#cli-options-stacktape-errors-reopen",
+        "page:/cli/errors-reopen#cli-options-stacktape-error-reopen",
         "page:/cli/errors-reopen#related-commands"
       ]
     },
@@ -16063,7 +16063,7 @@
         "page:/cli/errors-resolve#errors-resolve",
         "page:/cli/errors-resolve#usage",
         "page:/cli/errors-resolve#flags-reference",
-        "page:/cli/errors-resolve#cli-options-stacktape-errors-resolve",
+        "page:/cli/errors-resolve#cli-options-stacktape-error-resolve",
         "page:/cli/errors-resolve#examples",
         "page:/cli/errors-resolve#related-commands"
       ]
@@ -16106,7 +16106,7 @@
         "page:/cli/incidents-ack#incidents-ack",
         "page:/cli/incidents-ack#usage",
         "page:/cli/incidents-ack#flags-reference",
-        "page:/cli/incidents-ack#cli-options-stacktape-incidents-ack",
+        "page:/cli/incidents-ack#cli-options-stacktape-incident-ack",
         "page:/cli/incidents-ack#examples",
         "page:/cli/incidents-ack#related-commands"
       ]
@@ -16127,7 +16127,7 @@
         "page:/cli/incidents-resolve#incidents-resolve",
         "page:/cli/incidents-resolve#usage",
         "page:/cli/incidents-resolve#flags-reference",
-        "page:/cli/incidents-resolve#cli-options-stacktape-incidents-resolve",
+        "page:/cli/incidents-resolve#cli-options-stacktape-incident-resolve",
         "page:/cli/incidents-resolve#examples",
         "page:/cli/incidents-resolve#related-commands"
       ]
@@ -16148,7 +16148,7 @@
         "page:/cli/incidents-show#incidents-show",
         "page:/cli/incidents-show#usage",
         "page:/cli/incidents-show#flags-reference",
-        "page:/cli/incidents-show#cli-options-stacktape-incidents-show",
+        "page:/cli/incidents-show#cli-options-stacktape-incident-show",
         "page:/cli/incidents-show#examples",
         "page:/cli/incidents-show#untrusted-evidence",
         "page:/cli/incidents-show#related-commands"
@@ -16170,7 +16170,7 @@
         "page:/cli/incidents-watch#incidents-watch",
         "page:/cli/incidents-watch#usage",
         "page:/cli/incidents-watch#flags-reference",
-        "page:/cli/incidents-watch#cli-options-stacktape-incidents-watch",
+        "page:/cli/incidents-watch#cli-options-stacktape-incident-watch",
         "page:/cli/incidents-watch#examples",
         "page:/cli/incidents-watch#exit-behavior",
         "page:/cli/incidents-watch#related-commands"
@@ -16192,7 +16192,7 @@
         "page:/cli/incidents#incidents",
         "page:/cli/incidents#usage",
         "page:/cli/incidents#flags-reference",
-        "page:/cli/incidents#cli-options-stacktape-incidents",
+        "page:/cli/incidents#cli-options-stacktape-incident-list",
         "page:/cli/incidents#examples",
         "page:/cli/incidents#output",
         "page:/cli/incidents#related-commands"
@@ -16217,7 +16217,7 @@
         "page:/cli/info-operations#controlling-output-size",
         "page:/cli/info-operations#machine-readable-output",
         "page:/cli/info-operations#flags-reference",
-        "page:/cli/info-operations#cli-options-stacktape-info-operations",
+        "page:/cli/info-operations#cli-options-stacktape-stack-history",
         "page:/cli/info-operations#related-commands"
       ]
     },
@@ -16237,7 +16237,7 @@
         "page:/cli/info-stack#info-stack",
         "page:/cli/info-stack#usage",
         "page:/cli/info-stack#command-reference",
-        "page:/cli/info-stack#cli-options-stacktape-info-stack",
+        "page:/cli/info-stack#cli-options-stacktape-status",
         "page:/cli/info-stack#examples",
         "page:/cli/info-stack#related-commands"
       ]
@@ -16258,7 +16258,7 @@
         "page:/cli/info-stacks#info-stacks",
         "page:/cli/info-stacks#usage",
         "page:/cli/info-stacks#api-reference",
-        "page:/cli/info-stacks#cli-options-stacktape-info-stacks",
+        "page:/cli/info-stacks#cli-options-stacktape-stack-list",
         "page:/cli/info-stacks#what-it-does",
         "page:/cli/info-stacks#important-flags",
         "page:/cli/info-stacks#examples",
@@ -16282,7 +16282,7 @@
         "page:/cli/info-whoami#usage",
         "page:/cli/info-whoami#examples",
         "page:/cli/info-whoami#flags",
-        "page:/cli/info-whoami#cli-options-stacktape-info-whoami",
+        "page:/cli/info-whoami#cli-options-stacktape-whoami",
         "page:/cli/info-whoami#related-commands"
       ]
     },

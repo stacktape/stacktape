@@ -67,7 +67,7 @@ export const assertReadOnlySql = ({ sql }: { sql: string }) => {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_SQL_QUERY_NOT_READ_ONLY',
-      message: '`query:sql` only supports read-only queries.',
+      message: '`query sql` only supports read-only queries.',
       hints: 'Use `SELECT`, `WITH`, `VALUES`, `SHOW`, `DESCRIBE`, or `EXPLAIN` statements only.'
     });
   }
@@ -91,8 +91,8 @@ export const commandQuerySql = async () => {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_SQL_RESOURCE_REQUIRED',
-      message: 'Missing required flag `--resourceName`.',
-      hints: 'Provide `--resourceName <databaseName>`.'
+      message: 'Missing required flag `--resource-name`.',
+      hints: 'Provide `--resource-name <databaseName>`.'
     });
   }
 
@@ -120,7 +120,7 @@ export const commandQuerySql = async () => {
       category: 'CLI',
       code: 'CLI_SQL_RESOURCE_TYPE_INVALID',
       message: `Resource \`${resourceName}\` is not a SQL database (type: \`${resource.resourceType}\`).`,
-      hints: '`query:sql` supports `relational-database` resources only.'
+      hints: '`query sql` supports `relational-database` resources only.'
     });
   }
 

@@ -91,7 +91,7 @@ export const codexSignIn = ({ env = process.env }: { env?: NodeJS.ProcessEnv } =
           message:
             'Codex is signed in with an OpenAI API key, and an API key is not a subscription, so nothing was connected.',
           hints: [
-            'Sign in to Codex with your ChatGPT account (`codex login`) and run `stacktape ai:connect` again.',
+            'Sign in to Codex with your ChatGPT account (`codex login`) and run `stacktape ai connect` again.',
             'To fund runs with an OpenAI API key, an Admin or Owner connects it once for the organization in the Console.'
           ]
         });
@@ -106,7 +106,7 @@ export const codexSignIn = ({ env = process.env }: { env?: NodeJS.ProcessEnv } =
           message: `Codex says it is signed in with ChatGPT, but ${authFile} holds no sign-in, so nothing was connected.`,
           hints: [
             'Codex may keep your sign-in in the system keyring. Set `cli_auth_credentials_store = "file"` in ' +
-              '~/.codex/config.toml, run `codex login`, then run `stacktape ai:connect` again.'
+              '~/.codex/config.toml, run `codex login`, then run `stacktape ai connect` again.'
           ]
         });
       }

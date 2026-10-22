@@ -173,7 +173,7 @@ test('fixed Convex topology remains usable and DSQL refuses unavailable protecti
     { type: 'command-restriction', properties: { blockedCommands: ['script:run'] } }
   ]);
   command.setStackContext({ ...context, command: 'script:run' });
-  expect(() => command.validateGuardrails({ hasConfig: false })).toThrow('Command `script:run` is blocked');
+  expect(() => command.validateGuardrails({ hasConfig: false })).toThrow('Command `script run` is blocked');
 });
 
 test('each limit admits its boundary and the defaults it applies, and blocks the first configuration past it', () => {

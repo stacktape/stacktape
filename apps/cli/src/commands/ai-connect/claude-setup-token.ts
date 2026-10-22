@@ -68,7 +68,7 @@ const notCompleted = () =>
     category: 'CLI',
     code: 'CLAUDE_SETUP_TOKEN_NOT_COMPLETED',
     message: 'Claude sign-in did not complete, so no token was connected.',
-    hints: ['Run `stacktape ai:connect` again and finish the sign-in in your browser.']
+    hints: ['Run `stacktape ai connect` again and finish the sign-in in your browser.']
   });
 
 /**

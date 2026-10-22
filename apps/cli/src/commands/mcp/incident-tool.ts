@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import type { StacktapeCommand } from '../../config/cli/commands';
 import type { RunStacktapeResult } from './cli-jsonl-runner';
 import { getCliCommandPolicy, prepareCliRun, type PreparedCliRun } from './cli-command-tools';
@@ -13,7 +14,7 @@ export type IncidentToolInput = {
 };
 
 const INCIDENT_FOLLOW_UP = [
-  'Diagnose from this context. Read logs, metrics, alarms, info:stack and reviewed AWS reads (aws:call) with stacktape_cli action=run; read-only commands run directly, without a plan or confirmation.',
+  'Diagnose from this context. Read logs, metrics, alarms, status and reviewed AWS reads (aws call) with stacktape_cli action=run; read-only commands run directly, without a plan or confirmation.',
   'Run the stacktape commands the handoff mentions through stacktape_cli, not Bash. Report the likely cause, its evidence, what is still uncertain and a recommended next action; a deploy, rollback or resolve is for the user to decide.'
 ];
 
@@ -134,7 +135,7 @@ export const buildIncidentToolOutput = ({
     return {
       ok: false,
       code: 'AGENT_PROTOCOL_ERROR',
-      message: `stacktape ${command} completed without the expected ${command === 'incidents' ? 'incident list' : 'incident handoff'}.`
+      message: `stacktape ${publicCommandName(command)} completed without the expected ${command === 'incidents' ? 'incident list' : 'incident handoff'}.`
     };
   }
   return buildCliRunOutput({ result, command, policy: getCliCommandPolicy(command) });

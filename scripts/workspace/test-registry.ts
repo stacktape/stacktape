@@ -2403,6 +2403,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/src/utils/bin-executable.spec.ts',
       'apps/cli/src/utils/cli.spec.ts',
+      'apps/cli/src/utils/cli-public-surface.spec.ts',
+      'apps/cli/src/commands/help/render.spec.ts',
       'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/utils/decorators.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
@@ -6072,6 +6074,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/__tests__/debug-formatters.test.ts',
       'apps/cli/tests/characterization/cli-contract.spec.ts',
       'apps/cli/tests/characterization/cli-input-parsing.spec.ts',
+      'apps/cli/src/utils/cli-public-surface.spec.ts',
+      'apps/cli/src/commands/help/render.spec.ts',
+      'apps/cli/tests/cli-process/public-surface.spec.ts',
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],

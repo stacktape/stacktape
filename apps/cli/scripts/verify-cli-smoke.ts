@@ -59,7 +59,7 @@ const verifyCliSmoke = async () => {
     expectOutputToContain({
       args: ['--help'],
       output: runBinary(binaryPath, ['--help']),
-      expected: ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']
+      expected: ['Daily:', 'deploy', 'delete', 'package', 'Documentation:']
     });
 
     for (const action of ['list', 'ignore', 'resolve', 'reopen']) {
@@ -67,21 +67,15 @@ const verifyCliSmoke = async () => {
       expectOutputToContain({
         args: [command, '--help'],
         output: runBinary(binaryPath, [command, '--help']),
-        expected: [command, action === 'list' ? 'issueStatus' : 'issueId']
+        expected: [`error ${action}`, action === 'list' ? '--status' : '--issue-id']
       });
-      const removed = Bun.spawnSync({
-        cmd: [binaryPath, `issues:${action}`],
-        env: { STP_DISABLE_TELEMETRY: '1', AWS_EC2_METADATA_DISABLED: 'true' },
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: 30_000
+      expectOutputToContain({
+        args: [`issues:${action}`, '--help'],
+        output: runBinary(binaryPath, [`issues:${action}`, '--help']),
+        expected: [`error ${action}`]
       });
-      const output = stripAnsi(`${removed.stdout.toString()}${removed.stderr.toString()}`);
-      if (removed.exitCode !== 1 || !/unknown command/i.test(output)) {
-        throw new Error(`Removed issues:${action} command was not rejected:\n${output}`);
-      }
     }
-    console.info('Verified errors:* command help and rejection of the removed issues:* commands.');
+    console.info('Verified public error commands and legacy errors:* / issues:* spellings.');
 
     const fixtureDirectory = join(directory, 'nested-invocation');
     const fixtureHome = join(directory, 'home');

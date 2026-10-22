@@ -92,11 +92,11 @@ describe('the pipelines', () => {
             ? pipeline.deploy!.script
             : pipeline.pipelines!.branches.main[0]!.step.script;
       const deploy = commands.find((command) => command.trim().startsWith('stacktape deploy'));
-      expect(deploy).toContain('--configPath stacktape.yml');
+      expect(deploy).toContain('--config stacktape.yml');
       expect(deploy).toContain('--stage production');
       expect(deploy).toContain('--region eu-west-1');
       // Nothing in CI can answer a prompt.
-      expect(deploy).toContain('--autoConfirmOperation');
+      expect(deploy).toContain('--yes');
     }
   });
 

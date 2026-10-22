@@ -454,7 +454,7 @@ describe('delete', () => {
 
     expect(run.exitCode).not.toBe(0);
     expect(run.result?.code).toContain('CONFIRMATION_REQUIRED');
-    expect(JSON.stringify(run.result)).toContain('autoConfirmOperation');
+    expect(JSON.stringify(run.result)).toContain('--yes');
     expect(aws.mutations).toEqual([]);
     expect(aws.stack?.status).toBe('CREATE_COMPLETE');
   });
@@ -548,7 +548,7 @@ describe('rollback', () => {
 
     expect(run.exitCode).not.toBe(0);
     expect(printable(run)).toContain('UPDATE_ROLLBACK_FAILED');
-    expect(JSON.stringify(run.result)).toContain('cf:rollback');
+    expect(JSON.stringify(run.result)).toContain('stack recover');
     expect(aws.mutations).toEqual([]);
   });
 
@@ -665,7 +665,10 @@ describe('cf:rollback', () => {
           aws,
           bucket
         });
-        expect(aws.mutations.map((mutation) => mutation.action)).toEqual([action]);
+        expect(
+          aws.mutations.map((mutation) => mutation.action),
+          printable(run)
+        ).toEqual([action]);
         if (action === 'ContinueUpdateRollback') {
           expect(aws.mutations[0].parameters['ResourcesToSkip.member.1']).toBe('ApiFunction');
           expect(aws.mutations[0].parameters['ResourcesToSkip.member.2']).toBeUndefined();

@@ -745,3 +745,36 @@ test.skipIf(process.platform === 'win32')(
   },
   60_000
 );
+
+test.skipIf(process.platform === 'win32')(
+  'public container exec positionals reach the ECS command unchanged',
+  async () => {
+    const fixture = await create();
+    try {
+      await seedContainer(fixture, 'exec');
+      const child = await fixture.run([
+        'container',
+        'exec',
+        'service',
+        'printf j9-command',
+        '--container',
+        'sidecar',
+        '--task-arn',
+        'second',
+        ...targetArgs,
+        '--json'
+      ]);
+      expect(child.exitCode, child.stdout + child.stderr).toBe(0);
+      expect(fixture.aws.callsTo('ecs.ExecuteCommand')[0].input).toMatchObject({
+        command: 'printf j9-command',
+        container: 'sidecar',
+        task: taskArn('second')
+      });
+      expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual(['exec']);
+      assertRequests(fixture);
+    } finally {
+      await fixture.close();
+    }
+  },
+  60_000
+);

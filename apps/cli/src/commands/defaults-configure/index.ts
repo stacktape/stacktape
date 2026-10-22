@@ -1,3 +1,5 @@
+import { parseDefaultSetting } from './input';
+import { CliError } from '@utils/errors';
 import type {
   ConfigurableCliArgsDefaults,
   ConfigurableOtherDefaults,
@@ -37,6 +39,29 @@ const getDefaults = async (
 };
 
 export const commandDefaultsConfigure = async () => {
+  const { key, value } = globalStateManager.args;
+  if (key !== undefined || value !== undefined) {
+    if (key === undefined || value === undefined)
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_DEFAULT_VALUE_REQUIRED',
+        message: 'Use defaults set <key> <value>, or omit both arguments for the interactive prompt.'
+      });
+    const setting = parseDefaultSetting(key, value);
+    await globalStateManager.saveDefaults({
+      cliArgsDefaults: {
+        ...globalStateManager.persistedState.cliArgsDefaults,
+        ...(setting.isCliArg ? { [setting.key]: setting.value } : {})
+      },
+      otherDefaults: {
+        ...globalStateManager.persistedState.otherDefaults,
+        ...(!setting.isCliArg ? { [setting.key]: setting.value } : {})
+      }
+    });
+    await globalStateManager.reloadPersistedState();
+    tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(localStatePaths.persistedStateFile())}.`);
+    return;
+  }
   const cliArgsDefaults = (await getDefaults(
     globalStateManager.persistedState?.cliArgsDefaults || ({} as any),
     configurableGlobalDefaultCliArgs

@@ -112,7 +112,7 @@ const outputFileForPath = (pathname: string): string | undefined => {
 const descriptions = new Map<string, string[]>();
 const cliCommands = JSON.parse(readFileSync(CLI_COMMAND_REFERENCE_DATA, 'utf8')) as Record<
   string,
-  { name: string; alias?: string }[]
+  { publicName: string; args: { flag: string; alias?: string; positional?: number }[] }
 >;
 
 for (const [filePath, html] of htmlByFile) {
@@ -120,16 +120,19 @@ for (const [filePath, html] of htmlByFile) {
   const isErrorPage = shownPath === ERROR_PAGE;
   for (const section of html.matchAll(/<section\b[^>]*\bid="api-ref-([^"]+)"[^>]*>([\s\S]*?)<\/section>/g)) {
     const command = section[1];
-    const args = cliCommands[command];
-    if (!args) {
+    const reference = cliCommands[command];
+    if (!reference) {
       fail(`${shownPath}: unknown CLI reference command ${command}`);
       continue;
     }
     const renderedOptions = captureAll(
       section[2],
-      /<code\b(?=[^>]*\bclass="[^"]*font-semibold)[^>]*>(--[^<]*)<\/code>/g
+      /<code\b(?=[^>]*\bclass="[^"]*font-semibold)[^>]*>((?:-[a-z], )?--[^<]*)<\/code>/g
     );
-    const expectedOptions = args.map((arg) => `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`);
+    const expectedOptions = reference.args.map(
+      (arg) =>
+        `${arg.alias ? `-${arg.alias}, ` : ''}--${arg.flag}${arg.positional !== undefined ? ` (positional ${arg.positional + 1})` : ''}`
+    );
     if (JSON.stringify(renderedOptions) !== JSON.stringify(expectedOptions)) {
       fail(`${shownPath}: CLI reference for ${command} differs from the current command metadata`);
     }

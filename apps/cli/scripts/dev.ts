@@ -24,7 +24,10 @@ const hasArgValue = ({ flag, value }: { flag: string; value: string }) => {
 };
 
 const requestedJsonlOutput =
-  hasArgValue({ flag: '--outputFormat', value: 'jsonl' }) || hasArgValue({ flag: '--ofmt', value: 'jsonl' });
+  process.argv.includes('--json') ||
+  hasArgValue({ flag: '--output-format', value: 'jsonl' }) ||
+  hasArgValue({ flag: '--outputFormat', value: 'jsonl' }) ||
+  hasArgValue({ flag: '--ofmt', value: 'jsonl' });
 const isMachineMode =
   process.argv.includes('--agent') ||
   process.argv.includes('--agentPort') ||

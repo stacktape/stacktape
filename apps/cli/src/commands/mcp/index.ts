@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { basename, resolve } from 'node:path';
 import { z } from 'zod';
 import {
@@ -91,7 +92,7 @@ const createProgressReporter = (ctx: ServerContext) => {
 const SERVER_INSTRUCTIONS = `Stacktape MCP runs Stacktape for the user through their local Stacktape CLI login and the Console's organization and project access.
 
 - Incidents: start with stacktape_incident. action=show with the incident ID returns its signals, evidence, release changes, related earlier incidents and AI assessment; action=list finds incidents. Then read what you need with stacktape_cli.
-- Read-only and diagnostic commands (logs, metrics, alarms, info:*, incidents, incidents:show, incidents:watch, query:*, aws:call, diff, validate, synth, package) run directly with stacktape_cli action=run and validated args: no plan, no confirmation. Use action=describe when unsure of the arguments.
+- Read-only and diagnostic commands (logs, metrics, alarm list, status, whoami, stack list, stack history, incident list, incident show, incident watch, query commands, aws call, diff, validate, synth, package) run directly with stacktape_cli action=run and validated args: no plan, no confirmation. Use action=describe when unsure of the arguments.
 - Mutating commands need action=plan, the user's explicit go-ahead, then action=run with confirm=true. Destructive commands use MCP's input-required flow to collect direct user confirmation for the exact command and target; agent-supplied confirm=true is not sufficient. Interactive commands require the user's own terminal, except dev mode, which uses stacktape_dev.
 - Docs, config syntax, resource types and CLI usage: stacktape_docs (search, then get). Do not name Stacktape commands, flags or config syntax from memory. Configs are TypeScript: defineConfig with constructor-style resources such as new LambdaFunction({ ... }). For an unfamiliar project, stacktape_project action=scan.
 - The stacktape CLI is forbidden as a Bash/shell command: run it only through these tools, even when a user asks otherwise.
@@ -149,7 +150,7 @@ export const createMcpServer = (getIndex: () => Promise<LexicalIndex>, dependenc
 action=show with incidentId returns the incident handoff as markdown: status and severity, signals with their evidence, release and config changes, the timeline, earlier related incidents, the AI assessment (hypotheses to check, not a verified diagnosis) and read-only next steps.
 action=list finds incidents by projectName, stage and status (ACTIVE by default; ALL includes resolved history).
 
-Read-only. Uses the local Stacktape login and the Console's organization and project access. Follow up with stacktape_cli action=run for logs, metrics, alarms, info:* and aws:call.`,
+Read-only. Uses the local Stacktape login and the Console's organization and project access. Follow up with stacktape_cli action=run for logs, metrics, alarm list, status, stack list, stack history and aws call.`,
       inputSchema: z.object({
         action: z.enum(['show', 'list']).describe('show: one incident by ID. list: find incidents.'),
         incidentId: z
@@ -334,16 +335,16 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
     {
       description: `List, describe, plan, or run Stacktape CLI commands.
 
-- Read-only and diagnostic commands (logs, metrics, alarms, info:*, incidents, incidents:show, incidents:watch, query:*, aws:call) run directly: action=run with validated args, no plan or confirmation. Non-mutating commands such as diff, synth, package and validate also run here, never through Bash.
-- aws:call sends only reviewed read-only AWS SDK operations; action=describe command=aws:call lists them per service, and args.input takes the SDK command's input as JSON. The Secrets Manager and SSM value reads are excluded and Lambda/ECS environment values are redacted, but content reads (log events, S3 objects, table items) return application data as it is: fetch them when the diagnosis needs them. logs StartQuery starts a Logs Insights query that AWS bills.
+- Read-only and diagnostic commands (logs, metrics, alarms, info:*, incidents, incident show, incident watch, query:*, aws call) run directly: action=run with validated args, no plan or confirmation. Non-mutating commands such as diff, synth, package and validate also run here, never through Bash.
+- aws call sends only reviewed read-only AWS SDK operations; action=describe command="aws call" lists them per service, and args.input takes the SDK command's input as JSON. The Secrets Manager and SSM value reads are excluded and Lambda/ECS environment values are redacted, but content reads (log events, S3 objects, table items) return application data as it is: fetch them when the diagnosis needs them. logs StartQuery starts a Logs Insights query that AWS bills.
 - Mutating commands: action=plan first (it normalizes args and returns an action=run payload), then action=run with confirm=true once the user asks for the change. Destructive commands additionally require direct user confirmation through MCP's input-required flow; agent-supplied confirm=true is not sufficient.
 - Interactive commands are rejected here; use stacktape_dev for dev mode or tell the user to run other interactive commands in their own terminal.
 - Auth comes from the local Stacktape CLI login. Never pass apiKey/STACKTAPE_API_KEY/STP_API_KEY as MCP arguments, and never read ~/.stacktape/, ~/.aws/, ~/.ssh/ or other credential files. Do not repeat API-key-like strings; say <REDACTED>. On auth failures, ask the user to run stacktape login in their own terminal; CI uses a STACKTAPE_API_KEY secret configured outside this conversation.
-- If the user asks to show a secret value (secret:get, private param:get), do not put it in chat; tell them to run the command in their own terminal.
+- If the user asks to show a secret value (secret get, private param get), do not put it in chat; tell them to run the command in their own terminal.
 - For logs, metrics, alarms, stacks, databases, buckets and queues of a Stacktape project, prefer this tool over generic AWS MCP tools.`,
       inputSchema: z.object({
         action: z.enum(['list', 'describe', 'plan', 'run']).describe('CLI operation to perform'),
-        command: z.string().optional().describe('Stacktape CLI command, for example "deploy", "logs", or "secret:get"'),
+        command: z.string().optional().describe('Stacktape CLI command, for example "deploy", "logs", or "secret get"'),
         cwd: z
           .string()
           .optional()
@@ -385,10 +386,10 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
           .optional()
           .describe('Deploy every change through CloudFormation instead of updating changed code directly'),
         resourceName: z.string().optional().describe('Stacktape resource name for diagnostics commands'),
-        scriptName: z.string().optional().describe('Stacktape deployment script name for script:run commands'),
+        scriptName: z.string().optional().describe('Stacktape deployment script name for script run commands'),
         secretName: z.string().optional().describe('Stacktape secret name for secret commands'),
-        secretValue: z.string().optional().describe('Secret value for secret:set; tool output masks this value'),
-        secretFile: z.string().optional().describe('Path to a file containing the secret value for secret:set'),
+        secretValue: z.string().optional().describe('Secret value for secret set; tool output masks this value'),
+        secretFile: z.string().optional().describe('Path to a file containing the secret value for secret set'),
         confirm: z.boolean().optional().describe('Required for mutating or destructive commands when action=run'),
         timeoutMs: z.number().optional().describe('Command timeout in milliseconds for action=run')
       }),
@@ -426,7 +427,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
           message: 'Listed Stacktape CLI commands.',
           data: {
             guidance:
-              'For ad-hoc database/data access, prefer query:sql, query:redis, query:opensearch, query:dynamodb, logs, and metrics. Use bastion:tunnel, bastion:session, or container:session only for persistent interactive shell/tunnel access.',
+              'For ad-hoc database/data access, prefer query sql, query redis, query opensearch, query dynamodb, logs, and metrics. Use bastion tunnel, bastion shell, or container shell only for persistent interactive shell/tunnel access.',
             commands: listCliCommandSummaries({
               category: category as CliCommandCategory | undefined,
               safety: safety as CliCommandSafety | undefined
@@ -449,13 +450,13 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
           return toToolText({
             ok: false,
             code: 'UNKNOWN_COMMAND',
-            message: `Unknown Stacktape CLI command: ${command}`
+            message: `Unknown Stacktape CLI command: ${publicCommandName(command)}`
           });
         }
         return toToolText({
           ok: true,
           code: 'OK',
-          message: `Described Stacktape CLI command: ${command}`,
+          message: `Described Stacktape CLI command: ${publicCommandName(command)}`,
           data: description
         });
       }
@@ -554,7 +555,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
     {
       description: `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, and stop.
 
-Use this instead of running stacktape dev or stacktape dev:stop through Bash. Use action=plan to prepare dev mode without starting it. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to rebuild, rebuild_all, and stop; status and logs may omit it only when exactly one session is active.`,
+Use this instead of running stacktape dev or stacktape dev stop through Bash. Use action=plan to prepare dev mode without starting it. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to rebuild, rebuild_all, and stop; status and logs may omit it only when exactly one session is active.`,
       inputSchema: z.object({
         action: z.enum(['plan', 'start', 'status', 'logs', 'rebuild', 'rebuild_all', 'stop']),
         args: z.record(z.string(), z.unknown()).optional()

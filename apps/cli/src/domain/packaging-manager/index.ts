@@ -908,7 +908,7 @@ export class PackagingManager {
     // Finish the shared layer build with clear summary
     let finalMessage: string;
     if (skipLayers) {
-      finalMessage = `Shared layers disabled (--disableLayerOptimization)`;
+      finalMessage = `Shared layers disabled (--no-layer-optimization)`;
     } else if (layerArtifactsWithS3Keys.length > 0) {
       const totalLayerBytes = layerArtifactsWithS3Keys.reduce((sum, l) => sum + l.sizeBytes, 0);
       const totalLayerSizeMB = (totalLayerBytes / (1024 * 1024)).toFixed(1);

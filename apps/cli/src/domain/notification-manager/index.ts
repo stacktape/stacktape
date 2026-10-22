@@ -1,3 +1,4 @@
+import { publicCommandName } from '../../config/cli/public-names';
 import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -174,7 +175,7 @@ class NotificationManager {
     });
     if (!eventType) return;
 
-    let text = `Error performing operation ${globalStateManager.command}`;
+    let text = `Error performing operation ${publicCommandName(globalStateManager.command)}`;
     if (globalStateManager.targetStack?.stackName) {
       text += ` on stack ${globalStateManager.targetStack.stackName}`;
     }

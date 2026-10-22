@@ -48,7 +48,7 @@ export const translateStacktapeApiError = ({ error, hasApiKey }: { error: unknow
       category: 'API_SERVER',
       code: 'STACKTAPE_API_PERMISSION_DENIED',
       message: `Permission denied: ${errorMessage}`,
-      hints: 'Check your role with `stacktape info:whoami`.',
+      hints: 'Check your role with `stacktape whoami`.',
       cause: error
     });
   }

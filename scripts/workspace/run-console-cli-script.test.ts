@@ -20,7 +20,7 @@ test('replaces the package executable while preserving its literal Stacktape arg
       '--hs',
       '--projectName',
       'console-app',
-      '--currentWorkingDirectory',
+      '--cwd',
       '/repo/apps/console/api'
     ]
   );
@@ -33,17 +33,7 @@ test('appends UI and other overrides after the package script arguments', () => 
       overrides: ['--ui', 'stream'],
       workingDirectory: '/console/api'
     }),
-    [
-      'script:run',
-      '--scn',
-      'print spend',
-      '--stage',
-      'dev',
-      '--ui',
-      'stream',
-      '--currentWorkingDirectory',
-      '/console/api'
-    ]
+    ['script:run', '--scn', 'print spend', '--stage', 'dev', '--ui', 'stream', '--cwd', '/console/api']
   );
 });
 
@@ -74,7 +64,7 @@ test('resolves caller-supplied config paths from the invocation directory', () =
       'production',
       '--cp',
       resolve(invocationDirectory, 'apps/console/api/stacktape.ts'),
-      '--currentWorkingDirectory',
+      '--cwd',
       '/console/api',
       '--',
       '--month',
@@ -116,5 +106,18 @@ test('rejects non-Stacktape and compound shell scripts instead of changing their
         workingDirectory: '/console/api'
       }),
     /Only one literal Stacktape command/
+  );
+});
+
+test('resolves public config flags while preserving public command paths', () => {
+  const invocationDirectory = resolve('workspace-root');
+  assert.deepEqual(
+    sourceCliArgsForConsoleScript({
+      command: 'stacktape script run report',
+      overrides: ['--config', './infra/stacktape.ts'],
+      invocationDirectory,
+      workingDirectory: '/console/api'
+    }),
+    ['script', 'run', 'report', '--config', resolve(invocationDirectory, 'infra/stacktape.ts'), '--cwd', '/console/api']
   );
 });

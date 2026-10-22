@@ -30,7 +30,7 @@ export const commandParamGet = async () => {
     `Parameter retrieved: ${tuiManager.prettyResourceName(resourceName)}.${tuiManager.prettyConfigProperty(paramName)}`
   );
   if (isSensitive && !shouldShowSensitiveValue) {
-    tuiManager.warn('This parameter is sensitive. Re-run with --showSensitiveValues to print the value.');
+    tuiManager.warn('This parameter is sensitive. Re-run with --show-secrets to print the value.');
   }
   tuiManager.printLines([`${tuiManager.makeBold(`${paramValue}`)}`, '']);
   return `${paramValue}`;

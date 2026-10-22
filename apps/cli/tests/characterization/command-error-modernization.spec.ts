@@ -24,7 +24,7 @@ describe('modernized command error contracts', () => {
     expectCliError(() => assertAwsProfilesConfigured([]), {
       category: 'CREDENTIALS',
       code: 'AWS_PROFILE_NOT_CONFIGURED',
-      hints: ['Create a profile with `stacktape aws-profile:create`.']
+      hints: ['Create a profile with `stacktape aws-profile create`.']
     });
 
     expectCliError(
@@ -46,7 +46,7 @@ describe('modernized command error contracts', () => {
     const nameError = expectCliError(() => requireSecretName(undefined), {
       category: 'CLI',
       code: 'CLI_SECRET_NAME_REQUIRED',
-      hints: ['Provide `--secretName <name>`.']
+      hints: ['Provide `--secret-name <name>`.']
     });
     expectCliError(() => requireSecretValueInput({ secretFile: undefined, secretValue: undefined }), {
       category: 'CLI',
@@ -61,7 +61,7 @@ describe('modernized command error contracts', () => {
     expect(returned.details).toMatchObject({
       errorType: 'CLI',
       code: 'CLI_SECRET_NAME_REQUIRED',
-      hints: ['Provide `--secretName <name>`.']
+      hints: ['Provide `--secret-name <name>`.']
     });
   });
 });

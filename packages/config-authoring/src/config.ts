@@ -217,7 +217,7 @@ const transformChildResourceProperties = ({
   const unsupported = (propertyName: string) =>
     new Error(
       `${operation === 'override' ? 'Override' : 'Transform'} of property ${propertyName} of resource ${resourceName} is not supported.\n\n` +
-        `Remove the ${operation}, run 'stacktape compile:template' command, and find the logical name of the resource you want to ${operation} manually. Then add it to the ${operation}s object.`
+        `Remove the ${operation}, run 'stacktape synth' command, and find the logical name of the resource you want to ${operation} manually. Then add it to the ${operation}s object.`
     );
 
   for (const [propertyName, value] of Object.entries(values)) {

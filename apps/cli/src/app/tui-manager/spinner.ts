@@ -25,6 +25,17 @@ export type Spinner = {
 
 let _devTuiActive = false;
 let _agentMode = false;
+let _quiet = false;
+export const setSpinnerQuiet = (quiet: boolean) => {
+  _quiet = quiet;
+};
+const quietSpinner = (text: string): Spinner => ({
+  update: () => {},
+  success: () => {},
+  error: (message) => {
+    console.error(message ?? `${text} failed`);
+  }
+});
 type TuiSpinnerMessageSink = (type: 'success' | 'error', text: string) => void;
 
 // While a TUI presenter owns the terminal, inline \r-animated spinners would
@@ -65,6 +76,7 @@ const createTuiSinkSpinner = (text: string, sink: TuiSpinnerMessageSink): Spinne
 };
 
 export const createSpinner = (text: string, colorize: (color: string, text: string) => string): Spinner => {
+  if (_quiet) return quietSpinner(text);
   if (_devTuiActive) {
     return { update: () => {}, success: () => {}, error: () => {} };
   }
@@ -212,6 +224,7 @@ export class MultiSpinner {
   }
 
   add(id: string, text: string): Spinner {
+    if (_quiet) return quietSpinner(text);
     if (this.suppressed) {
       return {
         update: () => {},

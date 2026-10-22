@@ -56,7 +56,7 @@ describe('modernized config and synthesis error contracts', () => {
       expect((error as Error).message).not.toContain(expectedPath);
       expect((error as Error).message).not.toContain('\\');
       expect((error as CliError).hints).toEqual([
-        'Relative paths are resolved from `--currentWorkingDirectory` or the directory containing the Stacktape config.'
+        'Relative paths are resolved from `--cwd` or the directory containing the Stacktape config.'
       ]);
     }
   });

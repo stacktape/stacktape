@@ -76,8 +76,15 @@ const getSinksForMode = (mode: OutputMode): OutputSink[] => {
 export class OutputRouter {
   private sinks: OutputSink[];
 
+  private quiet = false;
+
   constructor(mode: OutputMode) {
     this.sinks = getSinksForMode(mode);
+  }
+
+  /** `--quiet` drops progress records only; command data, warnings, errors and results still reach every sink. */
+  setQuiet(quiet: boolean) {
+    this.quiet = quiet;
   }
 
   reconfigure(mode: OutputMode) {
@@ -91,6 +98,7 @@ export class OutputRouter {
   }
 
   emit(record: OutputRecord) {
+    if (this.quiet && (record.type === 'event' || record.type === 'progress')) return;
     for (const sink of this.sinks) {
       sink.emit(record);
     }

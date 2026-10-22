@@ -267,7 +267,7 @@ globalThis.fetch = reject;
     }
   }
   const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { ...runtimeEnv, NODE_PATH: '' } });
-  for (const expected of ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']) {
+  for (const expected of ['Daily:', 'deploy', 'delete', 'package', 'Documentation:']) {
     if (!helpOutput.includes(expected)) {
       throw new Error(`Installed npm launcher help is missing ${expected}:\n${helpOutput}`);
     }

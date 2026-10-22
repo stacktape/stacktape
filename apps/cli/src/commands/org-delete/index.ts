@@ -21,8 +21,8 @@ export const commandOrgDelete = async () => {
     if (!organizationId) {
       throw new ExpectedError(
         'CLI',
-        'Missing required flag: --organizationId',
-        'Provide --organizationId <organization-id>'
+        'Missing required flag: --organization-id',
+        'Provide --organization-id <organization-id>'
       );
     }
   } else if (!organizationId) {

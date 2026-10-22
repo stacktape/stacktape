@@ -29,7 +29,7 @@ export const assertPermission = ({
     category: 'CLI',
     code: 'CLI_PERMISSION_DENIED',
     message: `Permission denied: ${reason}`,
-    hints: `Required permission: \`${permission}\`. Current role: \`${role || 'UNKNOWN'}\`. Run \`stacktape info:whoami\` to inspect effective access.`
+    hints: `Required permission: \`${permission}\`. Current role: \`${role || 'UNKNOWN'}\`. Run \`stacktape whoami\` to inspect effective access.`
   });
 };
 
@@ -50,7 +50,7 @@ export const assertScopedProjectAccess = ({
     category: 'CLI',
     code: 'CLI_PROJECT_ACCESS_DENIED',
     message: `Permission denied: You do not have access to project \`${projectName}\`.`,
-    hints: `Run \`stacktape info:whoami\` to view projects accessible to role \`${role}\`.`
+    hints: `Run \`stacktape whoami\` to view projects accessible to role \`${role}\`.`
   });
 };
 

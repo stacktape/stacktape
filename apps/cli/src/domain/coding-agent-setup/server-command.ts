@@ -44,7 +44,7 @@ export const resolveServerCommand = ({
     return {
       command: runningBinary,
       args,
-      caveat: `\`stacktape\` is not on your PATH, so agents run ${runningBinary}. If that file moves (for example after an upgrade), run \`stacktape mcp:add\` again.`
+      caveat: `\`stacktape\` is not on your PATH, so agents run ${runningBinary}. If that file moves (for example after an upgrade), run \`stacktape mcp add\` again.`
     };
   }
   return {

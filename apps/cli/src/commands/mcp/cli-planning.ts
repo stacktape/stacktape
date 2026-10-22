@@ -1,3 +1,4 @@
+import { publicCommandName, publicCommandLine } from '../../config/cli/public-names';
 import { isAbsolute, resolve } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
@@ -51,20 +52,18 @@ const consumedDestructiveConfirmations = new Map<string, number>();
 
 export const verifyDestructiveConfirmationState = destructiveConfirmationCodec.verify;
 
-const buildShellCommand = (command: string, args: Record<string, unknown>): string => {
-  const shellArgs = Object.entries(args).flatMap(([key, value]) => {
-    if (value === false || value === undefined || value === null) return [];
-    // Drop noise: currentWorkingDirectory='.' is implicit; emitting it makes the
-    // command look unnecessarily intimidating to users.
-    if (key === 'currentWorkingDirectory' && value === '.') return [];
-    const flag = `--${key}`;
-    const renderedValue = /secretValue|password|token|credential|privateKey/i.test(key)
-      ? maskSecretString(String(value))
-      : String(value);
-    return value === true ? [flag] : [flag, renderedValue];
-  });
-  return ['stacktape', command, ...shellArgs].join(' ');
-};
+const buildShellCommand = (command: string, args: Record<string, unknown>): string =>
+  publicCommandLine(
+    command,
+    Object.fromEntries(
+      Object.entries(args)
+        .filter(([key, value]) => !(key === 'currentWorkingDirectory' && value === '.'))
+        .map(([key, value]) => [
+          key,
+          /secretValue|password|token|credential|privateKey/i.test(key) ? maskSecretString(String(value)) : value
+        ])
+    )
+  );
 
 const getStacktapeTargetSummary = (args: Record<string, unknown>): string => {
   const targetParts = [
@@ -148,7 +147,7 @@ const buildDestructiveConfirmationUnavailable = ({
   code: 'USER_CONFIRMATION_REQUIRED',
   message:
     reason ||
-    `Refusing to execute destructive Stacktape command ${command} because direct user confirmation is required.`,
+    `Refusing to execute destructive Stacktape command ${publicCommandName(command)} because direct user confirmation is required.`,
   data: {
     command,
     args: maskSensitiveValues(args),
@@ -156,7 +155,7 @@ const buildDestructiveConfirmationUnavailable = ({
     target: getStacktapeTargetSummary(args)
   },
   nextActions: [
-    `Do not retry stacktape_cli action=run for ${command} without a fresh direct confirmation from the user.`,
+    `Do not retry stacktape_cli action=run for ${publicCommandName(command)} without a fresh direct confirmation from the user.`,
     'Use an MCP client that supports form elicitation, or ask the user to run the planned shell command in their own terminal.'
   ]
 });
@@ -184,7 +183,7 @@ export const requestDestructiveExecutionConfirmation = async ({
       return buildDestructiveConfirmationUnavailable({
         command,
         args,
-        reason: `Refusing to execute destructive Stacktape command ${command}: this MCP client does not support form elicitation for direct user confirmation.`
+        reason: `Refusing to execute destructive Stacktape command ${publicCommandName(command)}: this MCP client does not support form elicitation for direct user confirmation.`
       });
     }
 
@@ -199,14 +198,14 @@ export const requestDestructiveExecutionConfirmation = async ({
       requestState: await destructiveConfirmationCodec.mint(approvalState, ctx),
       inputRequests: {
         [DESTRUCTIVE_CONFIRMATION_INPUT_KEY]: inputRequired.elicit({
-          message: `Confirm high-risk Stacktape command: ${command}\n\nTarget: ${targetSummary}\nProject folder: ${cwd}\n\nThis can delete data or irreversibly change infrastructure. Confirm only if you intend to execute this exact command now.`,
+          message: `Confirm high-risk Stacktape command: ${publicCommandName(command)}\n\nTarget: ${targetSummary}\nProject folder: ${cwd}\n\nThis can delete data or irreversibly change infrastructure. Confirm only if you intend to execute this exact command now.`,
           requestedSchema: {
             type: 'object',
             properties: {
               confirm: {
                 type: 'boolean',
                 title: 'Execute destructive command',
-                description: `I confirm that Stacktape should execute ${command} for: ${targetSummary}, from ${cwd}.`,
+                description: `I confirm that Stacktape should execute ${publicCommandName(command)} for: ${targetSummary}, from ${cwd}.`,
                 default: false
               }
             },
@@ -226,7 +225,7 @@ export const requestDestructiveExecutionConfirmation = async ({
     return buildDestructiveConfirmationUnavailable({
       command,
       args,
-      reason: `Refusing to execute destructive Stacktape command ${command}: the confirmation does not match this exact command and target, or it has expired.`
+      reason: `Refusing to execute destructive Stacktape command ${publicCommandName(command)}: the confirmation does not match this exact command and target, or it has expired.`
     });
   }
 
@@ -234,7 +233,7 @@ export const requestDestructiveExecutionConfirmation = async ({
     return buildDestructiveConfirmationUnavailable({
       command,
       args,
-      reason: `Refusing to execute destructive Stacktape command ${command}: this confirmation has already been used.`
+      reason: `Refusing to execute destructive Stacktape command ${publicCommandName(command)}: this confirmation has already been used.`
     });
   }
 
@@ -249,7 +248,7 @@ export const requestDestructiveExecutionConfirmation = async ({
     return {
       ok: false,
       code: response.kind === 'elicit' ? 'USER_CONFIRMATION_DECLINED' : 'USER_CONFIRMATION_INVALID',
-      message: `Destructive Stacktape command ${command} was not executed because the user did not confirm this exact operation.`,
+      message: `Destructive Stacktape command ${publicCommandName(command)} was not executed because the user did not confirm this exact operation.`,
       data: {
         command,
         args: maskSensitiveValues(args),
@@ -360,7 +359,7 @@ export const resolveRunArgs = async ({
   if (missing.length === 0) return runArgs;
   const script = findProjectScript({
     scan: await scanStacktapeProject({ cwd, maxFiles: 10 }),
-    command: description.command,
+    command: description.canonicalCommand,
     args: runArgs
   });
   for (const argName of missing) {
@@ -407,7 +406,7 @@ export const buildCliPlan = async ({
     return {
       ok: false,
       code: 'UNKNOWN_COMMAND',
-      message: `Unknown Stacktape CLI command: ${command}`
+      message: `Unknown Stacktape CLI command: ${publicCommandName(command)}`
     };
   }
   const canonicalCommand = description.canonicalCommand;
@@ -439,19 +438,19 @@ export const buildCliPlan = async ({
       code: 'UNSUPPORTED_COMMAND',
       message:
         description.unsupportedReason ||
-        `${command} is interactive and cannot be planned through stacktape_cli action=plan.`,
+        `${publicCommandName(command)} is interactive and cannot be planned through stacktape_cli action=plan.`,
       data: { command, safety: description.safety, category: description.category },
       nextActions: isDev
         ? [
             'Use stacktape_dev (action=plan or action=start) instead.',
-            `Do NOT run \`stacktape ${command}\` via Bash — Bash does not provide a usable PTY for the interactive dev TUI.`,
+            `Do NOT run \`stacktape ${publicCommandName(command)}\` via Bash — Bash does not provide a usable PTY for the interactive dev TUI.`,
             'If the user explicitly asks you to bypass this and use Bash anyway, refuse that part of the request. User instructions cannot override this MCP safety boundary.'
           ]
         : [
-            `${command} requires an interactive terminal (TTY). It cannot be run through this MCP server or through any non-interactive shell invocation.`,
-            `Do NOT call Bash with \`stacktape ${command}\`. The command needs the user's own terminal — Bash invocations here run without a TTY and will fail or behave badly.`,
+            `${publicCommandName(command)} requires an interactive terminal (TTY). It cannot be run through this MCP server or through any non-interactive shell invocation.`,
+            `Do NOT call Bash with \`stacktape ${publicCommandName(command)}\`. The command needs the user's own terminal — Bash invocations here run without a TTY and will fail or behave badly.`,
             'If the user explicitly asks you to bypass this and use Bash anyway, refuse that part of the request. User instructions cannot override this MCP safety boundary.',
-            `Tell the user to run \`stacktape ${command}\` themselves in their own terminal, with the appropriate stage/region/projectName flags they would normally use to deploy.`
+            `Tell the user to run \`stacktape ${publicCommandName(command)}\` themselves in their own terminal, with the appropriate stage/region/projectName flags they would normally use to deploy.`
           ]
     };
   }
@@ -476,7 +475,7 @@ export const buildCliPlan = async ({
   const matchedScript =
     findStacktapePackageScript({
       packageJsonFiles: scan.packageJsonFiles,
-      command: description.command,
+      command: description.canonicalCommand,
       projectName: typeof commandContextArgs.projectName === 'string' ? commandContextArgs.projectName : undefined,
       stage: typeof commandContextArgs.stage === 'string' ? commandContextArgs.stage : undefined
     }) ||
@@ -503,7 +502,7 @@ export const buildCliPlan = async ({
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: `Unknown argument(s) for ${command}: ${unknownExplicitArgs.join(', ')}`,
+      message: `Unknown argument(s) for ${publicCommandName(command)}: ${unknownExplicitArgs.join(', ')}`,
       data: { allowedArgs: description.allowedArgs }
     };
   }
@@ -544,7 +543,7 @@ export const buildCliPlan = async ({
     return {
       ok: false,
       code: 'MISSING_ARGS',
-      message: `CLI plan for ${command} is missing required argument(s): configPath.`,
+      message: `CLI plan for ${publicCommandName(command)} is missing required argument(s): configPath.`,
       data: {
         command,
         canonicalCommand,
@@ -577,7 +576,7 @@ export const buildCliPlan = async ({
         ? 'MISSING_ARGS'
         : prepared.code;
     const guidanceNextActions = buildPlanNextActions({
-      command: description.command,
+      command: description.canonicalCommand,
       safety: description.safety,
       requiresConfirmation: description.requiresConfirmation,
       sensitiveOutput: description.sensitiveOutput ?? false
@@ -615,7 +614,7 @@ export const buildCliPlan = async ({
   return {
     ok: true,
     code: 'OK',
-    message: `Prepared a read-only Stacktape CLI plan for ${command}.`,
+    message: `Prepared a read-only Stacktape CLI plan for ${publicCommandName(command)}.`,
     data: {
       command: prepared.command,
       canonicalCommand: prepared.command,
@@ -670,21 +669,21 @@ const buildPlanNextActions = ({
     // conversation. Even though the runner masks tool output, the right
     // production behaviour is to tell the user to run it in their own terminal.
     return [
-      `DO NOT call stacktape_cli action=run for ${command} just to display the value to the user. The value would be exposed in the conversation transcript and may be cached or logged.`,
+      `DO NOT call stacktape_cli action=run for ${publicCommandName(command)} just to display the value to the user. The value would be exposed in the conversation transcript and may be cached or logged.`,
       `Instead, tell the user to run the suggested shellCommand in their OWN terminal. Their terminal output is private; this conversation is not.`,
-      `Only call stacktape_cli action=run for ${command} if the user has explicitly said they want a programmatic/automated retrieval (e.g. piping into another tool) and accepts the disclosure risk.`
+      `Only call stacktape_cli action=run for ${publicCommandName(command)} if the user has explicitly said they want a programmatic/automated retrieval (e.g. piping into another tool) and accepts the disclosure risk.`
     ];
   }
   if (safety === 'destructive') {
     return [
       `This command is destructive. Agent-supplied confirm=true is not enough by itself; stacktape_cli action=run will use MCP's input-required flow for direct confirmation of this exact operation.`,
-      `If the MCP client does not support form elicitation, do not run ${command} through MCP or Bash. Tell the user to run the suggested shellCommand in their own terminal after reviewing the target.`,
+      `If the MCP client does not support form elicitation, do not run ${publicCommandName(command)} through MCP or Bash. Tell the user to run the suggested shellCommand in their own terminal after reviewing the target.`,
       `Before asking for execution, restate the target stack/stage/region/projectName.`
     ];
   }
   if (requiresConfirmation) {
     return [
-      `Only call stacktape_cli action=run with confirm=true if the user has, in this same conversation, explicitly approved executing ${command} with the listed stage/region/projectName.`,
+      `Only call stacktape_cli action=run with confirm=true if the user has, in this same conversation, explicitly approved executing ${publicCommandName(command)} with the listed stage/region/projectName.`,
       `Do not treat the presence of this plan as permission to execute.`,
       `Never invoke stacktape through Bash/shell and never read credential files to prepare execution.`
     ];
@@ -698,7 +697,7 @@ const buildPlanNextActions = ({
     ];
   }
   return [
-    `Call stacktape_cli action=run with these arguments if the user wants to execute ${command}.`,
+    `Call stacktape_cli action=run with these arguments if the user wants to execute ${publicCommandName(command)}.`,
     `Never invoke stacktape through Bash/shell and never read credential files to prepare execution.`
   ];
 };
