@@ -4451,7 +4451,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
       'packages/packaging/src/split-bundler/layer-builder.test.ts',
-      'packages/packaging/src/split-bundler/layered-runtime.test.ts'
+      'packages/packaging/src/split-bundler/layered-runtime.test.ts',
+      'packages/packaging/src/split-bundler/own-code-anchor.test.ts'
     ],
     lanes: [
       'node-lambda-offline',
