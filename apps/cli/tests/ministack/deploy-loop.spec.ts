@@ -272,6 +272,11 @@ describe('offline deploy loop against MiniStack', () => {
                 );
                 checks.push(`${resource.LogicalResourceId} absent`);
               }
+              family.assertDeleted?.({
+                stackName: project.stackName,
+                controlPlaneCalls: project.controlPlane.calls,
+                checks
+              });
               continue;
             }
             const resources = await describeStackResources(cloudFormation, project.stackName);
@@ -335,6 +340,7 @@ describe('offline deploy loop against MiniStack', () => {
               stackName: project.stackName,
               resources,
               clients,
+              controlPlaneCalls: project.controlPlane.calls,
               checks,
               ...lookups(resources)
             };

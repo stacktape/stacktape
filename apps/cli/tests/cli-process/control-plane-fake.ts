@@ -120,6 +120,9 @@ export const startControlPlaneFake = async ({
         : { canDeploy: true },
     reportEvent: () => ({ accepted: true }),
     deleteUndeployedStageFromCli: () => ({ deleted: true }),
+    // The AWS-identity procedures a stack's default-domain custom resource calls from inside the deployment.
+    upsertDefaultDomainDnsRecord: () => null,
+    deleteDefaultDomainDnsRecord: () => null,
     ...(awsAccountCredentials
       ? {
           awsAccountCredentials: (input: unknown) => {
