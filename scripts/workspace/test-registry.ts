@@ -862,7 +862,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network'],
     release: 'affected-external-contract',
     proves:
-      "CloudFront serves a redeployed hosting bucket's new page on the first request after the deploy, and the stack deletion removes its distribution, buckets, default domain, the us-east-1 edge deployment bucket and the Lambda@Edge roles and log groups in every edge region."
+      "CloudFront serves a redeployed hosting bucket's new page on the first request after the deploy, and the stack deletion removes its distribution, buckets, default domain, the us-east-1 edge deployment bucket and the Lambda@Edge roles and log groups in every edge region; a replicated edge function is deferred to --cleanup-only."
   },
   {
     id: 'container-fast-deploy-live',
@@ -3123,7 +3123,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
-      'apps/cli/scripts/real-aws/source-cli-canary.spec.ts'
+      'apps/cli/scripts/real-aws/source-cli-canary.spec.ts',
+      'apps/cli/scripts/real-aws/static-site-canary.spec.ts'
     ],
     requires: [],
     release: 'every-candidate'
@@ -6197,6 +6198,7 @@ export const toolingTests: readonly string[] = [
   'apps/cli/scripts/qualification/runner-integration.spec.ts',
   'apps/cli/scripts/real-aws/packaging-canary.spec.ts',
   'apps/cli/scripts/real-aws/source-cli-canary.spec.ts',
+  'apps/cli/scripts/real-aws/static-site-canary.spec.ts',
   'apps/cli/scripts/run-source-tests.spec.ts',
   'apps/cli/src/aws/sdk-manager/utils.spec.ts',
   'apps/cli/src/utils/cli.spec.ts',

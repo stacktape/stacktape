@@ -65,12 +65,17 @@ import {
 } from './source-cli-canary';
 
 /** A Lambda@Edge function, created in us-east-1 by a custom resource and not by CloudFormation itself. */
-type EdgeFunction = { functionName: string; roleName: string; logGroupName: string };
+export type EdgeFunction = { functionName: string; roleName: string; logGroupName: string };
 type Owned = {
   deploymentBucket?: string;
   edgeFunctions?: EdgeFunction[];
   /** Edge function resources the stack deletion left and the canary removed: a product defect, not a cleanup gap. */
   edgeLeftByStack?: string[];
+  /**
+   * Edge functions AWS refused to delete because CloudFront still holds replicas. The product leaves them on purpose;
+   * `--cleanup-only` deletes them once AWS releases the replicas.
+   */
+  pendingEdgeFunctions?: string[];
   domains?: string[];
   /** The us-east-1 bucket a custom resource creates for edge function code. */
   edgeBuckets?: string[];
@@ -169,11 +174,15 @@ const readEdgeFunctions = async (clients: Clients, stackName: string): Promise<E
 };
 
 /**
- * Checks what the stack deletion left of its edge functions, then deletes those exact leftovers. AWS refuses to
- * delete a function until CloudFront has removed its replicas, which can take hours; such a function is returned as
- * pending, and a later `--cleanup-only` run deletes it.
+ * Checks what the stack deletion left of its edge functions, then deletes those exact leftovers and verifies they are
+ * gone. AWS refuses to delete a function until CloudFront has removed its replicas, usually 40 to 60 minutes after the
+ * distribution; such a function is returned as pending, and a later `--cleanup-only` run deletes it.
  */
-const cleanupEdgeFunctions = async (clients: Clients, edgeFunctions: EdgeFunction[], edgeBuckets: string[]) => {
+export const cleanupEdgeFunctions = async (
+  clients: Pick<Clients, 'edgeS3' | 'edgeLogs' | 'iam' | 'edgeLambda'>,
+  edgeFunctions: EdgeFunction[],
+  edgeBuckets: string[]
+) => {
   const leftByStack: string[] = [];
   const pendingFunctions: string[] = [];
   for (const bucket of edgeBuckets) {
@@ -211,7 +220,9 @@ const cleanupEdgeFunctions = async (clients: Clients, edgeFunctions: EdgeFunctio
     } catch (error) {
       if (!(error instanceof Error && /replicated function/i.test(error.message))) throw error;
       pendingFunctions.push(functionName);
+      continue;
     }
+    assert(await gone(describe, ['ResourceNotFoundException']), `Edge function ${functionName} still exists.`);
   }
   return { leftByStack, pendingFunctions };
 };
@@ -352,16 +363,18 @@ const cleanup = async (clients: Clients, options: CanaryOptions, runner: Runner,
   verification.domains = await awaitDomainsReleased(state.domains ?? []);
   const edge = await cleanupEdgeFunctions(clients, state.edgeFunctions ?? [], state.edgeBuckets ?? []);
   state.edgeLeftByStack = [...new Set([...(state.edgeLeftByStack ?? []), ...edge.leftByStack])];
-  await writeState(options, state);
   verification.edgeFunctions = { count: state.edgeFunctions?.length ?? 0, ...edge };
-  assert(
-    edge.pendingFunctions.length === 0,
-    `CloudFront has not released the replicas of ${edge.pendingFunctions.join(', ')} yet; AWS allows deleting them ` +
-      `only afterwards, usually within a few hours. Run this later:\n${cleanupCommand(options, PREFIX, SCRIPT)}`
-  );
-  await writeState(options, { ...state, cleanupVerifiedAt: new Date().toISOString() });
-  return verification;
+  // Deferred, not failed: the stack deletion is correct, and AWS releases the replicas on its own schedule.
+  state.pendingEdgeFunctions = edge.pendingFunctions;
+  if (edge.pendingFunctions.length === 0) state.cleanupVerifiedAt = new Date().toISOString();
+  await writeState(options, state);
+  return { verification, pendingEdgeFunctions: edge.pendingFunctions };
 };
+
+const pendingCleanupMessage = (options: CanaryOptions, functions: string[]) =>
+  `CloudFront has not released the replicas of ${functions.join(', ')} yet; AWS allows deleting them only ` +
+  `afterwards, usually 40 to 60 minutes after the distribution. Keep ${options.stateFile} and run this later:\n` +
+  cleanupCommand(options, PREFIX, SCRIPT);
 
 export const runStaticSiteCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boolean } = {}) => {
   const options = resolveOptions();
@@ -382,6 +395,7 @@ export const runStaticSiteCanary = async ({ cleanupOnly = false }: { cleanupOnly
   let deployAttempted = false;
   let bodyError: unknown;
   let cleanupError: unknown;
+  let pendingEdgeFunctions: string[] = [];
 
   try {
     const identity = await clients.sts.send(new GetCallerIdentityCommand({}));
@@ -391,7 +405,10 @@ export const runStaticSiteCanary = async ({ cleanupOnly = false }: { cleanupOnly
     );
     report.accountId = identity.Account;
     if (cleanupOnly) {
-      report.cleanup = await cleanup(clients, options, runner, stackName);
+      const result = await cleanup(clients, options, runner, stackName);
+      report.cleanup = result.verification;
+      // The explicit cleanup command is done only when the pending functions are gone too.
+      assert(result.pendingEdgeFunctions.length === 0, pendingCleanupMessage(options, result.pendingEdgeFunctions));
       return;
     }
     assert(await hasDevApiKey(), 'apps/cli/.env.local sets no STACKTAPE_API_KEY.');
@@ -457,7 +474,15 @@ export const runStaticSiteCanary = async ({ cleanupOnly = false }: { cleanupOnly
   } finally {
     if (!cleanupOnly && deployAttempted) {
       try {
-        report.cleanup = await cleanup(clients, options, runner, stackName);
+        const result = await cleanup(clients, options, runner, stackName);
+        report.cleanup = result.verification;
+        pendingEdgeFunctions = result.pendingEdgeFunctions;
+        if (pendingEdgeFunctions.length) {
+          report.cleanupPending = {
+            edgeFunctions: pendingEdgeFunctions,
+            recoveryCommand: cleanupCommand(options, PREFIX, SCRIPT)
+          };
+        }
       } catch (error) {
         cleanupError = error;
         report.cleanup = { failed: String(error), recoveryCommand: cleanupCommand(options, PREFIX, SCRIPT) };
@@ -473,8 +498,8 @@ export const runStaticSiteCanary = async ({ cleanupOnly = false }: { cleanupOnly
   }
 
   // The canary removed them, but the stack deletion should have; this fails the run even while a cleanup is pending.
-  const leftByStack =
-    deployAttempted || cleanupOnly ? (await readState<State>(options, stackName)).edgeLeftByStack : [];
+  // A later --cleanup-only run only finishes the cleanup and does not report the same leftovers again.
+  const leftByStack = deployAttempted ? (await readState<State>(options, stackName)).edgeLeftByStack : [];
   const leftError = leftByStack?.length
     ? new Error(`The stack deletion left edge function resources: ${leftByStack.join(', ')}.`)
     : undefined;
@@ -494,6 +519,11 @@ export const runStaticSiteCanary = async ({ cleanupOnly = false }: { cleanupOnly
   }
   if (bodyError) throw bodyError;
   if (cleanupError) throw cleanupError;
+  if (pendingEdgeFunctions.length) {
+    console.info(`Static site canary passed for ${stackName}. Cleanup is pending.`);
+    console.warn(pendingCleanupMessage(options, pendingEdgeFunctions));
+    return;
+  }
   console.info(`Static site canary passed for ${stackName}, and its deletion was verified.`);
 };
 

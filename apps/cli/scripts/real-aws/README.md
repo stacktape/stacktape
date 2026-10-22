@@ -215,9 +215,12 @@ resources create outside the stack: the two Lambda@Edge functions in `us-east-1`
 regional edge-cache region, and the `us-east-1` edge deployment bucket. Anything the stack deletion left there fails the
 run, after the canary removes it. A run takes about fifteen minutes.
 
-AWS deletes a Lambda@Edge function only after CloudFront has removed its replicas, usually within a few hours of the
-distribution's deletion. Until then the cleanup reports the function as pending and prints the `--cleanup-only` command
-to run later.
+AWS deletes a replicated Lambda@Edge function only after CloudFront has removed its replicas, usually 40 to 60 minutes
+after the distribution's deletion, and the product deliberately leaves such a function behind. The canary treats it as
+deferred cleanup: it records the function as `pendingEdgeFunctions` in the state file, reports the run as passed with
+`cleanupPending` in the report, and prints the exact `--cleanup-only` command. Run that command later with the same
+environment; it deletes the pending functions and verifies they are gone, and exits nonzero while AWS still refuses. A
+leftover role, log group, bucket or stack resource still fails the run.
 
 ```sh
 export STP_AWS_STATIC_CANARY_DEPLOY=1
