@@ -4141,11 +4141,16 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/cloudformation-stacks.ts',
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'packages/ministack/**',
-      'apps/cli/scripts/network-guard-preload.ts'
+      'apps/cli/scripts/network-guard-preload.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts'
     ],
-    tests: ['apps/cli/tests/cli-process/stack-operations.spec.ts'],
+    tests: [
+      'apps/cli/tests/cli-process/stack-operations.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
+    ],
     lanes: [
       'cli-stack-operations',
+      'cli-test-helper-lambdas',
       'ministack-deploy',
       'synthesis',
       'synthesis-2',
