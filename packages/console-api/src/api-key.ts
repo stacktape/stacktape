@@ -163,7 +163,12 @@ export const awsAccountCredentialsInputSchema = z.object({
 export const defaultDomainsInfoInputSchema = z.object({
   stackName: z.string(),
   region: z.string(),
-  awsAccountId: z.string()
+  awsAccountId: z.string(),
+  /**
+   * The default-domain version of the deployed stack's existing default domains, read by the CLI from the deployed
+   * template; `null` when the stack has none. CLIs that omit it get the version the Console reads from the stack.
+   */
+  deployedVersion: z.number().int().positive().nullable().optional()
 });
 
 export const createProjectFromCliInputSchema = z.object({

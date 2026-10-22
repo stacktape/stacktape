@@ -26,9 +26,9 @@ Before creating a GitOps configuration, you need:
 
 ## Provider permissions for security fix pull requests
 
-When you ask Stacktape to prepare a security fix, it creates a `stacktape/*` branch, commits the selected file changes,
-opens a pull request, and reports the security result on that commit. It never force-pushes or writes directly to the
-repository's default branch. The Console requires `security:manage` access to that project before it can start these
+When you ask Stacktape to prepare a security fix, it creates a `stacktape/*` branch, commits the selected file changes
+and opens a pull request. It never force-pushes, writes directly to the repository's default branch, closes pull
+requests or sets commit statuses. The Console requires `security:manage` access to that project before it can start these
 writes.
 
 The connected provider grants must allow the same bounded workflow:

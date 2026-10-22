@@ -7,8 +7,8 @@ subpaths are consumed only by synthesis today, but they share the same compatibi
 customer infrastructure or break discovery.
 
 `stack-identity` owns the historical region + stack name + account ID hash shared by the CLI and Console. Its
-separator-free concatenation is frozen compatibility behavior, including the Console default-domain suffix derived from
-it.
+separator-free concatenation is frozen compatibility behavior, including the version 1 default-domain suffix derived
+from it. Version 2 default-domain suffixes use SHA-256 instead.
 
 - Preserve output byte-for-byte. A naming change can replace customer infrastructure or break discovery.
 - Keep explicit subpath exports; do not add a barrel.
