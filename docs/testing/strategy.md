@@ -1,8 +1,8 @@
 # Testing strategy
 
 The [short policy](../testing.md) covers daily test selection. This document describes the coverage we want for each
-part of the product and why. The [overhaul plan](overhaul.md) orders the work, and [the E2E guide](e2e.md) covers
-helpers and conventions.
+part of the product and why. The [slice guide](overhaul.md) explains the registry's slices, tiers and fault checks, and
+[the E2E guide](e2e.md) covers helpers and conventions.
 
 ## End-to-end first
 
@@ -33,13 +33,14 @@ APIs or fixtures; the tested action uses the real product path.
 | Local processes and services | CLI processes, built artifacts in Docker runtimes, browsers, PostgreSQL, AWS SDK effects against MiniStack.        | Owned containers and processes, no credentials. |
 | Externally owned behavior    | IAM, deployment and rollback semantics, networking, event delivery, provider installations, runner infrastructure. | Small guarded live scenarios.                   |
 
-An emulator or fake proves our code's handling, not the external service's behavior. MiniStack is the one emulator. The
-offline deploy loop (`pnpm --filter @stacktape/cli run test:ministack:deploy`) runs the source CLI through create,
-update, unchanged redeploy and delete for Lambda, S3, SQS, DynamoDB, SNS and Stacktape's S3-notification custom
-resource, and observes the effects through the real SDK; Console suites store secrets and parameters in it. It cannot
-establish CloudFormation replacement and rollback semantics, IAM enforcement, networking, hosted domains, managed
-runtimes, container workloads or billing: those stay live-only. EventBridge delivery, API Gateway custom-domain mappings
-and container workloads are known emulator gaps, listed in the deploy loop's family table with their upstream issues.
+An emulator or fake proves our code's handling, not the external service's behavior. MiniStack 1.5.27 is the one
+emulator. The offline deploy loop (`pnpm --filter @stacktape/cli run test:ministack:deploy`) runs the source CLI through
+create, update, unchanged redeploy and delete for split Lambdas, S3, SQS, DynamoDB, SNS, EventBridge and Stacktape's
+S3-notification custom resource, and observes the effects through the real SDK. Other MiniStack lanes cover fast
+deploys, custom domains, security inventories, local development, image builders, static-site sync, layer uploads, CLI
+operations and the Console database suites. It cannot establish CloudFormation replacement and rollback semantics, IAM
+enforcement, networking, hosted domains, managed runtimes, container workloads or billing: those stay live-only. The
+[E2E guide](e2e.md#ministack-gaps) lists the known gaps and the services that still use hand-written fakes.
 [AWS testing guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/serverless-application-testing/best-practices.html),
 [MiniStack limitations](https://ministack.org/docs/limitations).
 
@@ -130,8 +131,9 @@ actual transport in shared dev or live.
 
 ## Where tests run
 
-- **Every PR (public CI):** the public gate, shared UI in Chromium, and `cfn-lint` on synthesized templates. Integrated
-  CI adds migrations and the browser privacy check.
+- **Every PR:** `pnpm check:static` and the registry's `pr` tier through `pnpm test:ci`; public Linux CI adds `cfn-lint`
+  on the synthesized dense and support templates. Integrated CI runs the same with the Console present, which adds the
+  Console `pr` lanes: offline migration history, package exports and the support template.
 - **When relevant code changes:** `pnpm test:plan` selects heavy lanes (packaging, corpus, database feature suites,
   isolated Console browser, MiniStack) and the agent making the change runs them.
 - **Before each release:** every heavy lane, the corpus and the live canaries run on the release candidate. This catches
@@ -162,5 +164,11 @@ fixtures, lockfiles, tool and image versions and relevant environment. Never cac
 | Replace, then remove | It checks static markup for interaction, source strings for runtime behavior, or internal call order.       |
 | Remove               | Its behavior is obsolete, enforced by types or lint, or fully covered by a clearer test.                    |
 
-Establish the replacement before deleting unique protection. For consequential behavior, break it in a scratch copy and
-confirm the new test fails for that reason.
+Decide with evidence, not taste. For each existing test, name the product fault it catches. Delete it when no
+customer-visible fault can be named, when every fault it catches is also caught by a scenario, when the function has no
+product caller, or when the input shape cannot occur (a service that never returns an empty page with a token). Keep it
+when it is the only catcher of a named fault, reproduces a shipped bug, pins a wire format or a compatibility contract,
+or tables a parsing grammar with many rows; but run the fault and confirm the test fails when its contract or bug is
+re-introduced. A test that compares the fixture with itself or asserts on its own input catches nothing. Establish the
+replacement before deleting unique protection: extend the real scenario, never restore the mock test. The
+[slice guide](overhaul.md#measure-a-slice-with-faults) describes the measurement.
