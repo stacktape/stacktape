@@ -190,8 +190,7 @@ resources:
       join(dir, 'stacktape.ts'),
       `
 import { defineConfig, $CfFormat } from '@stacktape/config-authoring';
-export default defineConfig(() => ({
-  projectName: 'directive-project',
+export default defineConfig({ projectName: 'directive-project' }, () => ({
   directives: [
     { name: 'structured', filePath: './directives/custom.ts:structured' },
     { name: '$structured', filePath: './directives/custom.ts:structured' }
@@ -276,7 +275,7 @@ resources:
 `);
     await writeFile(
       join(dir, 'stacktape.ts'),
-      "import { Bucket, defineConfig } from '@stacktape/config-authoring';\nexport default defineConfig(() => ({ projectName: 'directive-project', resources: { onlyInTypescript: new Bucket({}) } }));\n"
+      "import { Bucket, defineConfig } from '@stacktape/config-authoring';\nexport default defineConfig({ projectName: 'directive-project' }, () => ({ resources: { onlyInTypescript: new Bucket({}) } }));\n"
     );
     const originalArgs = globalStateManager.rawArgs;
     globalStateManager.rawArgs = { currentWorkingDirectory: dir } as typeof originalArgs;
@@ -302,8 +301,7 @@ resources:
       join(dir, 'stacktape.ts'),
       `
 import { defineConfig, $Secret } from '@stacktape/config-authoring';
-export default defineConfig(() => ({
-  projectName: 'directive-project',
+export default defineConfig({ projectName: 'directive-project' }, () => ({
   resources: {},
   variables: { databaseUrl: \`postgres://app:\${$Secret('db.password')}@db.internal/app\` }
 }));
@@ -393,8 +391,7 @@ describe('a broken config fails with an error that names the problem', () => {
       join(dir, 'stacktape.ts'),
       `
 import { defineConfig, $CfFormat } from '@stacktape/config-authoring';
-export default defineConfig(() => ({
-  projectName: 'directive-project', resources: {}, variables: { label: $CfFormat('{}', undefined, 'ready') }
+export default defineConfig({ projectName: 'directive-project' }, () => ({ resources: {}, variables: { label: $CfFormat('{}', undefined, 'ready') }
 }));
 `
     );
@@ -447,7 +444,7 @@ ${properties}`);
     const dir = await fixtureWithConfig('projectName: directive-project\nresources: {}\n');
     await writeFile(
       join(dir, 'stacktape.ts'),
-      "import { defineConfig } from '@stacktape/config-authoring';\nimport { value } from 'not-installed-config-helper';\nexport default defineConfig(() => ({ projectName: 'directive-project', resources: {}, variables: { value } }));\n"
+      "import { defineConfig } from '@stacktape/config-authoring';\nimport { value } from 'not-installed-config-helper';\nexport default defineConfig({ projectName: 'directive-project' }, () => ({ resources: {}, variables: { value } }));\n"
     );
     const error = await captureError(() =>
       synthesizeFixture({

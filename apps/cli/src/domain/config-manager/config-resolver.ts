@@ -1,5 +1,6 @@
 import type { CustomDirective, Directive } from '@domain-services/config-manager/directive-types';
 import {
+  getConfigSettings,
   isCompiledStacktapeConfig,
   type CompiledStacktapeConfig,
   type FinalTransform,
@@ -26,6 +27,53 @@ import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { createBuiltInDirectives, type BuiltInDirectiveContext } from './built-in-directives';
 import type { StacktapeConfig } from '@stacktape/config';
 import { configErrors } from './errors';
+import type { ProjectSettings } from './project-settings';
+
+const describeSettings = (settings: ProjectSettings | undefined) =>
+  settings && Object.keys(settings).length
+    ? Object.entries(settings)
+        .map(([name, value]) => `${name}: '${value}'`)
+        .join(', ')
+    : 'none';
+
+/**
+ * The settings the CLI read statically chose the target, credentials and region before the config ran. The config must
+ * declare the same ones when it runs; otherwise this invocation would act on a target the config does not describe.
+ */
+const assertSettingsMatchStaticRead = ({
+  filePath,
+  staticSettings,
+  defaultExport
+}: {
+  filePath: string;
+  staticSettings: ProjectSettings | undefined;
+  defaultExport: unknown;
+}) => {
+  if (staticSettings === undefined) return;
+  const runtimeSettings = getConfigSettings(defaultExport);
+  const sameSettings = (['projectName', 'region'] as const).every(
+    (name) => runtimeSettings?.[name] === staticSettings[name]
+  );
+  if (sameSettings) return;
+  if (runtimeSettings === undefined && Object.keys(staticSettings).length) {
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_PROJECT_SETTINGS_UNSUPPORTED_RUNTIME',
+      message: `\`${filePath}\` declares project settings (${describeSettings(staticSettings)}), but the loaded \`defineConfig\` did not keep them.`,
+      hints: [
+        'The project installs an older `stacktape` package. Update it to the version of this CLI, which supports `defineConfig({ projectName, region }, fn)`.'
+      ]
+    });
+  }
+  throw new CliError({
+    category: 'CONFIG_VALIDATION',
+    code: 'CONFIG_PROJECT_SETTINGS_MISMATCH',
+    message: `The project settings Stacktape read from \`${filePath}\` (${describeSettings(staticSettings)}) differ from the ones the config declared when it ran (${describeSettings(runtimeSettings)}).`,
+    hints: [
+      "Export the defineConfig call itself as the default export, with string literals: export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, ({ stage }) => ({ resources: { ... } }));"
+    ]
+  });
+};
 
 type BuildError = {
   message: string;
@@ -186,6 +234,8 @@ export type ConfigResolverContext = Readonly<{
   builtInDirectives: BuiltInDirectiveContext;
   configPath?: string;
   presetConfig?: StacktapeConfig;
+  /** Settings read statically from `configPath` before evaluation, when the invocation read them. */
+  projectSettings?: ProjectSettings;
   workingDir: string;
 }>;
 
@@ -255,10 +305,12 @@ export class ConfigResolver {
 
   loadTypescriptConfig = async ({
     filePath,
-    authoringParams
+    authoringParams,
+    projectSettings
   }: {
     filePath: string;
     authoringParams: GetConfigParams;
+    projectSettings?: ProjectSettings;
   }): Promise<CompiledStacktapeConfig> => {
     let defaultExport: unknown;
 
@@ -277,6 +329,7 @@ export class ConfigResolver {
     if (typeof defaultExport !== 'function') {
       throw configErrors.typescriptDefaultExportNotFunction({ configPath: filePath });
     }
+    assertSettingsMatchStaticRead({ filePath, staticSettings: projectSettings, defaultExport });
 
     try {
       const configFn = defaultExport as (params: GetConfigParams) => unknown;
@@ -298,7 +351,7 @@ export class ConfigResolver {
   };
 
   getRawConfig = async () => {
-    const { authoringParams, configPath, presetConfig, workingDir } = this.context;
+    const { authoringParams, configPath, presetConfig, projectSettings, workingDir } = this.context;
     this.transforms = {};
     this.finalTransform = null;
 
@@ -312,7 +365,11 @@ export class ConfigResolver {
 
     // Handle TypeScript config files
     if (configPath.endsWith('.ts')) {
-      const compiledConfig = await this.loadTypescriptConfig({ filePath: configPath, authoringParams });
+      const compiledConfig = await this.loadTypescriptConfig({
+        filePath: configPath,
+        authoringParams,
+        projectSettings
+      });
       return this.useCompiledTypescriptConfig(compiledConfig);
     }
 
@@ -326,6 +383,7 @@ export class ConfigResolver {
 
       // If returned value is a function, run it
       if (typeof config === 'function') {
+        assertSettingsMatchStaticRead({ filePath: configPath, staticSettings: projectSettings, defaultExport: config });
         config = config(authoringParams);
       }
 

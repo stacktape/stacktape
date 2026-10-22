@@ -1,6 +1,7 @@
 import type { BastionScript, DeploymentConfig, DirectiveDefinition, Hooks, LocalScript, LocalScriptWithBastionTunneling, StackConfig, StacktapeResourceDefinition } from './shared';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { MongoDbAtlasProvider, UpstashProvider } from './providers';
+import type { SupportedAWSRegion } from './aws-regions';
 export interface StacktapeConfig {
   /**
    * #### Project name
@@ -10,8 +11,9 @@ export interface StacktapeConfig {
    * Identifies the Stacktape project. Together with the selected stage, this determines the
    * CloudFormation stack name: `{projectName}-{stage}`.
    *
-   * Must be alphanumeric and can contain dashes. Must match the regex `[a-zA-Z][-a-zA-Z0-9]*`.
-   * The CLI's `--project` option overrides this value.
+   * Must contain only lowercase letters, numbers and dashes. The CLI's `--project` option overrides
+   * this value for one command. The CLI reads it from the file without running the config, so it
+   * must be a plain string: in TypeScript, declare it in the first argument of `defineConfig`.
    *
    * ---
    *
@@ -20,6 +22,7 @@ export interface StacktapeConfig {
    * ```yaml
    * # stp-focus
    * projectName: my-web-app
+   * region: eu-west-1
    * # stp-end-focus
    * resources:
    *   api:
@@ -39,7 +42,9 @@ export interface StacktapeConfig {
    * ```ts
    * import { WebService, defineConfig } from 'stacktape';
    *
-   * export default defineConfig(() => {
+   * // stp-focus
+   * export default defineConfig({ projectName: 'my-web-app', region: 'eu-west-1' }, () => {
+   *   // stp-end-focus
    *   const api = new WebService({
    *     packaging: {
    *       type: 'js-bundle',
@@ -48,16 +53,50 @@ export interface StacktapeConfig {
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
-   *   return {
-   *     // stp-focus
-   *     projectName: 'my-web-app',
-   *     // stp-end-focus
-   *     resources: { api }
-   *   };
+   *   return { resources: { api } };
    * });
    * ```
    */
   projectName?: string;
+  /**
+   * #### Region
+   *
+   * ---
+   *
+   * AWS region this project deploys to. With `projectName` and `region` in the config, most commands
+   * need only `--stage`. The CLI's `--region` option overrides this value for one command. Without it,
+   * the region comes from `AWS_DEFAULT_REGION`, the machine-wide default or the AWS profile.
+   *
+   * The CLI reads it from the file without running the config, so it must be a plain string: in
+   * TypeScript, declare it in the first argument of `defineConfig`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * projectName: my-web-app
+   * # stp-focus
+   * region: eu-west-1
+   * # stp-end-focus
+   * resources:
+   *   uploads:
+   *     type: bucket
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Bucket, defineConfig } from 'stacktape';
+   *
+   * // stp-focus
+   * export default defineConfig({ projectName: 'my-web-app', region: 'eu-west-1' }, () => ({
+   *   // stp-end-focus
+   *   resources: { uploads: new Bucket({}) }
+   * }));
+   * ```
+   */
+  region?: SupportedAWSRegion;
   /**
    * #### Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash).
    *

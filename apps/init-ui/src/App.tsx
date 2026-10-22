@@ -240,6 +240,9 @@ export function App() {
                   setStartedAt(Date.now());
                   void run('start', () => session.start(agentId, 'default'), 'That analysis could not be started.');
                 }}
+                onRegionChange={(region) =>
+                  void run('region', () => session.setRegion(region), 'That region could not be chosen.')
+                }
                 onWrite={(format) => void run('write', () => session.write(format), 'The file could not be written.')}
                 state={state}
               />
@@ -261,10 +264,6 @@ export function App() {
                 onDeploy={(stage, region, expected) =>
                   void run('deploy', () => session.deploy(stage, region, expected), 'The deploy could not be started.')
                 }
-                onRegionChange={(region) => {
-                  // A price is a convenience: a failed request leaves the old one out of the sentence, nothing else.
-                  session.setPriceRegion(region).catch(() => {});
-                }}
                 onDismissVerification={() =>
                   void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
                 }

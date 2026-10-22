@@ -148,7 +148,18 @@ export type WizardState = {
    * `existingPath` is set when the repository already had a configuration, which is why the file
    * written is a `.generated.` one — the page has to say so rather than imply the project is ready.
    */
-  configFile?: { path: string; filename: string; format: 'yaml' | 'typescript'; existingPath?: string };
+  configFile?: {
+    path: string;
+    filename: string;
+    format: 'yaml' | 'typescript';
+    existingPath?: string;
+    region?: string;
+  };
+  /**
+   * The region the configuration declares: the written file's, otherwise the one writing it would declare. That is
+   * the region the user picked, else the one this machine's AWS setup names, else the pricing default.
+   */
+  region?: string;
   /** Who this machine is to AWS, resolved before the deploy step offers a button. */
   awsIdentity?: WizardAwsIdentity;
   /**
@@ -254,8 +265,11 @@ export type WizardServerHooks = {
    * then come back" ends with a button rather than with reloading the page and hoping.
    */
   onRecheck: () => Promise<WizardState> | WizardState;
-  /** Prices the configuration for the region picked on the Deploy step. Returns at once; the price follows. */
-  onPriceRegion?: (region: string) => Promise<WizardState> | WizardState;
+  /**
+   * The region the user picked for the file before it is written. The preview and the price follow it; the price
+   * arrives later.
+   */
+  onRegion?: (region: string) => Promise<WizardState> | WizardState;
   /**
    * Called for every step of signing in from the page: starting Google, submitting an email and
    * password, a code, an organization, or cancelling.
@@ -644,7 +658,7 @@ export const startWizardServer = async ({
         return;
       }
 
-      if (url.pathname === '/api/price-region' && request.method === 'POST') {
+      if (url.pathname === '/api/region' && request.method === 'POST') {
         if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
           json(response, 403, { error: 'Missing or invalid CSRF token.' });
           return;
@@ -655,7 +669,7 @@ export const startWizardServer = async ({
             json(response, 400, { error: 'That is not an AWS region.' });
             return;
           }
-          json(response, 200, hooks.onPriceRegion === undefined ? state : await hooks.onPriceRegion(body.region));
+          json(response, 200, hooks.onRegion === undefined ? state : await hooks.onRegion(body.region));
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
         }

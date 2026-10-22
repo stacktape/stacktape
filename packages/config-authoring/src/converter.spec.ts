@@ -1,12 +1,22 @@
 import { describe, expect, test } from 'bun:test';
-import { convertAuthoringConfigToYaml } from './converter.js';
+import { convertAuthoringConfigToYaml, convertYamlToTypescript } from './converter.js';
+import * as runtime from './index.js';
 import { Bucket, defineConfig } from './index.js';
+import { getConfigSettings } from './tooling.js';
 import { parseYaml } from './yaml.js';
+
+/** Evaluate converter output against this runtime; the test owns the generated source, so running it is safe. */
+const evaluateGeneratedTypescript = (code: string) => {
+  const javascript = new Bun.Transpiler({ loader: 'ts' })
+    .transformSync(code)
+    .replace(/import\s*\{([^}]*)\}\s*from\s*["']stacktape["'];?/, 'const {$1} = runtime;')
+    .replace('export default', 'return');
+  return new Function('runtime', javascript)(runtime) as ReturnType<typeof defineConfig>;
+};
 
 describe('configuration conversion', () => {
   test('TypeScript classes become plain YAML without leaking authoring-only fields', () => {
-    const config = defineConfig(() => ({
-      projectName: 'converter-smoke',
+    const config = defineConfig({ projectName: 'converter-smoke' }, () => ({
       variables: { answer: 'yes' },
       resources: { uploads: new Bucket({ versioning: true }) }
     }));
@@ -76,5 +86,37 @@ describe('configuration conversion', () => {
     expect(() => convertAuthoringConfigToYaml(config)).toThrow(
       'Cannot convert a final template transform from TypeScript to YAML.'
     );
+  });
+
+  test('YAML project settings become the defineConfig settings object and survive a round trip', () => {
+    const yaml =
+      'projectName: shop\nregion: eu-west-1\nresources:\n  uploads:\n    type: bucket\n    properties:\n      versioning: true\n';
+    const typescript = convertYamlToTypescript(yaml);
+
+    expect(typescript).toContain('export default defineConfig({ projectName: "shop", region: "eu-west-1" }, () => {');
+    expect(typescript).not.toMatch(/return \{[^]*projectName/);
+    const defined = evaluateGeneratedTypescript(typescript);
+    expect(getConfigSettings(defined)).toEqual({ projectName: 'shop', region: 'eu-west-1' });
+    expect(parseYaml<unknown>(convertAuthoringConfigToYaml(defined))).toEqual(parseYaml<unknown>(yaml));
+  });
+
+  test('YAML without project settings keeps the one-argument form', () => {
+    const typescript = convertYamlToTypescript('resources:\n  uploads:\n    type: bucket\n');
+    expect(typescript).toContain('export default defineConfig(() => {');
+  });
+
+  test('TypeScript to YAML keeps declared settings and runs the callback with them', () => {
+    const seen: unknown[] = [];
+    const config = defineConfig({ projectName: 'shop', region: 'eu-central-1' }, ({ projectName, region }) => {
+      seen.push({ projectName, region });
+      return { resources: { uploads: new Bucket({}) } };
+    });
+
+    expect(parseYaml<Record<string, unknown>>(convertAuthoringConfigToYaml(config))).toEqual({
+      projectName: 'shop',
+      region: 'eu-central-1',
+      resources: { uploads: { type: 'bucket', properties: {} } }
+    });
+    expect(seen).toEqual([{ projectName: 'shop', region: 'eu-central-1' }]);
   });
 });

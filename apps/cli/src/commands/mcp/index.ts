@@ -26,6 +26,7 @@ import {
   buildCliPlan,
   formatProjectScanForOutput,
   requestDestructiveExecutionConfirmation,
+  readPlannedProjectSettings,
   resolveRunArgs,
   verifyDestructiveConfirmationState
 } from './cli-planning';
@@ -353,7 +354,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
           .record(z.string(), z.unknown())
           .optional()
           .describe(
-            "CLI arguments as an object using camelCase arg names. The top-level stage, region, projectName and similar fields work too; values here win. A missing projectName or region comes from the project's Stacktape package script."
+            "CLI arguments as an object using camelCase arg names. The top-level stage, region, projectName and similar fields work too; values here win. A projectName or region declared in the Stacktape config is read by the CLI and needs no argument; any other missing one comes from the project's Stacktape package script."
           ),
         category: z
           .enum([
@@ -510,7 +511,11 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
           secretFile
         }
       });
-      const prepared = prepareCliRun({ command, args: runArgs, confirm });
+      const projectSettings = await readPlannedProjectSettings({ command, cwd, args: runArgs });
+      if (projectSettings.error) {
+        return toToolText(projectSettings.error);
+      }
+      const prepared = prepareCliRun({ command, args: runArgs, confirm, configSettings: projectSettings.settings });
       if (!prepared.ok) {
         return toToolText(prepared);
       }

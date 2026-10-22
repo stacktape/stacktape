@@ -20,7 +20,7 @@ import {
   WebService
 } from './index.js';
 import { getAtt, ref, sub } from './index.js';
-import { compileAuthoringConfig } from './config.js';
+import { compileAuthoringConfig, getConfigSettings } from './config.js';
 import {
   getResourceByType,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
@@ -465,5 +465,59 @@ describe('TypeScript authoring compilation', () => {
     for (const className of expectedClassNames) {
       expect(exportedConstructors[className]).toBeFunction();
     }
+  });
+});
+
+describe('defineConfig project settings', () => {
+  const params = { stage: 'dev', region: '', cliArgs: {}, command: 'deploy', awsProfile: 'default' };
+
+  test('passes declared settings to the callback and keeps them in the serializable config', () => {
+    const defined = defineConfig({ projectName: 'shop', region: 'eu-west-1' }, ({ projectName, region }) => ({
+      variables: { target: `${projectName}/${region}` },
+      resources: { uploads: new Bucket({}) }
+    }));
+
+    expect(getConfigSettings(defined)).toEqual({ projectName: 'shop', region: 'eu-west-1' });
+    expect(Object.keys(defined)).toEqual([]);
+    const { config } = defined(params);
+    expect(config).toMatchObject({ projectName: 'shop', region: 'eu-west-1' });
+    expect(config.variables).toEqual({ target: 'shop/eu-west-1' });
+  });
+
+  test('passes the effective target when a flag overrides a declared setting', () => {
+    let received: unknown;
+    const defined = defineConfig({ projectName: 'shop', region: 'eu-west-1' }, ({ projectName, region }) => {
+      received = { projectName, region };
+      return { resources: {} };
+    });
+
+    const { config } = defined({ ...params, projectName: 'shop-copy', region: 'us-east-1' });
+    expect(received).toEqual({ projectName: 'shop-copy', region: 'us-east-1' });
+    expect(config).toMatchObject({ projectName: 'shop', region: 'eu-west-1' });
+  });
+
+  test('rejects project settings returned from the callback with the supported form', () => {
+    const returningProjectName = defineConfig(() => ({ projectName: 'shop', resources: {} }) as never);
+    const returningRegion = defineConfig(
+      { projectName: 'shop' },
+      () => ({ region: 'eu-west-1', resources: {} }) as never
+    );
+
+    expect(() => returningProjectName(params)).toThrow(
+      "Declare `projectName` in the first argument of defineConfig instead of returning it from the callback: export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }"
+    );
+    expect(() => returningRegion(params)).toThrow('Declare `region` in the first argument of defineConfig');
+  });
+
+  test('rejects malformed settings objects', () => {
+    expect(() => defineConfig({ projectName: 'shop', stage: 'dev' } as never, () => ({ resources: {} }))).toThrow(
+      'defineConfig settings accept only `projectName` and `region`, not `stage`.'
+    );
+    expect(() => defineConfig({ region: 42 } as never, () => ({ resources: {} }))).toThrow(
+      'defineConfig setting `region` must be a non-empty string literal'
+    );
+    expect(() => defineConfig({ projectName: 'shop' }, undefined as never)).toThrow(
+      'The second argument of defineConfig must be the config function'
+    );
   });
 });

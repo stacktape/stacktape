@@ -27,7 +27,7 @@ stacktape error list --project my-app --stage production --status OPEN
 | `--status` | no | `string` | Issue Status Filter — Filter tracked errors by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
 

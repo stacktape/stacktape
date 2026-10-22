@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs-extra';
-import { dirname, isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
 
@@ -308,6 +308,57 @@ const isCompiledBinary = (): boolean => {
   return !execPath.endsWith('bun') && !execPath.endsWith('bun.exe');
 };
 
+const DAEMON_PARENT_ONLY_ARGS = new Set(['agent', 'agentPort', 'agentChild']);
+
+/**
+ * The daemon's command line, rebuilt from the parsed arguments rather than copied from this process: the child starts
+ * in another directory, so relative paths become absolute, and its internal flags go before `--`, where the parser reads
+ * them. The custom arguments after `--` are passed on unchanged.
+ */
+export const buildDaemonChildArgs = ({
+  explicitArgs,
+  customArgs,
+  agentPort,
+  cwd,
+  workingDir
+}: {
+  /** The arguments the user gave. Project settings are not among them; the child reads them from the config itself. */
+  explicitArgs: Readonly<Record<string, unknown>>;
+  customArgs: readonly string[];
+  agentPort: number;
+  /** Directory the parent was started in, which relative paths are resolved against. */
+  cwd: string;
+  /** Set when the child must find the project from another directory and the user did not pass `--cwd`. */
+  workingDir?: string;
+}): string[] => {
+  const args: Record<string, unknown> = Object.fromEntries(
+    Object.entries(explicitArgs).filter(([name, value]) => !DAEMON_PARENT_ONLY_ARGS.has(name) && value !== undefined)
+  );
+  const base = typeof args.currentWorkingDirectory === 'string' ? resolvePath(cwd, args.currentWorkingDirectory) : cwd;
+  if (typeof args.currentWorkingDirectory === 'string') args.currentWorkingDirectory = base;
+  else if (workingDir !== undefined) args.currentWorkingDirectory = workingDir;
+  if (typeof args.configPath === 'string') args.configPath = resolvePath(base, args.configPath);
+  const flags = Object.entries(args).flatMap(([name, value]) => {
+    if (value === true) return [`--${name}`];
+    if (value === false) return [`--${name}=false`];
+    // `=` keeps a value that starts with a dash from being read as a flag.
+    return (Array.isArray(value) ? value : [value]).map((item) => `--${name}=${String(item)}`);
+  });
+  return [
+    'dev',
+    ...flags,
+    '--agentChild',
+    `--agentPort=${agentPort}`,
+    ...(customArgs.length ? ['--', ...customArgs] : [])
+  ];
+};
+
+/** Custom arguments given after `--`, exactly as typed. */
+export const getCustomArgsSuffix = (argv: readonly string[] = process.argv.slice(2)): string[] => {
+  const separator = argv.indexOf('--');
+  return separator < 0 ? [] : argv.slice(separator + 1);
+};
+
 /**
  * Spawn the dev agent as a background daemon process.
  *
@@ -317,33 +368,30 @@ const isCompiledBinary = (): boolean => {
  * Works on both Windows and Unix.
  */
 export const spawnAgentDaemon = async (args: {
-  originalArgs: string[];
+  explicitArgs: Readonly<Record<string, unknown>>;
+  customArgs: readonly string[];
   agentPort: number;
   timeoutMs?: number;
 }): Promise<DaemonSpawnResult> => {
-  const { originalArgs, agentPort, timeoutMs = 180000 } = args;
-
-  const childArgs = [...originalArgs, '--agent-child', '--agentPort', String(agentPort)];
+  const { explicitArgs, customArgs, agentPort, timeoutMs = 180000 } = args;
   const workingDir = globalStateManager.workingDir;
+
+  // The development wrapper (`bun run scripts/dev.ts`) rebuilds the CLI from its process cwd, so a
+  // wrapper-spawned child must start inside the CLI package and receive the project directory as an
+  // argument instead. A compiled binary has no such constraint and keeps the plain cwd contract.
+  const childCwd = isCompiledBinary() ? workingDir : dirname(dirname(process.argv[1]));
+  const childArgs = buildDaemonChildArgs({
+    explicitArgs,
+    customArgs,
+    agentPort,
+    cwd: process.cwd(),
+    ...(isCompiledBinary() ? {} : { workingDir })
+  });
 
   // For compiled binary: spawn the binary directly with CLI args
   // For bun run: spawn bun with script path and args
   // Note: process.execPath is the actual executable path (not argv[0] which is "bun" for compiled binaries)
   const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
-
-  // The development wrapper (`bun run scripts/dev.ts`) rebuilds the CLI from its process cwd, so a
-  // wrapper-spawned child must start inside the CLI package and receive the project directory as an
-  // argument instead. A compiled binary has no such constraint and keeps the plain cwd contract.
-  let childCwd = workingDir;
-  if (!isCompiledBinary()) {
-    childCwd = dirname(dirname(process.argv[1]));
-    const hasExplicitWorkingDir = originalArgs.some(
-      (arg) => arg === '--currentWorkingDirectory' || arg === '--cwd' || arg.startsWith('--currentWorkingDirectory=')
-    );
-    if (!hasExplicitWorkingDir) {
-      childArgs.push('--currentWorkingDirectory', workingDir);
-    }
-  }
 
   return new Promise((resolve) => {
     const child: ChildProcess = spawn(process.execPath, spawnArgs, {

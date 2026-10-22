@@ -15,6 +15,7 @@ import { SelectionCard, SelectionCardGroup } from '@stacktape/ui-react/selection
 import { Spinner } from '@stacktape/ui-react/spinner';
 import type { WizardState } from '../session';
 import { DecisionRow } from '../components/DecisionRow';
+import { RegionPicker } from '../components/RegionPicker';
 import { Row, RowList } from '../components/RowList';
 import { Evidence } from '../components/Evidence';
 import { GapList } from '../components/GapList';
@@ -366,11 +367,14 @@ export function ReviewStep({
   onChangeDecision,
   onChangePreference,
   onRestart,
+  onRegionChange,
   busy,
   lock
 }: {
   state: WizardState;
   onWrite: (format: 'yaml' | 'typescript') => void;
+  /** Picks the region the file declares. The file preview and the price follow it. */
+  onRegionChange: (region: string) => void;
   onChangeDecision: (id: string, value: string) => void;
   onChangePreference: (change: DeploymentPreferenceChange) => void;
   /** Reads the project again with the given agent, for when nothing was found without one. */
@@ -762,6 +766,13 @@ export function ReviewStep({
         </p>
       ) : (
         <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <RegionPicker onChange={onRegionChange} value={state.region ?? 'eu-west-1'} />
+            <span className="text-[0.82rem] text-[var(--stp-text-subtle)]">
+              Saved in the file as <span className="wizard-code">region</span>. Commands in this project deploy there.
+              Pick the region closest to your users.
+            </span>
+          </div>
           <div className="flex items-center gap-4">
             <Button
               disabled={busy !== undefined}

@@ -40,7 +40,8 @@ import type { DeploymentPreferences } from '@stacktape/config-inference/compose/
 import type { WizardAgentOption } from './server/wizard-server';
 import type { WizardSignInDependencies } from './server/wizard-sign-in';
 import { startWizardSession, toTimelineEntry } from './server/wizard-session';
-import { estimateMonthlyCost } from './pricing';
+import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
+import { DEFAULT_PRICING_REGION, estimateMonthlyCost } from './pricing';
 import { reportInitTelemetry } from './telemetry';
 import {
   findExistingConfig,
@@ -59,6 +60,11 @@ export type InitOptions = {
   projectName?: string;
   /** Connected Stacktape AWS account name, required when no default disambiguates multiple accounts. */
   awsAccount?: string;
+  /**
+   * The region the CLI would deploy to on this machine: `AWS_DEFAULT_REGION`, `AWS_REGION`, the machine-wide default
+   * (`stacktape defaults`), then the AWS profile's region. The new config declares it unless the user picks another.
+   */
+  machineRegion?: string;
   /** Forced by `--headless`; otherwise decided by whether a browser can plausibly be opened. */
   presentation?: InitPresentation;
   /**
@@ -223,6 +229,15 @@ export type InitOutcome = {
   whenClosedItself?: Promise<void>;
 };
 
+/**
+ * The region a new config declares unless the user picks one: the region the CLI would deploy to on this machine when
+ * Stacktape deploys there, otherwise the one prices use. An unsupported `AWS_REGION` is never written into the file.
+ */
+export const regionForNewConfig = (machineRegion: string | undefined): string =>
+  machineRegion !== undefined && (SUPPORTED_AWS_REGIONS as readonly string[]).includes(machineRegion)
+    ? machineRegion
+    : DEFAULT_PRICING_REGION;
+
 export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> => {
   const repositoryRoot = resolve(options.repositoryRoot ?? process.cwd());
   const projectName = options.projectName ?? basename(repositoryRoot);
@@ -296,7 +311,13 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
 
     // Priced after the resource list is on screen, because it is a network call in a command that
     // otherwise needs nothing. No answer means no line, not an error.
-    const price = await (options.estimateCost ?? estimateMonthlyCost)(renderYaml(result.composition));
+    // The file declares where the project deploys: the region this machine's AWS environment names, otherwise the
+    // one prices use. The price describes that same file and region.
+    const region = regionForNewConfig(options.machineRegion);
+    const price = await (options.estimateCost ?? estimateMonthlyCost)(
+      renderYaml(result.composition, { region }),
+      region
+    );
     if (price !== undefined) {
       say('');
       say(`About ${price.monthly} in ${price.region}, for what is in this file.`);
@@ -309,12 +330,16 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       repositoryRoot,
       composition: result.composition,
       ...(options.configFormat === undefined ? {} : { format: options.configFormat }),
-      ...(options.configFormat === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
+      ...(options.configFormat === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {}),
+      region
     });
     say(
       configFile.existingPath === undefined
         ? `\nWrote ${configFile.path}`
         : `\n${configFile.existingPath} was already here and has not been touched.\nWrote ${configFile.path} beside it — deploy it with \`--config ${configFile.filename}\`, or merge it in yourself.`
+    );
+    say(
+      `It deploys project ${projectName} to ${region}. Change \`region\` in ${configFile.filename} to deploy elsewhere.`
     );
     for (const line of describeDevDependency(configFile)) say(line);
 
@@ -412,11 +437,12 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       }
       return result;
     },
-    write: async ({ composition, format }) => {
+    write: async ({ composition, format, region }) => {
       const written = await writeComposedConfig({
         repositoryRoot,
         composition,
         format,
+        ...(region === undefined ? {} : { region }),
         ...(format === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
       });
       for (const line of describeDevDependency(written)) say(line);
@@ -462,7 +488,8 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             return repaired;
           }
         }),
-    awsIdentity: () => resolveAwsIdentity(),
+    awsIdentity: () => resolveAwsIdentity({ region: regionForNewConfig(options.machineRegion) }),
+    machineRegion: regionForNewConfig(options.machineRegion),
     stacktapeAccount: () => resolveStacktapeAccount(),
     ...(options.signIn === undefined ? {} : { signIn: options.signIn }),
     ...(repository === undefined ? {} : { gitHost: repository.host }),

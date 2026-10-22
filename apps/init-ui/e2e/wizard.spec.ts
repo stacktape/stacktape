@@ -38,16 +38,22 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await page.getByRole('tab', { name: /stacktape\.yml|File/ }).click();
   await expect(page.locator('.wizard-source')).toContainText('type: bastion');
 
+  // The region is picked before the file is saved. The file and the price follow it (the stand-in prices us-east-1
+  // 10% lower).
+  await expect(page.locator('.wizard-source')).toContainText('region: eu-west-1');
+  await page.getByRole('combobox', { name: 'Region' }).click();
+  await page.getByRole('option', { name: /us-east-1/ }).click();
+  await expect(page.locator('.wizard-source')).toContainText('region: us-east-1');
+  await expect(page.getByText(/^At AWS list prices in us-east-1\./)).toHaveCount(1);
+
   // The session survives a reload on its cookie; the one-time token is long gone from the address bar.
   await page.reload();
   await expect(page.getByRole('button', { name: /^Save .* & continue$/ })).toBeVisible();
 
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
   await expect(page.getByRole('heading', { name: 'Ready to deploy' })).toBeVisible();
-  // The price follows the region picked for the deploy (the stand-in prices us-east-1 10% lower).
-  await expect(page.getByText(/about \$\d+\/mo \+ pay-per-use costs in eu-west-1/)).toBeVisible();
-  await page.getByRole('combobox', { name: 'Region' }).click();
-  await page.getByRole('option', { name: /us-east-1/ }).click();
+  // The saved file declares the region, so the deploy goes there.
+  await expect(page.getByText(/Region us-east-1, declared in stacktape\.yml/)).toBeVisible();
   await expect(page.getByText(/about \$\d+\/mo \+ pay-per-use costs in us-east-1/)).toBeVisible();
   await page.getByRole('button', { name: 'Check exact AWS target' }).click();
   await page.getByRole('button', { name: 'Create new stack' }).click();

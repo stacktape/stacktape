@@ -5,7 +5,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import * as stacktapeAuthoringRuntime from '@stacktape/config-authoring';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { VALID_CONFIG_PATHS } from '@config';
+import { CONFIG_FILE_PRECEDENCE, locateConfigFile } from '@domain-services/config-manager/project-settings';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import {
   dynamicRequire,
@@ -21,7 +21,7 @@ import { parseYaml } from '@utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
 import { CliError } from '@utils/errors';
 import { pythonBridge, serializePython } from '@utils/python-bridge';
-import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
+import fsExtra, { lstatSync, readFileSync } from 'fs-extra';
 
 const formatFilePathForError = (filePath: string) => {
   const relativePath = transformToUnixPath(getRelativePath(filePath));
@@ -320,56 +320,23 @@ export const parseUserCodeFilepath = ({
   return { handler, filePath, extension, hasExplicitHandler };
 };
 
-const configFilePathPrecedence = [
-  'stacktape.ts',
-  'stacktape.yml',
-  ...VALID_CONFIG_PATHS.filter((configPath) => !['stacktape.ts', 'stacktape.yml'].includes(configPath))
-];
-
-const getConfigPathPriority = (filePath: string) => {
-  const configPath = basename(filePath);
-  const priority = configFilePathPrecedence.indexOf(configPath);
-  return priority === -1 ? Number.MAX_SAFE_INTEGER : priority;
-};
-
-const getMatchingConfigFiles = () => {
-  const { currentWorkingDirectory } = globalStateManager.args;
-  const dirPath = currentWorkingDirectory || process.cwd();
-  const directoryContents = readdirSync(dirPath);
-  return directoryContents
-    .map((item) => join(dirPath, item))
-    .filter((item) => {
-      return lstatSync(item).isFile() && VALID_CONFIG_PATHS.includes(basename(item));
-    });
-};
-
 export const getConfigPath = (): string => {
   const { configPath, currentWorkingDirectory } = globalStateManager.args;
-  const dirPath = currentWorkingDirectory || process.cwd();
-  if (configPath) {
-    // If configPath is already absolute, use it directly
-    const absoluteConfigPath = isAbsolute(configPath) ? configPath : join(dirPath, configPath);
-    if (!isFileAccessible(absoluteConfigPath)) {
+  const located = locateConfigFile({ configPath, currentWorkingDirectory });
+  if (located.explicit) {
+    if (!isFileAccessible(located.path)) {
       throw new CliError({
         category: 'CONFIG_VALIDATION',
         code: 'CONFIG_FILE_UNAVAILABLE',
-        message: `Config file \`${formatFilePathForError(absoluteConfigPath)}\` does not exist or is not accessible.`
+        message: `Config file \`${formatFilePathForError(located.path)}\` does not exist or is not accessible.`
       });
     }
-    return absoluteConfigPath;
+    return located.path;
   }
-  const matchingConfigPaths = getMatchingConfigFiles();
-  if (matchingConfigPaths.length > 1) {
-    const sortedMatchingConfigPaths = [...matchingConfigPaths].sort(
-      (firstPath, secondPath) => getConfigPathPriority(firstPath) - getConfigPathPriority(secondPath)
-    );
-    const selectedConfigPath = sortedMatchingConfigPaths[0];
-
+  if (located.candidates.length > 1) {
     tuiManager.warn(
-      `Found multiple matching config files: ${sortedMatchingConfigPaths.join(', ')}. Using ${selectedConfigPath} based on precedence: ${configFilePathPrecedence.join(' > ')}.`
+      `Found multiple matching config files: ${located.candidates.join(', ')}. Using ${located.path} based on precedence: ${CONFIG_FILE_PRECEDENCE.join(' > ')}.`
     );
-
-    return selectedConfigPath;
   }
-  return matchingConfigPaths[0];
+  return located.path;
 };

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -57,7 +58,7 @@ const connect = async (runResult: (cwd: string) => Partial<RunStacktapeResult> =
       code: string;
       data?: Record<string, any>;
     };
-  return { call, runs };
+  return { call, runs, client };
 };
 
 const projectWithDeployScript = async () => {
@@ -202,5 +203,93 @@ describe('stacktape_cli action=run', () => {
     });
     expect(output).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
     expect(runs).toHaveLength(0);
+  });
+});
+
+describe('project settings declared in stacktape.ts', () => {
+  /** A project whose config declares its target and whose code would leave a marker if anything imported it. */
+  const projectWithSettings = async (settings = "{ projectName: 'shop', region: 'eu-central-1' }") => {
+    const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-settings-'));
+    cleanups.push(() => rm(project, { recursive: true, force: true }));
+    const marker = join(project, 'config-ran.marker');
+    await writeFile(
+      join(project, 'stacktape.ts'),
+      `import { writeFileSync } from 'node:fs';
+import { Bucket, defineConfig } from 'stacktape';
+writeFileSync(${JSON.stringify(marker)}, 'project code ran');
+export default defineConfig(${settings}, () => ({ resources: { uploads: new Bucket({}) } }));
+`
+    );
+    // A stale script names another target; the config's declaration wins over this guess.
+    await writeFile(
+      join(project, 'package.json'),
+      JSON.stringify({
+        name: 'shop',
+        scripts: { deploy: 'stacktape deploy --projectName old-shop --stage production --region us-east-1' }
+      })
+    );
+    return { project, marker };
+  };
+
+  test('run leaves the declared target to the CLI instead of demanding or guessing it', async () => {
+    const { project, marker } = await projectWithSettings();
+    const { call, runs } = await connect();
+
+    const output = await call({
+      action: 'run',
+      command: 'logs',
+      cwd: project,
+      stage: 'production',
+      resourceName: 'api'
+    });
+
+    expect(output.ok).toBe(true);
+    expect(runs).toEqual([{ command: 'logs', args: { stage: 'production', resourceName: 'api' } }]);
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  test('plan reports the declared target and drops the package script guess, without running project code', async () => {
+    const { project, marker } = await projectWithSettings();
+    const { call } = await connect();
+
+    const output = await call({ action: 'plan', command: 'deploy', cwd: project, stage: 'production' });
+
+    expect(output.ok).toBe(true);
+    expect(output.data?.args.projectName).toBeUndefined();
+    expect(output.data?.args.region).toBeUndefined();
+    expect(output.data?.resolvedContext.projectSettings).toEqual({
+      configPath: join(project, 'stacktape.ts'),
+      projectName: 'shop',
+      region: 'eu-central-1'
+    });
+    expect(output.data?.matchedPackageScript.droppedParsedArgs).toEqual(
+      expect.arrayContaining(['projectName', 'region'])
+    );
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  test('plan explains settings it cannot read statically', async () => {
+    const { project } = await projectWithSettings("{ projectName: 'shop', region: process.env.REGION }");
+    const { call } = await connect();
+
+    const output = await call({ action: 'plan', command: 'deploy', cwd: project, stage: 'production' });
+
+    expect(output.ok).toBe(false);
+    expect(output.code).toBe('VALIDATION_ERROR');
+    expect(output.data?.errorCode).toBe('CONFIG_PROJECT_SETTINGS_INVALID');
+  });
+
+  test('the dev planner needs no region when the config declares one', async () => {
+    const { project, marker } = await projectWithSettings();
+    const { client } = await connect();
+
+    const output = (
+      await client.callTool({ name: 'stacktape_dev', arguments: { action: 'plan', args: { cwd: project } } })
+    ).structuredContent as { ok: boolean; data?: Record<string, any> };
+
+    expect(output.ok).toBe(true);
+    expect(output.data?.args.region).toBeUndefined();
+    expect(output.data?.resolvedContext.projectSettings.region).toBe('eu-central-1');
+    expect(existsSync(marker)).toBe(false);
   });
 });

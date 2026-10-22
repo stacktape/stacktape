@@ -28,7 +28,21 @@ const CANDIDATE_FILENAMES = ['stacktape.yml', 'stacktape.yaml', 'stacktape.ts'] 
 export const findExistingConfig = (repositoryRoot: string): string | undefined =>
   CANDIDATE_FILENAMES.map((name) => join(repositoryRoot, name)).find((path) => existsSync(path));
 
-export const renderYaml = (composition: CompositionResult): string => stringifyToYaml(composition.config);
+/**
+ * The project settings init declares: the project name the composition carries and the region the user deploys to.
+ * Declared in the file, so every later command in the project needs only `--stage`.
+ */
+export type DeclaredSettings = { region?: string };
+
+/** The composed configuration with the declared region next to the project name, where the CLI reads both. */
+const withDeclaredSettings = (composition: CompositionResult, { region }: DeclaredSettings) => {
+  if (region === undefined) return composition.config;
+  const { projectName, ...rest } = composition.config;
+  return { ...(projectName === undefined ? {} : { projectName }), region, ...rest };
+};
+
+export const renderYaml = (composition: CompositionResult, settings: DeclaredSettings = {}): string =>
+  stringifyToYaml(withDeclaredSettings(composition, settings));
 
 /**
  * The same configuration as TypeScript.
@@ -38,8 +52,11 @@ export const renderYaml = (composition: CompositionResult): string => stringifyT
  * infrastructure. It also topologically sorts resources so a `connectTo` target is declared before
  * the thing that references it, which the hand-rolled emitter did not do.
  */
-export const renderTypeScript = async (composition: CompositionResult): Promise<string> =>
-  prettier.format(convertYamlToTypescript(renderYaml(composition)), {
+export const renderTypeScript = async (
+  composition: CompositionResult,
+  settings: DeclaredSettings = {}
+): Promise<string> =>
+  prettier.format(convertYamlToTypescript(renderYaml(composition, settings)), {
     parser: 'typescript',
     printWidth: 120,
     singleQuote: true
@@ -57,6 +74,8 @@ export type WriteConfigResult = {
    * say so — a user who does not notice ends up deploying a file they did not know they had.
    */
   existingPath?: string;
+  /** The region the file declares, when init declared one. */
+  region?: string;
   /**
    * The `stacktape` dev dependency a TypeScript config needs, when init added or changed it in `package.json`.
    *
@@ -87,11 +106,14 @@ export const writeComposedConfig = async ({
   repositoryRoot,
   composition,
   format = 'yaml',
-  stacktapeVersion
+  stacktapeVersion,
+  region
 }: {
   repositoryRoot: string;
   composition: CompositionResult;
   format?: ConfigFormat;
+  /** Region to declare in the file. */
+  region?: string;
   /** The running CLI's version. A TypeScript config in a project with a `package.json` depends on it. */
   stacktapeVersion?: string;
 }): Promise<WriteConfigResult> => {
@@ -99,7 +121,8 @@ export const writeComposedConfig = async ({
   const filename = existing === undefined ? CANONICAL[format] : ALONGSIDE[format];
   const path = join(repositoryRoot, filename);
 
-  const contents = format === 'typescript' ? await renderTypeScript(composition) : renderYaml(composition);
+  const contents =
+    format === 'typescript' ? await renderTypeScript(composition, { region }) : renderYaml(composition, { region });
   await writeFile(path, contents, 'utf8');
   const devDependency =
     format === 'typescript' && stacktapeVersion !== undefined
@@ -109,6 +132,7 @@ export const writeComposedConfig = async ({
     path,
     filename,
     ...(existing === undefined ? {} : { existingPath: existing }),
+    ...(region === undefined ? {} : { region }),
     ...(devDependency === undefined ? {} : { devDependency })
   };
 };

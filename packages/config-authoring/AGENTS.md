@@ -27,10 +27,13 @@ resource-reference properties; compilation resolves that identity through the re
 representing an entry in `StacktapeConfig.resources` belongs in `RESOURCES_CONVERTIBLE_TO_CLASSES` and must extend
 `BaseResource`; do not model a top-level resource as a generic type-properties class.
 
-The sole factory evaluation happens before a config-declared `projectName` can become target-stack context, so
-`GetConfigParams.projectName` is intentionally optional. It is present when selected by a CLI argument or persisted
-default; a config that declares its own project name reads that value from its returned configuration. Do not fake a
-required value with a second execution or an AST pre-parser.
+The project name and region are declared in the settings object, the first argument of
+`defineConfig({ projectName, region }, fn)`. The CLI reads them statically, as string literals, before it chooses
+credentials and evaluates the config; it never executes the config a second time to learn them. The runtime keeps the
+settings on the returned function (`getConfigSettings`) so the CLI can check them against its static read, passes the
+effective values to the callback and copies the declared values into the serializable config. A callback that returns
+`projectName` or `region` is rejected. `defineConfig(fn)` without settings remains valid; its callback receives a
+project name only when a CLI argument or persisted default selected one.
 
 Resource constructor props are derived from `@stacktape/config`'s discriminated resource union. Keep that model as the
 source of truth instead of hand-maintaining a parallel props hierarchy. `resources.ts` deliberately exports each runtime

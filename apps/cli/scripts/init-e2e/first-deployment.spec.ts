@@ -531,7 +531,7 @@ describe('stacktape init in the terminal: existing repository to a running artif
       const first = await runSourceInit({ sandbox, args: ['--codingAgent', 'none'] });
       expect(first.exitCode, first.output).toBe(0);
       expect(first.output).toContain('stacktape.yml was already here and has not been touched.');
-      expect(first.output).toContain('--configPath stacktape.generated.yml');
+      expect(first.output).toContain('--config stacktape.generated.yml');
       expect(await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8')).toBe(handWritten);
       const generated = await readFile(join(sandbox.project, 'stacktape.generated.yml'), 'utf8');
       expect(validateConfigYaml(generated).errors).toEqual([]);

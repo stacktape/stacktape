@@ -25,6 +25,11 @@ modules; ambient declarations are limited to environment and third-party module 
 TypeScript configs export one default `defineConfig` result. The authoring runtime compiles the config and its transform
 side channel in one invocation; do not execute the config again to rediscover callbacks. YAML remains plain data.
 
+The project name and region a command targets are resolved once, before arguments are validated and credentials are
+chosen: a flag, then the config's settings, then the earlier sources (`AWS_DEFAULT_REGION`, machine-wide default, AWS
+profile). `src/domain/config-manager/project-settings.ts` reads the settings statically and never runs project code; MCP
+planning uses the same reader. Evaluation checks that the loaded config declares the settings that were read.
+
 Commands capture authored inputs before resolving the target stack, then pass one immutable `StackContext` through
 directive resolution, normalization and synthesis. Config, template and calculated-resource code must not read mutable
 CLI global state for account, region, project, stage or paths.

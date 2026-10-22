@@ -15,7 +15,7 @@ import {
 
 const stages: Record<string, { memory: number }> = { production: { memory: 1024 }, staging: { memory: 512 } };
 
-export default defineConfig(({ stage, region }) => {
+export default defineConfig({ projectName: 'directive-project' }, ({ stage, region }) => {
   const gateway = new HttpApiGateway({});
   const records = new DynamoDbTable({ primaryKey: { partitionKey: { name: 'id', type: 'string' } } });
   const site = new HostingBucket({ uploadDirectoryPath: './src' });
@@ -40,5 +40,5 @@ export default defineConfig(({ stage, region }) => {
     events: [new HttpApiIntegration({ httpApiGatewayName: gateway, method: 'GET', path: '/' })],
     connectTo: [records, site]
   });
-  return { projectName: 'directive-project', resources: { gateway, api, records, site } };
+  return { resources: { gateway, api, records, site } };
 });

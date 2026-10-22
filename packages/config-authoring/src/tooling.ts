@@ -10,6 +10,7 @@ import {
 import {
   compileAuthoringConfig,
   defineConfig,
+  getConfigSettings,
   isCompiledStacktapeConfig,
   transformConfigWithResources
 } from './config.js';
@@ -17,6 +18,7 @@ import type {
   AuthoringStacktapeConfig,
   CloudFormationTemplate,
   CompiledStacktapeConfig,
+  ConfigSettings,
   DefinedStacktapeConfig,
   FinalTransform,
   GetConfigParams,
@@ -38,6 +40,7 @@ export type {
   AuthoringStacktapeConfig,
   CloudFormationTemplate,
   CompiledStacktapeConfig,
+  ConfigSettings,
   DefinedStacktapeConfig,
   FinalTransform,
   GetConfigParams,
@@ -53,6 +56,7 @@ export {
   $SsmParam,
   compileAuthoringConfig,
   defineConfig,
+  getConfigSettings,
   ENGINE_TYPE_TO_CLASS,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   CONTAINER_PACKAGING_TYPE_TO_CLASS,
