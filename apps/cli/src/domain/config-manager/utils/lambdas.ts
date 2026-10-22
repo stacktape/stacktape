@@ -22,6 +22,8 @@ import {
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
 import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/runtime-selection';
+import { getPythonLambdaHandlerModule } from '@stacktape/packaging/buildpacks/py-lambda-buildpack';
+import { getRubyLambdaHandlerFile } from '@stacktape/packaging/buildpacks/rb-lambda-buildpack';
 
 import { kebabCase } from 'change-case';
 import type { ConfigManager } from '../index';
@@ -836,9 +838,18 @@ export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
   ];
 };
 
-export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackaging; name: string }) => {
+export const getLambdaHandler = ({
+  name,
+  packaging,
+  workingDir
+}: {
+  packaging: LambdaPackaging;
+  name: string;
+  workingDir: string;
+}) => {
   if (packaging.type === 'js-bundle' || packaging.type === 'buildpack') {
-    const extension = getFileExtension(packaging.properties.entryfilePath);
+    const { entryfilePath } = packaging.properties;
+    const extension = getFileExtension(entryfilePath);
     const handlerToUse =
       packaging.properties.handlerFunction ??
       (extension === 'java'
@@ -856,14 +867,24 @@ export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackagi
                   : 'default');
     let entry = '';
     switch (extension) {
+      // Python and Ruby resolve the handler from the ZIP root, which packaging chooses.
       case 'py':
+        entry = getPythonLambdaHandlerModule({
+          cwd: workingDir,
+          entryfilePath,
+          packageManagerFile:
+            packaging.type === 'buildpack' ? packaging.properties.python?.packageManagerFile : undefined
+        });
+        break;
+      case 'rb':
+        entry = getRubyLambdaHandlerFile({ cwd: workingDir, entryfilePath });
+        break;
       case 'go':
       case 'rs':
-      case 'rb':
-        entry = getFileNameWithoutExtension(packaging.properties.entryfilePath);
+        entry = getFileNameWithoutExtension(entryfilePath);
         break;
       case 'java':
-        entry = getContainingFolderName(packaging.properties.entryfilePath);
+        entry = getContainingFolderName(entryfilePath);
         break;
       case 'cs':
         entry = '';

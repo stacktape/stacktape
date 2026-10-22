@@ -84,7 +84,7 @@ const stop = async () => {
   await wait(() => supervisor.exitCode !== null, 40000);
   assert.equal(supervisor.exitCode, 0, logs);
 };
-const attempt = async (rev, commit = true) => {
+const attempt = async (rev, commit = true, completeTimeout = 35000) => {
   await signalRecord(rev, 'prepare');
   const prepared = await wait(async () => {
     const s = await status();
@@ -95,7 +95,7 @@ const attempt = async (rev, commit = true) => {
   return wait(async () => {
     const s = await status();
     return s.revision === rev && ['complete', 'failed'].includes(s.state) && s;
-  });
+  }, completeTimeout);
 };
 const test = async (name, fn) => {
   const start = performance.now();
@@ -232,7 +232,28 @@ const main = async () => {
     });
     await stop();
     await test('B10 natural long request, keep-alive, POST/100-continue, SSE and WebSocket deadline', async () => {
+      // The old process may finish in-flight requests for the CLI's SWAP_DRAIN_SECONDS; the qualification image sets it.
+      const swapDrainMs = Number(process.env.QUAL_SWAP_DRAIN_S) * 1000;
+      assert(swapDrainMs > 0, 'QUAL_SWAP_DRAIN_S is required');
       await start('old', 3);
+      assert.equal((await attempt('new', false)).state, 'prepared');
+      const natural = await stream('/long');
+      await signalRecord('new', 'commit');
+      const first = await wait(async () => {
+        const v = await status();
+        return v.revision === 'new' && ['complete', 'failed'].includes(v.state) && v;
+      });
+      assert.equal(first.state, 'complete');
+      // The 1.5 s request was open at the switch: the swap waits for it and stops waiting as soon as it ends.
+      assert.equal(first.timings.forcedDrain, false);
+      assert(first.timings.drainMs > 500 && first.timings.drainMs < 5000);
+      let naturalEnd = '';
+      for (;;) {
+        const b = await natural.reader.read();
+        if (b.done) break;
+        naturalEnd += new TextDecoder().decode(b.value);
+      }
+      assert(naturalEnd.endsWith('old'));
       const old = await inspect();
       const long = await stream('/long');
       const sse = await stream('/sse');
@@ -250,9 +271,13 @@ const main = async () => {
           await sleep(20);
         }
       })();
-      const s = await attempt('new');
-      trafficController.abort();
-      await loop;
+      let s;
+      try {
+        s = await attempt('old', true, swapDrainMs + 30000);
+      } finally {
+        trafficController.abort();
+        await loop;
+      }
       assert.equal(s.state, 'complete');
       assert.equal(traffic.length, 0);
       let end = '';
@@ -261,14 +286,15 @@ const main = async () => {
         if (b.done) break;
         end += new TextDecoder().decode(b.value);
       }
-      assert(end.includes('old'));
+      assert(end.endsWith('new'));
       try {
         while (!(await sse.reader.read()).done) {}
       } catch {}
       await wait(() => ws.socket.destroyed);
       assert(Buffer.concat(ws.received).includes(Buffer.from([0x88, 2, 3, 0xe9])));
+      // SSE and WebSocket never end on their own, so they hold the old process until the drain deadline.
       assert.equal(s.timings.forcedDrain, true);
-      assert(s.timings.drainMs >= 2900);
+      assert(s.timings.drainMs >= swapDrainMs - 100 && s.timings.drainMs < swapDrainMs + 5000);
       await pidsGone([old.pid]);
       const post = await new Promise((resolve, reject) => {
         const r = request(
@@ -295,7 +321,7 @@ const main = async () => {
       assert.equal(post.bytes, 1048576);
       assert.equal(post.host, 'preserved.example');
       assert(post.forwarded.startsWith('192.0.2.4'));
-      return { timings: s.timings, swapRequestFailures: traffic.length, post };
+      return { naturalTimings: first.timings, timings: s.timings, swapRequestFailures: traffic.length, post };
     });
     await stop();
     for (const rev of ['startupCrash', 'detach', 'doubleFork']) {
@@ -553,5 +579,6 @@ main()
     try {
       await stop();
     } catch {}
-    if (process.env.QUAL_SERVE !== '1') process.exitCode = 1;
+    // A failed check can leave streams, sockets and traffic loops open; exit so the container stops now.
+    if (process.env.QUAL_SERVE !== '1') process.exit(1);
   });
