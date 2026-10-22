@@ -25,6 +25,8 @@ import { createPackageAnalysisCache, getProductionDependencies } from '../es/ins
 import {
   createOwnCodeAnchorPlugin,
   createOwnCodeAnchorSource,
+  getPackageBytes,
+  hasMixedChunk,
   isInstalledPackagePath,
   isOwnCodeAnchorOutput,
   isOwnSourcePath,
@@ -61,6 +63,9 @@ import { resolvePrisma } from '../bundlers/es/utils';
 import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
+
+/** How much more package code than without it the own-code anchor may keep before the build goes without it. */
+const MAX_ANCHOR_PACKAGE_GROWTH = 0.01;
 
 /**
  * Bundle multiple Lambda entrypoints together using Bun's code splitting.
@@ -330,22 +335,29 @@ const executeBunBuild = async ({
 
   try {
     // A build in memory shows which chunks would mix own code and packages. The anchor is only an optimization: when
-    // it cannot be prepared, or Bun rejects a name it re-exports, the build goes on without it, as it did before.
-    const anchorSource =
+    // it cannot be prepared, the build goes on without it, as it did before.
+    const plan =
       entrypoints.length > 1
-        ? await runBunBuild({ buildTracker: createDependencyTracker() })
-            .then((plan) =>
-              plan.success
-                ? createOwnCodeAnchorSource({
-                    metafile: plan.metafile as BuildMetafile,
-                    resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
-                  })
-                : undefined
-            )
-            .catch(() => undefined)
+        ? await runBunBuild({ buildTracker: createDependencyTracker() }).catch(() => undefined)
         : undefined;
+    const planMetafile = plan?.success ? (plan.metafile as BuildMetafile) : undefined;
+    const anchorSource =
+      planMetafile &&
+      (await createOwnCodeAnchorSource({
+        metafile: planMetafile,
+        resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
+      }).catch(() => undefined));
     result = await runBunBuild({ anchorSource, outdir: sharedOutdir, buildTracker: tracker });
-    if (!result.success && anchorSource) {
+    // Without the anchor when Bun rejects it, when a chunk still mixes the two (its order was not checked), or when it
+    // kept package code that tree shaking removes without it.
+    if (
+      anchorSource &&
+      planMetafile &&
+      (!result.success ||
+        hasMixedChunk(result.metafile as BuildMetafile) ||
+        getPackageBytes(result.metafile as BuildMetafile) >
+          getPackageBytes(planMetafile) * (1 + MAX_ANCHOR_PACKAGE_GROWTH) + 16 * 1024)
+    ) {
       await emptyDir(sharedOutdir);
       result = await runBunBuild({ outdir: sharedOutdir, buildTracker: tracker });
     }

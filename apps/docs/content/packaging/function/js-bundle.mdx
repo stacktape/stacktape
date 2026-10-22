@@ -233,7 +233,7 @@ Stacktape caches deployment packages based on a checksum, so unchanged code is n
 
 ## Shared code between functions
 
-When a stack has two or more JavaScript or TypeScript Lambda functions that can be packaged together, it builds them in a single pass and moves the npm dependencies they have in common into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Your own shared modules stay in each function's package while they total 2 MB or less, so editing them deploys as a code update, as fast as editing a handler, without publishing a new layer version. Nothing needs to be configured, and your imports do not change.
+When a stack has two or more JavaScript or TypeScript Lambda functions that can be packaged together, it builds them in a single pass and moves the npm dependencies they have in common into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Your own shared modules stay in each function's package while they total 2 MB or less, so editing them deploys as a code update, as fast as editing a handler, without publishing a new layer version. When a shared module runs setup code as it loads (for example, it sets `process.env` or starts tracing) before packages load, the packages and your modules stay in the shared layers together, so they still load in the original order. Nothing needs to be configured, and your imports do not change.
 
 The effect grows with the number of functions. Twenty-five functions that share a library and the AWS SDK produce twenty-five small packages plus one layer, instead of twenty-five packages that each carry a full copy of the shared code.
 
