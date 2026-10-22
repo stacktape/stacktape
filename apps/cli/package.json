@@ -80,6 +80,8 @@
     "test:static-sites:ministack": "bun test tests/static-sites/content-sync.spec.ts",
     "test:security-inventory:ministack": "bun test tests/ministack/security-inventory.spec.ts",
     "test:ministack:deploy": "bun scripts/ministack/run-deploy-lane.ts",
+    "test:ministack:deploy:loop": "bun scripts/ministack/run-deploy-lane.ts tests/ministack/deploy-loop.spec.ts",
+    "test:ministack:deploy:operations": "bun scripts/ministack/run-deploy-lane.ts tests/ministack/security-deploy.spec.ts tests/ministack/fast-deploy.spec.ts tests/ministack/domain-cache.spec.ts tests/ministack/domain-add.spec.ts",
     "test:packaging-archives": "bun test scripts/packaging-archives",
     "test:mcp-docs": "bun test src/commands/mcp",
     "test:mcp-executable": "turbo run build:dev-artifacts --filter=@stacktape/cli && bun scripts/test-mcp-executable.ts",
@@ -264,6 +266,7 @@
   "devDependencies": {
     "@apidevtools/json-schema-ref-parser": "^16.0.1",
     "@aws-sdk/client-apigatewayv2": "3.1121.0",
+    "@aws-sdk/client-application-auto-scaling": "3.1121.0",
     "@aws-sdk/client-sns": "3.1121.0",
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",

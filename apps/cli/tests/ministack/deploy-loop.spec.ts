@@ -67,7 +67,7 @@ beforeAll(async () => {
     'Build the helper Lambdas first: pnpm --filter @stacktape/cli run test:ministack:deploy does it.'
   );
   await mkdir(out, { recursive: true });
-  ministack = await startMiniStack({ label: 'deploy-loop' });
+  ministack = await startMiniStack({ label: 'deploy-loop', applicationAutoScaling: true });
   report.image = ministack.image;
   report.imageId = ministack.imageId;
   report.fixtureStartupMs = ministack.startupMs;
@@ -285,7 +285,9 @@ describe('offline deploy loop against MiniStack', () => {
             if (previous) {
               for (const resource of resources) {
                 const prior = previous.find((candidate) => candidate.LogicalResourceId === resource.LogicalResourceId);
-                if (prior) {
+                // A changed task definition is a new revision with a new ARN, on AWS as well; the service moves to it.
+                const revised = step === 'update' && resource.ResourceType === 'AWS::ECS::TaskDefinition';
+                if (prior && !revised) {
                   assert.equal(
                     resource.PhysicalResourceId,
                     prior.PhysicalResourceId,

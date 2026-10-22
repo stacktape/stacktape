@@ -16,3 +16,6 @@ suites. It is a test helper with real consumers, not a general AWS utility area.
   the run.
 - The package imports no application code and no AWS SDK at runtime; consumers bring their own clients and pass
   `clientConfig()` to them.
+- `emulator/` holds Python the fixture loads into the emulator process for services MiniStack lacks, one file per
+  service, opted into per run. Each follows the AWS API reference for the calls Stacktape makes, names its upstream
+  issue, and is deleted once a pinned release implements the service.
