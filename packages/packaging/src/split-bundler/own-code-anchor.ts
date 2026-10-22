@@ -148,7 +148,7 @@ const readSource = async (path: string): Promise<SourceSummary | undefined> => {
         const use = { imported: '*', members: new Set<string>() };
         locals.set(bindings.name.text, use);
         add(specifier, use);
-      } else if (bindings) {
+      } else if (bindings && ts.isNamedImports(bindings)) {
         for (const element of bindings.elements) {
           if (element.isTypeOnly) continue;
           const use = { imported: (element.propertyName ?? element.name).text, members: new Set<string>() };
