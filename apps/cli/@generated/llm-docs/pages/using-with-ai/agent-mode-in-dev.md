@@ -39,8 +39,30 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--fresh-db` to wipe it for a clean slate.
 
+## Authentication
 
-> **Warning - Keep the agent port private:** The agent HTTP API has no application-level authentication and the server does not explicitly restrict its listener to the loopback interface. Do not expose the port through a public interface, port forward, tunnel, or permissive container/network configuration. Anyone who can reach it may be able to rebuild workloads, query local data, stop the session, or call AWS APIs with the dev agent's credentials.
+The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `~/.stacktape/dev-agent-tokens/{port}.token` in your home directory (`%USERPROFILE%\.stacktape\dev-agent-tokens\{port}.token` on Windows). Because the file is named after the agent's port, any of your tools can find it from any directory. Only your user can read the file. Stacktape deletes it when the agent stops, and an agent that starts later removes the files of agents that were killed. The startup message and the `AGENT_READY` result print the file path, never the token.
+
+Every request must send the token in an `Authorization: Bearer` header. POST requests must also send `content-type: application/json`. The examples on this page use these shell variables:
+
+```bash
+AGENT=http://127.0.0.1:9900
+AUTH="Authorization: Bearer $(cat ~/.stacktape/dev-agent-tokens/9900.token)"
+JSON='content-type: application/json'
+
+curl -H "$AUTH" $AGENT/status
+```
+
+The agent refuses requests that a web page or another machine could send:
+
+| Request                                                              | Response                     |
+| -------------------------------------------------------------------- | ---------------------------- |
+| No token or a wrong token                                            | `401 UNAUTHORIZED`           |
+| A `Host` header other than `127.0.0.1:{port}` or `localhost:{port}`  | `403 FORBIDDEN`              |
+| Any request with an `Origin` header (sent by browsers)               | `403 FORBIDDEN`              |
+| A POST without `content-type: application/json`                      | `415 UNSUPPORTED_MEDIA_TYPE` |
+
+The 401 response names the token file, so a coding assistant that forgot the header can recover on its own. [`stacktape dev:stop`](/cli/dev-stop) and the [MCP server](/using-with-ai/mcp-server-setup) read the token file themselves. Run `dev:stop` from the project directory dev mode was started in.
 
 
 > **Tip:** AI coding assistants can call `GET /` on the agent server to receive a full endpoint listing dynamically. Use `GET /?compact=true` for a shorter LLM-oriented response — it includes the current phase, workload names, available local resources with their primary query/schema endpoints, core action templates (rebuild, logs, env, aws, stop), and a pointer to `GET /` for full docs.
@@ -79,7 +101,7 @@ Agent endpoints return a JSON envelope with `v`, `ok`, and `code` on every respo
 The `/status` endpoint reports the current agent phase and a map of workload names to their local URLs (if running) or status strings. AI agents should poll this endpoint after starting dev mode and wait for `"ready"` before testing workload URLs.
 
 ```bash
-curl http://localhost:9900/status
+curl -H "$AUTH" $AGENT/status
 ```
 
 ```json
@@ -90,6 +112,7 @@ curl http://localhost:9900/status
   "data": {
     "phase": "ready",
     "ready": true,
+    "failedWorkloads": [],
     "workloads": {
       "api": "http://localhost:3000",
       "worker": "running"
@@ -99,12 +122,14 @@ curl http://localhost:9900/status
 }
 ```
 
-The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. In the current server code, `/status` moves phase from `starting` to `ready` once workloads are running or errored, and `/stop` moves phase to `stopping`. The `ready` field becomes `true` when there is at least one workload and every workload has reached `running` or `error` status.
+The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready` and every workload is `running`. A workload that failed or crashed makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down.
+
+If a workload fails while `stacktape dev --agent` is starting, the command stops the session, prints each failed workload with its error and the log file path, and exits with a non-zero code.
 
 For detailed information including uptime, per-workload type/port/error data, local resource status, and the log file path, use verbose mode.
 
 ```bash
-curl "http://localhost:9900/status?verbose=true"
+curl -H "$AUTH" "$AGENT/status?verbose=true"
 ```
 
 The verbose response replaces the workload string map with an array of objects containing `name`, `type`, `status`, `url`, `port`, and `error` fields, plus a `localResources` array, `uptime` in seconds, and the `logFile` path. Workload `status` is one of `pending`, `starting`, `running`, `error`, or `stopped`. Local resource status uses the same values.
@@ -114,7 +139,7 @@ The verbose response replaces the workload string map with an array of objects c
 The `/logs` endpoint returns the path to the JSONL log file on disk. Logs are **not** streamed through the HTTP response — AI agents should read the file directly using standard tools like `tail`, `grep`, or `jq`.
 
 ```bash
-curl http://localhost:9900/logs
+curl -H "$AUTH" $AGENT/logs
 ```
 
 ```json
@@ -123,7 +148,7 @@ curl http://localhost:9900/logs
   "ok": true,
   "code": "OK",
   "data": {
-    "logFile": ".stacktape/dev-data/dev/9900-logs.txt",
+    "logFile": ".stacktape/dev-agent/9900-logs.txt",
     "format": "jsonl",
     "hint": "Use standard tools: tail -n 50 <logFile> | jq ."
   }
@@ -142,19 +167,19 @@ Each line in the log file is a JSON object with these fields:
 View the last 50 lines:
 
 ```bash
-tail -n 50 .stacktape/dev-data/dev/9900-logs.txt
+tail -n 50 .stacktape/dev-agent/9900-logs.txt
 ```
 
 Filter for errors only:
 
 ```bash
-grep '"level":"error"' .stacktape/dev-data/dev/9900-logs.txt
+grep '"level":"error"' .stacktape/dev-agent/9900-logs.txt
 ```
 
 Filter by a specific workload:
 
 ```bash
-grep '"source":"api"' .stacktape/dev-data/dev/9900-logs.txt
+grep '"source":"api"' .stacktape/dev-agent/9900-logs.txt
 ```
 
 This file-based approach is intentional — AI coding assistants already have file-reading tools, and `tail -f` provides real-time streaming without polling overhead.
@@ -164,7 +189,7 @@ This file-based approach is intentional — AI coding assistants already have fi
 The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. For other workload types whose env vars are tracked by dev mode (currently container, hosting-bucket, and nextjs-web workloads), variables are read from the local runner state.
 
 ```bash
-curl http://localhost:9900/env/api
+curl -H "$AUTH" $AGENT/env/api
 ```
 
 ```json
@@ -185,6 +210,8 @@ curl http://localhost:9900/env/api
 }
 ```
 
+Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, ports, database names and plain settings stay readable. Your workloads still receive the real values.
+
 This endpoint is useful for debugging [`connectTo`](/configuration/connecting-resources) wiring. If an expected `STP_*` variable is missing, the workload's `connectTo` array likely doesn't reference the target resource. The response also includes the `source` field — `"aws"` for Lambda functions (fetched from the deployed function configuration) or `"local"` for other tracked workload types (currently container, hosting-bucket, and nextjs-web workloads, read from the local runner state).
 
 ### Rebuild
@@ -194,13 +221,13 @@ After editing application code, trigger a workload rebuild to pick up the change
 Rebuild a specific workload:
 
 ```bash
-curl -X POST http://localhost:9900/rebuild/api
+curl -X POST -H "$AUTH" -H "$JSON" -d '{}' $AGENT/rebuild/api
 ```
 
 Rebuild all workloads at once:
 
 ```bash
-curl -X POST http://localhost:9900/rebuild/all
+curl -X POST -H "$AUTH" -H "$JSON" -d '{}' $AGENT/rebuild/all
 ```
 
 If a workload is currently in the `starting` state (mid-rebuild), the server rejects the request with an error message. The rebuild-all endpoint also rejects if any workload is mid-rebuild, listing the names of the workloads that are still starting.
@@ -210,7 +237,7 @@ If a workload is currently in the `starting` state (mid-rebuild), the server rej
 `GET /health` returns the current agent phase and can be used as a simple liveness check. Unlike `/status`, `/health` does not include workloads or local resources — it only returns `ok` and the current agent `phase` inside the standard envelope. Use `/status` for full workload details.
 
 ```bash
-curl http://localhost:9900/health
+curl -H "$AUTH" $AGENT/health
 ```
 
 ### Resource health checks
@@ -218,7 +245,7 @@ curl http://localhost:9900/health
 Check the health of a specific local resource (database, cache). The agent monitors local resources automatically, but this endpoint triggers an immediate check and returns the result.
 
 ```bash
-curl http://localhost:9900/health/myDb
+curl -H "$AUTH" $AGENT/health/myDb
 ```
 
 The response includes `name`, `type`, `port`, `host`, and the `status` value returned by the local health monitor. If the resource name doesn't match any running local resource, the error response includes an `available` array listing valid resource names.
@@ -228,7 +255,7 @@ The response includes `name`, `type`, `port`, `host`, and the `status` value ret
 Gracefully shut down dev mode, all workloads, and all local resources.
 
 ```bash
-curl -X POST http://localhost:9900/stop
+curl -X POST -H "$AUTH" -H "$JSON" -d '{}' $AGENT/stop
 ```
 
 Calling stop when the agent is already stopping or stopped returns success without side effects.
@@ -248,8 +275,7 @@ The `{name}` path parameter in every database endpoint matches the resource name
 Available when dev mode is running a local instance for a [relational database](/resources/databases/relational-database) with a PostgreSQL engine in your Stacktape configuration.
 
 ```bash
-curl -X POST http://localhost:9900/postgres/myDb/query \
-  -H "Content-Type: application/json" \
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/postgres/myDb/query \
   -d '{"sql": "SELECT * FROM users LIMIT 10"}'
 ```
 
@@ -268,8 +294,7 @@ curl -X POST http://localhost:9900/postgres/myDb/query \
 Available when dev mode is running a local instance for a [relational database](/resources/databases/relational-database) with a MySQL or MariaDB engine in your Stacktape configuration. The endpoint path uses `/mysql/` for both MySQL and MariaDB resources.
 
 ```bash
-curl -X POST http://localhost:9900/mysql/myDb/query \
-  -H "Content-Type: application/json" \
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/mysql/myDb/query \
   -d '{"sql": "SHOW TABLES"}'
 ```
 
@@ -288,8 +313,7 @@ curl -X POST http://localhost:9900/mysql/myDb/query \
 Available when dev mode is running a local instance for a [Redis cluster](/resources/databases/redis) in your Stacktape configuration. The `cmd` field accepts a Redis command as a single string (e.g. `"GET mykey"`, `"SET user:1 '{\"name\":\"Alice\"}'"`).
 
 ```bash
-curl -X POST http://localhost:9900/redis/myCache/command \
-  -H "Content-Type: application/json" \
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/redis/myCache/command \
   -d '{"cmd": "GET session:user123"}'
 ```
 
@@ -307,8 +331,7 @@ curl -X POST http://localhost:9900/redis/myCache/command \
 Available when dev mode is running a local instance for a [DynamoDB table](/resources/databases/dynamodb) in your Stacktape configuration. Key parameters (`pk`, `sk`) are objects mapping attribute names to values — for example, `{"userId": "123"}`.
 
 ```bash
-curl -X POST http://localhost:9900/dynamodb/notesTable/scan \
-  -H "Content-Type: application/json" \
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/dynamodb/notesTable/scan \
   -d '{"limit": 10}'
 ```
 
@@ -327,8 +350,7 @@ curl -X POST http://localhost:9900/dynamodb/notesTable/scan \
 Available when dev mode is running a local instance for an [OpenSearch domain](/resources/databases/opensearch) in your Stacktape configuration. Query bodies follow standard OpenSearch query DSL.
 
 ```bash
-curl -X POST http://localhost:9900/opensearch/searchDomain/search \
-  -H "Content-Type: application/json" \
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/opensearch/searchDomain/search \
   -d '{"query": {"match": {"title": "serverless"}}, "limit": 10}'
 ```
 
@@ -348,8 +370,7 @@ curl -X POST http://localhost:9900/opensearch/searchDomain/search \
 Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
 
 ```bash
-curl -X POST http://localhost:9900/aws/sdk \
-  -H "Content-Type: application/json" \
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
   -d '{"service": "lambda", "command": "ListFunctions", "input": {"MaxItems": 10}}'
 ```
 
@@ -358,7 +379,7 @@ The request body accepts `service` (required), `command` (required), `input` (op
 To list all supported services and example commands:
 
 ```bash
-curl http://localhost:9900/aws/sdk/services
+curl -H "$AUTH" $AGENT/aws/sdk/services
 ```
 
 `GET /aws/sdk/services` returns a successful envelope whose payload lists the accepted operations for each supported service, nested under `data.data` in the response. Use the running endpoint response as the authoritative list of valid `service` and `command` values before constructing `/aws/sdk` calls. The service list in the startup message and on this page is a summary; the endpoint response is always up to date.
@@ -463,11 +484,16 @@ For MCP-based assistant setup, see the [Stacktape MCP server](/using-with-ai/mcp
 
 ## Security
 
-Stacktape advertises the agent URL as `http://localhost:{port}`. The server sets `Access-Control-Allow-Origin: null` and returns `403` for OPTIONS preflight requests. The implementation comments describe this as blocking browser-based cross-origin requests while keeping curl, scripts, and local tools usable.
+The agent can run SQL against your local databases, rebuild and stop workloads, and call AWS read operations with the dev agent's credentials. Only programs running as your user on this machine can call it:
 
-These CORS controls are not authentication. The HTTP server listens on the configured port without an explicit loopback-only host binding, so use host firewall and network settings to keep the port local and trusted.
+- It listens on `127.0.0.1` only, so other machines on your network cannot connect.
+- Every request needs the session token from `~/.stacktape/dev-agent-tokens/{port}.token`, which only your user can read.
+- It refuses requests with an `Origin` header or a foreign `Host` header, so a web page cannot call it, even through DNS rebinding.
+- POST requests must be JSON, which a web page cannot send to another site without the browser asking the agent first.
 
-The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. The endpoint sends only reviewed read-only operations, but those reads run with whatever permissions the credentials grant — avoid exposing the agent port to untrusted networks.
+Do not forward the agent port to other machines, and do not paste the token into chats or logs.
+
+The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. The endpoint sends only reviewed read-only operations, but those reads run with whatever permissions the credentials grant.
 
 ## FAQ
 

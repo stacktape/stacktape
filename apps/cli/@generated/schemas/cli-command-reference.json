@@ -2351,7 +2351,7 @@
       },
       {
         "name": "noTunnel",
-        "description": "#### No Tunnel\n---\nDisables automatic tunneling for Lambda functions. Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don't need Lambda-to-local connectivity or if tunneling causes issues.",
+        "description": "#### No Tunnel\n---\nDisables tunnels from deployed Lambda functions to your locally emulated databases. Dev mode creates these tunnels only through a relay you run yourself, set with the `STACKTAPE_TUNNEL_SERVER` environment variable (a bore-compatible server). Without one, deployed Lambda functions cannot reach local databases; use `--remote-resources` to connect them to the deployed databases instead.",
         "required": false,
         "allowedTypes": [
           "boolean"

@@ -17,6 +17,8 @@ stacktape dev stop
 
 Running `stacktape dev stop` without flags stops the running dev agent. If only one agent is running, it stops automatically. If no agents are found via lock files, Stacktape tries the default agent port (7331) as a fallback.
 
+The agent accepts only requests that carry its session token. `dev stop --agent-port` reads it from `~/.stacktape/dev-agent-tokens/{port}.token`, so it works from any directory. Without `--agent-port`, `dev stop` finds agents through the lock files in the current project directory.
+
 ## Important flags
 
 The `dev stop` command accepts two flags that control which agent to stop and whether to clean up leftover containers.

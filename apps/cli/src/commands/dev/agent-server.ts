@@ -1,10 +1,14 @@
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer } from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
 import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,
@@ -44,10 +48,23 @@ import {
   opensearchCount
 } from '@domain-services/debug-services/db-client';
 import { getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
+import { maskAgentEnvironment } from './agent-env-masking';
 import { getLambdaEnvVars } from './lambda-env-manager';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
-let getWorkloadEnvVars: (name: string) => Record<string, string> | null;
+
+/** What the dev command tells the agent about workload environments; injected to avoid an import cycle. */
+export type AgentWorkloadEnvironment = {
+  /** The environment a locally running workload received, or null when it is not tracked. */
+  getEnvVars: (name: string) => Record<string, string> | null;
+  /** Names of the workload's variables whose configured value reads a secret (`$Secret`, `$SsmParam`). */
+  getSecretEnvNames: (name: string) => ReadonlySet<string>;
+};
+
+let workloadEnvironment: AgentWorkloadEnvironment = {
+  getEnvVars: () => null,
+  getSecretEnvNames: () => new Set()
+};
 
 export type WorkloadStatus = {
   name: string;
@@ -69,6 +86,9 @@ type LocalResourceStatus = {
 
 type AgentPhase = 'starting' | 'ready' | 'rebuilding' | 'stopping' | 'stopped';
 
+/** The agent only listens on loopback; every request must name it as one of these hosts. */
+export const AGENT_HOST = '127.0.0.1';
+
 export type AgentStatus = {
   phase: AgentPhase;
   workloads: WorkloadStatus[];
@@ -87,6 +107,8 @@ let agentState: AgentStatus = {
 let httpServer: Server | null = null;
 let agentPort: number | null = null;
 let startTime: number | null = null;
+let agentToken: string | null = null;
+let agentTokenFile: string | null = null;
 
 // Import rebuild functions lazily to avoid circular deps
 let rebuildWorkload: (name: string) => Promise<boolean>;
@@ -121,10 +143,19 @@ const getLocalResourceNames = (): string[] => {
   return getRunningLocalInstances().map((r) => r.name);
 };
 
-const areAllWorkloadsReady = (): boolean => {
-  if (agentState.workloads.length === 0) return false;
-  return agentState.workloads.every((w) => w.status === 'running' || w.status === 'error');
-};
+export type FailedWorkload = { name: string; error: string };
+
+export const getFailedWorkloads = (workloads: WorkloadStatus[] = agentState.workloads): FailedWorkload[] =>
+  workloads
+    .filter((workload) => workload.status === 'error')
+    .map(({ name, error }) => ({ name, error: error || 'unknown error' }));
+
+/**
+ * Ready means dev mode finished starting and every selected workload is running. A failed workload makes the session
+ * not ready: an assistant that waits for readiness must not start testing against a workload that is down.
+ */
+const areAllWorkloadsReady = (): boolean =>
+  agentState.phase === 'ready' && agentState.workloads.every((workload) => workload.status === 'running');
 
 const safeJsonParse = (str: string): unknown => {
   try {
@@ -250,15 +281,13 @@ const addRoute = (method: 'GET' | 'POST', path: string, handler: RouteHandler) =
 addRoute('GET', '/status', async ({ query }) => {
   const verbose = query.get('verbose') === 'true';
   const ready = areAllWorkloadsReady();
-
-  if (agentState.phase === 'starting' && ready) {
-    agentState.phase = 'ready';
-  }
+  const failedWorkloads = getFailedWorkloads();
 
   if (verbose) {
     return {
       phase: agentState.phase,
       ready,
+      failedWorkloads,
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
       localResources: agentState.localResources,
@@ -273,7 +302,7 @@ addRoute('GET', '/status', async ({ query }) => {
     else workloadMap[w.name] = w.status;
   }
 
-  return { phase: agentState.phase, ready, workloads: workloadMap, pid: process.pid };
+  return { phase: agentState.phase, ready, failedWorkloads, workloads: workloadMap, pid: process.pid };
 });
 
 addRoute('GET', '/logs', async () => {
@@ -367,6 +396,9 @@ addRoute('GET', '/health/:resource', async ({ pathParams }) => {
 // Environment variables endpoint
 // ─────────────────────────────────────────────────────────────────────────────
 
+const ENV_MASKING_NOTE =
+  'Secret values are masked: variables read from $Secret/$SsmParam, variables with secret names (password, token, key, ...) and passwords inside connection strings.';
+
 addRoute('GET', '/env/:workload', async ({ pathParams }) => {
   const workloadName = pathParams.workload;
 
@@ -398,8 +430,9 @@ addRoute('GET', '/env/:workload', async ({ pathParams }) => {
         workload: workloadName,
         type: 'function',
         source: 'aws',
-        envVars: lambdaEnvVars,
-        count: Object.keys(lambdaEnvVars).length
+        envVars: maskAgentEnvironment(lambdaEnvVars, workloadEnvironment.getSecretEnvNames(workloadName)),
+        count: Object.keys(lambdaEnvVars).length,
+        note: ENV_MASKING_NOTE
       };
     } catch (err: unknown) {
       return {
@@ -411,7 +444,7 @@ addRoute('GET', '/env/:workload', async ({ pathParams }) => {
   }
 
   // For other workloads, get env vars from parallel-runner state
-  const envVars = getWorkloadEnvVars(workloadName);
+  const envVars = workloadEnvironment.getEnvVars(workloadName);
   if (!envVars) {
     return {
       ok: false,
@@ -425,8 +458,9 @@ addRoute('GET', '/env/:workload', async ({ pathParams }) => {
     workload: workloadName,
     type: workloadState.type,
     source: 'local',
-    envVars,
-    count: Object.keys(envVars).length
+    envVars: maskAgentEnvironment(envVars, workloadEnvironment.getSecretEnvNames(workloadName)),
+    count: Object.keys(envVars).length,
+    note: ENV_MASKING_NOTE
   };
 });
 
@@ -445,7 +479,7 @@ const getPostgresConn = (resource: string) => {
       host: instance.host,
       port: instance.actualPort,
       user: instance.credentials?.username || 'postgres',
-      password: instance.credentials?.password || 'localdevpassword',
+      password: instance.credentials?.password ?? '',
       database: instance.dbName || 'postgres'
     }
   };
@@ -543,7 +577,7 @@ const getMysqlConn = (resource: string) => {
       host: instance.host,
       port: instance.actualPort,
       user: instance.credentials?.username || 'root',
-      password: instance.credentials?.password || 'localdevpassword',
+      password: instance.credentials?.password ?? '',
       database: instance.dbName || 'mysql'
     }
   };
@@ -968,14 +1002,65 @@ addRoute('GET', '/aws/sdk/services', async () => {
 // HTTP Server
 // ─────────────────────────────────────────────────────────────────────────────
 
-const handleRequest = async (req: any, res: any) => {
-  const url = new URL(req.url || '', `http://localhost:${agentPort}`);
+const isValidToken = (authorization: string | undefined): boolean => {
+  if (!agentToken || !authorization?.startsWith('Bearer ')) return false;
+  const presented = Buffer.from(authorization.slice('Bearer '.length).trim());
+  const expected = Buffer.from(agentToken);
+  return presented.length === expected.length && timingSafeEqual(presented, expected);
+};
+
+/**
+ * The agent runs SQL, rebuilds workloads, stops dev mode and reads environments, so only local programs that can read
+ * the session token may call it. A web page could otherwise reach it: browsers send "simple" cross-origin POSTs
+ * without a preflight, and DNS rebinding lets a page address 127.0.0.1 under its own host name. Requests that name
+ * another host, come from a browser (any Origin header), lack the token, or post something other than JSON are refused
+ * before any route runs.
+ */
+const rejectUntrustedRequest = (req: IncomingMessage): { status: number; code: string; message: string } | null => {
+  const host = req.headers.host;
+  if (host !== `${AGENT_HOST}:${agentPort}` && host !== `localhost:${agentPort}`) {
+    return {
+      status: 403,
+      code: 'FORBIDDEN',
+      message: `Host "${host ?? ''}" is not accepted. Call the dev agent at http://${AGENT_HOST}:${agentPort}.`
+    };
+  }
+  if (req.headers.origin !== undefined) {
+    return { status: 403, code: 'FORBIDDEN', message: 'The dev agent does not accept requests from web pages.' };
+  }
+  if (!isValidToken(req.headers.authorization)) {
+    return {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      message: `Send the dev agent session token as "Authorization: Bearer <token>". Read it from ${agentTokenFile}.`
+    };
+  }
+  const contentType = req.headers['content-type']?.split(';')[0].trim().toLowerCase();
+  if (req.method === 'POST' && contentType !== 'application/json') {
+    return {
+      status: 415,
+      code: 'UNSUPPORTED_MEDIA_TYPE',
+      message: 'POST requests to the dev agent must send "content-type: application/json".'
+    };
+  }
+  return null;
+};
+
+const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
+  const url = new URL(req.url || '', `http://${AGENT_HOST}:${agentPort}`);
   const pathname = url.pathname;
 
-  // CORS: Block browser-based requests to prevent malicious websites from accessing the agent.
-  // 'null' origin blocks all cross-origin requests while allowing curl/scripts/local tools.
-  res.setHeader('Access-Control-Allow-Origin', 'null');
   res.setHeader('Content-Type', 'application/json');
+
+  const rejection = rejectUntrustedRequest(req);
+  if (rejection) {
+    res.statusCode = rejection.status;
+    res.end(
+      JSON.stringify({ v: '1.0', ok: false, code: rejection.code, message: rejection.message } as DevAgentEnvelope)
+    );
+    req.resume();
+    return;
+  }
 
   if (req.method === 'OPTIONS') {
     // Reject CORS preflight - browsers won't proceed with the actual request
@@ -1025,7 +1110,7 @@ const handleRequest = async (req: any, res: any) => {
     if (req.method === 'POST') {
       const bodyStr = await new Promise<string>((resolve) => {
         let data = '';
-        req.on('data', (chunk: any) => {
+        req.on('data', (chunk: Buffer) => {
           data += chunk;
         });
         req.on('end', () => resolve(data));
@@ -1084,6 +1169,9 @@ const handleRequest = async (req: any, res: any) => {
 // Endpoint Documentation
 // ─────────────────────────────────────────────────────────────────────────────
 
+const AUTH_HINT =
+  'Header "Authorization: Bearer <token>" with the token read from tokenFile; POST requests also need "content-type: application/json".';
+
 /**
  * Compact documentation for LLMs - minimal tokens, action-oriented.
  * Use GET /?compact=true
@@ -1126,6 +1214,8 @@ const buildCompactDocumentation = () => {
 
   return {
     phase: agentState.phase,
+    auth: AUTH_HINT,
+    tokenFile: agentTokenFile,
     workloads,
     resources,
     actions: {
@@ -1142,6 +1232,8 @@ const buildCompactDocumentation = () => {
 const buildEndpointDocumentation = () => {
   const instances = getRunningLocalInstances();
   const docs: Record<string, Record<string, string>> = {};
+
+  docs['auth'] = { 'Every request': AUTH_HINT, tokenFile: agentTokenFile ?? '' };
 
   // Core endpoints
   docs['core'] = {
@@ -1238,6 +1330,8 @@ export const buildStartupMessage = (params: {
   const { projectName, stage, region, workloads, databases } = params;
   const port = params.port ?? agentPort;
   const logFile = params.logFile ?? agentState.logFile;
+  const tokenFile = port ? localStatePaths.devAgentTokenFile({ port }) : agentTokenFile;
+  const baseUrl = `http://${AGENT_HOST}:${port}`;
   const lines: string[] = [];
 
   // Header
@@ -1245,8 +1339,18 @@ export const buildStartupMessage = (params: {
   lines.push('');
 
   // Agent info
-  lines.push(`Agent: http://localhost:${port}`);
+  lines.push(`Agent: ${baseUrl} (loopback only)`);
   lines.push(`Data:  .stacktape/dev-data/${stage}/ (persists between runs, use --fresh-db to reset)`);
+  lines.push('');
+  lines.push("Authentication: every request needs this session's token, stored in");
+  lines.push(`  ${tokenFile}`);
+  lines.push('  POST requests also need "content-type: application/json". Requests from web pages are refused.');
+  lines.push('  Examples:');
+  lines.push(`    TOKEN=$(cat '${tokenFile}')`);
+  lines.push(`    curl -H "Authorization: Bearer $TOKEN" ${baseUrl}/status`);
+  lines.push(
+    `    curl -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{}' ${baseUrl}/rebuild/all`
+  );
   lines.push('');
 
   // Resources
@@ -1263,7 +1367,7 @@ export const buildStartupMessage = (params: {
   // Workflow
   lines.push('Endpoints:');
   lines.push('  GET  /status              Current state');
-  lines.push('  GET  /env/{workload}      Environment variables');
+  lines.push('  GET  /env/{workload}      Environment variables (secret values masked)');
   lines.push('  POST /rebuild/{name}      Rebuild workload (or /rebuild/all)');
   lines.push('  POST /stop                Stop dev mode');
   lines.push('');
@@ -1330,9 +1434,9 @@ export const buildStartupMessage = (params: {
 export const startAgentServer = async (
   port: number,
   logDir: string,
-  workloadEnvironment: (name: string) => Record<string, string> | null
+  environment?: AgentWorkloadEnvironment
 ): Promise<void> => {
-  getWorkloadEnvVars = workloadEnvironment;
+  if (environment) workloadEnvironment = environment;
   agentPort = port;
   startTime = Date.now();
 
@@ -1340,10 +1444,10 @@ export const startAgentServer = async (
   initAgentLogger(logFile);
   agentState.logFile = logFile;
 
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     httpServer = createServer(handleRequest);
 
-    httpServer.on('error', (err: any) => {
+    httpServer.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         reject(new Error(`Port ${port} is already in use. Choose a different --agent-port.`));
       } else {
@@ -1351,10 +1455,69 @@ export const startAgentServer = async (
       }
     });
 
-    httpServer.listen(port, () => {
+    httpServer.listen(port, AGENT_HOST, () => {
       resolve();
     });
   });
+
+  // Written only once this process owns the port, so it replaces the file of an earlier agent that died on this port
+  // and no live agent's token is overwritten. Only the user who started dev mode can read the directory and file.
+  const tokenDirectory = localStatePaths.devAgentTokenDirectory();
+  mkdirSync(tokenDirectory, { recursive: true, mode: 0o700 });
+  chmodSync(tokenDirectory, 0o700);
+  agentToken = randomBytes(32).toString('base64url');
+  agentTokenFile = localStatePaths.devAgentTokenFile({ port });
+  writeFileSync(agentTokenFile, agentToken, { mode: 0o600 });
+  chmodSync(agentTokenFile, 0o600);
+  await removeTokenFilesOfDeadAgents(port);
+};
+
+const isListening = (port: number) =>
+  new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host: AGENT_HOST, port, timeout: 1000 });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => resolve(false));
+  });
+
+/**
+ * Removes the token files of agents that were killed before they could remove their own. Nothing listens on such a
+ * file's port. A file written after the check started belongs to an agent that bound the port meanwhile and is kept.
+ */
+const removeTokenFilesOfDeadAgents = async (ownPort: number) => {
+  const tokenDirectory = localStatePaths.devAgentTokenDirectory();
+  const checkedAt = Date.now();
+  const ports = readdirSync(tokenDirectory)
+    .map((file) => /^(\d+)\.token$/.exec(file)?.[1])
+    .filter((port): port is string => port !== undefined)
+    .map(Number)
+    .filter((port) => port !== ownPort);
+  await Promise.all(
+    ports.map(async (port) => {
+      if (await isListening(port)) return;
+      const file = localStatePaths.devAgentTokenFile({ port });
+      try {
+        if (statSync(file).mtimeMs < checkedAt) rmSync(file, { force: true });
+      } catch {
+        // Another agent removed it first.
+      }
+    })
+  );
+};
+
+/** Removes the token file unless a later agent on the same port has already replaced it. */
+const removeOwnTokenFile = (tokenFile: string) => {
+  try {
+    if (readFileSync(tokenFile, 'utf-8').trim() === agentToken) rmSync(tokenFile, { force: true });
+  } catch {
+    // Already removed.
+  }
 };
 
 export const stopAgentServer = () => {
@@ -1362,6 +1525,9 @@ export const stopAgentServer = () => {
     httpServer.close();
     httpServer = null;
   }
+  if (agentTokenFile) removeOwnTokenFile(agentTokenFile);
+  agentToken = null;
+  agentTokenFile = null;
   agentPort = null;
   startTime = null;
   stopAgentLogger();
@@ -1369,6 +1535,9 @@ export const stopAgentServer = () => {
 };
 
 export const getAgentPort = (): number | null => agentPort;
+
+/** File holding the session token every request must send; the token itself is never printed. */
+export const getAgentTokenFile = (): string | null => agentTokenFile;
 
 let agentCleanupHookRegistered = false;
 

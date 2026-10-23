@@ -12,7 +12,7 @@ Stacktape deploys a dev stack when one does not already exist for the target sta
 2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skip-resources` flags
 3. **Deploy dev stack** — A dev stack is deployed automatically on first run
 4. **Start local databases** — Selected databases run as Docker containers on your machine
-5. **Set up tunnels and environment** — TCP tunnels connect deployed Lambda functions to local databases; an "Injecting environment" setup step configures the active dev session
+5. **Set up environment** — an "Injecting environment" setup step configures the active dev session. Deployed Lambda functions do not reach local databases unless you run your own tunnel relay (see below)
 6. **Run workloads and stream logs** — Functions are deployed, logs appear in the dev TUI, and you can rebuild on demand
 
 ## Starting dev mode
@@ -161,24 +161,19 @@ The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolut
 
 ## Connecting to local databases
 
-When selected [local databases](/local-development/local-databases) are included in your dev session — relational databases (mapped to Postgres, MySQL, or MariaDB), Redis clusters, DynamoDB tables, and OpenSearch domains — Lambda functions deployed on AWS cannot directly reach `localhost` on your machine. Stacktape solves this with TCP tunnels that make local database ports reachable from the deployed Lambda functions.
+Lambda functions in dev mode run on AWS and cannot reach the [local databases](/local-development/local-databases) on your machine. When a selected function uses a local database, dev mode warns which function cannot reach which database and leaves the function's configuration as deployed. To give the function a database, connect it to the deployed one with `--remote-resources` (see [Using deployed databases](#using-deployed-databases)).
 
-When selected local databases exist and the `--no-tunnel` flag is not set, dev mode runs additional setup steps during startup:
+Earlier versions published local databases through the public `bore.pub` relay so that Lambda functions could reach them. That relay has no authentication, so anyone who found the relay port could reach your database. Dev mode no longer does this.
 
-1. **Lambda tunnels** — TCP tunnels are created for each local database, exposing them through publicly reachable endpoints
-2. **Injecting environment** — a Lambda environment-injection step runs to wire functions up to the active dev session's connectivity
+### Using your own tunnel relay
 
-The "Injecting environment" setup step is registered whenever selected non-remote local resources exist. When `--no-tunnel` is set, only the tunnel step is skipped — the environment injection step still runs.
-
-### Disabling tunnels
-
-If tunnels cause issues (corporate firewall restrictions, network policy, or other connectivity problems), disable them:
+If you run a [bore](https://github.com/ekzhang/bore)-compatible relay that you control, set `STACKTAPE_TUNNEL_SERVER` to its host (or `host:controlPort`). Dev mode then opens a tunnel through it for each local database a selected function uses, points those functions at the tunnels while the session runs, and restores their configuration when it stops. Bore relays are unauthenticated: anyone who can reach the relay's ports can reach your database, protected only by its password. Restrict the relay's network access accordingly.
 
 ```bash
-stacktape dev --stage dev --no-tunnel
+STACKTAPE_TUNNEL_SERVER=relay.internal.example.com stacktape dev --stage dev
 ```
 
-`--no-tunnel` skips the Lambda tunnel setup step. When selected non-remote local resources exist, dev mode still registers the "Injecting environment" step. Resources configured as remote are excluded from local resource registration in dev mode. See [local databases](/local-development/local-databases) for remote-resource configuration.
+`--no-tunnel` skips the tunnel step even when a relay is configured. The "Injecting environment" step still runs whenever selected local resources exist.
 
 ## Using deployed databases
 
@@ -276,7 +271,7 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 |--------|---------------------------|-------------------------------|
 | Log delivery | Streamed in the dev TUI | Historical fetch from CloudWatch |
 | Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
-| Database access | Local databases via tunnels | AWS-deployed databases |
+| Database access | Deployed databases via `--remote-resources` | AWS-deployed databases |
 | Interaction model | Interactive TUI with keyboard commands | Single CLI command |
 | Infrastructure | Dev stack | Full production stack |
 | Local resources | Docker-based databases on your machine | Not applicable |
@@ -304,7 +299,7 @@ Dev mode and full deployments share the same stage namespace, so running `stackt
 
 ### How do my local databases connect to functions running on AWS?
 
-Lambda functions in dev mode run on AWS and cannot reach `localhost` on your machine, so Stacktape creates TCP tunnels that expose each selected [local database](/local-development/local-databases) through a publicly reachable endpoint, plus an "Injecting environment" step that wires the functions to the active session. If tunnels are blocked by a corporate firewall or network policy, pass `--no-tunnel` — the environment-injection step still runs.
+They do not by default. Lambda functions in dev mode run on AWS and cannot reach `localhost` on your machine, and dev mode does not publish local databases on the internet. Use `--remote-resources <databaseName>` to connect functions to the deployed database, or run your own tunnel relay as described in [Using your own tunnel relay](#using-your-own-tunnel-relay).
 
 ### How much does running dev mode cost?
 

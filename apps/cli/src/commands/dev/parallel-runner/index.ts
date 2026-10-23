@@ -32,6 +32,7 @@ import { startNextjsWebDevServer } from '../nextjs-web';
 import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
+import { getConfiguredTunnelServer } from '../dev-config';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
 import { isPortAvailable, reservePorts } from '../port-utils';
@@ -45,6 +46,7 @@ import {
   SourceCodeWatcher
 } from '../utils';
 import { updateAgentWorkloadStatus } from '../agent-server';
+import { getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
@@ -157,8 +159,19 @@ export const runParallelWorkloads = async (
       tuiManager.warn(`Skipping tunnel for Lambda "${skipped.name}": ${skipped.reason}`);
     }
 
-    // Start bore tunnels for each local resource that a Lambda needs
-    if (lambdasNeedingTunnels.length > 0) {
+    if (lambdasNeedingTunnels.length > 0 && !getConfiguredTunnelServer()) {
+      // Without a relay of the user's own, deployed functions cannot reach the databases on this machine. Each one
+      // keeps its deployed configuration; say which connections are missing and how to get them.
+      for (const lambda of lambdasNeedingTunnels) {
+        const resourceList = lambda.referencedLocalResources.join(',');
+        tuiManager.warn(
+          `Lambda "${lambda.name}" can't reach the local ${lambda.referencedLocalResources.join(', ')}: dev mode keeps local databases on this machine. ` +
+            `To connect the function to the deployed resource instead, run with --remote-resources ${resourceList}.`
+        );
+      }
+      if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'skipped', 'local databases stay on this machine');
+    } else if (lambdasNeedingTunnels.length > 0) {
+      // Start tunnels through the user's relay for each local resource that a Lambda needs
       const resourcesNeedingTunnels = new Set<string>();
       for (const lambda of lambdasNeedingTunnels) {
         for (const resourceName of lambda.referencedLocalResources) {
@@ -624,6 +637,7 @@ const startContainerWorkload = async (
   const localContainerName = getDevContainerName({
     projectName: globalStateManager.targetStack.projectName,
     stage: globalStateManager.stage,
+    workingDirectory: globalStateManager.workingDir,
     name: jobName
   });
   await gracefullyStopContainer(localContainerName);
@@ -1420,4 +1434,9 @@ export const rebuildAllWorkloads = async (): Promise<void> => {
 export const getWorkloadEnvVars = (name: string): Record<string, string> | null => {
   const workload = state.workloads.get(name);
   return workload?.envVars || null;
+};
+
+export const getWorkloadSecretEnvNames = (name: string): Set<string> => {
+  const workload = state.workloads.get(name);
+  return getSecretSourcedEnvNames(workload ? getConfigResource(name, workload.resourceType) : undefined);
 };

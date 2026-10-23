@@ -88,7 +88,7 @@ For full setup instructions, see the [MCP server setup guide](/using-with-ai/mcp
 
 ## Agent mode
 
-Agent mode is a variant of Stacktape's [dev mode](/local-development/dev-mode-overview) designed for programmatic control by AI coding assistants. It starts a long-lived local process via `stacktape dev --agent` and exposes an HTTP API on a configurable port (default 7331). While standard dev mode uses an interactive terminal UI, agent mode returns structured JSON responses. When the MCP `stacktape_dev` tool plans agent mode, it defaults the stage to `dev` and can infer `configPath` from the project scan, but the final start arguments must include `stage`, `region`, and `configPath`.
+Agent mode is a variant of Stacktape's [dev mode](/local-development/dev-mode-overview) designed for programmatic control by AI coding assistants. It starts a long-lived local process via `stacktape dev --agent` and exposes an HTTP API on a configurable loopback port (default 7331). Every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token`. While standard dev mode uses an interactive terminal UI, agent mode returns structured JSON responses. When the MCP `stacktape_dev` tool plans agent mode, it defaults the stage to `dev` and can infer `configPath` from the project scan, but the final start arguments must include `stage`, `region`, and `configPath`.
 
 Agent mode controls Stacktape dev mode through HTTP endpoints for status, logs, rebuilds, stop, and local database inspection. It provides structured JSON endpoints for:
 

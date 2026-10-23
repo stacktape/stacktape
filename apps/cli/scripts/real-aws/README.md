@@ -314,8 +314,9 @@ preflight grants no cleanup authority. A recovery state mismatch stops deletion.
 production dev tunnel, environment manager and Lambda log printer against local PostgreSQL. The deployed function must
 read the initial row and an edited row through the relay. Dev cleanup must restore its original environment and close
 the tunnel. Final cleanup verifies deletion of the function, role, exact log group and database container. It needs
-Linux, Docker, the `stacktape-e2e` profile and access to the configured bore relay. It does not require a Console API
-key. Each run writes recovery state before attempting resource creation.
+Linux, Docker, the `stacktape-e2e` profile and a bore-compatible relay you control, named in `STACKTAPE_TUNNEL_SERVER`
+(`host` or `host:controlPort`). Dev mode has no default relay because bore relays are unauthenticated. It does not
+require a Console API key. Each run writes recovery state before attempting resource creation.
 
 ```sh
 export STP_AWS_LAMBDA_DEV_DEPLOY=1
@@ -324,6 +325,7 @@ export STP_AWS_LAMBDA_DEV_PROFILE=stacktape-e2e
 export STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID='<exact disposable account id>'
 export STP_AWS_LAMBDA_DEV_OWNER='<unique lowercase run id>'
 export STP_AWS_LAMBDA_DEV_STATE_FILE='<absolute fresh state file>'
+export STACKTAPE_TUNNEL_SERVER='<relay host you control>'
 pnpm --filter @stacktape/cli run test:real-aws-lambda-dev
 ```
 

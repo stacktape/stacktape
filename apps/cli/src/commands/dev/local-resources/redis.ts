@@ -11,6 +11,7 @@ import {
   getImageTag,
   isDockerPortBindError,
   isContainerRunning,
+  publishOnLoopback,
   removeContainerIfExists,
   waitForReady
 } from './container-helpers';
@@ -79,8 +80,7 @@ export const startLocalRedis = async (
     '--name',
     containerName,
     ...getDevContainerOwnerArgs(),
-    '-p',
-    `${hostPort}:${defaultPort}`,
+    ...publishOnLoopback(hostPort, defaultPort),
     '-v',
     `${dataDir}:${REDIS_DATA_PATH}`,
     imageTag,
@@ -95,6 +95,8 @@ export const startLocalRedis = async (
       if (!isDockerPortBindError(err) || attempt === 4) {
         throw err;
       }
+      // Docker creates the container before it fails to bind the port; remove it so the retry can reuse the name.
+      await removeContainerIfExists(containerName);
       actualPort = await findAvailablePort(actualPort + 1);
     }
   }

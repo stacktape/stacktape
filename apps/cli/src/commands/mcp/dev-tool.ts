@@ -1,6 +1,7 @@
 import { pathExists, readFile } from 'fs-extra';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
 import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
@@ -33,21 +34,15 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
   return { ...normalizeCliInvocation('dev', cliArgs).args, ...(cwd !== undefined ? { cwd } : {}) };
 };
 
-const devApiRequest: DevApiRequest = async ({
-  port,
-  method,
-  path,
-  body
-}: {
-  port: number;
-  method: 'GET' | 'POST';
-  path: string;
-  body?: Record<string, unknown>;
-}): Promise<Record<string, unknown>> => {
+// Every agent stores its session token in the user's state directory under its port. The token is read for each
+// request and never returned to the client.
+const devApiRequest: DevApiRequest = async ({ port, method, path, body }) => {
+  const token = (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
     headers: {
-      'content-type': 'application/json'
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {})
     },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
@@ -134,7 +129,10 @@ const ensureDevSessionAvailable = async ({
       output: {
         ok: false,
         code: 'NOT_FOUND',
-        message: `Dev session ${session.devSessionId} on port ${session.agentPort} is no longer reachable.`,
+        message:
+          health.code === 'UNAUTHORIZED'
+            ? `The process on port ${session.agentPort} refused the session token in ${localStatePaths.devAgentTokenFile({ port: session.agentPort })}; dev session ${session.devSessionId} has ended.`
+            : `Dev session ${session.devSessionId} on port ${session.agentPort} is no longer reachable.`,
         nextActions: ['Call stacktape_dev with action=start to create a new dev session']
       }
     };
@@ -334,25 +332,24 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       });
 
       let session: DevSession | undefined;
-      if (result.ok) {
-        const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
-        const port =
-          (payload?.port as number | undefined) ||
-          (payload?.agentPort as number | undefined) ||
-          (Number.isFinite(requestedPort) ? requestedPort : 7331);
+      // The CLI reports the port of the agent it started or found running, which may differ from the requested one.
+      const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
+      const agentPort = [payload?.port, payload?.agentPort].find((port): port is number => typeof port === 'number');
+      if (result.ok && agentPort !== undefined) {
         session = {
           devSessionId: createId(),
-          agentPort: port,
+          agentPort,
           startedAt: now().toISOString(),
           cwd: result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd
         };
         activeDevSessions.set(session.devSessionId, session);
       }
+      const missingPort = result.ok && !session;
 
       return toToolText({
-        ok: result.ok,
-        code: result.code,
-        message: result.message,
+        ok: result.ok && !missingPort,
+        code: missingPort ? 'INTERNAL_ERROR' : result.code,
+        message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
         data: {
           ...(session ? { session } : {}),
           resolvedContext: result.resolvedContext,

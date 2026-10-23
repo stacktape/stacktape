@@ -2676,15 +2676,25 @@ npx stacktape dev --stage dev --region us-east-1 --remote-resources database
 npx stacktape dev --stage dev --region us-east-1 --agent --agent-port 7331
 \`\`\`
 
-HTTP API available at \`http://localhost:7331\`:
+The command returns once dev mode is ready and prints the agent's HTTP API at \`http://127.0.0.1:7331\`. The agent
+listens on loopback only. Every request needs the session token stored in
+\`~/.stacktape/dev-agent-tokens/7331.token\` (the AGENT_READY result names the file), and POST requests need a JSON
+content type:
+
+\`\`\`bash
+AUTH="Authorization: Bearer $(cat ~/.stacktape/dev-agent-tokens/7331.token)"
+curl -H "$AUTH" http://127.0.0.1:7331/status
+curl -X POST -H "$AUTH" -H 'content-type: application/json' -d '{}' http://127.0.0.1:7331/rebuild/all
+\`\`\`
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| \`/trpc/health\` | GET | Health check |
-| \`/trpc/status\` | GET | Get workload status |
-| \`/trpc/logs\` | GET | Get logs (supports pagination) |
-| \`/trpc/rebuild\` | POST | Rebuild specific workload |
-| \`/trpc/stop\` | POST | Stop dev mode |
+| \`/\` | GET | Endpoint documentation (\`?compact=true\` for a short version) |
+| \`/health\` | GET | Health check |
+| \`/status\` | GET | Workload status and readiness (\`?verbose=true\` for details) |
+| \`/logs\` | GET | Path of the JSONL log file (read it with tail, grep or jq) |
+| \`/rebuild/{workload}\` | POST | Rebuild one workload (\`/rebuild/all\` for every workload) |
+| \`/stop\` | POST | Stop dev mode |
 
 ## Local Database Data
 

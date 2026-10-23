@@ -7,7 +7,8 @@ const valid = {
   STP_AWS_LAMBDA_DEV_PROFILE: 'stacktape-e2e',
   STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID: '123456789012',
   STP_AWS_LAMBDA_DEV_STATE_FILE: '/tmp/lambda-dev-state.json',
-  STP_AWS_LAMBDA_DEV_OWNER: 'unique-run'
+  STP_AWS_LAMBDA_DEV_OWNER: 'unique-run',
+  STACKTAPE_TUNNEL_SERVER: 'relay.example.internal'
 };
 
 test.skipIf(process.platform !== 'linux')(
@@ -25,6 +26,7 @@ test.skipIf(process.platform !== 'linux')(
       { STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID: '12345' },
       { STP_AWS_LAMBDA_DEV_STATE_FILE: 'relative.json' },
       { STP_AWS_LAMBDA_DEV_OWNER: '../unsafe' },
+      { STACKTAPE_TUNNEL_SERVER: undefined },
       { AWS_ENDPOINT_URL_LAMBDA: 'http://127.0.0.1:4566' }
     ])
       expect(() => resolveLambdaDevOptions({ ...valid, ...override })).toThrow();

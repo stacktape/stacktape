@@ -24,11 +24,13 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
+  buildAgentReadyPayload,
   deleteAgentLockFile,
   getLockFilePath,
   getCustomArgsSuffix,
   getRunningAgent,
   spawnAgentDaemon,
+  stopRunningAgent,
   writeAgentLockFile
 } from './agent-daemon';
 import { getAgentLogFilePath } from './agent-logger';
@@ -46,7 +48,13 @@ import { deployDevStack } from './dev-stack-deployer';
 import { devStackConfigNeedsUpdate, getDevStackConfigFingerprint } from './dev-stack-config-fingerprint';
 import { getLocalEmulateableResources, registerLocalResourceCleanupHook } from './local-resources';
 import { registerHealthMonitorCleanupHook } from './local-resources/health-monitor';
-import { rebuildAllWorkloads, rebuildWorkload, runParallelWorkloads, getWorkloadEnvVars } from './parallel-runner';
+import {
+  getWorkloadEnvVars,
+  getWorkloadSecretEnvNames,
+  rebuildAllWorkloads,
+  rebuildWorkload,
+  runParallelWorkloads
+} from './parallel-runner';
 import { findAvailablePort } from './port-utils';
 import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
@@ -310,18 +318,19 @@ export const commandDev = async () => {
     // Check if agent is already running
     const runningAgent = await getRunningAgent();
     if (runningAgent) {
-      process.stdout.write(
-        `${buildAgentReadyMessage({
-          port: runningAgent.port,
-          projectName: runningAgent.projectName,
-          stage: runningAgent.stage,
-          region: runningAgent.region,
-          workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
-          databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
-          logFile: runningAgent.logFile || ''
-        })}\n`
-      );
-      return;
+      // Report the running agent exactly like a new one: clients such as the MCP tool take its port and token file
+      // from this result.
+      const readyPayload = buildAgentReadyPayload({
+        port: runningAgent.port,
+        projectName: runningAgent.projectName,
+        stage: runningAgent.stage,
+        region: runningAgent.region,
+        workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
+        databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
+        logFile: runningAgent.logFile || ''
+      });
+      process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
+      return readyPayload;
     }
 
     // Find available port
@@ -350,6 +359,30 @@ export const commandDev = async () => {
         category: 'CLI',
         code: 'CLI_DEV_AGENT_START_FAILED',
         message: `Failed to start dev agent: ${result.error || 'Unknown error'}`
+      });
+    }
+
+    const failedWorkloads = result.readyPayload?.failedWorkloads ?? [];
+    if (failedWorkloads.length > 0) {
+      // A session with a failed workload is not usable, and leaving it running would hold its port, containers and
+      // Lambda environment changes. Stop it through its stop route so its cleanup runs, then report the failure.
+      const { port, projectName, stage, region, logFile } = result.readyPayload!;
+      await stopRunningAgent({
+        pid: result.pid ?? 0,
+        port,
+        phase: 'ready',
+        projectName,
+        stage: stage || '',
+        region: region || '',
+        startedAt: '',
+        workloads: [],
+        databases: []
+      });
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_DEV_WORKLOAD_FAILED',
+        message: `Dev mode stopped because ${failedWorkloads.length === 1 ? 'a workload' : 'workloads'} failed to start:\n${failedWorkloads.map(({ name, error }) => `  ${name}: ${error}`).join('\n')}`,
+        hints: logFile ? `The full output is in ${logFile}.` : undefined
       });
     }
 
@@ -417,7 +450,10 @@ export const commandDev = async () => {
     await startAgentServer(
       agentPort,
       localStatePaths.devAgentDirectory({ workingDirectory: stackContext.workingDir }),
-      getWorkloadEnvVars
+      {
+        getEnvVars: getWorkloadEnvVars,
+        getSecretEnvNames: getWorkloadSecretEnvNames
+      }
     );
 
     // A first run deploys the dev stack, which can far outlast any fixed readiness deadline. The
@@ -621,7 +657,10 @@ export const commandDev = async () => {
               region: stackContext.region,
               workloads: workloadsWithUrls,
               databases: databasesWithPorts,
-              logFile: getAgentLogFilePath() || ''
+              logFile: getAgentLogFilePath() || '',
+              failedWorkloads: state.workloads
+                .filter((w) => w.status === 'error')
+                .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))
             })}\n`
           );
           tuiManager.printLines(['']);

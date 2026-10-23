@@ -300,7 +300,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 
 ### Dev tool
 
-`stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a local HTTP port (default `7331`) for control commands.
+`stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a loopback HTTP port (default `7331`) for control commands. The tool reads the agent's session token from the token file the agent reports at start and sends it with each request; the token never appears in tool output.
 
 - **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
 - **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. A successful start returns an opaque `data.session.devSessionId`.

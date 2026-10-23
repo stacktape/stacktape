@@ -17,7 +17,7 @@ Dev mode splits your stack between your local machine and AWS. Container workloa
 | [Hosting buckets](/resources/frontend/static-hosting) (with `dev` config) | Local machine | Custom dev command |
 | SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)) | Local machine | Framework dev server |
 
-Lambda functions deployed to AWS can reach locally-emulated databases through automatic tunneling. When local database emulation is active and `--no-tunnel` is not set, dev mode adds a Lambda tunnels setup step so Lambda functions can reach locally emulated databases. Tunnels are not created when no databases are emulated locally, or when you disable them with `--no-tunnel`.
+Lambda functions deployed to AWS cannot reach the databases emulated on your machine. Dev mode warns when a selected function uses a local database; connect such functions to the deployed database with `--remote-resources`. Local databases are published on `127.0.0.1` only. If you run your own tunnel relay, see [Using your own tunnel relay](/local-development/debugging-lambda-functions#using-your-own-tunnel-relay).
 
 ### Startup flow
 
@@ -31,7 +31,7 @@ When you run `stacktape dev`, the following steps execute in order:
 6. **Start local resources and workloads** — Docker containers start for selected databases, then container workloads, frontends, and Lambda deploys run in parallel.
 
 
-> **Info:** After the first run, dev mode skips the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, starts tunnels when needed, and starts or deploys the selected workloads.
+> **Info:** After the first run, dev mode skips the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
 
 
 ## Running dev mode
@@ -84,7 +84,7 @@ Without `--watch`, you trigger rebuilds manually from the dev mode terminal usin
 
 ### Disabling tunnels
 
-Dev mode sets up Lambda tunnels when local database emulation is active, unless you pass `--no-tunnel`. If your Lambda functions don't access locally-emulated databases, or you only run container workloads, disable tunneling:
+Dev mode opens Lambda tunnels to local databases only through a relay you configured with `STACKTAPE_TUNNEL_SERVER`. Pass `--no-tunnel` to skip them for one session even when a relay is configured:
 
 ```bash
 stacktape dev --stage dev --region us-east-1 --no-tunnel
@@ -175,7 +175,7 @@ Start dev mode as an agent:
 stacktape dev --stage dev --region us-east-1 --resources all --agent
 ```
 
-When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one.
+When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
 
 Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
 
@@ -196,7 +196,7 @@ For the complete list of flags and options, see the [`stacktape dev`](/cli/dev) 
 | `--watch` | Auto-rebuild on file changes |
 | `--remote-resources` | Emulatable databases to connect to AWS instead of local emulation |
 | `--fresh-db` | Start local databases from a fresh state |
-| `--no-tunnel` | Disable Lambda-to-local tunneling |
+| `--no-tunnel` | Skip Lambda tunnels through your own relay |
 | `--agent` | Run as a background daemon with HTTP server |
 | `--agent-port` | Port for the agent HTTP server (default: 7331) |
 
@@ -212,7 +212,7 @@ Dev mode supports container workloads ([web-service](/resources/compute/web-serv
 
 ### How do Lambda functions connect to local databases in dev mode?
 
-Stacktape creates Lambda tunnels between AWS and your local machine when local database emulation is active. When a Lambda function runs in AWS and needs to reach a locally-emulated database, the tunnel routes traffic from the Lambda execution environment to the Docker container on your machine. This happens automatically — disable it with `--no-tunnel` if your Lambda functions don't need local database access.
+They do not by default. A Lambda function runs in AWS and cannot reach the Docker containers on your machine, and dev mode does not publish local databases on the internet. Use `--remote-resources <databaseName>` to connect functions to the deployed database. If you run your own tunnel relay, set `STACKTAPE_TUNNEL_SERVER` as described in [Using your own tunnel relay](/local-development/debugging-lambda-functions#using-your-own-tunnel-relay).
 
 ### How do I reset my local database data?
 

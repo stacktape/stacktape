@@ -1,15 +1,34 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
 import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { createDevToolHandler } from './dev-tool';
 
 // Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
+// Each one, like the real agent, answers only requests that carry the session token it stored under its port.
+const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = mkdtempSync(join(tmpdir(), 'stacktape-mcp-dev-tokens-'));
+const tokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+afterAll(async () => {
+  await rm(tokenDirectory, { recursive: true, force: true });
+  if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+});
+
 const daemon = async ({ logFile }: { logFile?: string } = {}) => {
   const state = { stopped: false, rebuilt: [] as string[] };
+  const token = randomUUID();
   const server = createServer((request, response) => {
+    if (request.headers.authorization !== `Bearer ${token}`) {
+      response.writeHead(401, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ ok: false, code: 'UNAUTHORIZED', message: 'missing token' }));
+      return;
+    }
     const path = new URL(request.url!, 'http://127.0.0.1').pathname;
     let data: Record<string, unknown> = {};
     if (path === '/health') data = { healthy: !state.stopped };
@@ -27,9 +46,11 @@ const daemon = async ({ logFile }: { logFile?: string } = {}) => {
     response.end(JSON.stringify({ ok: true, code: 'OK', data }));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as AddressInfo).port;
+  await writeFile(localStatePaths.devAgentTokenFile({ port }), token);
   return {
     state,
-    port: (server.address() as AddressInfo).port,
+    port,
     close: async () => {
       server.closeAllConnections();
       await new Promise<void>((resolve, reject) =>
@@ -41,19 +62,33 @@ const daemon = async ({ logFile }: { logFile?: string } = {}) => {
   };
 };
 
-const startedDaemon: NonNullable<NonNullable<Parameters<typeof createDevToolHandler>[0]>['runCli']> = async ({
-  args,
-  cwd
-}) => ({
-  ok: true,
-  code: 'OK',
-  message: 'Fixture daemon started.',
-  data: { agentPort: args?.agentPort },
-  events: [],
-  logEvents: [],
-  outputEvents: [],
-  resolvedContext: { cwd: cwd || process.cwd() }
-});
+type RunCli = NonNullable<NonNullable<Parameters<typeof createDevToolHandler>[0]>['runCli']>;
+
+// What `dev --agent` returns through the JSONL runner: the ready payload of the agent on `port`, which carries the path
+// of its token file but never the token.
+const agentReady =
+  (reportedPort: (requestedPort: number) => number = (requestedPort) => requestedPort): RunCli =>
+  async ({ args, cwd }) => {
+    const port = reportedPort(Number(args?.agentPort));
+    return {
+      ok: true,
+      code: 'OK',
+      message: 'Fixture daemon started.',
+      data: {
+        result: {
+          port,
+          projectName: 'fixture',
+          tokenFile: localStatePaths.devAgentTokenFile({ port }),
+          failedWorkloads: []
+        }
+      },
+      events: [],
+      logEvents: [],
+      outputEvents: [],
+      resolvedContext: { cwd: cwd || process.cwd() }
+    };
+  };
+const startedDaemon = agentReady();
 
 describe('MCP dev session routing', () => {
   test('rebuilds and stops only the daemon selected by its live session handle', async () => {
@@ -107,6 +142,43 @@ describe('MCP dev session routing', () => {
     } finally {
       await second?.close();
       await first.close();
+    }
+  });
+
+  test('a start that finds the agent already running returns a session that can call it', async () => {
+    const running = await daemon();
+    try {
+      // `dev --agent` reports the running agent of this project and stage, whatever port was requested.
+      const handler = createDevToolHandler({ runCli: agentReady(() => running.port) });
+      const started = (await handler({ action: 'start', args: { agentPort: 7331 } })).structuredContent;
+      expect(started.ok).toBe(true);
+      const session = started.data?.session as { devSessionId: string; agentPort: number };
+      expect(session.agentPort).toBe(running.port);
+      const status = (await handler({ action: 'status', args: { devSessionId: session.devSessionId } }))
+        .structuredContent;
+      expect(status.ok).toBe(true);
+      expect(
+        (await handler({ action: 'stop', args: { devSessionId: session.devSessionId } })).structuredContent.ok
+      ).toBe(true);
+      expect(running.state.stopped).toBe(true);
+    } finally {
+      await running.close();
+    }
+  });
+
+  test('a start whose result names no agent port creates no session', async () => {
+    const running = await daemon();
+    try {
+      const handler = createDevToolHandler({
+        runCli: async (input) => ({ ...(await startedDaemon(input)), data: undefined })
+      });
+      const started = (await handler({ action: 'start', args: { agentPort: running.port } })).structuredContent;
+      expect(started.ok).toBe(false);
+      expect(started.data?.session).toBeUndefined();
+      expect((await handler({ action: 'status' })).structuredContent.code).toBe('NOT_FOUND');
+      expect(running.state.stopped).toBe(false);
+    } finally {
+      await running.close();
     }
   });
 

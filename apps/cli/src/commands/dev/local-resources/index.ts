@@ -2,18 +2,24 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { stopDockerContainer } from '@utils/docker';
+import { execDocker, inspectDockerContainer, stopDockerContainer } from '@utils/docker';
 import { ExpectedError } from '@utils/errors';
-import { ensureDir } from 'fs-extra';
+import { ensureDir, remove } from 'fs-extra';
+import { basename, dirname } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { createCleanupHook, getDevContainerName } from '../cleanup-utils';
-import { clearReservedPorts } from './container-helpers';
-import { startLocalDynamoDb } from './dynamodb';
+import {
+  clearReservedPorts,
+  getImageTag,
+  removeContainerIfExists,
+  resolveLocalDatabasePassword
+} from './container-helpers';
+import { DYNAMODB_IMAGE, startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
-import { startLocalOpenSearch } from './opensearch';
+import { getLocalOpenSearchImageTag, startLocalOpenSearch } from './opensearch';
 import { startLocalPostgres } from './postgres';
-import { startLocalRedis } from './redis';
+import { getLocalRedisImageTag, startLocalRedis } from './redis';
 
 /**
  * Parse Docker errors and return user-friendly message
@@ -69,12 +75,69 @@ const getDataDir = (resourceName: string) => {
   });
 };
 
+const getPasswordFile = (resourceName: string) =>
+  localStatePaths.devResourcePasswordFile({
+    workingDirectory: globalStateManager.workingDir,
+    stage: globalStateManager.stage,
+    resourceName
+  });
+
 const getLocalContainerName = (resourceName: string) =>
   getDevContainerName({
     projectName: globalStateManager.targetStack.projectName,
     stage: globalStateManager.stage,
+    workingDirectory: globalStateManager.workingDir,
     name: resourceName
   });
+
+/**
+ * Before containers were named per working directory, a database container was `stp-<project>-<stage>-<resource>`.
+ * One left running by an older CLI in this directory still writes to the same data directory, and a second database
+ * server on that directory would corrupt it, so it is removed. Containers of other directories are left alone.
+ */
+const removeLegacyContainerUsingDataDir = async (resourceName: string, dataDir: string) => {
+  const legacyName = `stp-${globalStateManager.targetStack.projectName}-${globalStateManager.stage}-${resourceName}`;
+  const info = await inspectDockerContainer(legacyName);
+  if (info.Mounts?.some((mount) => mount.Source === dataDir)) {
+    await removeContainerIfExists(legacyName);
+  }
+};
+
+const RELATIONAL_TYPES: ReadonlySet<LocalResourceType> = new Set(['postgres', 'mysql', 'mariadb']);
+
+const getLocalImage = ({ type, version }: LocalResourceConfig): string => {
+  if (type === 'redis') return getLocalRedisImageTag(version);
+  if (type === 'dynamodb') return DYNAMODB_IMAGE;
+  if (type === 'opensearch') return getLocalOpenSearchImageTag(version);
+  return getImageTag(version, type);
+};
+
+/**
+ * Deletes a local database's data for `--freshDb`. On Linux the database container owns the files it wrote and the
+ * developer cannot delete them, so they are deleted as root from a container of the same image, which is already
+ * present because it wrote them.
+ */
+const removeLocalData = async (config: LocalResourceConfig) => {
+  try {
+    await remove(config.dataDir);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'EACCES' && code !== 'EPERM') throw error;
+    await execDocker([
+      'run',
+      '--rm',
+      '--user',
+      '0',
+      '--entrypoint',
+      'rm',
+      '-v',
+      `${dirname(config.dataDir)}:/stacktape-data`,
+      getLocalImage(config),
+      '-rf',
+      `/stacktape-data/${basename(config.dataDir)}`
+    ]);
+  }
+};
 
 const mapEngineToLocalType = (engineType: string): LocalResourceType | null => {
   if (
@@ -194,9 +257,10 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
       version,
       port,
       dataDir: getDataDir(resourceName),
+      // Without a configured password, one is generated once the data directory is known to be fresh or not.
       credentials: {
         username: db.credentials?.masterUserName || defaultUsername,
-        password: db.credentials?.masterUserPassword || 'localdevpassword'
+        password: db.credentials?.masterUserPassword || ''
       },
       dbName
     };
@@ -261,14 +325,26 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
   const errors: Array<{ resourceName: string; error: Error }> = [];
 
   const startPromises = configs.map(async ({ resourceName, config, containerName }) => {
-    // If --freshDb flag is set, remove existing data directory
+    await removeLegacyContainerUsingDataDir(resourceName, config.dataDir);
+    // If --freshDb flag is set, remove existing data directory and its password; the new data gets a new password
     if (freshDb) {
-      const { remove, pathExists } = await import('fs-extra');
-      if (await pathExists(config.dataDir)) {
-        await remove(config.dataDir);
-      }
+      await removeLocalData(config);
+      await remove(getPasswordFile(resourceName));
     }
     await ensureDir(config.dataDir);
+    if (RELATIONAL_TYPES.has(config.type) && config.credentials && !config.credentials.password) {
+      const { password, legacy } = resolveLocalDatabasePassword({
+        passwordFile: getPasswordFile(resourceName),
+        dataDir: config.dataDir
+      });
+      config.credentials.password = password;
+      if (legacy) {
+        tuiManager.warn(
+          `Local database "${resourceName}" keeps the password "${password}" its data was created with. ` +
+            'To switch it to a generated password, start dev mode once with --fresh-db (this deletes its local data).'
+        );
+      }
+    }
 
     // Update DevTui status
     if (useDevTui) {

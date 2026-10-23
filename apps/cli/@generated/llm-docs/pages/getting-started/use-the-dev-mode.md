@@ -54,7 +54,7 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
 | Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
 
-Lambda functions have their code built and pushed to AWS, where they run. Stacktape creates tunnels so those Lambda functions can reach your locally emulated databases. Logs from Lambda invocations stream directly to your terminal.
+Lambda functions have their code built and pushed to AWS, where they run. They cannot reach the databases running on your machine, so connect them to the deployed databases with `--remote-resources`. Logs from Lambda invocations stream directly to your terminal.
 
 ## The edit-save-see loop
 
@@ -102,7 +102,7 @@ The `version` property sets the PostgreSQL engine version (`'16.6'` here, but an
 With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
-2. Builds and updates the Lambda function code on AWS, with tunnels so it can reach your local database
+2. Builds and updates the Lambda function code on AWS. The function runs in AWS and cannot reach the local database, and dev mode warns about it. To give the function a database, run with `--remote-resources myDatabase`: the dev stack then includes the deployed database, and the function connects to it
 3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
 
 Now edit `./src/handler.ts`, save, and either:
@@ -176,7 +176,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 | `--watch` | Auto-rebuild on file changes |
 | `--fresh-db` | Delete local database data before starting |
 | `--remote-resources` | Connect to deployed AWS resources instead of local emulation |
-| `--no-tunnel` | Disable Lambda-to-local-database tunneling |
+| `--no-tunnel` | Skip Lambda tunnels to local databases, which run only through a relay you set up yourself |
 
 
 > **Tip:** Run `stacktape help dev` to see all available flags and their short aliases.

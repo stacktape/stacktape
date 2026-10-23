@@ -12,12 +12,13 @@ import {
   getContainerPort,
   isDockerPortBindError,
   isContainerRunning,
+  publishOnLoopback,
   removeContainerIfExists,
   waitForReady
 } from './container-helpers';
 
 const DYNAMODB_DATA_PATH = '/home/dynamodblocal/data';
-const DYNAMODB_IMAGE = 'amazon/dynamodb-local';
+export const DYNAMODB_IMAGE = 'amazon/dynamodb-local';
 
 const DYNAMODB_LOCAL_HEADERS = {
   'X-Amz-Target': 'DynamoDB_20120810.ListTables',
@@ -193,8 +194,7 @@ export const startLocalDynamoDb = async (
     '--name',
     containerName,
     ...getDevContainerOwnerArgs(),
-    '-p',
-    `${hostPort}:${defaultPort}`,
+    ...publishOnLoopback(hostPort, defaultPort),
     '-v',
     `${dataDir}:${DYNAMODB_DATA_PATH}`,
     DYNAMODB_IMAGE,
@@ -213,6 +213,8 @@ export const startLocalDynamoDb = async (
       if (!isDockerPortBindError(err) || attempt === 4) {
         throw err;
       }
+      // Docker creates the container before it fails to bind the port; remove it so the retry can reuse the name.
+      await removeContainerIfExists(containerName);
       actualPort = await findAvailablePort(actualPort + 1);
     }
   }
