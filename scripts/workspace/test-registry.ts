@@ -1257,21 +1257,31 @@ export const lanes: readonly Lane[] = [
   },
   {
     id: 'ministack-deploy',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ministack:deploy'],
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ministack:deploy:loop'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/deploy-loop.spec.ts', 'apps/cli/tests/ministack/split-lambda-family.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe HTTP API requests, the default-domain registration the service Lambda sends the control-plane fake, EventBridge delivery, runtime, data, retention and artifacts. A web-service behind an ALB, a worker-service and a multi-container-workload deploy with their ECS services, task revisions and Application Auto Scaling targets and policies, which the fixture extension serves until ministackorg/ministack#2162 ships.',
+    selections: ['ministack-deploy']
+  },
+  {
+    id: 'ministack-deploy-2',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ministack:deploy:operations'],
     level: 'process',
     tier: 'change',
     tests: [
       'apps/cli/tests/ministack/security-deploy.spec.ts',
-      'apps/cli/tests/ministack/deploy-loop.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
-      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
       'apps/cli/tests/ministack/domain-add.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe HTTP API requests, the default-domain registration the service Lambda sends the control-plane fake, EventBridge delivery, runtime, data, retention and artifacts. Container workloads remain a known gap (Application Auto Scaling, ministackorg/ministack#2162).',
+      'On MiniStack, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates.',
     selections: ['ministack-deploy']
   },
   {
@@ -1283,7 +1293,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The shared MiniStack fixture starts ready, isolates accounts, blocks egress, forwards only the requested host loopback port into the container and verifies its cleanup.',
+      'The shared MiniStack fixture starts ready, isolates accounts, blocks egress, forwards only the requested host loopback port into the container, keeps AWS rules in its opt-in Application Auto Scaling extension and verifies its cleanup.',
     selections: ['ministack-fixture']
   },
   {
@@ -4055,6 +4065,7 @@ export const slices: readonly Slice[] = [
       'appsync-endpoint-live',
       'synthesis-families-2',
       'ministack-deploy',
+      'ministack-deploy-2',
       'synthesis',
       'synthesis-2',
       'helper-lambda-runtime',
@@ -4110,6 +4121,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/cloudformation-stacks.ts',
       'apps/cli/src/aws/ecs.ts',
       'apps/cli/src/aws/lambda.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/**',
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer*.ts',
       'apps/cli/src/commands/_utils/fn-deployment.ts',
@@ -4151,6 +4163,7 @@ export const slices: readonly Slice[] = [
       'synthesis-2',
       'data-safety',
       'ministack-deploy',
+      'ministack-deploy-2',
       'ministack-fixture',
       'console-database-cli-console',
       'live-aws',
@@ -4185,6 +4198,7 @@ export const slices: readonly Slice[] = [
       'cli-test-helper-lambdas',
       'static-site-live',
       'ministack-deploy',
+      'ministack-deploy-2',
       'synthesis',
       'synthesis-2',
       'live-aws',
@@ -4442,6 +4456,7 @@ export const slices: readonly Slice[] = [
     lanes: [
       'node-lambda-offline',
       'ministack-deploy',
+      'ministack-deploy-2',
       'cli',
       'cli-2',
       'cli-3',
@@ -4762,6 +4777,7 @@ export const slices: readonly Slice[] = [
       'archive-contracts',
       'archive-build-e2e',
       'ministack-deploy',
+      'ministack-deploy-2',
       'packaging-test',
       'packaging-archives',
       'packaging-archives-2',
@@ -5632,6 +5648,7 @@ export const slices: readonly Slice[] = [
     ],
     lanes: [
       'ministack-deploy',
+      'ministack-deploy-2',
       'cli-security-rules',
       'cli-security-inventory-ministack',
       'console-fast-rules',

@@ -8,6 +8,11 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ApiGatewayV2Client, GetRoutesCommand, GetStagesCommand } from '@aws-sdk/client-apigatewayv2';
 import {
+  ApplicationAutoScalingClient,
+  DescribeScalableTargetsCommand,
+  DescribeScalingPoliciesCommand
+} from '@aws-sdk/client-application-auto-scaling';
+import {
   CloudFormationClient,
   DescribeStacksCommand,
   type StackResourceSummary,
@@ -15,6 +20,12 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { DescribeTableCommand, DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import {
+  DescribeClustersCommand,
+  DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
+  ECSClient
+} from '@aws-sdk/client-ecs';
 import { DescribeEventBusCommand, EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import {
   GetFunctionConfigurationCommand,
@@ -50,6 +61,8 @@ export type EffectClients = {
   events: EventBridgeClient;
   logs: CloudWatchLogsClient;
   apiGateway: ApiGatewayV2Client;
+  ecs: ECSClient;
+  autoScaling: ApplicationAutoScalingClient;
 };
 
 export const createEffectClients = (ministack: MiniStack): EffectClients => {
@@ -63,7 +76,9 @@ export const createEffectClients = (ministack: MiniStack): EffectClients => {
     sns: new SNSClient(config),
     events: new EventBridgeClient(config),
     logs: new CloudWatchLogsClient(config),
-    apiGateway: new ApiGatewayV2Client(config)
+    apiGateway: new ApiGatewayV2Client(config),
+    ecs: new ECSClient(config),
+    autoScaling: new ApplicationAutoScalingClient(config)
   };
 };
 
@@ -115,6 +130,9 @@ const jsBundleFunction = (version: Version, properties: Record<string, unknown> 
     ...properties
   }
 });
+
+/** Never pulled: the emulator has no Docker access, so ECS records the services and tasks without running them. */
+const CONTAINER_IMAGE = 'public.ecr.aws/docker/library/nginx:alpine';
 
 /** The queue URL on the emulator; CloudFormation reports the AWS-shaped URL of the emulator's own host. */
 const queueUrl = (endpoint: string, physicalId: string) => new URL(new URL(physicalId).pathname, endpoint).href;
@@ -424,31 +442,106 @@ export const families: Family[] = [
     }
   },
   {
-    name: 'container-workload',
-    knownGap:
-      'MiniStack has no Application Auto Scaling, so the scalable target and policy of a container workload fail template validation (ministackorg/ministack#2162).',
-    config: (version) => ({
-      resources: {
-        worker: {
-          type: 'multi-container-workload',
-          properties: {
-            resources: { cpu: 0.25, memory: version === 1 ? 512 : 1024 },
-            containers: [
-              {
-                name: 'worker',
-                packaging: {
-                  type: 'prebuilt-image',
-                  properties: { image: 'public.ecr.aws/docker/library/nginx:alpine' }
-                }
-              }
-            ]
+    name: 'container-workloads',
+    config: (version) => {
+      const container = (properties: Record<string, unknown> = {}) => ({
+        packaging: { type: 'prebuilt-image', properties: { image: CONTAINER_IMAGE } },
+        ...properties
+      });
+      // The update doubles memory and moves the scaling range; Application Auto Scaling then raises every service's
+      // desired count to the new minimum, since Stacktape's template leaves the count to it.
+      const properties = {
+        resources: { cpu: 0.25, memory: version === 1 ? 512 : 1024 },
+        scaling:
+          version === 1
+            ? { minInstances: 1, maxInstances: 2 }
+            : { minInstances: 2, maxInstances: 4, scalingPolicy: { keepAvgCpuUtilizationUnder: 60 } }
+      };
+      return {
+        resources: {
+          // The default HTTP API load balancing copies a drain image from public.ecr.aws, which no offline test reaches.
+          web: {
+            type: 'web-service',
+            properties: {
+              ...container({ port: 80, loadBalancing: { type: 'application-load-balancer' } }),
+              ...properties
+            }
+          },
+          worker: { type: 'worker-service', properties: { ...container(), ...properties } },
+          batch: {
+            type: 'multi-container-workload',
+            properties: { containers: [{ name: 'app', ...container() }], ...properties }
           }
         }
-      }
-    }),
+      };
+    },
     files: () => ({}),
     assertEffects: async (context) => {
-      assert.ok(context.physicalOfType('AWS::ECS::Service').length > 0, 'the stack has no ECS service');
+      const expected =
+        context.version === 1
+          ? { min: 1, max: 2, memory: '512', cpuTarget: 80 }
+          : { min: 2, max: 4, memory: '1024', cpuTarget: 60 };
+      const services = context.resources.filter(({ ResourceType }) => ResourceType === 'AWS::ECS::Service');
+      assert.deepEqual(
+        services.map(({ LogicalResourceId }) => LogicalResourceId).toSorted(),
+        ['BatchService', 'WebService', 'WorkerService'],
+        'the stack must hold one ECS service per workload'
+      );
+      for (const workload of ['Batch', 'Web', 'Worker']) {
+        const cluster = context.physical(`${workload}Cluster`);
+        const serviceArn = context.physical(`${workload}Service`);
+        const [service] =
+          (await context.clients.ecs.send(new DescribeServicesCommand({ cluster, services: [serviceArn] }))).services ??
+          [];
+        assert.equal(service?.status, 'ACTIVE', `${workload} service status`);
+        assert.equal(
+          service.taskDefinition,
+          context.physical(`${workload}TaskDefinition`),
+          `${workload} service runs the stack's task definition`
+        );
+        const { taskDefinition } = await context.clients.ecs.send(
+          new DescribeTaskDefinitionCommand({ taskDefinition: service.taskDefinition })
+        );
+        assert.equal(taskDefinition?.memory, expected.memory, `${workload} task memory`);
+        assert.equal(taskDefinition?.cpu, '256', `${workload} task CPU`);
+        assert.ok(
+          taskDefinition?.containerDefinitions?.some(({ image }) => image === CONTAINER_IMAGE),
+          `${workload} task does not run ${CONTAINER_IMAGE}`
+        );
+        const resourceId = `service/${cluster}/${service.serviceName}`;
+        const [target] =
+          (
+            await context.clients.autoScaling.send(
+              new DescribeScalableTargetsCommand({ ServiceNamespace: 'ecs', ResourceIds: [resourceId] })
+            )
+          ).ScalableTargets ?? [];
+        assert.deepEqual(
+          [target?.MinCapacity, target?.MaxCapacity],
+          [expected.min, expected.max],
+          `${workload} scaling range`
+        );
+        assert.equal(service.desiredCount, expected.min, `${workload} desired count follows the scaling minimum`);
+        const policies =
+          (
+            await context.clients.autoScaling.send(
+              new DescribeScalingPoliciesCommand({ ServiceNamespace: 'ecs', ResourceId: resourceId })
+            )
+          ).ScalingPolicies ?? [];
+        const targets = Object.fromEntries(
+          policies.map((policy) => [
+            policy.TargetTrackingScalingPolicyConfiguration?.PredefinedMetricSpecification?.PredefinedMetricType,
+            policy.TargetTrackingScalingPolicyConfiguration?.TargetValue
+          ])
+        );
+        assert.deepEqual(
+          targets,
+          { ECSServiceAverageCPUUtilization: expected.cpuTarget, ECSServiceAverageMemoryUtilization: 80 },
+          `${workload} target-tracking policies`
+        );
+      }
+      context.checks.push(
+        `three ECS services run ${expected.memory} MB tasks with scaling ${expected.min}-${expected.max}, desired count ${expected.min} and a ${expected.cpuTarget}% CPU target`
+      );
     }
   }
 ];
@@ -468,5 +561,27 @@ export const absenceProbes: Record<string, (clients: EffectClients, endpoint: st
       clients.sqs.send(
         new GetQueueAttributesCommand({ QueueUrl: queueUrl(endpoint, id), AttributeNames: ['QueueArn'] })
       ),
-    'AWS::ApiGatewayV2::Api': (clients, _endpoint, id) => clients.apiGateway.send(new GetRoutesCommand({ ApiId: id }))
+    'AWS::ApiGatewayV2::Api': (clients, _endpoint, id) => clients.apiGateway.send(new GetRoutesCommand({ ApiId: id })),
+    // ECS keeps deleted clusters and services as INACTIVE, and Application Auto Scaling answers an empty list.
+    'AWS::ECS::Cluster': async (clients, _endpoint, id) => {
+      const [cluster] = (await clients.ecs.send(new DescribeClustersCommand({ clusters: [id] }))).clusters ?? [];
+      if (!cluster || cluster.status === 'INACTIVE') throw new Error(`cluster ${id} does not exist`);
+    },
+    'AWS::ECS::Service': async (clients, _endpoint, id) => {
+      const cluster = id.split('/').at(-2);
+      const [service] =
+        (await clients.ecs.send(new DescribeServicesCommand({ cluster, services: [id] }))).services ?? [];
+      if (!service || service.status === 'INACTIVE') throw new Error(`service ${id} does not exist`);
+    },
+    'AWS::ApplicationAutoScaling::ScalableTarget': async (clients, _endpoint, id) => {
+      const [resourceId, dimension, namespace] = id.split('|');
+      const { ScalableTargets } = await clients.autoScaling.send(
+        new DescribeScalableTargetsCommand({
+          ServiceNamespace: namespace as 'ecs',
+          ResourceIds: [resourceId],
+          ScalableDimension: dimension as 'ecs:service:DesiredCount'
+        })
+      );
+      if (!ScalableTargets?.length) throw new Error(`scalable target ${id} does not exist`);
+    }
   };
