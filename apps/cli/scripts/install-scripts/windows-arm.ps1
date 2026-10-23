@@ -2,6 +2,10 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Arguments after the installer's own run the installed CLI, so
+# iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init" installs Stacktape and starts `stacktape init`.
+$CliArgs = $args
+
 # Colors. Windows PowerShell 5.1, where `iwr | iex` usually runs, has no `e escape.
 $Escape = [char]27
 $Green = "$Escape[32m"
@@ -169,9 +173,21 @@ Write-Host "${Green}                                      |_|          ${Reset}"
 Write-Host ""
 Write-Host "${Bold}${Green}Stacktape was installed successfully!${Reset}"
 Write-Host ""
-Write-Host "${Muted}To get started, run:${Reset}"
-Write-Host ""
-Write-Host "  stacktape init"
-Write-Host ""
-Write-Host "${Muted}For more information visit ${Reset}https://docs.stacktape.com"
-Write-Host ""
+if ($CliArgs.Count -eq 0) {
+    Write-Host "${Muted}To get started, run:${Reset}"
+    Write-Host ""
+    Write-Host "  stacktape init"
+    Write-Host ""
+    Write-Host "${Muted}For more information visit ${Reset}https://docs.stacktape.com"
+    Write-Host ""
+} else {
+    Write-Host "${Muted}Running ${Reset}stacktape $($CliArgs -join ' ')"
+    Write-Host ""
+    # Run by full path: a session that already had another stacktape on PATH would otherwise start that one.
+    & $ExecutableFilePath @CliArgs
+    # Run as a file (powershell -File windows.ps1 init), report the CLI's exit code. Under iex there is no script
+    # path, and exit would close the user's PowerShell window.
+    if ($PSCommandPath -and $LASTEXITCODE) {
+        exit $LASTEXITCODE
+    }
+}

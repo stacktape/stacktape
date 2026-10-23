@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import * as tar from 'tar';
 import { prepareInstallAssets } from '../publish-install-scripts';
 import { generateReleaseChecksums } from '../release/checksums';
@@ -20,6 +21,9 @@ const NATIVE_MACHINES: Record<string, Machine> = {
   macos: { processor: 'x86_64' },
   'macos-arm': { processor: 'arm64', appleSilicon: true }
 };
+/** How the installer reaches `sh`: as a file, or piped like `curl ... | sh -s -- <args>`, optionally in a terminal. */
+type RunOptions = { args?: string[]; piped?: 'detached' | 'terminal' };
+
 const stale = [
   'llm-docs/old.txt',
   'ai-docs/old.txt',
@@ -40,7 +44,23 @@ const fixture = async (platform: string, machine: Machine = NATIVE_MACHINES[plat
     for (const directory of [bin, commands, payload, downloads]) await mkdir(directory, { recursive: true });
     await writeFile(join(home, '.bashrc'), '# customer shell\n');
     await writeFile(join(home, '.profile'), '# customer shell\n');
-    await writeFile(join(payload, 'stacktape'), '#!/bin/sh\nprintf "candidate executable: %s\\n" "$*"\n');
+    // When asked, the candidate also records each argument and what its standard input is.
+    await writeFile(
+      join(payload, 'stacktape'),
+      `#!/bin/sh
+printf "candidate executable: %s\\n" "$*"
+if [ -n "\${INSTALLER_CLI_RECORD:-}" ]; then
+  {
+    for argument in "$@"; do printf 'arg=%s\\n' "$argument"; done
+    if [ -t 0 ]; then echo stdin=terminal; elif [ -p /dev/stdin ]; then echo stdin=pipe; elif [ -c /dev/stdin ]; then
+      echo stdin=device
+    else echo stdin=other; fi
+    case ":$PATH:" in *":$HOME/.stacktape/bin:"*) echo path=install-directory ;; esac
+  } > "$INSTALLER_CLI_RECORD"
+fi
+exit "\${INSTALLER_CLI_EXIT:-0}"
+`
+    );
     await mkdir(join(payload, 'llm-docs'));
     await writeFile(join(payload, 'llm-docs', 'current.txt'), 'current docs');
     // Every archive of the release, so an installer that picks another platform's build still finds it.
@@ -89,9 +109,17 @@ cp "$INSTALLER_DOWNLOADS/\${url##*/}" "$output"
     const script = join(root, 'install.sh');
     const assets = await prepareInstallAssets({ version: '4.0.0-preview.17' });
     await writeFile(script, assets.find(({ key }) => key === `${platform}.sh`)!.body);
-    const run = (extra: Record<string, string> = {}) =>
+    const command = ({ args = [], piped }: RunOptions) => {
+      if (!piped) return ['sh', script, ...args];
+      // setsid leaves no controlling terminal, as in CI or a coding agent's shell. script(1) gives the pipeline a new
+      // pseudo-terminal, as when a person types the command.
+      if (piped === 'detached') return ['setsid', 'sh', '-s', '--', ...args];
+      return ['script', '-qec', `cat '${script}' | sh -s -- ${args.join(' ')}`, '/dev/null'];
+    };
+    const run = (extra: Record<string, string> = {}, options: RunOptions = {}) =>
       Bun.spawnSync({
-        cmd: ['sh', script],
+        cmd: command(options),
+        stdin: options.piped === 'detached' ? Bun.file(script) : 'ignore',
         env: {
           PATH: [commands, process.env.PATH].join(delimiter),
           HOME: home,
@@ -110,7 +138,7 @@ cp "$INSTALLER_DOWNLOADS/\${url##*/}" "$output"
       existsSync(requests)
         ? (await readFile(requests, 'utf8')).split('\n').filter((name) => name && name !== 'SHA256SUMS')
         : [];
-    return { root, bin, home, downloads, run, downloaded };
+    return { root, bin, home, downloads, run, downloaded, record: join(root, 'cli-record.txt') };
   } catch (error) {
     await rm(root, { recursive: true, force: true });
     throw error;
@@ -138,6 +166,9 @@ test.skipIf(process.platform === 'win32').each(installers)(
       await writeFile(join(downloads, 'SHA256SUMS'), manifest);
       const installed = run();
       expect(installed.exitCode, installed.stdout.toString() + installed.stderr.toString()).toBe(0);
+      // Without arguments after its own, the installer only installs.
+      expect(installed.stdout.toString()).toContain('To get started, run:');
+      expect(installed.stdout.toString()).not.toContain('candidate executable');
       for (const path of stale) expect(existsSync(join(bin, path)), path).toBe(false);
       expect(await readFile(join(bin, 'llm-docs/current.txt'), 'utf8')).toBe('current docs');
       for (const alias of ['stacktape', 'stp']) {
@@ -287,3 +318,52 @@ test.skipIf(process.platform === 'win32')('a Linux installer refuses a processor
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// `curl -fsSL https://installs.stacktape.com/<platform>.sh | sh -s -- init` installs and starts `stacktape init`. The
+// arguments reach the installed CLI unchanged, by its full path, and its exit code is the installer's.
+test.skipIf(process.platform === 'win32' || !Bun.which('setsid')).each(installers)(
+  '%s installer piped without a terminal runs the CLI with the arguments after its own and empty input',
+  async (platform) => {
+    const { root, run, record } = await fixture(platform);
+    try {
+      const result = run(
+        { INSTALLER_CLI_RECORD: record, INSTALLER_CLI_EXIT: '7' },
+        { args: ['init', '--projectDirectory', 'my app'], piped: 'detached' }
+      );
+      expect(stripVTControlCharacters(result.stdout.toString())).toContain(
+        'Running stacktape init --projectDirectory my app'
+      );
+      expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(7);
+      // Not the rest of the piped script: that would be read as input by the CLI.
+      expect((await readFile(record, 'utf8')).trim().split('\n')).toEqual([
+        'arg=init',
+        'arg=--projectDirectory',
+        'arg=my app',
+        'stdin=device',
+        'path=install-directory'
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  30_000
+);
+
+test.skipIf(process.platform !== 'linux' || !Bun.which('script')).each(installers)(
+  '%s installer piped in a terminal gives the CLI the terminal as its input',
+  async (platform) => {
+    const { root, run, record } = await fixture(platform);
+    try {
+      const result = run({ INSTALLER_CLI_RECORD: record }, { args: ['init'], piped: 'terminal' });
+      expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
+      expect((await readFile(record, 'utf8')).trim().split('\n')).toEqual([
+        'arg=init',
+        'stdin=terminal',
+        'path=install-directory'
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  30_000
+);

@@ -93,15 +93,16 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
       { label: 'pnpm (global)', lang: 'bash', code: `pnpm add -g stacktape` },
       { label: 'pnpm (local)', lang: 'bash', code: `pnpm add stacktape` }
     ]} />
-    Or install the standalone binary, which needs no Node.js. The tab for your system is selected for you.
+    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The tab
+    for your system is selected for you. Leave out `init` to only install.
     <CodeBlock tabs={[
-      { label: 'macOS (Apple silicon)', lang: 'bash', code: `curl -L https://installs.stacktape.com/macos-arm.sh | sh` },
-      { label: 'macOS (Intel)', lang: 'bash', code: `curl -L https://installs.stacktape.com/macos.sh | sh` },
-      { label: 'Linux (x64)', lang: 'bash', code: `curl -L https://installs.stacktape.com/linux.sh | sh` },
-      { label: 'Linux (ARM64)', lang: 'bash', code: `curl -L https://installs.stacktape.com/linux-arm.sh | sh` },
-      { label: 'Alpine Linux', lang: 'bash', code: `curl -L https://installs.stacktape.com/alpine.sh | sh` },
-      { label: 'Windows (x64)', lang: 'bash', code: `iwr https://installs.stacktape.com/windows.ps1 -useb | iex` },
-      { label: 'Windows (ARM64)', lang: 'bash', code: `iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex` }
+      { label: 'macOS (Apple silicon)', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos-arm.sh | sh -s -- init` },
+      { label: 'macOS (Intel)', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init` },
+      { label: 'Linux (x64)', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init` },
+      { label: 'Linux (ARM64)', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux-arm.sh | sh -s -- init` },
+      { label: 'Alpine Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/alpine.sh | sh -s -- init` },
+      { label: 'Windows (x64)', lang: 'powershell', code: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"` },
+      { label: 'Windows (ARM64)', lang: 'powershell', code: `iex "& { $(irm https://installs.stacktape.com/windows-arm.ps1) } init"` }
     ]} />
   </Step>
   <Step title="Initialize a project">

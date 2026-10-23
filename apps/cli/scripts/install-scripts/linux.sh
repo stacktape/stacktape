@@ -296,9 +296,26 @@ printf "${GREEN}                                      |_|          ${NC}\n"
 printf "\n"
 printf "${BOLD}${GREEN}Stacktape was installed successfully!${NC}\n"
 printf "\n"
-printf "${MUTED}To get started, run:${NC}\n"
-printf "\n"
-printf "  stacktape init\n"
-printf "\n"
-printf "${MUTED}For more information visit ${NC}https://docs.stacktape.com\n"
-printf "\n"
+if [ "$#" -eq 0 ]; then
+    printf "${MUTED}To get started, run:${NC}\n"
+    printf "\n"
+    printf "  stacktape init\n"
+    printf "\n"
+    printf "${MUTED}For more information visit ${NC}https://docs.stacktape.com\n"
+    printf "\n"
+    exit 0
+fi
+
+# Arguments after the installer's own run the installed CLI, so `curl ... | sh -s -- init` installs Stacktape and starts
+# `stacktape init`. The PATH entry added above applies only to new shells, so the CLI runs by its full path.
+printf "${MUTED}Running ${NC}stacktape %s\n\n" "$*"
+export PATH="$INSTALL_DIR:$PATH"
+# With `curl | sh`, standard input is the rest of the downloaded script, so the CLI reads from the terminal instead.
+# Without a terminal (CI, a coding agent's shell), it gets empty input, as in any non-interactive shell.
+if [ -t 0 ]; then
+    exec "$INSTALL_DIR/stacktape" "$@"
+elif (: </dev/tty) 2>/dev/null; then
+    exec "$INSTALL_DIR/stacktape" "$@" </dev/tty
+else
+    exec "$INSTALL_DIR/stacktape" "$@" </dev/null
+fi
