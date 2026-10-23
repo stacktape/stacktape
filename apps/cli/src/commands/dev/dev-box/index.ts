@@ -135,6 +135,8 @@ const superviseSession = (instanceId: string, localPort: number) => {
       await session.waitForExit();
       if (stopped) return;
       mark('ssm-session-exited');
+      // The server side outlives a killed plugin and keeps the old relay connections open; end it first.
+      await session.kill().catch(() => undefined);
       for (let attempt = 1; !stopped; attempt++) {
         try {
           session = await openSession({ instanceId, localPort });

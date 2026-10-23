@@ -21,6 +21,7 @@ PENDING_TIMEOUT = 10
 
 pending = {}
 clients = set()
+tunnels = {}
 last_active = time.time()
 
 
@@ -69,13 +70,22 @@ async def run_tunnel(port, reader, writer):
         if stale:
             stale[1].close()
 
+    # A laptop that lost its SSM session reconnects before the old session's agent-side sockets close. The control
+    # port is reachable only through SSM, so a new Hello for a held port replaces the stale tunnel.
+    stale_tunnel = tunnels.get(port) if port else None
+    if stale_tunnel:
+        stale_tunnel['server'].close()
+        stale_tunnel['writer'].close()
+        await stale_tunnel['server'].wait_closed()
     try:
         server = await asyncio.start_server(on_connection, TUNNEL_HOST, port, reuse_address=True)
     except OSError as error:
         writer.write(frame({'Error': 'port %d is not available: %s' % (port, error.strerror)}))
         writer.close()
         return
-    writer.write(frame({'Hello': server.sockets[0].getsockname()[1]}))
+    actual_port = server.sockets[0].getsockname()[1]
+    tunnels[actual_port] = {'server': server, 'writer': writer}
+    writer.write(frame({'Hello': actual_port}))
     clients.add(writer)
     last_active = time.time()
     write_state()
@@ -91,6 +101,8 @@ async def run_tunnel(port, reader, writer):
     finally:
         closed.cancel()
         server.close()
+        if tunnels.get(actual_port, {}).get('writer') is writer:
+            del tunnels[actual_port]
         clients.discard(writer)
         last_active = time.time()
         write_state()

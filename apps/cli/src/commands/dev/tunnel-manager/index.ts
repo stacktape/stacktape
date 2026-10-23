@@ -568,7 +568,8 @@ const attemptReconnect = async (resourceName: string, localPort: number, signal:
   reconnectingTunnels.add(resourceName);
 
   try {
-    for (let attempt = 1; attempt <= TUNNEL_RECONNECT_ATTEMPTS; attempt++) {
+    // Dev-box prototype: the relay is ours and its address is fixed, so keep trying for as long as dev mode runs.
+    for (let attempt = 1; serverOverride || attempt <= TUNNEL_RECONNECT_ATTEMPTS; attempt++) {
       if (applicationManager.isInterrupted || signal.aborted) {
         return;
       }
@@ -588,8 +589,8 @@ const attemptReconnect = async (resourceName: string, localPort: number, signal:
 
         return;
       } catch {
-        if (attempt < TUNNEL_RECONNECT_ATTEMPTS) {
-          const delay = TUNNEL_RECONNECT_DELAY_MS * attempt;
+        if (serverOverride || attempt < TUNNEL_RECONNECT_ATTEMPTS) {
+          const delay = serverOverride ? Math.min(1000 * attempt, 5000) : TUNNEL_RECONNECT_DELAY_MS * attempt;
           tuiManager.warn(
             `Tunnel reconnection attempt ${attempt} failed for ${resourceName}, retrying in ${delay / 1000}s...`
           );

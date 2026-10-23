@@ -35,5 +35,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["./src/**/*", "./scripts/**/*", "./helper-lambdas/**/*"],
-  "exclude": ["./@generated/**/*"]
+  "exclude": ["./@generated/**/*", "./scripts/dev-box-proto/**/*"]
 }
