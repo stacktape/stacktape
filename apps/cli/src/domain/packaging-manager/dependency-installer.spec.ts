@@ -48,6 +48,8 @@ beforeAll(async () => {
   const otherPlatform = await packDependency('fixture-other-platform', {
     os: [process.platform === 'darwin' ? 'win32' : 'darwin']
   });
+  // An optional package this machine can install.
+  const optional = await packDependency('fixture-optional');
   seed = join(root, 'seed');
   await mkdir(join(seed, 'packages', 'util'), { recursive: true });
   await mkdir(join(seed, 'packages', 'functions'), { recursive: true });
@@ -56,7 +58,7 @@ beforeAll(async () => {
     private: true,
     workspaces: ['packages/*'],
     dependencies: { 'fixture-plain': plain },
-    optionalDependencies: { 'fixture-other-platform': otherPlatform }
+    optionalDependencies: { 'fixture-other-platform': otherPlatform, 'fixture-optional': optional }
   });
   await writeJson(join(seed, 'packages', 'util', 'package.json'), { name: '@shop/util', version: '1.0.0' });
   await writeJson(join(seed, 'packages', 'functions', 'package.json'), {
@@ -122,33 +124,87 @@ describe('a completed npm ci in an npm workspace', () => {
     await writeJson(hiddenPath, hidden);
     expect(await verify(directory)).toBe(false);
   });
+
+  test('is refused when an optional package this machine supports is missing', async () => {
+    // As after `npm ci --omit=optional`, or an older cached tree restored after the dependency was added.
+    const directory = await copySeed('omitted-optional');
+    await rm(join(directory, 'node_modules'), { recursive: true });
+    npm(directory, 'ci', '--omit=optional');
+    const hidden = JSON.parse(await readFile(join(directory, 'node_modules', '.package-lock.json'), 'utf8'));
+    expect(hidden.packages).not.toHaveProperty(['node_modules/fixture-optional']);
+    expect(await verify(directory)).toBe(false);
+  });
 });
 
 describe("the runner's completed install", () => {
-  const previous = process.env.STP_RUNNER_INSTALLED_DEPENDENCIES;
+  const variables = ['STP_RUNNER_INSTALLED_DEPENDENCIES', 'STP_RUNNER_INSTALLED_LOCKFILE'] as const;
+  const previous = variables.map((name) => process.env[name]);
   afterEach(() => {
-    if (previous === undefined) delete process.env.STP_RUNNER_INSTALLED_DEPENDENCIES;
-    else process.env.STP_RUNNER_INSTALLED_DEPENDENCIES = previous;
+    variables.forEach((name, index) => {
+      if (previous[index] === undefined) delete process.env[name];
+      else process.env[name] = previous[index];
+    });
+  });
+  const runnerInstalled = (directory: string, lockfile: string) => {
+    process.env.STP_RUNNER_INSTALLED_DEPENDENCIES = directory;
+    process.env.STP_RUNNER_INSTALLED_LOCKFILE = lockfile;
+  };
+  const npmProject = (installDir: string) => ({
+    installDir,
+    lockfilePath: join(installDir, 'package-lock.json'),
+    packageManager: 'npm' as const,
+    packageManagerDeclaration: undefined
   });
 
-  test('counts only for the directory the runner names, and only with node_modules', async () => {
+  test('counts only for the directory and lockfile the runner names, and only with node_modules', async () => {
     const installed = await copySeed('runner-installed');
     const other = await copySeed('runner-other');
-    delete process.env.STP_RUNNER_INSTALLED_DEPENDENCIES;
-    expect(await isRunnerCompletedInstall({ installDir: installed })).toBe(false);
-    process.env.STP_RUNNER_INSTALLED_DEPENDENCIES = installed;
-    expect(await isRunnerCompletedInstall({ installDir: installed })).toBe(true);
-    expect(await isRunnerCompletedInstall({ installDir: join(installed, 'packages', '..') })).toBe(true);
-    expect(await isRunnerCompletedInstall({ installDir: other })).toBe(false);
+    expect(await isRunnerCompletedInstall(npmProject(installed))).toBe(false);
+    runnerInstalled(installed, 'package-lock.json');
+    expect(await isRunnerCompletedInstall(npmProject(installed))).toBe(true);
+    expect(await isRunnerCompletedInstall(npmProject(join(installed, 'packages', '..')))).toBe(true);
+    expect(await isRunnerCompletedInstall(npmProject(other))).toBe(false);
+    delete process.env.STP_RUNNER_INSTALLED_LOCKFILE;
+    expect(await isRunnerCompletedInstall(npmProject(installed))).toBe(false);
     await rm(join(installed, 'node_modules'), { recursive: true });
-    expect(await isRunnerCompletedInstall({ installDir: installed })).toBe(false);
+    runnerInstalled(installed, 'package-lock.json');
+    expect(await isRunnerCompletedInstall(npmProject(installed))).toBe(false);
+  });
+
+  test('does not count when the runner followed another lockfile than this CLI', async () => {
+    // The runner prefers bun.lock; the CLI follows package-lock.json and must not ship what bun resolved.
+    const directory = await copySeed('runner-other-lockfile');
+    await writeFile(join(directory, 'bun.lock'), '{}');
+    runnerInstalled(directory, 'bun.lock');
+    expect(await isRunnerCompletedInstall(npmProject(directory))).toBe(false);
+    // Without a lockfile the CLI picks its package manager from the manifest, not from the runner.
+    expect(await isRunnerCompletedInstall({ ...npmProject(directory), lockfilePath: null })).toBe(false);
+  });
+
+  test('counts for pnpm only when the CLI would also run the pnpm on PATH', async () => {
+    const directory = await mkdtemp(join(root, 'runner-pnpm-'));
+    await mkdir(join(directory, 'node_modules'));
+    const lockfilePath = join(directory, 'pnpm-lock.yaml');
+    const pnpmProject = (packageManagerDeclaration?: string) => ({
+      installDir: directory,
+      lockfilePath,
+      packageManager: 'pnpm' as const,
+      packageManagerDeclaration
+    });
+    runnerInstalled(directory, 'pnpm-lock.yaml');
+    await writeFile(lockfilePath, "lockfileVersion: '9.0'\n");
+    expect(await isRunnerCompletedInstall(pnpmProject())).toBe(true);
+    // A declared pnpm, or the one a v6 lockfile needs, is what the CLI installs with; the runner's pnpm may differ.
+    expect(await isRunnerCompletedInstall(pnpmProject('pnpm@9.15.0'))).toBe(false);
+    await writeFile(lockfilePath, "lockfileVersion: '6.0'\n");
+    expect(await isRunnerCompletedInstall(pnpmProject())).toBe(false);
   });
 
   test('is kept as it is: no package manager runs, and the marker vouches for it afterwards', async () => {
     const directory = await copySeed('runner-kept');
     // npm ci would delete this file with the rest of node_modules.
     await writeFile(join(directory, 'node_modules', 'sentinel'), 'installed by the runner');
-    process.env.STP_RUNNER_INSTALLED_DEPENDENCIES = directory;
+    runnerInstalled(directory, 'package-lock.json');
     const noop = async () => {};
     await dependencyInstaller.install({
       rootProjectDirPath: join(directory, 'packages', 'functions'),
@@ -158,6 +214,6 @@ describe("the runner's completed install", () => {
     const marker = JSON.parse(
       await readFile(localStatePaths.dependencyInstallHashFile({ installDirectory: directory }), 'utf8')
     );
-    expect(marker.installedDirectDependencies).toEqual(['fixture-plain']);
+    expect(marker.installedDirectDependencies).toEqual(['fixture-optional', 'fixture-plain']);
   });
 });
