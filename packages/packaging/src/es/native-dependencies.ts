@@ -9,7 +9,7 @@
 import type { DockerBuildOutputArchitecture, ResolvedPackageDependency } from '../runtime-contracts';
 import { createHash } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
-import { dirname, join, resolve as resolvePath } from 'node:path';
+import { dirname, join, relative, resolve as resolvePath, sep } from 'node:path';
 import { copy, emptyDir, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { LAMBDA_ARCHIVE_FORMAT, listArchiveEntries } from '../artifact/archive-entries';
@@ -21,6 +21,7 @@ import {
   createPackageAnalysisCache,
   findInstalledPackage,
   getPackageFingerprint,
+  getRuntimeDependencyNames,
   planPackageLayout,
   readPackageManifest,
   writePackageLayout,
@@ -292,6 +293,41 @@ const findLambdaPlatformPackages = async ({
 };
 
 /**
+ * Links the dependencies of each package at the artifact's top level to the installation that package loads, under
+ * every name the top level does not hold yet. A framework bundle that inlines a package's JavaScript, as Astro's does
+ * with sharp, requires that package's dependencies from the bundle's own directory: sharp asks for its platform build
+ * (`@img/sharp-linux-x64`) by a name computed at run time, which only the artifact's top level can answer.
+ */
+const linkTopLevelPackageDependencies = async ({
+  plan,
+  artifactRoot
+}: {
+  plan: LambdaDependencyPlan;
+  artifactRoot: string;
+}) => {
+  const realArtifactRoot = await realpath(artifactRoot);
+  // Package names never start with a dot; `.bin` commands and the repeated layout under `.installed` do.
+  const topLevelLinks = plan.layout.links.filter(({ path }) => /^node_modules\/[^.]/.test(path));
+  const taken = new Set(topLevelLinks.map(({ path }) => path));
+  const links: PackageLayout['links'] = [];
+  for (const { target } of topLevelLinks) {
+    // The written directory: a package installed again in the Lambda build image has its platform builds inside it.
+    const packageRoot = join(realArtifactRoot, target);
+    // oxlint-disable-next-line no-await-in-loop -- one or two framework runtime packages.
+    for (const name of getRuntimeDependencyNames(await readPackageManifest(packageRoot))) {
+      const path = `node_modules/${name}`;
+      if (taken.has(path)) continue;
+      // oxlint-disable-next-line no-await-in-loop -- see above.
+      const dependencyRoot = await findInstalledPackage({ name, fromDirectory: packageRoot, stopAt: realArtifactRoot });
+      if (!dependencyRoot) continue;
+      taken.add(path);
+      links.push({ path, target: relative(realArtifactRoot, dependencyRoot).split(sep).join('/') });
+    }
+  }
+  await writePackageLayout({ layout: { directories: [], links }, packages: plan.packages, artifactRoot });
+};
+
+/**
  * Writes the plan's packages into the artifact whose `node_modules` is `nodeModulesPath`. A package the plan marks is
  * installed again in the Lambda build image; its files come from there, in the place of each installation of it here,
  * so each keeps its own peers.
@@ -301,13 +337,16 @@ export const writeLambdaDependencies = async ({
   nodeModulesPath,
   installationRootPath,
   lambdaRuntimeVersion,
-  runDocker
+  runDocker,
+  linkDependenciesAtTopLevel = false
 }: {
   plan: LambdaDependencyPlan;
   nodeModulesPath: string;
   installationRootPath: string;
   lambdaRuntimeVersion: number;
   runDocker: RunDocker;
+  /** Also link the top-level packages' dependencies at the top level (`linkTopLevelPackageDependencies`). */
+  linkDependenciesAtTopLevel?: boolean | undefined;
 }) => {
   const sources = new Map<string, PackageSource>();
   for (const group of groupInstallations(plan)) {
@@ -342,6 +381,8 @@ export const writeLambdaDependencies = async ({
     sources,
     selection: plan.selection
   });
+  if (linkDependenciesAtTopLevel)
+    await linkTopLevelPackageDependencies({ plan, artifactRoot: dirname(nodeModulesPath) });
 };
 
 /**

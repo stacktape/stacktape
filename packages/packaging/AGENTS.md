@@ -68,9 +68,11 @@ such as `@swc/core` emit imports that no script spells out. `es/installed-packag
 layouts alike and repeats the installed layout under the artifact's `node_modules/.installed`: each package's real
 directory once, at its path relative to the project, with the `node_modules` links that lead to it. Every package
 therefore resolves what it resolved on the build machine. The artifact's top-level `node_modules` links each package the
-bundle requires to the installation the bundle resolved. The Lambda archive stores the links; on Windows they are
-junctions. A package's `.yarn` directory, Yarn's state that some packages publish by mistake, is never copied. The
-digest covers the copied files and the links. Only a native package whose installed files do not run on Lambda is
+bundle requires to the installation the bundle resolved. An SSR framework's native runtime package (Astro's `sharp`)
+also gets its own dependencies linked there, because the framework bundle inlines its JavaScript, which then requires
+its platform build (`@img/sharp-linux-x64`) from the bundle's directory. The Lambda archive stores the links; on Windows
+they are junctions. A package's `.yarn` directory, Yarn's state that some packages publish by mistake, is never copied.
+The digest covers the copied files and the links. Only a native package whose installed files do not run on Lambda is
 installed again, with npm in the Lambda build image, one installation per version, with its dependencies pinned to the
 installed ones; the artifact keeps the build machine's copies of those dependencies and takes only the rebuilt package
 and its platform packages from the image. On a Linux build machine with glibc that is rare, so most builds never start
