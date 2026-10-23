@@ -200,76 +200,90 @@ try {
     await run('pnpm', ['rebuild'], root);
   }
 
-  console.log('Building, zipping, and invoking Astro middleware with its default image optimizer...');
-  const astroOutputs = await createSsrWebArtifacts({
-    resourceName: 'synthetic-astro',
-    resourceType: 'astro-web',
-    serverFunctionName: 'synthetic-astro-server',
-    distFolderPath: join(buildRoot, 'astro'),
-    cwd: root,
-    progressLogger,
-    createProgressLogger: () => progressLogger,
-    buildConfig: {
-      buildCommand: 'astro build',
-      bundledApplicationPackages: ['astro', '@astrojs/node'],
-      copyStaticAssetsToServerDirectory: 'client',
-      workingDir: astroRoot,
-      serverOutputPath: 'dist/server',
-      staticOutputPath: 'dist/client',
-      handlerFileName: 'entry.mjs',
-      adapterConfigurationHint: "Configure astro.config with output: 'server' and @astrojs/node in middleware mode.",
-      preserveServerOutputDirectory: true,
-      requiredAdapterPackages: ['@astrojs/node'],
-      nativeRuntimePackages: [{ name: 'sharp', resolveFromPackage: 'astro' }],
-      traceBasePath: root,
-      staticAssetPrefix: '_astro',
-      wrapperType: 'node-http'
-    },
-    environmentVars: [],
-    existingDigests: [],
-    archiveItem,
-    createPackagingError,
-    executeProcess,
-    runDocker,
-    nativeDependencyInstallationRootPath: join(buildRoot, 'native-installations'),
-    dockerBuildOutputArchitecture: 'linux/amd64'
-  });
-  const astroOutput = astroOutputs[0];
-  if (!astroOutput) throw new Error('Astro did not emit a server artifact.');
-  assertLambdaZip(astroOutput);
-  const astroFunctionPath = join(buildRoot, 'astro', 'server-function');
-  const astroPage = await invokeNodeHandlerInLambdaImage({
-    functionPath: astroFunctionPath,
-    event: event({ rawQueryString: 'q=hello%20astro' })
-  });
-  if (
-    astroPage.statusCode !== 200 ||
-    !astroPage.body.includes('ASTRO_FINAL_OK|https://public.example.com/?q=hello%20astro|request-cookie=present') ||
-    astroPage.cookies?.length !== 2 ||
-    !astroPage.cookies?.some((cookie) => cookie.startsWith('astro-secure=ok;'))
-  ) {
-    throw new Error(`Unexpected Astro page response: ${JSON.stringify(astroPage)}`);
-  }
-  const imageUrl = astroPage.body.match(/src="([^"]*\/_image\?[^"]+)"/)?.[1]?.replaceAll('&amp;', '&');
-  if (!imageUrl) {
-    throw new Error(`Astro did not emit an image optimizer URL: ${astroPage.body}`);
-  }
-  const parsedImageUrl = new URL(imageUrl, 'https://public.example.com');
-  const astroImage = await invokeNodeHandlerInLambdaImage({
-    functionPath: astroFunctionPath,
-    event: event({
-      rawPath: parsedImageUrl.pathname,
-      rawQueryString: parsedImageUrl.search.slice(1)
-    })
-  });
-  if (
-    astroImage.statusCode !== 200 ||
-    astroImage.headers['content-type'] !== 'image/webp' ||
-    astroImage.isBase64Encoded !== true ||
-    Buffer.from(astroImage.body, 'base64').byteLength === 0
-  ) {
-    throw new Error(`Astro image optimization failed in Lambda Node 22: ${JSON.stringify(astroImage)}`);
-  }
+  // Astro's bundle inlines sharp's JavaScript, which then loads sharp's platform build from the artifact's top level.
+  // An x64 build machine has that build for x64 Lambdas; for arm64 the Lambda build image installs sharp again.
+  const packageAndInvokeAstro = async (architecture: 'linux/amd64' | 'linux/arm64') => {
+    const distFolderPath = join(buildRoot, `astro-${architecture.replace('linux/', '')}`);
+    const astroOutputs = await createSsrWebArtifacts({
+      resourceName: 'synthetic-astro',
+      resourceType: 'astro-web',
+      serverFunctionName: 'synthetic-astro-server',
+      distFolderPath,
+      cwd: root,
+      progressLogger,
+      createProgressLogger: () => progressLogger,
+      buildConfig: {
+        buildCommand: 'astro build',
+        bundledApplicationPackages: ['astro', '@astrojs/node'],
+        copyStaticAssetsToServerDirectory: 'client',
+        workingDir: astroRoot,
+        serverOutputPath: 'dist/server',
+        staticOutputPath: 'dist/client',
+        handlerFileName: 'entry.mjs',
+        adapterConfigurationHint: "Configure astro.config with output: 'server' and @astrojs/node in middleware mode.",
+        preserveServerOutputDirectory: true,
+        requiredAdapterPackages: ['@astrojs/node'],
+        nativeRuntimePackages: [{ name: 'sharp', resolveFromPackage: 'astro' }],
+        traceBasePath: root,
+        staticAssetPrefix: '_astro',
+        wrapperType: 'node-http'
+      },
+      environmentVars: [],
+      existingDigests: [],
+      archiveItem,
+      createPackagingError,
+      executeProcess,
+      runDocker,
+      nativeDependencyInstallationRootPath: join(buildRoot, 'native-installations'),
+      dockerBuildOutputArchitecture: architecture
+    });
+    const astroOutput = astroOutputs[0];
+    if (!astroOutput) throw new Error('Astro did not emit a server artifact.');
+    assertLambdaZip(astroOutput);
+    const astroFunctionPath = join(distFolderPath, 'server-function');
+    const astroPage = await invokeNodeHandlerInLambdaImage({
+      functionPath: astroFunctionPath,
+      event: event({ rawQueryString: 'q=hello%20astro' }),
+      platform: architecture
+    });
+    if (
+      astroPage.statusCode !== 200 ||
+      !astroPage.body.includes('ASTRO_FINAL_OK|https://public.example.com/?q=hello%20astro|request-cookie=present') ||
+      astroPage.cookies?.length !== 2 ||
+      !astroPage.cookies?.some((cookie) => cookie.startsWith('astro-secure=ok;'))
+    ) {
+      throw new Error(`Unexpected Astro page response on ${architecture}: ${JSON.stringify(astroPage)}`);
+    }
+    const imageUrl = astroPage.body.match(/src="([^"]*\/_image\?[^"]+)"/)?.[1]?.replaceAll('&amp;', '&');
+    if (!imageUrl) {
+      throw new Error(`Astro did not emit an image optimizer URL: ${astroPage.body}`);
+    }
+    const parsedImageUrl = new URL(imageUrl, 'https://public.example.com');
+    const astroImage = await invokeNodeHandlerInLambdaImage({
+      functionPath: astroFunctionPath,
+      event: event({
+        rawPath: parsedImageUrl.pathname,
+        rawQueryString: parsedImageUrl.search.slice(1)
+      }),
+      platform: architecture
+    });
+    if (
+      astroImage.statusCode !== 200 ||
+      astroImage.headers['content-type'] !== 'image/webp' ||
+      astroImage.isBase64Encoded !== true ||
+      Buffer.from(astroImage.body, 'base64').byteLength === 0
+    ) {
+      throw new Error(
+        `Astro image optimization failed in Lambda Node 22 on ${architecture}: ${JSON.stringify(astroImage)}`
+      );
+    }
+    return astroOutput;
+  };
+
+  console.log('Building, zipping, and invoking Astro middleware with its default image optimizer on x64...');
+  const astroOutput = await packageAndInvokeAstro('linux/amd64');
+  console.log('Building, zipping, and invoking the same Astro application on arm64...');
+  const astroArm64Output = await packageAndInvokeAstro('linux/arm64');
 
   console.log('Building, zipping, and invoking nested pnpm SvelteKit with a runtime-selected dependency...');
   const svelteOutputs = await createSsrWebArtifacts({
@@ -321,9 +335,14 @@ try {
 
   console.table([
     {
-      framework: 'Astro 7 + sharp image optimizer',
+      framework: 'Astro 7 + sharp image optimizer (x64)',
       uncompressedMiB: astroOutput.size,
       zippedMiB: astroOutput.zippedSize
+    },
+    {
+      framework: 'Astro 7 + sharp image optimizer (arm64)',
+      uncompressedMiB: astroArm64Output.size,
+      zippedMiB: astroArm64Output.zippedSize
     },
     {
       framework: 'SvelteKit 2 + dynamic dependency',

@@ -318,11 +318,14 @@ export const assertRunOutput = async ({ dockerArgs, expected }: { dockerArgs: st
 export const invokeNodeHandlerInLambdaImage = async ({
   functionPath,
   event,
-  environment = {}
+  environment = {},
+  platform = 'linux/amd64'
 }: {
   functionPath: string;
   event: Record<string, unknown>;
   environment?: Record<string, string>;
+  /** The Lambda architecture to run; arm64 runs under emulation on an x64 machine. */
+  platform?: 'linux/amd64' | 'linux/arm64';
 }) => {
   const encodedEvent = Buffer.from(JSON.stringify(event)).toString('base64');
   const script = [
@@ -335,6 +338,8 @@ export const invokeNodeHandlerInLambdaImage = async ({
   const result = await run('docker', [
     'run',
     '--rm',
+    '--platform',
+    platform,
     '--entrypoint',
     'node',
     '--mount',

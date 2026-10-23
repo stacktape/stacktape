@@ -75,9 +75,12 @@ try {
       const { default: plugin, asset } = await import(req.headers['x-plugin']);
       const clientAsset = \${process.env.PRESERVE_LAYOUT === 'yes'}
         ? '|' + await readFile(new URL('../client/asset.txt', import.meta.url), 'utf8') : '';
+      // Astro's bundle inlines sharp's JavaScript, which requires its platform build by a computed name from here.
+      const inlinedNative = \${process.env.INLINED_NATIVE === 'yes'}
+        ? '|' + (await import('node:module')).createRequire(import.meta.url)(['native-addon', 'linux-x64'].join('-')) : '';
       res.setHeader('content-type', 'text/plain');
       res.setHeader('set-cookie', ['first=one; Path=/', 'second=two; Path=/']);
-      res.end("\${process.env.MARKER}" + '|' + framework + '|' + plugin + '|' + asset + clientAsset);
+      res.end("\${process.env.MARKER}" + '|' + framework + '|' + plugin + '|' + asset + clientAsset + inlinedNative);
     };
   \`);
   await new Promise(resolve => setTimeout(resolve, 100));
@@ -235,6 +238,37 @@ test('the SSR artifact preserves server-relative client files required by Astro'
     const { response } = await invokeArtifact(output[0]!.artifactPath!);
     expect(response.body).toBe('layout|traced-framework|runtime-plugin|runtime-asset|layout');
     expect(await readdir(join(root, 'layout/bucket-content'))).toEqual(['asset.txt']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 30_000);
+
+test('a native runtime package that the framework bundle inlines finds its platform build', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-ssr-inlined-native-'));
+  try {
+    await setup(root);
+    await write(
+      join(root, 'node_modules/framework/package.json'),
+      '{"name":"framework","type":"module","main":"index.js","dependencies":{"native-addon":"1.0.0"}}'
+    );
+    await write(
+      join(root, 'node_modules/native-addon/package.json'),
+      '{"name":"native-addon","version":"1.0.0","optionalDependencies":{"native-addon-linux-x64":"1.0.0"}}'
+    );
+    await write(join(root, 'node_modules/native-addon/index.js'), 'module.exports = "not-inlined";');
+    await write(
+      join(root, 'node_modules/native-addon-linux-x64/package.json'),
+      '{"name":"native-addon-linux-x64","version":"1.0.0","os":["linux"],"cpu":["x64"],"main":"index.js"}'
+    );
+    await write(join(root, 'node_modules/native-addon-linux-x64/index.js'), 'module.exports = "platform-build";');
+    const output = await packageApp(
+      root,
+      'inlined',
+      { INLINED_NATIVE: 'yes' },
+      { nativeRuntimePackages: [{ name: 'native-addon', resolveFromPackage: 'framework' }] }
+    );
+    const { response } = await invokeArtifact(output[0]!.artifactPath!);
+    expect(response.body).toBe('inlined|traced-framework|runtime-plugin|runtime-asset|platform-build');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -653,7 +653,9 @@ export const createSsrWebArtifacts = async ({
       nodeModulesPath: join(distFolderPath, 'server-function', 'node_modules'),
       installationRootPath: nativeDependencyInstallationRootPath ?? '',
       lambdaRuntimeVersion: 24,
-      runDocker: (commands) => runDocker!(commands)
+      runDocker: (commands) => runDocker!(commands),
+      // The framework bundle may inline the package's JavaScript, which then loads its dependencies from the bundle.
+      linkDependenciesAtTopLevel: true
     });
   }
   await createServerWrapper({
