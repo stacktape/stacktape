@@ -117,9 +117,10 @@ describe('a YAML config with directives, references and stage-specific values sy
     });
     expect(environment.TABLE_NAME).toEqual({ Ref: 'RecordsGlobalTable' });
     expect(environment.TABLE_ARN).toEqual({ 'Fn::GetAtt': ['RecordsGlobalTable', 'Arn'] });
-    // The gateway's URL is its default domain, which derives from the resource, stack and account.
-    expect(environment.GATEWAY_URL).toMatch(
-      /^https:\/\/gateway-directive-project-production-[0-9a-f]{8}\.stacktape-app\.com$/
+    // The gateway's URL is its default domain. A new stack gets version 2: the first 80 bits of
+    // sha256("us-east-1\0directive-project-production\0123456789999").
+    expect(environment.GATEWAY_URL).toBe(
+      'https://gateway-directive-project-production-072f189a8335b485d6b6.stacktape-app.com'
     );
 
     // Stage-specific values selected through nested directives, and variables used in a non-string property.

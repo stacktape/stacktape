@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer, connect, type Server } from 'node:net';
@@ -20,6 +20,28 @@ const CONTAINER_NAME_PREFIX = 'stacktape-ministack-';
 const DOCKER_HOST_NAME = 'host.docker.internal';
 /** An anonymous volume of the emulator, shared with the host relay, that holds one Unix socket per forwarded port. */
 const RELAY_SOCKET_DIRECTORY = '/stacktape-host-relay';
+/** Docker label that ties the emulator and its relay to one fixture run, so the orphan watchdog finds both. */
+const RUN_LABEL = 'stacktape.ministack.run';
+
+/**
+ * Runs detached from the fixture's process group and polls the owner. When the owner is gone without having called
+ * `stop()` (SIGKILL, a runner killed by `timeout`, Ctrl-C before `afterAll`), it removes the run's relay, then the
+ * emulator with its anonymous volumes. `stop()` ends it after a verified cleanup.
+ */
+const ORPHAN_WATCHDOG = `const { spawnSync } = require('node:child_process');
+const owner = Number(process.env.STACKTAPE_MINISTACK_OWNER_PID);
+const run = process.env.STACKTAPE_MINISTACK_RUN;
+const alive = () => { try { process.kill(owner, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
+const timer = setInterval(() => {
+  if (alive()) return;
+  clearInterval(timer);
+  const list = spawnSync('docker', ['ps', '--all', '--filter', 'label=${RUN_LABEL}=' + run, '--format', '{{.Names}}'], { encoding: 'utf8' });
+  const names = (list.stdout || '').split(/\\s+/).filter(Boolean);
+  const relays = names.filter((name) => name.endsWith('-host-relay'));
+  for (const group of [relays, names.filter((name) => !relays.includes(name))]) {
+    if (group.length > 0) spawnSync('docker', ['rm', '--force', '--volumes', ...group], { stdio: 'ignore' });
+  }
+}, 1000);`;
 
 export type MiniStackCredentials = { accessKeyId: string; secretAccessKey: string };
 
@@ -363,7 +385,8 @@ const waitForHealth = async (endpoint: string, containerName: string, deadline: 
 
 /**
  * Starts one pinned MiniStack container on a random loopback port and returns it ready. The caller owns `stop()`;
- * call it from `finally` or `afterAll` so a failed test still removes the container.
+ * call it from `finally` or `afterAll` so a failed test still removes the container. A detached watchdog removes the
+ * containers if this process ends without calling `stop()`.
  */
 export const startMiniStack = async ({
   label = 'test',
@@ -390,6 +413,13 @@ export const startMiniStack = async ({
   const bridgeRelays: Server[] = [];
   let sidecarStarted = false;
   const sidecarName = () => `${containerName}-host-relay`;
+  const run = randomBytes(8).toString('hex');
+  const watchdog = spawn(process.execPath, ['-e', ORPHAN_WATCHDOG], {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, STACKTAPE_MINISTACK_OWNER_PID: String(process.pid), STACKTAPE_MINISTACK_RUN: run }
+  });
+  watchdog.unref();
   const stop = async () => {
     if (stopped) return;
     for (const relay of bridgeRelays.splice(0)) relay.close();
@@ -398,6 +428,7 @@ export const startMiniStack = async ({
     sidecarStarted = false;
     removeMiniStackContainer(docker, containerName, volumes);
     stopped = true;
+    watchdog.kill();
   };
   try {
     // The image is Linux-only. A Windows-containers daemon (GitHub's windows-latest) fails later with an unhelpful
@@ -420,6 +451,8 @@ export const startMiniStack = async ({
           '--detach',
           '--name',
           containerName,
+          '--label',
+          `${RUN_LABEL}=${run}`,
           '--publish',
           `127.0.0.1::${CONTAINER_PORT}`,
           '--volume',
@@ -517,6 +550,8 @@ export const startMiniStack = async ({
           '--detach',
           '--name',
           sidecarName(),
+          '--label',
+          `${RUN_LABEL}=${run}`,
           '--add-host',
           `${DOCKER_HOST_NAME}:host-gateway`,
           '--volume',

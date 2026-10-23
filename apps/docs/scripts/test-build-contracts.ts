@@ -46,7 +46,7 @@ try {
     },
     {
       name: 'CLI option drift',
-      change: (html) => html.replace('--stage (-s)', '--j12-obsolete-option'),
+      change: (html) => html.replace('>-s, --stage<', '>--j12-obsolete-option<'),
       diagnostic: /CLI reference for deploy differs from the current command metadata/
     },
     {

@@ -125,13 +125,28 @@ export const createNextjsWebArtifacts = async ({
           });
         }
         temporaryNextConfigPath = await ensureNextConfig(absoluteAppDirectory);
-        await executeProcess('npx', ['--yes', OPEN_NEXT_BUILD_PACKAGE, 'build', '--config-path', configFileName], {
-          cwd: absoluteAppDirectory,
-          env: { ...copyEnv },
-          disableStderr: true,
-          disableStdout: true,
-          inheritEnvVarsExcept: []
-        });
+        // OpenNext refuses a Next.js major two years after its release date (Next 15 since 2026-10-22), whatever the
+        // app or the pinned builder can do. The qualified pin decides support, not the calendar. Its argument parser
+        // ignores a flag without a value, hence `true`.
+        await executeProcess(
+          'npx',
+          [
+            '--yes',
+            OPEN_NEXT_BUILD_PACKAGE,
+            'build',
+            '--config-path',
+            configFileName,
+            '--dangerously-use-unsupported-next-version',
+            'true'
+          ],
+          {
+            cwd: absoluteAppDirectory,
+            env: { ...copyEnv },
+            disableStderr: true,
+            disableStdout: true,
+            inheritEnvVarsExcept: []
+          }
+        );
       } catch (error) {
         throw createPackagingError({
           type: 'PACKAGING',
