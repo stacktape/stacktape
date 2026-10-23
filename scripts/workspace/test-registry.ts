@@ -2227,7 +2227,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
-      'apps/console/ui/e2e/ui-review-controls.spec.ts'
+      'apps/console/ui/e2e/ui-review-controls.spec.ts',
+      'apps/console/ui/e2e/copy-button-ui.spec.ts'
     ],
     requires: ['console', 'chromium'],
     release: 'every-candidate',
@@ -3439,7 +3440,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
-      'apps/console/ui/e2e/ui-review-controls.spec.ts'
+      'apps/console/ui/e2e/ui-review-controls.spec.ts',
+      'apps/console/ui/e2e/copy-button-ui.spec.ts'
     ],
     requires: ['console', 'chromium'],
     release: 'every-candidate'
@@ -5994,6 +5996,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
+      'apps/console/ui/e2e/copy-button-ui.spec.ts',
       'packages/design-tokens/src/tokens.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
