@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 export type TabValue = string | number;
@@ -42,6 +42,95 @@ type IndicatorGeometry = {
 const hiddenIndicator: IndicatorGeometry = { height: 0, left: 0, ready: false, top: 0, width: 0 };
 
 /**
+ * The selected surface that slides to the active item: the one Tabs draws, for navigation lists that are not tabs
+ * (a project's stage list). Place it inside `container`, which must be positioned, after the items: their refs are
+ * attached by the time it measures. It measures `getTarget()` against
+ * the container (including its scroll offset) whenever `activeKey` changes or either element resizes, and animates
+ * with the tab bar's timing and easing.
+ */
+export function SlidingIndicator({
+  containerRef,
+  getTarget,
+  activeKey,
+  className,
+  style
+}: {
+  containerRef: RefObject<HTMLElement | null>;
+  getTarget: () => HTMLElement | null | undefined;
+  /** Changes when another item becomes active. */
+  activeKey: TabValue | null | undefined;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const [indicator, setIndicator] = useState<IndicatorGeometry>(hiddenIndicator);
+  const getTargetRef = useRef(getTarget);
+  getTargetRef.current = getTarget;
+
+  const update = useCallback(() => {
+    const container = containerRef.current;
+    const target = activeKey === null || activeKey === undefined ? null : getTargetRef.current();
+    if (!container || !target) {
+      setIndicator((current) => (current.ready ? hiddenIndicator : current));
+      return;
+    }
+    const containerBox = container.getBoundingClientRect();
+    const targetBox = target.getBoundingClientRect();
+    const next: IndicatorGeometry = {
+      height: targetBox.height,
+      left: targetBox.left - containerBox.left - container.clientLeft + container.scrollLeft,
+      ready: true,
+      top: targetBox.top - containerBox.top - container.clientTop + container.scrollTop,
+      width: targetBox.width
+    };
+    setIndicator((current) =>
+      current.height === next.height &&
+      current.left === next.left &&
+      current.ready === next.ready &&
+      current.top === next.top &&
+      current.width === next.width
+        ? current
+        : next
+    );
+  }, [activeKey, containerRef]);
+
+  // After every render: items above the target can move it (a list re-sorted) without resizing anything observed.
+  useLayoutEffect(() => {
+    update();
+  });
+
+  useEffect(() => {
+    window.addEventListener('resize', update);
+    const container = containerRef.current;
+    const target = getTargetRef.current();
+    if (!container || !target || typeof ResizeObserver === 'undefined') {
+      return () => window.removeEventListener('resize', update);
+    }
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    observer.observe(target);
+    return () => {
+      window.removeEventListener('resize', update);
+      observer.disconnect();
+    };
+  }, [containerRef, update]);
+
+  return (
+    <span
+      aria-hidden="true"
+      className={classes('stp-ui-tabs__indicator', className)}
+      style={{
+        ...style,
+        height: indicator.height,
+        left: indicator.left,
+        opacity: indicator.ready ? 1 : 0,
+        top: indicator.top,
+        width: indicator.width
+      }}
+    />
+  );
+}
+
+/**
  * Controlled, accessible navigation between sibling views.
  *
  * This component owns tab semantics, focus movement and the common Stacktape appearance. The host
@@ -66,57 +155,12 @@ export function Tabs<const Value extends TabValue>({
   const tabsId = id ?? `stacktape-tabs-${generatedId}`;
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const [indicator, setIndicator] = useState<IndicatorGeometry>(hiddenIndicator);
   const activeIndex = tabs.findIndex((tab) => tab.value === value);
   const hasSlidingIndicator = appearance !== 'underline' && activeIndex >= 0;
 
-  const updateIndicator = useCallback(() => {
-    const activeButton = buttonRefs.current[activeIndex];
-    if (!hasSlidingIndicator || !activeButton) {
-      setIndicator((current) => (current.ready ? hiddenIndicator : current));
-      return;
-    }
-
-    const next: IndicatorGeometry = {
-      height: activeButton.offsetHeight,
-      left: activeButton.offsetLeft,
-      ready: true,
-      top: activeButton.offsetTop,
-      width: activeButton.offsetWidth
-    };
-    setIndicator((current) =>
-      current.height === next.height &&
-      current.left === next.left &&
-      current.ready === next.ready &&
-      current.top === next.top &&
-      current.width === next.width
-        ? current
-        : next
-    );
-  }, [activeIndex, hasSlidingIndicator]);
-
   useLayoutEffect(() => {
     buttonRefs.current.length = tabs.length;
-    updateIndicator();
-  }, [tabs.length, updateIndicator]);
-
-  useEffect(() => {
-    window.addEventListener('resize', updateIndicator);
-    return () => window.removeEventListener('resize', updateIndicator);
-  }, [updateIndicator]);
-
-  useEffect(() => {
-    if (!hasSlidingIndicator || typeof ResizeObserver === 'undefined') return;
-
-    const list = listRef.current;
-    const activeButton = buttonRefs.current[activeIndex];
-    if (!list || !activeButton) return;
-
-    const observer = new ResizeObserver(updateIndicator);
-    observer.observe(list);
-    observer.observe(activeButton);
-    return () => observer.disconnect();
-  }, [activeIndex, hasSlidingIndicator, updateIndicator]);
+  }, [tabs.length]);
 
   const selectAndFocus = (index: number) => {
     if (tabs.length === 0) return;
@@ -170,19 +214,6 @@ export function Tabs<const Value extends TabValue>({
         ref={listRef}
         role="tablist"
       >
-        {hasSlidingIndicator ? (
-          <span
-            aria-hidden="true"
-            className="stp-ui-tabs__indicator"
-            style={{
-              height: indicator.height,
-              left: indicator.left,
-              opacity: indicator.ready ? 1 : 0,
-              top: indicator.top,
-              width: indicator.width
-            }}
-          />
-        ) : null}
         {tabs.map((tab, index) => {
           const isActive = tab.value === value;
           const tabId = `${tabsId}-tab-${String(tab.value)}`;
@@ -220,6 +251,13 @@ export function Tabs<const Value extends TabValue>({
             </button>
           );
         })}
+        {hasSlidingIndicator ? (
+          <SlidingIndicator
+            activeKey={value}
+            containerRef={listRef}
+            getTarget={() => buttonRefs.current[activeIndex]}
+          />
+        ) : null}
       </div>
     </div>
   );
