@@ -805,11 +805,15 @@
     letter-spacing: 0;
   }
 
-  .stp-ui-count-badge--compact {
-    min-width: 17px;
-    min-height: 17px;
-    padding: 0 4px;
-    font-size: 10px;
+  /* Where a number does not fit: a dot ringed in the surface colour, so it reads as cut out of the icon it sits on. */
+  .stp-ui-count-badge--dot {
+    width: 8px;
+    height: 8px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    box-shadow: 0 0 0 2px var(--stp-count-badge-ring, rgb(28, 32, 32));
   }
 
   /* ── Product resource icons ───────────────────────────────────────────────────────────────── */

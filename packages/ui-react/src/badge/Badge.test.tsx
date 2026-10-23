@@ -10,9 +10,14 @@ test('encodes badge meaning as stable semantic classes', () => {
   expect(markup).toContain('>Ready</span>');
 });
 
-test('count badges cap large values and expose a compact variant', () => {
-  const markup = renderToStaticMarkup(<CountBadge isCompact value={128} />);
+test('count badges cap large values', () => {
+  expect(renderToStaticMarkup(<CountBadge value={128} />)).toContain('>99+</span>');
+});
 
-  expect(markup).toContain('stp-ui-count-badge--compact');
-  expect(markup).toContain('99+');
+test('the dot form of a count badge has no text', () => {
+  const markup = renderToStaticMarkup(<CountBadge display="dot" value={7} />);
+
+  expect(markup).toContain('stp-ui-count-badge--dot');
+  expect(markup).toContain('aria-hidden="true"');
+  expect(markup).not.toContain('>7<');
 });
