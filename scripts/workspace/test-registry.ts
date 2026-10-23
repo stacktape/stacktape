@@ -1953,6 +1953,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
+      'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
@@ -2563,6 +2564,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/security/inventory-grading.test.ts',
       'apps/console/api/src/security/osv-client.test.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
+      'apps/console/api/src/services/aws-scope-usage.test.ts',
       'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
@@ -2689,6 +2691,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
+      'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
@@ -5125,7 +5128,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts'
+      'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
+      'apps/console/ui/src/components/Filters/aws-scope.test.ts',
+      'apps/console/api/src/services/aws-scope-usage.test.ts'
     ],
     lanes: [
       'console-access-rules',
