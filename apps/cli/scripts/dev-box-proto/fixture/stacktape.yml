@@ -1,0 +1,78 @@
+# Dev-box prototype fixture. `stacktape dev` runs `db` in local Docker; the functions run in AWS.
+# - benchArm / benchX86: VPC functions (private subnets, NAT through the dev box), same code, two architectures.
+# - benchNoVpc: today's non-VPC function, the bore.pub baseline.
+# - pauseProbe: keeps pg pools in module scope for the paused-sandbox test.
+# The harness replaces the owner tag value with its run ID.
+stackConfig:
+  nat:
+    type: ec2
+    instanceSize: t4g.nano
+  tags:
+    - name: devbox-proto-run
+      value: local
+
+resources:
+  db:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: devbox-proto-password
+      engine:
+        type: postgres
+        properties:
+          version: '16.4'
+          primaryInstance:
+            instanceSize: db.t3.micro
+
+  benchArm:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/bench.ts
+      architecture: arm64
+      memory: 1024
+      timeout: 300
+      joinDefaultVpc: true
+      connectTo:
+        - db
+
+  benchX86:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/bench.ts
+      architecture: x86_64
+      memory: 1024
+      timeout: 300
+      joinDefaultVpc: true
+      connectTo:
+        - db
+
+  pauseProbe:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/bench.ts
+      architecture: arm64
+      memory: 1024
+      timeout: 120
+      joinDefaultVpc: true
+      connectTo:
+        - db
+
+  benchNoVpc:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/bench.ts
+      architecture: arm64
+      memory: 1024
+      timeout: 300

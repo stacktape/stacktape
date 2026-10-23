@@ -59,6 +59,12 @@ type ParsedTunnelServer = {
 };
 
 const activeTunnels: TunnelInfo[] = [];
+/** Dev-box prototype: the relay behind an SSM forward instead of the public relay, and the port each tunnel asks for. */
+let serverOverride: ParsedTunnelServer | undefined;
+const requestedPorts = new Map<string, number>();
+export const useTunnelServer = (server: ParsedTunnelServer) => {
+  serverOverride = server;
+};
 const reconnectingTunnels = new Set<string>();
 const activeConnections = new Set<Socket>();
 let tunnelSession = new AbortController();
@@ -498,7 +504,7 @@ const startTunnelAttempt = async (
   localPort: number,
   signal: AbortSignal
 ): Promise<TunnelInfo> => {
-  const server = parseTunnelServer(TUNNEL_SERVER);
+  const server = serverOverride ?? parseTunnelServer(TUNNEL_SERVER);
   const controlSocket = await DelimitedSocket.connect({
     host: server.controlHost,
     port: server.controlPort
@@ -508,7 +514,8 @@ const startTunnelAttempt = async (
   signal.addEventListener('abort', abort, { once: true });
   try {
     signal.throwIfAborted();
-    await controlSocket.send({ type: 'Hello', port: 0 });
+    // A fixed port keeps the Lambda environment valid across reconnects (the dev box relay frees it on disconnect).
+    await controlSocket.send({ type: 'Hello', port: serverOverride ? (requestedPorts.get(resourceName) ?? localPort) : 0 });
 
     const response = await controlSocket.recv({ timeoutMs: TUNNEL_STARTUP_TIMEOUT_MS });
 
@@ -532,6 +539,7 @@ const startTunnelAttempt = async (
 
     const process = new TunnelClientProcess(controlSocket);
 
+    if (serverOverride) requestedPorts.set(resourceName, response.port);
     const tunnelInfo: TunnelInfo = {
       resourceName,
       localPort,

@@ -13,6 +13,7 @@ import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformat
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getEventBusRuleLambdaPermission } from '../functions/events/utils';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import { DEV_BOX_RELAY_SOURCE } from 'src/commands/dev/dev-box/relay-source';
 
 /**
  * NAT instances (`stackConfig.nat: ec2 | ha-ec2`): one small arm64 Amazon Linux 2023 instance per availability
@@ -32,6 +33,12 @@ const AL2023_ARM64_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al202
 const INSTANCE_READY_TIMEOUT = 'PT6M';
 const HEARTBEAT_INTERVAL_SECONDS = 20;
 const LIFECYCLE_HOOK_NAME = 'stacktape-nat-drain';
+
+/**
+ * Dev-box prototype: in a dev stack the NAT instance is also the relay that dev Lambdas use to reach the laptop's
+ * databases. It has no Elastic IP (the auto-assigned public IP is enough for egress) and its group may scale to zero.
+ */
+const isDevBox = () => configManager.deploymentContext.command === 'dev';
 
 const natTags = (azIndex: number) =>
   stackManager.getTags([
@@ -147,6 +154,34 @@ const getHeartbeatParameter = (azIndex: number) => {
 };
 
 /**
+ * Installs the dev box relay as a systemd service. It survives a stop/start (user data runs once per instance) and
+ * listens on the static route-target interface, whose private IP stays the same across instance replacements, so dev
+ * Lambdas keep one relay address for the stack's lifetime.
+ */
+const getDevBoxRelayInstall = () => `ENI_IP=$(aws ec2 describe-network-interfaces $AWS_CLI_TIMEOUTS --network-interface-ids "$ENI_ID" \\
+  --query 'NetworkInterfaces[0].PrivateIpAddress' --output text)
+mkdir -p /etc/stacktape-devbox
+echo "$ENI_IP" > /etc/stacktape-devbox/tunnel-host
+cat > /usr/local/bin/stacktape-devbox-relay <<'RELAY'
+${DEV_BOX_RELAY_SOURCE}RELAY
+chmod +x /usr/local/bin/stacktape-devbox-relay
+cat > /etc/systemd/system/stacktape-devbox-relay.service <<'UNIT'
+[Unit]
+Description=Stacktape dev box relay
+After=network-online.target
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/stacktape-devbox-relay
+Restart=always
+RestartSec=1
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now stacktape-devbox-relay.service
+echo "stacktape-nat: dev box relay on $ENI_IP"
+`;
+
+/**
  * The boot script. Every AWS call is retried because the previous instance of this zone may still be releasing the
  * interface and the address. The script ends with the CloudFormation signal, so a launch that cannot reach the
  * internet through the NAT path fails the stack update instead of silently serving nothing.
@@ -158,7 +193,7 @@ set -uo pipefail
 exec > >(tee -a /var/log/stacktape-nat.log | logger -t stacktape-nat) 2>&1
 
 ENI_ID='\${eniId}'
-EIP_ALLOCATION_ID='\${eipAllocationId}'
+EIP_ALLOCATION_ID='${isDevBox() ? '' : '\${eipAllocationId}'}'
 STACK_NAME='\${stackName}'
 ASG_LOGICAL_ID='\${asgLogicalId}'
 HEARTBEAT_PARAMETER='${getNatInstanceHeartbeatParameterName({ stackName, region, azIndex })}'
@@ -219,7 +254,7 @@ associate_eip() {
     --network-interface-id "$PRIMARY_ENI_ID" --allow-reassociation >/dev/null 2>&1 || true
   eip_associated
 }
-retry associate_eip || fail 'could not associate the Elastic IP'
+${isDevBox() ? "echo 'stacktape-nat: dev box keeps its auto-assigned public IP'" : "retry associate_eip || fail 'could not associate the Elastic IP'"}
 
 # Forwarded packets leave this interface with foreign source addresses.
 retry aws ec2 modify-network-interface-attribute $AWS_CLI_TIMEOUTS --network-interface-id "$PRIMARY_ENI_ID" \\
@@ -289,7 +324,7 @@ if [ "\\$(cat /proc/sys/net/ipv4/ip_forward)" = 1 ] && nft list table ip stackta
   && curl -sS --max-time 5 --interface "$PRIMARY_IF" https://checkip.amazonaws.com >/dev/null; then
   echo 0 > "\\$STATE_DIR/failures"
   aws ssm put-parameter --name "$HEARTBEAT_PARAMETER" --type String --overwrite \\\\
-    --value "{\\"instanceId\\":\\"$INSTANCE_ID\\",\\"at\\":\\$(date +%s)}" >/dev/null
+    --value "{\\"instanceId\\":\\"$INSTANCE_ID\\",\\"at\\":\\$(date +%s)${isDevBox() ? ',\\"relay\\":\\$(cat /run/stacktape-devbox/state.json 2>/dev/null || echo null)' : ''}}" >/dev/null
 else
   failures=\\$(( \\$(cat "\\$STATE_DIR/failures" 2>/dev/null || echo 0) + 1 ))
   echo "\\$failures" > "\\$STATE_DIR/failures"
@@ -330,7 +365,7 @@ for _ in $(seq 1 30); do
 done
 [ -n "$EGRESS_IP" ] || fail 'no outbound internet through the primary interface'
 echo "stacktape-nat: outbound traffic leaves as $EGRESS_IP"
-/usr/local/bin/stacktape-nat-heartbeat
+${isDevBox() ? getDevBoxRelayInstall() : ''}/usr/local/bin/stacktape-nat-heartbeat
 systemctl daemon-reload
 systemctl enable --now stacktape-nat-heartbeat.timer
 signal SUCCESS
@@ -340,7 +375,7 @@ echo "stacktape-nat: ready (zone ${azIndex})"
   return base64(
     sub(script, {
       eniId: ref(cfLogicalNames.natInstanceNetworkInterface(azIndex)),
-      eipAllocationId: getAtt(cfLogicalNames.natInstanceElasticIp(azIndex), 'AllocationId'),
+      ...(!isDevBox() && { eipAllocationId: getAtt(cfLogicalNames.natInstanceElasticIp(azIndex), 'AllocationId') }),
       stackName: ref('AWS::StackName'),
       asgLogicalId: cfLogicalNames.natInstanceAutoscalingGroup(azIndex)
     })
@@ -370,7 +405,7 @@ const getAutoscalingGroup = (azIndex: number) => {
       stackName: calculatedStackOverviewManager.context.stackName,
       azIndex
     }),
-    MinSize: '1',
+    MinSize: isDevBox() ? '0' : '1',
     MaxSize: '1',
     DesiredCapacity: '1',
     LaunchTemplate: {
@@ -533,7 +568,7 @@ export const resolveNatInstances = ({
   add(cfLogicalNames.natInstanceProfile(), getInstanceProfile());
 
   for (let azIndex = 0; azIndex < availabilityZones; azIndex += 1) {
-    add(cfLogicalNames.natInstanceElasticIp(azIndex), getElasticIp(azIndex));
+    if (!isDevBox()) add(cfLogicalNames.natInstanceElasticIp(azIndex), getElasticIp(azIndex));
     add(cfLogicalNames.natInstanceNetworkInterface(azIndex), getNetworkInterface(azIndex));
     add(cfLogicalNames.natInstanceHeartbeatParameter(azIndex), getHeartbeatParameter(azIndex));
     add(cfLogicalNames.natInstanceLaunchTemplate(azIndex), getLaunchTemplate(azIndex));
@@ -576,8 +611,8 @@ export const resolveNatInstances = ({
   }
 
   return {
-    elasticIpRefs: Array.from({ length: availabilityZones }, (_, azIndex) =>
-      ref(cfLogicalNames.natInstanceElasticIp(azIndex))
-    )
+    elasticIpRefs: isDevBox()
+      ? []
+      : Array.from({ length: availabilityZones }, (_, azIndex) => ref(cfLogicalNames.natInstanceElasticIp(azIndex)))
   };
 };

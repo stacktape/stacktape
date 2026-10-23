@@ -14,6 +14,7 @@ import { configManager } from '@domain-services/config-manager';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { createCleanupHook } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
+import { isDevBoxStack } from '../dev-box';
 
 type LambdaEnvBackup = {
   functionName: string;
@@ -176,7 +177,8 @@ export const detectLambdasNeedingTunnels = async (
     if (referencedLocalResources.length === 0) continue;
 
     // Check if Lambda is in VPC (joinDefaultVpc: true)
-    if ((lambda as any).joinDefaultVpc) {
+    // Dev-box prototype: VPC Lambdas reach the dev box relay on its private IP, so they no longer need skipping.
+    if ((lambda as any).joinDefaultVpc && !isDevBoxStack()) {
       const resourceList = referencedLocalResources.join(', ');
       skippedLambdas.push({
         name: lambda.name,

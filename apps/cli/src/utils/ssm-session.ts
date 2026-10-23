@@ -64,11 +64,13 @@ export class SsmPortForwardingTunnel {
   }
 
   connect = async () => {
+    // The SSM agent refuses ToRemoteHost to a loopback address; a port on the instance itself needs the plain document.
+    const instanceLocal = this.#remoteHost === '127.0.0.1' || this.#remoteHost === 'localhost';
     const startSessionCommandInput: StartSessionCommandInput = {
       Target: this.#instanceId,
-      DocumentName: 'AWS-StartPortForwardingSessionToRemoteHost',
+      DocumentName: instanceLocal ? 'AWS-StartPortForwardingSession' : 'AWS-StartPortForwardingSessionToRemoteHost',
       Parameters: {
-        host: [this.#remoteHost],
+        ...(!instanceLocal && { host: [this.#remoteHost] }),
         portNumber: [String(this.#remotePort)],
         localPortNumber: [String(this.localPort)]
       },

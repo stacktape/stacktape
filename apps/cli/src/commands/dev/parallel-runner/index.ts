@@ -31,7 +31,8 @@ import { startHealthMonitoring } from '../local-resources/health-monitor';
 import { startNextjsWebDevServer } from '../nextjs-web';
 import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
-import { startTunnel } from '../tunnel-manager';
+import { startTunnel, useTunnelServer } from '../tunnel-manager';
+import { connectDevBox, isDevBoxStack, registerDevBoxCleanupHook } from '../dev-box';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
 import { isPortAvailable, reservePorts } from '../port-utils';
@@ -166,6 +167,12 @@ export const runParallelWorkloads = async (
         }
       }
 
+      if (isDevBoxStack()) {
+        registerDevBoxCleanupHook();
+        const { controlHost, controlPort, publicHost } = await connectDevBox();
+        useTunnelServer({ controlHost, controlPort, publicHost });
+      }
+
       const failedTunnels: string[] = [];
       const tunnelPromises = Array.from(resourcesNeedingTunnels).map(async (resourceName) => {
         const localResource = state.localResources.find((r) => r.name === resourceName);
@@ -221,6 +228,9 @@ export const runParallelWorkloads = async (
           });
         // Store promise to await later before transitioning to 'ready'
         (state as any).lambdaEnvUpdatePromise = lambdaEnvUpdatePromise;
+        // Dev-box prototype: a code update started while this configuration update is in progress fails with
+        // ResourceConflictException; VPC functions take long enough for that race to happen on every start.
+        await lambdaEnvUpdatePromise;
       }
 
       if (useDevTui) {
