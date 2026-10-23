@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer, connect, type Server } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -92,6 +93,12 @@ export type StartMiniStackOptions = {
   blockEgress?: boolean;
   /** Extra variables for the emulator process itself. */
   environment?: Record<string, string>;
+  /**
+   * Load `emulator/application_autoscaling.py` into the emulator process: the Application Auto Scaling API and its two
+   * CloudFormation types for ECS services, which MiniStack does not implement yet (ministackorg/ministack#2162).
+   * Container workload templates need it. Off by default.
+   */
+  applicationAutoScaling?: boolean;
 };
 
 export class MiniStackError extends Error {
@@ -363,9 +370,18 @@ export const startMiniStack = async ({
   region = MINISTACK_DEFAULT_REGION,
   startTimeoutMs = 90_000,
   blockEgress = true,
-  environment = {}
+  environment = {},
+  applicationAutoScaling = false
 }: StartMiniStackOptions = {}): Promise<MiniStack> => {
   const started = performance.now();
+  // The extension installs itself and then runs MiniStack's own `main()`, so it replaces the `python -m ministack`
+  // entrypoint of the image.
+  const entrypoint = applicationAutoScaling
+    ? {
+        before: ['--entrypoint', 'python'],
+        after: ['-c', readFileSync(new URL('../emulator/application_autoscaling.py', import.meta.url), 'utf8')]
+      }
+    : { before: [], after: [] };
   const newContainerName = () =>
     `${CONTAINER_NAME_PREFIX}${label.replace(/[^a-zA-Z0-9_.-]/g, '-')}-${randomBytes(6).toString('hex')}`;
   let containerName = newContainerName();
@@ -420,7 +436,9 @@ export const startMiniStack = async ({
           '--env',
           'AWS_EC2_METADATA_DISABLED=true',
           ...Object.entries(environment).flatMap(([name, value]) => ['--env', `${name}=${value}`]),
-          MINISTACK_IMAGE
+          ...entrypoint.before,
+          MINISTACK_IMAGE,
+          ...entrypoint.after
         ],
         { timeoutMs: 180_000 }
       );

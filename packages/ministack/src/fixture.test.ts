@@ -2,13 +2,28 @@
  * Qualifies the fixture through its own contract: the emulator answers on a loopback port with synthetic credentials,
  * two accounts from one container cannot see each other's state, code inside the container cannot reach the internet
  * over IPv4 or IPv6 and cannot put the default route back, a forwarded host loopback port is the one way it reaches
- * this machine, and `stop()` removes the container and its volumes after
+ * this machine, the opt-in Application Auto Scaling extension keeps AWS's rules for ECS services, and `stop()` removes the container and its volumes after
  * success and after a deliberate failure and refuses to report a cleanup Docker did not confirm. Needs Docker; run
  * with `pnpm --filter @stacktape/ministack test:fixture`.
  */
 import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
+import {
+  ApplicationAutoScalingClient,
+  DeregisterScalableTargetCommand,
+  DescribeScalableTargetsCommand,
+  DescribeScalingPoliciesCommand,
+  PutScalingPolicyCommand,
+  RegisterScalableTargetCommand
+} from '@aws-sdk/client-application-auto-scaling';
+import {
+  CreateClusterCommand,
+  CreateServiceCommand,
+  DescribeServicesCommand,
+  ECSClient,
+  RegisterTaskDefinitionCommand
+} from '@aws-sdk/client-ecs';
 import { CreateBucketCommand, HeadBucketCommand, ListBucketsCommand, S3Client } from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import {
@@ -253,5 +268,75 @@ describe('MiniStack fixture', () => {
     expect(ministack).toBeDefined();
     expect(dockerExists('container', ministack!.containerName)).toBe(false);
     for (const volume of ministack!.volumes) expect(dockerExists('volume', volume)).toBe(false);
+  }, 120_000);
+  test('serves Application Auto Scaling for ECS services when asked, with AWS rules', async () => {
+    const ministack = await startMiniStack({ label: 'fixture-autoscaling', applicationAutoScaling: true });
+    const ecs = new ECSClient(ministack.clientConfig());
+    const autoScaling = new ApplicationAutoScalingClient(ministack.clientConfig());
+    try {
+      const key = {
+        ServiceNamespace: 'ecs',
+        ResourceId: 'service/scaled/api',
+        ScalableDimension: 'ecs:service:DesiredCount'
+      } as const;
+      // No service yet: AWS refuses to register a target for it.
+      await expect(
+        autoScaling.send(new RegisterScalableTargetCommand({ ...key, MinCapacity: 1, MaxCapacity: 2 }))
+      ).rejects.toThrow(/ECS service doesn't exist/);
+      await ecs.send(new CreateClusterCommand({ clusterName: 'scaled' }));
+      const { taskDefinition } = await ecs.send(
+        new RegisterTaskDefinitionCommand({
+          family: 'api',
+          containerDefinitions: [{ name: 'api', image: 'public.ecr.aws/docker/library/nginx:alpine', memory: 128 }]
+        })
+      );
+      await ecs.send(
+        new CreateServiceCommand({
+          cluster: 'scaled',
+          serviceName: 'api',
+          taskDefinition: taskDefinition!.taskDefinitionArn,
+          desiredCount: 1
+        })
+      );
+      await expect(
+        autoScaling.send(new PutScalingPolicyCommand({ ...key, PolicyName: 'cpu', PolicyType: 'StepScaling' }))
+      ).rejects.toThrow(/No scalable target registered/);
+      await expect(autoScaling.send(new RegisterScalableTargetCommand(key))).rejects.toThrow(
+        /MinCapacity and MaxCapacity/
+      );
+      await expect(
+        autoScaling.send(new RegisterScalableTargetCommand({ ...key, MinCapacity: 3, MaxCapacity: 2 }))
+      ).rejects.toThrow(/Maximum capacity cannot be less than minimum capacity/);
+      // Registration moves the service's desired count inside the range, here up to the minimum.
+      await autoScaling.send(new RegisterScalableTargetCommand({ ...key, MinCapacity: 3, MaxCapacity: 5 }));
+      const desiredCount = async () =>
+        (await ecs.send(new DescribeServicesCommand({ cluster: 'scaled', services: ['api'] }))).services?.[0]
+          ?.desiredCount;
+      expect(await desiredCount()).toBe(3);
+      const { ScalableTargets } = await autoScaling.send(
+        new DescribeScalableTargetsCommand({ ServiceNamespace: 'ecs', ResourceIds: [key.ResourceId] })
+      );
+      expect(ScalableTargets?.map(({ MinCapacity, MaxCapacity }) => [MinCapacity, MaxCapacity])).toEqual([[3, 5]]);
+      const { PolicyARN } = await autoScaling.send(
+        new PutScalingPolicyCommand({
+          ...key,
+          PolicyName: 'cpu',
+          PolicyType: 'TargetTrackingScaling',
+          TargetTrackingScalingPolicyConfiguration: {
+            TargetValue: 70,
+            PredefinedMetricSpecification: { PredefinedMetricType: 'ECSServiceAverageCPUUtilization' }
+          }
+        })
+      );
+      expect(PolicyARN).toMatch(/^arn:aws:autoscaling:.*:policyName\/cpu$/);
+      // Deregistering the target deletes its policies.
+      await autoScaling.send(new DeregisterScalableTargetCommand(key));
+      const remaining = await autoScaling.send(new DescribeScalingPoliciesCommand({ ServiceNamespace: 'ecs' }));
+      expect(remaining.ScalingPolicies).toEqual([]);
+    } finally {
+      ecs.destroy();
+      autoScaling.destroy();
+      await ministack.stop();
+    }
   }, 120_000);
 });

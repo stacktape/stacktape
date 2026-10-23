@@ -12,6 +12,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@aws-sdk/client-application-auto-scaling": "3.1121.0",
+    "@aws-sdk/client-ecs": "3.1121.0",
     "@aws-sdk/client-s3": "3.1121.0",
     "@aws-sdk/client-sts": "3.1121.0",
     "@types/bun": "catalog:",
