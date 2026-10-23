@@ -796,9 +796,10 @@ const splitProjectScenario = async ({ outDirectory }: { outDirectory: string }) 
   identities.splitProject['layer0.toolNotExecutableKey'] = layerOf(toolNotExecutable, 0).s3Key;
   identities.splitProject['native.toolNotExecutableDigest'] = jobOf(toolNotExecutable, 'native').digest;
   await check(
-    'split project: a native tool that lost its execute bit gets a new layer and rebuilds only its user',
+    'split project: a native tool that lost its execute bit gets a new layer and keeps every function package',
     async () => {
-      const summary = expectDecisions(toolNotExecutable, { rebuilt: ['native'], uploadedLayers: [0] }, bucket);
+      // Function digests leave layer identities out, so a layer change does not upload identical function packages.
+      const summary = expectDecisions(toolNotExecutable, { rebuilt: [], uploadedLayers: [0] }, bucket);
       assert.notEqual(layerOf(toolNotExecutable, 0).s3Key, layerOf(corrected, 0).s3Key);
       assert.equal(layerOf(toolNotExecutable, 1).s3Key, layerOf(corrected, 1).s3Key);
       // The new layer carries what the build now returns: a tool nobody may execute.
