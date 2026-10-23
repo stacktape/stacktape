@@ -49,15 +49,22 @@ export function Badge({
   );
 }
 
-export function CountBadge({ value, isCompact = false }: { value: number; isCompact?: boolean }) {
+/**
+ * The one count badge: how many things need attention. `dot` is its form where there is no room for a number, such as
+ * the collapsed navigation rail; the surrounding control's name and tooltip carry the number.
+ */
+export function CountBadge({ value, display = 'count' }: { value: number; display?: 'count' | 'dot' }) {
+  if (display === 'dot') {
+    return (
+      <span
+        className="stp-ui-badge stp-ui-badge--danger stp-ui-badge--solid stp-ui-count-badge--dot"
+        aria-hidden
+        data-count={value}
+      />
+    );
+  }
   return (
-    <Badge
-      className={isCompact ? 'stp-ui-count-badge stp-ui-count-badge--compact' : 'stp-ui-count-badge'}
-      pill
-      size="small"
-      tone="danger"
-      variant="solid"
-    >
+    <Badge className="stp-ui-count-badge" pill size="small" tone="danger" variant="solid">
       {value > 99 ? '99+' : value}
     </Badge>
   );
