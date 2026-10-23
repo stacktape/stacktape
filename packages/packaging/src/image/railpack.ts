@@ -489,6 +489,9 @@ export const buildUsingRailpack = async ({
   if (extension) {
     const extended = await buildGeneratedDockerImage({
       ...(await extension.finish(id)),
+      // The extension starts from the image built above, which only the local store holds. A pull would ask Docker
+      // Hub for it and fail.
+      baseImages: [],
       buildDockerImage,
       imageTag: name,
       dockerBuildOutputArchitecture,

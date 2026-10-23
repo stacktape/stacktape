@@ -2,7 +2,7 @@ import type { DeploymentPhase, ProgressReporter as ProgressLogger } from '@appli
 import type { Result } from 'execa';
 import { getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import ci from 'ci-info';
-import { pathExists, readFile, remove, stat, writeFile } from 'fs-extra';
+import { pathExists, readFile, realpath, remove, stat, writeFile } from 'fs-extra';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -257,22 +257,47 @@ const isCompletedPnpmInstall = async ({ installDir, lockfilePath }: { installDir
 };
 
 const NPM_ROOT_DEPENDENCY_FIELDS = [...MANIFEST_DEPENDENCY_FIELDS, 'peerDependencies'] as const;
-/** Workspaces in object form, or as a non-empty array; `workspaces: []` declares none. */
-const declaresWorkspaces = (workspaces: unknown) =>
-  workspaces !== undefined && !(Array.isArray(workspaces) && workspaces.length === 0);
+
+type NpmLockedPackage = {
+  name?: string;
+  version?: string;
+  resolved?: string;
+  link?: boolean;
+  optional?: boolean;
+  devOptional?: boolean;
+  hasInstallScript?: boolean;
+  workspaces?: unknown;
+};
+
+/** The workspace patterns of an array or `{ packages }` declaration; `workspaces: []` declares none. */
+const workspaceGlobs = (workspaces: unknown): unknown[] =>
+  Array.isArray(workspaces) ? workspaces : ((workspaces as { packages?: unknown[] } | undefined)?.packages ?? []);
+
+/** A workspace's own entry, `packages/api`, rather than an installed `node_modules/...` package. */
+const isWorkspaceEntry = (path: string) => !path.split('/').includes('node_modules');
 
 /**
  * Whether a markerless npm tree is a completed `npm ci` of exactly this lockfile, so that repeating it would change
  * nothing. Every condition is read from content, never from mtimes, and anything unexpected keeps `npm ci`:
- * - the lockfile is `package-lock.json` (version 2 or 3) with no `npm-shrinkwrap.json`, workspace or linked package;
- * - `package.json` declares no root lifecycle script that `npm ci` runs, since a pipeline may have skipped them;
- * - its root entry declares exactly `package.json`'s dependencies, so a changed manifest still reaches `npm ci`;
- * - npm's hidden lockfile `node_modules/.package-lock.json`, which records what npm installed, holds exactly the
- *   lockfile's packages, so an interrupted, stale or `--omit` install is refused;
+ * - the lockfile is `package-lock.json` (version 2 or 3) with no `npm-shrinkwrap.json`;
+ * - neither `package.json` nor a workspace's manifest declares a lifecycle script that `npm ci` runs, since a pipeline
+ *   may have skipped them;
+ * - the root entry and each workspace entry declare exactly their manifest's dependencies, so a changed manifest still
+ *   reaches `npm ci`;
+ * - npm's hidden lockfile `node_modules/.package-lock.json`, which records what npm installed, holds the lockfile's
+ *   packages, so an interrupted, stale or `--omit` install is refused. Only optional packages may be missing: npm
+ *   skips those built for another platform, such as `@esbuild/darwin-arm64` on Linux;
  * - no locked package has an install script, since npm does not record whether scripts ran;
- * - every locked package's installed `package.json` names its locked package and version.
+ * - every linked package is a symlink to a workspace in this project, and every other installed `package.json` names
+ *   its locked package and version.
  */
-const isCompletedNpmInstall = async ({ installDir, lockfilePath }: { installDir: string; lockfilePath: string }) => {
+export const isCompletedNpmInstall = async ({
+  installDir,
+  lockfilePath
+}: {
+  installDir: string;
+  lockfilePath: string;
+}) => {
   try {
     if (!lockfilePath.endsWith('package-lock.json') || (await pathExists(join(installDir, 'npm-shrinkwrap.json')))) {
       return false;
@@ -285,34 +310,74 @@ const isCompletedNpmInstall = async ({ installDir, lockfilePath }: { installDir:
     const manifest = JSON.parse(manifestText);
     const lockfile = JSON.parse(lockfileText);
     const hidden = JSON.parse(hiddenText);
-    const { '': root, ...lockedPackages } = lockfile.packages ?? {};
-    const entries = Object.entries(lockedPackages) as [
-      string,
-      { name?: string; version?: string; link?: boolean; hasInstallScript?: boolean }
-    ][];
+    const { '': root, ...lockedPackages } = (lockfile.packages ?? {}) as Record<string, NpmLockedPackage>;
+    const hiddenPackages = (hidden.packages ?? {}) as Record<string, NpmLockedPackage>;
+    const entries = Object.entries(lockedPackages).filter(([path]) => path in hiddenPackages);
     if (
       ![2, 3].includes(lockfile.lockfileVersion) ||
       hidden.lockfileVersion !== lockfile.lockfileVersion ||
       !root ||
-      declaresWorkspaces(root.workspaces) ||
-      declaresWorkspaces(manifest.workspaces) ||
       NPM_CI_ROOT_LIFECYCLE_SCRIPTS.some((script) => manifest.scripts?.[script] !== undefined) ||
       NPM_ROOT_DEPENDENCY_FIELDS.some((field) => !isDeepStrictEqual(root[field] ?? {}, manifest[field] ?? {})) ||
-      !isDeepStrictEqual(hidden.packages, lockedPackages) ||
-      entries.some(([, entry]) => entry.link || entry.hasInstallScript)
+      !isDeepStrictEqual(workspaceGlobs(root.workspaces), workspaceGlobs(manifest.workspaces)) ||
+      Object.keys(hiddenPackages).some((path) => !(path in lockedPackages)) ||
+      Object.entries(lockedPackages).some(([path, entry]) =>
+        path in hiddenPackages ? !isDeepStrictEqual(hiddenPackages[path], entry) : !entry.optional && !entry.devOptional
+      ) ||
+      entries.some(([, entry]) => entry.hasInstallScript)
     ) {
       return false;
     }
-    // `npm install --package-lock-only` rewrites the hidden lockfile without installing, so each installed manifest must
-    // still name the locked package and version.
     const installed = await Promise.all(
       entries.map(async ([path, entry]) => {
-        const { name, version } = JSON.parse(await readFile(join(installDir, path, 'package.json'), 'utf8'));
+        if (entry.link) {
+          // A workspace is linked into `node_modules`; anything else linked (a `file:` directory) is not verified.
+          const target = entry.resolved;
+          return (
+            target !== undefined &&
+            isWorkspaceEntry(target) &&
+            !target.startsWith('..') &&
+            target in lockedPackages &&
+            (await realpath(join(installDir, path))) === (await realpath(join(installDir, target)))
+          );
+        }
+        const installedManifest = JSON.parse(await readFile(join(installDir, path, 'package.json'), 'utf8'));
+        if (isWorkspaceEntry(path)) {
+          return (
+            !NPM_CI_ROOT_LIFECYCLE_SCRIPTS.some((script) => installedManifest.scripts?.[script] !== undefined) &&
+            NPM_ROOT_DEPENDENCY_FIELDS.every((field) =>
+              isDeepStrictEqual(entry[field as keyof NpmLockedPackage] ?? {}, installedManifest[field] ?? {})
+            ) &&
+            installedManifest.version === entry.version
+          );
+        }
+        // `npm install --package-lock-only` rewrites the hidden lockfile without installing, so each installed
+        // manifest must still name the locked package and version.
         const lockedName = entry.name ?? path.slice(path.lastIndexOf('node_modules/') + 13);
-        return name === lockedName && version === entry.version;
+        return installedManifest.name === lockedName && installedManifest.version === entry.version;
       })
     );
     return installed.every(Boolean);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The Stacktape EC2 runner sets this to the directory where it installed a fresh checkout's dependencies with the
+ * project's package manager, install scripts included, as the last step before it started this process. Nothing ran
+ * in between, so the tree is complete and current. Repeating the install would only cost time: `npm ci` deletes
+ * `node_modules` and installs it again. No package manager records whether install scripts ran, so an install this
+ * variable does not name cannot be recognised this way.
+ */
+const RUNNER_INSTALLED_DEPENDENCIES_VARIABLE = 'STP_RUNNER_INSTALLED_DEPENDENCIES';
+
+export const isRunnerCompletedInstall = async ({ installDir }: { installDir: string }) => {
+  const runnerInstallDir = process.env[RUNNER_INSTALLED_DEPENDENCIES_VARIABLE];
+  if (!runnerInstallDir) return false;
+  try {
+    const [runnerPath, installPath] = await Promise.all([realpath(runnerInstallDir), realpath(installDir)]);
+    return runnerPath === installPath && (await pathExists(join(installDir, 'node_modules')));
   } catch {
     return false;
   }
@@ -451,6 +516,14 @@ class DependencyInstaller {
     if (!(await isDepsInstallNeeded({ installDir, lockfilePath: lockFileInfo.lockfilePath }))) {
       this.pendingInstalls[installKey] = Promise.resolve();
       endTiming({ decision: 'marker-matches', packageManager, ciDetected: ci.isCI });
+      return;
+    }
+
+    // The marker lets a nested Stacktape process in this checkout, such as one a hook starts, skip the install too.
+    if (await isRunnerCompletedInstall({ installDir })) {
+      await saveInstallHash({ installDir, lockfilePath: lockFileInfo.lockfilePath });
+      this.pendingInstalls[installKey] = Promise.resolve();
+      endTiming({ decision: 'runner-install', packageManager, ciDetected: ci.isCI });
       return;
     }
 

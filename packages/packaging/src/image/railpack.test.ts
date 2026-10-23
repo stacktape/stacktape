@@ -319,6 +319,7 @@ test.each([false, true])(
     let fallback = false;
     let finished = false;
     const commands: string[] = [];
+    const baseImages: (string[] | undefined)[] = [];
     try {
       await writeFile(join(source, 'app.py'), 'print(1)');
       const plan = preparedPlan({
@@ -358,6 +359,7 @@ test.each([false, true])(
         buildDockerImage: async (options) => {
           const contents = await Bun.file(join(options.buildContextPath, options.dockerfilePath!)).text();
           commands.push(contents);
+          baseImages.push(options.baseImages);
           if (fails && contents.includes('--require-hashes')) throw new Error('Unpinned transitive requirement');
           return {
             size: 1,
@@ -373,6 +375,8 @@ test.each([false, true])(
       expect(result.imageId).toBe(fails ? 'sha256:base' : 'sha256:swap');
       expect(commands).toHaveLength(2);
       if (fails) expect(commands[1]).not.toContain('--require-hashes');
+      // The swap image starts from the measured base in the local store; nothing is pulled for it.
+      else expect(baseImages[1]).toEqual([]);
     } finally {
       await rm(source, { recursive: true, force: true });
     }
