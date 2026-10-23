@@ -1,6 +1,7 @@
 /**
  * A Node.js project whose three functions the CLI packages in one split build, for the production cache scenario of the
- * Lambda archive acceptance. Every function imports one large shared module, which becomes a shared chunk layer.
+ * Lambda archive acceptance. Every function imports one large shared package, which becomes a shared chunk layer (the
+ * project's own shared code stays in each function).
  * `native` also imports a package with a native build, which goes to a native dependency layer and ships a tool with
  * an npm `.bin` link; `prisma` uses a Prisma client whose query engine the build copies into the function.
  *
@@ -62,17 +63,17 @@ const CATALOG = Array.from(
   { length: 64 },
   (_, index) => `catalog entry ${String(index).padStart(3, '0')} shared by every split function`
 );
-/** What every function reports as `catalog`: proof that it loaded the shared module. */
+/** What every function reports as `catalog`: proof that it loaded the shared package. */
 export const SHARED_CATALOG_SIZE = CATALOG.join('').length;
 
-const SHARED_MODULE = `export const CATALOG = ${JSON.stringify(CATALOG, null, 2)};
+const SHARED_PACKAGE = `export const CATALOG = ${JSON.stringify(CATALOG, null, 2)};
 
 export const catalogSize = () => CATALOG.join('').length;
 `;
 
 const HANDLERS: Record<SplitFunctionName, string> = {
   native: `${RUN_HELPER}import fixtureNative from 'fixture-native';
-import { catalogSize } from '../shared/catalog';
+import { catalogSize } from 'fixture-catalog';
 
 export const handler = async () => ({
   function: 'native',
@@ -83,7 +84,7 @@ export const handler = async () => ({
 });
 `,
   prisma: `${RUN_HELPER}import { PrismaClient } from '@prisma/client';
-import { catalogSize } from '../shared/catalog';
+import { catalogSize } from 'fixture-catalog';
 
 export const handler = async () => ({
   function: 'prisma',
@@ -93,7 +94,7 @@ export const handler = async () => ({
   engine: run('/var/task/.prisma/client/${PRISMA_ENGINE}')
 });
 `,
-  plain: `import { catalogSize } from '../shared/catalog';
+  plain: `import { catalogSize } from 'fixture-catalog';
 
 export const handler = async () => ({ function: 'plain', uid: process.getuid?.(), catalog: catalogSize() });
 `
@@ -170,7 +171,7 @@ export const writeSplitProjectFixture = async (root: string): Promise<SplitProje
         type: 'module',
         // Makes this directory its own project root, as a standalone project is.
         workspaces: [],
-        dependencies: { '@prisma/client': '5.22.0', 'fixture-native': '1.0.0' }
+        dependencies: { '@prisma/client': '5.22.0', 'fixture-catalog': '1.0.0', 'fixture-native': '1.0.0' }
       },
       null,
       2
@@ -188,9 +189,10 @@ export const writeSplitProjectFixture = async (root: string): Promise<SplitProje
           '': {
             name: 'split-fixture',
             version: '1.0.0',
-            dependencies: { '@prisma/client': '5.22.0', 'fixture-native': '1.0.0' }
+            dependencies: { '@prisma/client': '5.22.0', 'fixture-catalog': '1.0.0', 'fixture-native': '1.0.0' }
           },
           'node_modules/@prisma/client': { version: '5.22.0' },
+          'node_modules/fixture-catalog': { version: '1.0.0' },
           'node_modules/fixture-native': { version: '1.0.0', hasInstallScript: true }
         }
       },
@@ -198,13 +200,17 @@ export const writeSplitProjectFixture = async (root: string): Promise<SplitProje
       2
     )}\n`
   );
-  await file(join(project, 'src', 'shared', 'catalog.ts'), SHARED_MODULE);
   for (const name of SPLIT_FUNCTIONS) {
     await file(join(project, 'src', 'handlers', `${name}.ts`), HANDLERS[name]);
   }
   await file(join(project, 'prisma', 'schema.prisma'), PRISMA_SCHEMA);
 
   await writeNativePackage(nodeModules);
+  await file(
+    join(nodeModules, 'fixture-catalog', 'package.json'),
+    `${JSON.stringify({ name: 'fixture-catalog', version: '1.0.0', type: 'module', main: 'index.js' })}\n`
+  );
+  await file(join(nodeModules, 'fixture-catalog', 'index.js'), SHARED_PACKAGE);
   await file(
     join(nodeModules, '@prisma', 'client', 'package.json'),
     `${JSON.stringify({ name: '@prisma/client', version: '5.22.0', main: 'index.js' })}\n`
