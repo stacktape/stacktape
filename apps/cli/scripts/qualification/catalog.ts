@@ -166,8 +166,9 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
 
 const stressCases = [...REAL_PROJECT_PLATFORM_STRESS_CASES, ...REAL_PROJECT_APPLICATION_STRESS_CASES];
 const importOnlyCaseIds = new Set([
-  // This pinned Vercel starter still exercises importer evidence, but Next 14 is outside the
-  // supported @opennextjs/aws 3.10 packaging range.
+  // This pinned Vercel starter uses Next 14. OpenNext used to refuse it as past the Next.js support policy; packaging now
+  // passes OpenNext's unsupported-version flag and prints a warning instead. The case stays import-only until a package
+  // lane run proves that this starter builds.
   'vercel-next-postgres-auth',
   // Nine Aspire services share Directory.Packages.props and project references at the solution root, which the
   // buildpack's single-project .NET build cannot see (documented; a Dockerfile is the supported path). The import

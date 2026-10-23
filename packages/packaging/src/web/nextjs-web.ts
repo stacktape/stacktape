@@ -8,6 +8,7 @@ import type {
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
 import type { NextjsWeb } from '@stacktape/config/nextjs-web';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { dirExists, isFileAccessible } from '../fs/files';
 import { hostBuildEnvironment } from '../runtime-helpers';
@@ -37,6 +38,7 @@ type NextjsWebBundlingProps = {
   loadModuleExport: LoadModuleExport;
   runDocker: RunDocker;
   nativeDependencyInstallationRootPath: string;
+  warn: (message: string) => void;
 };
 
 type PackagedFunction = { name: string; handler: string; runtime?: string | undefined };
@@ -73,6 +75,68 @@ export const describeNextPackagingError = (resourceName: string, error: unknown)
   return `Error when packaging nextjs-web "${resourceName}".${cause ? `\n${cause}` : ''}`;
 };
 
+/**
+ * Release date of each Next.js major. The Next.js team supports a major for two years from this date. Mirrors
+ * `NEXT_RELEASE_DATES` in @opennextjs/aws 3.10.4 (`dist/build/helper.js`), the table its build checks before the
+ * `--dangerously-use-unsupported-next-version` flag below lets it continue.
+ */
+const NEXT_MAJOR_RELEASE_DATES: Record<number, string> = {
+  12: '2021-10-26',
+  13: '2022-10-26',
+  14: '2023-10-26',
+  15: '2024-10-21',
+  16: '2025-10-21'
+};
+const NEWEST_KNOWN_NEXT_MAJOR = Math.max(...Object.keys(NEXT_MAJOR_RELEASE_DATES).map(Number));
+
+/** A major newer than the table is newer than every supported major; one older than the table is long unsupported. */
+const isNextMajorSupported = (major: number, now: Date) => {
+  const releaseDate = NEXT_MAJOR_RELEASE_DATES[major];
+  if (releaseDate === undefined) {
+    return major > NEWEST_KNOWN_NEXT_MAJOR;
+  }
+  const supportEndDate = new Date(releaseDate);
+  supportEndDate.setUTCFullYear(supportEndDate.getUTCFullYear() + 2);
+  return now <= supportEndDate;
+};
+
+/**
+ * OpenNext's own warning about an unsupported Next.js major goes to the stdout Stacktape hides, so Stacktape prints its
+ * own. The version is resolved from the application directory, as OpenNext resolves it.
+ */
+export const warnIfNextVersionUnsupported = async ({
+  resourceName,
+  absoluteAppDirectory,
+  warn,
+  now = new Date()
+}: {
+  resourceName: string;
+  absoluteAppDirectory: string;
+  warn: (message: string) => void;
+  now?: Date;
+}) => {
+  let nextVersion: unknown;
+  try {
+    // `createRequire` resolves relative to a file; the file does not have to exist.
+    const nextPackageJsonPath = createRequire(join(absoluteAppDirectory, 'package.json')).resolve('next/package.json');
+    nextVersion = (await readJson(nextPackageJsonPath)).version;
+  } catch {
+    // Without an installed Next.js the OpenNext build fails with its own error.
+    return;
+  }
+  const major = typeof nextVersion === 'string' ? Number(nextVersion.match(/^\d+/)?.[0]) : Number.NaN;
+  if (!Number.isInteger(major) || isNextMajorSupported(major, now)) {
+    return;
+  }
+  const upgradeTarget = isNextMajorSupported(NEWEST_KNOWN_NEXT_MAJOR, now)
+    ? `Next.js ${NEWEST_KNOWN_NEXT_MAJOR}`
+    : 'a supported Next.js major';
+  warn(
+    `\`${resourceName}\` uses Next.js ${major}, which is no longer supported by the Next.js team and gets no security ` +
+      `fixes. Upgrade to ${upgradeTarget}. See https://nextjs.org/support-policy.`
+  );
+};
+
 export const hasDefaultPrismaSchema = (absoluteAppDirectory: string) =>
   isFileAccessible(join(absoluteAppDirectory, 'prisma', 'schema.prisma'));
 
@@ -89,10 +153,12 @@ export const createNextjsWebArtifacts = async ({
   executeProcess,
   loadModuleExport,
   runDocker,
-  nativeDependencyInstallationRootPath
+  nativeDependencyInstallationRootPath,
+  warn
 }: NextjsWebBundlingProps) => {
   const copyEnv = hostBuildEnvironment(process.env);
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
+  await warnIfNextVersionUnsupported({ resourceName: resource.name, absoluteAppDirectory, warn });
   environmentVars.forEach((env) => {
     copyEnv[env.name] = String(env.value);
   });
@@ -126,8 +192,8 @@ export const createNextjsWebArtifacts = async ({
         }
         temporaryNextConfigPath = await ensureNextConfig(absoluteAppDirectory);
         // OpenNext refuses a Next.js major two years after its release date (Next 15 since 2026-10-22), whatever the
-        // app or the pinned builder can do. The qualified pin decides support, not the calendar. Its argument parser
-        // ignores a flag without a value, hence `true`.
+        // app or the pinned builder can do. The qualified pin decides support, not the calendar; the user is warned
+        // above. Its argument parser ignores a flag without a value, hence `true`.
         await executeProcess(
           'npx',
           [

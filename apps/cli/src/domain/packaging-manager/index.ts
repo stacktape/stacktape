@@ -1545,7 +1545,8 @@ export class PackagingManager {
       nativeDependencyInstallationRootPath: join(
         fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
         '_bin-install'
-      )
+      ),
+      warn: (message) => tuiManager.warn(message)
     });
     packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
