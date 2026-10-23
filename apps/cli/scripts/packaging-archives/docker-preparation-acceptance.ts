@@ -498,8 +498,9 @@ const workerService = (architecture: 'x86_64' | 'arm64'): WorkerService => ({
 
 const HANDLER = 'export const handler = async () => ({ ok: true });\n';
 const SHARED_HANDLER = (name: string) =>
-  `import { catalog } from './shared';\n\nexport const handler = async () => ({ function: '${name}', catalog: catalog.length });\n`;
-const SHARED_MODULE = `export const catalog = ${JSON.stringify(Array.from({ length: 64 }, (_, index) => `shared entry ${index}`))};\n`;
+  `import { catalog } from 'fixture-catalog';\n\nexport const handler = async () => ({ function: '${name}', catalog: catalog.length });\n`;
+/** A package every split function imports. Packages go to the shared layer; a project's own shared code does not. */
+const SHARED_PACKAGE = `export const catalog = ${JSON.stringify(Array.from({ length: 64 }, (_, index) => `shared entry ${index}`))};\n`;
 const NATIVE_HANDLER =
   "import fixtureNative from 'fixture-native';\n\nexport const handler = async () => ({ native: fixtureNative.name });\n";
 const IMAGE_FILES = {
@@ -531,7 +532,11 @@ const writeProject = async ({
   native: boolean;
 }) => {
   const project = join(root, 'project');
-  const dependencies = native ? { 'fixture-native': '1.0.0' } : {};
+  const shared = Object.values(files).some((contents) => contents.includes("from 'fixture-catalog'"));
+  const dependencies = {
+    ...(shared ? { 'fixture-catalog': '1.0.0' } : {}),
+    ...(native ? { 'fixture-native': '1.0.0' } : {})
+  };
   // `workspaces` makes this directory its own project root, as a standalone project is.
   const manifest = `${JSON.stringify({ name: 'docker-preparation-fixture', version: '1.0.0', private: true, type: 'module', workspaces: [], dependencies }, null, 2)}\n`;
   await file(join(project, 'package.json'), manifest);
@@ -543,6 +548,7 @@ const writeProject = async ({
       requires: true,
       packages: {
         '': { name: 'docker-preparation-fixture', version: '1.0.0', dependencies },
+        ...(shared ? { 'node_modules/fixture-catalog': { version: '1.0.0' } } : {}),
         ...(native ? { 'node_modules/fixture-native': { version: '1.0.0', hasInstallScript: true } } : {})
       }
     },
@@ -552,6 +558,13 @@ const writeProject = async ({
   await file(join(project, 'package-lock.json'), lockfile);
   await writeInstallMarker(project);
   if (native) await writeNativePackage(join(project, 'node_modules'));
+  if (shared) {
+    await file(
+      join(project, 'node_modules', 'fixture-catalog', 'package.json'),
+      `${JSON.stringify({ name: 'fixture-catalog', version: '1.0.0', type: 'module', main: 'index.js' })}\n`
+    );
+    await file(join(project, 'node_modules', 'fixture-catalog', 'index.js'), SHARED_PACKAGE);
+  }
   for (const [path, contents] of Object.entries(files)) {
     await file(join(project, path), contents);
   }
@@ -850,7 +863,6 @@ const SINGLE_AND_ARTIFACT = {
 const SPLIT_PAIR = {
   resources: { alpha: lambda('./src/alpha.ts'), beta: lambda('./src/beta.ts') },
   files: {
-    'src/shared.ts': SHARED_MODULE,
     'src/alpha.ts': SHARED_HANDLER('alpha'),
     'src/beta.ts': SHARED_HANDLER('beta')
   }
@@ -877,7 +889,7 @@ const pureJsWithoutDocker = (state: DockerState, label: string): Scenario => ({
 
 const SPLIT_NATIVE = {
   resources: SPLIT_PAIR.resources,
-  files: { ...SPLIT_PAIR.files, 'src/alpha.ts': `${NATIVE_HANDLER}\nexport { catalog } from './shared';\n` },
+  files: { ...SPLIT_PAIR.files, 'src/alpha.ts': `${NATIVE_HANDLER}\nexport { catalog } from 'fixture-catalog';\n` },
   native: true
 };
 
@@ -1060,7 +1072,7 @@ const LARGE_ALPHA_HANDLER = [
   "import { createHash } from 'node:crypto';",
   "import { readFileSync } from 'node:fs';",
   "import dataPath from './data/alpha.bin';",
-  "import { catalog } from './shared';",
+  "import { catalog } from 'fixture-catalog';",
   '',
   'export const handler = async () => {',
   '  const data = readFileSync(dataPath);',
@@ -1387,7 +1399,6 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
         bigartifact: customArtifact('./big-artifact')
       },
       files: {
-        'src/shared.ts': SHARED_MODULE,
         'src/big.ts': BIG_HANDLER,
         'src/alpha.ts': LARGE_ALPHA_HANDLER,
         'src/beta.ts': SHARED_HANDLER('beta'),
