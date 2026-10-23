@@ -4198,6 +4198,7 @@ export const slices: readonly Slice[] = [
       'cli-test-helper-lambdas',
       'static-site-live',
       'ministack-deploy',
+      'ministack-deploy-2',
       'synthesis',
       'synthesis-2',
       'live-aws',
@@ -4455,6 +4456,7 @@ export const slices: readonly Slice[] = [
     lanes: [
       'node-lambda-offline',
       'ministack-deploy',
+      'ministack-deploy-2',
       'cli',
       'cli-2',
       'cli-3',
