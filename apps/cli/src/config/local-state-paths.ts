@@ -15,9 +15,11 @@ import { getHomeDir } from '@utils/misc';
  *   delete at any time; the caller identity STS returned for each access key in `awsIdentityCacheFile`, kept a
  *   day and safe to delete at any time; and when each base image of Stacktape's generated Dockerfiles was last
  *   pulled in `baseImagePullsFile`, kept a day and safe to delete at any time.
+ * - User-runtime: the session token of each running dev agent in `devAgentTokenFile`, keyed by the agent's port so
+ *   any local client that knows the port finds it; the agent removes it on stop and prunes those of dead agents.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`),
  *   and the generated password of each such database in `devResourcePasswordFile`.
- * - Runtime coordination: dev-agent logs, session tokens and lock files, plus dependency-install hashes and locks.
+ * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
  *   while `package` deliberately leaves its artifacts for the caller.
  * - Operation-temporary: `starterArchiveFile`; its owner removes it after use.
@@ -100,9 +102,13 @@ export const localStatePaths = {
   devAgentDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agent');
   },
-  /** The running agent's session token, readable only by its user; removed when the agent stops. */
-  devAgentTokenFile({ workingDirectory, port }: { workingDirectory: string; port: number }) {
-    return join(localStatePaths.devAgentDirectory({ workingDirectory }), `${port}.token`);
+  /** Directory readable only by its user; the override isolates tests from the user's running agents. */
+  devAgentTokenDirectory() {
+    return process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR || join(localStatePaths.userDataDirectory(), 'dev-agent-tokens');
+  },
+  /** Session token of the dev agent listening on `port`, readable only by its user. */
+  devAgentTokenFile({ port }: { port: number }) {
+    return join(localStatePaths.devAgentTokenDirectory(), `${port}.token`);
   },
   devAgentRegistryDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agents');

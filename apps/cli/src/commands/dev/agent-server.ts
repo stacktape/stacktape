@@ -1,13 +1,14 @@
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
 import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,
@@ -1325,12 +1326,11 @@ export const buildStartupMessage = (params: {
   databases: ResourceInfo[];
   port?: number;
   logFile?: string;
-  tokenFile?: string;
 }): string => {
   const { projectName, stage, region, workloads, databases } = params;
   const port = params.port ?? agentPort;
   const logFile = params.logFile ?? agentState.logFile;
-  const tokenFile = params.tokenFile ?? agentTokenFile;
+  const tokenFile = port ? localStatePaths.devAgentTokenFile({ port }) : agentTokenFile;
   const baseUrl = `http://${AGENT_HOST}:${port}`;
   const lines: string[] = [];
 
@@ -1460,12 +1460,64 @@ export const startAgentServer = async (
     });
   });
 
-  // Written only once this process owns the port: another agent of the same project may hold it, and its token file
-  // has the same name. Only the user who started dev mode can read the file.
+  // Written only once this process owns the port, so it replaces the file of an earlier agent that died on this port
+  // and no live agent's token is overwritten. Only the user who started dev mode can read the directory and file.
+  const tokenDirectory = localStatePaths.devAgentTokenDirectory();
+  mkdirSync(tokenDirectory, { recursive: true, mode: 0o700 });
+  chmodSync(tokenDirectory, 0o700);
   agentToken = randomBytes(32).toString('base64url');
-  agentTokenFile = join(logDir, `${port}.token`);
+  agentTokenFile = localStatePaths.devAgentTokenFile({ port });
   writeFileSync(agentTokenFile, agentToken, { mode: 0o600 });
   chmodSync(agentTokenFile, 0o600);
+  await removeTokenFilesOfDeadAgents(port);
+};
+
+const isListening = (port: number) =>
+  new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host: AGENT_HOST, port, timeout: 1000 });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => resolve(false));
+  });
+
+/**
+ * Removes the token files of agents that were killed before they could remove their own. Nothing listens on such a
+ * file's port. A file written after the check started belongs to an agent that bound the port meanwhile and is kept.
+ */
+const removeTokenFilesOfDeadAgents = async (ownPort: number) => {
+  const tokenDirectory = localStatePaths.devAgentTokenDirectory();
+  const checkedAt = Date.now();
+  const ports = readdirSync(tokenDirectory)
+    .map((file) => /^(\d+)\.token$/.exec(file)?.[1])
+    .filter((port): port is string => port !== undefined)
+    .map(Number)
+    .filter((port) => port !== ownPort);
+  await Promise.all(
+    ports.map(async (port) => {
+      if (await isListening(port)) return;
+      const file = localStatePaths.devAgentTokenFile({ port });
+      try {
+        if (statSync(file).mtimeMs < checkedAt) rmSync(file, { force: true });
+      } catch {
+        // Another agent removed it first.
+      }
+    })
+  );
+};
+
+/** Removes the token file unless a later agent on the same port has already replaced it. */
+const removeOwnTokenFile = (tokenFile: string) => {
+  try {
+    if (readFileSync(tokenFile, 'utf-8').trim() === agentToken) rmSync(tokenFile, { force: true });
+  } catch {
+    // Already removed.
+  }
 };
 
 export const stopAgentServer = () => {
@@ -1473,7 +1525,7 @@ export const stopAgentServer = () => {
     httpServer.close();
     httpServer = null;
   }
-  if (agentTokenFile) rmSync(agentTokenFile, { force: true });
+  if (agentTokenFile) removeOwnTokenFile(agentTokenFile);
   agentToken = null;
   agentTokenFile = null;
   agentPort = null;

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { createConnection, createServer, type AddressInfo } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
@@ -123,7 +123,12 @@ test('the dev agent refuses web pages, foreign hosts and callers without its tok
   try {
     const token = await readFile(tokenFile, 'utf8');
     expect(token.length).toBeGreaterThanOrEqual(40);
-    if (process.platform !== 'win32') expect(statSync(tokenFile).mode & 0o777).toBe(0o600);
+    // Every client finds it by port in the user's state directory, which only that user can read.
+    expect(tokenFile).toBe(join(directory, '.stacktape', 'dev-agent-tokens', `${port}.token`));
+    if (process.platform !== 'win32') {
+      expect(statSync(tokenFile).mode & 0o777).toBe(0o600);
+      expect(statSync(join(directory, '.stacktape', 'dev-agent-tokens')).mode & 0o777).toBe(0o700);
+    }
     const host = `127.0.0.1:${port}`;
     const auth = { authorization: `Bearer ${token}` };
 
@@ -220,14 +225,36 @@ test('the dev agent refuses web pages, foreign hosts and callers without its tok
   }
 }, 60_000);
 
-test('the dev agent is ready only when dev mode started and every selected workload runs', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-ready-'));
+const freePort = async () => {
   const probe = createServer();
   await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
   const port = (probe.address() as AddressInfo).port;
   await new Promise<void>((resolve) => probe.close(() => resolve()));
+  return port;
+};
+
+test('the dev agent is ready only when dev mode started and every selected workload runs', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-ready-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  // Token files left by agents that were killed: one whose port is free again, one whose port another program uses.
+  const deadAgentPort = await freePort();
+  const busy = createServer();
+  await new Promise<void>((resolve) => busy.listen(0, '127.0.0.1', resolve));
+  const busyPort = (busy.address() as AddressInfo).port;
+  await mkdir(join(directory, 'tokens'), { recursive: true });
+  const earlier = new Date(Date.now() - 60_000);
+  for (const stalePort of [deadAgentPort, busyPort]) {
+    await writeFile(join(directory, 'tokens', `${stalePort}.token`), 'stale');
+    await utimes(join(directory, 'tokens', `${stalePort}.token`), earlier, earlier);
+  }
+  const port = await freePort();
   await startAgentServer(port, directory);
   try {
+    // A starting agent removes the token files of dead agents, but cannot tell a live agent from another program.
+    expect(existsSync(join(directory, 'tokens', `${deadAgentPort}.token`))).toBeFalse();
+    expect(existsSync(join(directory, 'tokens', `${busyPort}.token`))).toBeTrue();
+
     const token = await readFile(getAgentTokenFile()!, 'utf8');
     const status = async () =>
       (
@@ -261,6 +288,9 @@ test('the dev agent is ready only when dev mode started and every selected workl
     expect((await status()).ready).toBeTrue();
   } finally {
     stopAgentServer();
+    busy.close();
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
     await rm(directory, { recursive: true, force: true });
   }
 });

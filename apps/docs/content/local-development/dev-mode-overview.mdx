@@ -182,7 +182,7 @@ Start dev mode as an agent:
 stacktape dev --stage dev --region us-east-1 --resources all --agent
 ```
 
-When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `.stacktape/dev-agent/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
+When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
 
 Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
 

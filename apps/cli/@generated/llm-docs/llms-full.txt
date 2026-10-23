@@ -3391,7 +3391,7 @@ stacktape dev stop
 
 Running `stacktape dev stop` without flags stops the running dev agent. If only one agent is running, it stops automatically. If no agents are found via lock files, Stacktape tries the default agent port (7331) as a fallback.
 
-The agent accepts only requests that carry its session token, which `dev stop` reads from `.stacktape/dev-agent/{port}.token` in the current directory. Run it from the project directory dev mode was started in; elsewhere it cannot find the token and reports that.
+The agent accepts only requests that carry its session token. `dev stop --agent-port` reads it from `~/.stacktape/dev-agent-tokens/{port}.token`, so it works from any directory. Without `--agent-port`, `dev stop` finds agents through the lock files in the current project directory.
 
 ## Important flags
 
@@ -18807,7 +18807,7 @@ Start dev mode as an agent:
 stacktape dev --stage dev --region us-east-1 --resources all --agent
 ```
 
-When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `.stacktape/dev-agent/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
+When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
 
 Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
 
@@ -47965,13 +47965,13 @@ Once ready, Stacktape prints the agent URL and a summary of available endpoints.
 
 ## Authentication
 
-The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `.stacktape/dev-agent/{port}.token` in your project directory. Only your user can read the file, and Stacktape deletes it when the agent stops. The startup message prints the file path, never the token.
+The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `~/.stacktape/dev-agent-tokens/{port}.token` in your home directory (`%USERPROFILE%\.stacktape\dev-agent-tokens\{port}.token` on Windows). Because the file is named after the agent's port, any of your tools can find it from any directory. Only your user can read the file. Stacktape deletes it when the agent stops, and an agent that starts later removes the files of agents that were killed. The startup message and the `AGENT_READY` result print the file path, never the token.
 
 Every request must send the token in an `Authorization: Bearer` header. POST requests must also send `content-type: application/json`. The examples on this page use these shell variables:
 
 ```bash
 AGENT=http://127.0.0.1:9900
-AUTH="Authorization: Bearer $(cat .stacktape/dev-agent/9900.token)"
+AUTH="Authorization: Bearer $(cat ~/.stacktape/dev-agent-tokens/9900.token)"
 JSON='content-type: application/json'
 
 curl -H "$AUTH" $AGENT/status
@@ -48411,7 +48411,7 @@ For MCP-based assistant setup, see the [Stacktape MCP server](/using-with-ai/mcp
 The agent can run SQL against your local databases, rebuild and stop workloads, and call AWS read operations with the dev agent's credentials. Only programs running as your user on this machine can call it:
 
 - It listens on `127.0.0.1` only, so other machines on your network cannot connect.
-- Every request needs the session token from `.stacktape/dev-agent/{port}.token`, which only your user can read.
+- Every request needs the session token from `~/.stacktape/dev-agent-tokens/{port}.token`, which only your user can read.
 - It refuses requests with an `Origin` header or a foreign `Host` header, so a web page cannot call it, even through DNS rebinding.
 - POST requests must be JSON, which a web page cannot send to another site without the browser asking the agent first.
 
@@ -48966,7 +48966,7 @@ For full setup instructions, see the [MCP server setup guide](/using-with-ai/mcp
 
 ## Agent mode
 
-Agent mode is a variant of Stacktape's [dev mode](/local-development/dev-mode-overview) designed for programmatic control by AI coding assistants. It starts a long-lived local process via `stacktape dev --agent` and exposes an HTTP API on a configurable loopback port (default 7331). Every request must carry the session token stored in `.stacktape/dev-agent/{port}.token`. While standard dev mode uses an interactive terminal UI, agent mode returns structured JSON responses. When the MCP `stacktape_dev` tool plans agent mode, it defaults the stage to `dev` and can infer `configPath` from the project scan, but the final start arguments must include `stage`, `region`, and `configPath`.
+Agent mode is a variant of Stacktape's [dev mode](/local-development/dev-mode-overview) designed for programmatic control by AI coding assistants. It starts a long-lived local process via `stacktape dev --agent` and exposes an HTTP API on a configurable loopback port (default 7331). Every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token`. While standard dev mode uses an interactive terminal UI, agent mode returns structured JSON responses. When the MCP `stacktape_dev` tool plans agent mode, it defaults the stage to `dev` and can infer `configPath` from the project scan, but the final start arguments must include `stage`, `region`, and `configPath`.
 
 Agent mode controls Stacktape dev mode through HTTP endpoints for status, logs, rebuilds, stop, and local database inspection. It provides structured JSON endpoints for:
 

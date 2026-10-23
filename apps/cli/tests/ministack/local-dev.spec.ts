@@ -44,6 +44,8 @@ beforeAll(async () => {
   lambda = new LambdaClient(clientConfig);
   iam = new IAMClient(clientConfig);
   directory = await mkdtemp(join(tmpdir(), 'stacktape-local-dev-'));
+  // The agent server below keeps its session token here instead of in the user's state directory.
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'dev-agent-tokens');
   globalStateManager.rawArgs = { stage: 'test', region: 'eu-west-1' };
   globalStateManager.targetStack = {
     stackName: 'localdev-test',

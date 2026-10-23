@@ -16,30 +16,28 @@ export type AgentLockFile = {
   workloads: string[];
   databases: string[];
   logFile?: string;
-  /** File holding the session token the agent requires on every request. */
-  tokenFile?: string;
 };
 
-const readAgentToken = (tokenFile: string | undefined): string | undefined => {
-  if (!tokenFile) return undefined;
+/** The session token of the agent on `port`, read from the per-user file every agent writes when it starts. */
+export const readDevAgentToken = (port: number): string | undefined => {
   try {
-    return readFileSync(tokenFile, 'utf-8').trim() || undefined;
+    return readFileSync(localStatePaths.devAgentTokenFile({ port }), 'utf-8').trim() || undefined;
   } catch {
     return undefined;
   }
 };
 
 /**
- * Calls a dev agent the way every local client must: on loopback, with the session token from its token file and, for
- * POST, a JSON content type. Without a readable token file the request goes out unauthenticated and the agent refuses
- * it with 401.
+ * Calls a dev agent the way every local client must: on loopback, with the session token of the agent on that port
+ * and, for POST, a JSON content type. Without a readable token file the request goes out unauthenticated and the agent
+ * refuses it with 401.
  */
 export const requestDevAgent = (
-  agent: { port: number; tokenFile?: string },
+  agent: { port: number },
   path: string,
   { method = 'GET', timeoutMs }: { method?: 'GET' | 'POST'; timeoutMs: number }
 ): Promise<Response> => {
-  const token = readAgentToken(agent.tokenFile);
+  const token = readDevAgentToken(agent.port);
   return fetch(`http://127.0.0.1:${agent.port}${path}`, {
     method,
     headers: {
@@ -556,11 +554,11 @@ export const spawnAgentDaemon = async (args: {
 };
 
 /**
- * Build the AGENT_READY message that signals the daemon finished starting.
+ * What `dev --agent` reports once an agent is ready, whether it started one or found one running.
  * Includes logFile path so LLMs can use standard tools (tail, grep, jq) on the JSONL log, and the token file path
  * (never the token) so they can call the agent.
  */
-export const buildAgentReadyMessage = (data: {
+export const buildAgentReadyPayload = (data: {
   port: number;
   projectName: string;
   stage: string;
@@ -568,20 +566,19 @@ export const buildAgentReadyMessage = (data: {
   workloads: { name: string; type: string; url?: string }[];
   databases: { name: string; type: string; port?: number }[];
   logFile: string;
-  tokenFile?: string;
   failedWorkloads?: { name: string; error: string }[];
-}): string => {
-  const payload: AgentReadyPayload = {
-    port: data.port,
-    projectName: data.projectName,
-    stage: data.stage,
-    region: data.region,
-    workloads: data.workloads.map((w) => ({ name: w.name, type: w.type, url: w.url })),
-    databases: data.databases.map((d) => ({ name: d.name, type: d.type, port: d.port })),
-    logFile: data.logFile,
-    tokenFile: data.tokenFile,
-    failedWorkloads: data.failedWorkloads ?? []
-  };
+}): AgentReadyPayload => ({
+  port: data.port,
+  projectName: data.projectName,
+  stage: data.stage,
+  region: data.region,
+  workloads: data.workloads.map((w) => ({ name: w.name, type: w.type, url: w.url })),
+  databases: data.databases.map((d) => ({ name: d.name, type: d.type, port: d.port })),
+  logFile: data.logFile,
+  tokenFile: localStatePaths.devAgentTokenFile({ port: data.port }),
+  failedWorkloads: data.failedWorkloads ?? []
+});
 
-  return `AGENT_READY ${JSON.stringify(payload)}`;
-};
+/** The AGENT_READY line that signals the daemon finished starting. */
+export const buildAgentReadyMessage = (data: Parameters<typeof buildAgentReadyPayload>[0]): string =>
+  `AGENT_READY ${JSON.stringify(buildAgentReadyPayload(data))}`;

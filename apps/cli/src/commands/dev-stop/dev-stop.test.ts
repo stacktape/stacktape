@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 // `stacktape dev:stop --agentPort <port>` is the stop command the dev agent prints at startup. It must return only once
 // the agent process is gone: an assistant restarts dev mode right after it, and a still-running agent holds the ports,
@@ -68,8 +68,11 @@ const startAgent = async (behavior: 'slow-cleanup' | 'ignores-stop' | 'rejects-s
   return { agent, ...(JSON.parse(String(output)) as { port: number; descendantPid: number; descendantPort: number }) };
 };
 
-const runDevStop = async (port: number) => {
-  const home = await mkdtemp(join(tmpdir(), 'stacktape-dev-stop-'));
+const runCli = async (
+  args: string[],
+  { home: givenHome, env = {} }: { home?: string; env?: Record<string, string> } = {}
+) => {
+  const home = givenHome ?? (await mkdtemp(join(tmpdir(), 'stacktape-dev-stop-')));
   try {
     // `--no-env-file`: Bun would otherwise load `apps/cli/.env.local`, which on a developer machine holds an API key.
     // dev:stop is local and must work with no key and an empty HOME.
@@ -80,9 +83,7 @@ const runDevStop = async (port: number) => {
         '--preload',
         join(CLI_DIRECTORY, 'scripts/network-guard-preload.ts'),
         'scripts/dev.ts',
-        'dev:stop',
-        '--agentPort',
-        String(port),
+        ...args,
         '--agent'
       ],
       {
@@ -92,7 +93,8 @@ const runDevStop = async (port: number) => {
           HOME: home,
           SKIP_LOADING_ENV: '1',
           STP_DISABLE_TELEMETRY: '1',
-          AWS_EC2_METADATA_DISABLED: 'true'
+          AWS_EC2_METADATA_DISABLED: 'true',
+          ...env
         }
       }
     );
@@ -104,9 +106,12 @@ const runDevStop = async (port: number) => {
     clearTimeout(deadline);
     return { exitCode, output };
   } finally {
-    await rm(home, { recursive: true, force: true });
+    if (!givenHome) await rm(home, { recursive: true, force: true });
   }
 };
+
+const runDevStop = (port: number, options: { home?: string } = {}) =>
+  runCli(['dev:stop', '--agentPort', String(port)], options);
 
 const stopIfRunning = (agent: ChildProcessWithoutNullStreams) => {
   if (agent.exitCode === null && agent.signalCode === null) agent.kill('SIGKILL');
@@ -203,24 +208,25 @@ console.log(JSON.stringify({ port, pid: process.pid, tokenFile: getAgentTokenFil
 test('dev:stop ends a real dev agent through its stop route after its cleanup hooks ran', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-real-agent-'));
   const { agent, port, tokenFile, output } = await startRealAgent(directory);
-  // dev:stop runs in the CLI package (see runDevStop) and reads an agent's token from that directory's agent state.
-  const visibleTokenFile = join(CLI_DIRECTORY, '.stacktape', 'dev-agent', `${port}.token`);
   try {
+    // The token is kept per user under the agent's port, not in the directory dev mode was started in.
+    expect(tokenFile).toBe(join(directory, '.stacktape', 'dev-agent-tokens', `${port}.token`));
     const token = await readFile(tokenFile, 'utf8');
     const status = (await (
       await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` } })
     ).json()) as { data: { pid: number } };
     expect(status.data.pid).toBe(agent.pid!);
 
-    // From a directory without the agent's token, dev:stop cannot stop it and says why.
+    // Another user (another HOME) has no token for this port: dev:stop cannot stop the agent and says why.
     const refused = await runDevStop(port);
     expect(refused.exitCode).toBe(1);
-    expect(refused.output).toContain('session token');
+    expect(refused.output).toContain('refused the dev agent session token');
+    expect(refused.output).not.toContain('No dev agent found');
     expect(isRunning(agent.pid!)).toBeTrue();
 
-    await mkdir(dirname(visibleTokenFile), { recursive: true });
-    await writeFile(visibleTokenFile, token);
-    const result = await runDevStop(port);
+    // The same user stops it from a directory other than the one dev mode was started in (dev:stop runs in the CLI
+    // package, the agent in its own directory).
+    const result = await runDevStop(port, { home: directory });
     expect(result.output).toContain('Dev agent stopped.');
     expect(result.exitCode).toBe(0);
     expect(isRunning(agent.pid!)).toBeFalse();
@@ -229,7 +235,59 @@ test('dev:stop ends a real dev agent through its stop route after its cleanup ho
     expect(existsSync(tokenFile)).toBeFalse();
   } finally {
     stopIfRunning(agent);
-    await rm(visibleTokenFile, { force: true });
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
+// An assistant that runs `dev --agent` again while its agent is running must get the same result as for a new agent:
+// MCP and other JSONL clients take the agent's port and token file from it.
+test('dev --agent reports an agent that is already running like a new one', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-real-agent-'));
+  const { agent, port, pid, tokenFile } = await startRealAgent(directory);
+  try {
+    const project = join(directory, 'project');
+    await mkdir(join(project, '.stacktape', 'dev-agents'), { recursive: true });
+    await writeFile(
+      join(project, '.stacktape', 'dev-agents', 'fixture-dev.json'),
+      JSON.stringify({
+        pid,
+        port,
+        phase: 'ready',
+        projectName: 'fixture',
+        stage: 'dev',
+        region: 'eu-west-1',
+        startedAt: new Date().toISOString(),
+        workloads: ['api'],
+        databases: [],
+        logFile: join(directory, `${port}-logs.txt`)
+      })
+    );
+    const { exitCode, output } = await runCli(
+      [
+        'dev',
+        '--projectName',
+        'fixture',
+        '--stage',
+        'dev',
+        '--region',
+        'eu-west-1',
+        '--currentWorkingDirectory',
+        project
+      ],
+      // `dev` requires a key before it runs; this path never sends it anywhere (the network guard would refuse).
+      { home: directory, env: { STACKTAPE_API_KEY: 'test-value' } }
+    );
+    expect(exitCode).toBe(0);
+    const final = output
+      .split('\n')
+      .filter((line) => line.startsWith('{'))
+      .map((line) => JSON.parse(line) as { type?: string; ok?: boolean; data?: { result?: Record<string, unknown> } })
+      .find((event) => event.type === 'result');
+    expect(final?.ok).toBeTrue();
+    expect(final?.data?.result).toMatchObject({ port, projectName: 'fixture', stage: 'dev', tokenFile });
+    expect(isRunning(agent.pid!)).toBeTrue();
+  } finally {
+    stopIfRunning(agent);
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);

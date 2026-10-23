@@ -41,13 +41,13 @@ Once ready, Stacktape prints the agent URL and a summary of available endpoints.
 
 ## Authentication
 
-The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `.stacktape/dev-agent/{port}.token` in your project directory. Only your user can read the file, and Stacktape deletes it when the agent stops. The startup message prints the file path, never the token.
+The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `~/.stacktape/dev-agent-tokens/{port}.token` in your home directory (`%USERPROFILE%\.stacktape\dev-agent-tokens\{port}.token` on Windows). Because the file is named after the agent's port, any of your tools can find it from any directory. Only your user can read the file. Stacktape deletes it when the agent stops, and an agent that starts later removes the files of agents that were killed. The startup message and the `AGENT_READY` result print the file path, never the token.
 
 Every request must send the token in an `Authorization: Bearer` header. POST requests must also send `content-type: application/json`. The examples on this page use these shell variables:
 
 ```bash
 AGENT=http://127.0.0.1:9900
-AUTH="Authorization: Bearer $(cat .stacktape/dev-agent/9900.token)"
+AUTH="Authorization: Bearer $(cat ~/.stacktape/dev-agent-tokens/9900.token)"
 JSON='content-type: application/json'
 
 curl -H "$AUTH" $AGENT/status
@@ -487,7 +487,7 @@ For MCP-based assistant setup, see the [Stacktape MCP server](/using-with-ai/mcp
 The agent can run SQL against your local databases, rebuild and stop workloads, and call AWS read operations with the dev agent's credentials. Only programs running as your user on this machine can call it:
 
 - It listens on `127.0.0.1` only, so other machines on your network cannot connect.
-- Every request needs the session token from `.stacktape/dev-agent/{port}.token`, which only your user can read.
+- Every request needs the session token from `~/.stacktape/dev-agent-tokens/{port}.token`, which only your user can read.
 - It refuses requests with an `Origin` header or a foreign `Host` header, so a web page cannot call it, even through DNS rebinding.
 - POST requests must be JSON, which a web page cannot send to another site without the browser asking the agent first.
 

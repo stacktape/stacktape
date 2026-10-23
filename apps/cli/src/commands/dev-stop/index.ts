@@ -31,30 +31,30 @@ export const commandDevStop = async () => {
   }
 
   // Helper to stop agent on a specific port
-  const stopAgentOnPort = async (port: number): Promise<boolean> => {
+  const stopAgentOnPort = async (port: number): Promise<'stopped' | 'failed' | 'refused' | 'not-found'> => {
     // A lock file names the agent's project and stage, so stopping through it also removes that file.
     const lockFileAgent = (await getAllRunningAgents()).find((agent) => agent.port === port);
     let agent: AgentLockFile | undefined = lockFileAgent;
     if (!agent) {
-      // An agent started from this directory keeps its session token here even when its lock file is gone.
-      const tokenFile = localStatePaths.devAgentTokenFile({ workingDirectory: globalStateManager.workingDir, port });
+      // Lock files live in the directory dev mode was started in, but every agent's token is in the user's state
+      // directory under its port, so the agent can be stopped from any directory.
       try {
-        const response = await requestDevAgent({ port, tokenFile }, '/status', { timeoutMs: 2000 });
+        const response = await requestDevAgent({ port }, '/status', { timeoutMs: 2000 });
         if (response.status === 401) {
           tuiManager.error(
-            `The dev agent on port ${port} did not accept this request: its session token is not in ${tokenFile}. ` +
-              'Run this command from the directory dev mode was started in.'
+            `The process on port ${port} refused the dev agent session token in ` +
+              `${localStatePaths.devAgentTokenFile({ port })}. It is not a dev agent started by this user, or the ` +
+              'file belongs to an earlier session.'
           );
-          return false;
+          return 'refused';
         }
-        if (!response.ok) return false;
+        if (!response.ok) return 'not-found';
         // The agent wraps every response in its `{ v, ok, code, data }` envelope.
         const status = (await response.json()) as { data?: { pid?: unknown } };
         const pid = typeof status.data?.pid === 'number' ? status.data.pid : 0;
         agent = {
           pid,
           port,
-          tokenFile,
           phase: 'ready',
           projectName: 'unknown',
           stage: 'unknown',
@@ -65,24 +65,24 @@ export const commandDevStop = async () => {
         };
       } catch {
         // Agent not responding on this port
-        return false;
+        return 'not-found';
       }
     }
     tuiManager.info(`Stopping dev agent on port ${port}...`);
     const stopped = await stopRunningAgent(agent);
     if (stopped) {
       tuiManager.success('Dev agent stopped.');
-      return true;
+      return 'stopped';
     }
     tuiManager.error('Failed to stop dev agent.');
-    return false;
+    return 'failed';
   };
 
   // If --agentPort specified, stop that specific agent
   if (agentPortArg) {
-    const stopped = await stopAgentOnPort(agentPortArg);
-    if (!stopped) {
-      tuiManager.warn(`No dev agent found on port ${agentPortArg}.`);
+    const outcome = await stopAgentOnPort(agentPortArg);
+    if (outcome !== 'stopped') {
+      if (outcome === 'not-found') tuiManager.warn(`No dev agent found on port ${agentPortArg}.`);
       process.exit(1);
     }
     return;
@@ -118,8 +118,8 @@ export const commandDevStop = async () => {
 
   // No lock files found - try default port as fallback
   tuiManager.info('No lock files found, trying default port 7331...');
-  const stopped = await stopAgentOnPort(7331);
-  if (!stopped) {
+  const outcome = await stopAgentOnPort(7331);
+  if (outcome === 'not-found') {
     tuiManager.info('No running dev agents found.');
     tuiManager.printLines(['']);
     tuiManager.info('If the agent is running on a different port, use: dev stop --agent-port <port>');

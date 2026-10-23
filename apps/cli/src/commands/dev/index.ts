@@ -24,6 +24,7 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
+  buildAgentReadyPayload,
   deleteAgentLockFile,
   getLockFilePath,
   getCustomArgsSuffix,
@@ -36,7 +37,6 @@ import { getAgentLogFilePath } from './agent-logger';
 import {
   buildStartupMessage,
   getAgentPort,
-  getAgentTokenFile,
   registerAgentCleanupHook,
   setRebuildFunctions,
   startAgentServer,
@@ -318,19 +318,19 @@ export const commandDev = async () => {
     // Check if agent is already running
     const runningAgent = await getRunningAgent();
     if (runningAgent) {
-      process.stdout.write(
-        `${buildAgentReadyMessage({
-          port: runningAgent.port,
-          projectName: runningAgent.projectName,
-          stage: runningAgent.stage,
-          region: runningAgent.region,
-          workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
-          databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
-          logFile: runningAgent.logFile || '',
-          tokenFile: runningAgent.tokenFile
-        })}\n`
-      );
-      return;
+      // Report the running agent exactly like a new one: clients such as the MCP tool take its port and token file
+      // from this result.
+      const readyPayload = buildAgentReadyPayload({
+        port: runningAgent.port,
+        projectName: runningAgent.projectName,
+        stage: runningAgent.stage,
+        region: runningAgent.region,
+        workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
+        databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
+        logFile: runningAgent.logFile || ''
+      });
+      process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
+      return readyPayload;
     }
 
     // Find available port
@@ -366,7 +366,7 @@ export const commandDev = async () => {
     if (failedWorkloads.length > 0) {
       // A session with a failed workload is not usable, and leaving it running would hold its port, containers and
       // Lambda environment changes. Stop it through its stop route so its cleanup runs, then report the failure.
-      const { port, projectName, stage, region, logFile, tokenFile } = result.readyPayload!;
+      const { port, projectName, stage, region, logFile } = result.readyPayload!;
       await stopRunningAgent({
         pid: result.pid ?? 0,
         port,
@@ -376,8 +376,7 @@ export const commandDev = async () => {
         region: region || '',
         startedAt: '',
         workloads: [],
-        databases: [],
-        tokenFile
+        databases: []
       });
       throw new CliError({
         category: 'CLI',
@@ -389,7 +388,7 @@ export const commandDev = async () => {
 
     // Print startup message with endpoint documentation
     if (result.readyPayload) {
-      const { port, projectName, stage, region, workloads, databases, logFile, tokenFile } = result.readyPayload;
+      const { port, projectName, stage, region, workloads, databases, logFile } = result.readyPayload;
       tuiManager.printLines([
         '',
         buildStartupMessage({
@@ -399,8 +398,7 @@ export const commandDev = async () => {
           workloads: workloads || [],
           databases: databases || [],
           port,
-          logFile,
-          tokenFile
+          logFile
         }),
         '',
         '─'.repeat(60),
@@ -476,7 +474,6 @@ export const commandDev = async () => {
   writeAgentLockFile({
     pid: process.pid,
     port: getAgentPort() ?? 0,
-    tokenFile: getAgentTokenFile() ?? undefined,
     phase: 'starting',
     projectName: stackContext.projectName,
     stage: stackContext.stage,
@@ -632,8 +629,7 @@ export const commandDev = async () => {
             startedAt: new Date().toISOString(),
             workloads: workloadInfos.map((w) => w.name),
             databases: databaseInfos.map((d) => d.name),
-            logFile: getAgentLogFilePath() || undefined,
-            tokenFile: getAgentTokenFile() ?? undefined
+            logFile: getAgentLogFilePath() || undefined
           });
 
           // Get workload details from state for the ready message
@@ -662,7 +658,6 @@ export const commandDev = async () => {
               workloads: workloadsWithUrls,
               databases: databasesWithPorts,
               logFile: getAgentLogFilePath() || '',
-              tokenFile: getAgentTokenFile() ?? undefined,
               failedWorkloads: state.workloads
                 .filter((w) => w.status === 'error')
                 .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))

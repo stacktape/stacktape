@@ -1,6 +1,7 @@
 import { pathExists, readFile } from 'fs-extra';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
 import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
@@ -10,15 +11,12 @@ import { toToolText, type ToolOutput } from './tool-output';
 type DevSession = {
   devSessionId: string;
   agentPort: number;
-  /** File holding the agent's session token. The token is read for each request and never returned to the client. */
-  tokenFile?: string;
   startedAt: string;
   cwd: string;
 };
 
 type DevApiRequest = (input: {
   port: number;
-  tokenFile?: string;
   method: 'GET' | 'POST';
   path: string;
   body?: Record<string, unknown>;
@@ -36,8 +34,10 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
   return { ...normalizeCliInvocation('dev', cliArgs).args, ...(cwd !== undefined ? { cwd } : {}) };
 };
 
-const devApiRequest: DevApiRequest = async ({ port, tokenFile, method, path, body }) => {
-  const token = tokenFile ? (await readFile(tokenFile, 'utf-8').catch(() => '')).trim() : '';
+// Every agent stores its session token in the user's state directory under its port. The token is read for each
+// request and never returned to the client.
+const devApiRequest: DevApiRequest = async ({ port, method, path, body }) => {
+  const token = (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
     headers: {
@@ -119,7 +119,6 @@ const ensureDevSessionAvailable = async ({
 
   const health = await requestDevApi({
     port: session.agentPort,
-    tokenFile: session.tokenFile,
     method: 'GET',
     path: '/health'
   });
@@ -130,7 +129,10 @@ const ensureDevSessionAvailable = async ({
       output: {
         ok: false,
         code: 'NOT_FOUND',
-        message: `Dev session ${session.devSessionId} on port ${session.agentPort} is no longer reachable.`,
+        message:
+          health.code === 'UNAUTHORIZED'
+            ? `The process on port ${session.agentPort} refused the session token in ${localStatePaths.devAgentTokenFile({ port: session.agentPort })}; dev session ${session.devSessionId} has ended.`
+            : `Dev session ${session.devSessionId} on port ${session.agentPort} is no longer reachable.`,
         nextActions: ['Call stacktape_dev with action=start to create a new dev session']
       }
     };
@@ -330,26 +332,24 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       });
 
       let session: DevSession | undefined;
-      if (result.ok) {
-        const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
-        const port =
-          (payload?.port as number | undefined) ||
-          (payload?.agentPort as number | undefined) ||
-          (Number.isFinite(requestedPort) ? requestedPort : 7331);
+      // The CLI reports the port of the agent it started or found running, which may differ from the requested one.
+      const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
+      const agentPort = [payload?.port, payload?.agentPort].find((port): port is number => typeof port === 'number');
+      if (result.ok && agentPort !== undefined) {
         session = {
           devSessionId: createId(),
-          agentPort: port,
-          ...(typeof payload?.tokenFile === 'string' ? { tokenFile: payload.tokenFile } : {}),
+          agentPort,
           startedAt: now().toISOString(),
           cwd: result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd
         };
         activeDevSessions.set(session.devSessionId, session);
       }
+      const missingPort = result.ok && !session;
 
       return toToolText({
-        ok: result.ok,
-        code: result.code,
-        message: result.message,
+        ok: result.ok && !missingPort,
+        code: missingPort ? 'INTERNAL_ERROR' : result.code,
+        message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
         data: {
           ...(session ? { session } : {}),
           resolvedContext: result.resolvedContext,
@@ -371,10 +371,9 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     const port = sessionResult.session.agentPort;
-    const { tokenFile } = sessionResult.session;
 
     if (action === 'status') {
-      const response = await requestDevApi({ port, tokenFile, method: 'GET', path: '/status?verbose=true' });
+      const response = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true' });
       return toToolText({
         ok: (response.ok as boolean | undefined) ?? true,
         code: ((response.ok as boolean | undefined) ?? true) ? 'OK' : 'INTERNAL_ERROR',
@@ -387,7 +386,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     if (action === 'logs') {
-      const logsMeta = await requestDevApi({ port, tokenFile, method: 'GET', path: '/logs' });
+      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' });
       const logFile = logsMeta.logFile as string | undefined;
       if (!logFile) {
         return toToolText({
@@ -442,7 +441,6 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
 
       const response = await requestDevApi({
         port,
-        tokenFile,
         method: 'POST',
         path: `/rebuild/${encodeURIComponent(workload)}`,
         body: {}
@@ -464,7 +462,6 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     if (action === 'rebuild_all') {
       const response = await requestDevApi({
         port,
-        tokenFile,
         method: 'POST',
         path: '/rebuild/all',
         body: {}
@@ -486,7 +483,6 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     if (action === 'stop') {
       const response = await requestDevApi({
         port,
-        tokenFile,
         method: 'POST',
         path: '/stop',
         body: {}
