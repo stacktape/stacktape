@@ -24,6 +24,9 @@ export type SelectOption<Value = string | number> = {
   value: Value;
   /** A shorter form for the closed control ("🇮🇪 eu-west-1"), when the menu label carries more ("… Europe (Ireland)"). */
   valueLabel?: ReactNode;
+  /** A muted second line under the label in the menu, such as where a repository lives. */
+  description?: ReactNode;
+  /** Shown in a 20px slot centred on the whole row (one or two lines); size the icon 18-20px. */
   icon?: ReactNode;
   isDisabled?: boolean;
   isProminent?: boolean;
@@ -130,6 +133,7 @@ function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Valu
         className={[
           'stp-ui-select__option-content',
           option.isProminent && 'stp-ui-select__option-content--prominent',
+          option.description != null && 'stp-ui-select__option-content--two-line',
           breakOptionWord && 'stp-ui-select__option-content--break'
         ]
           .filter(Boolean)
@@ -137,7 +141,12 @@ function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Valu
         style={optionHeight ? { minHeight: optionHeight } : undefined}
       >
         {option.icon ? <span className="stp-ui-select__option-icon">{option.icon}</span> : null}
-        <span>{option.label}</span>
+        <span className="stp-ui-select__option-text">
+          <span className="stp-ui-select__option-label">{option.label}</span>
+          {option.description != null ? (
+            <span className="stp-ui-select__option-description">{option.description}</span>
+          ) : null}
+        </span>
       </span>
     </components.Option>
   );
