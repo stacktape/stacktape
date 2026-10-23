@@ -15,8 +15,9 @@ import { getHomeDir } from '@utils/misc';
  *   delete at any time; the caller identity STS returned for each access key in `awsIdentityCacheFile`, kept a
  *   day and safe to delete at any time; and when each base image of Stacktape's generated Dockerfiles was last
  *   pulled in `baseImagePullsFile`, kept a day and safe to delete at any time.
- * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`).
- * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
+ * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`),
+ *   and the generated password of each such database in `devResourcePasswordFile`.
+ * - Runtime coordination: dev-agent logs, session tokens and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
  *   while `package` deliberately leaves its artifacts for the caller.
  * - Operation-temporary: `starterArchiveFile`; its owner removes it after use.
@@ -78,8 +79,30 @@ export const localStatePaths = {
   }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-data', stage, resourceName, 'data');
   },
+  /** Generated password of a local database whose configuration sets none; `--freshDb` replaces it with its data. */
+  devResourcePasswordFile({
+    workingDirectory,
+    stage,
+    resourceName
+  }: {
+    workingDirectory: string;
+    stage: string;
+    resourceName: string;
+  }) {
+    return join(
+      localStatePaths.projectStateDirectory({ workingDirectory }),
+      'dev-data',
+      stage,
+      resourceName,
+      'password'
+    );
+  },
   devAgentDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agent');
+  },
+  /** The running agent's session token, readable only by its user; removed when the agent stops. */
+  devAgentTokenFile({ workingDirectory, port }: { workingDirectory: string; port: number }) {
+    return join(localStatePaths.devAgentDirectory({ workingDirectory }), `${port}.token`);
   },
   devAgentRegistryDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agents');

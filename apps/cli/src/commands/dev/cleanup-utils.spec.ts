@@ -2,11 +2,18 @@ import { describe, expect, test } from 'bun:test';
 import { getDevContainerName, selectRemovableDevContainers } from './cleanup-utils';
 
 describe('dev container names', () => {
-  test('two projects with the same stage and resource names get different containers', () => {
-    const shop = getDevContainerName({ projectName: 'shop', stage: 'dev', name: 'mainDatabase' });
-    const blog = getDevContainerName({ projectName: 'blog', stage: 'dev', name: 'mainDatabase' });
-    expect(shop).not.toBe(blog);
-    expect([shop, blog]).toEqual(['stp-shop-dev-mainDatabase', 'stp-blog-dev-mainDatabase']);
+  test('projects and checkouts that share a stage and resource names get different containers', () => {
+    const name = (projectName: string, workingDirectory: string) =>
+      getDevContainerName({ projectName, stage: 'dev', workingDirectory, name: 'mainDatabase' });
+    const shop = name('shop', '/work/shop');
+    const blog = name('blog', '/work/blog');
+    // A Git worktree of the same project has its own data directory, so it must not reuse or stop shop's container.
+    const shopWorktree = name('shop', '/work/shop-feature');
+    expect(new Set([shop, blog, shopWorktree]).size).toBe(3);
+    expect(shop).toMatch(/^stp-shop-dev-[0-9a-f]{8}-mainDatabase$/);
+    // The same checkout reaches the same container from any spelling of its path, so a restart reuses it.
+    expect(name('shop', '/work/shop/')).toBe(shop);
+    expect(name('shop', '/work/other/../shop')).toBe(shop);
   });
 
   test('`dev:stop --cleanupContainers` removes stopped containers and those of sessions known to be gone', () => {

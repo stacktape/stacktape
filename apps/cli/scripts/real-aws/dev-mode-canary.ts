@@ -46,12 +46,12 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { cp, mkdir, readdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { createConnection, createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import stripAnsi from 'strip-ansi';
 
 type Environment = Record<string, string | undefined>;
@@ -154,7 +154,7 @@ export const resolveOptions = (env: Environment = process.env): Options => {
         return scenario;
       })
     : SCENARIOS;
-  // The stage is derived from the project, so the local container names (`stp-<stage>-<resource>`) are this run's own.
+  // The stage is derived from the project, so the local container names (`stp-<project>-<stage>-…`) are this run's own.
   const stage = `c${projectName.slice(-4)}`;
   return {
     expectedAccountId,
@@ -307,6 +307,7 @@ const resolveAwsAccountName = async (options: Options, state: State) => {
 
 type AgentReady = {
   port: number;
+  tokenFile?: string;
   workloads: { name: string; type: string; url?: string }[];
   databases: { name: string; type: string; port?: number }[];
 };
@@ -341,16 +342,25 @@ const startAgent = async ({
     run.result?.ok === true && isRecord(run.result.data) && isRecord(run.result.data.result)
       ? (run.result.data.result as unknown as AgentReady)
       : undefined;
+  if (ready?.tokenFile) agentTokenFiles.set(agentPort, ready.tokenFile);
   return { ...run, ready };
 };
 
+/** Token file of each agent this run started, from its AGENT_READY payload. */
+const agentTokenFiles = new Map<number, string>();
+
 const agentRequest = async (port: number, path: string, init?: { method?: string; body?: unknown }) => {
+  const tokenFile = agentTokenFiles.get(port);
+  assert(tokenFile, `The agent on port ${port} reported no token file.`);
+  const token = (await readFile(tokenFile, 'utf8')).trim();
+  const method = init?.method ?? 'GET';
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
-    method: init?.method ?? 'GET',
-    ...(init?.body !== undefined && {
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(init.body)
-    }),
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(method === 'POST' && { 'content-type': 'application/json' })
+    },
+    ...(method === 'POST' && { body: JSON.stringify(init?.body ?? {}) }),
     signal: AbortSignal.timeout(120_000)
   });
   return (await response.json()) as { ok: boolean; code: string; message?: string; data?: Record<string, unknown> };
@@ -473,13 +483,27 @@ const docker: DockerRunner = (args) => {
   return { exitCode: result.exitCode, stdout: result.stdout.toString().trim() };
 };
 
-/** The names dev mode gives this run's containers: project and stage keep them apart from any other session's. */
-const apiContainerName = (options: Pick<Options, 'projectName' | 'stage'>) =>
-  `stp-${options.projectName}-${options.stage}-api-service-container`;
-const databaseContainerName = (options: Pick<Options, 'projectName' | 'stage'>) =>
-  `stp-${options.projectName}-${options.stage}-db`;
-const cacheContainerName = (options: Pick<Options, 'projectName' | 'stage'>) =>
-  `stp-${options.projectName}-${options.stage}-cache`;
+/**
+ * The names dev mode gives this run's containers: project, stage and a hash of the project directory keep them apart
+ * from any other session's, including another checkout of the same project on the same stage.
+ */
+const containerPrefix = (options: Pick<Options, 'projectName' | 'stage'>, state: Pick<State, 'workDirectory'>) =>
+  `stp-${options.projectName}-${options.stage}-${createHash('sha256')
+    .update(resolve(projectDirectory(state)))
+    .digest('hex')
+    .slice(0, 8)}`;
+export const apiContainerName = (
+  options: Pick<Options, 'projectName' | 'stage'>,
+  state: Pick<State, 'workDirectory'>
+) => `${containerPrefix(options, state)}-api-service-container`;
+export const databaseContainerName = (
+  options: Pick<Options, 'projectName' | 'stage'>,
+  state: Pick<State, 'workDirectory'>
+) => `${containerPrefix(options, state)}-db`;
+export const cacheContainerName = (
+  options: Pick<Options, 'projectName' | 'stage'>,
+  state: Pick<State, 'workDirectory'>
+) => `${containerPrefix(options, state)}-cache`;
 
 const containerState = (name: string): string | undefined => {
   const { exitCode, stdout } = docker(['inspect', '--format', '{{.State.Status}}', name]);
@@ -495,7 +519,11 @@ export const findOwnedContainers = (
   state: Pick<State, 'workDirectory'>,
   run: DockerRunner = docker
 ) => {
-  const names = new Set([apiContainerName(options), databaseContainerName(options), cacheContainerName(options)]);
+  const names = new Set([
+    apiContainerName(options, state),
+    databaseContainerName(options, state),
+    cacheContainerName(options, state)
+  ]);
   const listed = run(['ps', '-aq']);
   assert(listed.exitCode === 0, `docker ps failed (${listed.exitCode}); the container state is unknown.`);
   const ids = listed.stdout.split('\n').filter(Boolean);
@@ -636,7 +664,11 @@ const firstRunAgent = async (context: ScenarioContext) => {
       const answer = await waitForApiRelease(apiUrl, 'first');
       assert(answer.databaseReachable, 'The API cannot reach the database address dev mode injected.');
       assert(answer.cacheReachable, 'The API cannot reach the Redis address dev mode injected.');
-      for (const name of [apiContainerName(options), databaseContainerName(options), cacheContainerName(options)]) {
+      for (const name of [
+        apiContainerName(options, state),
+        databaseContainerName(options, state),
+        cacheContainerName(options, state)
+      ]) {
         assert(containerState(name) === 'running', `The project's container ${name} is not running.`);
       }
     }
@@ -697,7 +729,7 @@ const interactiveWatchCtrlC = async (context: ScenarioContext) => {
     if (terminal.exitCode !== null) {
       throw new WaitAborted(`The session exited (${terminal.exitCode}):\n${stripAnsi(screen).slice(-1500)}`);
     }
-    const { exitCode, stdout } = docker(['port', apiContainerName(options), '3000/tcp']);
+    const { exitCode, stdout } = docker(['port', apiContainerName(options, state), '3000/tcp']);
     return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
   };
   try {
@@ -757,7 +789,7 @@ const terminalSigterm = async (context: ScenarioContext) => {
         if (terminal.exitCode !== null) {
           throw new WaitAborted(`The session exited (${terminal.exitCode}):\n${stripAnsi(screen).slice(-1500)}`);
         }
-        const { exitCode, stdout } = docker(['port', apiContainerName(options), '3000/tcp']);
+        const { exitCode, stdout } = docker(['port', apiContainerName(options, state), '3000/tcp']);
         return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
       },
       READY_TIMEOUT_MS
@@ -772,7 +804,7 @@ const terminalSigterm = async (context: ScenarioContext) => {
         cleanup.exitCode === 0,
         `dev:stop --cleanupContainers failed (${cleanup.exitCode}): ${cleanup.output.slice(-1500)}`
       );
-      for (const name of [databaseContainerName(options), cacheContainerName(options)]) {
+      for (const name of [databaseContainerName(options, state), cacheContainerName(options, state)]) {
         assert(containerState(name) === 'running', `Cleanup removed or stopped ${name} of the running session.`);
       }
     });

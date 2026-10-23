@@ -1,4 +1,6 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
+import { randomBytes } from 'node:crypto';
+import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { execDocker, inspectDockerContainer } from '@utils/docker';
 import { isPortInUse } from '@utils/ports';
@@ -7,8 +9,58 @@ import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 
 export const DEFAULT_LOCAL_HOST = 'localhost';
-const DEFAULT_PASSWORD = DEV_CONFIG.localResources.defaultPassword;
 export const DEFAULT_PORTS = DEV_CONFIG.localResources.ports;
+
+/**
+ * `docker run` arguments that publish a database port on loopback only. Docker publishes on every interface by default,
+ * which put local databases on the developer's network. Processes on this machine still reach them: dev servers and
+ * the agent through localhost, local containers through the host network on Linux and through host.docker.internal on
+ * Docker Desktop, which forwards to the host's loopback.
+ */
+export const publishOnLoopback = (hostPort: number, containerPort: number): string[] => [
+  '-p',
+  `127.0.0.1:${hostPort}:${containerPort}`
+];
+
+/**
+ * On Linux a database container owns the data directory it initialized and makes it unreadable to anyone else, so a
+ * directory this user cannot list holds data as well.
+ */
+const hasExistingData = (dataDir: string): boolean => {
+  try {
+    return readdirSync(dataDir).length > 0;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return false;
+    if (code === 'EACCES' || code === 'EPERM') return true;
+    throw error;
+  }
+};
+
+/**
+ * The password of a local database whose configuration sets none. Each database gets a random password the first time
+ * its data directory is created, stored next to that directory and reused while the data exists (`--freshDb` deletes
+ * both).
+ * A data directory created before passwords were generated was initialized with the old fixed password, which the
+ * database keeps in its data; that password is kept and reported as legacy so existing data keeps working.
+ */
+export const resolveLocalDatabasePassword = ({
+  passwordFile,
+  dataDir
+}: {
+  passwordFile: string;
+  dataDir: string;
+}): { password: string; legacy: boolean } => {
+  if (existsSync(passwordFile)) {
+    const stored = readFileSync(passwordFile, 'utf-8').trim();
+    if (stored) return { password: stored, legacy: false };
+  }
+  const legacy = hasExistingData(dataDir);
+  const password = legacy ? DEV_CONFIG.localResources.legacyPassword : randomBytes(18).toString('hex');
+  writeFileSync(passwordFile, password, { mode: 0o600 });
+  chmodSync(passwordFile, 0o600);
+  return { password, legacy };
+};
 
 /**
  * Track reserved ports during parallel startup to prevent race conditions.
@@ -201,13 +253,12 @@ export type DbCredentials = {
   password: string;
 };
 
-export const getDbCredentials = (
-  config: LocalResourceConfig,
-  defaults: { username: string; password: string }
-): DbCredentials => ({
-  username: config.credentials?.username || defaults.username,
-  password: config.credentials?.password || DEFAULT_PASSWORD
-});
+export const getDbCredentials = (config: LocalResourceConfig, defaults: { username: string }): DbCredentials => {
+  if (!config.credentials?.password) {
+    throw new Error(`Local database "${config.name}" started without a password.`);
+  }
+  return { username: config.credentials.username || defaults.username, password: config.credentials.password };
+};
 
 export const buildDockerRunArgs = ({
   containerName,
@@ -230,7 +281,7 @@ export const buildDockerRunArgs = ({
     args.push('-e', `${key}=${value}`);
   }
 
-  args.push('-p', `${portMapping.host}:${portMapping.container}`);
+  args.push(...publishOnLoopback(portMapping.host, portMapping.container));
   args.push('-v', `${volumeMapping.host}:${volumeMapping.container}`);
   args.push(imageTag);
   args.push(...additionalArgs);

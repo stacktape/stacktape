@@ -1,10 +1,11 @@
 import { expect, test } from 'bun:test';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 // `stacktape dev:stop --agentPort <port>` is the stop command the dev agent prints at startup. It must return only once
 // the agent process is gone: an assistant restarts dev mode right after it, and a still-running agent holds the ports,
@@ -163,8 +164,9 @@ const startRealAgent = async (directory: string) => {
     `
 import { createServer } from 'node:net';
 import { applicationManager } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/app/application-manager/index.ts'))};
-import { startAgentServer } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
+import { getAgentTokenFile, registerAgentCleanupHook, startAgentServer } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
 await applicationManager.init();
+registerAgentCleanupHook();
 applicationManager.registerCleanUpHook(async () => {
   await new Promise((resolve) => setTimeout(resolve, 300));
   console.log('FIXTURE cleanup-hook-ran');
@@ -173,8 +175,8 @@ const probe = createServer();
 await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
 const port = probe.address().port;
 await new Promise((resolve) => probe.close(resolve));
-await startAgentServer(port, ${JSON.stringify(directory)}, () => null);
-console.log(JSON.stringify({ port, pid: process.pid }));
+await startAgentServer(port, ${JSON.stringify(directory)});
+console.log(JSON.stringify({ port, pid: process.pid, tokenFile: getAgentTokenFile() }));
 `
   );
   const agent = spawn(
@@ -186,7 +188,7 @@ console.log(JSON.stringify({ port, pid: process.pid }));
     }
   );
   let output = '';
-  const started = new Promise<{ port: number; pid: number }>((resolve, reject) => {
+  const started = new Promise<{ port: number; pid: number; tokenFile: string }>((resolve, reject) => {
     agent.stdout.on('data', (data) => {
       output += data;
       const line = output.split('\n').find((candidate) => candidate.startsWith('{"port"'));
@@ -200,17 +202,34 @@ console.log(JSON.stringify({ port, pid: process.pid }));
 
 test('dev:stop ends a real dev agent through its stop route after its cleanup hooks ran', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-real-agent-'));
-  const { agent, port, output } = await startRealAgent(directory);
+  const { agent, port, tokenFile, output } = await startRealAgent(directory);
+  // dev:stop runs in the CLI package (see runDevStop) and reads an agent's token from that directory's agent state.
+  const visibleTokenFile = join(CLI_DIRECTORY, '.stacktape', 'dev-agent', `${port}.token`);
   try {
-    const status = (await (await fetch(`http://127.0.0.1:${port}/status`)).json()) as { data: { pid: number } };
+    const token = await readFile(tokenFile, 'utf8');
+    const status = (await (
+      await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` } })
+    ).json()) as { data: { pid: number } };
     expect(status.data.pid).toBe(agent.pid!);
+
+    // From a directory without the agent's token, dev:stop cannot stop it and says why.
+    const refused = await runDevStop(port);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.output).toContain('session token');
+    expect(isRunning(agent.pid!)).toBeTrue();
+
+    await mkdir(dirname(visibleTokenFile), { recursive: true });
+    await writeFile(visibleTokenFile, token);
     const result = await runDevStop(port);
     expect(result.output).toContain('Dev agent stopped.');
     expect(result.exitCode).toBe(0);
     expect(isRunning(agent.pid!)).toBeFalse();
     expect(output()).toContain('FIXTURE cleanup-hook-ran');
+    // The agent removes its token when it stops; a later agent on the port gets a new one.
+    expect(existsSync(tokenFile)).toBeFalse();
   } finally {
     stopIfRunning(agent);
+    await rm(visibleTokenFile, { force: true });
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);

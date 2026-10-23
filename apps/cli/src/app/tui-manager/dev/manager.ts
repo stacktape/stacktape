@@ -305,15 +305,21 @@ class DevTuiManager {
 
   private printAgentRunningSummary() {
     const state = devTuiState.getState();
-    const runningWorkloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
+    const runningWorkloads = state.workloads.filter((w) => w.status === 'running');
+    const failedWorkloads = state.workloads.filter((w) => w.status === 'error');
 
     console.info('');
-    console.info(formatSectionHeaderLine('Dev mode ready'));
+    console.info(formatSectionHeaderLine(failedWorkloads.length ? 'Dev mode started with failures' : 'Dev mode ready'));
     console.info(`Workloads running: ${runningWorkloads.length}`);
     for (const workload of runningWorkloads) {
-      const status = workload.status === 'running' ? 'running' : 'error';
       const url = workload.url ? ` at ${workload.url}` : '';
-      console.info(`  ${workload.name} (${workload.type}): ${status}${url}`);
+      console.info(`  ${workload.name} (${workload.type}): running${url}`);
+    }
+    if (failedWorkloads.length) {
+      console.info(`Workloads failed: ${failedWorkloads.length}`);
+      for (const workload of failedWorkloads) {
+        console.info(`  ${workload.name} (${workload.type}): ${workload.error || 'unknown error'}`);
+      }
     }
     console.info('');
   }

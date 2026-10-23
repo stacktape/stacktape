@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,7 +16,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { configManager } from '@domain-services/config-manager';
 import type { ValidatedAwsCredentials } from '../../src/aws/credentials';
-import { startAgentServer, stopAgentServer } from '../../src/commands/dev/agent-server';
+import { getAgentTokenFile, startAgentServer, stopAgentServer } from '../../src/commands/dev/agent-server';
 import {
   detectLambdasNeedingTunnels,
   registerLambdaEnvCleanupHook,
@@ -261,7 +261,8 @@ test('the dev agent exposes reviewed reads with redacted values and refuses muta
   await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
   const port = (probe.address() as AddressInfo).port;
   await new Promise<void>((resolve) => probe.close(() => resolve()));
-  await startAgentServer(port, directory, () => null);
+  await startAgentServer(port, directory);
+  const token = await readFile(getAgentTokenFile()!, 'utf8');
   const call = async (
     command: string,
     service = 'lambda',
@@ -269,7 +270,7 @@ test('the dev agent exposes reviewed reads with redacted values and refuses muta
   ) => {
     const response = await fetch(`http://127.0.0.1:${port}/aws/sdk`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({ service, command, input, region: 'eu-west-1' })
     });
     return (await response.json()) as { ok: boolean; message: string; data?: { data?: Record<string, unknown> } };

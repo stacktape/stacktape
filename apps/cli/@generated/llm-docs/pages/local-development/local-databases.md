@@ -25,7 +25,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. If `credentials.masterUserPassword` uses a `$Secret()` directive that cannot be resolved locally, the password falls back to `localdevpassword`. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. If `credentials.masterUserPassword` is not set, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Your workloads receive it through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
 Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
@@ -37,8 +37,8 @@ Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, a
 
 When you run [`stacktape dev`](/cli/dev), Stacktape identifies database resources in your config and starts Docker containers for each one.
 
-1. **Container naming** — each container is named per stage and resource, so multiple stages can run in parallel without conflicts.
-2. **Port allocation** — dev mode finds an available host port for each container, avoiding conflicts when multiple stages run in parallel. The selected port is reflected in the injected connection information.
+1. **Container naming** — each container is named after the project, stage, resource and a short hash of the project directory, so multiple stages, projects and Git worktrees of one project can run in parallel without sharing or stopping each other's containers.
+2. **Port allocation** — dev mode finds an available host port for each container, avoiding conflicts when several sessions run in parallel. The port is published on `127.0.0.1` only, so other machines on your network cannot reach the database. The selected port is reflected in the injected connection information.
 3. **Data persistence** — dev mode mounts a local data directory into the container, so data survives dev mode restarts.
 4. **Readiness checks** — Stacktape polls the container until it responds, then marks the resource ready for your workloads.
 5. **Connection information** — referenceable parameters (host, port, connectionString, etc.) are resolved locally so they can be used via `$ResourceParam()`. Workloads that list the database in their `connectTo` receive the documented environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern described in [Connecting resources](/configuration/connecting-resources).
@@ -276,15 +276,19 @@ Oracle and SQL Server engines are not mapped to a local container type. MongoDB 
 
 ### Does local database data persist when I restart dev mode?
 
-Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --fresh-db`, or delete a single resource's directory under `.stacktape/dev-data/<stage>/<resourceName>/data/`.
+Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --fresh-db`. It deletes the data and the generated passwords, and the databases start empty with new passwords.
 
 ### Can I run multiple stages locally at the same time?
 
-Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel.
+Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel. Two Git worktrees of the same project can also run the same stage in parallel: each worktree has its own data directory, containers and ports.
+
+### Why does dev mode warn that my database keeps the password `localdevpassword`?
+
+Earlier Stacktape versions gave every local database the fixed password `localdevpassword`. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
 
 ### How do I connect to the local database with a GUI tool?
 
-Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config password uses `$Secret()` and cannot be resolved locally, the password falls back to `localdevpassword`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
+Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
 
 ### Does local DynamoDB support Streams and Global Tables?
 

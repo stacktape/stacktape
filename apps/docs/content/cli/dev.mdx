@@ -23,7 +23,7 @@ The `dev` command deploys a minimal dev stack to AWS containing only essential i
 
 - Runs containers, Lambda functions, and frontend workloads locally on your machine
 - Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
-- Sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed
+- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions connect to deployed databases through `--remote-resources`
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
 
@@ -88,7 +88,7 @@ stacktape dev --stage dev --region eu-west-1 --fresh-db
 
 ### --no-tunnel
 
-Disables automatic tunneling for Lambda functions. Stacktape sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed. Disable this if you don't need that connectivity or if tunneling causes issues.
+Skips tunnels from deployed Lambda functions to local databases. Dev mode opens these tunnels only through a bore-compatible relay you run yourself and name in the `STACKTAPE_TUNNEL_SERVER` environment variable; without one, Lambda functions cannot reach local databases. See [Using your own tunnel relay](/local-development/debugging-lambda-functions#using-your-own-tunnel-relay).
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --no-tunnel

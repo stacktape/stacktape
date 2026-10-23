@@ -10,11 +10,15 @@ import {
   getContainerPort,
   isDockerPortBindError,
   isContainerRunning,
+  publishOnLoopback,
   removeContainerIfExists,
   waitForReady
 } from './container-helpers';
 
 const OPENSEARCH_IMAGE = 'opensearchproject/opensearch';
+
+export const getLocalOpenSearchImageTag = (version: string) =>
+  `${OPENSEARCH_IMAGE}:${version === 'latest' ? '2.17.0' : version}`;
 const OPENSEARCH_DATA_PATH = '/usr/share/opensearch/data';
 
 const buildConnectionInfo = (host: string, port: number) => {
@@ -55,9 +59,7 @@ export const startLocalOpenSearch = async (
 
   let actualPort = await findAvailablePort(preferredPort);
 
-  // Map version to OpenSearch image version
-  const imageVersion = version === 'latest' ? '2.17.0' : version;
-  const imageTag = `${OPENSEARCH_IMAGE}:${imageVersion}`;
+  const imageTag = getLocalOpenSearchImageTag(version);
 
   const buildDockerArgs = (hostPort: number) => [
     'run',
@@ -65,8 +67,7 @@ export const startLocalOpenSearch = async (
     '--name',
     containerName,
     ...getDevContainerOwnerArgs(),
-    '-p',
-    `${hostPort}:9200`,
+    ...publishOnLoopback(hostPort, 9200),
     '-v',
     `${dataDir}:${OPENSEARCH_DATA_PATH}`,
     // Disable security for local development (simpler setup)
@@ -90,6 +91,8 @@ export const startLocalOpenSearch = async (
       if (!isDockerPortBindError(err) || attempt === 4) {
         throw err;
       }
+      // Docker creates the container before it fails to bind the port; remove it so the retry can reuse the name.
+      await removeContainerIfExists(containerName);
       actualPort = await findAvailablePort(actualPort + 1);
     }
   }

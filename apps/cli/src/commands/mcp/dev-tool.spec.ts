@@ -1,4 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
 import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -7,9 +9,17 @@ import { join } from 'node:path';
 import { createDevToolHandler } from './dev-tool';
 
 // Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
+// Each one, like the real agent, answers only requests that carry the session token from its token file.
+const tokenDirectory = mkdtempSync(join(tmpdir(), 'stacktape-mcp-dev-tokens-'));
 const daemon = async ({ logFile }: { logFile?: string } = {}) => {
   const state = { stopped: false, rebuilt: [] as string[] };
+  const token = randomUUID();
   const server = createServer((request, response) => {
+    if (request.headers.authorization !== `Bearer ${token}`) {
+      response.writeHead(401, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ ok: false, code: 'UNAUTHORIZED', message: 'missing token' }));
+      return;
+    }
     const path = new URL(request.url!, 'http://127.0.0.1').pathname;
     let data: Record<string, unknown> = {};
     if (path === '/health') data = { healthy: !state.stopped };
@@ -27,9 +37,13 @@ const daemon = async ({ logFile }: { logFile?: string } = {}) => {
     response.end(JSON.stringify({ ok: true, code: 'OK', data }));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as AddressInfo).port;
+  const tokenFile = join(tokenDirectory, `${port}.token`);
+  await writeFile(tokenFile, token);
+  daemonTokenFiles.set(port, tokenFile);
   return {
     state,
-    port: (server.address() as AddressInfo).port,
+    port,
     close: async () => {
       server.closeAllConnections();
       await new Promise<void>((resolve, reject) =>
@@ -41,6 +55,9 @@ const daemon = async ({ logFile }: { logFile?: string } = {}) => {
   };
 };
 
+const daemonTokenFiles = new Map<number, string>();
+
+// What `dev --agent` returns: the agent's port and the path of its token file, never the token.
 const startedDaemon: NonNullable<NonNullable<Parameters<typeof createDevToolHandler>[0]>['runCli']> = async ({
   args,
   cwd
@@ -48,12 +65,14 @@ const startedDaemon: NonNullable<NonNullable<Parameters<typeof createDevToolHand
   ok: true,
   code: 'OK',
   message: 'Fixture daemon started.',
-  data: { agentPort: args?.agentPort },
+  data: { agentPort: args?.agentPort, tokenFile: daemonTokenFiles.get(Number(args?.agentPort)) },
   events: [],
   logEvents: [],
   outputEvents: [],
   resolvedContext: { cwd: cwd || process.cwd() }
 });
+
+afterAll(() => rm(tokenDirectory, { recursive: true, force: true }));
 
 describe('MCP dev session routing', () => {
   test('rebuilds and stops only the daemon selected by its live session handle', async () => {

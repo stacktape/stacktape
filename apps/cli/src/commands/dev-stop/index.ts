@@ -1,6 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { type AgentLockFile, getAllRunningAgents, stopRunningAgent } from '../dev/agent-daemon';
+import { localStatePaths } from 'src/config/local-state-paths';
+import { type AgentLockFile, getAllRunningAgents, requestDevAgent, stopRunningAgent } from '../dev/agent-daemon';
 import { cleanupOrphanedContainers } from '../dev/cleanup-utils';
 
 /**
@@ -35,10 +36,17 @@ export const commandDevStop = async () => {
     const lockFileAgent = (await getAllRunningAgents()).find((agent) => agent.port === port);
     let agent: AgentLockFile | undefined = lockFileAgent;
     if (!agent) {
+      // An agent started from this directory keeps its session token here even when its lock file is gone.
+      const tokenFile = localStatePaths.devAgentTokenFile({ workingDirectory: globalStateManager.workingDir, port });
       try {
-        const response = await fetch(`http://localhost:${port}/status`, {
-          signal: AbortSignal.timeout(2000)
-        });
+        const response = await requestDevAgent({ port, tokenFile }, '/status', { timeoutMs: 2000 });
+        if (response.status === 401) {
+          tuiManager.error(
+            `The dev agent on port ${port} did not accept this request: its session token is not in ${tokenFile}. ` +
+              'Run this command from the directory dev mode was started in.'
+          );
+          return false;
+        }
         if (!response.ok) return false;
         // The agent wraps every response in its `{ v, ok, code, data }` envelope.
         const status = (await response.json()) as { data?: { pid?: unknown } };
@@ -46,6 +54,7 @@ export const commandDevStop = async () => {
         agent = {
           pid,
           port,
+          tokenFile,
           phase: 'ready',
           projectName: 'unknown',
           stage: 'unknown',

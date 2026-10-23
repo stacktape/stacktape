@@ -14,6 +14,7 @@ import {
   getImageTag,
   isDockerPortBindError,
   isContainerRunning,
+  publishOnLoopback,
   removeContainerIfExists,
   waitForReady
 } from './container-helpers';
@@ -48,10 +49,7 @@ export const startLocalMysql = async (
   const { name, type, version, port, dataDir, dbName, containerName } = config;
   const isMaria = type === 'mariadb';
   const defaultPort = DEFAULT_PORTS.mysql;
-  const { username: user, password: pass } = getDbCredentials(config, {
-    username: 'root',
-    password: 'localdevpassword'
-  });
+  const { username: user, password: pass } = getDbCredentials(config, { username: 'root' });
   let database = dbName || 'mysql';
 
   // Return existing instance if container is already running
@@ -110,8 +108,7 @@ export const startLocalMysql = async (
     containerName,
     ...getDevContainerOwnerArgs(),
     ...Object.entries(envVars).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
-    '-p',
-    `${hostPort}:${defaultPort}`,
+    ...publishOnLoopback(hostPort, defaultPort),
     '-v',
     `${dataDir}:${MYSQL_DATA_PATH}`,
     imageTag,
@@ -127,6 +124,8 @@ export const startLocalMysql = async (
         if (!isDockerPortBindError(err) || attempt === 4) {
           throw err;
         }
+        // Docker creates the container before it fails to bind the port; remove it so the retry can reuse the name.
+        await removeContainerIfExists(containerName);
         actualPort = await findAvailablePort(actualPort + 1);
       }
     }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { findOwnedContainers, resolveOptions } from './dev-mode-canary';
+import { databaseContainerName, findOwnedContainers, resolveOptions } from './dev-mode-canary';
 
 const valid = {
   STP_AWS_DEV_CANARY_DEPLOY: '1',
@@ -37,7 +37,7 @@ describe('dev-mode canary container discovery', () => {
   const run = { projectName: 'v4devcanary-abc-1f2e', stage: 'c1f2e' };
   const state = { workDirectory: '/tmp/stacktape-dev-canary-run' };
   const ownedDatabase = JSON.stringify([
-    { Name: '/stp-v4devcanary-abc-1f2e-c1f2e-db', State: { Status: 'running' }, Mounts: [] },
+    { Name: `/${databaseContainerName(run, state)}`, State: { Status: 'running' }, Mounts: [] },
     { Name: '/someone-else', State: { Status: 'running' }, Mounts: [{ Source: '/home/other' }] },
     {
       Name: '/mounted',
@@ -50,7 +50,7 @@ describe('dev-mode canary container discovery', () => {
     const docker = (args: string[]) =>
       args[0] === 'ps' ? { exitCode: 0, stdout: 'a\nb\nc' } : { exitCode: 0, stdout: ownedDatabase };
     expect(findOwnedContainers(run, state, docker)).toEqual([
-      { name: 'stp-v4devcanary-abc-1f2e-c1f2e-db', status: 'running' },
+      { name: databaseContainerName(run, state), status: 'running' },
       { name: 'mounted', status: 'exited' }
     ]);
   });

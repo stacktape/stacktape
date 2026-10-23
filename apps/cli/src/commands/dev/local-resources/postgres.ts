@@ -37,10 +37,7 @@ export const startLocalPostgres = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
   const { name, version, port, dataDir, dbName, containerName } = config;
-  const { username: user, password: pass } = getDbCredentials(config, {
-    username: 'postgres',
-    password: 'localdevpassword'
-  });
+  const { username: user, password: pass } = getDbCredentials(config, { username: 'postgres' });
   const database = dbName || 'postgres';
 
   // Return existing instance if container is already running
@@ -94,6 +91,8 @@ export const startLocalPostgres = async (
       if (!isDockerPortBindError(err) || attempt === 4) {
         throw err;
       }
+      // Docker creates the container before it fails to bind the port; remove it so the retry can reuse the name.
+      await removeContainerIfExists(containerName);
       actualPort = await findAvailablePort(actualPort + 1);
     }
   }
@@ -103,10 +102,13 @@ export const startLocalPostgres = async (
     resourceType: 'Postgres',
     timeoutMs: 30000,
     pollIntervalMs: 500,
+    // Over TCP: while the image initializes a new data directory it runs a temporary server on the Unix socket only,
+    // then restarts, so a socket check reports ready before the server clients connect to is up.
     checkFn: async () => {
-      const { exitCode } = await execDocker(['exec', containerName, 'pg_isready', '-U', 'postgres'], {
-        skipHandleError: true
-      });
+      const { exitCode } = await execDocker(
+        ['exec', containerName, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'],
+        { skipHandleError: true }
+      );
       return exitCode === 0;
     }
   });

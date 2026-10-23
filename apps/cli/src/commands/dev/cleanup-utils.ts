@@ -2,7 +2,9 @@
  * Utility for creating once-only cleanup hook registrations.
  * Prevents duplicate registrations when modules are imported multiple times.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 
 // Track registered hooks by name to prevent duplicates
@@ -35,17 +37,23 @@ export const createCleanupHook = (hookName: string, cleanupFn: () => Promise<voi
 /**
  * Name of a local container dev mode starts for a workload or database. The project and stage keep the sessions of two
  * projects apart when they use the same stage and resource names; without them, one project's session reused the
- * other's database container and stopped its workload containers.
+ * other's database container and stopped its workload containers. A short hash of the working directory does the same
+ * for two checkouts (Git worktrees) of one project on one stage, which have separate data directories.
  */
 export const getDevContainerName = ({
   projectName,
   stage,
+  workingDirectory,
   name
 }: {
   projectName: string;
   stage: string;
+  workingDirectory: string;
   name: string;
-}): string => `stp-${projectName}-${stage}-${name}`;
+}): string => {
+  const directoryHash = createHash('sha256').update(resolve(workingDirectory)).digest('hex').slice(0, 8);
+  return `stp-${projectName}-${stage}-${directoryHash}-${name}`;
+};
 
 /**
  * Every dev session, terminal or agent, writes a lock file and labels the containers it starts with that lock file and

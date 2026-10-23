@@ -166,7 +166,7 @@ Disables the automatic injection of parameters and credentials during local emul
 
 export const noTunnel = z.boolean().describe(`#### No Tunnel
 ---
-Disables automatic tunneling for Lambda functions. Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don't need Lambda-to-local connectivity or if tunneling causes issues.`);
+Disables tunnels from deployed Lambda functions to your locally emulated databases. Dev mode creates these tunnels only through a relay you run yourself, set with the \`STACKTAPE_TUNNEL_SERVER\` environment variable (a bore-compatible server). Without one, deployed Lambda functions cannot reach local databases; use \`--remote-resources\` to connect them to the deployed databases instead.`);
 
 export const remoteResources = z.array(z.string()).describe(`#### Remote Resources
 ---

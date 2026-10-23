@@ -1,9 +1,16 @@
 /** Centralized configuration constants for dev mode */
 
+/**
+ * A bore-compatible TCP relay the user runs themselves (`host` or `host:controlPort`). Bore relays are
+ * unauthenticated: anyone who finds a relay port reaches the database behind it. Dev mode therefore never uses a
+ * public relay, and deployed Lambda functions reach local databases only through a relay the user configured.
+ */
+export const getConfiguredTunnelServer = (): string | undefined =>
+  process.env.STACKTAPE_TUNNEL_SERVER?.trim() || undefined;
+
 export const DEV_CONFIG = {
   /** Tunnel configuration (bore-compatible TCP relay) */
   tunnels: {
-    server: process.env.STACKTAPE_TUNNEL_SERVER || 'bore.pub',
     startupTimeoutMs: 30000,
     retryAttempts: 2,
     retryDelayMs: 2000,
@@ -23,7 +30,11 @@ export const DEV_CONFIG = {
 
   /** Local resource defaults */
   localResources: {
-    defaultPassword: 'localdevpassword',
+    /**
+     * The fixed password local databases got before each one received a generated password. A data directory
+     * initialized with it keeps it, because the database stores the password in its data.
+     */
+    legacyPassword: 'localdevpassword',
     ports: {
       postgres: 5432,
       mysql: 3306,

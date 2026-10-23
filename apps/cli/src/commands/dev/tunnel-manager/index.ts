@@ -5,10 +5,9 @@ import type { Socket } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { createCleanupHook } from '../cleanup-utils';
-import { DEV_CONFIG } from '../dev-config';
+import { DEV_CONFIG, getConfiguredTunnelServer } from '../dev-config';
 
 const {
-  server: TUNNEL_SERVER,
   startupTimeoutMs: TUNNEL_STARTUP_TIMEOUT_MS,
   retryAttempts: TUNNEL_RETRY_ATTEMPTS,
   retryDelayMs: TUNNEL_RETRY_DELAY_MS,
@@ -498,7 +497,7 @@ const startTunnelAttempt = async (
   localPort: number,
   signal: AbortSignal
 ): Promise<TunnelInfo> => {
-  const server = parseTunnelServer(TUNNEL_SERVER);
+  const server = parseTunnelServer(getConfiguredTunnelServer() ?? '');
   const controlSocket = await DelimitedSocket.connect({
     host: server.controlHost,
     port: server.controlPort

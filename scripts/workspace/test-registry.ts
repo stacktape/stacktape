@@ -760,18 +760,21 @@ export const lanes: readonly Lane[] = [
     requires: [],
     release: 'every-candidate',
     proves:
-      'Dev-stop kills owned descendants, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
+      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
   },
   {
     id: 'local-dev-containers',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:containers'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/tests/local-development/container-cleanup.spec.ts'],
+    tests: [
+      'apps/cli/tests/local-development/container-cleanup.spec.ts',
+      'apps/cli/tests/local-development/worktree-databases.spec.ts'
+    ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; network is only for the fixture image.'
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; network is only for the fixture images.'
   },
   {
     id: 'local-dev-next',
@@ -2348,12 +2351,15 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
+      'apps/cli/src/commands/dev/__tests__/agent-server.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
+      'apps/cli/src/commands/dev/agent-env-masking.spec.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
+      'apps/cli/src/commands/dev/local-resources/container-helpers.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
       'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
@@ -4230,12 +4236,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/daemon-child-args.spec.ts',
+      'apps/cli/src/commands/dev/__tests__/agent-server.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
+      'apps/cli/src/commands/dev/agent-env-masking.spec.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
+      'apps/cli/src/commands/dev/local-resources/container-helpers.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
       'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
@@ -4244,6 +4253,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/dev-support-template.spec.ts',
       'apps/cli/tests/local-development/next-dev.spec.ts',
       'apps/cli/tests/local-development/container-cleanup.spec.ts',
+      'apps/cli/tests/local-development/worktree-databases.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],

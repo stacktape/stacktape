@@ -10,12 +10,15 @@ import { toToolText, type ToolOutput } from './tool-output';
 type DevSession = {
   devSessionId: string;
   agentPort: number;
+  /** File holding the agent's session token. The token is read for each request and never returned to the client. */
+  tokenFile?: string;
   startedAt: string;
   cwd: string;
 };
 
 type DevApiRequest = (input: {
   port: number;
+  tokenFile?: string;
   method: 'GET' | 'POST';
   path: string;
   body?: Record<string, unknown>;
@@ -33,21 +36,13 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
   return { ...normalizeCliInvocation('dev', cliArgs).args, ...(cwd !== undefined ? { cwd } : {}) };
 };
 
-const devApiRequest: DevApiRequest = async ({
-  port,
-  method,
-  path,
-  body
-}: {
-  port: number;
-  method: 'GET' | 'POST';
-  path: string;
-  body?: Record<string, unknown>;
-}): Promise<Record<string, unknown>> => {
+const devApiRequest: DevApiRequest = async ({ port, tokenFile, method, path, body }) => {
+  const token = tokenFile ? (await readFile(tokenFile, 'utf-8').catch(() => '')).trim() : '';
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
     headers: {
-      'content-type': 'application/json'
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {})
     },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
@@ -124,6 +119,7 @@ const ensureDevSessionAvailable = async ({
 
   const health = await requestDevApi({
     port: session.agentPort,
+    tokenFile: session.tokenFile,
     method: 'GET',
     path: '/health'
   });
@@ -343,6 +339,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         session = {
           devSessionId: createId(),
           agentPort: port,
+          ...(typeof payload?.tokenFile === 'string' ? { tokenFile: payload.tokenFile } : {}),
           startedAt: now().toISOString(),
           cwd: result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd
         };
@@ -374,9 +371,10 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     const port = sessionResult.session.agentPort;
+    const { tokenFile } = sessionResult.session;
 
     if (action === 'status') {
-      const response = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true' });
+      const response = await requestDevApi({ port, tokenFile, method: 'GET', path: '/status?verbose=true' });
       return toToolText({
         ok: (response.ok as boolean | undefined) ?? true,
         code: ((response.ok as boolean | undefined) ?? true) ? 'OK' : 'INTERNAL_ERROR',
@@ -389,7 +387,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     if (action === 'logs') {
-      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' });
+      const logsMeta = await requestDevApi({ port, tokenFile, method: 'GET', path: '/logs' });
       const logFile = logsMeta.logFile as string | undefined;
       if (!logFile) {
         return toToolText({
@@ -444,6 +442,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
 
       const response = await requestDevApi({
         port,
+        tokenFile,
         method: 'POST',
         path: `/rebuild/${encodeURIComponent(workload)}`,
         body: {}
@@ -465,6 +464,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     if (action === 'rebuild_all') {
       const response = await requestDevApi({
         port,
+        tokenFile,
         method: 'POST',
         path: '/rebuild/all',
         body: {}
@@ -486,6 +486,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     if (action === 'stop') {
       const response = await requestDevApi({
         port,
+        tokenFile,
         method: 'POST',
         path: '/stop',
         body: {}

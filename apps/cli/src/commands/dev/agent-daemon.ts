@@ -16,6 +16,39 @@ export type AgentLockFile = {
   workloads: string[];
   databases: string[];
   logFile?: string;
+  /** File holding the session token the agent requires on every request. */
+  tokenFile?: string;
+};
+
+const readAgentToken = (tokenFile: string | undefined): string | undefined => {
+  if (!tokenFile) return undefined;
+  try {
+    return readFileSync(tokenFile, 'utf-8').trim() || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Calls a dev agent the way every local client must: on loopback, with the session token from its token file and, for
+ * POST, a JSON content type. Without a readable token file the request goes out unauthenticated and the agent refuses
+ * it with 401.
+ */
+export const requestDevAgent = (
+  agent: { port: number; tokenFile?: string },
+  path: string,
+  { method = 'GET', timeoutMs }: { method?: 'GET' | 'POST'; timeoutMs: number }
+): Promise<Response> => {
+  const token = readAgentToken(agent.tokenFile);
+  return fetch(`http://127.0.0.1:${agent.port}${path}`, {
+    method,
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(method === 'POST' ? { 'content-type': 'application/json' } : {})
+    },
+    ...(method === 'POST' ? { body: '{}' } : {}),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
 };
 
 const getLockDir = (): string => {
@@ -132,9 +165,7 @@ export const getRunningAgent = async (projectName?: string, stage?: string): Pro
 
   // Verify agent is responding via HTTP
   try {
-    const response = await fetch(`http://localhost:${lockFile.port}/health`, {
-      signal: AbortSignal.timeout(2000)
-    });
+    const response = await requestDevAgent(lockFile, '/health', { timeoutMs: 2000 });
     if (response.ok) {
       return lockFile;
     }
@@ -161,9 +192,7 @@ export const getAllRunningAgents = async (): Promise<AgentLockFile[]> => {
 
     // Verify agent is responding via HTTP
     try {
-      const response = await fetch(`http://localhost:${lockFile.port}/health`, {
-        signal: AbortSignal.timeout(2000)
-      });
+      const response = await requestDevAgent(lockFile, '/health', { timeoutMs: 2000 });
       if (response.ok) {
         runningAgents.push(lockFile);
       }
@@ -200,10 +229,14 @@ export const stopRunningAgent = async (lockFile: AgentLockFile): Promise<boolean
   };
 
   try {
-    await fetch(`http://localhost:${lockFile.port}/stop`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(5000)
-    });
+    const response = await requestDevAgent(lockFile, '/stop', { method: 'POST', timeoutMs: 5000 });
+    if (!response.ok) {
+      // The agent refused the request (no readable token). An interrupt still runs its cleanup, which restores Lambda
+      // environments and stops containers; Windows has no interrupt to send, so the process tree is stopped directly.
+      if (!hasPid) return false;
+      if (process.platform === 'win32') return await forceStop();
+      process.kill(lockFile.pid, 'SIGINT');
+    }
 
     // Wait for process to exit (only if we know the PID)
     if (hasPid) {
@@ -237,6 +270,8 @@ export const stopRunningAgent = async (lockFile: AgentLockFile): Promise<boolean
   }
 };
 
+export type { AgentReadyPayload };
+
 export type DaemonSpawnResult = {
   success: boolean;
   port?: number;
@@ -253,6 +288,9 @@ type AgentReadyPayload = {
   workloads?: { name: string; type: string; url?: string }[];
   databases?: { name: string; type: string; port?: number }[];
   logFile?: string;
+  tokenFile?: string;
+  /** Workloads that failed while dev mode started; a non-empty list means the start failed. */
+  failedWorkloads?: { name: string; error: string }[];
 };
 
 /**
@@ -428,12 +466,9 @@ export const spawnAgentDaemon = async (args: {
       if (!resolved) {
         resolved = true;
         cleanup();
-        // Kill the daemon on timeout
-        try {
-          process.kill(daemonPid, 'SIGTERM');
-        } catch {
-          // Ignore
-        }
+        // A hung daemon may already hold the agent port and have started dev servers and containers; stop its whole
+        // process tree, not only the daemon, so none of them outlives this failed start.
+        killProcessTree(daemonPid, 'SIGTERM', () => {});
         resolve({
           success: false,
           error: `Daemon produced no output for ${timeoutMs / 1000}s and was treated as hung`
@@ -521,8 +556,9 @@ export const spawnAgentDaemon = async (args: {
 };
 
 /**
- * Build the AGENT_READY message that signals the daemon is ready.
- * Includes logFile path so LLMs can use standard tools (tail, grep, jq) on the JSONL log.
+ * Build the AGENT_READY message that signals the daemon finished starting.
+ * Includes logFile path so LLMs can use standard tools (tail, grep, jq) on the JSONL log, and the token file path
+ * (never the token) so they can call the agent.
  */
 export const buildAgentReadyMessage = (data: {
   port: number;
@@ -532,15 +568,19 @@ export const buildAgentReadyMessage = (data: {
   workloads: { name: string; type: string; url?: string }[];
   databases: { name: string; type: string; port?: number }[];
   logFile: string;
+  tokenFile?: string;
+  failedWorkloads?: { name: string; error: string }[];
 }): string => {
-  const payload = {
+  const payload: AgentReadyPayload = {
     port: data.port,
     projectName: data.projectName,
     stage: data.stage,
     region: data.region,
     workloads: data.workloads.map((w) => ({ name: w.name, type: w.type, url: w.url })),
     databases: data.databases.map((d) => ({ name: d.name, type: d.type, port: d.port })),
-    logFile: data.logFile
+    logFile: data.logFile,
+    tokenFile: data.tokenFile,
+    failedWorkloads: data.failedWorkloads ?? []
   };
 
   return `AGENT_READY ${JSON.stringify(payload)}`;

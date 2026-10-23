@@ -57,6 +57,11 @@ export const resolveLambdaDevOptions = (env: Record<string, string | undefined> 
     'Endpoint overrides are forbidden.'
   );
   check(process.platform === 'linux', 'This canary currently qualifies Linux only.');
+  // Dev mode has no default relay: bore relays are unauthenticated, so only one the operator controls is acceptable.
+  check(
+    env.STACKTAPE_TUNNEL_SERVER?.trim(),
+    'Set STACKTAPE_TUNNEL_SERVER to a bore-compatible relay you control; dev mode never uses a public relay.'
+  );
   return { accountId, stateFile, owner, region: 'eu-west-1' as const, profile: 'stacktape-e2e' };
 };
 
