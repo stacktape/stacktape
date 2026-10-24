@@ -1,3 +1,4 @@
+import type { DeveloperTrustStatement } from 'src/aws/iam';
 import { codeSwapContainerPolicy } from '@domain-services/code-swap/ecs-policy';
 import { CLOUD_MAP_DRAIN_IMAGES } from '@domain-services/deployment-artifact-manager/cloud-map-drain-image';
 import { getEcrRepositoryUrl } from '@domain-services/deployment-artifact-manager/artifact-names';
@@ -190,7 +191,8 @@ export const getEcsTaskRole = ({
   accessToResourcesRequiringRoleChanges,
   accessToAwsServices,
   enableRemoteSessions,
-  mountedEfsFilesystems
+  mountedEfsFilesystems,
+  devTrustStatement
 }: {
   workloadName: string;
   iamRoleStatements: StpIamRoleStatement[];
@@ -198,6 +200,8 @@ export const getEcsTaskRole = ({
   accessToAwsServices: never[];
   mountedEfsFilesystems: StpEfsFilesystem[];
   enableRemoteSessions: boolean;
+  /** Dev stacks only: the trust in the developer whose locally running container assumes this role. */
+  devTrustStatement?: DeveloperTrustStatement;
 }) => {
   const isDevStack = calculatedStackOverviewManager.context.command === 'dev';
   return cfnResource('AWS::IAM::Role', {
@@ -214,7 +218,8 @@ export const getEcsTaskRole = ({
             Service: 'ecs-tasks.amazonaws.com'
           },
           Action: 'sts:AssumeRole'
-        }
+        },
+        ...(devTrustStatement ? [devTrustStatement] : [])
       ],
       Version: '2012-10-17'
     },

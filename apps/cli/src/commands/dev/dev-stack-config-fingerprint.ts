@@ -37,13 +37,16 @@ const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown =>
  */
 export const getDevStackConfigFingerprint = ({
   config,
-  devNetwork
+  devNetwork,
+  devTrustStatement
 }: {
   config: unknown;
   /** The dev network placement: its subnets, leases and local passwords end up in the template too. */
   devNetwork?: unknown;
+  /** The trust in the developer that the roles of locally running containers get. */
+  devTrustStatement?: unknown;
 }): string => {
-  const canonicalConfig = JSON.stringify(canonicalize({ config, devNetwork }));
+  const canonicalConfig = JSON.stringify(canonicalize({ config, devNetwork, devTrustStatement }));
   const digest = createHash('sha256').update(canonicalConfig, 'utf8').digest('hex').slice(0, 24);
   return `v${FINGERPRINT_VERSION}:${digest}`;
 };

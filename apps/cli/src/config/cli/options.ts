@@ -228,7 +228,11 @@ Internal flag used when spawning the daemon child process. Do not use directly.`
 
 export const cleanupContainers = z.boolean().describe(`#### Cleanup Containers
 ---
-Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.`);
+Removes the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With \`--stage\`, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add \`--all\`.`);
+
+export const allDevContainers = z.boolean().describe(`#### All
+---
+With \`--cleanup-containers\`, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory.`);
 
 export const freshDb = z.boolean().describe(`#### Fresh Database
 ---
@@ -696,6 +700,7 @@ export const allCliArgsSchema = z.object({
   outputFormat: outputFormat.optional(),
   ui: ui.optional(),
   cleanupContainers: cleanupContainers.optional(),
+  all: allDevContainers.optional(),
   freshDb: freshDb.optional(),
   takeOver: takeOver.optional(),
   force: forceDevNetworkDelete.optional(),

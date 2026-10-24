@@ -481,7 +481,24 @@ class DeployedStackOverviewManager {
         });
       }
     });
-    return envVars;
+    return { ...envVars, ...this.getLocalDynamoDbEndpointEnvVars(connectTo) };
+  };
+
+  /**
+   * The AWS SDK's DynamoDB endpoint for a dev-mode workload or script whose `connectTo` names tables that run in
+   * DynamoDB Local, as deployed dev functions get it: unchanged SDK code then reaches the local tables. All local tables
+   * of a session share one DynamoDB Local, so one endpoint serves them. A workload that also connects to a deployed
+   * table gets none, because one endpoint cannot serve both; its code passes `STP_<TABLE>_ENDPOINT` to the client of
+   * the local tables instead.
+   */
+  getLocalDynamoDbEndpointEnvVars = (connectTo: string[]): Record<string, string> => {
+    const tables = (connectTo || []).filter((name) =>
+      ['dynamodb', 'dynamo-db-table'].includes(this.getStpResource({ nameChain: [name] })?.resourceType)
+    );
+    const localTables = tables.filter((name) => this.#locallyInjectedResources.has(name));
+    if (!localTables.length || localTables.length !== tables.length) return {};
+    const endpoint = this.getStpResource({ nameChain: [localTables[0]] })?.referencableParams?.endpoint?.value;
+    return typeof endpoint === 'string' ? { AWS_ENDPOINT_URL_DYNAMODB: endpoint } : {};
   };
 
   getIamRoleNameOfDeployedResource = (nameChain: string[] | string) => {

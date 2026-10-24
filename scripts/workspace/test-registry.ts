@@ -2352,6 +2352,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/aws/fetch-handler.spec.ts',
       'apps/cli/scripts/operations/log-collector.spec.ts',
+      'apps/cli/src/aws/developer-trust.spec.ts',
       'apps/cli/src/aws/redact-request-input.spec.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/aws/sdk-manager/utils.spec.ts',
@@ -4122,6 +4123,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/tests/generated-access/access.spec.ts',
+      'apps/cli/src/aws/developer-trust.spec.ts',
       'apps/cli/src/aws/redact-request-input.spec.ts',
       'apps/cli/tests/characterization/aws-secrets.spec.ts'
     ],

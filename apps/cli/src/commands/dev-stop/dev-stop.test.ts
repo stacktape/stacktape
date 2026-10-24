@@ -442,3 +442,58 @@ test('dev --agent reports the agent port at once and passes the daemon error cod
     await rm(home, { recursive: true, force: true });
   }
 }, 60_000);
+
+// `dev stop --cleanup-containers` removed every left-behind dev container on the machine, including another project's.
+// It removes this project directory's containers (with `--stage`, that stage's), `--all` those of every project, and it
+// reports what it removed. A fake `docker` lists the containers and records the removals, so no real container is
+// at risk.
+test.skipIf(process.platform === 'win32')(
+  'dev:stop --cleanupContainers removes only the containers of this project directory unless --all is given',
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-dev-cleanup-'));
+    try {
+      const shop = join(root, 'shop');
+      const blog = join(root, 'blog');
+      await mkdir(join(shop, '.stacktape', 'dev-agents'), { recursive: true });
+      const lock = (directory: string, stage: string) =>
+        join(directory, '.stacktape', 'dev-agents', `app-${stage}.json`);
+      const containers = [
+        ['stp-app-dev-1-db', 'exited', lock(shop, 'dev'), '4100', 'dev'],
+        ['stp-app-test-1-db', 'exited', lock(shop, 'test'), '4101', 'test'],
+        ['stp-app-dev-2-db', 'exited', lock(blog, 'dev'), '4200', 'dev'],
+        ['stp-old-dev-db', 'exited', '', '', '']
+      ];
+      const bin = join(root, 'bin');
+      await mkdir(bin);
+      const removedLog = join(root, 'removed.log');
+      await writeFile(join(root, 'ps.txt'), `${containers.map((fields) => fields.join('\t')).join('\n')}\n`);
+      await writeFile(
+        join(bin, 'docker'),
+        `#!/bin/sh\nif [ "$1" = ps ]; then cat '${join(root, 'ps.txt')}'; exit 0; fi\nif [ "$1" = rm ]; then echo "$3" >> '${removedLog}'; fi\nexit 0\n`,
+        { mode: 0o755 }
+      );
+      const cleanup = async (...args: string[]) => {
+        await rm(removedLog, { force: true });
+        const { exitCode, output } = await runCli(['dev:stop', '--cleanupContainers', '--cwd', shop, ...args], {
+          env: { PATH: `${bin}:${process.env.PATH}` }
+        });
+        expect(exitCode).toBe(0);
+        const result = output
+          .split('\n')
+          .filter((line) => line.startsWith('{'))
+          .map((line) => JSON.parse(line))
+          .find((record) => record.type === 'result');
+        const removed = existsSync(removedLog) ? (await readFile(removedLog, 'utf8')).trim().split('\n') : [];
+        expect(result.data.result.removedContainers).toEqual(removed);
+        return removed;
+      };
+
+      expect(await cleanup()).toEqual(['stp-app-dev-1-db', 'stp-app-test-1-db']);
+      expect(await cleanup('--stage', 'test')).toEqual(['stp-app-test-1-db']);
+      expect(await cleanup('--all')).toEqual(containers.map(([name]) => name));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  120_000
+);

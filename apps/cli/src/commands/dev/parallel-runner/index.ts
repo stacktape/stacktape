@@ -36,7 +36,7 @@ import { startTunnel } from '../tunnel-manager';
 import { getDevNetworkSession, type DevNetworkSession } from '../dev-network-session';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
-import { getContainerListenPort, isPortAvailable, reservePorts } from '../port-utils';
+import { getContainerListenPort, isPortAvailable, reservePorts, waitForTcpPort } from '../port-utils';
 import {
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
@@ -54,6 +54,12 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
 
 type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
+
+const AWS_ROLE_WAIT_MESSAGE =
+  'Waiting for AWS to accept that you may use the IAM role of this container (this can take several minutes)...';
+
+/** How long a container workload may take from its start until its port accepts connections, migrations included. */
+const CONTAINER_READY_TIMEOUT_MS = 120_000;
 
 type WorkloadInfo = {
   name: string;
@@ -249,7 +255,8 @@ export const runParallelWorkloads = async (
     const connectTo: string[] = getConfigResource(resource.name, resource.type)?.connectTo ?? [];
     const connectedEnvVars: Record<string, string> = Object.assign(
       {},
-      ...connectTo.map((name) => localEnvVarsByResource.get(name) ?? {})
+      ...connectTo.map((name) => localEnvVarsByResource.get(name) ?? {}),
+      deployedStackOverviewManager.getLocalDynamoDbEndpointEnvVars(connectTo)
     );
     const withheldEnvNames = Object.keys(allLocalEnvVars).filter((name) => !(name in connectedEnvVars));
     return { connectedEnvVars, withheldEnvNames };
@@ -611,9 +618,6 @@ const startContainerWorkload = async (
 
   const containerDefinition = configManager.allContainerWorkloadContainers.find((job) => job.jobName === jobName);
 
-  // Prepare image
-  const imageResult = await prepareImage(containerDefinition);
-
   // Check if resource is locally injected (not deployed to AWS)
   const isInjected = deployedStackOverviewManager.isLocallyInjectedResource(resourceName);
 
@@ -661,7 +665,7 @@ const startContainerWorkload = async (
   const resourceDeployedConnectTo = (resource.connectTo || []).filter((c) => deployedConnectTo.includes(c));
   // Skip AWS credentials for locally-injected resources (not deployed to AWS)
   const skipAwsCredentials = !stackManager.existingStackDetails || isInjected;
-  const getFreshEnvironment = async () => {
+  const getFreshEnvironment = async (onWaitingForAwsRole?: () => void) => {
     return getWorkloadEnvironmentVars({
       jobEnvironment: (containerDefinition.environment || []).concat(
         (containerDefinition.secrets || []).map(({ name, valueFrom }) => ({ name, value: valueFrom }))
@@ -671,15 +675,39 @@ const startContainerWorkload = async (
       connectTo: resourceDeployedConnectTo,
       workloadType: 'multi-container-workload',
       tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
-      localResourceEnvVars,
+      localResourceEnvVars: {
+        ...localResourceEnvVars,
+        ...deployedStackOverviewManager.getLocalDynamoDbEndpointEnvVars(resource.connectTo || [])
+      },
       skipAwsCredentials,
       port: listenPort,
-      localWorkloadAddresses
+      localWorkloadAddresses,
+      onWaitingForAwsRole
     });
   };
 
-  // Get environment (including fresh AWS credentials)
-  const environment = await getFreshEnvironment();
+  // Packaging and the environment (with credentials of the workload's role) are independent. On a new stage, AWS can
+  // take minutes to let the developer assume the role; the status says so instead of "Packaging...".
+  let packaged = false;
+  let waitingForRole = false;
+  const showWaitingForRole = () => {
+    if (useDevTui) devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: AWS_ROLE_WAIT_MESSAGE });
+  };
+  const [imageResult, environment] = await Promise.all([
+    prepareImage(containerDefinition).then((image) => {
+      packaged = true;
+      if (waitingForRole) showWaitingForRole();
+      return image;
+    }),
+    getFreshEnvironment(() => {
+      waitingForRole = true;
+      if (useDevTui) devTuiManager.log(resourceName, AWS_ROLE_WAIT_MESSAGE);
+      else tuiManager.info(`[${resourceName}] ${AWS_ROLE_WAIT_MESSAGE}`);
+      if (packaged) showWaitingForRole();
+    }).finally(() => {
+      waitingForRole = false;
+    })
+  ]);
   // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
   await resolveRunningContainersWithSamePort({ ports: hostPorts, autoStopConflicting: useDevTui });
 
@@ -696,7 +724,9 @@ const startContainerWorkload = async (
   };
   const reportUnexpectedExit = (run: number, stderr: string) => {
     if (run !== containerRun || applicationManager.isInterrupted) return;
-    const error = `Container stopped unexpectedly${describeExit(stderr)}`;
+    reportWorkloadError(`Container stopped unexpectedly${describeExit(stderr)}`);
+  };
+  const reportWorkloadError = (error: string) => {
     if (useDevTui) {
       devTuiManager.setWorkloadStatus(resourceName, 'error', { error });
       devTuiManager.log(resourceName, error, 'error');
@@ -706,13 +736,28 @@ const startContainerWorkload = async (
     updateAgentWorkloadStatus(resourceName, { status: 'error', error });
   };
 
-  // Start container and wait for it to be running (or fail early)
-  await new Promise<void>((resolve, reject) => {
-    let started = false;
+  // `docker run` starts the container long before the app in it listens: a test sent on `ready` got 502 from the dev
+  // proxy. A container with a port counts as running once that port accepts connections; one without (a worker) at once.
+  const waitUntilServing = (run: number, hasExited: () => boolean) =>
+    primaryHostPort
+      ? waitForTcpPort({
+          port: primaryHostPort,
+          timeoutMs: CONTAINER_READY_TIMEOUT_MS,
+          shouldStop: () => hasExited() || run !== containerRun || applicationManager.isInterrupted
+        })
+      : Promise.resolve('ready' as const);
+  const notServingError = `The container runs, but nothing accepted connections on port ${primaryHostPort} within ${
+    CONTAINER_READY_TIMEOUT_MS / 1000
+  } s. Make the app listen on the port in the PORT variable (${listenPort}).`;
+
+  // Start the container and wait until it serves. A container that exits or never serves reports the workload's error,
+  // and the session keeps running so that a rebuild can fix it.
+  await new Promise<void>((resolve) => {
     let stderrBuffer = '';
+    let exited = false;
     const run = ++containerRun;
 
-    const containerPromise = dockerRun({
+    dockerRun({
       name: localContainerName,
       image: imageResult.imageName,
       command,
@@ -723,22 +768,6 @@ const startContainerWorkload = async (
       volumeMounts: imageResult.distFolderPath
         ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app/dist' }]
         : [],
-      onStart: () => {
-        started = true;
-        if (useDevTui) {
-          devTuiManager.setWorkloadStatus(resourceName, 'running', {
-            port: primaryHostPort,
-            url: proxyRoute?.url || `http://localhost:${primaryHostPort}`,
-            size: imageResult.details // Image size info
-          });
-          devTuiManager.log(resourceName, `Container started on port ${primaryHostPort}`);
-        } else {
-          tuiManager.info(
-            `[${resourceName}] Container started on port${hostPorts.length > 1 ? 's' : ''} ${hostPorts.join(', ')}`
-          );
-        }
-        resolve();
-      },
       transformStdoutLine: useDevTui
         ? (line: string) => {
             devTuiManager.log(resourceName, line);
@@ -756,31 +785,33 @@ const startContainerWorkload = async (
             return line;
           },
       args: containerArgs
-    });
-
-    // If container exits before onStart is called, it's an error
-    containerPromise
+    })
+      .catch(() => {})
       .then(() => {
-        if (!started) {
-          reject(
-            new ExpectedError(
-              'DOCKER',
-              `Container "${resourceName}" exited before starting.`,
-              'Check container logs above for errors.'
-            )
-          );
-          return;
-        }
-        reportUnexpectedExit(run, stderrBuffer);
-      })
-      .catch((err) => {
-        if (!started) {
-          const errMsg = stderrBuffer.trim() || err.message || 'Unknown error';
-          reject(new ExpectedError('DOCKER', `Failed to start container "${resourceName}": ${errMsg}`));
-          return;
-        }
+        exited = true;
         reportUnexpectedExit(run, stderrBuffer);
       });
+
+    void waitUntilServing(run, () => exited).then((result) => {
+      if (result === 'ready') {
+        if (useDevTui) {
+          devTuiManager.setWorkloadStatus(resourceName, 'running', {
+            port: primaryHostPort,
+            url: proxyRoute?.url || `http://localhost:${primaryHostPort}`,
+            size: imageResult.details // Image size info
+          });
+          devTuiManager.log(resourceName, `Container started on port ${primaryHostPort}`);
+        } else {
+          tuiManager.info(
+            `[${resourceName}] Container started on port${hostPorts.length > 1 ? 's' : ''} ${hostPorts.join(', ')}`
+          );
+        }
+      } else if (result === 'timeout') {
+        reportWorkloadError(notServingError);
+      }
+      // 'stopped': the container exited, which `reportUnexpectedExit` reported.
+      resolve();
+    });
   });
 
   // Register workload for file watching
@@ -821,61 +852,54 @@ const startContainerWorkload = async (
 
     const run = ++containerRun;
     let stderrBuffer = '';
-    await new Promise<void>((resolve, reject) => {
-      let started = false;
-      dockerRun({
-        name: localContainerName,
-        image: newImage.imageName,
-        command,
-        environment: rebuiltEnvironment,
-        portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
-        volumeMounts: newImage.distFolderPath
-          ? [{ hostPath: newImage.distFolderPath, containerPath: '/app/dist' }]
-          : [],
-        onStart: () => {
-          started = true;
-          if (!inRebuildPhase) {
-            if (useDevTui) {
-              devTuiManager.setWorkloadStatus(resourceName, 'running', {
-                port: primaryHostPort,
-                url: proxyRoute?.url || `http://localhost:${primaryHostPort}`
-              });
-              devTuiManager.log(resourceName, 'Container restarted');
-            } else {
-              tuiManager.info(`[${resourceName}] Container restarted`);
-            }
+    let exited = false;
+    dockerRun({
+      name: localContainerName,
+      image: newImage.imageName,
+      command,
+      environment: rebuiltEnvironment,
+      portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
+      volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app/dist' }] : [],
+      transformStdoutLine: useDevTui
+        ? (line: string) => {
+            devTuiManager.log(resourceName, line);
+            return null;
           }
-          resolve();
-        },
-        transformStdoutLine: useDevTui
-          ? (line: string) => {
-              devTuiManager.log(resourceName, line);
-              return null;
-            }
-          : undefined,
-        transformStderrLine: (line: string) => {
-          stderrBuffer += `${line}\n`;
-          if (!useDevTui) return line;
-          devTuiManager.log(resourceName, line, 'warn');
-          return null;
-        },
-        args: containerArgs
-      })
-        .catch(() => {})
-        .then(() => {
-          // A container that exits before it starts fails the rebuild, so the workload reports an error, not running.
-          if (!started) {
-            reject(
-              new ExpectedError(
-                'DOCKER',
-                `Container "${resourceName}" exited before starting${describeExit(stderrBuffer)}`
-              )
-            );
-            return;
-          }
-          reportUnexpectedExit(run, stderrBuffer);
+        : undefined,
+      transformStderrLine: (line: string) => {
+        stderrBuffer += `${line}\n`;
+        if (!useDevTui) return line;
+        devTuiManager.log(resourceName, line, 'warn');
+        return null;
+      },
+      args: containerArgs
+    })
+      .catch(() => {})
+      .then(() => {
+        exited = true;
+        reportUnexpectedExit(run, stderrBuffer);
+      });
+
+    // The rebuild succeeds once the new container serves; one that exits or never serves fails it.
+    const result = await waitUntilServing(run, () => exited);
+    if (result === 'timeout') throw new ExpectedError('DOCKER', notServingError);
+    if (result === 'stopped' && run === containerRun && !applicationManager.isInterrupted) {
+      throw new ExpectedError(
+        'DOCKER',
+        `Container "${resourceName}" exited before it served${describeExit(stderrBuffer)}`
+      );
+    }
+    if (!inRebuildPhase) {
+      if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', {
+          port: primaryHostPort,
+          url: proxyRoute?.url || `http://localhost:${primaryHostPort}`
         });
-    });
+        devTuiManager.log(resourceName, 'Container restarted');
+      } else {
+        tuiManager.info(`[${resourceName}] Container restarted`);
+      }
+    }
 
     return { sourceFiles: newImage.sourceFiles, size: newImage.details, environment: rebuiltEnvironment };
   };

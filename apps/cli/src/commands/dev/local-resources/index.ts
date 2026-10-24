@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { execDocker, inspectDockerContainer, stopDockerContainer } from '@utils/docker';
+import { execDocker, inspectDockerContainer } from '@utils/docker';
 import { ExpectedError } from '@utils/errors';
 import { ensureDir, remove } from 'fs-extra';
 import { basename, dirname } from 'node:path';
@@ -89,12 +89,19 @@ const getPasswordFile = (resourceName: string) =>
     resourceName
   });
 
-const getLocalContainerName = (resourceName: string) =>
+/**
+ * All local DynamoDB tables of a session live in one DynamoDB Local container with one data directory, so the one
+ * `AWS_ENDPOINT_URL_DYNAMODB` that the AWS SDK reads reaches every table. Resource names are alphanumeric, so this
+ * name cannot collide with one.
+ */
+const SHARED_DYNAMODB_LOCAL_NAME = 'dynamodb-local';
+
+const getLocalContainerName = ({ name, type }: LocalResourceConfig) =>
   getDevContainerName({
     projectName: globalStateManager.targetStack.projectName,
     stage: globalStateManager.stage,
     workingDirectory: globalStateManager.workingDir,
-    name: resourceName
+    name: type === 'dynamodb' ? SHARED_DYNAMODB_LOCAL_NAME : name
   });
 
 /**
@@ -304,7 +311,7 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
       type: 'dynamodb',
       version: 'latest',
       port: 8000,
-      dataDir: getDataDir(resourceName)
+      dataDir: getDataDir(SHARED_DYNAMODB_LOCAL_NAME)
     };
   }
 
@@ -421,7 +428,7 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
       tuiManager.warn(`Cannot create local config for resource "${resourceName}"`);
       continue;
     }
-    configs.push({ resourceName, config, containerName: getLocalContainerName(resourceName) });
+    configs.push({ resourceName, config, containerName: getLocalContainerName(config) });
   }
 
   const useDevTui = devTuiManager.running;
@@ -500,18 +507,21 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
   return successfulResults;
 };
 
+/**
+ * Stops the local databases and removes their containers. Their data stays in the data directories, and the next start
+ * creates a new container in any case, so a stopped container only piled up: one per database, stage and checkout.
+ */
 const stopLocalResources = async (): Promise<void> => {
   if (localResourceInstances.length === 0) return;
 
-  const stopPromises = localResourceInstances.map(async (instance) => {
-    try {
-      await stopDockerContainer(instance.containerName, 5);
-    } catch {
-      // Container may have already stopped or been removed
-    }
-  });
-
-  await Promise.all(stopPromises);
+  // Local tables share one DynamoDB Local container.
+  const containerNames = [...new Set(localResourceInstances.map(({ containerName }) => containerName))];
+  await Promise.all(
+    containerNames.map((containerName) =>
+      // Stops the database gracefully first. The container may have already stopped or been removed.
+      removeContainerIfExists(containerName).catch(() => {})
+    )
+  );
   localResourceInstances.length = 0;
   preparedConfigs.clear();
 };

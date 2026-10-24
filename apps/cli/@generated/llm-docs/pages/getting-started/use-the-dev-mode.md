@@ -36,7 +36,7 @@ To run only specific resources:
 stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
 ```
 
-Dev mode reads your `stacktape.ts` once at startup. If you add resources, change environment variables, or modify connections, restart dev mode for changes to take effect.
+Dev mode watches your `stacktape.ts`. Code changes are rebuilt, but a configuration change (new resources, environment variables, connections) needs a restart: dev mode tells you so and refuses rebuilds until you restart it. The restart updates the dev stack with the new configuration.
 
 
 > **Tip:** When multiple developers work on the same project, use a unique stage name per developer (e.g., `--stage dev-alice`, `--stage dev-bob`). Each stage gets its own dev stack and local data directory.
@@ -54,7 +54,9 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
 | Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
 
-Lambda functions have their code built and pushed to AWS, where they run. They cannot reach the databases running on your machine, so connect them to the deployed databases with `--remote-resources`. Logs from Lambda invocations stream directly to your terminal.
+Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to connect them to deployed databases instead. Logs from Lambda invocations stream directly to your terminal.
+
+A container workload counts as running once its port accepts connections, so a test started when dev mode reports it ready reaches the app. All local DynamoDB tables run in one DynamoDB Local, and workloads, local scripts and frontends connected to them get `AWS_ENDPOINT_URL_DYNAMODB`, so unchanged AWS SDK code uses the local tables.
 
 ## The edit-save-see loop
 

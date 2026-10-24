@@ -6,7 +6,8 @@ import {
   findAvailablePort,
   getContainerListenPort,
   releasePorts,
-  reservePorts
+  reservePorts,
+  waitForTcpPort
 } from '../port-utils';
 
 afterEach(() => clearPortCache());
@@ -59,4 +60,38 @@ test.each([
   ['no configured port', { hostNetwork: true }, undefined]
 ])('a container on %s listens on the right port', (_name, ports, expected) => {
   expect(getContainerListenPort(ports)).toBe(expected);
+});
+
+// A container counts as running once its port serves. Docker's port proxy accepts a connection on a published port
+// before the app in the container listens and closes it at once; that must not count, or `ready` comes before the app
+// listens and a test gets 502.
+test('a port counts as serving only when a program keeps the connection, not when a proxy closes it at once', async () => {
+  const listen = async (onConnection: (socket: import('node:net').Socket) => void) => {
+    const server = createServer(onConnection);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    return { server, port: (server.address() as AddressInfo).port };
+  };
+  const proxyWithoutApp = await listen((socket) => socket.destroy());
+  const app = await listen(() => {});
+  const greetingApp = await listen((socket) => socket.end('hello'));
+  try {
+    expect(await waitForTcpPort({ port: proxyWithoutApp.port, timeoutMs: 800 })).toBe('timeout');
+    expect(await waitForTcpPort({ port: app.port, timeoutMs: 800 })).toBe('ready');
+    // A server that greets first (MySQL, Redis) serves even when it closes afterwards.
+    expect(await waitForTcpPort({ port: greetingApp.port, timeoutMs: 800 })).toBe('ready');
+
+    // An app that starts listening a moment later is found by the next attempt.
+    const free = await findAvailablePort(proxyWithoutApp.port + 1);
+    const late = createServer(() => {});
+    setTimeout(() => late.listen(free!, '127.0.0.1'), 500);
+    const startedAt = Date.now();
+    expect(await waitForTcpPort({ port: free!, timeoutMs: 5000 })).toBe('ready');
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(500);
+    late.close();
+
+    // A container that exits while dev mode waits ends the wait at once.
+    expect(await waitForTcpPort({ port: free!, timeoutMs: 5000, shouldStop: () => true })).toBe('stopped');
+  } finally {
+    for (const { server } of [proxyWithoutApp, app, greetingApp]) server.close();
+  }
 });

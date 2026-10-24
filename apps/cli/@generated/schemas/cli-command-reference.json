@@ -2713,6 +2713,15 @@
         "flag": "agent-port"
       },
       {
+        "name": "all",
+        "description": "#### All\n---\nWith `--cleanup-containers`, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "all"
+      },
+      {
         "name": "awsAccount",
         "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
         "required": false,
@@ -2723,7 +2732,7 @@
       },
       {
         "name": "cleanupContainers",
-        "description": "#### Cleanup Containers\n---\nFinds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.",
+        "description": "#### Cleanup Containers\n---\nRemoves the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With `--stage`, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add `--all`.",
         "required": false,
         "allowedTypes": [
           "boolean"
