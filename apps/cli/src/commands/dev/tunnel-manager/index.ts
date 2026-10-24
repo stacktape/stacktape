@@ -621,8 +621,9 @@ const setupTunnelExitHandler = (tunnel: TunnelInfo, request: TunnelRequest, sess
 };
 
 /**
- * Opens the tunnel of one local resource at its leased relay port. A lease another developer holds is not an error:
- * the tunnel is returned as `refused`, and this session takes the port over once they stop.
+ * Opens the tunnel of one local resource at its leased relay port. A lease another session holds is not an error: the
+ * tunnel is returned as `refused`, and this session takes the port over once that one stops. A tunnel that cannot open
+ * rejects, and is asked for again in the background until dev mode stops.
  */
 export const startTunnel = async (
   request: TunnelRequest
@@ -646,7 +647,12 @@ export const startTunnel = async (
         void reconnect(request, signal, true).catch(() => {});
         return { refused: error.holder };
       }
-      if (attempt >= 3) throw error;
+      if (attempt >= 3) {
+        // The box or its SSM session may be on its way back, for example a box that stopped while this session started:
+        // keep asking in the background, as for any lost tunnel.
+        void reconnect(request, signal, true).catch(() => {});
+        throw new Error(`${(error as Error).message}. Stacktape keeps retrying in the background.`);
+      }
       await sleep(1000 * attempt, signal);
     }
   }

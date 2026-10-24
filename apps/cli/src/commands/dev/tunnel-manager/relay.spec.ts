@@ -248,6 +248,27 @@ test('a tunnel reconnects without an attempt limit after the relay restarts', as
   await stopRelay();
 }, 40_000);
 
+test('a tunnel that cannot open at the start keeps trying until the relay answers', async () => {
+  // A box that stops while the session starts: the first tunnel attempts find no relay.
+  await stopRelay();
+  const leasePort = await freePort();
+  const localPort = (database.address() as AddressInfo).port;
+  const request = { resourceName: 'db', localPort, lease: { port: leasePort, key: 'shop-dev/db' }, owner: alice };
+  await expect(startTunnel({ ...request, relay: relay() })).rejects.toThrow('keeps retrying');
+  await startRelay({ idleSeconds: 3600 });
+  await waitFor(
+    'the tunnel to open',
+    () =>
+      query(leasePort, Buffer.from('late')).then(
+        (answer) => String(answer) === 'db:late',
+        () => false
+      ),
+    15_000
+  );
+  await cleanUpTunnels();
+  await stopRelay();
+}, 40_000);
+
 test('the relay stops the box only after the idle time without a session', async () => {
   await rm(stoppedFile(), { force: true });
   await startRelay({ idleSeconds: 2 });
