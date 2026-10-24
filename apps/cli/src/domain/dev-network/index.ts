@@ -213,21 +213,33 @@ export const wakeDevBox = async ({
   });
 };
 
-/** Resolves once the box's SSM agent is connected, so a session can start. */
+/**
+ * Resolves once the box runs and its SSM agent is connected, so a session can start. A box that stops meanwhile (its
+ * idle stop, or someone stopping it) is started again instead of waiting for SSM until the deadline.
+ */
 export const waitForDevBoxOnline = async ({
   aws,
   instanceId,
   timeoutMs = 5 * 60_000,
-  pollMs = BOX_POLL_MS
+  pollMs = BOX_POLL_MS,
+  onStart
 }: {
   aws: DevNetworkAws;
   instanceId: string;
   timeoutMs?: number;
   pollMs?: number;
+  /** Called when the box has to be started again. */
+  onStart?: () => void;
 }) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await aws.isBoxOnline(instanceId)) return;
+    // The instance state first: SSM can report a box online for a while after it stopped.
+    const box = await aws.describeBox(instanceId);
+    if (box?.state !== 'running' && box?.state !== 'pending') {
+      await wakeDevBox({ aws, instanceId, pollMs, onStart });
+      continue;
+    }
+    if (box.state === 'running' && (await aws.isBoxOnline(instanceId))) return;
     await delay(pollMs);
   }
   throw new CliError({

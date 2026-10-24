@@ -15874,6 +15874,7 @@
       "chunks": [
         "page:/cli/dev-network#dev-network",
         "page:/cli/dev-network#usage",
+        "page:/cli/dev-network#who-can-reach-the-tunnels",
         "page:/cli/dev-network#deleting-the-dev-network",
         "page:/cli/dev-network#flags-reference",
         "page:/cli/dev-network#cli-options-stacktape-dev-network",
