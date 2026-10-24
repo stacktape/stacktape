@@ -9,8 +9,9 @@ import {
 } from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { dirname } from 'node:path';
 import { supportedCodeConfigLanguages } from '@config';
-import { getFileExtension } from '@utils/fs-utils';
+import { forgetProjectModules, getFileExtension } from '@utils/fs-utils';
 import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@utils/misc';
 import { Stack } from '@utils/collections';
 import {
@@ -263,6 +264,18 @@ export class ConfigResolver {
   loadRawConfig = async ({ context }: { context: ConfigResolverContext }) => {
     this.setContext(context);
     this.rawConfig = await this.getRawConfig();
+  };
+
+  /**
+   * Loads the configuration file again in a separate resolver and returns it, leaving this resolver unchanged. A
+   * TypeScript configuration executes again, so `dev` can tell whether the file changed since its session started.
+   */
+  reloadRawConfig = async (): Promise<StacktapeConfig> => {
+    const { configPath, presetConfig } = this.context;
+    if (!presetConfig && configPath?.endsWith('.ts')) forgetProjectModules(dirname(configPath));
+    const resolver = new ConfigResolver();
+    await resolver.loadRawConfig({ context: this.context });
+    return resolver.rawConfig;
   };
 
   setContext = (context: ConfigResolverContext) => {

@@ -4,7 +4,8 @@
  * One run owns an isolated dev network (`STACKTAPE_DEV_NETWORK_SUFFIX`) and one dev stage, and goes through:
  * 1. first creation: `dev --agent` creates the dev network and the dev stack;
  * 2. arm64 and x86_64 functions query local PostgreSQL (initial and edited rows), one pings local Redis, and a VPC
- *    function queries PostgreSQL and reaches the internet through the box;
+ *    function queries PostgreSQL and reaches the internet through the box; with `--watch`, a syntax error in the
+ *    shared entry file fails the rebuild and keeps the old code, and a configuration edit asks for a restart;
  * 3. laptop reconnect: the SSM plugin is killed and the functions reach the database again;
  * 4. box stop and wake: the box is stopped as its idle stop would, and the next `dev --agent` starts it;
  * 5. deletion: `delete` of the dev stage and `dev network delete`, then AWS is queried for every owned resource.
@@ -28,7 +29,12 @@ import {
   EC2Client,
   StopInstancesCommand
 } from '@aws-sdk/client-ec2';
-import { InvokeCommand, LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
+import {
+  GetFunctionConfigurationCommand,
+  InvokeCommand,
+  LambdaClient,
+  ListFunctionsCommand
+} from '@aws-sdk/client-lambda';
 import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import {
   DeleteParametersCommand,
@@ -66,12 +72,14 @@ export const resolveLambdaDevOptions = (env: Record<string, string | undefined> 
     'Endpoint overrides are forbidden.'
   );
   check(process.platform === 'linux', 'This canary currently qualifies Linux only.');
+  const region = env[`${PREFIX}REGION`] ?? 'eu-west-1';
+  check(/^[a-z]{2}(-[a-z]+)+-\d$/.test(region), 'The region must be an AWS region name.');
   return {
     accountId,
     stateFile,
     owner,
     reportFile,
-    region: 'eu-west-1' as const,
+    region,
     profile: 'stacktape-e2e'
   };
 };
@@ -329,7 +337,13 @@ const stackArgs = (options: Options, state: State, stage = STAGE) => [
 
 const tail = (output: string) => output.slice(-4000);
 
-const startAgent = async (options: Options, state: State, agentPort: number, stage = STAGE) => {
+const startAgent = async (
+  options: Options,
+  state: State,
+  agentPort: number,
+  stage = STAGE,
+  extraArgs: string[] = []
+) => {
   const started = Date.now();
   const run = await runCli(options, state, [
     'dev',
@@ -338,10 +352,29 @@ const startAgent = async (options: Options, state: State, agentPort: number, sta
     'all',
     '--agent',
     '--agentPort',
-    String(agentPort)
+    String(agentPort),
+    ...extraArgs
   ]);
   check(run.exitCode === 0 && run.result?.ok === true, `dev --agent failed (${run.exitCode}):\n${tail(run.output)}`);
-  return { seconds: (Date.now() - started) / 1000, output: run.output };
+  const tokenFile = (run.result?.data?.result as { tokenFile?: string } | undefined)?.tokenFile;
+  return { seconds: (Date.now() - started) / 1000, output: run.output, tokenFile };
+};
+
+type AgentResponse = { ok: boolean; code: string; message?: string; data?: Record<string, any> };
+
+/** Calls the dev agent the way a coding agent does: loopback, its session token, JSON for POST. */
+const callAgent = async (agent: { port: number; tokenFile: string }, method: 'GET' | 'POST', path: string) => {
+  const token = readFileSync(agent.tokenFile, 'utf8').trim();
+  const response = await fetch(`http://127.0.0.1:${agent.port}${path}`, {
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(method === 'POST' ? { 'content-type': 'application/json' } : {})
+    },
+    ...(method === 'POST' ? { body: '{}' } : {}),
+    signal: AbortSignal.timeout(5 * 60_000)
+  });
+  return (await response.json()) as AgentResponse;
 };
 
 const stopAgent = async (options: Options, state: State, agentPort: number) => {
@@ -571,11 +604,13 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     state.createAttempted = true;
     await save();
 
-    // 1. First creation of the dev network and the dev stack.
+    // 1. First creation of the dev network and the dev stack. The session watches the sources for step 2b.
     const agentPort = 7400 + Math.floor(Math.random() * 400);
     agentPorts.push(agentPort);
-    const first = await startAgent(options, state, agentPort);
+    const first = await startAgent(options, state, agentPort, STAGE, ['--watch']);
     report.firstStartSeconds = first.seconds;
+    check(first.tokenFile, 'dev --agent did not report its token file.');
+    const firstAgent = { port: agentPort, tokenFile: first.tokenFile };
     const network = await cloudFormation.send(new DescribeStacksCommand({ StackName: networkName(state) }));
     const output = (key: string) =>
       network.Stacks?.[0]?.Outputs?.find(({ OutputKey }) => OutputKey === key)?.OutputValue;
@@ -665,6 +700,16 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       check((sessions.Sessions?.length ?? 0) >= 2, 'The two stages do not hold two SSM sessions.');
       await stopAgent(options, state, secondPort);
       agentPorts.splice(agentPorts.indexOf(secondPort), 1);
+
+      // 2b. Results an agent can trust. A syntax error in the entry file of all three functions: the watcher's
+      // rebuild and an explicit one fail with the build error, the functions stay failed and keep their old code.
+      report.trustworthyResults = await checkTrustworthyResults({
+        agent: firstAgent,
+        state,
+        lambda,
+        invoke: () => invoke(state!, 'queryArm', { op: 'db' }),
+        waitUntil
+      });
     } finally {
       await db.end().catch(() => {});
     }
@@ -763,6 +808,133 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     for (const client of [sts, cloudFormation, ec2, lambda, logs, ssm]) client.destroy();
   }
   if (failure) throw failure;
+};
+
+const agentStatus = async (agent: { port: number; tokenFile: string }) => {
+  const status = await callAgent(agent, 'GET', '/status?verbose=true');
+  return status.data as {
+    ready: boolean;
+    restartRequired?: string;
+    failedWorkloads: { name: string; error: string }[];
+    workloads: { name: string; status: string }[];
+    logFile: string;
+  };
+};
+
+const checkTrustworthyResults = async ({
+  agent,
+  state,
+  lambda,
+  invoke,
+  waitUntil
+}: {
+  agent: { port: number; tokenFile: string };
+  state: State;
+  lambda: LambdaClient;
+  invoke: () => Promise<Record<string, unknown>>;
+  waitUntil: <T>(description: string, probe: () => Promise<T>, timeoutMs: number) => Promise<T>;
+}) => {
+  const results: Record<string, unknown> = {};
+  const entryFile = join(projectDirectory(state), 'src/query.ts');
+  const configFile = join(projectDirectory(state), 'stacktape.yml');
+  const source = await readFile(entryFile, 'utf8');
+  const config = await readFile(configFile, 'utf8');
+  const codeSha = async (name: string) =>
+    (await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName(state, name) }))).CodeSha256;
+  const shasBefore = await Promise.all(FUNCTIONS.map(codeSha));
+
+  // The watcher rebuilds every function built from the file and marks each failed.
+  const editedAt = Date.now();
+  await writeFile(entryFile, `${source}\nexport const broken = (;\n`);
+  const failedStatus = await waitUntil(
+    'the watcher to report the failed build',
+    async () => {
+      const status = await agentStatus(agent);
+      check(status.failedWorkloads.length === FUNCTIONS.length, `failed: ${JSON.stringify(status.failedWorkloads)}`);
+      return status;
+    },
+    120_000
+  );
+  results.watchFailureReportedSeconds = (Date.now() - editedAt) / 1000;
+  check(!failedStatus.ready, 'The session reported ready with failed builds.');
+  check(
+    failedStatus.failedWorkloads.every(({ error }) => /unexpected/i.test(error)),
+    `The failed builds do not carry the build error: ${JSON.stringify(failedStatus.failedWorkloads)}.`
+  );
+  check(readFileSync(failedStatus.logFile, 'utf8').includes('Rebuild failed'), 'The log file has no rebuild failure.');
+
+  // An explicit rebuild of the broken file fails with the error and the log path; the old code keeps serving.
+  const rebuildStarted = Date.now();
+  const rebuild = await callAgent(agent, 'POST', '/rebuild/queryArm');
+  results.failedRebuildMs = Date.now() - rebuildStarted;
+  results.failedRebuild = { ok: rebuild.ok, code: rebuild.code, message: rebuild.message };
+  check(
+    rebuild.ok === false && rebuild.code === 'REBUILD_FAILED' && /unexpected/i.test(rebuild.message ?? ''),
+    `A rebuild of a broken file answered ${JSON.stringify(rebuild)}.`
+  );
+  check(rebuild.data?.logFile === failedStatus.logFile, 'The failed rebuild did not name the log file.');
+  check((await agentStatus(agent)).failedWorkloads.length === FUNCTIONS.length, 'A function lost its failed status.');
+  const shasAfterFailure = await Promise.all(FUNCTIONS.map(codeSha));
+  check(
+    shasAfterFailure.every((sha, index) => sha === shasBefore[index]),
+    'A failed build changed the deployed code.'
+  );
+  check((await invoke()).value === 'edited', 'The function stopped serving its previous code.');
+
+  // The fix lands through the watcher and the session is ready again.
+  const fixedAt = Date.now();
+  await writeFile(entryFile, source);
+  await waitUntil(
+    'the watcher to deploy the fixed file',
+    async () => {
+      const status = await agentStatus(agent);
+      check(status.ready, `not ready: ${JSON.stringify(status.failedWorkloads)}`);
+    },
+    180_000
+  );
+  results.watchFixReadySeconds = (Date.now() - fixedAt) / 1000;
+
+  // A configuration edit cannot be applied by a rebuild: readiness waits for a restart and a rebuild refuses.
+  const timeoutBefore = (
+    await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName(state, 'queryArm') }))
+  ).Timeout;
+  const configEditedAt = Date.now();
+  await writeFile(configFile, config.replace('timeout: 30', 'timeout: 31'));
+  const restartStatus = await waitUntil(
+    'the watcher to report the configuration change',
+    async () => {
+      const status = await agentStatus(agent);
+      check(status.restartRequired, 'no restart required yet');
+      return status;
+    },
+    60_000
+  );
+  results.configChangeReportedSeconds = (Date.now() - configEditedAt) / 1000;
+  check(!restartStatus.ready, 'The session reported ready with a changed configuration.');
+  const refused = await callAgent(agent, 'POST', '/rebuild/queryArm');
+  results.configChangedRebuild = { ok: refused.ok, code: refused.code };
+  check(
+    refused.ok === false && refused.code === 'CONFIG_CHANGED_RESTART_REQUIRED',
+    `A rebuild after a configuration change answered ${JSON.stringify(refused)}.`
+  );
+  const timeoutAfter = (
+    await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName(state, 'queryArm') }))
+  ).Timeout;
+  check(timeoutAfter === timeoutBefore, 'The refused rebuild changed the function configuration.');
+
+  await writeFile(configFile, config);
+  await waitUntil(
+    'the session to be ready after the configuration was restored',
+    async () => {
+      const status = await agentStatus(agent);
+      check(status.ready && !status.restartRequired, 'still waiting for a restart');
+    },
+    60_000
+  );
+  const rebuilt = await callAgent(agent, 'POST', '/rebuild/queryArm');
+  check(rebuilt.ok, `A rebuild after the restore answered ${JSON.stringify(rebuilt)}.`);
+  check((await invoke()).value === 'edited', 'The rebuilt function does not read the database.');
+  return results;
 };
 
 const resolveAwsAccountName = async (options: Options, state: State) => {

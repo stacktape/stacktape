@@ -60,6 +60,19 @@ export const dynamicRequire = ({ cache = true, filePath }: { filePath: string; c
   return requireFromFile(interpolableFilePath);
 };
 
+/**
+ * Drops every module under `directory`, except dependencies in node_modules, from the require cache, so the next
+ * require executes the project's files again.
+ */
+export const forgetProjectModules = (directory: string) => {
+  const { cache } = createRequire(join(directory, 'package.json'));
+  const prefix = transformToUnixPath(join(directory, pathSeparator));
+  for (const modulePath of Object.keys(cache)) {
+    const unixPath = transformToUnixPath(modulePath);
+    if (unixPath.startsWith(prefix) && !unixPath.includes('/node_modules/')) delete cache[modulePath];
+  }
+};
+
 export const dynamicRequireLibraryFromUserNodeModules = ({
   libraryName,
   searchFrom

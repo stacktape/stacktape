@@ -22569,7 +22569,7 @@
         "page:/using-with-ai/agent-mode-in-dev#what-databases-can-i-query-through-the-agent-api",
         "page:/using-with-ai/agent-mode-in-dev#is-my-data-persisted-between-agent-mode-sessions",
         "page:/using-with-ai/agent-mode-in-dev#are-destructive-database-operations-safe-during-ai-sessions",
-        "page:/using-with-ai/agent-mode-in-dev#what-happens-if-a-workload-fails-to-start",
+        "page:/using-with-ai/agent-mode-in-dev#what-happens-if-a-workload-fails",
         "page:/using-with-ai/agent-mode-in-dev#why-does-an-aws-sdk-call-fail-or-return-access-denied"
       ]
     },
