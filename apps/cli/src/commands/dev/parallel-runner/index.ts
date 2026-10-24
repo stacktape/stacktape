@@ -14,7 +14,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { dockerRun, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
+import { dockerRun, dockerRunUsesHostNetwork, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { getResourceParamReferences } from '../resource-references';
 import { ExpectedError } from '@utils/errors';
@@ -34,7 +34,7 @@ import { startTunnel } from '../tunnel-manager';
 import { getDevNetworkSession, type DevNetworkSession } from '../dev-network-session';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
-import { isPortAvailable, reservePorts } from '../port-utils';
+import { getContainerListenPort, isPortAvailable, reservePorts } from '../port-utils';
 import {
   clearCredentialExpiryTimer,
   getBastionTunnelsForResource,
@@ -616,6 +616,13 @@ const startContainerWorkload = async (
   const hostPortOffset = portBinding?.hostPortOffset || 0;
   const hostPorts = ports.map((port: number) => port + hostPortOffset);
   const primaryHostPort = portBinding?.primaryHostPort || primaryPort;
+  const hostNetwork = await dockerRunUsesHostNetwork();
+  const listenPort = getContainerListenPort({ containerPort: primaryPort, hostPort: primaryHostPort, hostNetwork });
+  if (hostNetwork && primaryPort && listenPort !== primaryPort) {
+    const message = `Port ${primaryPort} is in use, so the container listens on PORT=${listenPort}. Docker on Linux runs dev containers on the host network, which cannot remap ports; an app that ignores PORT fails to start.`;
+    if (useDevTui) devTuiManager.log(resourceName, message, 'warn');
+    else tuiManager.warn(`[${resourceName}] ${message}`);
+  }
 
   const proxyRoute = primaryHostPort
     ? await ensureNamedProxyRoute({ resourceName, targetPort: primaryHostPort })
@@ -636,7 +643,7 @@ const startContainerWorkload = async (
       tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
       localResourceEnvVars,
       skipAwsCredentials,
-      port: primaryPort || primaryHostPort,
+      port: listenPort,
       localWorkloadAddresses
     });
   };
