@@ -25,7 +25,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. If `credentials.masterUserPassword` is not set, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Your workloads receive it through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
 Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
@@ -284,11 +284,11 @@ Yes. Each stage gets its own container name and its own non-conflicting port ass
 
 ### Why does dev mode warn that my database keeps the password `localdevpassword`?
 
-Earlier Stacktape versions gave every local database the fixed password `localdevpassword`. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
+Earlier Stacktape versions gave every local database without a configured password the fixed password `localdevpassword`, and a database with a `$Secret` password got the directive text itself as its password. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
 
 ### How do I connect to the local database with a GUI tool?
 
-Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
+Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no literal password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
 
 ### Does local DynamoDB support Streams and Global Tables?
 

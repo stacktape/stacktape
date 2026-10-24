@@ -188,7 +188,9 @@ See the network with [`stacktape dev network`](/cli/dev-network) and delete it w
 
 ### Several developers
 
-Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two developers run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one developer's databases. The developer who started first keeps them; the second one is told who holds them and takes over when the first stops.
+Each developer runs dev mode against their own stage, and every stage gets its own relay ports. A stage's deployed functions can reach only one session's databases, so one dev session at a time holds a stage. This also applies to one developer running the same stage in two worktrees or on two machines.
+
+A second `stacktape dev` for a stage that another session holds is refused before it deploys anything. The error names the holder: the user, the host and the project directory. Run it again with `--take-over` to move all of the stage's ports to the new session at once. The first session is told that it was taken over, and the deployed functions then reach only the new session's databases.
 
 ### AWS permissions
 

@@ -3515,6 +3515,7 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
+| `--agent-port` | no | `number` | Agent Port — Stops the dev agent on this port, wherever it was started. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--cleanup-containers` | no | `boolean` | Cleanup Containers — Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
@@ -3553,6 +3554,8 @@ stacktape dev --stage dev-john --region eu-west-1
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
+| `--agent-port` | no | `number` | Agent Port — The port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
@@ -3569,7 +3572,7 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
 | `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
 | `--skip-resources` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
-| `--watch` | no | `boolean` | Watch — If `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected. | - |
+| `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
 
 ## What it does
@@ -8986,9 +8989,14 @@ Assuming a resource named `cache`:
 
 | Parameter | Example env var | Description |
 |---|---|---|
-| `host` | `STP_CACHE_HOST` | Primary host endpoint |
-| `readerHost` | `STP_CACHE_READER_HOST` | Reader endpoint |
+| `host` | `STP_CACHE_HOST` | Primary host endpoint (the configuration endpoint of a sharded cluster) |
 | `port` | `STP_CACHE_PORT` | Port number |
+| `connectionString` | `STP_CACHE_CONNECTION_STRING` | Full URL with the `default` user's password |
+| `readerHost` | `STP_CACHE_READER_HOST` | Reader endpoint (clusters without sharding) |
+| `readerPort` | `STP_CACHE_READER_PORT` | Reader port (clusters without sharding) |
+| `readerConnectionString` | `STP_CACHE_READER_CONNECTION_STRING` | Full URL of the reader endpoint (clusters without sharding) |
+
+The deployed cluster uses TLS, so its connection string starts with `rediss://`. In [dev mode](/local-development/dev-mode-overview) the local Redis has no TLS, and the connection string starts with `redis://`. Code that connects with `STP_CACHE_CONNECTION_STRING` therefore works in both, while code that builds its own URL from the host and port has to switch TLS itself. The local Redis has no reader endpoint.
 
 ### Event bus
 
@@ -18577,7 +18585,9 @@ See the network with [`stacktape dev network`](/cli/dev-network) and delete it w
 
 ### Several developers
 
-Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two developers run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one developer's databases. The developer who started first keeps them; the second one is told who holds them and takes over when the first stops.
+Each developer runs dev mode against their own stage, and every stage gets its own relay ports. A stage's deployed functions can reach only one session's databases, so one dev session at a time holds a stage. This also applies to one developer running the same stage in two worktrees or on two machines.
+
+A second `stacktape dev` for a stage that another session holds is refused before it deploys anything. The error names the holder: the user, the host and the project directory. Run it again with `--take-over` to move all of the stage's ports to the new session at once. The first session is told that it was taken over, and the deployed functions then reach only the new session's databases.
 
 ### AWS permissions
 
@@ -18992,7 +19002,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. If `credentials.masterUserPassword` is not set, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Your workloads receive it through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
 Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
@@ -19251,11 +19261,11 @@ Yes. Each stage gets its own container name and its own non-conflicting port ass
 
 ### Why does dev mode warn that my database keeps the password `localdevpassword`?
 
-Earlier Stacktape versions gave every local database the fixed password `localdevpassword`. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
+Earlier Stacktape versions gave every local database without a configured password the fixed password `localdevpassword`, and a database with a `$Secret` password got the directive text itself as its password. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
 
 ### How do I connect to the local database with a GUI tool?
 
-Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
+Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no literal password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
 
 ### Does local DynamoDB support Streams and Global Tables?
 
@@ -36577,6 +36587,10 @@ export default defineConfig(() => {
 
 Use `injectEnvironment` for values that the browser reads at runtime from HTML. Use `writeDotenvFilesTo` when you want Stacktape to write deploy-time values to a `.env` file in the specified directory; existing `.env` content is merged if present.
 
+In dev mode, `stacktape dev` resolves `injectEnvironment` and passes the values to the `dev.command` server as environment variables. A `$ResourceParam` of a function or container resolves to the URL that dev mode runs it at. The values are also written to `.env.local` in the dev `workingDirectory` (the project root by default), inside a block between `# >>> stacktape dev` and `# <<< stacktape dev <<<` marker lines. Each start rewrites only that block, so your own lines in the file stay. Nothing else is written there: a hosting bucket has no `connectTo`, so database connection details and passwords never reach the frontend.
+
+Bundlers expose only prefixed variables to browser code, for example `VITE_` in Vite. Name the variables accordingly, such as `VITE_API_URL: $ResourceParam('api', 'url')`, and read them with `import.meta.env.VITE_API_URL`.
+
 ## Routing
 
 `routeRewrites` routes specific URL patterns to different origins, for example `/api/*` to a Lambda function. Rewrites are evaluated in order; unmatched requests go to the bucket. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields.
@@ -48268,7 +48282,9 @@ curl -H "$AUTH" $AGENT/env/api
 }
 ```
 
-Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, ports, database names and plain settings stay readable. Your workloads still receive the real values.
+Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, private IP addresses, ports, database names and plain settings stay readable. A deployed dev function reaches a local database at the private address of the dev box, such as `10.230.4.17`, so its `/env` shows that address. Public IP addresses are masked as `[redacted:ip]`. Your workloads still receive the real values.
+
+Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db.password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
 
 This endpoint is useful for debugging [`connectTo`](/configuration/connecting-resources) wiring. If an expected `STP_*` variable is missing, the workload's `connectTo` array likely doesn't reference the target resource. The response also includes the `source` field — `"aws"` for Lambda functions (fetched from the deployed function configuration) or `"local"` for other tracked workload types (currently container, hosting-bucket, and nextjs-web workloads, read from the local runner state).
 

@@ -202,6 +202,10 @@ export default defineConfig(() => {
 
 Use `injectEnvironment` for values that the browser reads at runtime from HTML. Use `writeDotenvFilesTo` when you want Stacktape to write deploy-time values to a `.env` file in the specified directory; existing `.env` content is merged if present.
 
+In dev mode, `stacktape dev` resolves `injectEnvironment` and passes the values to the `dev.command` server as environment variables. A `$ResourceParam` of a function or container resolves to the URL that dev mode runs it at. The values are also written to `.env.local` in the dev `workingDirectory` (the project root by default), inside a block between `# >>> stacktape dev` and `# <<< stacktape dev <<<` marker lines. Each start rewrites only that block, so your own lines in the file stay. Nothing else is written there: a hosting bucket has no `connectTo`, so database connection details and passwords never reach the frontend.
+
+Bundlers expose only prefixed variables to browser code, for example `VITE_` in Vite. Name the variables accordingly, such as `VITE_API_URL: $ResourceParam('api', 'url')`, and read them with `import.meta.env.VITE_API_URL`.
+
 ## Routing
 
 `routeRewrites` routes specific URL patterns to different origins, for example `/api/*` to a Lambda function. Rewrites are evaluated in order; unmatched requests go to the bucket. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields.

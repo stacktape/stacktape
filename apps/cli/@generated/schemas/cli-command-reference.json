@@ -2271,6 +2271,24 @@
         "flag": "stage"
       },
       {
+        "name": "agent",
+        "description": "#### Agent Mode\n---\nFor coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.\nThe command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "agent"
+      },
+      {
+        "name": "agentPort",
+        "description": "#### Agent Port\n---\nThe port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331.",
+        "required": false,
+        "allowedTypes": [
+          "number"
+        ],
+        "flag": "agent-port"
+      },
+      {
         "name": "awsAccount",
         "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
         "required": false,
@@ -2424,7 +2442,7 @@
       },
       {
         "name": "watch",
-        "description": "#### Watch\n---\nIf `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected.",
+        "description": "#### Watch\n---\nIf `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build.\nFrontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart.",
         "required": false,
         "allowedTypes": [
           "boolean"
@@ -2667,6 +2685,15 @@
     "publicName": "dev stop",
     "positionals": [],
     "args": [
+      {
+        "name": "agentPort",
+        "description": "#### Agent Port\n---\nStops the dev agent on this port, wherever it was started.",
+        "required": false,
+        "allowedTypes": [
+          "number"
+        ],
+        "flag": "agent-port"
+      },
       {
         "name": "awsAccount",
         "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",

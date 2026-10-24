@@ -57,6 +57,7 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
+| `--agent-port` | no | `number` | Agent Port — Stops the dev agent on this port, wherever it was started. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--cleanup-containers` | no | `boolean` | Cleanup Containers — Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
