@@ -152,8 +152,9 @@ export const startDevNetworkSession = async ({
       }
     }
   });
-  // The box starts while the dev stack deploys and the local databases start.
-  void connection.wake();
+  // The connection starts the box and connects while the dev stack deploys and the local databases start. Its presence
+  // connection keeps a box that has been idle for almost 30 minutes from stopping itself meanwhile.
+  void connection.connect();
 
   const relayedNames = [...new Set(Object.values(functions).flat())];
   const leases = await ensureLeases({

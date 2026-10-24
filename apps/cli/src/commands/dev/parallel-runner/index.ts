@@ -1,7 +1,7 @@
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
-import type { TunnelInfo } from '../tunnel-manager';
+import type { RelayEndpoint, TunnelInfo } from '../tunnel-manager';
 import { randomUUID } from 'node:crypto';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
@@ -285,6 +285,10 @@ const describeDevBoxStatus = (status: NonNullable<DevNetworkSession['connection'
   return `dev box ${status.relay.relayHost}`;
 };
 
+/**
+ * Waits for the dev box connection, then opens one tunnel per relayed database. When an attempt fails, the session
+ * continues without waiting: the connection keeps retrying in the background and the tunnels open once it is ready.
+ */
 const connectDevNetwork = async ({
   devNetwork,
   useDevTui,
@@ -295,29 +299,56 @@ const connectDevNetwork = async ({
   stackName: string;
 }) => {
   const { connection, placement, leases, owner } = devNetwork;
-  if (useDevTui) {
-    devTuiManager.setSetupStepStatus('dev-box', 'running', 'Connecting to the dev box…');
-    connection.onStatus = (status) =>
+  let reportFailure!: (reason: string) => void;
+  const failed = new Promise<string>((resolve) => (reportFailure = resolve));
+  let warnedReason: string | undefined;
+  if (useDevTui) devTuiManager.setSetupStepStatus('dev-box', 'running', 'Connecting to the dev box…');
+  connection.onStatus = (status) => {
+    if (status.phase === 'reconnecting') reportFailure(status.reason);
+    if (useDevTui) {
       devTuiManager.setSetupStepStatus(
         'dev-box',
         status.phase === 'ready' ? 'done' : 'running',
         describeDevBoxStatus(status)
       );
-  } else {
-    connection.onStatus = (status) => {
-      if (status.phase === 'starting-box') tuiManager.info('Starting the dev box…');
-      if (status.phase === 'reconnecting') tuiManager.warn(`Dev box: ${status.reason}. Reconnecting…`);
-    };
+      return;
+    }
+    if (status.phase === 'starting-box') tuiManager.info('Starting the dev box…');
+    if (status.phase === 'ready' && warnedReason) {
+      tuiManager.success('Connected to the dev box again.');
+      warnedReason = undefined;
+    }
+    // A failing attempt repeats every few seconds: warn once per reason, not once per attempt.
+    if (status.phase === 'reconnecting' && status.reason !== warnedReason) {
+      tuiManager.warn(`Dev box: ${status.reason}. Reconnecting…`);
+      warnedReason = status.reason;
+    }
+  };
+  const tunnelsOpened = connection
+    .connect()
+    .then((relay) => openRelayTunnels({ relay, placement, leases, owner, stackName, useDevTui }))
+    .catch(() => {});
+  const failure = await Promise.race([tunnelsOpened.then(() => undefined), failed]);
+  if (failure !== undefined && useDevTui) {
+    tuiManager.warn(
+      `Deployed dev functions can't reach the dev box yet: ${failure}. Stacktape keeps reconnecting in the background ` +
+        'and opens the tunnels once the box answers.'
+    );
   }
-  let relay: Awaited<ReturnType<typeof connection.connect>>;
-  try {
-    relay = await connection.connect();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    tuiManager.warn(`Deployed dev functions can't reach the dev box: ${message}`);
-    if (useDevTui) devTuiManager.setSetupStepStatus('dev-box', 'skipped', 'unreachable');
-    return;
-  }
+};
+
+const openRelayTunnels = async ({
+  relay,
+  placement,
+  leases,
+  owner,
+  stackName,
+  useDevTui
+}: Pick<DevNetworkSession, 'placement' | 'leases' | 'owner'> & {
+  relay: RelayEndpoint;
+  stackName: string;
+  useDevTui: boolean;
+}) => {
   const relayed = [...new Set(Object.values(placement.functions).flat())];
   const opened: string[] = [];
   await Promise.all(

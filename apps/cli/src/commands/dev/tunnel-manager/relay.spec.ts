@@ -6,7 +6,9 @@ import { createConnection, createServer, type AddressInfo, type Server, type Soc
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
+import type { DevNetworkAws } from '@domain-services/dev-network';
 import { DEV_BOX_RELAY_SOURCE } from '@domain-services/dev-network/relay-source';
+import { DevBoxConnection } from '../dev-box';
 import { getActiveTunnels, holdRelayPresence, pingRelay, registerTunnelCleanupHook, startTunnel } from './index';
 
 // The relay the dev box runs, under the Python 3 of this machine (the box has 3.9), driven by the CLI's own client.
@@ -175,5 +177,82 @@ test('the relay stops the box only after the idle time without a session', async
   presence.abort();
   await held;
   await waitFor('the idle stop', () => existsSync(stoppedFile()), 8000);
+  await stopRelay();
+}, 30_000);
+
+test('a Ping restarts the idle time, so a starting session keeps the box awake', async () => {
+  await rm(stoppedFile(), { force: true });
+  await startRelay({ idleSeconds: 2 });
+  for (let i = 0; i < 5; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await pingRelay({ controlHost: '127.0.0.1', controlPort });
+  }
+  expect(existsSync(stoppedFile()), relayOutput).toBe(false);
+  await waitFor('the idle stop', () => existsSync(stoppedFile()), 8000);
+  await stopRelay();
+}, 30_000);
+
+test('a box that stops itself before the first connection is started again and the tunnels open', async () => {
+  // The box ran when the session began, then reached its idle time while the dev stack deployed: it stops right after
+  // SSM still reported it online, so the first session is refused. Starting the box starts the relay again.
+  const box = { state: 'running', starts: 0 };
+  let onlineChecks = 0;
+  await startRelay({ idleSeconds: 3600 });
+  const aws = {
+    describeBox: async () => ({ state: box.state }),
+    startBox: async () => {
+      box.starts++;
+      box.state = 'pending';
+      void startRelay({ idleSeconds: 3600 }).then(() => (box.state = 'running'));
+    },
+    isBoxOnline: async () => {
+      if (++onlineChecks === 1) {
+        box.state = 'stopped';
+        await stopRelay();
+      }
+      return true;
+    }
+  } as unknown as DevNetworkAws;
+  const connection = new DevBoxConnection({
+    network: {
+      stackName: 'stacktape-dev-network',
+      vpcId: 'vpc-1',
+      privateSubnetIds: ['subnet-a'],
+      lambdaSecurityGroupId: 'sg-1',
+      boxInstanceId: 'i-box',
+      boxPrivateIp: '127.0.0.1',
+      keeperFunctionName: 'keeper'
+    },
+    owner: alice,
+    deps: {
+      aws,
+      pollMs: 20,
+      // The SSM session forwards this port to the relay's control port; here the relay listens on it directly.
+      findFreePort: async () => controlPort,
+      openSession: async () => {
+        if (box.state !== 'running') throw new Error('TargetNotConnected: the dev box is not connected');
+        let exit!: () => void;
+        const exited = new Promise<void>((resolve) => (exit = resolve));
+        return { sessionId: `session-${box.starts}`, waitForExit: () => exited, kill: async () => exit() };
+      },
+      pingRelay,
+      holdPresence: holdRelayPresence
+    }
+  });
+  const leasePort = await freePort();
+  const localPort = (database.address() as AddressInfo).port;
+  const relayEndpoint = await connection.connect();
+  expect(box.starts).toBe(1);
+  const opened = await startTunnel({
+    resourceName: 'db',
+    localPort,
+    lease: { port: leasePort, key: 'shop-dev/db' },
+    owner: alice,
+    relay: relayEndpoint
+  });
+  expect('tunnel' in opened).toBe(true);
+  expect(String(await query(leasePort, Buffer.from('select 1')))).toBe('db:select 1');
+  await connection.stop();
+  await cleanUpTunnels();
   await stopRelay();
 }, 30_000);

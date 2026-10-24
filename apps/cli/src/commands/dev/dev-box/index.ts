@@ -36,18 +36,19 @@ export type DevBoxDependencies = {
 };
 
 /**
- * The connection of one `stacktape dev` session to the dev box. `wake` starts a stopped box as early as possible;
- * `connect` waits for it, opens the SSM session to the relay and keeps a presence connection, so the box does not stop
- * itself while this session runs. After any loss (network drop, killed plugin, box restart) the supervisor ends the old
- * server-side session, starts the box again if it stopped, and reopens the session on the same local port, where the
- * tunnels reconnect on their own.
+ * The connection of one `stacktape dev` session to the dev box. `connect` starts as early as possible: it starts a
+ * stopped box, waits for it, opens the SSM session to the relay and keeps a presence connection, so the box does not
+ * stop itself while this session deploys and runs. Every attempt, the first one included, runs in one supervised loop:
+ * after any failure or loss (network drop, killed plugin, a box that stopped) it ends the old server-side session,
+ * starts the box again if it stopped, and reopens the session on the same local port, where the tunnels reconnect on
+ * their own. It retries until the session stops; the status reports each failure as `reconnecting`.
  */
 export class DevBoxConnection {
   readonly #deps: DevBoxDependencies;
   readonly #network: DevNetwork;
   readonly #owner: RelayOwner;
   readonly #stopped = new AbortController();
-  #wake: Promise<{ started: boolean }> | undefined;
+  #ready: Promise<RelayEndpoint> | undefined;
   #session: RelaySession | undefined;
   #localPort: number | undefined;
   #status: DevBoxStatus | undefined;
@@ -59,25 +60,19 @@ export class DevBoxConnection {
     this.#owner = owner;
   }
 
-  /** Starts the box if it is stopped. Safe to call early and more than once; `connect` awaits the same wake. */
-  wake = () => {
-    this.#wake ??= wakeDevBox({
-      aws: this.#deps.aws,
-      instanceId: this.#network.boxInstanceId,
-      pollMs: this.#deps.pollMs,
-      onStart: () => this.#setStatus({ phase: 'starting-box' })
-    });
-    // A failed wake is reported by `connect`; an unawaited early wake must not crash the process.
-    this.#wake.catch(() => {});
-    return this.#wake;
-  };
-
-  connect = async (): Promise<RelayEndpoint> => {
-    await this.wake();
-    this.#localPort = await this.#deps.findFreePort();
-    const relay = await this.#open();
-    void this.#supervise();
-    return relay;
+  /**
+   * Starts the connection once and resolves with the relay when it is first ready. A failed attempt does not reject:
+   * it is retried in the background. Rejects only when the session stops first.
+   */
+  connect = (): Promise<RelayEndpoint> => {
+    if (!this.#ready) {
+      this.#ready = new Promise((resolve, reject) => {
+        void this.#run(resolve).then(() => reject(new Error('The dev session stopped.')), reject);
+      });
+      // A caller that starts the connection early awaits it later; an unawaited rejection must not crash the process.
+      this.#ready.catch(() => {});
+    }
+    return this.#ready;
   };
 
   get sessionId() {
@@ -115,12 +110,16 @@ export class DevBoxConnection {
   #open = async (): Promise<RelayEndpoint> => {
     const { aws, openSession, pingRelay, relayTimeoutMs = 5 * 60_000, pollMs = 1000 } = this.#deps;
     const instanceId = this.#network.boxInstanceId;
+    const onStart = () => this.#setStatus({ phase: 'starting-box' });
+    // Every attempt reads the instance state again: a box that ran a minute ago may have stopped itself since.
+    await wakeDevBox({ aws, instanceId, pollMs, onStart });
     this.#setStatus({ phase: 'connecting' });
-    await waitForDevBoxOnline({ aws, instanceId, pollMs });
+    await waitForDevBoxOnline({ aws, instanceId, pollMs, onStart });
     this.#stopped.signal.throwIfAborted();
+    this.#localPort ??= await this.#deps.findFreePort();
     this.#session = await openSession({
       instanceId,
-      localPort: this.#localPort!,
+      localPort: this.#localPort,
       remotePort: DEV_BOX_RELAY_CONTROL_PORT
     });
     this.#deps.onSession?.(this.#session.sessionId);
@@ -132,10 +131,7 @@ export class DevBoxConnection {
         await pingRelay(relay);
         break;
       } catch (error) {
-        if (Date.now() > deadline) {
-          await this.#session.kill().catch(() => {});
-          throw new Error(`The dev box relay did not answer: ${(error as Error).message}`);
-        }
+        if (Date.now() > deadline) throw new Error(`The dev box relay did not answer: ${(error as Error).message}`);
         await delay(pollMs);
       }
     }
@@ -143,32 +139,39 @@ export class DevBoxConnection {
     return relay;
   };
 
-  #supervise = async () => {
+  /** Holds the presence connection until the session or the presence ends. */
+  #hold = async (session: RelaySession) => {
+    const presence = new AbortController();
+    const presenceEnded = this.#deps
+      .holdPresence({ relay: this.#endpoint(), owner: this.#owner, signal: presence.signal })
+      .catch(() => {});
+    await Promise.race([session.waitForExit(), presenceEnded]);
+    presence.abort();
+  };
+
+  /** Ends the server-side session too: a killed plugin leaves it open, and its agent keeps the old relay sockets. */
+  #endSession = async () => {
+    await this.#session?.kill().catch(() => {});
+    this.#session = undefined;
+  };
+
+  /** Connects, holds and reconnects until the session stops. `onReady` receives the relay of every ready connection. */
+  #run = async (onReady: (relay: RelayEndpoint) => void) => {
     const { signal } = this.#stopped;
-    while (!signal.aborted && this.#session) {
-      const session = this.#session;
-      const presence = new AbortController();
-      const presenceEnded = this.#deps
-        .holdPresence({ relay: this.#endpoint(), owner: this.#owner, signal: presence.signal })
-        .catch(() => {});
-      await Promise.race([session.waitForExit(), presenceEnded]);
-      presence.abort();
-      if (signal.aborted) return;
-      this.#setStatus({ phase: 'reconnecting', reason: 'the connection to the dev box was lost' });
-      // A killed plugin leaves its server-side session open, and its agent keeps the old relay sockets: end it first.
-      await session.kill().catch(() => {});
-      this.#session = undefined;
-      for (let attempt = 1; !signal.aborted; attempt++) {
-        try {
-          this.#wake = undefined;
-          await this.wake();
-          await this.#open();
-          break;
-        } catch (error) {
-          if (signal.aborted) return;
-          this.#setStatus({ phase: 'reconnecting', reason: (error as Error).message });
-          await delay(Math.min(1000 * attempt, 5000));
-        }
+    for (let attempt = 1; !signal.aborted;) {
+      try {
+        const relay = await this.#open();
+        attempt = 1;
+        onReady(relay);
+        await this.#hold(this.#session!);
+        if (signal.aborted) return;
+        this.#setStatus({ phase: 'reconnecting', reason: 'the connection to the dev box was lost' });
+        await this.#endSession();
+      } catch (error) {
+        if (signal.aborted) return;
+        this.#setStatus({ phase: 'reconnecting', reason: (error as Error).message });
+        await this.#endSession();
+        await delay(Math.min(1000 * attempt++, 5000), undefined, { signal }).catch(() => {});
       }
     }
   };

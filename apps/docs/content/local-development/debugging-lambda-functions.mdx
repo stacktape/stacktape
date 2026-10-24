@@ -170,7 +170,9 @@ Deployed dev functions reach the [local databases](/local-development/local-data
 dev function (dev network, private subnet) ──► dev box ──► Systems Manager session ──► your machine ──► local database
 ```
 
-Nothing is published on the internet. Your machine opens the connection to the box, through an AWS Systems Manager session authenticated by your AWS credentials and encrypted. On the box, the relay port of each database admits only dev functions. The database password still applies.
+Nothing is published on the internet. Your machine opens the connection to the box, through an AWS Systems Manager session authenticated by your AWS credentials and encrypted. On the box, the relay port of each database admits only dev functions.
+
+The AWS account is the trust boundary. Every dev function in the account's dev network can reach every developer's relay ports, not only the functions of that developer's stage. Local DynamoDB and OpenSearch have no password, and local Redis has one only when its `defaultUserPassword` is set; Postgres and MySQL always have one. The passwords of local databases, including the ones Stacktape generates, are written into the dev functions' environment variables, so they appear in the dev stack's Lambda configuration and CloudFormation template. They are valid only for the databases on your machine. Use a separate AWS account for people who must not reach each other's local databases.
 
 A query takes your machine's round trip to the region plus a few milliseconds; about 45 ms from Central Europe to `eu-west-1`. Bulk transfers are limited to about 0.7 MB/s per developer by Systems Manager, so a query that returns 5 MB takes about 7 s. Seeding or exporting large amounts of data is faster from your machine directly.
 
@@ -193,7 +195,9 @@ Each developer runs dev mode against their own stage, and every stage gets its o
 
 ### AWS permissions
 
-The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, `ssm:DescribeInstanceInformation`, `ec2:DescribeInstances` and `ec2:StartInstances` on the box, and `ssm:GetParametersByPath`, `ssm:PutParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases are kept.
+The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParametersByPath`, `ssm:PutParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases are kept.
+
+The first session in an account and region creates the dev network with CloudFormation, using the credentials of whoever runs it. That identity also needs `ssm:GetParameter` on the public Amazon Linux parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64`, and the rights to create the network's VPC, subnets, route tables, internet gateway, security groups, launch template, EC2 instance, IAM role and instance profile (with `iam:PassRole`), and the keeper Lambda function. `stacktape dev network` and `stacktape dev network delete` also need `lambda:ListFunctions`, and the deletion needs the rights to delete those resources.
 
 ### Skipping the tunnels
 

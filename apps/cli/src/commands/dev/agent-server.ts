@@ -50,6 +50,7 @@ import {
 import { getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
 import { maskAgentEnvironment } from './agent-env-masking';
 import { getLambdaEnvVars } from './deployed-function-environment';
+import { getDevNetworkSession } from './dev-network-session';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 
@@ -278,6 +279,13 @@ const addRoute = (method: 'GET' | 'POST', path: string, handler: RouteHandler) =
 // Core endpoints
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** The dev box connection, for an agent that has to know why deployed functions can't reach local databases yet. */
+const getDevBoxStatus = () => {
+  const status = getDevNetworkSession()?.connection.status;
+  if (!status) return {};
+  return { devBox: status.phase === 'reconnecting' ? `reconnecting: ${status.reason}` : status.phase };
+};
+
 addRoute('GET', '/status', async ({ query }) => {
   const verbose = query.get('verbose') === 'true';
   const ready = areAllWorkloadsReady();
@@ -291,6 +299,7 @@ addRoute('GET', '/status', async ({ query }) => {
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
       localResources: agentState.localResources,
+      ...getDevBoxStatus(),
       logFile: getAgentLogFilePath()
     };
   }
@@ -302,7 +311,14 @@ addRoute('GET', '/status', async ({ query }) => {
     else workloadMap[w.name] = w.status;
   }
 
-  return { phase: agentState.phase, ready, failedWorkloads, workloads: workloadMap, pid: process.pid };
+  return {
+    phase: agentState.phase,
+    ready,
+    failedWorkloads,
+    workloads: workloadMap,
+    ...getDevBoxStatus(),
+    pid: process.pid
+  };
 });
 
 addRoute('GET', '/logs', async () => {

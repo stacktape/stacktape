@@ -83,7 +83,6 @@ test('a session starts a stopped box, waits for the relay and holds its presence
   const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
   const statuses: DevBoxStatus['phase'][] = [];
   connection.onStatus = (status) => statuses.push(status.phase);
-  connection.wake();
   const relay = await connection.connect();
   expect(relay).toEqual({ controlHost: '127.0.0.1', controlPort: 40001, relayHost: '10.230.0.10' });
   expect(world.starts).toBe(1);
@@ -120,4 +119,49 @@ test('a box that stopped itself under a running session is started again', async
     () => world.sessions.length === 2 && connection.status?.phase === 'ready'
   );
   await connection.stop();
+});
+
+test('a first connection that fails keeps retrying and starts a box that stopped meanwhile', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  // The box reaches its idle time while the session waits for SSM: SSM stops answering and the box stops.
+  let checks = 0;
+  deps.aws.isBoxOnline = async () => {
+    if (++checks === 1) {
+      world.boxState = 'stopped';
+      world.relayUp = false;
+      return false;
+    }
+    return world.boxState === 'running';
+  };
+  const failing = deps.openSession;
+  let opens = 0;
+  // The first session is refused once more after the restart, as SSM does while the agent registers again.
+  deps.openSession = async (input) => {
+    if (++opens === 1) throw new Error('TargetNotConnected');
+    return failing(input);
+  };
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const statuses: DevBoxStatus['phase'][] = [];
+  connection.onStatus = (status) => statuses.push(status.phase);
+  const relay = await connection.connect();
+  expect(relay.controlPort).toBe(40001);
+  expect(world.starts).toBe(1);
+  expect(statuses).toContain('reconnecting');
+  expect(statuses.at(-1)).toBe('ready');
+  await waitFor('the presence connection', () => world.presences.length === 1);
+  await connection.stop();
+});
+
+test('a connection that never succeeds rejects only when the session stops', async () => {
+  const { deps } = fakeWorld({ boxState: 'running' });
+  deps.openSession = async () => {
+    throw new Error('SessionManagerPlugin is not found');
+  };
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const connected = connection.connect();
+  await waitFor('a reconnecting status', () => connection.status?.phase === 'reconnecting');
+  expect(connection.status).toEqual({ phase: 'reconnecting', reason: 'SessionManagerPlugin is not found' });
+  await connection.stop();
+  await expect(connected).rejects.toThrow('The dev session stopped.');
 });
