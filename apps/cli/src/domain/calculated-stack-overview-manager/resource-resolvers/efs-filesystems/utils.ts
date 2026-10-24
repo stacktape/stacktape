@@ -32,14 +32,15 @@ export const getEfsSecurityGroup = ({ efsConfig }: { efsConfig: StpEfsFilesystem
     VpcId: vpcManager.getVpcId(),
     Tags: stackManager.getTags(),
     GroupName: awsResourceNames.efsSecurityGroup(name, stackName),
-    SecurityGroupIngress: getMountsForEfsFilesystem({ efsFileSystemNameChain: nameChain }).map(
-      ({ mountingResourceCfLogicalNameOfSecurityGroup }) => ({
-        SourceSecurityGroupId: ref(mountingResourceCfLogicalNameOfSecurityGroup),
-        FromPort: 2049,
-        ToPort: 2049,
-        IpProtocol: 'tcp'
-      })
-    )
+    SecurityGroupIngress: getMountsForEfsFilesystem({
+      efsFileSystemNameChain: nameChain,
+      admittingCfLogicalName: cfLogicalNames.efsSecurityGroup(name)
+    }).map(({ mountingResourceCfLogicalNameOfSecurityGroup }) => ({
+      SourceSecurityGroupId: ref(mountingResourceCfLogicalNameOfSecurityGroup),
+      FromPort: 2049,
+      ToPort: 2049,
+      IpProtocol: 'tcp'
+    }))
   });
 };
 

@@ -375,6 +375,165 @@ test('VPC functions share a security group only with functions that reach the sa
   expect(ingressSources(template, 'FilesSecurityGroup')).toEqual([{ source: group('uploader'), port: 2049 }]);
 });
 
+test('a deployed function keeps its own security group admitted for the deploy that moves it to a shared one', async () => {
+  const config = `resources:
+  orders:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: synthetic-password
+      engine:
+        type: postgres
+        properties:
+          version: '16.9'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: scoping-workloads-in-vpc
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+      connectTo: [orders]
+  webhook:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+`;
+  await writeFile(join(directory, 'stacktape.yml'), config);
+  const synthesizeOver = (deployedTemplate: CloudFormationTemplate) =>
+    synthesizeFixture({
+      configPath: join(directory, 'stacktape.yml'),
+      workingDir: directory,
+      identity: { projectName: 'data', stage: 'test' },
+      deployedTemplate
+    });
+  // What a stack deployed before groups were shared contains: one group per function, referenced by the function.
+  const ownGroup = (name: string) => ({
+    Type: 'AWS::EC2::SecurityGroup',
+    Properties: { VpcId: { Ref: 'StpVpc' }, GroupName: `data-test-${name}-sg`, GroupDescription: `deployed ${name}` }
+  });
+  const deployedFunction = (group: string) => ({
+    Type: 'AWS::Lambda::Function',
+    Properties: { VpcConfig: { SecurityGroupIds: [{ Ref: group }], SubnetIds: [] } }
+  });
+  const databaseGroup = (template: CloudFormationTemplate) =>
+    (
+      Object.values(template.Resources).find(({ Type }) => Type === 'AWS::RDS::DBInstance') as {
+        Properties: { VPCSecurityGroups: { Ref: string }[] };
+      }
+    ).Properties.VPCSecurityGroups[0].Ref;
+  const databaseIngressSources = (template: CloudFormationTemplate) =>
+    ingressSources(template, databaseGroup(template))?.map(({ source }) => source);
+  const deployedDatabaseGroup = {
+    Type: 'AWS::EC2::SecurityGroup',
+    Properties: {
+      SecurityGroupIngress: [
+        { SourceSecurityGroupId: { Ref: 'ApiSecurityGroup' }, FromPort: 5432, ToPort: 5432, IpProtocol: 'tcp' }
+      ]
+    }
+  };
+  const databaseGroupName = databaseGroup(await synthesizeOver({ Resources: {} } as unknown as CloudFormationTemplate));
+
+  const moving = await synthesizeOver({
+    Resources: {
+      [databaseGroupName]: deployedDatabaseGroup,
+      ApiSecurityGroup: ownGroup('api'),
+      ApiFunction: deployedFunction('ApiSecurityGroup'),
+      WebhookSecurityGroup: ownGroup('webhook'),
+      WebhookFunction: deployedFunction('WebhookSecurityGroup')
+    }
+  } as unknown as CloudFormationTemplate);
+  const apiGroup = functionSecurityGroup(moving, 'ApiFunction');
+  expect(apiGroup).not.toBe('ApiSecurityGroup');
+  expect(databaseIngressSources(moving)).toEqual([apiGroup, 'ApiSecurityGroup']);
+  expect(moving.Resources.ApiSecurityGroup).toEqual(ownGroup('api'));
+  // Every moving function keeps its old group for this deploy; the next one deletes it once Lambda has let go of it.
+  expect(moving.Resources.WebhookSecurityGroup).toEqual(ownGroup('webhook'));
+  expect(JSON.stringify(moving.Resources)).not.toContain('"SourceSecurityGroupId":{"Ref":"WebhookSecurityGroup"}');
+
+  const moved = await synthesizeOver(moving);
+  expect(databaseIngressSources(moved)).toEqual([apiGroup]);
+  expect(moved.Resources.ApiSecurityGroup).toBeUndefined();
+});
+
+test('a function that changes its connections keeps the old ones working and gives nobody new access', async () => {
+  const vpcFunction = (connectTo: string) => `
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+      connectTo: [${connectTo}]`;
+  const synthesizeWith = async (apiConnectTo: string, deployedTemplate?: CloudFormationTemplate) => {
+    await writeFile(
+      join(directory, 'stacktape.yml'),
+      `resources:
+  orders:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: synthetic-password
+      engine:
+        type: postgres
+        properties:
+          version: '16.9'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: scoping-workloads-in-vpc
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+      defaultUserPassword: synthetic-redis-password
+      accessibility:
+        accessibilityMode: scoping-workloads-in-vpc
+  api:${vpcFunction(apiConnectTo)}
+  reports:${vpcFunction('orders, cache')}
+`
+    );
+    return synthesizeFixture({
+      configPath: join(directory, 'stacktape.yml'),
+      workingDir: directory,
+      identity: { projectName: 'data', stage: 'test' },
+      deployedTemplate
+    });
+  };
+  const admitted = (template: CloudFormationTemplate, type: string, property: string) => {
+    const resource = Object.values(template.Resources).find(({ Type }) => Type === type) as {
+      Properties: Record<string, { Ref: string }[]>;
+    };
+    return ingressSources(template, resource.Properties[property][0].Ref)?.map(({ source }) => source);
+  };
+
+  // api connects to orders alone; reports to orders and cache, so they are in different groups.
+  const before = await synthesizeWith('orders');
+  const ordersOnly = functionSecurityGroup(before, 'ApiFunction');
+  const ordersAndCache = functionSecurityGroup(before, 'ReportsFunction');
+  // api also connects to the cache now and joins reports' group, leaving its old group empty.
+  const moving = await synthesizeWith('orders, cache', before);
+  expect(functionSecurityGroup(moving, 'ApiFunction')).toBe(ordersAndCache);
+  expect(moving.Resources[ordersOnly]).toEqual(before.Resources[ordersOnly]);
+  // The database keeps admitting the old group while api moves; the cache, which never admitted it, does not.
+  expect(admitted(moving, 'AWS::RDS::DBInstance', 'VPCSecurityGroups')).toEqual([ordersAndCache, ordersOnly]);
+  expect(admitted(moving, 'AWS::ElastiCache::ReplicationGroup', 'SecurityGroupIds')).toEqual([ordersAndCache]);
+
+  const moved = await synthesizeWith('orders, cache', moving);
+  expect(moved.Resources[ordersOnly]).toBeUndefined();
+  expect(admitted(moved, 'AWS::RDS::DBInstance', 'VPCSecurityGroups')).toEqual([ordersAndCache]);
+});
+
 test('DSQL in a region without Aurora DSQL fails before synthesis with the supported regions', async () => {
   const config = `resources:
   primary:

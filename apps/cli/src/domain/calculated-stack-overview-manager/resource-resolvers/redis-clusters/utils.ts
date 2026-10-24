@@ -118,14 +118,16 @@ export const getRedisSecurityGroupResource = ({ resource }: { resource: StpRedis
     !resource.accessibility || resource.accessibility.accessibilityMode === 'vpc'
       ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: redisPort, ToPort: redisPort, IpProtocol: 'tcp' }]
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
-        ? getConnectToReferencesForResource({ activeConfig: configManager, nameChain: resource.nameChain }).map(
-            ({ scopingCfLogicalNameOfSecurityGroup }) => ({
-              SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
-              FromPort: redisPort,
-              ToPort: redisPort,
-              IpProtocol: 'tcp'
-            })
-          ) || []
+        ? getConnectToReferencesForResource({
+            activeConfig: configManager,
+            nameChain: resource.nameChain,
+            admittingCfLogicalName: cfLogicalNames.redisSecurityGroup(resource.name)
+          }).map(({ scopingCfLogicalNameOfSecurityGroup }) => ({
+            SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
+            FromPort: redisPort,
+            ToPort: redisPort,
+            IpProtocol: 'tcp'
+          })) || []
         : [];
   return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),

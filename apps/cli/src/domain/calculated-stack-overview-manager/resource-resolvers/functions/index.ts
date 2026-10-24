@@ -1,4 +1,5 @@
 import type { Environment, FunctionProperties } from '@stacktape/cloudformation/resources/aws-lambda-function';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaName } from '@config';
@@ -368,16 +369,25 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     const {
       cfLogicalName: securityGroupLogicalName,
       scopeId,
-      connectedTo
-    } = getVpcLambdaSecurityGroup({
-      lambda: lambdaProps,
-      activeConfig: configManager
-    });
+      connectedTo,
+      previousSecurityGroup
+    } = getVpcLambdaSecurityGroup({ lambda: lambdaProps, activeConfig: configManager });
     if (!templateManager.getCfResourceFromTemplate(securityGroupLogicalName)) {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: securityGroupLogicalName,
         resource: getVpcFunctionsSecurityGroup({ stackName, scopeId, connectedTo }),
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      });
+    }
+    if (previousSecurityGroup && !templateManager.getCfResourceFromTemplate(previousSecurityGroup.cfLogicalName)) {
+      // Kept unchanged for the deploy that moves the function out of it, so its connections keep working meanwhile.
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: previousSecurityGroup.cfLogicalName,
+        resource: previousSecurityGroup.resource as AnyCloudFormationResource,
+        nameChain:
+          previousSecurityGroup.cfLogicalName === cfLogicalNames.workloadSecurityGroup(name)
+            ? nameChain
+            : [PARENT_IDENTIFIER_SHARED_GLOBAL]
       });
     }
     Object.assign(lambdaFunctionResource.Properties, {

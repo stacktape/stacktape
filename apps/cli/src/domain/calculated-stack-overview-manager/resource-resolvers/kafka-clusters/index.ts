@@ -33,7 +33,8 @@ export const getKafkaClusterSecurityGroup = ({
   resource,
   connectToReferences = getConnectToReferencesForResource({
     activeConfig: configManager,
-    nameChain: resource.nameChain
+    nameChain: resource.nameChain,
+    admittingCfLogicalName: cfLogicalNames.kafkaClusterSecurityGroup(resource.name)
   })
 }: {
   resource: StpKafkaCluster;

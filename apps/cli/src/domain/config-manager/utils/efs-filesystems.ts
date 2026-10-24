@@ -4,7 +4,7 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import type { StpResource, StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '..';
-import { getVpcLambdaSecurityGroup } from './lambda-security-groups';
+import { getAdmittedLambdaSecurityGroups } from './lambda-security-groups';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 const resolveReferenceToEfsFilesystem = ({
@@ -61,10 +61,13 @@ export const resolveReferencesToMountedEfsFilesystems = ({
   return resolvedFilesystems;
 };
 
+/** The workloads that mount a filesystem and the security groups its security group `admittingCfLogicalName` admits. */
 export const getMountsForEfsFilesystem = ({
-  efsFileSystemNameChain
+  efsFileSystemNameChain,
+  admittingCfLogicalName
 }: {
   efsFileSystemNameChain: string | string[];
+  admittingCfLogicalName: string;
 }): { mountingResource: StpResource; mountingResourceCfLogicalNameOfSecurityGroup?: string }[] => {
   const resourceReferenceableName =
     typeof efsFileSystemNameChain === 'string' ? efsFileSystemNameChain : efsFileSystemNameChain.join('.');
@@ -76,13 +79,13 @@ export const getMountsForEfsFilesystem = ({
           (mount) => mount.type === 'efs' && mount.properties?.efsFilesystemName === resourceReferenceableName
         )
       ) {
-        result.push({
-          mountingResource,
-          mountingResourceCfLogicalNameOfSecurityGroup: getVpcLambdaSecurityGroup({
-            lambda: mountingResource,
-            activeConfig: configManager
-          }).cfLogicalName
-        });
+        getAdmittedLambdaSecurityGroups({
+          lambda: mountingResource,
+          activeConfig: configManager,
+          admittingCfLogicalName
+        }).forEach((mountingResourceCfLogicalNameOfSecurityGroup) =>
+          result.push({ mountingResource, mountingResourceCfLogicalNameOfSecurityGroup })
+        );
       }
     } else if (mountingResource.type === 'multi-container-workload') {
       const { name, containers } = mountingResource;
