@@ -5,29 +5,35 @@ import type { Socket } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { createCleanupHook } from '../cleanup-utils';
-import { DEV_CONFIG, getConfiguredTunnelServer } from '../dev-config';
+import { DEV_CONFIG } from '../dev-config';
 
-const {
-  startupTimeoutMs: TUNNEL_STARTUP_TIMEOUT_MS,
-  retryAttempts: TUNNEL_RETRY_ATTEMPTS,
-  retryDelayMs: TUNNEL_RETRY_DELAY_MS,
-  reconnectAttempts: TUNNEL_RECONNECT_ATTEMPTS = 3,
-  reconnectDelayMs: TUNNEL_RECONNECT_DELAY_MS = 5000
-} = DEV_CONFIG.tunnels;
+const { startupTimeoutMs: TUNNEL_STARTUP_TIMEOUT_MS, maxReconnectDelayMs: MAX_RECONNECT_DELAY_MS } = DEV_CONFIG.tunnels;
 
-const BORE_CONTROL_PORT = 7835;
 const NETWORK_TIMEOUT_MS = 3000;
+/** How often a lease held by another developer is asked for again. */
+const REFUSED_RETRY_MS = 30_000;
+
+/**
+ * The dev box relay as this session reaches it: the control port through the SSM port forward on this machine, and
+ * the tunnel ports at the box's private IP, where deployed dev functions connect.
+ */
+export type RelayEndpoint = { controlHost: string; controlPort: number; relayHost: string };
+
+/** Who holds a lease: the same owner may take a port over, another one is refused and told this label. */
+export type RelayOwner = { id: string; label: string };
 
 type ClientMessage =
-  | { type: 'Hello'; port: number }
-  | { type: 'Accept'; connectionId: string }
-  | { type: 'Authenticate'; response: string };
+  | { type: 'Lease'; port: number; key: string; owner: RelayOwner }
+  | { type: 'Presence'; owner: RelayOwner }
+  | { type: 'Ping' }
+  | { type: 'Accept'; connectionId: string };
 
 type ServerMessage =
   | { type: 'Hello'; port: number }
   | { type: 'Heartbeat' }
   | { type: 'Connection'; connectionId: string }
-  | { type: 'Challenge'; challengeId: string }
+  | { type: 'Pong'; version: number }
+  | { type: 'Refused'; port: number; key: string; label: string; since: number }
   | { type: 'Error'; message: string };
 
 type TunnelProcess = {
@@ -40,21 +46,31 @@ type TunnelProcess = {
 export type TunnelInfo = {
   resourceName: string;
   localPort: number;
-  publicHost: string;
-  publicPort: number;
+  relayHost: string;
+  relayPort: number;
   process: TunnelProcess;
 };
+
+type TunnelRequest = {
+  resourceName: string;
+  localPort: number;
+  /** The leased relay port and the lease's key, `<stack>/<resource>`. */
+  lease: { port: number; key: string };
+  owner: RelayOwner;
+  relay: RelayEndpoint;
+};
+
+/** A held lease of another developer: the tunnel is not open, and is asked for again later. */
+export class LeaseRefusedError extends Error {
+  constructor(readonly holder: { label: string; since: number; key: string }) {
+    super(`held by ${holder.label}`);
+  }
+}
 
 type PendingMessage = {
   resolve: (message: ServerMessage | null) => void;
   reject: (error: Error) => void;
   timeout?: ReturnType<typeof setTimeout>;
-};
-
-type ParsedTunnelServer = {
-  controlHost: string;
-  controlPort: number;
-  publicHost: string;
 };
 
 const activeTunnels: TunnelInfo[] = [];
@@ -64,48 +80,18 @@ let tunnelSession = new AbortController();
 
 const sleep = (ms: number, signal?: AbortSignal) => delay(ms, undefined, { signal });
 
-const parseTunnelServer = (server: string): ParsedTunnelServer => {
-  const normalizedServer = server.trim();
-
-  if (!normalizedServer) {
-    throw new Error('Tunnel server is not configured.');
-  }
-
-  const parts = normalizedServer.split(':');
-
-  if (parts.length === 1) {
-    return {
-      controlHost: parts[0],
-      controlPort: BORE_CONTROL_PORT,
-      publicHost: parts[0]
-    };
-  }
-
-  const maybePort = Number(parts.at(-1));
-
-  if (parts.length >= 2 && Number.isInteger(maybePort) && maybePort > 0 && maybePort <= 65535) {
-    return {
-      controlHost: parts.slice(0, -1).join(':'),
-      controlPort: maybePort,
-      publicHost: parts.slice(0, -1).join(':')
-    };
-  }
-
-  return {
-    controlHost: normalizedServer,
-    controlPort: BORE_CONTROL_PORT,
-    publicHost: normalizedServer
-  };
-};
-
 const serializeClientMessage = (message: ClientMessage): string => {
   switch (message.type) {
-    case 'Hello':
-      return JSON.stringify({ Hello: message.port });
+    case 'Lease':
+      return JSON.stringify({
+        Lease: { port: message.port, key: message.key, owner: message.owner.id, label: message.owner.label }
+      });
+    case 'Presence':
+      return JSON.stringify({ Presence: { owner: message.owner.id, label: message.owner.label } });
+    case 'Ping':
+      return JSON.stringify({ Ping: null });
     case 'Accept':
       return JSON.stringify({ Accept: message.connectionId });
-    case 'Authenticate':
-      return JSON.stringify({ Authenticate: message.response });
   }
 };
 
@@ -128,8 +114,20 @@ const parseServerMessage = (message: string): ServerMessage => {
     return { type: 'Connection', connectionId: parsed.Connection };
   }
 
-  if ('Challenge' in parsed && typeof parsed.Challenge === 'string') {
-    return { type: 'Challenge', challengeId: parsed.Challenge };
+  if ('Pong' in parsed && typeof parsed.Pong === 'object' && parsed.Pong !== null) {
+    const { version } = parsed.Pong as { version?: unknown };
+    return { type: 'Pong', version: typeof version === 'number' ? version : 0 };
+  }
+
+  if ('Refused' in parsed && typeof parsed.Refused === 'object' && parsed.Refused !== null) {
+    const { port, key, label, since } = parsed.Refused as Record<string, unknown>;
+    return {
+      type: 'Refused',
+      port: Number(port),
+      key: String(key ?? ''),
+      label: String(label || 'another developer'),
+      since: Number(since)
+    };
   }
 
   if ('Error' in parsed && typeof parsed.Error === 'string') {
@@ -385,15 +383,15 @@ const closeSocketPair = (socketA: Socket, socketB: Socket): void => {
 const proxyRemoteConnection = async ({
   connectionId,
   localPort,
-  server,
+  relay,
   signal
 }: {
   connectionId: string;
   localPort: number;
-  server: ParsedTunnelServer;
+  relay: RelayEndpoint;
   signal: AbortSignal;
 }): Promise<void> => {
-  const acceptConnection = await DelimitedSocket.connect({ host: server.controlHost, port: server.controlPort });
+  const acceptConnection = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   let localConnection: Socket | undefined;
   const abort = () => {
     acceptConnection.destroy();
@@ -433,58 +431,39 @@ const proxyRemoteConnection = async ({
 
 const listenForTunnelConnections = ({
   process,
-  localPort,
-  resourceName,
-  server,
+  request,
   signal
 }: {
   process: TunnelClientProcess;
-  localPort: number;
-  resourceName: string;
-  server: ParsedTunnelServer;
+  request: TunnelRequest;
   signal: AbortSignal;
 }) => {
   const listen = async () => {
     try {
       while (true) {
         const message = await process.recv();
-
-        if (!message) {
-          break;
-        }
-
-        if (message.type === 'Heartbeat') {
-          continue;
-        }
-
+        if (!message) break;
         if (message.type === 'Connection') {
-          void proxyRemoteConnection({ connectionId: message.connectionId, localPort, server, signal }).catch(
-            (error) => {
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              tuiManager.warn(`Tunnel connection failed for ${resourceName}: ${errorMessage}`);
-            }
-          );
+          void proxyRemoteConnection({
+            connectionId: message.connectionId,
+            localPort: request.localPort,
+            relay: request.relay,
+            signal
+          }).catch((error) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            tuiManager.warn(`Tunnel connection failed for ${request.resourceName}: ${errorMessage}`);
+          });
           continue;
         }
-
-        if (message.type === 'Error') {
-          throw new Error(message.message);
-        }
-
-        if (message.type === 'Challenge') {
-          throw new Error(
-            'Tunnel server requested authentication, but Stacktape only supports unauthenticated bore-compatible servers.'
-          );
-        }
+        if (message.type === 'Error') throw new Error(message.message);
       }
-
       process.markExited(process.killed ? 0 : 1);
     } catch (error) {
       if (!process.killed) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        tuiManager.warn(`Tunnel for ${resourceName} closed: ${errorMessage}`);
+        tuiManager.debug(
+          `Tunnel for ${request.resourceName} closed: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
-
       process.markExited(process.killed ? 0 : 1);
     }
   };
@@ -492,56 +471,29 @@ const listenForTunnelConnections = ({
   void listen();
 };
 
-const startTunnelAttempt = async (
-  resourceName: string,
-  localPort: number,
-  signal: AbortSignal
-): Promise<TunnelInfo> => {
-  const server = parseTunnelServer(getConfiguredTunnelServer() ?? '');
-  const controlSocket = await DelimitedSocket.connect({
-    host: server.controlHost,
-    port: server.controlPort
-  });
-
+const startTunnelAttempt = async (request: TunnelRequest, signal: AbortSignal): Promise<TunnelInfo> => {
+  const { relay, lease, owner, resourceName, localPort } = request;
+  const controlSocket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   const abort = () => controlSocket.destroy();
   signal.addEventListener('abort', abort, { once: true });
   try {
     signal.throwIfAborted();
-    await controlSocket.send({ type: 'Hello', port: 0 });
-
+    await controlSocket.send({ type: 'Lease', port: lease.port, key: lease.key, owner });
     const response = await controlSocket.recv({ timeoutMs: TUNNEL_STARTUP_TIMEOUT_MS });
-
-    if (!response) {
-      throw new Error(
-        `Tunnel server ${server.controlHost}:${server.controlPort} closed the connection before the tunnel was established.`
-      );
-    }
-
-    if (response.type === 'Error') {
-      throw new Error(`Tunnel server error: ${response.message}`);
-    }
-
-    if (response.type === 'Challenge') {
-      throw new Error('Tunnel server requires authentication, which is not supported by Stacktape dev tunnels.');
-    }
-
-    if (response.type !== 'Hello') {
-      throw new Error(`Unexpected tunnel server response while opening tunnel: ${response.type}`);
-    }
-
+    if (!response) throw new Error('The dev box relay closed the connection before the tunnel was open.');
+    if (response.type === 'Refused') throw new LeaseRefusedError(response);
+    if (response.type === 'Error') throw new Error(`The dev box relay refused the tunnel: ${response.message}`);
+    if (response.type !== 'Hello') throw new Error(`Unexpected dev box relay response: ${response.type}`);
     const process = new TunnelClientProcess(controlSocket);
-
     const tunnelInfo: TunnelInfo = {
       resourceName,
       localPort,
-      publicHost: server.publicHost,
-      publicPort: response.port,
+      relayHost: relay.relayHost,
+      relayPort: response.port,
       process
     };
-
     signal.throwIfAborted();
-    listenForTunnelConnections({ process, localPort, resourceName, server, signal });
-
+    listenForTunnelConnections({ process, request, signal });
     return tunnelInfo;
   } catch (error) {
     controlSocket.destroy();
@@ -551,102 +503,134 @@ const startTunnelAttempt = async (
   }
 };
 
-const attemptReconnect = async (resourceName: string, localPort: number, signal: AbortSignal): Promise<void> => {
-  if (reconnectingTunnels.has(resourceName)) {
-    return;
-  }
+const refusalMessage = (resourceName: string, { label, since }: LeaseRefusedError['holder']) =>
+  `${label} has been running dev mode for this stage since ${new Date(since * 1000).toLocaleTimeString()}, so deployed ` +
+  `functions reach their local ${resourceName}, not yours. Yours takes over when they stop.`;
 
+/**
+ * Keeps asking for the tunnel until it is open again or dev mode stops. The relay and the SSM session come back on
+ * their own after a network drop or a box restart, so there is no attempt limit.
+ */
+const reconnect = async (request: TunnelRequest, signal: AbortSignal, refusedAlready = false): Promise<void> => {
+  const { resourceName } = request;
+  if (reconnectingTunnels.has(resourceName)) return;
   reconnectingTunnels.add(resourceName);
-
+  let warned = refusedAlready;
   try {
-    for (let attempt = 1; attempt <= TUNNEL_RECONNECT_ATTEMPTS; attempt++) {
-      if (applicationManager.isInterrupted || signal.aborted) {
-        return;
-      }
-
-      tuiManager.info(`Reconnecting tunnel for ${resourceName} (attempt ${attempt}/${TUNNEL_RECONNECT_ATTEMPTS})...`);
-
+    for (let attempt = 1; !applicationManager.isInterrupted && !signal.aborted; attempt++) {
       try {
-        const tunnel = await startTunnelAttempt(resourceName, localPort, signal);
+        const tunnel = await startTunnelAttempt(request, signal);
         if (signal.aborted) {
           tunnel.process.kill();
           return;
         }
         activeTunnels.push(tunnel);
-        setupTunnelExitHandler(tunnel, signal);
-
-        tuiManager.success(`Tunnel for ${resourceName} reconnected at ${tunnel.publicHost}:${tunnel.publicPort}`);
-
+        setupTunnelExitHandler(tunnel, request, signal);
+        if (warned) tuiManager.success(`Tunnel for ${resourceName} is open again.`);
         return;
-      } catch {
-        if (attempt < TUNNEL_RECONNECT_ATTEMPTS) {
-          const delay = TUNNEL_RECONNECT_DELAY_MS * attempt;
-          tuiManager.warn(
-            `Tunnel reconnection attempt ${attempt} failed for ${resourceName}, retrying in ${delay / 1000}s...`
-          );
-          await sleep(delay, signal);
+      } catch (error) {
+        if (signal.aborted) return;
+        if (error instanceof LeaseRefusedError) {
+          if (!warned) tuiManager.warn(refusalMessage(resourceName, error.holder));
+          warned = true;
+          await sleep(REFUSED_RETRY_MS, signal);
+          continue;
         }
+        if (!warned) {
+          tuiManager.warn(`Tunnel for ${resourceName} is reconnecting: ${(error as Error).message}`);
+          warned = true;
+        }
+        await sleep(Math.min(1000 * attempt, MAX_RECONNECT_DELAY_MS), signal);
       }
     }
-
-    tuiManager.warn(
-      `Failed to reconnect tunnel for ${resourceName} after ${TUNNEL_RECONNECT_ATTEMPTS} attempts. ` +
-        `Lambda functions will lose connectivity to local ${resourceName}. ` +
-        `Restart dev mode to restore connectivity.`
-    );
+  } catch (error) {
+    if (!signal.aborted) throw error;
   } finally {
     reconnectingTunnels.delete(resourceName);
   }
 };
 
-const setupTunnelExitHandler = (tunnel: TunnelInfo, sessionSignal: AbortSignal): void => {
-  tunnel.process.on('exit', (code, signal) => {
-    const index = activeTunnels.findIndex((activeTunnel) => activeTunnel.resourceName === tunnel.resourceName);
-    if (index !== -1) {
-      activeTunnels.splice(index, 1);
-    }
-
+const setupTunnelExitHandler = (tunnel: TunnelInfo, request: TunnelRequest, sessionSignal: AbortSignal): void => {
+  tunnel.process.on('exit', (code) => {
+    const index = activeTunnels.indexOf(tunnel);
+    if (index !== -1) activeTunnels.splice(index, 1);
     if (code !== 0 && code !== null && !applicationManager.isInterrupted && !sessionSignal.aborted) {
-      tuiManager.warn(
-        `Tunnel for ${tunnel.resourceName} died unexpectedly (code: ${code}, signal: ${signal}). Attempting reconnect...`
-      );
-
-      void attemptReconnect(tunnel.resourceName, tunnel.localPort, sessionSignal).catch(() => {
-        // Errors are already reported inside attemptReconnect.
-      });
+      void reconnect(request, sessionSignal).catch(() => {});
     }
   });
 };
 
-export const startTunnel = async (resourceName: string, localPort: number): Promise<TunnelInfo> => {
+/**
+ * Opens the tunnel of one local resource at its leased relay port. A lease another developer holds is not an error:
+ * the tunnel is returned as `refused`, and this session takes the port over once they stop.
+ */
+export const startTunnel = async (
+  request: TunnelRequest
+): Promise<{ tunnel: TunnelInfo } | { refused: LeaseRefusedError['holder'] }> => {
   if (tunnelSession.signal.aborted) tunnelSession = new AbortController();
   const signal = tunnelSession.signal;
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= TUNNEL_RETRY_ATTEMPTS; attempt++) {
+  for (let attempt = 1; ; attempt++) {
     try {
-      const tunnel = await startTunnelAttempt(resourceName, localPort, signal);
+      const tunnel = await startTunnelAttempt(request, signal);
       if (signal.aborted) {
         tunnel.process.kill();
         signal.throwIfAborted();
       }
       activeTunnels.push(tunnel);
-      setupTunnelExitHandler(tunnel, signal);
-      return tunnel;
+      setupTunnelExitHandler(tunnel, request, signal);
+      return { tunnel };
     } catch (error) {
       signal.throwIfAborted();
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      if (attempt < TUNNEL_RETRY_ATTEMPTS) {
-        tuiManager.warn(
-          `Tunnel attempt ${attempt} failed for ${resourceName}, retrying in ${TUNNEL_RETRY_DELAY_MS / 1000}s...`
-        );
-        await sleep(TUNNEL_RETRY_DELAY_MS, signal);
+      if (error instanceof LeaseRefusedError) {
+        tuiManager.warn(refusalMessage(request.resourceName, error.holder));
+        void reconnect(request, signal, true).catch(() => {});
+        return { refused: error.holder };
       }
+      if (attempt >= 3) throw error;
+      await sleep(1000 * attempt, signal);
     }
   }
+};
 
-  throw lastError || new Error(`Failed to start tunnel for ${resourceName} after ${TUNNEL_RETRY_ATTEMPTS} attempts`);
+/** Resolves with the relay's version once it answers through the forwarded control port. */
+export const pingRelay = async (relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>): Promise<number> => {
+  const socket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
+  try {
+    await socket.send({ type: 'Ping' });
+    const response = await socket.recv({ timeoutMs: NETWORK_TIMEOUT_MS * 2 });
+    if (response?.type !== 'Pong') throw new Error('The dev box relay did not answer.');
+    return response.version;
+  } finally {
+    socket.destroy();
+  }
+};
+
+/**
+ * Holds a presence connection: the box stays awake while it is open, also for a session without tunnels whose VPC
+ * functions only need the box as NAT. Resolves when the connection ends.
+ */
+export const holdRelayPresence = async ({
+  relay,
+  owner,
+  signal
+}: {
+  relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
+  owner: RelayOwner;
+  signal: AbortSignal;
+}) => {
+  const socket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
+  const abort = () => socket.destroy();
+  signal.addEventListener('abort', abort, { once: true });
+  try {
+    await socket.send({ type: 'Presence', owner });
+    while (!signal.aborted) {
+      const message = await socket.recv();
+      if (!message) return;
+    }
+  } finally {
+    signal.removeEventListener('abort', abort);
+    socket.destroy();
+  }
 };
 
 const stopAllTunnels = async (): Promise<void> => {

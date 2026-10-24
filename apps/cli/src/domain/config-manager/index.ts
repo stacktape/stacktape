@@ -1,4 +1,5 @@
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { GlobalConfigResponse } from '@stacktape-api/api-key-protected';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
@@ -164,6 +165,7 @@ export class ConfigManager {
   #securityScanning: SecurityScanningContext = {};
   #discoveredConfig: DiscoveredConfig | undefined;
   #cliRemoteResourceNames: readonly string[] = [];
+  #devNetworkPlacement: DevNetworkPlacement | undefined;
 
   private get stackContext(): StackContext {
     if (!this.#stackContext) {
@@ -315,7 +317,13 @@ export class ConfigManager {
     this.#helperLambdaDetails = undefined;
     this.#securityScanning = {};
     this.#cliRemoteResourceNames = [];
+    this.#devNetworkPlacement = undefined;
     this.#discoveredConfig = undefined;
+  };
+
+  /** Set by `stacktape dev` before it synthesizes the dev stack; see `DevNetworkPlacement`. */
+  setDevNetworkPlacement = (placement: DevNetworkPlacement | undefined) => {
+    this.#devNetworkPlacement = placement;
   };
 
   validateGuardrails = ({ hasConfig }: { hasConfig: boolean }) =>
@@ -927,7 +935,11 @@ export class ConfigManager {
     return this.getResourcesFromConfig('kafka-cluster');
   }
 
-  get deploymentContext() {
+  get deploymentContext(): {
+    command: StackContext['command'];
+    remoteResourceNames: Set<string>;
+    devNetwork?: DevNetworkPlacement;
+  } {
     const remoteResourceNames = new Set(this.#cliRemoteResourceNames);
     for (const resource of [
       ...this.databases,
@@ -938,7 +950,11 @@ export class ConfigManager {
     ]) {
       if ('dev' in resource && resource.dev?.remote) remoteResourceNames.add(resource.name);
     }
-    return { command: this.stackContext.command, remoteResourceNames };
+    return {
+      command: this.stackContext.command,
+      remoteResourceNames,
+      devNetwork: this.stackContext.command === 'dev' ? this.#devNetworkPlacement : undefined
+    };
   }
 
   get kafkaClustersWithLambdaEvents() {
@@ -2235,10 +2251,16 @@ export class ConfigManager {
       ...this.efsFilesystems,
       ...this.kafkaClusters,
       ...[...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions].filter(
-        ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
+        (lambda: StpLambdaFunction) => lambda.joinDefaultVpc && !this.isInDevNetwork(lambda)
       )
     ];
   }
+
+  /** A dev stack's function that runs in the shared dev network instead of a VPC of the stack. */
+  isInDevNetwork = (lambda: Pick<StpLambdaFunction, 'name' | 'configParentResourceType'>) =>
+    this.#stackContext?.command === 'dev' &&
+    lambda.configParentResourceType === 'function' &&
+    Boolean(this.#devNetworkPlacement?.functions[lambda.name]);
 
   /**
    * `stackConfig.nat` with defaults applied. `ec2` is one instance in one zone, `ha-ec2` one instance per zone with
@@ -2276,7 +2298,7 @@ export class ConfigManager {
   /** Functions that join the VPC; without `stackConfig.nat` they have no outbound internet access. */
   get vpcLambdas() {
     return [...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions, ...this.allSsrWebLambdaFunctions].filter(
-      ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
+      (lambda: StpLambdaFunction) => lambda.joinDefaultVpc && !this.isInDevNetwork(lambda)
     );
   }
 

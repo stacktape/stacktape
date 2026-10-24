@@ -19,7 +19,7 @@ import { getLocalDbParameters, postgresParamsToDockerArgs } from './db-parameter
 
 const POSTGRES_DATA_PATH = '/var/lib/postgresql/data';
 
-const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
+export const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
   const connectionString = `postgresql://${user}:${pass}@${host}:${port}/${database}`;
   return {
     connectionString,

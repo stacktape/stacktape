@@ -1,7 +1,7 @@
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
-import type { TunnelInfo } from '../tunnel-manager';
+import type { RelayEndpoint, TunnelInfo } from '../tunnel-manager';
 import { randomUUID } from 'node:crypto';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
@@ -16,7 +16,7 @@ import { stpErrors } from '@errors';
 import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { dockerRun, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
-import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
+import { getResourceParamReferences } from '../resource-references';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
@@ -25,14 +25,13 @@ import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage } from '../container';
 import { startHostingBucketDevServer } from '../hosting-bucket';
-import { detectLambdasNeedingTunnels, updateLambdaEnvVarsWithTunnels } from '../lambda-env-manager';
 import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
 import { startHealthMonitoring } from '../local-resources/health-monitor';
 import { startNextjsWebDevServer } from '../nextjs-web';
 import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
-import { getConfiguredTunnelServer } from '../dev-config';
+import { getDevNetworkSession, type DevNetworkSession } from '../dev-network-session';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
 import { isPortAvailable, reservePorts } from '../port-utils';
@@ -73,7 +72,7 @@ type ParallelRunnerState = {
   sourceCodeWatcher: SourceCodeWatcher;
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
-  boreTunnels: TunnelInfo[];
+  relayTunnels: TunnelInfo[];
   logIntervals: NodeJS.Timeout[];
 };
 
@@ -82,7 +81,7 @@ const state: ParallelRunnerState = {
   sourceCodeWatcher: new SourceCodeWatcher(),
   localResources: [],
   tunnels: [],
-  boreTunnels: [],
+  relayTunnels: [],
   logIntervals: []
 };
 
@@ -121,6 +120,12 @@ export const runParallelWorkloads = async (
     envVarRefs.forEach((ref) => allReferencedResources.add(ref));
   }
 
+  // Databases that deployed dev functions reach through the dev box run locally too, even when no selected workload
+  // references them: the functions are deployed either way.
+  for (const resourceName of Object.values(getDevNetworkSession()?.placement.functions ?? {}).flat()) {
+    allReferencedResources.add(resourceName);
+  }
+
   // Also include directly selected local resources (databases selected without workloads referencing them)
   if (selectedLocalResources) {
     for (const resourceName of selectedLocalResources) {
@@ -145,112 +150,13 @@ export const runParallelWorkloads = async (
 
   const useDevTui = devTuiManager.running;
 
-  // Setup bore tunnels for Lambda functions that need to connect to local resources
-  // Skip when: --no-tunnel is set or no local resources
-  const shouldSetupLambdaTunnels = state.localResources.length > 0 && !args.noTunnel;
-
-  if (shouldSetupLambdaTunnels) {
-    if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'running');
-
-    const { lambdasNeedingTunnels, skippedLambdas } = await detectLambdasNeedingTunnels(localResourceNames);
-
-    // Warn about skipped lambdas
-    for (const skipped of skippedLambdas) {
-      tuiManager.warn(`Skipping tunnel for Lambda "${skipped.name}": ${skipped.reason}`);
-    }
-
-    if (lambdasNeedingTunnels.length > 0 && !getConfiguredTunnelServer()) {
-      // Without a relay of the user's own, deployed functions cannot reach the databases on this machine. Each one
-      // keeps its deployed configuration; say which connections are missing and how to get them.
-      for (const lambda of lambdasNeedingTunnels) {
-        const resourceList = lambda.referencedLocalResources.join(',');
-        tuiManager.warn(
-          `Lambda "${lambda.name}" can't reach the local ${lambda.referencedLocalResources.join(', ')}: dev mode keeps local databases on this machine. ` +
-            `To connect the function to the deployed resource instead, run with --remote-resources ${resourceList}.`
-        );
-      }
-      if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'skipped', 'local databases stay on this machine');
-    } else if (lambdasNeedingTunnels.length > 0) {
-      // Start tunnels through the user's relay for each local resource that a Lambda needs
-      const resourcesNeedingTunnels = new Set<string>();
-      for (const lambda of lambdasNeedingTunnels) {
-        for (const resourceName of lambda.referencedLocalResources) {
-          resourcesNeedingTunnels.add(resourceName);
-        }
-      }
-
-      const failedTunnels: string[] = [];
-      const tunnelPromises = Array.from(resourcesNeedingTunnels).map(async (resourceName) => {
-        const localResource = state.localResources.find((r) => r.name === resourceName);
-        if (!localResource) return null;
-
-        try {
-          const tunnel = await startTunnel(resourceName, localResource.actualPort);
-          state.boreTunnels.push(tunnel);
-          return tunnel;
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          tuiManager.warn(`Failed to create tunnel for ${resourceName}: ${errorMessage}`);
-          failedTunnels.push(resourceName);
-          return null;
-        }
-      });
-
-      await Promise.all(tunnelPromises);
-
-      // Filter lambdas to only those whose resources have successful tunnels
-      const successfulTunnelResources = new Set(state.boreTunnels.map((t) => t.resourceName));
-      const lambdasWithSuccessfulTunnels = lambdasNeedingTunnels.filter((lambda) =>
-        lambda.referencedLocalResources.every((r) => successfulTunnelResources.has(r))
-      );
-
-      // Warn about lambdas that won't get tunnel updates due to failed tunnels
-      const lambdasWithFailedTunnels = lambdasNeedingTunnels.filter(
-        (lambda) => !lambda.referencedLocalResources.every((r) => successfulTunnelResources.has(r))
-      );
-      for (const lambda of lambdasWithFailedTunnels) {
-        const missingResources = lambda.referencedLocalResources.filter((r) => !successfulTunnelResources.has(r));
-        tuiManager.warn(
-          `Lambda "${lambda.name}" won't connect to local resources: ${missingResources.join(', ')} (tunnel failed)`
-        );
-      }
-
-      // Start Lambda env var updates in background (don't block workload startup)
-      // This runs in parallel with workload startup for faster dev mode initialization
-      let lambdaEnvUpdatePromise: Promise<void> | null = null;
-      if (state.boreTunnels.length > 0 && lambdasWithSuccessfulTunnels.length > 0) {
-        lambdaEnvUpdatePromise = updateLambdaEnvVarsWithTunnels({
-          lambdas: lambdasWithSuccessfulTunnels,
-          tunnels: state.boreTunnels,
-          localResources: state.localResources
-        })
-          .then(({ updated: _updated, failed }) => {
-            if (failed.length > 0) {
-              tuiManager.warn(`Failed to update env vars for ${failed.length} Lambda(s): ${failed.join(', ')}`);
-            }
-          })
-          .catch((err) => {
-            tuiManager.warn(`Lambda env var update failed: ${err instanceof Error ? err.message : String(err)}`);
-          });
-        // Store promise to await later before transitioning to 'ready'
-        (state as any).lambdaEnvUpdatePromise = lambdaEnvUpdatePromise;
-      }
-
-      if (useDevTui) {
-        const tunnelCount = state.boreTunnels.length;
-        const failedCount = failedTunnels.length;
-        const statusMessage =
-          failedCount > 0
-            ? `${tunnelCount} tunnel(s), ${failedCount} failed`
-            : tunnelCount > 0
-              ? `${tunnelCount} tunnel(s)`
-              : undefined;
-        devTuiManager.setSetupStepStatus('tunnels', 'done', statusMessage);
-      }
-    } else {
-      if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'skipped');
-    }
-  }
+  // Deployed dev functions reach local databases through the dev box: open the SSM session to its relay, keep the box
+  // awake for this session, and open one tunnel per relayed database at its leased port. Local workloads start
+  // meanwhile; the session reports ready once both are done.
+  const devNetwork = getDevNetworkSession();
+  const devNetworkConnected = devNetwork
+    ? connectDevNetwork({ devNetwork, useDevTui, stackName: stackContext.stackName })
+    : Promise.resolve();
 
   // Mark env injection as running
   if (useDevTui && state.localResources.length > 0) {
@@ -348,13 +254,7 @@ export const runParallelWorkloads = async (
   });
 
   await Promise.all(startPromises);
-
-  // Wait for Lambda env var update to complete (started earlier in parallel with workload startup)
-  const lambdaEnvUpdatePromise = (state as any).lambdaEnvUpdatePromise as Promise<void> | undefined;
-  if (lambdaEnvUpdatePromise) {
-    await lambdaEnvUpdatePromise;
-    delete (state as any).lambdaEnvUpdatePromise;
-  }
+  await devNetworkConnected;
 
   // Transition to running phase in DevTui
   if (useDevTui) {
@@ -375,6 +275,110 @@ export const runParallelWorkloads = async (
     tuiManager.success(
       `All ${filteredResources.length} workloads running. ${watch ? '(watching for changes)' : "(type 'rs' + enter to rebuild all)"}`
     );
+  }
+};
+
+const describeDevBoxStatus = (status: NonNullable<DevNetworkSession['connection']['status']>) => {
+  if (status.phase === 'starting-box') return 'Starting the dev box…';
+  if (status.phase === 'connecting') return 'Connecting to the dev box…';
+  if (status.phase === 'reconnecting') return `Reconnecting: ${status.reason}`;
+  return `dev box ${status.relay.relayHost}`;
+};
+
+/**
+ * Waits for the dev box connection, then opens one tunnel per relayed database. When an attempt fails, the session
+ * continues without waiting: the connection keeps retrying in the background and the tunnels open once it is ready.
+ */
+const connectDevNetwork = async ({
+  devNetwork,
+  useDevTui,
+  stackName
+}: {
+  devNetwork: DevNetworkSession;
+  useDevTui: boolean;
+  stackName: string;
+}) => {
+  const { connection, placement, leases, owner } = devNetwork;
+  let reportFailure!: (reason: string) => void;
+  const failed = new Promise<string>((resolve) => (reportFailure = resolve));
+  let warnedReason: string | undefined;
+  if (useDevTui) devTuiManager.setSetupStepStatus('dev-box', 'running', 'Connecting to the dev box…');
+  connection.onStatus = (status) => {
+    if (status.phase === 'reconnecting') reportFailure(status.reason);
+    if (useDevTui) {
+      devTuiManager.setSetupStepStatus(
+        'dev-box',
+        status.phase === 'ready' ? 'done' : 'running',
+        describeDevBoxStatus(status)
+      );
+      return;
+    }
+    if (status.phase === 'starting-box') tuiManager.info('Starting the dev box…');
+    if (status.phase === 'ready' && warnedReason) {
+      tuiManager.success('Connected to the dev box again.');
+      warnedReason = undefined;
+    }
+    // A failing attempt repeats every few seconds: warn once per reason, not once per attempt.
+    if (status.phase === 'reconnecting' && status.reason !== warnedReason) {
+      tuiManager.warn(`Dev box: ${status.reason}. Reconnecting…`);
+      warnedReason = status.reason;
+    }
+  };
+  const tunnelsOpened = connection
+    .connect()
+    .then((relay) => openRelayTunnels({ relay, placement, leases, owner, stackName, useDevTui }))
+    .catch(() => {});
+  const failure = await Promise.race([tunnelsOpened.then(() => undefined), failed]);
+  if (failure !== undefined && useDevTui) {
+    tuiManager.warn(
+      `Deployed dev functions can't reach the dev box yet: ${failure}. Stacktape keeps reconnecting in the background ` +
+        'and opens the tunnels once the box answers.'
+    );
+  }
+};
+
+const openRelayTunnels = async ({
+  relay,
+  placement,
+  leases,
+  owner,
+  stackName,
+  useDevTui
+}: Pick<DevNetworkSession, 'placement' | 'leases' | 'owner'> & {
+  relay: RelayEndpoint;
+  stackName: string;
+  useDevTui: boolean;
+}) => {
+  const relayed = [...new Set(Object.values(placement.functions).flat())];
+  const opened: string[] = [];
+  await Promise.all(
+    relayed.map(async (resourceName) => {
+      const localResource = state.localResources.find(({ name }) => name === resourceName);
+      if (!localResource) {
+        tuiManager.warn(`Local ${resourceName} is not running, so deployed functions can't reach it.`);
+        return;
+      }
+      try {
+        const result = await startTunnel({
+          resourceName,
+          localPort: localResource.actualPort,
+          lease: { port: leases.get(resourceName)!, key: `${stackName}/${resourceName}` },
+          owner,
+          relay
+        });
+        if ('tunnel' in result) {
+          state.relayTunnels.push(result.tunnel);
+          opened.push(resourceName);
+        }
+      } catch (error) {
+        tuiManager.warn(
+          `Failed to open the tunnel for ${resourceName}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    })
+  );
+  if (useDevTui && relayed.length) {
+    devTuiManager.setSetupStepStatus('tunnels', 'done', `${opened.length} of ${relayed.length} tunnel(s)`);
   }
 };
 
@@ -407,56 +411,6 @@ const getConfigResource = (name: string, type: string): any => {
     return configManager.remixWebs.find((r) => r.name === name);
   }
   return configManager.allContainerWorkloads.find((r) => r.nameChain[0] === name);
-};
-
-/** Extract resource names referenced via $ResourceParam directives in environment variables */
-const getResourceParamReferences = (configResource: any): string[] => {
-  if (!configResource) return [];
-  const references: string[] = [];
-
-  const scanValue = (value: any) => {
-    if (typeof value === 'string' && getIsDirective(value) && startsLikeGetParamDirective(value)) {
-      try {
-        const params = getDirectiveParams('ResourceParam', value);
-        if (params[0]?.value && typeof params[0].value === 'string') {
-          references.push(params[0].value);
-        }
-      } catch {
-        // Ignore parsing errors
-      }
-    }
-  };
-
-  const scanEnvVars = (environment: any) => {
-    if (!environment) return;
-    // Handle array format: [{ name: 'VAR', value: '$ResourceParam(...)' }]
-    if (Array.isArray(environment)) {
-      for (const envVar of environment) {
-        scanValue(envVar.value);
-      }
-    }
-    // Handle object format: { VAR: '$ResourceParam(...)' }
-    else if (typeof environment === 'object') {
-      for (const value of Object.values(environment)) {
-        scanValue(value);
-      }
-    }
-  };
-
-  // Scan environment at resource level (for functions and single-container workloads)
-  scanEnvVars(configResource.environment);
-
-  // Scan environment in each container (for multi-container workloads)
-  if (configResource.containers) {
-    for (const container of configResource.containers) {
-      scanEnvVars(container.environment);
-    }
-  }
-
-  // Scan injectEnvironment (for hosting-bucket and nextjs-web)
-  scanEnvVars(configResource.injectEnvironment);
-
-  return references;
 };
 
 type LocalWorkloadInfoResult = {

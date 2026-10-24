@@ -1,3 +1,4 @@
+import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 
 /** Resource types that are emulated locally and should not be deployed to the dev stack unless selected as remote. */
@@ -55,7 +56,11 @@ export const selectWorkloadsDeployedInDevMode = <T extends { configParentResourc
 ): T[] =>
   workloads.filter(({ configParentResourceType }) => !isResourceTypeExcludedInDevMode(configParentResourceType));
 
-export type DevDeploymentContext = Readonly<{ command: string; remoteResourceNames: ReadonlySet<string> }>;
+export type DevDeploymentContext = Readonly<{
+  command: string;
+  remoteResourceNames: ReadonlySet<string>;
+  devNetwork?: DevNetworkPlacement;
+}>;
 
 export const shouldExcludeResourceInDevMode = (
   name: string,

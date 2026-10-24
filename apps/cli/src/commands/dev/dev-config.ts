@@ -1,31 +1,11 @@
 /** Centralized configuration constants for dev mode */
 
-/**
- * A bore-compatible TCP relay the user runs themselves (`host` or `host:controlPort`). Bore relays are
- * unauthenticated: anyone who finds a relay port reaches the database behind it. Dev mode therefore never uses a
- * public relay, and deployed Lambda functions reach local databases only through a relay the user configured.
- */
-export const getConfiguredTunnelServer = (): string | undefined =>
-  process.env.STACKTAPE_TUNNEL_SERVER?.trim() || undefined;
-
 export const DEV_CONFIG = {
-  /** Tunnel configuration (bore-compatible TCP relay) */
+  /** Tunnels through the dev box relay (bore-compatible) */
   tunnels: {
     startupTimeoutMs: 30000,
-    retryAttempts: 2,
-    retryDelayMs: 2000,
-    /** Number of reconnection attempts when a tunnel dies unexpectedly */
-    reconnectAttempts: 3,
-    /** Delay between reconnection attempts (ms) */
-    reconnectDelayMs: 5000
-  },
-
-  /** Lambda environment manager configuration */
-  lambda: {
-    updateRetryAttempts: 3,
-    updateRetryDelayMs: 2000,
-    updateWaitTimeoutMs: 30000,
-    updatePollIntervalMs: 1000
+    /** Reconnect attempts back off by a second each, up to this delay; they continue while dev mode runs. */
+    maxReconnectDelayMs: 5000
   },
 
   /** Local resource defaults */

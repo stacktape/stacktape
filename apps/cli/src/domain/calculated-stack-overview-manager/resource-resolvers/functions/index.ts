@@ -53,6 +53,7 @@ import {
 } from '../_utils/cdn';
 import type { ResourceWithPresentCdn } from '../_utils/cdn';
 import {
+  getDevNetworkEnvironmentVariables,
   getResolvedConnectToEnvironmentVariables,
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
@@ -181,6 +182,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   if (nameChain[0] !== PARENT_IDENTIFIER_SHARED_GLOBAL) {
     resolveAlarmsForResource({ resource: lambdaProps as StpLambdaFunction });
   }
+  // A dev stack's function that is a VPC function or reaches a local database runs in the shared dev network.
+  const devNetwork = configManager.deploymentContext.devNetwork;
+  const inDevNetwork = Boolean(devNetwork && configManager.isInDevNetwork(lambdaProps as StpLambdaFunction));
 
   const lambdaDependsOn = [];
   const policyStatementsFromEvents = [
@@ -258,7 +262,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
             : []
         ),
       accessToAwsServices,
-      joinVpc: joinDefaultVpc,
+      joinVpc: joinDefaultVpc || inDevNetwork,
       workloadName: name,
       isUsedInDeploymentHook: lambdaIsUsedInDeploymentHook,
       configParentResourceType,
@@ -352,7 +356,13 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     Tags: stackManager.getTags(tags),
     FileSystemConfigs: fileSystemConfigs.length > 0 ? fileSystemConfigs : undefined
   });
-  if (joinDefaultVpc) {
+  if (inDevNetwork) {
+    // One security group for every dev function: Lambda keeps the network interfaces of a subnet and security-group
+    // combination, so dev functions are created and deleted in seconds instead of minutes.
+    Object.assign(lambdaFunctionResource.Properties, {
+      VpcConfig: { SecurityGroupIds: [devNetwork!.securityGroupId], SubnetIds: devNetwork!.subnetIds }
+    });
+  } else if (joinDefaultVpc) {
     const securityGroupLogicalName = cfLogicalNames.workloadSecurityGroup(name);
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: securityGroupLogicalName,
@@ -634,10 +644,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   // adding override to inject environment variables deduced from "connectTo" list into AWS::Lambda::Function resource
   templateManager.addFinalTemplateOverrideFn(async (template) => {
     // resolving injecting env variables
-    const variablesToInject = getResolvedConnectToEnvironmentVariables({
-      connectTo: effectiveConnectTo,
-      localResolve: false
-    });
+    const variablesToInject = [
+      ...getResolvedConnectToEnvironmentVariables({ connectTo: effectiveConnectTo, localResolve: false }),
+      ...(inDevNetwork ? getDevNetworkEnvironmentVariables({ placement: devNetwork!, functionName: name }) : [])
+    ];
     if (variablesToInject.length) {
       const templateResourceProps = template.Resources[cfLogicalName].Properties as FunctionProperties;
       const environment = {

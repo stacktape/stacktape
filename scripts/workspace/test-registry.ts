@@ -2,7 +2,15 @@
 // Edit this source when adding tests or lanes; neither audit files nor private source are imported.
 export type Tier = 'pr' | 'change' | 'release';
 export type Level = 'focused' | 'process' | 'api-db' | 'browser' | 'live-aws';
-export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation' | 'powershell';
+export type Requirement =
+  | 'console'
+  | 'docker'
+  | 'chromium'
+  | 'network'
+  | 'aws'
+  | 'reservation'
+  | 'powershell'
+  | 'python3';
 export type Lane = {
   id: string;
   command: readonly string[];
@@ -758,10 +766,10 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/ports.test.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
     ],
-    requires: [],
+    requires: ['python3'],
     release: 'every-candidate',
     proves:
-      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. Dev network leases stay stable per stage and resolve concurrent creation.'
+      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another developer and names them, lets the same developer take over, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation.'
   },
   {
     id: 'local-dev-containers',
@@ -797,7 +805,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker'],
     release: 'every-candidate',
     proves:
-      'MiniStack stores local tunnel parameters and restored Lambda environments; the real dev HTTP agent redacts reads and denies mutation.'
+      'Dev network leases persist in MiniStack Parameter Store, keep their port for the next session and are released with their stage; the real dev HTTP agent redacts reads and denies mutation.'
   },
   {
     id: 'local-dev-lambda-live',
@@ -808,7 +816,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network', 'docker'],
     release: 'affected-external-contract',
     proves:
-      'A deployed Lambda queries initial and edited local PostgreSQL data through the real dev tunnel; logs, environment restore and deletion are verified.'
+      'Through the real `stacktape dev`, a first run creates the dev network and dev stack; arm64 and x86_64 functions read initial and edited local PostgreSQL rows and ping local Redis through the dev box; a VPC function reaches the database and the internet through the box; a killed SSM plugin recovers on its own; a stopped box is started by the next session; a box stopped while a session starts is started again and the tunnels open; deleting the stage and the network leaves no stack, instance, interface, lease, function, log group, SSM session or container.'
   },
   {
     id: 'nat-instances',
@@ -4248,6 +4256,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/local-resources/container-helpers.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
       'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/relay.spec.ts',
+      'apps/cli/src/commands/dev/dev-box/connection.spec.ts',
       'apps/cli/src/domain/dev-network/leases.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',

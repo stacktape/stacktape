@@ -26,6 +26,7 @@ import {
   buildAgentReadyMessage,
   buildAgentReadyPayload,
   deleteAgentLockFile,
+  findOrphanedDevBoxSession,
   getLockFilePath,
   getCustomArgsSuffix,
   getRunningAgent,
@@ -56,7 +57,7 @@ import {
   runParallelWorkloads
 } from './parallel-runner';
 import { findAvailablePort } from './port-utils';
-import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
+import { startDevNetworkSession } from './dev-network-session';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
 import { setDevSessionOwner } from './cleanup-utils';
@@ -420,7 +421,6 @@ export const commandDev = async () => {
   registerHealthMonitorCleanupHook();
   registerDevServerCleanupHook();
   registerTunnelCleanupHook();
-  registerLambdaEnvCleanupHook();
   registerNamedProxyCleanupHook();
 
   // Phase 1: Initialize credentials, config, packagingManager
@@ -469,6 +469,7 @@ export const commandDev = async () => {
     }
   }
 
+  const orphanedDevBoxSessionId = findOrphanedDevBoxSession(stackContext.projectName, stackContext.stage);
   // Every session, terminal or agent, records itself before it starts anything, and labels its containers with that
   // record, so `dev:stop --cleanupContainers` can tell a live session's containers from abandoned ones.
   writeAgentLockFile({
@@ -547,6 +548,23 @@ export const commandDev = async () => {
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 
+  // VPC functions and functions that use a local database run in the account's shared dev network. Preparing it
+  // starts the dev box in the background, and decides where the dev stack's functions run and which relay address
+  // their environment carries.
+  const devNetworkSpinner = createSpinner('Preparing the dev network', tuiManager.colorize.bind(tuiManager));
+  let devNetworkSession: Awaited<ReturnType<typeof startDevNetworkSession>>;
+  try {
+    devNetworkSession = await startDevNetworkSession({
+      stackContext,
+      noTunnel: Boolean(args.noTunnel),
+      orphanedSessionId: orphanedDevBoxSessionId
+    });
+    devNetworkSpinner.success();
+  } catch (error) {
+    devNetworkSpinner.error();
+    throw error;
+  }
+
   // Check for a dev stack or deploy one.
   if (stackManager.existingStackDetails) {
     assertExistingDevStack({
@@ -555,7 +573,10 @@ export const commandDev = async () => {
     });
   }
 
-  const desiredDevStackConfigFingerprint = getDevStackConfigFingerprint(configManager.config);
+  const desiredDevStackConfigFingerprint = getDevStackConfigFingerprint({
+    config: configManager.config,
+    devNetwork: devNetworkSession?.placement
+  });
   const devStackConfigChanged = devStackConfigNeedsUpdate({
     deployedFingerprint: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.devStackConfigFingerprint()),
     desiredFingerprint: desiredDevStackConfigFingerprint
@@ -747,7 +768,7 @@ export const commandDev = async () => {
     if (activeTunnels.length > 0) {
       cleanupLines.push('Stopping tunnels...');
       for (const tunnel of activeTunnels) {
-        cleanupLines.push(`  ${tunnel.resourceName} (${tunnel.publicHost}:${tunnel.publicPort})`);
+        cleanupLines.push(`  ${tunnel.resourceName} (${tunnel.relayHost}:${tunnel.relayPort})`);
       }
     }
 
@@ -789,10 +810,13 @@ export const commandDev = async () => {
 
   // Register setup steps in TUI (if we have local resources)
   const hasLocalResources = emulateableResources.some((r) => !remoteResourceNames.has(r.name));
-  if (hasLocalResources) {
-    if (!args.noTunnel) {
+  if (devNetworkSession) {
+    devTuiManager.addSetupStep('dev-box', 'Dev box');
+    if (Object.values(devNetworkSession.placement.functions).some((resources) => resources.length)) {
       devTuiManager.addSetupStep('tunnels', 'Lambda tunnels');
     }
+  }
+  if (hasLocalResources) {
     devTuiManager.addSetupStep('env-inject', 'Injecting environment');
   }
 

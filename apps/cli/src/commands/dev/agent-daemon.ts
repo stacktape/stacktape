@@ -16,7 +16,11 @@ export type AgentLockFile = {
   workloads: string[];
   databases: string[];
   logFile?: string;
+  /** The session's SSM session to the dev box, so a later start can end it if this process was killed. */
+  devBoxSessionId?: string;
 };
+
+let devBoxSessionId: string | undefined;
 
 /** The session token of the agent on `port`, read from the per-user file every agent writes when it starts. */
 export const readDevAgentToken = (port: number): string | undefined => {
@@ -121,7 +125,23 @@ export const writeAgentLockFile = (data: AgentLockFile): void => {
     mkdirSync(dir, { recursive: true });
   }
 
-  writeFileSync(lockPath, JSON.stringify(data, null, 2));
+  writeFileSync(lockPath, JSON.stringify({ ...data, ...(devBoxSessionId && { devBoxSessionId }) }, null, 2));
+};
+
+/** Records this session's current SSM session to the dev box in its lock file. */
+export const recordDevBoxSession = (sessionId: string | undefined, projectName: string, stage: string) => {
+  devBoxSessionId = sessionId;
+  const lock = readAgentLockFile(projectName, stage);
+  if (lock?.pid === process.pid) writeAgentLockFile(lock);
+};
+
+/**
+ * The SSM session a killed earlier session of this project and stage left open. A killed plugin's server-side session
+ * stays open, and its agent keeps the old relay connections. Read before this session writes its own lock file.
+ */
+export const findOrphanedDevBoxSession = (projectName: string, stage: string): string | undefined => {
+  const lock = readAgentLockFile(projectName, stage);
+  return lock && lock.pid !== process.pid && !isProcessRunning(lock.pid) ? lock.devBoxSessionId : undefined;
 };
 
 export const deleteAgentLockFile = (projectName?: string, stage?: string): void => {
