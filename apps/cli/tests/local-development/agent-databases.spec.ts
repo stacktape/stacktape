@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -50,6 +51,7 @@ import { deployedStackOverviewManager } from ${src('domain/deployed-stack-overvi
 import { startLocalResources, registerLocalResourceCleanupHook } from ${src('commands/dev/local-resources/index.ts')};
 import { startAgentServer, updateAgentState, registerAgentCleanupHook } from ${src('commands/dev/agent-server.ts')};
 const project = ${JSON.stringify(project)};
+const DEPLOYED_HOST = 'agentdb-deployed.cxyz.ca-central-1.rds.amazonaws.com';
 await applicationManager.init();
 registerAgentCleanupHook();
 registerLocalResourceCleanupHook();
@@ -75,11 +77,16 @@ configManager.config = {
       }
     },
     seedDeployed: { type: 'local-script', properties: { connectTo: ['deployedDb'], executeCommand: 'echo never' } },
-    seedThroughBastion: { type: 'local-script-with-bastion-tunneling', properties: { bastionResource: 'bastion', connectTo: ['db'], executeCommand: 'echo never' } }
+    seedThroughBastion: { type: 'local-script-with-bastion-tunneling', properties: { bastionResource: 'bastion', connectTo: ['db'], executeCommand: 'echo never' } },
+    seedPrisma: { type: 'local-script', properties: { connectTo: ['db'], environment: [{ name: 'DATABASE_URL', value: "$Format('{}?schema=public', $ResourceParam('deployedDb', 'connectionString'))" }], executeCommand: 'echo never' } },
+    seedLiteral: { type: 'local-script', properties: { environment: [{ name: 'DATABASE_URL', value: 'postgresql://' + DEPLOYED_HOST + ':5432/app' }], executeCommand: 'touch ' + ${JSON.stringify(join(root, 'literal-seed-ran'))} } },
+    seedHangs: { type: 'local-script', properties: { connectTo: ['db'], executeCommand: 'sleep 31.7' } }
   }
 };
 const instances = await startLocalResources(['db', 'mydb', 'cache', 'events']);
 deployedStackOverviewManager.injectLocalResourceInfo(instances.map((r) => ({ name: r.name, resourceType: r.type, referencableParams: r.referencableParams })));
+// The stage's deployed database, as dev mode knows it when the session connects to it with remoteResources.
+deployedStackOverviewManager.stackInfoMap.resources.deployedDb = { resourceType: 'relational-database', referencableParams: { host: { value: DEPLOYED_HOST } } };
 const probe = createServer();
 await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
 const port = probe.address().port;
@@ -160,6 +167,13 @@ test('an assistant lists, writes, resets and seeds local databases through stack
   await sql('db', 'insert into orders (user_id) values (1), (2)');
   await sql('db', "insert into settings values ('theme', 'dark')");
   await sql('mydb', 'create table todos (id int auto_increment primary key, title text)');
+  await sql('mydb', 'create table authors (id int primary key)');
+  await sql(
+    'mydb',
+    'create table books (id int primary key, author_id int not null, foreign key (author_id) references authors(id))'
+  );
+  await sql('mydb', 'insert into authors values (1)');
+  await sql('mydb', 'insert into books values (1, 1)');
   await sql('mydb', "insert into todos (title) values ('one'), ('two')");
   expect((await call('query', { resource: 'cache', command: 'SET session:1 alive' })).ok).toBe(true);
   // The assistant reads DynamoDB through the tool; the application writes the items, here more than one batch delete takes.
@@ -189,7 +203,7 @@ test('an assistant lists, writes, resets and seeds local databases through stack
     (tables.data.databases as Array<Record<string, unknown>>).map((entry) => [entry.resource, entry])
   );
   expect(byResource.db.tables).toEqual(['_prisma_migrations', 'orders', 'settings', 'users']);
-  expect(byResource.mydb.tables).toEqual(['todos']);
+  expect(byResource.mydb.tables).toEqual(['authors', 'books', 'todos']);
   expect(byResource.cache.keys).toEqual(['session:1']);
   expect((byResource.events.keySchema as { partitionKey: { name: string } }).partitionKey.name).toBe('pk');
   expect(byResource.deployedDb).toBeUndefined();
@@ -210,6 +224,12 @@ test('an assistant lists, writes, resets and seeds local databases through stack
   expect(remoteReset.message).toContain('runs locally');
 
   // keepTables keeps a table; a kept table that references a reset table stops the reset instead of being emptied.
+  const blockedMysql = await call('reset_db', { resource: 'mydb', confirm: true, keepTables: ['books'] });
+  expect(blockedMysql.code).toBe('RESET_FAILED');
+  expect(JSON.stringify(blockedMysql.data.results)).toContain('Kept table \\"books\\" references \\"authors\\"');
+  expect((await call('query', { resource: 'mydb', sql: 'select count(*) as n from authors' })).data.rows).toEqual([
+    { n: 1 }
+  ]);
   const blocked = await call('reset_db', { resource: 'db', confirm: true, keepTables: ['orders'] });
   expect(blocked.code).toBe('RESET_FAILED');
   expect((await sql('db', 'select count(*)::int as n from orders')).rows).toEqual([{ n: 2 }]);
@@ -224,7 +244,7 @@ test('an assistant lists, writes, resets and seeds local databases through stack
     resetTables: ['orders', 'users'],
     keptTables: ['_prisma_migrations', 'settings']
   });
-  expect(results.mydb).toMatchObject({ ok: true, resetTables: ['todos'] });
+  expect(results.mydb).toMatchObject({ ok: true, resetTables: ['authors', 'books', 'todos'] });
   expect(results.cache).toMatchObject({ ok: true, flushedAllKeys: true });
   expect(results.events).toMatchObject({ ok: true, deletedItems: 30 });
   expect((await sql('db', 'select count(*)::int as n from users')).rows).toEqual([{ n: 0 }]);
@@ -252,7 +272,31 @@ test('an assistant lists, writes, resets and seeds local databases through stack
   expect(deployed).toMatchObject({ ok: false, code: 'NOT_LOCAL' });
   expect(deployed.message).toContain('deployedDb');
   expect((await call('seed', { script: 'seedThroughBastion' })).code).toBe('NOT_LOCAL');
+  // A deployed database named inside $Format is refused before anything resolves.
+  const prisma = await call('seed', { script: 'seedPrisma' });
+  expect(prisma).toMatchObject({ ok: false, code: 'NOT_LOCAL' });
+  expect(prisma.message).toContain("$ResourceParam('deployedDb')");
+  // A deployed database's address that only appears once the script resolved is refused before the script runs.
+  const literal = await call('seed', { script: 'seedLiteral' });
+  expect(literal).toMatchObject({ ok: false, code: 'NOT_LOCAL' });
+  expect(literal.message).toContain('agentdb-deployed.cxyz.ca-central-1.rds.amazonaws.com');
+  expect(existsSync(join(root, 'literal-seed-ran'))).toBeFalse();
+
+  // A hung seed is stopped at its time limit, and its process with it.
+  const started = Date.now();
+  const hung = await call('seed', { script: 'seedHangs', timeoutSeconds: 1 });
+  expect(hung).toMatchObject({ ok: false, code: 'SCRIPT_TIMEOUT' });
+  expect(Date.now() - started).toBeLessThan(15_000);
+  expect(spawnSync('pgrep', ['-f', 'sleep 31.7']).status).toBe(1);
+  expect((await call('seed', { script: 'seedHangs', timeoutSeconds: 900 })).code).toBe('VALIDATION_ERROR');
   const missing = await call('seed', { script: 'nope' });
   expect(missing.code).toBe('NOT_FOUND');
-  expect(missing.data.available).toEqual(['seed', 'seedDeployed', 'seedThroughBastion']);
+  expect(missing.data.available).toEqual([
+    'seed',
+    'seedDeployed',
+    'seedThroughBastion',
+    'seedPrisma',
+    'seedLiteral',
+    'seedHangs'
+  ]);
 }, 300_000);

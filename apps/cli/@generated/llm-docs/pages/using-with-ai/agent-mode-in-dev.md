@@ -441,19 +441,25 @@ curl -X POST -H "$AUTH" -H "$JSON" $AGENT/scripts/seed/run -d '{}'
 | Endpoint                  | Method | Description                                                         | Parameters                   |
 | ------------------------- | ------ | ------------------------------------------------------------------- | ---------------------------- |
 | `/reset/{name}`           | POST   | Delete the data of one local database, or of all with `/reset/all` | `{confirm: true, keepTables?}` |
-| `/scripts/{script}/run`   | POST   | Run a `local-script` from the config against the local databases    | `{}`                         |
+| `/scripts/{script}/run`   | POST   | Run a `local-script` from the config against the local databases    | `{timeoutSeconds?}`          |
 
 A reset requires `{"confirm": true}` and changes only databases that dev mode runs on your machine; any other name returns `NOT_FOUND`. What it does per database type:
 
 - **PostgreSQL**: one `TRUNCATE ... RESTART IDENTITY` of every table in the database's own schemas, so identity columns start again at 1. Tables that extensions own, such as PostGIS's `spatial_ref_sys`, stay.
-- **MySQL and MariaDB**: `TRUNCATE` of every table of the configured database, which also resets `AUTO_INCREMENT`. A database without `dbName` uses the MySQL system database `mysql`, which the reset refuses because it holds the server's users; set `dbName` on the engine to reset it.
+- **MySQL and MariaDB**: `TRUNCATE` of every table of the configured database, which also resets `AUTO_INCREMENT`. A database without `dbName` uses the MySQL system database `mysql`. The reset refuses it, like the other system databases `sys`, `performance_schema` and `information_schema`, because they hold the server's users and state; set `dbName` on the engine to reset the application's data.
 - **Redis**: `FLUSHALL`.
 - **DynamoDB**: deletes every item; the table and its indexes stay.
 - **OpenSearch**: not supported. `/reset/all` skips it and names it in `skipped`; start dev mode with `--fresh-db` to delete its data.
 
 Migration history tables stay in every SQL database, so the schema and the migration tool still agree after a reset: `_prisma_migrations`, `__drizzle_migrations`, `knex_migrations`, `kysely_migration`, `pgmigrations`, `migrations`, `mikro_orm_migrations`, `SequelizeMeta`, `schema_migrations`, `flyway_schema_history`, `databasechangelog`, `alembic_version`, `django_migrations`, `goose_db_version`, `__EFMigrationsHistory` and their lock tables. `keepTables` names more tables to keep. A kept table that references a reset table through a foreign key stops the reset with an error instead of being emptied with it.
 
-The seed is a script from the `scripts` section of your config. It runs as a [`beforeDev` hook](/configuration/hooks-and-scripts) would: its `connectTo` resources resolve to the local databases of this session, and the response carries its output. Only a `local-script` whose `connectTo` and `$ResourceParam` references name databases running locally can run this way; a script that reaches a deployed resource, assumes a workload's role or runs through a bastion is refused.
+The seed is a script from the `scripts` section of your config. It runs as a [`beforeDev` hook](/configuration/hooks-and-scripts) would: its `connectTo` resources resolve to the local databases of this session, and the response carries its output. It is stopped after `timeoutSeconds` (default 50, at most 280) and then returns `SCRIPT_TIMEOUT`.
+
+The seed endpoint refuses scripts that reference a deployed resource it knows about. It checks every string of the script, including directives nested in `$Format` and directives inside commands: `connectTo` and `$ResourceParam` must name databases running locally, and `$CfResourceParam`, `$StackOutput`, `$CfStackOutput` and `$CfFormat` are refused. Bastion scripts and scripts that assume a workload's role are refused. After the directives resolve, a script whose environment or commands contain the host or endpoint of one of the stack's deployed databases is refused before it runs.
+
+
+> **Warning:** A seed script is not a sandbox. It runs on your machine with your AWS credentials, so it can still reach deployed data in ways the check cannot see: a value read with `$Secret`, a URL written literally in the script or in an `.env` file it loads, or an AWS SDK call. Keep seed scripts pointed at the connection that dev mode gives them.
+
 
 ```typescript
 scripts: {

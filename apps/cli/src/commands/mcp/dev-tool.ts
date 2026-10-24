@@ -1071,7 +1071,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         port,
         method: 'POST',
         path: `/scripts/${encodeURIComponent(script)}/run`,
-        body: {}
+        body: typeof toolArgs.timeoutSeconds === 'number' ? { timeoutSeconds: toolArgs.timeoutSeconds } : {}
       });
       return toToolText(
         toAgentOutput(response, sessionResult.session, {

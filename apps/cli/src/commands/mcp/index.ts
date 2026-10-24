@@ -141,7 +141,11 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
     .array(z.string())
     .optional()
     .describe('reset_db: tables to keep in addition to migration history tables, which are always kept'),
-  script: z.string().optional().describe("seed: name of a local-script in the config's scripts section. Default: seed")
+  script: z.string().optional().describe("seed: name of a local-script in the config's scripts section. Default: seed"),
+  timeoutSeconds: z
+    .number()
+    .optional()
+    .describe('seed: stop the script after this many seconds. Default: 50, at most 280')
 });
 
 const getMcpServerVersion = (): string => {
@@ -649,7 +653,7 @@ Use this instead of running stacktape dev or stacktape dev stop through Bash, an
 
 start and status wait up to args.waitSeconds (default 50) and send progress notifications. A first start creates the dev network and the dev stack and takes several minutes: start then returns code DEV_STARTING with the latest progress while the start continues; call status with the devSessionId until it returns the ready status or the start's error. logs returns the newest lines by default; pass args.cursor (the previous nextCursor) for new lines only, args.level (info, warn, error) for a minimum level, args.since (ISO time or 10m) and args.workload to filter. Lines with source "dev" are dev mode's own lifecycle: rebuilds, file changes, dev stack updates, dev box state, resets and seeds.
 
-Database actions reach only the databases dev mode runs on this machine, never deployed ones. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a bulk delete or change returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output. env returns a workload's environment with secret values masked. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) scoped to the dev stack.`,
+Database actions reach only the databases dev mode runs on this machine, never deployed ones. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a bulk delete or change returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output; it stops the script after args.timeoutSeconds (default 50) and refuses scripts that reference a deployed resource, but it runs with the developer's AWS credentials and is not a sandbox. env returns a workload's environment with secret values masked. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) scoped to the dev stack.`,
       inputSchema: z.object({
         action: z.enum(DEV_TOOL_ACTIONS),
         args: DEV_TOOL_ARGS_SCHEMA.optional()

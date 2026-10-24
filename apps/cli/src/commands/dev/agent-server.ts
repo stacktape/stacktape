@@ -1123,7 +1123,14 @@ addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
   };
 });
 
-addRoute('POST', '/scripts/:script/run', async ({ pathParams }) => runSeedScript(pathParams.script));
+addRoute('POST', '/scripts/:script/run', async ({ pathParams, body }) => {
+  const { timeoutSeconds } = (body ?? {}) as { timeoutSeconds?: unknown };
+  if (timeoutSeconds !== undefined && typeof timeoutSeconds !== 'number') {
+    return { ok: false, code: 'VALIDATION_ERROR', error: 'timeoutSeconds must be a number' };
+  }
+  if (typeof timeoutSeconds === 'number') return runSeedScript(pathParams.script, { timeoutSeconds });
+  return runSeedScript(pathParams.script);
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AWS SDK endpoint
@@ -1392,7 +1399,7 @@ const buildCompactDocumentation = () => {
       logs: 'GET /logs (returns file path for tail/grep)',
       env: 'GET /env/{workload}',
       reset: 'POST /reset/{database} or /reset/all {"confirm": true, "keepTables"?: [...]}',
-      seed: 'POST /scripts/{script}/run (a local-script from the config, against the local databases)',
+      seed: 'POST /scripts/{script}/run {"timeoutSeconds"?: 50} (a local-script from the config, against the local databases)',
       aws: 'POST /aws/sdk {"service": "lambda", "command": "ListFunctions", "input": {}}',
       stop: 'POST /stop'
     },
@@ -1414,7 +1421,7 @@ const buildEndpointDocumentation = () => {
     'GET  /health/:resource': 'Check health of local resource',
     'POST /rebuild/:workload': '{} or use /rebuild/all',
     'POST /reset/:database': '{confirm: true, keepTables?} or use /reset/all; deletes local data, keeps schema',
-    'POST /scripts/:script/run': '{} runs a local-script from the config against the local databases',
+    'POST /scripts/:script/run': '{timeoutSeconds?=50} runs a local-script from the config against the local databases',
     'POST /stop': '{}'
   };
 

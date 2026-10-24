@@ -4249,6 +4249,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/daemon-child-args.spec.ts',
+      'apps/cli/src/commands/dev/seed-script.spec.ts',
       'apps/cli/src/commands/dev/__tests__/agent-server.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server.test.ts',

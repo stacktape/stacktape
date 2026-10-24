@@ -1106,19 +1106,23 @@ export const mysqlSample = async (
   return mysqlQuery(conn, { sql: `SELECT * FROM \`${opts.table}\``, limit: opts.limit ?? 5 });
 };
 
+/** MySQL's own schemas: the server's users and grants, and views of its state. */
+const MYSQL_SYSTEM_DATABASES = new Set(['mysql', 'sys', 'performance_schema', 'information_schema']);
+
 /**
  * Empties every table of the configured database and resets its AUTO_INCREMENT counters, keeping the schema, migration
- * history and `keepTables`. Foreign key checks are off for the reset's own connection only. Refuses the `mysql` system
- * database, which holds the server's users and grants.
+ * history and `keepTables`. Foreign key checks are off for the reset's own connection only, so a kept table that
+ * references a reset table is looked for first and fails the reset, as in PostgreSQL. Refuses MySQL's system
+ * databases.
  */
 export const mysqlReset = async (
   conn: MysqlConnectionOpts,
   opts?: { keepTables?: string[] }
 ): Promise<DatabaseResetResponse> => {
-  if (conn.database.toLowerCase() === 'mysql') {
+  if (MYSQL_SYSTEM_DATABASES.has(conn.database.toLowerCase())) {
     return {
       ok: false,
-      error: 'The local database is the MySQL system database "mysql"; resetting it would delete the server\'s users.',
+      error: `The local database is the MySQL system database "${conn.database}"; resetting it would break the server.`,
       hint: 'Set dbName on the resource so the application uses its own database, or restart dev mode with freshDb.'
     };
   }
@@ -1142,6 +1146,21 @@ export const mysqlReset = async (
       (rows as { name: string }[]).map(({ name }) => ({ name })),
       opts?.keepTables
     );
+    const [references] = await connection.query(
+      `SELECT TABLE_NAME AS child, REFERENCED_TABLE_NAME AS parent FROM information_schema.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+    const resetNames = new Set(reset.map(({ name }) => name));
+    const keptReference = (references as { child: string; parent: string }[]).find(
+      ({ child, parent }) => !resetNames.has(child) && resetNames.has(parent)
+    );
+    if (keptReference) {
+      return {
+        ok: false,
+        error: `Kept table "${keptReference.child}" references "${keptReference.parent}", which the reset would empty.`,
+        hint: 'Keep both tables or neither.'
+      };
+    }
     if (reset.length) {
       await connection.query('SET FOREIGN_KEY_CHECKS = 0');
       try {
