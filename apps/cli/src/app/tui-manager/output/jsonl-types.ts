@@ -20,10 +20,18 @@ export type JsonlEventStatus = 'started' | 'running' | 'completed';
 
 /**
  * Structured metadata attached to an event.
- * Currently only used for CloudFormation progress updates.
+ * Used for CloudFormation progress updates and for the agent a starting dev session runs.
  * Discriminated by the `kind` field — consumers should ignore unknown kinds.
  */
-export type JsonlEventDetail = JsonlCloudFormationDetail;
+export type JsonlEventDetail = JsonlCloudFormationDetail | JsonlDevAgentDetail;
+
+/** The dev agent a starting `dev --agent` session runs, reported before it is ready. */
+type JsonlDevAgentDetail = {
+  kind: 'dev-agent';
+  agentPort: number;
+  /** File holding the agent's session token (never the token itself). */
+  tokenFile: string;
+};
 
 /** CloudFormation stack operation progress. */
 type JsonlCloudFormationDetail = {

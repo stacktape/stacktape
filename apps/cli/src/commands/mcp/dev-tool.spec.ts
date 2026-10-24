@@ -20,7 +20,7 @@ afterAll(async () => {
   else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
 });
 
-const daemon = async ({ logFile }: { logFile?: string } = {}) => {
+const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Record<string, unknown> } = {}) => {
   const state = { stopped: false, rebuilt: [] as string[] };
   const token = randomUUID();
   const server = createServer((request, response) => {
@@ -32,7 +32,7 @@ const daemon = async ({ logFile }: { logFile?: string } = {}) => {
     const path = new URL(request.url!, 'http://127.0.0.1').pathname;
     let data: Record<string, unknown> = {};
     if (path === '/health') data = { healthy: !state.stopped };
-    else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt };
+    else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt, ...status };
     else if (path === '/logs' && logFile) data = { logFile };
     else if (request.method === 'POST' && path === '/stop') state.stopped = true;
     else if (request.method === 'POST' && path === '/rebuild/broken') {
@@ -257,6 +257,128 @@ describe('MCP dev session routing', () => {
       if (previousCommand === undefined) delete process.env.STACKTAPE_MCP_CLI_COMMAND;
       else process.env.STACKTAPE_MCP_CLI_COMMAND = previousCommand;
       await rm(project, { recursive: true, force: true });
+    }
+  });
+
+  // A cold start creates the dev network and the dev stack for several minutes, longer than an MCP client's per-call
+  // timeout. start returns while the start continues, with the progress so far; status waits for it to finish.
+  test('a slow start returns DEV_STARTING with progress and finishes in the background', async () => {
+    const dev = await daemon();
+    try {
+      let finishStart!: () => void;
+      const gate = new Promise<void>((resolve) => (finishStart = resolve));
+      let passedSessionId: string | undefined;
+      const runCli: RunCli = async (input) => {
+        passedSessionId = input.env?.STACKTAPE_DEV_SESSION_ID;
+        const event = (message: string, detail?: unknown) =>
+          input.onProgress?.({
+            type: 'event',
+            ts: new Date().toISOString(),
+            phase: 'DEV_STARTUP',
+            eventType: 'DEV_STACK',
+            status: 'running',
+            message,
+            ...(detail ? { detail: detail as never } : {})
+          });
+        await event('Starting the dev agent', { kind: 'dev-agent', agentPort: dev.port, tokenFile: 'unused' });
+        await event('Creating dev stack app-dev');
+        await gate;
+        return startedDaemon({ ...input, args: { ...input.args, agentPort: dev.port } });
+      };
+      const progress: string[] = [];
+      const handler = createDevToolHandler({ runCli, discoverAgents: async () => [] });
+      const started = (
+        await handler({
+          action: 'start',
+          args: { waitSeconds: 0.2 },
+          onProgress: ({ message }) => {
+            progress.push(message);
+          }
+        })
+      ).structuredContent;
+      expect(started).toMatchObject({ ok: true, code: 'DEV_STARTING' });
+      expect(progress).toEqual(['Starting the dev agent', 'Creating dev stack app-dev']);
+      const session = started.data?.session as { devSessionId: string; agentPort?: number };
+      expect(passedSessionId).toBe(session.devSessionId);
+      expect(session.agentPort).toBe(dev.port);
+      expect(started.message).toContain('Creating dev stack app-dev');
+
+      const devSessionId = session.devSessionId;
+      expect(
+        (await handler({ action: 'status', args: { devSessionId, waitSeconds: 0.1 } })).structuredContent.code
+      ).toBe('DEV_STARTING');
+      expect((await handler({ action: 'rebuild_all', args: { devSessionId } })).structuredContent).toMatchObject({
+        ok: false,
+        code: 'DEV_STARTING'
+      });
+
+      finishStart();
+      const ready = (await handler({ action: 'status', args: { devSessionId, waitSeconds: 5 } })).structuredContent;
+      expect(ready).toMatchObject({ ok: true, code: 'OK' });
+      expect(ready.data?.status).toMatchObject({ stopped: false });
+      expect((await handler({ action: 'stop', args: { devSessionId } })).structuredContent.ok).toBe(true);
+      expect(dev.state.stopped).toBe(true);
+    } finally {
+      await dev.close();
+    }
+  });
+
+  // Sessions used to live only in the MCP server's memory, so a restarted server said no session was running.
+  test('a restarted MCP server finds a running session by the ID the agent reports', async () => {
+    const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-rediscover-'));
+    const dev = await daemon({ status: { sessionId: 'session-from-earlier-server', projectDirectory: project } });
+    try {
+      const restarted = createDevToolHandler({ runCli: startedDaemon });
+      const status = (await restarted({ action: 'status', args: { cwd: project } })).structuredContent;
+      expect(status.ok).toBe(true);
+      expect(status.data?.session).toMatchObject({ devSessionId: 'session-from-earlier-server', agentPort: dev.port });
+
+      const another = createDevToolHandler({ runCli: startedDaemon });
+      expect(
+        (await another({ action: 'stop', args: { devSessionId: 'session-from-earlier-server' } })).structuredContent.ok
+      ).toBe(true);
+      expect(dev.state.stopped).toBe(true);
+    } finally {
+      await dev.close();
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+
+  test('logs default to the newest lines and filter by level and time', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-logs-'));
+    const logFile = join(directory, 'dev.jsonl');
+    const at = (minutesAgo: number) => new Date(Date.parse('2026-10-24T12:00:00Z') - minutesAgo * 60_000).toISOString();
+    const line = (minutesAgo: number, level: string, msg: string) =>
+      `${JSON.stringify({ ts: at(minutesAgo), source: 'api', level, msg })}\n`;
+    await writeFile(
+      logFile,
+      [line(30, 'error', 'old failure'), line(20, 'info', 'a'), line(5, 'warn', 'slow'), line(1, 'info', 'b')].join('')
+    );
+    const dev = await daemon({ logFile });
+    try {
+      const handler = createDevToolHandler({
+        runCli: startedDaemon,
+        now: () => new Date('2026-10-24T12:00:00Z')
+      });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const read = async (args: Record<string, unknown>) =>
+        (await handler({ action: 'logs', args: { devSessionId, ...args } })).structuredContent;
+      const messages = (output: Awaited<ReturnType<typeof read>>) =>
+        (output.data?.entries as Array<{ msg: string }>).map(({ msg }) => msg);
+
+      const newest = await read({ limit: 2 });
+      expect(messages(newest)).toEqual(['slow', 'b']);
+      expect(newest.data).toMatchObject({ nextCursor: 4, omittedOlderEntries: 2 });
+      expect(messages(await read({ level: 'warn' }))).toEqual(['old failure', 'slow']);
+      expect(messages(await read({ since: '10m' }))).toEqual(['slow', 'b']);
+      expect(messages(await read({ since: '10m', level: 'error' }))).toEqual([]);
+      expect((await read({ level: 'fatal' })).code).toBe('VALIDATION_ERROR');
+      expect((await read({ since: 'yesterday-ish' })).code).toBe('VALIDATION_ERROR');
+      await handler({ action: 'stop', args: { devSessionId } });
+    } finally {
+      await dev.close();
+      await rm(directory, { recursive: true, force: true });
     }
   });
 });

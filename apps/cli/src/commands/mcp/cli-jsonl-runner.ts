@@ -267,7 +267,8 @@ export const runStacktapeCommandJsonl = async ({
   signal,
   tool = 'stacktape_cli',
   clientName,
-  onProgress
+  onProgress,
+  env
 }: {
   command: string;
   args?: Record<string, unknown>;
@@ -277,6 +278,8 @@ export const runStacktapeCommandJsonl = async ({
   tool?: 'stacktape_cli' | 'stacktape_dev';
   clientName?: string;
   onProgress?: (event: JsonlEventEvent) => void | Promise<void>;
+  /** Extra environment for the CLI process. */
+  env?: Record<string, string>;
 }): Promise<RunStacktapeResult> => {
   const { command: spawnCommand, prefixArgs, cwd: spawnCwd } = getStacktapeSpawnBase();
   // macOS exposes /tmp through /private/tmp. Use the filesystem's canonical path so the
@@ -313,7 +316,8 @@ export const runStacktapeCommandJsonl = async ({
     cwd: resolvedCwd,
     env: {
       ...process.env,
-      ...operationInvocationEnv
+      ...operationInvocationEnv,
+      ...env
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     ...(process.platform === 'win32' && spawnCommand === 'stacktape' ? { shell: true } : {})

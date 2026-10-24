@@ -171,11 +171,13 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
 
 Use this command to gracefully stop a dev agent that was started with \`dev --agent\`.
 
-If multiple agents are running, you'll be prompted to specify which one to stop using \`--agent-port\`.
+It stops the agent of the project in the current directory, or in \`--cwd\`. When several stages of the project run, choose one with \`--stage\`; the command stops none and fails with the list instead of guessing. \`--agent-port\` stops the agent on that port, wherever it was started. Agents of other directories are never stopped by a guess.
 
 Use \`--cleanup-containers\` to remove orphaned Docker containers left behind by crashed dev sessions.`,
     args: {
       ...universalArgs,
+      ...configDependentArgs,
+      stage: stage.optional(),
       agentPort: agentPort.optional(),
       cleanupContainers: cleanupContainers.optional()
     },

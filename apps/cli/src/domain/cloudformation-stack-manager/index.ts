@@ -585,7 +585,8 @@ class StackManager {
           { Key: tagNames.stackName(), Value: this.#stackName },
           { Key: tagNames.projectName(), Value: globalStateManager.targetStack.projectName },
           { Key: tagNames.stage(), Value: globalStateManager.targetStack.stage },
-          { Key: tagNames.globallyUniqueStackHash(), Value: globalStateManager.targetStack.globallyUniqueStackHash }
+          { Key: tagNames.globallyUniqueStackHash(), Value: globalStateManager.targetStack.globallyUniqueStackHash },
+          ...(this.stackActionType === 'dev' ? [{ Key: tagNames.devStack(), Value: 'true' }] : [])
         ]),
       (el) => el.Key
     );

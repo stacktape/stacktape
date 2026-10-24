@@ -165,9 +165,9 @@ Dev mode registers configured `beforeDev` script hooks and displays them in the 
 Dev mode creates a dedicated dev stack and refuses to reuse a healthy stack created by a full deployment. Use a separate stage name such as `dev`, `dev-local`, or `dev-jane`. To connect selected databases or Redis resources to deployed AWS resources, keep the dedicated dev stage and pass `--remote-resources`.
 
 
-> **Warning:** If you run dev mode against a stage that already has a fully-deployed non-dev stack, Stacktape refuses to overwrite it and asks you to use a different stage name.
+> **Warning:** Dev mode only updates a stack that `stacktape dev` created. It marks every dev stack with the stack tag `stp:dev-stack`, and refuses any other stack on the stage, whatever its name or status: use a different stage name, or delete that stack with `stacktape delete --stage <stage>` yourself. Dev mode never deletes a stack.
 
-Stacktape auto-recovers (deletes and redeploys a fresh dev stack) when the existing stack is in a failed or in-progress state **and** either the stage name suggests a dev context (contains "dev" or "local") **or** the stack's outputs lack the expected stack-info map. This means auto-deletion can occur on stacks whose names don't include "dev" or "local" if their outputs are missing the stack-info map.
+If the first start of a stage fails or is interrupted, CloudFormation rolls the dev stack back. The next `stacktape dev` recognizes the stack by its tag and updates it again. Only a dev stack whose very first create failed (status `ROLLBACK_COMPLETE`) can't be updated; dev mode then asks you to delete it with `stacktape delete --stage <stage>`.
 
 
 ## Agent mode
@@ -182,10 +182,12 @@ stacktape dev --stage dev --region us-east-1 --resources all --agent
 
 When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
 
-Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
+While the agent starts, the command prints its progress as JSONL `event` lines: the agent's port first, then the dev network, the dev box, the dev stack deployment with CloudFormation resource counts, and each workload and database. A first start that creates the dev network and the dev stack takes several minutes, and a heartbeat line every 20 seconds names the step it waits for.
+
+Stop the agent of the current project with [`stacktape dev stop`](/cli/dev-stop) (`--stage` chooses between several stages, `--cwd` names another project directory):
 
 ```bash
-stacktape dev stop --agent-port 7331
+stacktape dev stop --stage dev
 ```
 
 ## Command reference

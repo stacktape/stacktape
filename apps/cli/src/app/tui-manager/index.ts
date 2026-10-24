@@ -491,7 +491,19 @@ class TuiManager {
     this.outputRouter.emitCollectorLog({ level, source, message, data });
   }
 
+  private messageListener: ((type: TuiMessageType, message: string) => void) | undefined;
+
+  /** Receives every message the command logs, for a session that mirrors them into its own log file. */
+  setMessageListener(listener: ((type: TuiMessageType, message: string) => void) | undefined) {
+    this.messageListener = listener;
+  }
+
   private log(type: TuiMessageType, message: string) {
+    try {
+      this.messageListener?.(type, message);
+    } catch {
+      // A mirror must never break the command's own output.
+    }
     if (this.quiet && QUIET_HIDDEN_MESSAGES.has(type)) return;
     operationSession.message(type, message);
 
@@ -798,6 +810,14 @@ class TuiManager {
     try {
       process.stderr.write(`${errorString}\n`);
     } catch {}
+  }
+
+  /**
+   * A tracked progress event outside the operation journal, for a command that reports its own phases (dev mode's
+   * startup) or passes on the events of a child process. JSONL output writes it as an `event` record.
+   */
+  emitEvent(event: Omit<Extract<OutputRecord, { type: 'event' }>, 'type'>) {
+    this.emitOutputRecord({ type: 'event', ...event });
   }
 
   emitJsonlResult({

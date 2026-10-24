@@ -28,6 +28,7 @@ import {
   findOrphanedDevBoxSession,
   getLockFilePath,
   getCustomArgsSuffix,
+  type ForwardedChildRecord,
   getRunningAgent,
   requestDevAgent,
   spawnAgentDaemon,
@@ -35,11 +36,12 @@ import {
   writeAgentLockFile,
   type AgentLockFile
 } from './agent-daemon';
-import { getAgentLogFilePath } from './agent-logger';
+import { agentLog, getAgentLogFilePath } from './agent-logger';
 import {
   buildStartupMessage,
   getAgentPort,
   mirrorDevTuiState,
+  getAgentSessionId,
   registerAgentCleanupHook,
   setRebuildFunctions,
   startAgentServer
@@ -64,6 +66,13 @@ import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
 import { setDevSessionOwner } from './cleanup-utils';
 import { registerNamedProxyCleanupHook } from './named-proxy/manager';
+import {
+  reportDevStartup,
+  reportDevStartupHeartbeat,
+  startDevStartupReporting,
+  stopDevStartupReporting
+} from './startup-progress';
+import { randomUUID } from 'node:crypto';
 
 type DevCompatibleResource = {
   name: string;
@@ -338,6 +347,7 @@ export const getRunningAgentReadyPayload = async (agent: AgentLockFile) => {
       ? status.localResources.map(({ name, type, port }) => ({ name, type, port }))
       : agent.databases.map((name) => ({ name, type: 'unknown' })),
     logFile: status?.logFile || agent.logFile || '',
+    sessionId: agent.sessionId,
     failedWorkloads: Array.isArray(status?.failedWorkloads) ? status.failedWorkloads : []
   });
   return {
@@ -396,16 +406,35 @@ export const commandDev = async () => {
       });
     }
 
-    tuiManager.info('Starting dev agent daemon...');
-    tuiManager.printLines(['']);
+    // Reported before the daemon starts, so a client knows the agent's port and token file while a first start still
+    // creates the dev network and deploys the dev stack.
+    tuiManager.emitEvent({
+      phase: 'DEV_STARTUP',
+      eventType: 'DEV_SESSION',
+      status: 'started',
+      message: `Starting the dev agent on port ${agentPort}`,
+      detail: { kind: 'dev-agent', agentPort, tokenFile: localStatePaths.devAgentTokenFile({ port: agentPort }) }
+    });
     const result = await spawnAgentDaemon({
       explicitArgs: globalStateManager.explicitArgs,
       customArgs: getCustomArgsSuffix(),
       agentPort,
-      timeoutMs: 600000 // 10 minutes for stack deployment + startup
+      // An inactivity limit: the daemon reports progress and a heartbeat while it works.
+      timeoutMs: 600000,
+      onChildRecord: forwardDaemonProgress
     });
 
     if (!result.success) {
+      // The daemon's own failure (a conflicting stack, missing credentials, a failed deployment) keeps its code and
+      // hints, so the caller can act on them. Only a daemon that died or hung gets the generic code.
+      if (result.childResult) {
+        throw new CliError({
+          category: 'CLI',
+          code: result.childResult.code,
+          message: result.childResult.message,
+          hints: result.childResult.hints
+        });
+      }
       throw new CliError({
         category: 'CLI',
         code: 'CLI_DEV_AGENT_START_FAILED',
@@ -504,17 +533,28 @@ export const commandDev = async () => {
       {
         getEnvVars: getWorkloadEnvVars,
         getSecretEnvNames: getWorkloadSecretEnvNames
+      },
+      {
+        sessionId: process.env.STACKTAPE_DEV_SESSION_ID || randomUUID(),
+        projectDirectory: stackContext.workingDir,
+        projectName: stackContext.projectName,
+        stage: stackContext.stage,
+        region: stackContext.region
       }
     );
+    // Dev mode's own messages (file changes, redeploys, dev box state, warnings) go to the session's log file too.
+    tuiManager.setMessageListener((type, message) => {
+      if (type === 'debug') return;
+      agentLog('dev', message, type === 'error' ? 'error' : type === 'warn' ? 'warn' : 'info');
+    });
+    startDevStartupReporting();
 
     // A first run deploys the dev stack, which can far outlast any fixed readiness deadline. The
-    // daemon therefore emits a liveness heartbeat until AGENT_READY, and the parent treats its
+    // daemon therefore emits a progress heartbeat until AGENT_READY, and the parent treats its
     // timeout as an inactivity limit: a silent CloudFormation wait keeps the daemon alive, while a
     // genuinely hung child still gets reaped.
     if (isAgentChild) {
-      const heartbeat = setInterval(() => {
-        process.stdout.write(`AGENT_STARTING ${JSON.stringify({ ts: new Date().toISOString() })}\n`);
-      }, 20_000);
+      const heartbeat = setInterval(reportDevStartupHeartbeat, 20_000);
       heartbeat.unref();
       agentReadyHeartbeatStopper = () => clearInterval(heartbeat);
     }
@@ -532,7 +572,8 @@ export const commandDev = async () => {
     region: stackContext.region,
     startedAt: new Date().toISOString(),
     workloads: [],
-    databases: []
+    databases: [],
+    sessionId: getAgentSessionId()
   });
   setDevSessionOwner({ lockFile: getLockFilePath(stackContext.projectName, stackContext.stage), pid: process.pid });
   applicationManager.registerCleanUpHook(async () => {
@@ -603,6 +644,11 @@ export const commandDev = async () => {
   // starts the dev box in the background, and decides where the dev stack's functions run and which relay address
   // their environment carries.
   const devNetworkSpinner = createSpinner('Preparing the dev network', tuiManager.colorize.bind(tuiManager));
+  reportDevStartup({
+    step: 'DEV_NETWORK',
+    status: 'started',
+    message: 'Preparing the dev network (creating it the first time takes about 4 minutes)'
+  });
   let devNetworkSession: Awaited<ReturnType<typeof startDevNetworkSession>>;
   try {
     devNetworkSession = await startDevNetworkSession({
@@ -611,8 +657,21 @@ export const commandDev = async () => {
       orphanedSessionId: orphanedDevBoxSessionId
     });
     devNetworkSpinner.success();
+    reportDevStartup({
+      step: 'DEV_NETWORK',
+      status: 'completed',
+      message: devNetworkSession
+        ? `Dev network ${devNetworkSession.network.stackName} is ready`
+        : 'No function needs the dev network'
+    });
   } catch (error) {
     devNetworkSpinner.error();
+    reportDevStartup({
+      step: 'DEV_NETWORK',
+      status: 'completed',
+      level: 'error',
+      message: `Preparing the dev network failed: ${(error as Error).message}`
+    });
     throw error;
   }
 
@@ -620,7 +679,10 @@ export const commandDev = async () => {
   if (stackManager.existingStackDetails) {
     assertExistingDevStack({
       stackName: stackContext.stackName,
-      isDevStack: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack())
+      stage: stackContext.stage,
+      isDevStack: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack()),
+      tags: stackManager.existingStackDetails.Tags,
+      stackStatus: stackManager.existingStackDetails.StackStatus
     });
   }
 
@@ -637,14 +699,29 @@ export const commandDev = async () => {
   // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
   if (!stackManager.existingStackDetails || devStackConfigChanged) {
     if (agentEnabled) {
-      // Agent mode: plain text output for dev stack deployment
-      tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');
+      // Agent mode reports the deployment as JSONL events, CloudFormation resource counts included: the parent passes
+      // them on, and the session's log file records the start and the outcome.
+      reportDevStartup({
+        step: 'DEV_STACK',
+        status: 'started',
+        message: !stackManager.existingStackDetails
+          ? `Creating dev stack ${stackContext.stackName}`
+          : `Updating dev stack ${stackContext.stackName}: its configuration changed`
+      });
+      operationReporter.setSilentMode(false);
       try {
         await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
-        tuiManager.success('[+] Dev stack deployed successfully');
+        reportDevStartup({ step: 'DEV_STACK', status: 'completed', message: 'Dev stack deployed' });
       } catch (err) {
-        tuiManager.error('[x] Dev stack deployment failed');
+        reportDevStartup({
+          step: 'DEV_STACK',
+          status: 'completed',
+          level: 'error',
+          message: `Dev stack deployment failed: ${(err as Error).message}`
+        });
         throw err;
+      } finally {
+        operationReporter.setSilentMode(true);
       }
     } else {
       // Interactive mode: use TUI to show deployment progress.
@@ -701,7 +778,8 @@ export const commandDev = async () => {
             startedAt: new Date().toISOString(),
             workloads: workloadInfos.map((w) => w.name),
             databases: databaseInfos.map((d) => d.name),
-            logFile: getAgentLogFilePath() || undefined
+            logFile: getAgentLogFilePath() || undefined,
+            sessionId: getAgentSessionId()
           });
 
           // Get workload details from state for the ready message
@@ -721,6 +799,8 @@ export const commandDev = async () => {
           // This MUST be printed for the daemon spawning to work
           agentReadyHeartbeatStopper?.();
           agentReadyHeartbeatStopper = null;
+          reportDevStartup({ step: 'DEV_SESSION', status: 'completed', message: 'Dev session ready' });
+          stopDevStartupReporting();
           process.stdout.write(
             `${buildAgentReadyMessage({
               port: port!,
@@ -730,6 +810,7 @@ export const commandDev = async () => {
               workloads: workloadsWithUrls,
               databases: databasesWithPorts,
               logFile: getAgentLogFilePath() || '',
+              sessionId: getAgentSessionId(),
               failedWorkloads: state.workloads
                 .filter((w) => w.status === 'error')
                 .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))
@@ -893,6 +974,18 @@ export const commandDev = async () => {
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);
   });
+};
+
+/** Passes the daemon's startup progress on to this command's own output. */
+const forwardDaemonProgress = ({ type, line, record }: ForwardedChildRecord) => {
+  if (tuiManager.mode === 'jsonl') {
+    // Already a well-formed JSONL record; written as it is, it keeps the daemon's timestamps and details.
+    process.stdout.write(`${line}\n`);
+    return;
+  }
+  const message = String(record.message);
+  if (type === 'log' && (record.level === 'warn' || record.level === 'error')) tuiManager.warn(message);
+  else tuiManager.info(message);
 };
 
 const mapResourceType = (

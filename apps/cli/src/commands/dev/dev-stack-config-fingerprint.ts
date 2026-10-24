@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 
 // v2 removes VPC infrastructure required only by locally running/emulated resources.
 // v3 places functions in the shared dev network and deploys them with the relay addresses of local databases.
-const FINGERPRINT_VERSION = 3;
+// v4 keeps source maps in dev function packages and runs the functions with `--enable-source-maps`.
+const FINGERPRINT_VERSION = 4;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;
