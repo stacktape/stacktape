@@ -3,55 +3,9 @@ import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { writeFile } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
-import type { EnvironmentVar } from '@stacktape/config/shared';
-
-const writeDevEnvFile = async ({
-  name,
-  workingDirectory,
-  injectEnvironment,
-  localWorkloadEnvVars
-}: {
-  name: string;
-  workingDirectory: string;
-  injectEnvironment?: EnvironmentVar[];
-  localWorkloadEnvVars?: Record<string, string>;
-}): Promise<Record<string, string>> => {
-  const envVars: Record<string, string> = {};
-
-  // Resolve injectEnvironment directives
-  if (injectEnvironment && injectEnvironment.length > 0) {
-    const resolved = await configManager.resolveDirectives<EnvironmentVar[]>({
-      itemToResolve: injectEnvironment,
-      resolveRuntime: true,
-      useLocalResolve: true
-    });
-    resolved.forEach(({ name: varName, value }) => {
-      envVars[varName] = String(value);
-    });
-  }
-
-  // Add local workload env vars (URLs of other local services)
-  if (localWorkloadEnvVars) {
-    Object.assign(envVars, localWorkloadEnvVars);
-  }
-
-  if (Object.keys(envVars).length === 0) {
-    return envVars;
-  }
-
-  // Write .env.local file (commonly used by Vite, Next.js, CRA, etc.)
-  const envContent = Object.entries(envVars)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
-
-  const envFilePath = join(workingDirectory, '.env.local');
-  await writeFile(envFilePath, envContent);
-  tuiManager.info(`[${name}] Wrote ${Object.keys(envVars).length} env vars to .env.local`);
-  return envVars;
-};
+import { prepareFrontendEnvironment } from '../frontend-env';
 
 const getWorkingDirectory = (dev: { workingDirectory?: string }): string => {
   return dev.workingDirectory
@@ -63,10 +17,11 @@ const getWorkingDirectory = (dev: { workingDirectory?: string }): string => {
 
 export const startHostingBucketDevServer = async ({
   name,
-  localWorkloadEnvVars
+  withheldEnvNames
 }: {
   name: string;
-  localWorkloadEnvVars?: Record<string, string>;
+  /** Local variables of resources this frontend does not connect to, which its dev server must not inherit. */
+  withheldEnvNames: string[];
 }): Promise<DevServerState> => {
   const bucket = configManager.hostingBuckets.find((b) => b.name === name);
   if (!bucket) {
@@ -80,21 +35,19 @@ export const startHostingBucketDevServer = async ({
 
   const workingDirectory = getWorkingDirectory(bucket.dev);
 
-  // Write .env.local for discoverability, and hand the same values to the dev-server process as
-  // real environment variables: mode-specific env files (Vite's `.env.<mode>`) outrank `.env.local`,
-  // while the actual process environment outranks every file.
-  const injectedEnvironment = await writeDevEnvFile({
+  // A static site has no server and no `connectTo`: it gets only its own `injectEnvironment`.
+  const injectedEnvironment = await prepareFrontendEnvironment({
     name,
     workingDirectory,
-    injectEnvironment: bucket.injectEnvironment,
-    localWorkloadEnvVars
+    environment: bucket.injectEnvironment,
+    connectedEnvVars: {}
   });
 
   const useDevTui = devTuiManager.running;
 
   return startDevServer({
     name,
-    config: { ...bucket.dev, environment: injectedEnvironment },
+    config: { ...bucket.dev, environment: injectedEnvironment, withheldEnvNames },
     callbacks: {
       onStateChange: (newState) => {
         const status = formatDevServerStatus(newState);

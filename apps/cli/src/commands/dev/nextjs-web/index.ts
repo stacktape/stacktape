@@ -3,57 +3,11 @@ import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { writeFile } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
-import type { EnvironmentVar } from '@stacktape/config/shared';
+import { prepareFrontendEnvironment } from '../frontend-env';
 
 const DEFAULT_NEXTJS_DEV_COMMAND = 'next dev';
-
-const writeDevEnvFile = async ({
-  name,
-  workingDirectory,
-  environment,
-  localWorkloadEnvVars
-}: {
-  name: string;
-  workingDirectory: string;
-  environment?: EnvironmentVar[];
-  localWorkloadEnvVars?: Record<string, string>;
-}): Promise<Record<string, string>> => {
-  const envVars: Record<string, string> = {};
-
-  // Resolve environment directives
-  if (environment && environment.length > 0) {
-    const resolved = await configManager.resolveDirectives<EnvironmentVar[]>({
-      itemToResolve: environment,
-      resolveRuntime: true,
-      useLocalResolve: true
-    });
-    resolved.forEach(({ name: varName, value }) => {
-      envVars[varName] = String(value);
-    });
-  }
-
-  // Add local workload env vars (URLs of other local services)
-  if (localWorkloadEnvVars) {
-    Object.assign(envVars, localWorkloadEnvVars);
-  }
-
-  if (Object.keys(envVars).length === 0) {
-    return envVars;
-  }
-
-  // Write .env.local file
-  const envContent = Object.entries(envVars)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
-
-  const envFilePath = join(workingDirectory, '.env.local');
-  await writeFile(envFilePath, envContent);
-  tuiManager.info(`[${name}] Wrote ${Object.keys(envVars).length} env vars to .env.local`);
-  return envVars;
-};
 
 const getWorkingDirectory = (appDirectory: string): string => {
   return isAbsolute(appDirectory) ? appDirectory : join(globalStateManager.workingDir, appDirectory);
@@ -61,10 +15,14 @@ const getWorkingDirectory = (appDirectory: string): string => {
 
 export const startNextjsWebDevServer = async ({
   name,
-  localWorkloadEnvVars
+  connectedEnvVars,
+  withheldEnvNames
 }: {
   name: string;
-  localWorkloadEnvVars?: Record<string, string>;
+  /** Local variables of the resources this app lists in `connectTo`, as its deployed server gets them. */
+  connectedEnvVars: Record<string, string>;
+  /** Local variables of resources this app does not connect to, which its dev server must not inherit. */
+  withheldEnvNames: string[];
 }): Promise<DevServerState> => {
   const nextjsWeb = configManager.nextjsWebs.find((n) => n.name === name);
   if (!nextjsWeb) {
@@ -73,18 +31,18 @@ export const startNextjsWebDevServer = async ({
 
   const workingDirectory = getWorkingDirectory(nextjsWeb.appDirectory);
 
-  // Write .env.local with environment values and local workload addresses
-  const injectedEnvironment = await writeDevEnvFile({
+  const injectedEnvironment = await prepareFrontendEnvironment({
     name,
     workingDirectory,
     environment: nextjsWeb.environment,
-    localWorkloadEnvVars
+    connectedEnvVars
   });
 
   const devConfig = {
     command: nextjsWeb.dev?.command || DEFAULT_NEXTJS_DEV_COMMAND,
     workingDirectory: nextjsWeb.appDirectory,
-    environment: injectedEnvironment
+    environment: injectedEnvironment,
+    withheldEnvNames
   };
 
   const useDevTui = devTuiManager.running;

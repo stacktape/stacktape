@@ -154,7 +154,8 @@ If \`true\`, disables the shared Lambda layer optimization. By default, Stacktap
 
 export const watch = z.boolean().describe(`#### Watch
 ---
-If \`true\`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected.`);
+If \`true\`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build.
+Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart.`);
 
 export const container = z.string().describe(`#### Container Name
 ---
@@ -207,6 +208,19 @@ For dev command: also enables HTTP server for programmatic control.`);
 export const agentPort = z.number().describe(`#### Agent Port
 ---
 The port for the agent HTTP server. Providing this option enables agent mode.`);
+
+export const devAgent = z.boolean().describe(`#### Agent Mode
+---
+For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.
+The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until \`stacktape dev stop\`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).`);
+
+export const devAgentPort = z.number().describe(`#### Agent Port
+---
+The port of the agent mode HTTP API. Implies \`--agent\`. By default, the first free port from 7331.`);
+
+export const devStopAgentPort = z.number().describe(`#### Agent Port
+---
+Stops the dev agent on this port, wherever it was started.`);
 
 export const agentChild = z.boolean().describe(`#### Agent Child (internal)
 ---

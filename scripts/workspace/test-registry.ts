@@ -784,7 +784,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; network is only for the fixture images.'
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; network is only for the fixture images.'
   },
   {
     id: 'local-dev-next',
@@ -795,7 +795,7 @@ export const lanes: readonly Lane[] = [
     requires: ['network'],
     release: 'every-candidate',
     proves:
-      'A pinned real Next dev server receives local parameters, serves edits through its stable URL and cleans up; network is only for fixture installation.'
+      'A pinned real Next dev server receives the local parameters of its connectTo targets and no others, keeps the lines a developer wrote in .env.local, serves edits through its stable URL and cleans up; network is only for fixture installation.'
   },
   {
     id: 'local-dev-ministack',
