@@ -112,13 +112,13 @@ function Install-Stacktape {
         }
     }
 
-    # A running stacktape.exe cannot be deleted or overwritten, but it can be renamed.
+    # A running stacktape.exe cannot be deleted or overwritten, but it can be renamed. The name is unique because an
+    # earlier renamed copy may still be running too.
     function Remove-Installed([string]$Path) {
         try {
             Remove-Item $Path -Recurse -Force
         } catch {
-            Remove-Item "$Path.old" -Recurse -Force -ErrorAction SilentlyContinue
-            Move-Item $Path "$Path.old" -Force
+            Move-Item $Path "$Path.$([guid]::NewGuid().ToString('N')).old"
         }
     }
 
@@ -212,15 +212,24 @@ function Install-Stacktape {
         }
 
         # Completions load from the PowerShell profile, which a Restricted or AllSigned execution policy (the Windows
-        # default is Restricted) would refuse to run, reporting an error in every new window.
-        $ExecutionPolicy = [string](Get-ExecutionPolicy)
+        # default is Restricted) would refuse to run, reporting an error in every new window. The policy of new windows
+        # counts, not a Bypass for this session only.
+        $ExecutionPolicy = if ($IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop') { 'Restricted' } else { 'Unrestricted' }
+        foreach ($Scope in @('MachinePolicy', 'UserPolicy', 'CurrentUser', 'LocalMachine')) {
+            $ScopePolicy = [string](Get-ExecutionPolicy -Scope $Scope)
+            if ($ScopePolicy -ne 'Undefined') {
+                $ExecutionPolicy = $ScopePolicy
+                break
+            }
+        }
         if ((Test-Path $CompletionsFilePath) -and $ExecutionPolicy -notin @('Restricted', 'AllSigned')) {
             $ProfileContent = if (Test-Path $profile) { Get-Content -Path $profile -Raw } else { '' }
             if ($ProfileContent -notmatch 'Stacktape completion script') {
                 if (!(Test-Path $profile)) {
                     New-Item -Path $profile -Type File -Force | Out-Null
                 }
-                Add-Content -Path $profile -Value "`n# Stacktape completion script`nif (Test-Path '$CompletionsFilePath') { . '$CompletionsFilePath' }"
+                $QuotedPath = $CompletionsFilePath.Replace("'", "''")
+                Add-Content -Path $profile -Value "`n# Stacktape completion script`nif (Test-Path '$QuotedPath') { . '$QuotedPath' }"
             }
         }
     }
