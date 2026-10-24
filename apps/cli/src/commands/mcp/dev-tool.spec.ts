@@ -4,10 +4,10 @@ import { mkdtempSync } from 'node:fs';
 import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localStatePaths } from 'src/config/local-state-paths';
-import { createDevToolHandler } from './dev-tool';
+import { createDevToolHandler, isWriteQuery } from './dev-tool';
 
 // Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
 // Each one, like the real agent, answers only requests that carry the session token it stored under its port.
@@ -21,7 +21,13 @@ afterAll(async () => {
 });
 
 const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Record<string, unknown> } = {}) => {
-  const state = { stopped: false, rebuilt: [] as string[], requests: [] as Array<{ path: string; body?: unknown }> };
+  const state = {
+    stopped: false,
+    rebuilt: [] as string[],
+    requests: [] as Array<{ path: string; body?: unknown }>,
+    /** Every POST except env and aws: rebuilds, stops, resets, seeds and queries. */
+    changes: [] as string[]
+  };
   const token = randomUUID();
   const server = createServer((request, response) => {
     if (request.headers.authorization !== `Bearer ${token}`) {
@@ -30,6 +36,7 @@ const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Rec
       return;
     }
     const path = new URL(request.url!, 'http://127.0.0.1').pathname;
+    if (request.method === 'POST' && !path.startsWith('/env/') && path !== '/aws/sdk') state.changes.push(path);
     let data: Record<string, unknown> = {};
     if (path.startsWith('/env/') || path === '/aws/sdk') {
       let body = '';
@@ -57,6 +64,13 @@ const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Rec
     else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt, ...status };
     else if (path === '/logs' && logFile) data = { logFile };
     else if (request.method === 'POST' && path === '/stop') state.stopped = true;
+    else if (
+      request.method === 'POST' &&
+      (path.startsWith('/reset/') ||
+        path.startsWith('/scripts/') ||
+        /^\/(postgres|mysql|redis)\/[^/]+\/(query|command)$/.test(path))
+    )
+      data = {};
     else if (request.method === 'POST' && path === '/rebuild/broken') {
       // What the agent answers when the build fails: the error, the failed workloads and the log file.
       response.setHeader('content-type', 'application/json');
@@ -651,4 +665,267 @@ describe('MCP dev tool arguments', () => {
       await dev.close();
     }
   });
+});
+
+// Second dogfood (r2l): after a take-over, an agent called rebuild and then reset_db without a devSessionId. The MCP
+// server picked the only running session, another worktree's, rebuilt it and emptied its databases, and answered ok.
+describe('MCP dev session scope', () => {
+  const directories: string[] = [];
+  afterAll(async () => {
+    for (const directory of directories) await rm(directory, { recursive: true, force: true });
+  });
+  const projectDirectory = async (name: string) => {
+    const directory = await mkdtemp(join(tmpdir(), `stacktape-mcp-dev-${name}-`));
+    directories.push(directory);
+    return directory;
+  };
+  const localDatabase = { localResources: [{ name: 'db', type: 'postgres', status: 'running' }] };
+  const CHANGES = [
+    ['rebuild', { workload: 'api' }],
+    ['rebuild_all', {}],
+    ['reset_db', { confirm: true }],
+    ['seed', {}],
+    ['query', { sql: 'delete from notes where id = 1' }],
+    ['stop', {}]
+  ] as const;
+
+  test('an MCP server in project A cannot rebuild, reset, seed, write to or stop project B without its ID', async () => {
+    const projectA = await projectDirectory('a');
+    const projectB = await projectDirectory('b');
+    const sessionB = `session-b-${randomUUID()}`;
+    const b = await daemon({
+      status: { sessionId: sessionB, projectDirectory: projectB, stage: 'b', ...localDatabase }
+    });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => projectA });
+      for (const [action, args] of CHANGES) {
+        const refused = (await handler({ action, args })).structuredContent;
+        expect(refused).toMatchObject({ ok: false, code: 'DEV_SESSION_ID_REQUIRED' });
+        expect(refused.data?.activeDevSessions).toEqual([
+          { devSessionId: sessionB, projectDirectory: projectB, stage: 'b' }
+        ]);
+        // Naming the other project's directory is not the explicit choice a change needs.
+        const named = (await handler({ action, args: { ...args, cwd: projectB } })).structuredContent;
+        expect(named.code).toBe('DEV_SESSION_ID_REQUIRED');
+      }
+      expect(b.state.changes).toEqual([]);
+      // Without a directory, even reading would answer about another project.
+      expect((await handler({ action: 'status' })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
+
+      // Reading another project's session needs its directory; changing it needs its ID.
+      const status = (await handler({ action: 'status', args: { cwd: projectB } })).structuredContent;
+      expect(status).toMatchObject({ ok: true, data: { session: { devSessionId: sessionB, cwd: projectB } } });
+      expect(
+        (await handler({ action: 'query', args: { cwd: projectB, sql: 'select count(*) from notes' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      expect(
+        (await handler({ action: 'rebuild', args: { devSessionId: sessionB, workload: 'api' } })).structuredContent.ok
+      ).toBe(true);
+      expect(b.state.changes).toEqual(['/postgres/db/query', '/rebuild/api']);
+
+      // The same session counts as this server's own when the client names project B as one of its roots.
+      const withRoots = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => projectA });
+      const rooted = await withRoots({
+        action: 'reset_db',
+        args: { confirm: true },
+        getProjectRoots: async () => [projectB]
+      });
+      expect(rooted.structuredContent.ok).toBe(true);
+      // And when the MCP server itself runs there, or in a folder that contains the project.
+      const inB = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => join(projectB, '..') });
+      expect((await inB({ action: 'rebuild', args: { workload: 'web' } })).structuredContent.ok).toBe(true);
+      expect(b.state.changes).toEqual(['/postgres/db/query', '/rebuild/api', '/reset/all', '/rebuild/web']);
+    } finally {
+      await b.close();
+    }
+  });
+
+  test('a server started in the home directory or / does not own every project below it', async () => {
+    // Some clients start MCP servers in the home directory. The path is only reported, never created.
+    const projectUnderHome = join(homedir(), `stacktape-mcp-dev-${randomUUID()}`, 'app');
+    const b = await daemon({ status: { sessionId: `s-${randomUUID()}`, projectDirectory: projectUnderHome } });
+    try {
+      for (const serverDirectory of [homedir(), '/']) {
+        const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => serverDirectory });
+        expect((await handler({ action: 'rebuild_all' })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
+      }
+      const inParent = createDevToolHandler({
+        runCli: startedDaemon,
+        serverDirectory: () => join(projectUnderHome, '..')
+      });
+      expect((await inParent({ action: 'rebuild_all' })).structuredContent.ok).toBe(true);
+    } finally {
+      await b.close();
+    }
+  });
+
+  test('after a take-over the replaced session keeps answering DEV_STAGE_TAKEN_OVER and never reaches the new holder', async () => {
+    const project = await projectDirectory('taken');
+    const replaced = await daemon({ status: localDatabase });
+    // The session that took the stage over runs in the same directory, so it would count as this server's own.
+    const holderId = `holder-${randomUUID()}`;
+    const holder = await daemon({ status: { sessionId: holderId, projectDirectory: project, ...localDatabase } });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => project });
+      const started = (await handler({ action: 'start', args: { agentPort: replaced.port, cwd: project } }))
+        .structuredContent;
+      const replacedId = (started.data?.session as { devSessionId: string }).devSessionId;
+      await writeFile(
+        localStatePaths.devAgentStopReasonFile({ port: replaced.port }),
+        JSON.stringify({
+          code: 'DEV_STAGE_TAKEN_OVER',
+          message: 'Bob (laptop, ~/shop-wt2) took over dev mode for shop-dev.',
+          at: new Date().toISOString()
+        })
+      );
+      await replaced.close();
+
+      for (const [action, args] of [...CHANGES, ['status', {}]] as const) {
+        const output = (await handler({ action, args })).structuredContent;
+        expect(output).toMatchObject({ ok: false, code: 'DEV_STAGE_TAKEN_OVER' });
+        expect(output.message).toContain('Bob (laptop, ~/shop-wt2) took over');
+        expect(output.nextActions?.join(' ')).toContain('args.takeOver=true');
+      }
+      expect((await handler({ action: 'status', args: { devSessionId: replacedId } })).structuredContent.code).toBe(
+        'DEV_STAGE_TAKEN_OVER'
+      );
+      expect(holder.state.changes).toEqual([]);
+
+      // Its ID still reaches the new holder on purpose, and a new start ends the take-over answer.
+      expect(
+        (await handler({ action: 'rebuild', args: { devSessionId: holderId, workload: 'api' } })).structuredContent.ok
+      ).toBe(true);
+      const again = await daemon();
+      try {
+        expect(
+          (await handler({ action: 'start', args: { agentPort: again.port, cwd: project } })).structuredContent.ok
+        ).toBe(true);
+        expect((await handler({ action: 'status' })).structuredContent.code).toBe('AMBIGUOUS_DEV_SESSION');
+      } finally {
+        await again.close();
+      }
+    } finally {
+      await holder.close();
+    }
+  });
+
+  test('sessions stopped elsewhere are dropped before an inferred session is chosen', async () => {
+    const project = await projectDirectory('stopped');
+    const kept = await daemon();
+    const stoppedByCli = await daemon();
+    const tokenGone = await daemon();
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => project });
+      for (const { port } of [kept, stoppedByCli, tokenGone]) {
+        expect((await handler({ action: 'start', args: { agentPort: port, cwd: project } })).structuredContent.ok).toBe(
+          true
+        );
+      }
+      expect((await handler({ action: 'status', args: { cwd: project } })).structuredContent.code).toBe(
+        'AMBIGUOUS_DEV_SESSION'
+      );
+      // `stacktape dev stop` from a terminal: the agent exits. Another stop removes the agent's token file.
+      await stoppedByCli.close();
+      await rm(localStatePaths.devAgentTokenFile({ port: tokenGone.port }));
+
+      const status = (await handler({ action: 'status', args: { cwd: project } })).structuredContent;
+      expect(status).toMatchObject({ ok: true, data: { session: { agentPort: kept.port } } });
+      expect((await handler({ action: 'rebuild', args: { workload: 'api' } })).structuredContent.ok).toBe(true);
+      expect(kept.state.rebuilt).toEqual(['api']);
+      expect(tokenGone.state.changes).toEqual([]);
+    } finally {
+      await kept.close();
+      await stoppedByCli.close();
+      await tokenGone.close();
+    }
+  });
+
+  test('a port that now serves another session does not count as the session that ended there', async () => {
+    // The agent adopts the MCP server's session ID; one that reports another ID started later on the same port.
+    const other = await daemon({ status: { sessionId: 'started-later-on-this-port' } });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, discoverAgents: async () => [] });
+      const started = (await handler({ action: 'start', args: { agentPort: other.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const output = (await handler({ action: 'rebuild_all', args: { devSessionId } })).structuredContent;
+      expect(output).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+      expect(output.message).toContain('now serves another dev session');
+      expect(other.state.changes).toEqual([]);
+    } finally {
+      await other.close();
+    }
+  });
+});
+
+describe('MCP dev start results', () => {
+  test('takeOver reaches the CLI, and a refused start says how to take the stage over', async () => {
+    const received: Array<Record<string, unknown> | undefined> = [];
+    const handler = createDevToolHandler({
+      runCli: async (input) => {
+        received.push(input.args);
+        return {
+          ...(await startedDaemon(input)),
+          ok: false,
+          code: 'DEV_STAGE_RUNNING_ELSEWHERE',
+          message: 'Dev mode for shop-dev already runs in another session: Bob (laptop, ~/shop-wt2).',
+          data: undefined,
+          rawTail: 'the CLI output'
+        };
+      },
+      discoverAgents: async () => []
+    });
+    const refused = (await handler({ action: 'start', args: { stage: 'dev' } })).structuredContent;
+    expect(refused).toMatchObject({ ok: false, code: 'DEV_STAGE_RUNNING_ELSEWHERE', rawTail: 'the CLI output' });
+    expect(refused.nextActions?.join(' ')).toContain('args.takeOver=true');
+    await handler({ action: 'start', args: { stage: 'dev', takeOver: true } });
+    await handler({ action: 'start', args: { stage: 'dev', take_over: true } });
+    expect(received).toEqual([{ stage: 'dev' }, { stage: 'dev', takeOver: true }, { stage: 'dev', takeOver: true }]);
+  });
+
+  test('a successful start leaves out the CLI output meant for people', async () => {
+    const dev = await daemon();
+    try {
+      const handler = createDevToolHandler({
+        runCli: async (input) => ({
+          ...(await startedDaemon(input)),
+          rawTail: 'IMPORTANT: When done, stop the dev agent with:\n  stacktape dev stop --agent-port 7331'
+        })
+      });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      expect(started.ok).toBe(true);
+      expect(started.rawTail).toBeUndefined();
+      expect(JSON.stringify(started)).not.toContain('dev stop');
+    } finally {
+      await dev.close();
+    }
+  });
+});
+
+describe('which queries write', () => {
+  const cases: Array<[Record<string, unknown>, boolean]> = [
+    [{ sql: 'select * from notes' }, false],
+    [{ sql: '  /* list */ SELECT count(*) FROM notes' }, false],
+    [{ sql: '-- comment\nshow tables' }, false],
+    [{ sql: 'explain select 1' }, false],
+    [{ sql: 'describe notes' }, false],
+    [{ sql: 'explain analyze delete from notes' }, true],
+    [{ sql: 'select * into backup from notes' }, true],
+    [{ sql: 'with gone as (delete from notes returning *) select * from gone' }, true],
+    [{ sql: 'insert into notes (text) values (1)' }, true],
+    [{ sql: 'update notes set seen = true where id = 1' }, true],
+    [{ sql: 'truncate notes' }, true],
+    [{ command: 'GET session:1' }, false],
+    [{ command: 'hgetall user:1' }, false],
+    [{ command: 'SET session:1 alive' }, true],
+    [{ command: 'FLUSHALL' }, true],
+    [{ command: 'EVAL "return 1" 0' }, true],
+    [{ pk: { pk: 'user#1' } }, false],
+    [{}, false]
+  ];
+  for (const [args, writes] of cases) {
+    test(`${JSON.stringify(args)} ${writes ? 'writes' : 'reads'}`, () => {
+      expect(isWriteQuery(args)).toBe(writes);
+    });
+  }
 });

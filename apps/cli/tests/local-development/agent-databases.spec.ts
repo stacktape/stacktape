@@ -129,7 +129,10 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), `stacktape-agent-databases-${randomBytes(3).toString('hex')}-`));
   process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(root, 'tokens');
   const started = await startAgent();
+  // The MCP server runs in the project, as a client starts it there: calls without a devSessionId may then reset and
+  // seed the session it finds running.
   const handler = createDevToolHandler({
+    serverDirectory: () => join(root, 'project'),
     discoverAgents: async () => [
       { port: started.port, pid: agent!.pid!, sessionId: 'agentdb-session', projectDirectory: join(root, 'project') }
     ]

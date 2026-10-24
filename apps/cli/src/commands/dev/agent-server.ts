@@ -1559,10 +1559,12 @@ export const buildStartupMessage = (params: {
     lines.push(
       '  Fields: {"ts": "ISO timestamp", "source": "workload name", "level": "info|warn|error", "msg": "..."}'
     );
+    // The examples name this session's log file and its first workload, so they run as printed.
+    const example = workloads[0]?.name ?? databases[0]?.name;
     lines.push('  Examples:');
-    lines.push('    tail -n 50 <logFile>                     # last 50 lines');
-    lines.push('    grep \'"level":"error"\' <logFile>         # errors only');
-    lines.push('    grep \'"source":"apiLambda"\' <logFile>    # specific workload');
+    lines.push(`    tail -n 50 '${logFile}'`);
+    lines.push(`    grep '"level":"error"' '${logFile}'`);
+    if (example) lines.push(`    grep '"source":"${example}"' '${logFile}'`);
     lines.push('');
   }
 

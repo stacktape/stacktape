@@ -1,9 +1,16 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { configManager } from '@domain-services/config-manager';
+import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import {
   findDeployedIdentifier,
   findNonLocalReferences,
   getDeployedDatabaseIdentifiers,
-  getSeedScriptRefusal
+  getSeedScriptRefusal,
+  runSeedScript
 } from './seed-script';
 
 // A seed must never write to a deployed database. `db` runs locally in these cases; `mainDb` is the stage's deployed
@@ -133,4 +140,49 @@ describe('a resolved seed is refused when it contains the address of a deployed 
   for (const [name, values, expected] of cases) {
     test(name, () => expect(findDeployedIdentifier(values, identifiers)).toBe(expected));
   }
+});
+
+// r2l: after a seed script was added to the configuration file, seed answered "The config has no script" although the
+// file had one. The session still runs the configuration it started with, so the answer is that dev mode must restart.
+describe('a script added to the configuration after dev mode started', () => {
+  test('answers CONFIG_CHANGED_RESTART_REQUIRED instead of "no script"', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-seed-config-change-'));
+    const configPath = join(directory, 'stacktape.js');
+    const previous = {
+      config: configManager.config,
+      resolver: configManager.configResolver,
+      configPath: globalStateManager.configPath
+    };
+    try {
+      await writeFile(configPath, 'exports.default = () => ({ resources: {} });\n');
+      const resolver = new ConfigResolver();
+      await resolver.loadRawConfig({
+        context: {
+          configPath,
+          workingDir: directory,
+          authoringParams: { stage: 'dev', region: 'eu-north-1', cliArgs: {}, command: 'dev', awsProfile: '' },
+          builtInDirectives: {}
+        } as unknown as Parameters<ConfigResolver['loadRawConfig']>[0]['context']
+      });
+      configManager.config = resolver.rawConfig;
+      configManager.configResolver = resolver;
+      globalStateManager.configPath = configPath;
+      expect(await runSeedScript('seed')).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+
+      await writeFile(
+        configPath,
+        "exports.default = () => ({ resources: {}, scripts: { seed: { type: 'local-script', properties: { executeCommand: 'echo seeded' } } } });\n"
+      );
+      const changed = await runSeedScript('seed');
+      expect(changed).toMatchObject({ ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED' });
+      expect(changed.ok === false && changed.error).toContain('stacktape.js defines script "seed" now');
+      // A script the file does not define either is still missing.
+      expect(await runSeedScript('migrate')).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+    } finally {
+      configManager.config = previous.config;
+      configManager.configResolver = previous.resolver;
+      globalStateManager.configPath = previous.configPath;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });

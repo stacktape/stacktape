@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
+import { fileURLToPath } from 'node:url';
 import { createMcpServer, serveStacktapeMcp } from './index';
 import type { RunStacktapeResult } from './cli-jsonl-runner';
 import { toToolText } from './tool-output';
@@ -122,7 +123,8 @@ describe('stacktape mcp over stdio', () => {
     for (const name of ['stage', 'region', 'awsAccount', 'cwd', 'resource', 'sql', 'script']) {
       expect(args[name]).toMatchObject({ type: 'string' });
     }
-    for (const name of ['freshDb', 'watch', 'confirm']) expect(args[name]).toMatchObject({ type: 'boolean' });
+    for (const name of ['freshDb', 'watch', 'confirm', 'takeOver'])
+      expect(args[name]).toMatchObject({ type: 'boolean' });
     for (const name of Object.keys(args)) expect(args[name].description, name).toBeTruthy();
 
     await client.callTool({
@@ -138,6 +140,35 @@ describe('stacktape mcp over stdio', () => {
       { action: 'reset_db', args: { resource: 'db', confirm: true, keepTables: ['settings'] } }
     ]);
   });
+
+  // Dev sessions in the client's workspace folders count as the server's own, so a call without a devSessionId may pick
+  // them. Only a 2025-era client can be asked for its roots.
+  for (const { protocolVersion, expected } of [
+    {
+      protocolVersion: '2025-06-18',
+      expected: [fileURLToPath('file:///work/shop'), fileURLToPath('file:///work/shop-wt2')]
+    },
+    { protocolVersion: '2026-07-28', expected: [] }
+  ]) {
+    test(`stacktape_dev learns the roots of a ${protocolVersion} client`, async () => {
+      const seen: string[][] = [];
+      const client = await connect({
+        protocolVersion,
+        capabilities: { roots: {} },
+        runDevAction: async ({ getProjectRoots }) => {
+          seen.push((await getProjectRoots?.()) ?? []);
+          return toToolText({ ok: true, code: 'OK', message: 'ok' });
+        }
+      });
+      if (protocolVersion.startsWith('2025')) {
+        client.setRequestHandler('roots/list', async () => ({
+          roots: [{ uri: 'file:///work/shop', name: 'shop' }, { uri: 'file:///work/shop-wt2' }]
+        }));
+      }
+      await client.callTool({ name: 'stacktape_dev', arguments: { action: 'status' } });
+      expect(seen).toEqual([expected]);
+    });
+  }
 
   test('a 2025-era client confirms a destructive command through its own elicitation form', async () => {
     const runs: string[] = [];

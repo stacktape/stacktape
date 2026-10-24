@@ -1,5 +1,6 @@
 import { publicCommandName } from '../../config/cli/public-names';
 import { basename, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
   CLIENT_INFO_META_KEY,
@@ -42,6 +43,8 @@ import {
 
 const MODERN_MCP_PROTOCOL_VERSION = '2026-07-28';
 const STATIC_DISCOVERY_TTL_MS = 5 * 60 * 1000;
+/** How long the client's roots answer is reused; clients rarely change their workspace folders. */
+const CLIENT_ROOTS_TTL_MS = 30 * 1000;
 
 const TOOL_RESULT_SCHEMA = fromJsonSchema<Record<string, unknown>>({
   type: 'object',
@@ -69,12 +72,20 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
   devSessionId: z
     .string()
     .optional()
-    .describe('Session ID that start returned. Required for stop; other actions infer it when one session is active'),
+    .describe(
+      "Session ID that start returned. Required for stop. Other actions infer it only from this server's own sessions"
+    ),
   cwd: z
     .string()
     .optional()
     .describe(
       'Absolute path of the project directory. plan and start run there; other actions use it to pick the session'
+    ),
+  takeOver: z
+    .boolean()
+    .optional()
+    .describe(
+      'start: move the stage from the session that holds it to this one. Deployed functions then reach this machine, and the other session stops itself'
     ),
   stage: z
     .string()
@@ -229,6 +240,23 @@ export const createMcpServer = (getIndex: () => Promise<LexicalIndex>, dependenc
       }
     }
   );
+
+  // Dev sessions in the client's workspace folders count as this server's own. Only a 2025-era client that declared
+  // roots can be asked: on the 2026-07-28 revision a server sends no requests to the client.
+  let clientRoots: { at: number; roots: Promise<string[]> } | undefined;
+  const getClientRoots = (): Promise<string[]> => {
+    if (!server.server.getClientCapabilities()?.roots) return Promise.resolve([]);
+    if (!clientRoots || Date.now() - clientRoots.at > CLIENT_ROOTS_TTL_MS) {
+      clientRoots = {
+        at: Date.now(),
+        roots: server.server
+          .listRoots(undefined, { timeout: 2000 })
+          .then(({ roots }) => roots.map(({ uri }) => fileURLToPath(uri)))
+          .catch(() => [])
+      };
+    }
+    return clientRoots.roots;
+  };
 
   // ─── Primary Tools ────────────────────────────────────────────────────────
 
@@ -649,7 +677,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
     {
       description: `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, query and reset local databases, read workload environments, call AWS, and stop.
 
-Use this instead of running stacktape dev or stacktape dev stop through Bash, and instead of calling the dev agent's HTTP API. Use action=plan to prepare dev mode without starting it; its data.stacktapeDevStart.arguments is a complete start call. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to stop; other actions may omit it only when exactly one session is active (args.cwd narrows that to one project). Sessions started earlier, also by another MCP server process, are found again. rebuild and rebuild_all answer after the build and deployment finish: ok=false with code REBUILD_FAILED carries the build error and the log file, and CONFIG_CHANGED_RESTART_REQUIRED means the configuration file changed and dev mode must restart.
+Use this instead of running stacktape dev or stacktape dev stop through Bash, and instead of calling the dev agent's HTTP API. Use action=plan to prepare dev mode without starting it; its data.stacktapeDevStart.arguments is a complete start call. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to stop. Other actions may omit it only when exactly one session of this server's projects runs: one this server started, or one whose project directory is the server's working directory or one of the client's roots. rebuild, rebuild_all, reset_db, seed and writing queries never act on a session in another directory without its devSessionId; refusals list each session with its projectDirectory. Sessions started earlier, also by another MCP server process, are found again. When another session takes the stage over, calls keep returning DEV_STAGE_TAKEN_OVER for the replaced session until a start succeeds; they never reach the new holder. start refuses a stage another session holds with DEV_STAGE_RUNNING_ELSEWHERE; args.takeOver=true moves the stage here and stops the other session. rebuild and rebuild_all answer after the build and deployment finish: ok=false with code REBUILD_FAILED carries the build error and the log file, and CONFIG_CHANGED_RESTART_REQUIRED means the configuration file changed and dev mode must restart.
 
 start and status wait up to args.waitSeconds (default 50) and send progress notifications. A first start creates the dev network and the dev stack and takes several minutes: start then returns code DEV_STARTING with the latest progress while the start continues; call status with the devSessionId until it returns the ready status or the start's error. logs returns the newest lines by default; pass args.cursor (the previous nextCursor) for new lines only, args.level (info, warn, error) for a minimum level, args.since (ISO time or 10m) and args.workload to filter. Lines with source "dev" are dev mode's own lifecycle: rebuilds, file changes, dev stack updates, dev box state, resets and seeds.
 
@@ -666,7 +694,8 @@ Database actions reach only the databases dev mode runs on this machine, never d
         args,
         signal: ctx.mcpReq.signal,
         clientName: getAdvisoryClientName(ctx),
-        onProgress: createProgressReporter(ctx)
+        onProgress: createProgressReporter(ctx),
+        getProjectRoots: getClientRoots
       })
   );
 
