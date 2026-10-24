@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { createMcpServer, serveStacktapeMcp } from './index';
 import type { RunStacktapeResult } from './cli-jsonl-runner';
+import { toToolText } from './tool-output';
 
 // Drives the exact stdio serving path `stacktape mcp` uses, with each protocol era a real client can negotiate.
 // Most clients (Codex, Cursor, VS Code, Windsurf, Claude Code without feature flags) still speak a 2025-era revision.
@@ -26,7 +27,8 @@ const successfulRun = (cwd: string): RunStacktapeResult => ({
 const connect = async ({
   protocolVersion,
   capabilities,
-  onRun = () => {}
+  onRun = () => {},
+  runDevAction
 }: {
   protocolVersion: string;
   capabilities: ConstructorParameters<typeof Client>[1] extends infer Options
@@ -35,6 +37,7 @@ const connect = async ({
       : never
     : never;
   onRun?: (command: string) => void;
+  runDevAction?: NonNullable<Parameters<typeof createMcpServer>[1]>['runDevAction'];
 }) => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const handle = serveStacktapeMcp(
@@ -47,7 +50,8 @@ const connect = async ({
           runCli: async ({ command, cwd }) => {
             onRun(command);
             return successfulRun(cwd || process.cwd());
-          }
+          },
+          runDevAction
         }
       ),
     serverTransport
@@ -93,6 +97,47 @@ describe('stacktape mcp over stdio', () => {
       ]);
     });
   }
+
+  test('a client sees typed stacktape_dev arguments and its typed values reach the dev tool', async () => {
+    const received: unknown[] = [];
+    const client = await connect({
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      runDevAction: async ({ action, args }) => {
+        received.push({ action, args });
+        return toToolText({ ok: true, code: 'OK', message: 'ok' });
+      }
+    });
+    const devTool = (await client.listTools()).tools.find(({ name }) => name === 'stacktape_dev')!;
+    const schema = devTool.inputSchema as unknown as {
+      properties: {
+        action: { enum: string[] };
+        args: { properties: Record<string, { type?: string; description?: string }> };
+      };
+    };
+    expect(schema.properties.action.enum).toEqual(
+      expect.arrayContaining(['query', 'tables', 'env', 'aws', 'reset_db', 'seed'])
+    );
+    const args = schema.properties.args.properties;
+    for (const name of ['stage', 'region', 'awsAccount', 'cwd', 'resource', 'sql', 'script']) {
+      expect(args[name]).toMatchObject({ type: 'string' });
+    }
+    for (const name of ['freshDb', 'watch', 'confirm']) expect(args[name]).toMatchObject({ type: 'boolean' });
+    for (const name of Object.keys(args)) expect(args[name].description, name).toBeTruthy();
+
+    await client.callTool({
+      name: 'stacktape_dev',
+      arguments: { action: 'reset_db', args: { resource: 'db', confirm: true, keepTables: ['settings'] } }
+    });
+    const rejected = await client.callTool({
+      name: 'stacktape_dev',
+      arguments: { action: 'reset_db', args: { confirm: 'yes' } }
+    });
+    expect(rejected.isError).toBeTrue();
+    expect(received).toEqual([
+      { action: 'reset_db', args: { resource: 'db', confirm: true, keepTables: ['settings'] } }
+    ]);
+  });
 
   test('a 2025-era client confirms a destructive command through its own elicitation form', async () => {
     const runs: string[] = [];

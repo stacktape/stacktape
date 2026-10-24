@@ -25,7 +25,16 @@ import type {
   LocalScriptWithBastionTunneling
 } from '@stacktape/config/shared';
 
-export const getExecutableScriptFunction = (props: { scriptDefinition: Script; hookTrigger?: string }) => {
+export const getExecutableScriptFunction = (props: {
+  scriptDefinition: Script;
+  hookTrigger?: string;
+  /** Receives a local script's output lines; the script's own stdio setting is then ignored. */
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+  /** Sees a local script's environment and commands after its directives resolved; throws to stop it before it runs. */
+  checkResolved?: (resolved: { env: Record<string, unknown>; commands: string[] }) => void;
+  /** Stops a local script that runs longer than this, all of its commands together. */
+  timeoutMs?: number;
+}) => {
   const { scriptDefinition } = props;
   validateScript(scriptDefinition);
   if (scriptDefinition.type === 'local-script' || scriptDefinition.type === 'local-script-with-bastion-tunneling') {
@@ -138,10 +147,16 @@ const getBastionScriptExecutionFn = ({
 
 const getLocalScriptExecutionFn = ({
   scriptDefinition,
-  hookTrigger
+  hookTrigger,
+  onOutputLine: forwardOutputLine,
+  checkResolved,
+  timeoutMs
 }: {
   scriptDefinition: (LocalScript | LocalScriptWithBastionTunneling) & { scriptName: string };
   hookTrigger?: string;
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+  checkResolved?: (resolved: { env: Record<string, unknown>; commands: string[] }) => void;
+  timeoutMs?: number;
 }) => {
   return async ({ errorData, hookType }: ScriptFn) => {
     const resolvedScriptDefinition = (await configManager.resolveDirectives({
@@ -206,7 +221,24 @@ const getLocalScriptExecutionFn = ({
       });
     }
 
-    const stdioMode = resolveScriptStdioMode(resolvedScriptDefinition.properties);
+    const stdioMode = forwardOutputLine ? 'capture' : resolveScriptStdioMode(resolvedScriptDefinition.properties);
+    const getEnv = () =>
+      getScriptEnv({
+        userDefinedEnv: userDefinedEnvVars,
+        connectToEnv: connectToEnvVars,
+        command: globalStateManager.command,
+        fullHookTrigger: hookTrigger,
+        errorData,
+        hookType,
+        assumedRoleAWSEnvVars
+      });
+    try {
+      checkResolved?.({ env: getEnv(), commands: executeSequence });
+    } catch (error) {
+      await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
+      throw error;
+    }
+    const deadline = timeoutMs === undefined ? undefined : Date.now() + timeoutMs;
 
     const scriptDisplayName = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
     const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
@@ -235,6 +267,7 @@ const getLocalScriptExecutionFn = ({
               lines: [line],
               stream
             });
+            forwardOutputLine?.(line, stream);
           }
         : undefined;
 
@@ -251,20 +284,28 @@ const getLocalScriptExecutionFn = ({
       });
 
       try {
-        const env = getScriptEnv({
-          userDefinedEnv: userDefinedEnvVars,
-          connectToEnv: connectToEnvVars,
-          command: globalStateManager.command,
-          fullHookTrigger: hookTrigger,
-          errorData,
-          hookType,
-          assumedRoleAWSEnvVars
-        });
+        const env = getEnv();
         const cwd = getScriptCwd(resolvedScriptDefinition);
+        // At least 1 ms: a timeout of 0 would mean no limit.
+        const remainingMs = deadline === undefined ? undefined : Math.max(1, deadline - Date.now());
         const run = () =>
           commandOrScript === 'command'
-            ? executeCommandHook({ command: commandOrScriptToExecute, env, cwd, stdioMode, onOutputLine })
-            : executeScriptHook({ env, filePath: commandOrScriptToExecute, cwd, stdioMode, onOutputLine });
+            ? executeCommandHook({
+                command: commandOrScriptToExecute,
+                env,
+                cwd,
+                stdioMode,
+                onOutputLine,
+                timeoutMs: remainingMs
+              })
+            : executeScriptHook({
+                env,
+                filePath: commandOrScriptToExecute,
+                cwd,
+                stdioMode,
+                onOutputLine,
+                timeoutMs: remainingMs
+              });
         await (stdioMode === 'inherit' ? tuiManager.withTerminalLease(run) : run());
       } catch (err) {
         operationReporter.finishEvent({

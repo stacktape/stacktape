@@ -107,18 +107,136 @@ const devApiRequest: DevApiRequest = async ({ port, method, path, body }) => {
 };
 
 /**
- * A rebuild's own outcome: the agent answers after the build and deployment finished, so a failed build or a changed
- * configuration comes back as `ok: false` with its code, error and log file.
+ * The agent's answer as tool output: its own ok, code and message, with the session. A rebuild answers after the build
+ * and deployment finished, so a failed build or a changed configuration comes back as `ok: false` with its code, error
+ * and log file.
  */
-const toRebuildOutput = (response: Record<string, unknown>, session: DevSession): ToolOutput => {
+const toAgentOutput = (
+  response: Record<string, unknown>,
+  session: DevSession,
+  messages: { ok: string; failed: string }
+): ToolOutput => {
   const { ok, code, message, ...data } = response;
   const succeeded = ok === true;
   return {
     ok: succeeded,
     code: typeof code === 'string' ? code : succeeded ? 'OK' : 'INTERNAL_ERROR',
-    message: typeof message === 'string' ? message : succeeded ? 'Rebuilt.' : 'Rebuild failed.',
+    message: typeof message === 'string' && message !== 'OK' ? message : succeeded ? messages.ok : messages.failed,
     data: { session, ...data }
   };
+};
+
+export const DEV_TOOL_ACTIONS = [
+  'plan',
+  'start',
+  'status',
+  'logs',
+  'rebuild',
+  'rebuild_all',
+  'query',
+  'tables',
+  'env',
+  'aws',
+  'reset_db',
+  'seed',
+  'stop'
+] as const;
+export type DevToolAction = (typeof DEV_TOOL_ACTIONS)[number];
+
+type LocalDatabase = { name: string; type: string };
+
+/** The agent's database routes by local resource type; MariaDB uses the MySQL routes. */
+const DATABASE_ROUTE: Record<string, string> = {
+  postgres: 'postgres',
+  mysql: 'mysql',
+  mariadb: 'mysql',
+  redis: 'redis',
+  dynamodb: 'dynamodb',
+  opensearch: 'opensearch'
+};
+
+/**
+ * Picks the local database a database action addresses: the named one, or the only one the session runs. The agent
+ * reports only databases it runs on this machine, so a resource connected to AWS with remoteResources is never chosen.
+ */
+const selectLocalDatabase = (
+  databases: LocalDatabase[],
+  requested: string | undefined
+): { ok: true; database: LocalDatabase } | { ok: false; output: ToolOutput } => {
+  const available = databases.map(({ name, type }) => ({ name, type }));
+  const database = requested
+    ? databases.find(({ name }) => name === requested)
+    : databases.length === 1
+      ? databases[0]
+      : undefined;
+  if (database) return { ok: true, database };
+  return {
+    ok: false,
+    output: requested
+      ? {
+          ok: false,
+          code: 'NOT_LOCAL_RESOURCE',
+          message: `"${requested}" is not a database this dev session runs locally. Database actions reach local databases only, never deployed ones.`,
+          data: { localDatabases: available }
+        }
+      : {
+          ok: false,
+          code: databases.length ? 'VALIDATION_ERROR' : 'NOT_FOUND',
+          message: databases.length
+            ? `Specify args.resource: this dev session runs ${databases.map(({ name }) => name).join(', ')} locally.`
+            : 'This dev session runs no local databases.',
+          data: { localDatabases: available }
+        }
+  };
+};
+
+/** What `query` sends to the agent for a database of each type. */
+const buildDatabaseQuery = (
+  database: LocalDatabase,
+  args: Record<string, unknown>
+): { ok: true; method: 'POST'; path: string; body: Record<string, unknown> } | { ok: false; message: string } => {
+  const route = DATABASE_ROUTE[database.type];
+  const base = `/${route}/${encodeURIComponent(database.name)}`;
+  const limit = typeof args.limit === 'number' ? args.limit : undefined;
+  const confirm = args.confirm === true ? true : undefined;
+  if (route === 'postgres' || route === 'mysql') {
+    if (typeof args.sql !== 'string' || !args.sql.trim()) {
+      return { ok: false, message: `args.sql is required to query ${database.type} database "${database.name}".` };
+    }
+    return { ok: true, method: 'POST', path: `${base}/query`, body: { sql: args.sql, limit, confirm } };
+  }
+  if (route === 'redis') {
+    if (typeof args.command !== 'string' || !args.command.trim()) {
+      return {
+        ok: false,
+        message: `args.command (for example "GET key") is required to query Redis "${database.name}".`
+      };
+    }
+    return { ok: true, method: 'POST', path: `${base}/command`, body: { cmd: args.command, confirm } };
+  }
+  if (route === 'dynamodb') {
+    return args.pk === undefined
+      ? { ok: true, method: 'POST', path: `${base}/scan`, body: { filter: args.filter, limit } }
+      : {
+          ok: true,
+          method: 'POST',
+          path: `${base}/query`,
+          body: { pk: args.pk, sk: args.sk, index: args.index, limit }
+        };
+  }
+  return {
+    ok: false,
+    message: `query supports PostgreSQL, MySQL, Redis and DynamoDB; "${database.name}" is ${database.type}.`
+  };
+};
+
+/** Where `tables` reads what a database of each type holds: tables, keys, the table's schema or the indices. */
+const TABLES_PATH: Record<string, string> = {
+  postgres: '/tables',
+  mysql: '/tables',
+  redis: '/keys?pattern=*&limit=100',
+  dynamodb: '/schema',
+  opensearch: '/indices'
 };
 
 const forgetDevSession = (activeDevSessions: Map<string, DevSession>, session: DevSession) => {
@@ -435,13 +553,13 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
         : `Dev-mode plan is missing required argument(s): ${missingArgs.join(', ')}.`,
     data: {
       action: 'start',
-      args: startArgs,
+      args: { ...startArgs, cwd: scan.cwd },
+      // Exactly what `start` accepts: the project directory is an argument like the others.
       stacktapeDevStart: {
         tool: 'stacktape_dev',
         arguments: {
           action: 'start',
-          cwd: scan.cwd,
-          args: startArgs
+          args: { ...startArgs, cwd: scan.cwd }
         }
       },
       resolvedContext: {
@@ -522,7 +640,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     clientName,
     onProgress
   }: {
-    action: 'plan' | 'start' | 'status' | 'logs' | 'rebuild' | 'rebuild_all' | 'stop';
+    action: DevToolAction;
     args?: Record<string, unknown>;
     signal?: AbortSignal;
     clientName?: string;
@@ -827,7 +945,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         path: `/rebuild/${encodeURIComponent(workload)}`,
         body: {}
       });
-      return toToolText(toRebuildOutput(response, sessionResult.session));
+      return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
     }
 
     if (action === 'rebuild_all') {
@@ -837,7 +955,166 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         path: '/rebuild/all',
         body: {}
       });
-      return toToolText(toRebuildOutput(response, sessionResult.session));
+      return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
+    }
+
+    if (action === 'query' || action === 'tables') {
+      const status = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true' });
+      const databases = (
+        (Array.isArray(status.localResources) ? status.localResources : []) as Record<string, unknown>[]
+      ).filter(
+        (resource): resource is LocalDatabase =>
+          typeof resource?.name === 'string' && typeof resource?.type === 'string' && resource.type in DATABASE_ROUTE
+      );
+      const requested = typeof toolArgs.resource === 'string' ? toolArgs.resource : undefined;
+
+      if (action === 'tables' && !requested) {
+        const results = await Promise.all(
+          databases.map(async (database) => {
+            const {
+              ok,
+              code: _code,
+              message,
+              ...data
+            } = await requestDevApi({
+              port,
+              method: 'GET',
+              path: `/${DATABASE_ROUTE[database.type]}/${encodeURIComponent(database.name)}${TABLES_PATH[DATABASE_ROUTE[database.type]]}`
+            });
+            return { resource: database.name, type: database.type, ok, ...(ok ? {} : { message }), ...data };
+          })
+        );
+        return toToolText({
+          ok: results.every(({ ok }) => ok === true),
+          code: results.every(({ ok }) => ok === true) ? 'OK' : 'PARTIAL_FAILURE',
+          message: results.length
+            ? `Listed the contents of ${results.length} local database(s).`
+            : 'This dev session runs no local databases.',
+          data: { session: sessionResult.session, databases: results }
+        });
+      }
+
+      const selected = selectLocalDatabase(databases, requested);
+      if (selected.ok === false)
+        return toToolText({ ...selected.output, data: { session: sessionResult.session, ...selected.output.data } });
+      const { database } = selected;
+      const base = `/${DATABASE_ROUTE[database.type]}/${encodeURIComponent(database.name)}`;
+
+      if (action === 'tables') {
+        const response = await requestDevApi({
+          port,
+          method: 'GET',
+          path: `${base}${TABLES_PATH[DATABASE_ROUTE[database.type]]}`
+        });
+        return toToolText(
+          toAgentOutput({ ...response, resource: database.name, type: database.type }, sessionResult.session, {
+            ok: `Listed the contents of ${database.name}.`,
+            failed: `Failed to list the contents of ${database.name}.`
+          })
+        );
+      }
+
+      const request = buildDatabaseQuery(database, toolArgs);
+      if (request.ok === false) {
+        return toToolText({ ok: false, code: 'VALIDATION_ERROR', message: request.message });
+      }
+      const response = await requestDevApi({ port, method: request.method, path: request.path, body: request.body });
+      const output = toAgentOutput(
+        { ...response, resource: database.name, type: database.type },
+        sessionResult.session,
+        {
+          ok: `Queried ${database.name}.`,
+          failed: `Query on ${database.name} failed.`
+        }
+      );
+      return toToolText(
+        output.code === 'DESTRUCTIVE_OPERATION'
+          ? {
+              ...output,
+              nextActions: [
+                'The statement deletes or changes data in bulk. Repeat it with args.confirm=true only if that is intended.'
+              ]
+            }
+          : output
+      );
+    }
+
+    if (action === 'env') {
+      const workload = typeof toolArgs.workload === 'string' ? toolArgs.workload : undefined;
+      if (!workload) {
+        return toToolText({ ok: false, code: 'VALIDATION_ERROR', message: 'Missing required args.workload for env.' });
+      }
+      const response = await requestDevApi({ port, method: 'GET', path: `/env/${encodeURIComponent(workload)}` });
+      return toToolText(
+        toAgentOutput(response, sessionResult.session, {
+          ok: `Fetched the environment of ${workload}; secret values are masked.`,
+          failed: `Failed to fetch the environment of ${workload}.`
+        })
+      );
+    }
+
+    if (action === 'aws') {
+      const { service, command, input, region } = toolArgs;
+      if (typeof service !== 'string' || typeof command !== 'string') {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message:
+            'args.service and args.command are required for aws, for example service "logs" and command "FilterLogEvents".'
+        });
+      }
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: '/aws/sdk',
+        body: { service, command, input, region }
+      });
+      return toToolText(
+        toAgentOutput(response, sessionResult.session, {
+          ok: `Called ${service} ${command}.`,
+          failed: `${service} ${command} failed.`
+        })
+      );
+    }
+
+    if (action === 'reset_db') {
+      const resource = typeof toolArgs.resource === 'string' ? toolArgs.resource : 'all';
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: `/reset/${encodeURIComponent(resource)}`,
+        body: { confirm: toolArgs.confirm === true, keepTables: toolArgs.keepTables }
+      });
+      const output = toAgentOutput(response, sessionResult.session, {
+        ok: 'Reset the local databases.',
+        failed: 'Reset failed.'
+      });
+      return toToolText(
+        output.code === 'DESTRUCTIVE_OPERATION'
+          ? {
+              ...output,
+              nextActions: [
+                `reset_db deletes every row of ${resource === 'all' ? 'all local databases' : resource} and keeps the schema and migration history. Repeat with args.confirm=true.`
+              ]
+            }
+          : output
+      );
+    }
+
+    if (action === 'seed') {
+      const script = typeof toolArgs.script === 'string' ? toolArgs.script : 'seed';
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: `/scripts/${encodeURIComponent(script)}/run`,
+        body: typeof toolArgs.timeoutSeconds === 'number' ? { timeoutSeconds: toolArgs.timeoutSeconds } : {}
+      });
+      return toToolText(
+        toAgentOutput(response, sessionResult.session, {
+          ok: `Ran script ${script} against the local databases.`,
+          failed: `Script ${script} failed.`
+        })
+      );
     }
 
     if (action === 'stop') {
