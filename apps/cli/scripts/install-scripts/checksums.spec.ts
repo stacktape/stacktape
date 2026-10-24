@@ -24,5 +24,10 @@ describe('published install scripts', () => {
     expect(assets.find(({ key }) => key === '_data.json')?.contentType).toBe('application/json');
     expect(assets.find(({ key }) => key === 'linux.sh')?.contentType).toBe('application/x-sh');
     expect(assets.find(({ key }) => key === 'windows.ps1')?.contentType).toBe('application/octet-stream');
+    // Each path serves one of two scripts, which installs the build for the machine it runs on.
+    const body = (key: string) => assets.find((asset) => asset.key === key)!.body.toString();
+    for (const key of ['alpine.sh', 'linux-arm.sh', 'macos-arm.sh', 'macos.sh'])
+      expect(body(key)).toBe(body('linux.sh'));
+    expect(body('windows-arm.ps1')).toBe(body('windows.ps1'));
   });
 });
