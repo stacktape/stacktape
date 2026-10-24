@@ -12,6 +12,7 @@ import type {
 } from 'react-select';
 import ReactSelect, { components, createFilter } from 'react-select';
 import { createContext, useContext, useMemo } from 'react';
+import { BiCheck } from 'react-icons/bi';
 import { Tooltip } from '../tooltip/Tooltip';
 
 export type SelectInputActionMeta = InputActionMeta;
@@ -147,6 +148,8 @@ function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Valu
             <span className="stp-ui-select__option-description">{option.description}</span>
           ) : null}
         </span>
+        {/* The chosen option: bold, filled and checked, the same three marks every menu uses. */}
+        {optionProps.isSelected ? <BiCheck aria-hidden className="stp-ui-select__option-check" size={16} /> : null}
       </span>
     </components.Option>
   );
@@ -414,14 +417,15 @@ function createStyles<Value>({
       // As wide as the longest option (within reason), so a long project name in a 200px filter stays on one line.
       width: 'max-content',
       minWidth: '100%',
-      maxWidth: 'min(420px, var(--stp-select-menu-max-width, 420px))',
-      marginBlock: 3,
-      padding: 3,
+      maxWidth: 'min(var(--stp-menu-max-width), var(--stp-select-menu-max-width, 100vw))',
+      // The shared menu surface and gap (`--stp-menu-*` in styles.css), the same as every other menu.
+      marginBlock: 'var(--stp-menu-gap)',
+      padding: 'var(--stp-menu-padding)',
       overflow: 'hidden',
-      border: '1px solid var(--stp-border-subtle)',
-      borderRadius: 'var(--stp-radius-large)',
-      background: 'var(--stp-surface-modal)',
-      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45)'
+      border: 'var(--stp-menu-border)',
+      borderRadius: 'var(--stp-menu-radius)',
+      background: 'var(--stp-menu-background)',
+      boxShadow: 'var(--stp-menu-shadow)'
     }),
     menuList: (base) => ({ ...base, padding: 0, color: 'var(--stp-text-primary)' }),
     // The menu may be wider than its control, but never past the window's right edge.
@@ -447,21 +451,20 @@ function createStyles<Value>({
     noOptionsMessage: (base) => ({ ...base, color: 'var(--stp-text-muted)' }),
     option: (base, state) => ({
       ...base,
-      margin: 2,
-      width: 'calc(100% - 4px)',
-      padding: '0 8px',
-      borderRadius: 'var(--stp-radius-medium)',
+      margin: '1px 0',
+      padding: 'var(--stp-menu-item-padding)',
+      borderRadius: 'var(--stp-menu-item-radius)',
       background: state.isSelected
-        ? 'rgba(255, 255, 255, 0.09)'
+        ? 'var(--stp-menu-item-selected)'
         : state.isFocused
-          ? 'rgba(255, 255, 255, 0.05)'
+          ? 'var(--stp-menu-item-hover)'
           : 'transparent',
       color: 'var(--stp-text-primary)',
       // The chosen option differs from the hovered one by weight as well as by fill.
       fontWeight: state.isSelected ? 700 : undefined,
       cursor: state.isDisabled ? 'not-allowed' : 'pointer',
       // A press keeps the hover fill instead of react-select's light-blue flash.
-      ':active': { background: state.isSelected ? 'rgba(255, 255, 255, 0.09)' : 'rgba(255, 255, 255, 0.05)' }
+      ':active': { background: state.isSelected ? 'var(--stp-menu-item-selected)' : 'var(--stp-menu-item-hover)' }
     }),
     placeholder: (base) => ({ ...base, marginLeft: 0, color: 'var(--stp-text-faint)' }),
     singleValue: (base) => ({ ...base, marginLeft: 0, color: 'var(--stp-text-primary)' }),
