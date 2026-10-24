@@ -14,6 +14,7 @@ import {
   isResourceTypeRemoteOnlyInDevMode
 } from '@domain-services/config-manager/dev-mode';
 
+import { getVpcLambdaSecurityGroup } from './lambda-security-groups';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 export const getConnectToReferencesForResource = ({
@@ -32,18 +33,18 @@ export const getConnectToReferencesForResource = ({
     ...activeConfig.agentCoreRuntimes
   ].forEach((scopingResource) => {
     const { name, connectTo, type } = scopingResource;
-    if (connectTo) {
-      connectTo.forEach((scopedStpResource) => {
-        if (scopedStpResource === resourceReferenceableName) {
-          result.push({
-            scopingResource,
-            scopingCfLogicalNameOfSecurityGroup:
-              type === 'batch-job'
-                ? cfLogicalNames.batchInstanceDefaultSecurityGroup()
-                : cfLogicalNames.workloadSecurityGroup(name)
-          });
-        }
-      });
+    if (!connectTo?.includes(resourceReferenceableName)) {
+      return;
+    }
+    const scopingCfLogicalNameOfSecurityGroup =
+      type === 'function'
+        ? getVpcLambdaSecurityGroup({ lambda: scopingResource, activeConfig }).cfLogicalName
+        : type === 'batch-job'
+          ? cfLogicalNames.batchInstanceDefaultSecurityGroup()
+          : cfLogicalNames.workloadSecurityGroup(name);
+    // Workloads that share a security group need one ingress rule; EC2 rejects duplicate rules.
+    if (!result.some((entry) => entry.scopingCfLogicalNameOfSecurityGroup === scopingCfLogicalNameOfSecurityGroup)) {
+      result.push({ scopingResource, scopingCfLogicalNameOfSecurityGroup });
     }
   });
   return result;

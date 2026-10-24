@@ -1185,6 +1185,13 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::ServiceDiscovery::Service' }
     });
   },
+  /** The stack's security group for VPC functions; `scopeId` names the group of functions with the same connections. */
+  vpcFunctionsSecurityGroup(scopeId?: string) {
+    return buildCfLogicalName({
+      specifier: { type: `VpcFunctions${scopeId ?? ''}` },
+      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
+    });
+  },
   workloadSecurityGroup(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,
