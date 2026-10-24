@@ -28,6 +28,22 @@ export const releasePorts = (ports: Iterable<number>): void => {
 /** Check if a port is in the global reserved set. */
 export const isPortReserved = (port: number): boolean => globalReservedPorts.has(port);
 
+/**
+ * The port a container workload listens on, which dev mode passes as `PORT`. Docker maps the allocated host port to the
+ * container port, so the workload keeps its configured port. The host network (native Linux) has no mapping: there the
+ * workload must listen on the allocated host port itself, or a moved port is never served and the container collides
+ * with whatever holds the default one.
+ */
+export const getContainerListenPort = ({
+  containerPort,
+  hostPort,
+  hostNetwork
+}: {
+  containerPort?: number;
+  hostPort?: number;
+  hostNetwork: boolean;
+}): number | undefined => (hostNetwork ? hostPort || containerPort : containerPort || hostPort);
+
 /** How long to cache port availability results (ms) */
 const PORT_CACHE_TTL_MS = DEV_CONFIG.devServer?.portCacheTtlMs ?? 1000;
 

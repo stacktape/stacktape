@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { databaseContainerName, findOwnedContainers, resolveOptions } from './dev-mode-canary';
+import { containerHostPort, databaseContainerName, findOwnedContainers, resolveOptions } from './dev-mode-canary';
 
 const valid = {
   STP_AWS_DEV_CANARY_DEPLOY: '1',
@@ -66,5 +66,27 @@ describe('dev-mode canary container discovery', () => {
     ]
   ])('treats an unknown container state as a failure when %s', (_name, docker) => {
     expect(() => findOwnedContainers(run, state, docker)).toThrow('container state is unknown');
+  });
+});
+
+describe('dev-mode canary container host port', () => {
+  // `inspect` answers "<running> <network mode> <PORT>"; `port` answers the published mapping.
+  const docker =
+    (inspect: { exitCode: number; stdout: string }, port = { exitCode: 0, stdout: '127.0.0.1:3001\n[::1]:3001' }) =>
+    (args: string[]) =>
+      args[0] === 'inspect' ? inspect : port;
+
+  test.each([
+    ['a published port (Docker Desktop)', docker({ exitCode: 0, stdout: 'true bridge 3000' }), 3001],
+    ['the host network (native Linux), which serves on PORT', docker({ exitCode: 0, stdout: 'true host 3002' }), 3002],
+    ['a container that is not running yet', docker({ exitCode: 0, stdout: 'false bridge 3000' }), undefined],
+    ['a container that does not exist yet', docker({ exitCode: 1, stdout: '' }), undefined],
+    [
+      'a bridge container without a published port',
+      docker({ exitCode: 0, stdout: 'true bridge 3000' }, { exitCode: 1, stdout: '' }),
+      undefined
+    ]
+  ])('reads %s', (_name, run, expected) => {
+    expect(containerHostPort('api', 3000, run)).toBe(expected);
   });
 });
