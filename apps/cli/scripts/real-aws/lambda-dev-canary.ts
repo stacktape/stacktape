@@ -44,6 +44,7 @@ import {
   TerminateSessionCommand
 } from '@aws-sdk/client-ssm';
 import { getDevNetworkLeaseParameterPrefix, getDevNetworkStackName } from '@stacktape/naming/shared-stacks';
+import { localStatePaths } from '../../src/config/local-state-paths';
 
 const check: (value: unknown, message: string) => asserts value = (value, message) => {
   if (!value) throw new Error(message);
@@ -75,9 +76,16 @@ export const resolveLambdaDevOptions = (env: Record<string, string | undefined> 
   // Concurrent runs of different tasks use different regions, so their dev networks and quotas do not meet.
   const region = env[`${PREFIX}REGION`] ?? 'eu-west-1';
   check(region === 'eu-west-1' || region === 'eu-central-1', 'The region must be eu-west-1 or eu-central-1.');
+  // A task can name its dev network; the run checks that the name is free before creating anything.
+  const networkSuffix = env[`${PREFIX}NETWORK_SUFFIX`];
+  check(
+    !networkSuffix || /^[a-z0-9]{1,16}$/.test(networkSuffix),
+    'The network suffix must be 1-16 lowercase letters or digits.'
+  );
   return {
     accountId,
     stateFile,
+    networkSuffix,
     owner,
     reportFile,
     region,
@@ -112,9 +120,9 @@ export const validateLambdaDevRecoveryState = (value: unknown, options: Options)
   );
   check(
     typeof candidate.projectName === 'string' &&
-      typeof candidate.networkSuffix === 'string' &&
-      /^[a-f0-9]{8}$/.test(candidate.networkSuffix) &&
-      candidate.projectName === `v4lambdadev-${candidate.networkSuffix}`,
+      /^v4lambdadev-[a-f0-9]{8}$/.test(candidate.projectName) &&
+      // The network is the run's own suffix, or the project's id when the run named none.
+      candidate.networkSuffix === (options.networkSuffix ?? candidate.projectName.slice('v4lambdadev-'.length)),
     'Recovery resource names differ from this run.'
   );
   check(
@@ -229,7 +237,37 @@ const redisPing = (url: string) =>
     socket.once('error', reject);
   });
 
-export const handler = async (event: { op: 'db' | 'ping' | 'cache' | 'egress' }) => {
+// A connection kept across invocations, like a pool: it must end when another session takes the stage over.
+const environmentId = Math.random().toString(36).slice(2);
+let pooled: Client | undefined;
+let pooledBroken = false;
+const pooledValue = async () => {
+  let reconnected = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (pooled && pooledBroken) {
+      pooled.end().catch(() => {});
+      pooled = undefined;
+      reconnected = true;
+    }
+    if (!pooled) {
+      const client = new Client({ connectionString: process.env.STP_DB_CONNECTION_STRING, connectionTimeoutMillis: 8000 });
+      client.on('error', () => (pooledBroken = true));
+      await client.connect();
+      pooled = client;
+      pooledBroken = false;
+    }
+    try {
+      const { rows } = await pooled.query('select value from dev_values');
+      return { value: rows[0].value, reconnected, environmentId };
+    } catch (error) {
+      pooledBroken = true;
+      if (attempt) throw error;
+    }
+  }
+};
+
+export const handler = async (event: { op: 'db' | 'ping' | 'cache' | 'egress' | 'pooled' }) => {
+  if (event.op === 'pooled') return pooledValue();
   if (event.op === 'cache') return { reply: await redisPing(process.env.STP_CACHE_CONNECTION_STRING!) };
   if (event.op === 'ping') {
     const db = new Client({ connectionString: process.env.STP_DB_CONNECTION_STRING, connectionTimeoutMillis: 8000 });
@@ -613,7 +651,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       owner: options.owner,
       region: options.region,
       projectName: `v4lambdadev-${suffix}`,
-      networkSuffix: suffix,
+      networkSuffix: options.networkSuffix ?? suffix,
       directory: await mkdtemp(join(tmpdir(), 'stacktape-lambda-dev-')),
       createAttempted: false
     };
@@ -758,8 +796,12 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       );
       check((await stackStatus(networkName(state)))?.endsWith('_COMPLETE'), 'The refused delete changed the network.');
 
-      // `--takeOver` moves the stage to the second machine once: its database answers the deployed functions, and
-      // the first session does not take the ports back.
+      // `--takeOver` moves the stage to the second machine once: its database answers the deployed functions, a warm
+      // function's pooled connection to the first machine is closed, and the first session stops itself.
+      // A reason left by an earlier run on this port must not pass for this session's.
+      await rm(localStatePaths.devAgentStopReasonFile({ port: agentPort }), { force: true });
+      const pooledBefore = await invoke(state, 'queryArm', { op: 'pooled' });
+      check(pooledBefore.value === 'edited', `The pooled connection read ${JSON.stringify(pooledBefore)}.`);
       const takeOverSince = Math.floor(Date.now() / 1000) - 120;
       const takeOver = await startAgent(options, state, secondMachinePort, STAGE, {
         directory: secondMachine,
@@ -795,6 +837,33 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
         async () => check((await invoke(state!, 'queryArm', { op: 'db' })).value === 'second-machine', 'not yet'),
         60_000
       );
+      const pooledAfter = await invoke(state, 'queryArm', { op: 'pooled' });
+      report.pooledAfterTakeOver = pooledAfter;
+      check(
+        pooledAfter.environmentId === pooledBefore.environmentId,
+        `Lambda replaced the warm environment, so the pooled connection proves nothing: ${JSON.stringify(pooledAfter)}.`
+      );
+      check(
+        pooledAfter.value === 'second-machine' && pooledAfter.reconnected === true,
+        `The warm pooled connection still reached the first machine: ${JSON.stringify(pooledAfter)}.`
+      );
+      const firstAgentGone = await waitUntil(
+        'the first session to stop itself',
+        async () => {
+          const stopped = JSON.parse(
+            await readFile(localStatePaths.devAgentStopReasonFile({ port: agentPort }), 'utf8')
+          ) as { code?: string; message?: string; pid?: number };
+          check(stopped.code === 'DEV_STAGE_TAKEN_OVER', 'no reason yet');
+          check(stopped.pid && !existsSync(`/proc/${stopped.pid}`), 'still running');
+          return stopped;
+        },
+        60_000
+      );
+      report.firstSessionStopReason = firstAgentGone.message;
+      check(
+        firstAgentGone.message?.includes(secondMachine),
+        `The stop reason does not name the second machine's session: ${firstAgentGone.message}`
+      );
       await sleep(20_000);
       const relayTakeOvers = await readRelayTakeOvers(takeOverSince);
       report.relayTakeOversAfterTakeOver = relayTakeOvers;
@@ -809,7 +878,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     } finally {
       await db.end().catch(() => {});
     }
-    await stopAgent(options, state, agentPort);
+    // The first session stopped itself when the second machine took the stage over.
 
     // 5. Box stop and wake: stop the box as its idle stop would; the next session starts it.
     await ec2.send(new StopInstancesCommand({ InstanceIds: [state.boxInstanceId] }));

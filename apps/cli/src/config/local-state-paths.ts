@@ -16,7 +16,9 @@ import { getHomeDir } from '@utils/misc';
  *   day and safe to delete at any time; and when each base image of Stacktape's generated Dockerfiles was last
  *   pulled in `baseImagePullsFile`, kept a day and safe to delete at any time.
  * - User-runtime: the session token of each running dev agent in `devAgentTokenFile`, keyed by the agent's port so
- *   any local client that knows the port finds it; the agent removes it on stop and prunes those of dead agents.
+ *   any local client that knows the port finds it; the agent removes it on stop and prunes those of dead agents. Why an
+ *   agent ended itself, in `devAgentStopReasonFile` by port, so a client finds the reason after the agent is gone; the
+ *   next agent that ends itself on that port replaces it, and it is safe to delete at any time.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`),
  *   and the generated password of each such database in `devResourcePasswordFile`.
  * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
@@ -109,6 +111,10 @@ export const localStatePaths = {
   /** Session token of the dev agent listening on `port`, readable only by its user. */
   devAgentTokenFile({ port }: { port: number }) {
     return join(localStatePaths.devAgentTokenDirectory(), `${port}.token`);
+  },
+  /** Why the dev agent on `port` ended itself, for example because another session took its stage over. */
+  devAgentStopReasonFile({ port }: { port: number }) {
+    return join(localStatePaths.devAgentTokenDirectory(), `${port}.stopped.json`);
   },
   devAgentRegistryDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agents');

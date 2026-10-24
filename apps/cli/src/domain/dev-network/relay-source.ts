@@ -13,8 +13,8 @@
  *   or this port, the lease is refused with `{"Refused": {...}}`, naming the holder, so two sessions of one stage never
  *   split its databases or take a port from each other in turn. The same process takes its port over, because a laptop
  *   that lost its SSM session comes back before the old session's sockets close. With `takeOver`, every tunnel of the
- *   stack that another process holds is closed at once; each is told `{"TakenOver": {"label"}}` first, and its session
- *   must not ask for the port again.
+ *   stack that another process holds is closed at once, with the connections it carries (a warm function's pooled
+ *   database connection included); each is told `{"TakenOver": {"label"}}` first, and its session must end.
  * - `{"Presence": {"owner", "label", "session", "stack"}}` keeps the box awake while a dev session runs.
  * - `{"Sessions": {"stack"}}` answers the live sessions of one stack (all stacks when it is empty) and closes.
  * - `{"Ping": null}` answers `{"Pong": {"version"}}` and closes: the readiness probe.
@@ -103,9 +103,15 @@ async def hold(reader, writer):
 
 
 async def close_tunnel(tunnel):
-    tunnel['server'].close()
+    """Closes the tunnel's port, its control connection and every connection it carries: a pooled database
+    connection of a warm function must not keep reaching the replaced session."""
     tunnel['writer'].close()
-    await tunnel['server'].wait_closed()
+    for conn_writer in list(tunnel['connections']):
+        conn_writer.close()
+    tunnel['connections'].clear()
+    if tunnel['server']:
+        tunnel['server'].close()
+        await tunnel['server'].wait_closed()
 
 
 def stack_of(key):
@@ -125,35 +131,51 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
                                         'since': holder['since']}}))
         writer.close()
         return
+    same_session = tunnels.get(port) if port else None
+    # Everything up to the reservation below runs without an await, so a concurrent lease of another session sees
+    # either the old holders or this tunnel, never a gap in which both could take part of the stage.
+    tunnel = {'server': None, 'writer': writer, 'owner': owner, 'key': key, 'label': label,
+              'session': session, 'since': int(time.time()), 'connections': set()}
+    replaced = []
     for held_port, held in others:
         log('port %d taken over by %s' % (held_port, label or '-'))
         held['writer'].write(frame({'TakenOver': {'label': label}}))
         del tunnels[held_port]
-        await close_tunnel(held)
-    holder = tunnels.get(port) if port else None
-    if holder:
+        replaced.append(held)
+    if same_session and same_session not in replaced:
         log('port %d taken over by a new connection of the same session' % port)
         del tunnels[port]
-        await close_tunnel(holder)
+        replaced.append(same_session)
+    if port:
+        tunnels[port] = tunnel
+    for held in replaced:
+        await close_tunnel(held)
 
     async def on_connection(conn_reader, conn_writer):
         connection_id = str(uuid.uuid4())
-        pending[connection_id] = (conn_reader, conn_writer)
+        pending[connection_id] = (conn_reader, conn_writer, tunnel)
+        tunnel['connections'].add(conn_writer)
         writer.write(frame({'Connection': connection_id}))
         await asyncio.sleep(PENDING_SECONDS)
         stale = pending.pop(connection_id, None)
         if stale:
+            tunnel['connections'].discard(conn_writer)
             stale[1].close()
 
     try:
         server = await asyncio.start_server(on_connection, TUNNEL_HOST, port, reuse_address=True)
     except OSError as error:
+        if tunnels.get(port) is tunnel:
+            del tunnels[port]
         writer.write(frame({'Error': 'port %d is not available: %s' % (port, error.strerror)}))
         writer.close()
         return
     actual_port = server.sockets[0].getsockname()[1]
-    tunnel = {'server': server, 'writer': writer, 'owner': owner, 'key': key, 'label': label,
-              'session': session, 'since': int(time.time())}
+    tunnel['server'] = server
+    if port and tunnels.get(port) is not tunnel:
+        # Another session took this port over while it was opening.
+        await close_tunnel(tunnel)
+        return
     tunnels[actual_port] = tunnel
     touch()
     writer.write(frame({'Hello': actual_port}))
@@ -232,7 +254,17 @@ async def handle(reader, writer):
         if not entry:
             writer.close()
             return
-        await asyncio.gather(pipe(reader, entry[1]), pipe(entry[0], writer))
+        conn_reader, conn_writer, tunnel = entry
+        if conn_writer not in tunnel['connections']:
+            conn_writer.close()
+            writer.close()
+            return
+        tunnel['connections'].add(writer)
+        try:
+            await asyncio.gather(pipe(reader, conn_writer), pipe(conn_reader, writer))
+        finally:
+            tunnel['connections'].discard(conn_writer)
+            tunnel['connections'].discard(writer)
     else:
         writer.close()
 

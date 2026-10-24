@@ -15,6 +15,7 @@ import {
   listRelaySessions,
   pingRelay,
   registerTunnelCleanupHook,
+  setStageLostHandler,
   startTunnel
 } from './index';
 
@@ -95,6 +96,53 @@ const query = (port: number, payload: Buffer) =>
       reject(error);
     });
   });
+
+/** A connection a warm function keeps open, like a database pool: the answers it receives, and whether it closed. */
+const pooledConnection = async (port: number) => {
+  const socket = createConnection({ host: '127.0.0.1', port });
+  await new Promise<void>((resolve, reject) => {
+    socket.once('connect', resolve);
+    socket.once('error', reject);
+  });
+  const state = { answers: [] as string[], closed: false };
+  socket.on('data', (data) => state.answers.push(String(data)));
+  socket.on('close', () => (state.closed = true));
+  socket.on('error', () => {});
+  return { socket, state };
+};
+
+/**
+ * A client of relay version 1, which knows nothing of `TakenOver`: it pipes every connection to the database and
+ * never closes one itself, so only the relay can end them.
+ */
+const versionOneClient = async ({ port, key, owner }: { port: number; key: string; owner: string }) => {
+  const control = createConnection({ host: '127.0.0.1', port: controlPort });
+  control.on('error', () => {});
+  control.write(`${JSON.stringify({ Lease: { port, key, owner, label: owner } })}\0`);
+  let buffer = '';
+  const hello = new Promise<void>((resolve) => {
+    control.on('data', (chunk) => {
+      buffer += String(chunk);
+      let end: number;
+      while ((end = buffer.indexOf('\0')) !== -1) {
+        const message = JSON.parse(buffer.slice(0, end));
+        buffer = buffer.slice(end + 1);
+        if (message?.Hello) resolve();
+        if (message?.Connection) {
+          const accept = createConnection({ host: '127.0.0.1', port: controlPort }, () => {
+            accept.write(`${JSON.stringify({ Accept: message.Connection })}\0`);
+            const local = createConnection({ host: '127.0.0.1', port: (database.address() as AddressInfo).port });
+            local.on('error', () => {});
+            accept.on('error', () => {});
+            accept.pipe(local).pipe(accept);
+          });
+        }
+      }
+    });
+  });
+  await hello;
+  return control;
+};
 
 beforeAll(async () => {
   const python = spawnSync('python3', ['-c', 'import sys; assert sys.version_info >= (3, 9)']);
@@ -219,6 +267,119 @@ test('a second session of the stage is refused for every port, and --take-over m
   await cleanUpTunnels();
   await stopRelay();
 }, 30_000);
+
+test('a take-over closes the connections the old holder carries, also for a client that ignores TakenOver', async () => {
+  await startRelay({ idleSeconds: 3600 });
+  const leasePort = await freePort();
+  const localPort = (database.address() as AddressInfo).port;
+  const oldClient = await versionOneClient({ port: leasePort, key: 'shop-dev/db', owner: 'user-old' });
+  const pool = await pooledConnection(leasePort);
+  pool.socket.write('first');
+  await waitFor('the pooled answer', () => pool.state.answers.includes('db:first'));
+
+  const tookOver = await startTunnel({
+    resourceName: 'db',
+    localPort,
+    lease: { port: leasePort, key: 'shop-dev/db' },
+    owner: bob,
+    relay: relay(),
+    takeOver: true
+  });
+  expect('tunnel' in tookOver).toBe(true);
+  // The pooled connection ends, so the function's pool reconnects, and reaches the new holder.
+  await waitFor('the pooled connection to close', () => pool.state.closed, 5000);
+  expect(String(await query(leasePort, Buffer.from('second')))).toBe('db:second');
+  oldClient.destroy();
+  await cleanUpTunnels();
+  await stopRelay();
+}, 30_000);
+
+test('the replaced session drops its connections and ends; concurrent leases of two sessions never split a stage', async () => {
+  await startRelay({ idleSeconds: 3600 });
+  const localPort = (database.address() as AddressInfo).port;
+  const lost: string[] = [];
+  setStageLostHandler(({ label }) => lost.push(label));
+  try {
+    const leasePort = await freePort();
+    const opened = await startTunnel({
+      resourceName: 'db',
+      localPort,
+      lease: { port: leasePort, key: 'shop-dev/db' },
+      owner: alice,
+      relay: relay()
+    });
+    expect('tunnel' in opened).toBe(true);
+    const pool = await pooledConnection(leasePort);
+    pool.socket.write('first');
+    await waitFor('the pooled answer', () => pool.state.answers.includes('db:first'));
+    const [aliceTunnel] = getActiveTunnels();
+    await startTunnel({
+      resourceName: 'db',
+      localPort,
+      lease: { port: leasePort, key: 'shop-dev/db' },
+      owner: bob,
+      relay: relay(),
+      takeOver: true
+    });
+    await waitFor('the pooled connection to close', () => pool.state.closed, 5000);
+    await waitFor('the session to learn it lost the stage', () => lost.includes(bob.label));
+    expect(aliceTunnel.process.connections.size).toBe(0);
+    await cleanUpTunnels();
+
+    // Two sessions lease different ports of one stage at the same moment: one gets the stage, the other is refused.
+    for (let round = 0; round < 10; round++) {
+      const stack = `race-${round}`;
+      const results = await Promise.all(
+        [alice, bob].map(async (owner) =>
+          startTunnel({
+            resourceName: owner === alice ? 'db' : 'cache',
+            localPort,
+            lease: { port: await freePort(), key: `${stack}/${owner === alice ? 'db' : 'cache'}` },
+            owner,
+            relay: relay()
+          })
+        )
+      );
+      expect(results.filter((result) => 'tunnel' in result)).toHaveLength(1);
+      expect(results.filter((result) => 'refused' in result)).toHaveLength(1);
+      await cleanUpTunnels();
+    }
+  } finally {
+    setStageLostHandler(() => {});
+    await cleanUpTunnels();
+    await stopRelay();
+  }
+}, 60_000);
+
+test('a session that took the stage over does not take it back when it reconnects', async () => {
+  // Bob took the stage over, then his machine slept: his tunnel is gone, and Alice holds the stage when he wakes.
+  await startRelay({ idleSeconds: 3600 });
+  const localPort = (database.address() as AddressInfo).port;
+  const lost: string[] = [];
+  setStageLostHandler(({ label }) => lost.push(label));
+  try {
+    const leasePort = await freePort();
+    const lease = { port: leasePort, key: 'shop-dev/db' };
+    expect(
+      'tunnel' in
+        (await startTunnel({ resourceName: 'db', localPort, lease, owner: bob, relay: relay(), takeOver: true }))
+    ).toBe(true);
+    await stopRelay();
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    await startRelay({ idleSeconds: 3600 });
+    relayOutput = '';
+    expect(
+      'tunnel' in (await startTunnel({ resourceName: 'db', localPort, lease, owner: alice, relay: relay() }))
+    ).toBe(true);
+    await waitFor('Bob to learn he lost the stage', () => lost.includes(alice.label), 15_000);
+    expect(relayOutput).not.toContain('taken over');
+    expect(String(await query(leasePort, Buffer.from('still alice')))).toBe('db:still alice');
+  } finally {
+    setStageLostHandler(() => {});
+    await cleanUpTunnels();
+    await stopRelay();
+  }
+}, 40_000);
 
 test('a tunnel reconnects without an attempt limit after the relay restarts', async () => {
   await startRelay({ idleSeconds: 3600 });

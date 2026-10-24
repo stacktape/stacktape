@@ -2,8 +2,9 @@ import type { DevNetwork, DevNetworkAws } from '@domain-services/dev-network';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { RelayEndpoint, RelayOwner, RelaySessionInfo } from './tunnel-manager';
 import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
-import { sep } from 'node:path';
+import { dirname, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -15,12 +16,14 @@ import type { StackContext } from '@domain-services/stack-context';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import findFreePorts from 'find-free-ports';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { recordDevBoxSession } from './agent-daemon';
+import { agentLog } from './agent-logger';
 import { createCleanupHook } from './cleanup-utils';
 import { DevBoxConnection, openDevBoxRelaySession } from './dev-box';
 import { getLocalEmulateableResources, getRelayedLocalResource } from './local-resources';
 import { getResourceParamReferences } from './resource-references';
-import { holdRelayPresence, listRelaySessions, pingRelay } from './tunnel-manager';
+import { holdRelayPresence, listRelaySessions, pingRelay, setStageLostHandler } from './tunnel-manager';
 
 export type DevNetworkSession = {
   network: DevNetwork;
@@ -142,7 +145,7 @@ export const assertStageNotRunningElsewhere = async ({
     // The message carries the way out: `dev --agent` passes on only the message of its daemon's error.
     message: `Dev mode for ${stackName} already runs in another session: ${holders}. Stop that session, or run this command again with --take-over to move the stage here.`,
     hints:
-      'With `--take-over`, deployed functions reach the databases on this machine, and the other session stops receiving their connections.'
+      'With `--take-over`, deployed functions reach the databases on this machine, and the other session stops itself.'
   });
 };
 
@@ -155,6 +158,43 @@ const COST_EXPLANATION = [
   'stopped, it costs about $0.70 per month for its disk. See it with `stacktape dev network`, delete it with',
   '`stacktape dev network delete`.'
 ];
+
+/**
+ * Ends this session once another session took its stage over (or holds it after this machine slept through a
+ * take-over): staying up, it could redeploy functions over the new holder's. In agent mode the reason goes to the agent
+ * log and to `devAgentStopReasonFile`, where a client finds it after the agent has exited; in a terminal it is printed
+ * after the dev screen is gone.
+ */
+export const endSessionForLostStage = ({
+  stackName,
+  label,
+  agentPort,
+  stop = () => process.emit('SIGINT')
+}: {
+  stackName: string;
+  label: string;
+  agentPort: number | undefined;
+  stop?: () => void;
+}) => {
+  const message =
+    `${label} took over dev mode for ${stackName}, so deployed functions now reach the databases there. This session ` +
+    'stopped so that it cannot redeploy functions over theirs. To move the stage back, run `stacktape dev` again with --take-over.';
+  if (agentPort) {
+    agentLog('dev', message, 'error');
+    const file = localStatePaths.devAgentStopReasonFile({ port: agentPort });
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    writeFileSync(
+      file,
+      JSON.stringify({ code: 'DEV_STAGE_TAKEN_OVER', message, pid: process.pid, at: new Date().toISOString() }),
+      { mode: 0o600 }
+    );
+  } else {
+    process.once('exit', () => process.stderr.write(`\n${message}\n`));
+  }
+  // The same path as Ctrl+C and the agent's stop route.
+  stop();
+  return message;
+};
 
 const registerSessionCleanupHook = createCleanupHook('dev-network', async () => {
   await session?.connection.stop();
@@ -170,12 +210,15 @@ export const startDevNetworkSession = async ({
   stackContext,
   noTunnel,
   takeOver,
+  agentPort,
   orphanedSessionId,
   aws = createDevNetworkAws()
 }: {
   stackContext: Pick<StackContext, 'stackName' | 'projectName' | 'stage'>;
   noTunnel: boolean;
   takeOver: boolean;
+  /** The agent's port in `--agent` mode, where the reason of a self-ended session is recorded. */
+  agentPort?: number;
   /** The SSM session of a killed earlier session of this stage, ended before the new one opens. */
   orphanedSessionId?: string;
   aws?: DevNetworkAws;
@@ -201,6 +244,12 @@ export const startDevNetworkSession = async ({
   });
   const owner = getOwner();
   registerSessionCleanupHook();
+  let stageLost = false;
+  setStageLostHandler(({ label }) => {
+    if (stageLost) return;
+    stageLost = true;
+    endSessionForLostStage({ stackName, label, agentPort });
+  });
   const connection = new DevBoxConnection({
     network,
     owner,

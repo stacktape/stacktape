@@ -117,13 +117,26 @@ const ensureDevSessionAvailable = async ({
     };
   }
 
+  // An agent that has exited refuses the connection; that is the unreachable case below, not an error.
   const health = await requestDevApi({
     port: session.agentPort,
     method: 'GET',
     path: '/health'
-  });
+  }).catch(() => ({ ok: false }) as Record<string, unknown>);
   if (health.ok === false) {
     activeDevSessions.delete(session.devSessionId);
+    const stopped = await readStopReason(session);
+    if (stopped) {
+      return {
+        ok: false,
+        output: {
+          ok: false,
+          code: stopped.code,
+          message: `Dev session ${session.devSessionId} stopped itself: ${stopped.message}`,
+          nextActions: ['Call stacktape_dev with action=start and take_over=true to move the stage back here']
+        }
+      };
+    }
     return {
       ok: false,
       output: {
@@ -139,6 +152,23 @@ const ensureDevSessionAvailable = async ({
   }
 
   return { ok: true, session };
+};
+
+/** Why the session's agent ended itself, when it recorded a reason after this session started. */
+const readStopReason = async (session: DevSession): Promise<{ code: string; message: string } | undefined> => {
+  try {
+    const recorded = JSON.parse(
+      await readFile(localStatePaths.devAgentStopReasonFile({ port: session.agentPort }), 'utf-8')
+    ) as { code?: unknown; message?: unknown; at?: unknown };
+    if (typeof recorded.message !== 'string' || typeof recorded.at !== 'string') return undefined;
+    if (recorded.at < session.startedAt) return undefined;
+    return {
+      code: typeof recorded.code === 'string' ? recorded.code : 'DEV_SESSION_STOPPED',
+      message: recorded.message
+    };
+  } catch {
+    return undefined;
+  }
 };
 
 const readDevLogs = async ({

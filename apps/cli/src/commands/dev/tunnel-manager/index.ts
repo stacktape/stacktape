@@ -51,6 +51,8 @@ type TunnelProcess = {
   exitCode: number | null;
   /** Set when another session took the port over with `--take-over`: the tunnel must not ask for it again. */
   takenOverBy?: string;
+  /** The database connections the tunnel carries now. */
+  readonly connections: ReadonlySet<Socket>;
   on: (event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void) => TunnelProcess;
 };
 
@@ -364,6 +366,8 @@ class TunnelClientProcess extends EventEmitter implements TunnelProcess {
   public killed = false;
   public exitCode: number | null = null;
   public takenOverBy: string | undefined;
+  /** The database connections this tunnel carries; they end with a take-over, not only with the session. */
+  readonly connections = new Set<Socket>();
 
   private hasExited = false;
 
@@ -383,6 +387,11 @@ class TunnelClientProcess extends EventEmitter implements TunnelProcess {
 
   async recv(): Promise<ServerMessage | null> {
     return await this.controlSocket.recv();
+  }
+
+  dropConnections(): void {
+    for (const socket of this.connections) socket.destroy();
+    this.connections.clear();
   }
 
   markExited(code: number | null, signal: NodeJS.Signals | null = null): void {
@@ -432,12 +441,15 @@ const proxyRemoteConnection = async ({
   connectionId,
   localPort,
   relay,
-  signal
+  signal,
+  connections
 }: {
   connectionId: string;
   localPort: number;
   relay: RelayEndpoint;
   signal: AbortSignal;
+  /** The tunnel's connections, which a take-over ends. */
+  connections: Set<Socket>;
 }): Promise<void> => {
   const acceptConnection = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   let localConnection: Socket | undefined;
@@ -452,6 +464,8 @@ const proxyRemoteConnection = async ({
     // the relay can immediately send binary data containing the JSON frame delimiter.
     const { socket: remoteConnection, bufferedData } = acceptConnection.intoSocket();
     const close = () => {
+      connections.delete(remoteConnection);
+      if (localConnection) connections.delete(localConnection);
       if (localConnection) closeSocketPair(localConnection, remoteConnection);
       else remoteConnection.destroy();
     };
@@ -464,6 +478,8 @@ const proxyRemoteConnection = async ({
     if (remoteConnection.destroyed) throw new Error('Relay connection closed while opening the local resource.');
     activeConnections.add(localConnection);
     activeConnections.add(remoteConnection);
+    connections.add(localConnection);
+    connections.add(remoteConnection);
     localConnection.once('error', close);
     localConnection.once('close', close);
     if (bufferedData.length > 0) localConnection.write(bufferedData);
@@ -496,7 +512,8 @@ const listenForTunnelConnections = ({
             connectionId: message.connectionId,
             localPort: request.localPort,
             relay: request.relay,
-            signal
+            signal,
+            connections: process.connections
           }).catch((error) => {
             const errorMessage = error instanceof Error ? error.message : String(error);
             tuiManager.warn(`Tunnel connection failed for ${request.resourceName}: ${errorMessage}`);
@@ -504,7 +521,9 @@ const listenForTunnelConnections = ({
           continue;
         }
         if (message.type === 'TakenOver') {
+          // Pooled connections of warm functions must reach the new holder, not this session.
           process.takenOverBy = message.label;
+          process.dropConnections();
           continue;
         }
         if (message.type === 'Error') throw new Error(message.message);
@@ -560,19 +579,34 @@ const refusalMessage = (resourceName: string, { label, since }: LeaseRefusedErro
   `functions reach their local ${resourceName}, not yours. Yours takes over when that session stops; to take over now, ` +
   'run `stacktape dev` again with `--take-over`.';
 
-const takenOverMessage = (resourceName: string, label: string) =>
-  `${label} took over dev mode for this stage, so deployed functions now reach their local ${resourceName}, not ` +
-  'yours. This session does not ask for it again; stop it, or run `stacktape dev` again with `--take-over`.';
+/** What happens when another session holds the stage this session held: by default a warning; a dev session ends. */
+export type StageLostHandler = (input: { label: string; resourceName: string }) => void;
+
+let onStageLost: StageLostHandler = ({ label, resourceName }) =>
+  tuiManager.warn(
+    `${label} took over dev mode for this stage, so deployed functions now reach their local ${resourceName}, not yours.`
+  );
+
+/** Replaces the handler of a lost stage; `stacktape dev` ends its session there. */
+export const setStageLostHandler = (handler: StageLostHandler) => {
+  onStageLost = handler;
+};
 
 /**
  * Keeps asking for the tunnel until it is open again or dev mode stops. The relay and the SSM session come back on
- * their own after a network drop or a box restart, so there is no attempt limit.
+ * their own after a network drop or a box restart, so there is no attempt limit. A tunnel this session `held` before
+ * never takes the stage over: if another session holds it now, for example after this machine slept through a
+ * take-over, the stage is lost.
  */
-const reconnect = async (request: TunnelRequest, signal: AbortSignal, refusedAlready = false): Promise<void> => {
+const reconnect = async (
+  request: TunnelRequest,
+  signal: AbortSignal,
+  { warned: warnedAlready = false, held = false }: { warned?: boolean; held?: boolean } = {}
+): Promise<void> => {
   const { resourceName } = request;
   if (reconnectingTunnels.has(resourceName)) return;
   reconnectingTunnels.add(resourceName);
-  let warned = refusedAlready;
+  let warned = warnedAlready;
   try {
     for (let attempt = 1; !applicationManager.isInterrupted && !signal.aborted; attempt++) {
       try {
@@ -588,6 +622,10 @@ const reconnect = async (request: TunnelRequest, signal: AbortSignal, refusedAlr
       } catch (error) {
         if (signal.aborted) return;
         if (error instanceof LeaseRefusedError) {
+          if (held) {
+            onStageLost({ label: error.holder.label, resourceName });
+            return;
+          }
           if (!warned) tuiManager.warn(refusalMessage(resourceName, error.holder));
           warned = true;
           await sleep(REFUSED_RETRY_MS, signal);
@@ -613,10 +651,13 @@ const setupTunnelExitHandler = (tunnel: TunnelInfo, request: TunnelRequest, sess
     if (index !== -1) activeTunnels.splice(index, 1);
     if (applicationManager.isInterrupted || sessionSignal.aborted) return;
     if (tunnel.process.takenOverBy) {
-      tuiManager.warn(takenOverMessage(request.resourceName, tunnel.process.takenOverBy));
+      onStageLost({ label: tunnel.process.takenOverBy, resourceName: request.resourceName });
       return;
     }
-    if (code !== 0 && code !== null) void reconnect(request, sessionSignal).catch(() => {});
+    // `--take-over` applies to the first acquisition only: a later reconnect must not take the stage back.
+    if (code !== 0 && code !== null) {
+      void reconnect({ ...request, takeOver: false }, sessionSignal, { held: true }).catch(() => {});
+    }
   });
 };
 
@@ -644,13 +685,13 @@ export const startTunnel = async (
       signal.throwIfAborted();
       if (error instanceof LeaseRefusedError) {
         tuiManager.warn(refusalMessage(request.resourceName, error.holder));
-        void reconnect(request, signal, true).catch(() => {});
+        void reconnect(request, signal, { warned: true }).catch(() => {});
         return { refused: error.holder };
       }
       if (attempt >= 3) {
         // The box or its SSM session may be on its way back, for example a box that stopped while this session started:
         // keep asking in the background, as for any lost tunnel.
-        void reconnect(request, signal, true).catch(() => {});
+        void reconnect(request, signal, { warned: true }).catch(() => {});
         throw new Error(`${(error as Error).message}. Stacktape keeps retrying in the background.`);
       }
       await sleep(1000 * attempt, signal);

@@ -558,6 +558,7 @@ export const commandDev = async () => {
       stackContext,
       noTunnel: Boolean(args.noTunnel),
       takeOver: Boolean(args.takeOver),
+      agentPort: getAgentPort() ?? undefined,
       orphanedSessionId: orphanedDevBoxSessionId
     });
     devNetworkSpinner.success();

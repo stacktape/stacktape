@@ -222,7 +222,7 @@ If \`true\`, deletes existing local database data before starting. Use this to s
 
 export const takeOver = z.boolean().describe(`#### Take Over
 ---
-Moves a stage that another \`stacktape dev\` session runs, on another machine or in another terminal, to this session. Without this flag, \`stacktape dev\` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back.`);
+Moves a stage that another \`stacktape dev\` session runs, on another machine or in another terminal, to this session. Without this flag, \`stacktape dev\` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself.`);
 
 export const forceDevNetworkDelete = z.boolean().describe(`#### Force
 ---

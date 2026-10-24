@@ -318,13 +318,14 @@ for the internet through the box's public IP. A killed SSM plugin must recover o
 the same time on its own SSM session. A copy of the project in another directory stands for the same developer's second
 machine: its `dev --agent` of the running stage must be refused before it deploys anything, `dev network delete` must be
 refused while the session runs, and `--takeOver` must move the stage once (the relay's log on the box, read through SSM
-Run Command, must show one take-over per relayed database). `dev network` must show the stopped box, and the next
-`dev --agent` must start the stopped box. A last session has its box stopped as soon as its SSM session opens; it must
-start the box again and its tunnels must open. Cleanup deletes both stages and the network with the CLI and then
-verifies with AWS that the stacks, box, its interfaces, leases, functions, log groups, SSM sessions and local containers
-are gone. The run writes its timings (first start, wake, query latency, reconnect, recovery from a stop during startup,
-deletion) to `STP_AWS_LAMBDA_DEV_REPORT`. It needs Linux and Docker and creates a Console project record named
-`v4lambdadev-<id>`, which the CLI cannot delete.
+Run Command, must show one take-over per relayed database). A warm function's pooled connection to the first machine
+must be closed by the take-over, and the first session must stop itself and record a reason that names the second.
+`dev network` must show the stopped box, and the next `dev --agent` must start the stopped box. A last session has its
+box stopped as soon as its SSM session opens; it must start the box again and its tunnels must open. Cleanup deletes
+both stages and the network with the CLI and then verifies with AWS that the stacks, box, its interfaces, leases,
+functions, log groups, SSM sessions and local containers are gone. The run writes its timings (first start, wake, query
+latency, reconnect, recovery from a stop during startup, deletion) to `STP_AWS_LAMBDA_DEV_REPORT`. It needs Linux and
+Docker and creates a Console project record named `v4lambdadev-<id>`, which the CLI cannot delete.
 
 ```sh
 export STP_AWS_LAMBDA_DEV_DEPLOY=1
@@ -336,6 +337,8 @@ export STP_AWS_LAMBDA_DEV_STATE_FILE='<absolute fresh state file>'
 export STP_AWS_LAMBDA_DEV_REPORT='<absolute report file>'
 # Optional: eu-west-1 (default) or eu-central-1, so concurrent runs of different tasks do not share a region.
 export STP_AWS_LAMBDA_DEV_REGION=eu-west-1
+# Optional: the dev network suffix (default: the run's id); the run refuses a name that is taken.
+export STP_AWS_LAMBDA_DEV_NETWORK_SUFFIX='<lowercase letters or digits>'
 pnpm --filter @stacktape/cli run test:real-aws-lambda-dev
 ```
 

@@ -31,7 +31,7 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
 | `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
 | `--skip-resources` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
-| `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back. | - |
+| `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
 | `--watch` | no | `boolean` | Watch — If `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected. | - |
 
 
@@ -114,7 +114,7 @@ stacktape dev --stage dev --region eu-west-1 --no-tunnel
 
 ### --take-over
 
-Moves a stage that another `stacktape dev` session runs, on another machine or in another worktree, to this session. Without it, `stacktape dev` refuses to start a stage whose deployed functions already reach another session's databases, and names that session. With it, the functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back.
+Moves a stage that another `stacktape dev` session runs, on another machine or in another worktree, to this session. Without it, `stacktape dev` refuses to start a stage whose deployed functions already reach another session's databases, and names that session. With it, the functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself with a message that names this one, so it cannot redeploy functions over yours.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --take-over

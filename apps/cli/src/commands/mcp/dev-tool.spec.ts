@@ -166,6 +166,41 @@ describe('MCP dev session routing', () => {
     }
   });
 
+  test('a session whose agent ended itself reports the recorded reason, an older reason is ignored', async () => {
+    const taken = await daemon();
+    const handler = createDevToolHandler({ runCli: startedDaemon });
+    const started = (await handler({ action: 'start', args: { agentPort: taken.port } })).structuredContent;
+    const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+    const reasonFile = localStatePaths.devAgentStopReasonFile({ port: taken.port });
+    // A reason left by an earlier agent on this port does not describe this session.
+    await writeFile(
+      reasonFile,
+      JSON.stringify({ code: 'DEV_STAGE_TAKEN_OVER', message: 'old', at: '2020-01-01T00:00:00.000Z' })
+    );
+    await taken.close();
+    expect((await handler({ action: 'status', args: { devSessionId } })).structuredContent.code).toBe('NOT_FOUND');
+
+    const again = await daemon();
+    try {
+      const restarted = (await handler({ action: 'start', args: { agentPort: again.port } })).structuredContent;
+      const restartedId = (restarted.data?.session as { devSessionId: string }).devSessionId;
+      await writeFile(
+        localStatePaths.devAgentStopReasonFile({ port: again.port }),
+        JSON.stringify({
+          code: 'DEV_STAGE_TAKEN_OVER',
+          message: 'Alice (laptop, ~/shop) took over dev mode for shop-dev.',
+          at: new Date().toISOString()
+        })
+      );
+      await again.close();
+      const status = (await handler({ action: 'status', args: { devSessionId: restartedId } })).structuredContent;
+      expect(status).toMatchObject({ ok: false, code: 'DEV_STAGE_TAKEN_OVER' });
+      expect(status.message).toContain('Alice (laptop, ~/shop) took over');
+    } finally {
+      await again.close();
+    }
+  });
+
   test('a start whose result names no agent port creates no session', async () => {
     const running = await daemon();
     try {
