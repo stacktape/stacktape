@@ -110,6 +110,8 @@ type State = {
   awsAccountName?: string;
   /** The dev network's box, once the network exists: its SSM sessions are ended in cleanup. */
   boxInstanceId?: string;
+  /** Ports of the dev agents the run started, so a recovery stops those a crashed run left running. */
+  agentPorts?: number[];
   createAttempted: boolean;
   cleanupVerified?: boolean;
 };
@@ -142,6 +144,12 @@ export const validateLambdaDevRecoveryState = (value: unknown, options: Options)
       (typeof candidate.boxInstanceId === 'string' && /^i-[a-f0-9]{8,17}$/.test(candidate.boxInstanceId)),
     'Recovery instance id is invalid.'
   );
+  check(
+    candidate.agentPorts === undefined ||
+      (Array.isArray(candidate.agentPorts) &&
+        candidate.agentPorts.every((port) => Number.isInteger(port) && port >= 1024 && port <= 65535)),
+    'Recovery agent ports are invalid.'
+  );
   return {
     accountId: options.accountId,
     owner: options.owner,
@@ -152,6 +160,7 @@ export const validateLambdaDevRecoveryState = (value: unknown, options: Options)
     awsAccountName: typeof candidate.awsAccountName === 'string' ? candidate.awsAccountName : undefined,
     boxInstanceId: candidate.boxInstanceId as string | undefined,
     createAttempted: candidate.createAttempted,
+    agentPorts: candidate.agentPorts as number[] | undefined,
     cleanupVerified: candidate.cleanupVerified === true
   };
 };
@@ -536,7 +545,9 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       if (state && !state.createAttempted) await rm(state.directory, { recursive: true, force: true });
       return;
     }
-    for (const port of agentPorts) await stopAgent(options, state, port).catch(() => {});
+    for (const port of new Set([...agentPorts, ...(state.agentPorts ?? [])])) {
+      await stopAgent(options, state, port).catch(() => {});
+    }
     for (const child of startedProcesses) child.kill('SIGKILL');
     if (!state.awsAccountName) state.awsAccountName = await resolveAwsAccountName(options, state);
     for (const stage of STAGES) {
@@ -691,6 +702,8 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     // 1. First creation of the dev network and the dev stack. The session watches the sources for step 2b.
     const agentPort = 7400 + Math.floor(Math.random() * 400);
     agentPorts.push(agentPort);
+    state.agentPorts = [...new Set([...(state.agentPorts ?? []), agentPort])];
+    await save();
     const first = await startAgent(options, state, agentPort, STAGE, { extraArgs: ['--watch'] });
     report.firstStartSeconds = first.seconds;
     check(first.tokenFile, 'dev --agent did not report its token file.');
@@ -718,6 +731,8 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       60_000
     );
     const db = new Client({ connectionString: `postgresql://postgres:${password}@127.0.0.1:${databasePort}/postgres` });
+    // The first session stops its database when the second machine takes the stage over.
+    db.on('error', () => {});
     await db.connect();
     try {
       await db.query(
@@ -768,6 +783,8 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       // A second developer's stage on the same box at the same time: a second SSM session and its own relay ports.
       const secondPort = agentPort + 1;
       agentPorts.push(secondPort);
+      state.agentPorts = [...new Set([...(state.agentPorts ?? []), secondPort])];
+      await save();
       const second = await startAgent(options, state, secondPort, SECOND_STAGE);
       report.secondStageStartSeconds = second.seconds;
       const ping = await waitUntil(
@@ -800,6 +817,8 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       await writeFixture(state, secondMachine);
       const secondMachinePort = agentPort + 2;
       agentPorts.push(secondMachinePort);
+      state.agentPorts = [...new Set([...(state.agentPorts ?? []), secondMachinePort])];
+      await save();
       const refusedAt = Date.now();
       const refused = await runAgent(options, state, secondMachinePort, { directory: secondMachine });
       report.secondMachineRefusedSeconds = (Date.now() - refusedAt) / 1000;
