@@ -26,6 +26,7 @@
 /cli/deploy
 /cli/deployment-script-run
 /cli/dev
+/cli/dev-network
 /cli/dev-stop
 /cli/diff
 /cli/domain-add
