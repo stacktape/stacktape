@@ -770,7 +770,7 @@ export const lanes: readonly Lane[] = [
     requires: ['python3'],
     release: 'every-candidate',
     proves:
-      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another developer and names them, lets the same developer take over, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation.'
+      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another session of the stage, of the same developer on another machine too, and names it, lets the same session take its port back, moves the stage once on take-over without the sessions taking the port in turn, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation; a running stage refuses a second session before it deploys unless it takes over; dev network delete refuses during live sessions and CloudFormation operations, and a session started during a deletion waits for it and creates the network again.'
   },
   {
     id: 'local-dev-containers',
@@ -817,7 +817,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network', 'docker'],
     release: 'affected-external-contract',
     proves:
-      'Through the real `stacktape dev`, a first run creates the dev network and dev stack; arm64 and x86_64 functions read initial and edited local PostgreSQL rows and ping local Redis through the dev box; a VPC function reaches the database and the internet through the box; a killed SSM plugin recovers on its own; a stopped box is started by the next session; a box stopped while a session starts is started again and the tunnels open; deleting the stage and the network leaves no stack, instance, interface, lease, function, log group, SSM session or container.'
+      'Through the real `stacktape dev`, a first run creates the dev network and dev stack; arm64 and x86_64 functions read initial and edited local PostgreSQL rows and ping local Redis through the dev box; a VPC function reaches the database and the internet through the box; a killed SSM plugin recovers on its own; a stopped box is started by the next session; a box stopped while a session starts is started again and the tunnels open; a session of the running stage on a second machine is refused before it deploys, network delete is refused during the session, and take-over moves the stage once; deleting the stage and the network leaves no stack, instance, interface, lease, function, log group, SSM session or container.'
   },
   {
     id: 'nat-instances',
