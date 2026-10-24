@@ -28,13 +28,16 @@ const listening = (port: number) =>
     socket.once('error', () => resolve(false));
   });
 
-const agentScript = (behavior: 'slow-cleanup' | 'ignores-stop' | 'rejects-stop') => `
+const agentScript = (
+  behavior: 'slow-cleanup' | 'ignores-stop' | 'rejects-stop',
+  status: Record<string, unknown> = {}
+) => `
 const send = (response, data) => {
   response.writeHead(200, { 'content-type': 'application/json' });
   response.end(JSON.stringify({ v: '1.0', ok: true, code: 'OK', message: 'OK', data }));
 };
 const server = require('node:http').createServer((request, response) => {
-  if (request.url.startsWith('/status')) return send(response, { phase: 'ready', ready: true, workloads: {}, pid: process.pid });
+  if (request.url.startsWith('/status')) return send(response, { phase: 'ready', ready: true, workloads: {}, pid: process.pid, ...${JSON.stringify(status)} });
   if (request.url === '/health') return send(response, { phase: 'ready' });
   if (request.url === '/stop' && request.method === 'POST') {
     if (${JSON.stringify(behavior)} === 'rejects-stop') { response.destroy(); return; }
@@ -62,8 +65,11 @@ const isRunning = (pid: number) => {
   }
 };
 
-const startAgent = async (behavior: 'slow-cleanup' | 'ignores-stop' | 'rejects-stop') => {
-  const agent = spawn(process.execPath, ['-e', agentScript(behavior)]);
+const startAgent = async (
+  behavior: 'slow-cleanup' | 'ignores-stop' | 'rejects-stop',
+  status: Record<string, unknown> = {}
+) => {
+  const agent = spawn(process.execPath, ['-e', agentScript(behavior, status)]);
   const [output] = await once(agent.stdout, 'data');
   return { agent, ...(JSON.parse(String(output)) as { port: number; descendantPid: number; descendantPort: number }) };
 };
@@ -289,5 +295,150 @@ test('dev --agent reports an agent that is already running like a new one', asyn
   } finally {
     stopIfRunning(agent);
     await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
+// Every agent stores its token under its port in the user's state directory, which is how `dev stop` and a restarted MCP
+// server find agents whose lock file is in another directory. These fixtures report a project directory and stage.
+const startProjectAgent = async (home: string, status: { projectDirectory: string; stage: string }) => {
+  const started = await startAgent('slow-cleanup', { projectName: 'fixture', ...status });
+  await mkdir(join(home, '.stacktape', 'dev-agent-tokens'), { recursive: true });
+  await writeFile(join(home, '.stacktape', 'dev-agent-tokens', `${started.port}.token`), 'fixture-token');
+  return started;
+};
+
+const parseResult = (output: string) =>
+  output
+    .split('\n')
+    .filter((line) => line.startsWith('{'))
+    .map((line) => JSON.parse(line) as { type?: string; ok?: boolean; code?: string; message?: string; data?: any })
+    .find((event) => event.type === 'result');
+
+// `dev stop` used to fall back to port 7331 when the directory had no lock file and stopped another worktree's agent.
+// It now stops only an agent that reports this project directory, and stops none when several match.
+test.skipIf(process.platform === 'win32')(
+  'dev stop stops only the agent of its project directory and refuses to guess between stages',
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), 'stacktape-dev-stop-home-'));
+    const project = join(home, 'project');
+    const otherWorktree = join(home, 'other-worktree');
+    await mkdir(project, { recursive: true });
+    await mkdir(otherWorktree, { recursive: true });
+    const other = await startProjectAgent(home, { projectDirectory: otherWorktree, stage: 'dev' });
+    const dev = await startProjectAgent(home, { projectDirectory: project, stage: 'dev' });
+    const test = await startProjectAgent(home, { projectDirectory: project, stage: 'test' });
+    try {
+      const ambiguous = await runCli(['dev:stop', '--cwd', project], { home });
+      expect(ambiguous.exitCode).toBe(1);
+      expect(parseResult(ambiguous.output)).toMatchObject({ ok: false, code: 'CLI_DEV_STOP_AMBIGUOUS' });
+      expect(parseResult(ambiguous.output)?.message).toContain(`fixture/test on port ${test.port}`);
+      expect([isRunning(dev.agent.pid!), isRunning(test.agent.pid!), isRunning(other.agent.pid!)]).toEqual([
+        true,
+        true,
+        true
+      ]);
+
+      const stopped = await runCli(['dev:stop', '--cwd', project, '--stage', 'test'], { home });
+      expect(stopped.exitCode).toBe(0);
+      expect(parseResult(stopped.output)?.data?.result).toEqual({
+        stopped: [{ port: test.port, projectName: 'fixture', stage: 'test' }]
+      });
+      expect([isRunning(dev.agent.pid!), isRunning(test.agent.pid!), isRunning(other.agent.pid!)]).toEqual([
+        true,
+        false,
+        true
+      ]);
+
+      // A directory with no agent of its own stops nothing, and names the agents of other directories.
+      const elsewhere = join(home, 'elsewhere');
+      await mkdir(elsewhere);
+      const nothing = await runCli(['dev:stop', '--cwd', elsewhere], { home });
+      expect(nothing.exitCode).toBe(0);
+      expect(parseResult(nothing.output)?.data?.result).toEqual({ stopped: [] });
+      expect(nothing.output).toContain(`in ${otherWorktree}`);
+      expect(isRunning(other.agent.pid!)).toBeTrue();
+    } finally {
+      for (const { agent, descendantPid } of [other, dev, test]) {
+        stopIfRunning(agent);
+        try {
+          process.kill(descendantPid, 'SIGKILL');
+        } catch {}
+      }
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+  90_000
+);
+
+// A lock file can outlive its agent while another project's agent took over its port. dev stop must not stop that agent.
+test.skipIf(process.platform === 'win32')(
+  'dev stop ignores a stale lock file whose port now answers for another session',
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), 'stacktape-dev-stop-stale-'));
+    const project = join(home, 'project');
+    const elsewhere = join(home, 'elsewhere');
+    await mkdir(join(project, '.stacktape', 'dev-agents'), { recursive: true });
+    await mkdir(elsewhere);
+    const other = await startProjectAgent(home, { projectDirectory: elsewhere, stage: 'dev' });
+    const lockFile = join(project, '.stacktape', 'dev-agents', 'fixture-dev.json');
+    await writeFile(
+      lockFile,
+      JSON.stringify({
+        pid: other.agent.pid,
+        port: other.port,
+        phase: 'ready',
+        projectName: 'fixture',
+        stage: 'dev',
+        region: 'eu-west-1',
+        startedAt: new Date().toISOString(),
+        workloads: [],
+        databases: [],
+        sessionId: 'session-that-wrote-the-lock'
+      })
+    );
+    try {
+      const run = await runCli(['dev:stop', '--cwd', project], { home });
+      expect(run.exitCode).toBe(0);
+      expect(parseResult(run.output)?.data?.result).toEqual({ stopped: [] });
+      expect(isRunning(other.agent.pid!)).toBeTrue();
+      expect(existsSync(lockFile)).toBeFalse();
+    } finally {
+      stopIfRunning(other.agent);
+      try {
+        process.kill(other.descendantPid, 'SIGKILL');
+      } catch {}
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
+
+// The daemon parent used to keep only the child's code and message, so the hint that says how to fix a failed start
+// never reached the agent. It also printed nothing until the start ended; the agent's port comes first now.
+test('dev --agent reports the agent port at once and passes the daemon error code and hints through', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'stacktape-dev-agent-fail-'));
+  const project = join(home, 'project');
+  await mkdir(project);
+  try {
+    const { exitCode, output } = await runCli(
+      ['dev', '--stage', 'dev', '--region', 'eu-west-1', '--currentWorkingDirectory', project],
+      // The parent accepts any key; the daemon cannot use this one (the network guard refuses every request).
+      { home, env: { STACKTAPE_API_KEY: 'test-value' } }
+    );
+    expect(exitCode).toBe(1);
+    const records = output
+      .split('\n')
+      .filter((line) => line.startsWith('{'))
+      .map((line) => JSON.parse(line) as { type?: string; detail?: { kind?: string; agentPort?: number } });
+    expect(records[0]).toMatchObject({ type: 'event', eventType: 'DEV_SESSION', detail: { kind: 'dev-agent' } });
+    const result = parseResult(output);
+    // The daemon fails before it touches AWS (which error depends on the machine), and its own code and hints come
+    // through instead of the parent's generic start failure.
+    expect(result?.ok).toBe(false);
+    expect(result?.code).not.toBe('CLI_DEV_AGENT_START_FAILED');
+    expect(result?.message).not.toContain('Failed to start dev agent');
+    expect(result?.data?.hints?.length).toBeGreaterThan(0);
+  } finally {
+    await rm(home, { recursive: true, force: true });
   }
 }, 60_000);

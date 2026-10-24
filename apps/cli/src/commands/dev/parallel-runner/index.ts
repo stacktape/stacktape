@@ -1126,8 +1126,13 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
       stackResources: stackManager.existingStackResources
     }).PhysicalResourceId,
     onLog: useDevTui
-      ? (message, level) => {
-          devTuiManager.log(resourceName, message, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info');
+      ? (message, level, timestamp) => {
+          devTuiManager.log(
+            resourceName,
+            message,
+            level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info',
+            timestamp
+          );
         }
       : undefined
   });

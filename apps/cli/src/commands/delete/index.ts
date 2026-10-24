@@ -5,6 +5,7 @@ import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
+import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { initializeDeleteOperation } from '../_utils/initialization';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -83,6 +84,11 @@ export const commandDelete = async () => {
     return;
   }
 
+  // Read before the deletion: a dev stack rolled back to its bootstrap template has only its stack tag left.
+  const wasDevStack = isStackCreatedByDev({
+    isDevStack: deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack()),
+    tags: stack.existingStackDetails?.Tags
+  });
   const retainedMetadata = deployedStackOverview.getStackMetadata(stackMetadataNames.retainedSharedResources());
   const retainedSharedResources =
     typeof retainedMetadata === 'string' ? parseRetainedSharedResources(retainedMetadata) : undefined;
@@ -98,7 +104,7 @@ export const commandDelete = async () => {
     tui
   });
   // A dev stage leased relay ports in the account's dev network; they are free for other stages again.
-  if (deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack())) {
+  if (wasDevStack) {
     try {
       await releaseStackLeases({ store: createDevNetworkAws().leases, networkName: getDevNetworkName(), stackName });
     } catch (err) {

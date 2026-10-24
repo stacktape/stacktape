@@ -15,17 +15,27 @@ The `dev stop` command gracefully stops a running dev agent that was started wit
 stacktape dev stop
 ```
 
-Running `stacktape dev stop` without flags stops the running dev agent. If only one agent is running, it stops automatically. If no agents are found via lock files, Stacktape tries the default agent port (7331) as a fallback.
+Running `stacktape dev stop` without flags stops the dev agent of the project in the current directory. It finds the agent through the lock files in the project directory, or, when they are gone, by asking each of your running agents for its project directory. It never stops an agent of another directory: when no agent of this project runs, it stops nothing and lists the agents of other directories.
 
-The agent accepts only requests that carry its session token. `dev stop --agent-port` reads it from `~/.stacktape/dev-agent-tokens/{port}.token`, so it works from any directory. Without `--agent-port`, `dev stop` finds agents through the lock files in the current project directory.
+When several stages of the project run, `dev stop` stops none of them and fails (`ok: false`, code `CLI_DEV_STOP_AMBIGUOUS`) with the list. Choose one with `--stage`.
+
+The agent accepts only requests that carry its session token. `dev stop` reads it from `~/.stacktape/dev-agent-tokens/{port}.token`, so `--agent-port` works from any directory.
 
 ## Important flags
 
-The `dev stop` command accepts two flags that control which agent to stop and whether to clean up leftover containers.
+The `dev stop` command accepts flags that control which agent to stop and whether to clean up leftover containers.
+
+### --stage and --cwd
+
+`--stage` stops the agent of that stage. `--cwd` stops the agent of another project directory, for example a second Git worktree.
+
+```bash
+stacktape dev stop --cwd ../my-app-worktree --stage dev
+```
 
 ### --agent-port
 
-When multiple dev agents are running, `dev stop` lists their project, stage, and port, then tells you to re-run the command with `--agent-port <port>`. Pass `--agent-port` with the port number to target a specific agent.
+Pass `--agent-port` with the port number to stop the agent on that port, wherever it was started.
 
 ```bash
 stacktape dev stop --agent-port 7332
@@ -33,7 +43,7 @@ stacktape dev stop --agent-port 7332
 
 ### --cleanup-containers
 
-Crashed or improperly terminated dev sessions can leave orphaned Docker containers running. The `--cleanup-containers` flag finds and removes any Stacktape dev containers whose agent process is no longer running. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (auto-stopping a single agent, or listing agents and asking you to re-run with `--agent-port` when multiple are running).
+Crashed or improperly terminated dev sessions can leave orphaned Docker containers running. The `--cleanup-containers` flag finds and removes any Stacktape dev containers whose agent process is no longer running. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (stopping the project's agent, or failing with the list when several stages run).
 
 ```bash
 stacktape dev stop --cleanup-containers

@@ -7,12 +7,15 @@ import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeSca
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
 import { toToolText, type ToolOutput } from './tool-output';
+import { type DiscoveredDevAgent, discoverDevAgents, isSameDirectory } from '../dev/agent-daemon';
 
 type DevSession = {
   devSessionId: string;
-  agentPort: number;
+  /** Known once the CLI reports the agent it starts, before the start finishes. */
+  agentPort?: number;
   startedAt: string;
   cwd: string;
+  stage?: string;
 };
 
 type DevApiRequest = (input: {
@@ -25,8 +28,40 @@ type DevApiRequest = (input: {
 type DevToolDependencies = {
   runCli?: typeof runStacktapeCommandJsonl;
   requestDevApi?: DevApiRequest;
+  /** Running agents of this user; a restarted MCP server finds its sessions again through them. */
+  discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
   createId?: () => string;
   now?: () => Date;
+};
+
+type StartupProgressEntry = { ts: string; eventType: string; status: string; message: string; instanceId?: string };
+
+/** A `start` that is still running in the background after its tool call returned. */
+type DevStartup = {
+  state: 'starting' | 'finished';
+  progress: StartupProgressEntry[];
+  /** Ends the CLI process that starts the session. */
+  abort: AbortController;
+  done: Promise<void>;
+  /** The result `start` would have returned, once the start finished. */
+  output?: ToolOutput;
+};
+
+const MAX_STARTUP_PROGRESS = 30;
+/** How long the error of a start that failed in the background waits for a call to read it. */
+const FAILED_START_RETENTION_MS = 60 * 60 * 1000;
+/**
+ * How long `start` and `status` wait for a start to finish before they return. Below the common 60-second per-call
+ * timeout of MCP clients, so a cold start that creates the dev network and the dev stack (several minutes) continues in
+ * the background instead of failing with the client's timeout.
+ */
+const DEFAULT_WAIT_SECONDS = 50;
+/** The CLI process gets this long in total; the daemon parent itself stops a daemon that stays silent for 10 minutes. */
+const START_TIMEOUT_MS = 30 * 60 * 1000;
+
+const getWaitMs = (value: unknown) => {
+  const seconds = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+  return Math.max(0, Math.min(Number.isFinite(seconds) ? seconds : DEFAULT_WAIT_SECONDS, 30 * 60)) * 1000;
 };
 
 const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unknown> => {
@@ -86,24 +121,73 @@ const toRebuildOutput = (response: Record<string, unknown>, session: DevSession)
   };
 };
 
+const forgetDevSession = (activeDevSessions: Map<string, DevSession>, session: DevSession) => {
+  for (const [id, candidate] of activeDevSessions) if (candidate === session) activeDevSessions.delete(id);
+};
+
+/**
+ * Adds the running agents this MCP server does not know yet, for example after a client restarted it. Only agents that
+ * report their session ID and project directory are adopted; their session ID is the `devSessionId` the earlier MCP
+ * server returned, because it passed that ID to the agent.
+ */
+const rediscoverDevSessions = async ({
+  activeDevSessions,
+  discoverAgents
+}: {
+  activeDevSessions: Map<string, DevSession>;
+  discoverAgents: () => Promise<DiscoveredDevAgent[]>;
+}) => {
+  const knownPorts = new Set([...activeDevSessions.values()].map(({ agentPort }) => agentPort));
+  for (const agent of await discoverAgents().catch(() => [])) {
+    if (!agent.sessionId || !agent.projectDirectory || knownPorts.has(agent.port)) continue;
+    activeDevSessions.set(agent.sessionId, {
+      devSessionId: agent.sessionId,
+      agentPort: agent.port,
+      startedAt: '',
+      cwd: agent.projectDirectory,
+      ...(agent.stage ? { stage: agent.stage } : {})
+    });
+  }
+};
+
 const ensureDevSessionAvailable = async ({
   devSessionId,
+  cwd,
   requireExplicit,
   activeDevSessions,
-  requestDevApi
+  requestDevApi,
+  discoverAgents,
+  isStarting
 }: {
   devSessionId?: string;
+  /** Narrows the sessions an omitted `devSessionId` is inferred from to one project directory. */
+  cwd?: string;
   requireExplicit: boolean;
   activeDevSessions: Map<string, DevSession>;
   requestDevApi: DevApiRequest;
+  discoverAgents: () => Promise<DiscoveredDevAgent[]>;
+  /** A starting session reports its port before its agent listens, so it is not health-checked. */
+  isStarting: (session: DevSession) => boolean;
 }): Promise<{ ok: true; session: DevSession } | { ok: false; output: ToolOutput }> => {
-  const inferredSession =
-    !devSessionId && !requireExplicit && activeDevSessions.size === 1 ? [...activeDevSessions.values()][0] : undefined;
-  const session = devSessionId ? activeDevSessions.get(devSessionId) : inferredSession;
+  // A session can be registered under two IDs (see `start`), so the sessions are deduplicated.
+  const candidates = () =>
+    [...new Set(activeDevSessions.values())].filter((candidate) => !cwd || isSameDirectory(candidate.cwd, cwd));
+  const find = () => {
+    const matching = candidates();
+    return devSessionId
+      ? activeDevSessions.get(devSessionId)
+      : !requireExplicit && matching.length === 1
+        ? matching[0]
+        : undefined;
+  };
+  if (!find() && (devSessionId || candidates().length === 0)) {
+    await rediscoverDevSessions({ activeDevSessions, discoverAgents });
+  }
+  const session = find();
 
   if (!session) {
-    const ambiguous = !devSessionId && activeDevSessions.size > 1;
-    const noActiveSessions = activeDevSessions.size === 0;
+    const ambiguous = !devSessionId && candidates().length > 1;
+    const noActiveSessions = candidates().length === 0;
     return {
       ok: false,
       output: {
@@ -121,7 +205,7 @@ const ensureDevSessionAvailable = async ({
               ? `No active dev session matches devSessionId ${devSessionId}.`
               : 'Specify args.devSessionId for this dev operation.',
         data: {
-          activeDevSessionIds: [...activeDevSessions.keys()]
+          activeDevSessionIds: candidates().map(({ devSessionId: id }) => id)
         },
         nextActions: [
           activeDevSessions.size === 0
@@ -132,13 +216,15 @@ const ensureDevSessionAvailable = async ({
     };
   }
 
+  if (session.agentPort === undefined || isStarting(session)) return { ok: true, session };
+
   const health = await requestDevApi({
     port: session.agentPort,
     method: 'GET',
     path: '/health'
-  });
+  }).catch((error: unknown) => ({ ok: false, code: 'UNREACHABLE', message: String(error) }));
   if (health.ok === false) {
-    activeDevSessions.delete(session.devSessionId);
+    forgetDevSession(activeDevSessions, session);
     return {
       ok: false,
       output: {
@@ -156,37 +242,90 @@ const ensureDevSessionAvailable = async ({
   return { ok: true, session };
 };
 
+const LOG_LEVEL_RANK: Record<string, number> = { info: 0, warn: 1, error: 2 };
+
+/** `since` as an ISO time or a duration back from now (`30s`, `10m`, `2h`, `1d`). */
+export const parseLogsSince = (since: unknown, now: Date): number | undefined => {
+  if (typeof since !== 'string' || !since.trim()) return undefined;
+  const relative = /^(\d+(?:\.\d+)?)\s*(s|m|h|d)$/i.exec(since.trim());
+  if (relative) {
+    const unitMs = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[
+      relative[2].toLowerCase() as 's' | 'm' | 'h' | 'd'
+    ];
+    return now.getTime() - Number(relative[1]) * unitMs;
+  }
+  const time = Date.parse(since);
+  return Number.isFinite(time) ? time : undefined;
+};
+
+/**
+ * Reads the session's JSONL log. Without a cursor it returns the newest matching lines, oldest first; with the
+ * `nextCursor` of an earlier call it returns the matching lines written since. `level` is a minimum level.
+ */
 const readDevLogs = async ({
   logFile,
   cursor,
-  limit
+  limit,
+  sinceMs,
+  minLevel,
+  source,
+  currentSessionOnly
 }: {
   logFile: string;
   cursor?: number;
   limit?: number;
-}): Promise<{ entries: unknown[]; nextCursor: number; totalLines: number }> => {
+  sinceMs?: number;
+  minLevel?: string;
+  source?: string;
+  /** Starts at the last session marker: the lines of the session that writes the file now. */
+  currentSessionOnly?: boolean;
+}): Promise<{ entries: unknown[]; nextCursor: number; totalLines: number; omitted: number }> => {
   if (!(await pathExists(logFile))) {
-    return { entries: [], nextCursor: 0, totalLines: 0 };
+    return { entries: [], nextCursor: 0, totalLines: 0, omitted: 0 };
   }
 
   const content = await readFile(logFile, 'utf-8');
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  const start = Math.max(0, cursor ?? 0);
-  const maxItems = Math.max(1, Math.min(limit ?? 200, 1000));
-  const page = lines.slice(start, start + maxItems);
-
-  const entries = page.map((line) => {
+  const maxItems = Math.max(1, Math.min(limit ?? 100, 1000));
+  const minRank = minLevel ? (LOG_LEVEL_RANK[minLevel] ?? 0) : 0;
+  const parse = (line: string): Record<string, unknown> => {
     try {
       return JSON.parse(line);
     } catch {
       return { message: line };
     }
-  });
+  };
+  let start = cursor === undefined ? 0 : Math.max(0, cursor);
+  if (currentSessionOnly) {
+    for (let index = lines.length - 1; index >= start; index--) {
+      const entry = parse(lines[index]);
+      if (entry.source === 'dev' && entry.session && entry.msg === 'Dev session started') {
+        start = index;
+        break;
+      }
+    }
+  }
 
+  const matching: Array<{ index: number; entry: Record<string, unknown> }> = [];
+  for (let index = start; index < lines.length; index++) {
+    const entry = parse(lines[index]);
+    if (source && entry.source !== source) continue;
+    if (minRank && (LOG_LEVEL_RANK[String(entry.level)] ?? 0) < minRank) continue;
+    if (sinceMs !== undefined) {
+      const ts = typeof entry.ts === 'string' ? Date.parse(entry.ts) : Number.NaN;
+      if (!Number.isFinite(ts) || ts < sinceMs) continue;
+    }
+    matching.push({ index, entry });
+  }
+
+  const page = cursor === undefined ? matching.slice(-maxItems) : matching.slice(0, maxItems);
+  const nextCursor =
+    cursor !== undefined && page.length < matching.length ? page[page.length - 1].index + 1 : lines.length;
   return {
-    entries,
-    nextCursor: start + page.length,
-    totalLines: lines.length
+    entries: page.map(({ entry }) => entry),
+    nextCursor,
+    totalLines: lines.length,
+    omitted: matching.length - page.length
   };
 };
 
@@ -299,10 +438,46 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
 
 export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => {
   const activeDevSessions = new Map<string, DevSession>();
+  const startups = new Map<string, DevStartup>();
+  // A start that failed after its tool call returned DEV_STARTING keeps its error here until a call reads it.
+  const failedStarts = new Map<string, { output: ToolOutput; finishedAt: number }>();
   const runCli = dependencies.runCli || runStacktapeCommandJsonl;
   const requestDevApi = dependencies.requestDevApi || devApiRequest;
+  const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
   const createId = dependencies.createId || randomUUID;
   const now = dependencies.now || (() => new Date());
+
+  /** What a session's start reports while it still runs: the latest steps and, once known, the agent's port. */
+  const describeStartup = (session: DevSession, startup: DevStartup): ToolOutput => {
+    // Heartbeats already say "Still starting: <step> (<seconds>)".
+    const latest = startup.progress.at(-1)?.message.replace(/^Still starting:?\s*/, '');
+    return {
+      ok: true,
+      code: 'DEV_STARTING',
+      message: `Dev mode is still starting${latest ? `: ${latest}.` : '.'} A first start creates the dev network and the dev stack, which takes several minutes.`,
+      data: { session, startup: { state: 'starting', progress: startup.progress.slice(-10) } },
+      nextActions: [
+        `Call stacktape_dev with action=status and args.devSessionId=${session.devSessionId}; it waits up to ${DEFAULT_WAIT_SECONDS} s for the start to finish.`
+      ]
+    };
+  };
+
+  /** Waits up to `waitMs` for a background start; returns its output if it finished. */
+  const waitForStartup = async (startup: DevStartup, waitMs: number, signal?: AbortSignal) => {
+    let timer: NodeJS.Timeout | undefined;
+    let onAbort = () => {};
+    await Promise.race([
+      startup.done,
+      new Promise<void>((resolveWait) => {
+        timer = setTimeout(resolveWait, waitMs);
+        onAbort = () => resolveWait();
+        signal?.addEventListener('abort', onAbort, { once: true });
+      })
+    ]);
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+    return startup.state === 'finished' ? startup.output : undefined;
+  };
 
   return async ({
     action,
@@ -329,63 +504,192 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           ? toolArgs.agentPort
           : typeof toolArgs.agentPort === 'string'
             ? Number(toolArgs.agentPort)
-            : 7331;
-      const { cwd: requestedCwd, devSessionId: _ignoredSessionId, ...devCliArgs } = toolArgs;
+            : undefined;
+      const {
+        cwd: requestedCwd,
+        devSessionId: _ignoredSessionId,
+        waitSeconds,
+        agentPort: _requestedPortArg,
+        ...devCliArgs
+      } = toolArgs;
 
-      const result = await runCli({
+      // The agent adopts this ID, reports it in its status, and a restarted MCP server finds the session by it again.
+      const devSessionId = createId();
+      const session: DevSession = {
+        devSessionId,
+        startedAt: now().toISOString(),
+        cwd: typeof requestedCwd === 'string' ? requestedCwd : process.cwd()
+      };
+      let clientWaiting = true;
+      const startup: DevStartup = {
+        state: 'starting',
+        progress: [],
+        abort: new AbortController(),
+        done: Promise.resolve()
+      };
+      const forwardCancellation = () => startup.abort.abort();
+      const finishStartup = (output: ToolOutput) => {
+        startup.output = output;
+        startup.state = 'finished';
+        startups.delete(devSessionId);
+        if (!output.ok) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
+      };
+      signal?.addEventListener('abort', forwardCancellation, { once: true });
+
+      const run = runCli({
         command: 'dev',
         args: {
           ...devCliArgs,
-          agentPort: Number.isFinite(requestedPort) ? requestedPort : 7331
+          // Without a requested port the CLI takes the first free one from 7331 and reports it.
+          ...(requestedPort !== undefined && Number.isFinite(requestedPort) ? { agentPort: requestedPort } : {})
         },
         cwd: typeof requestedCwd === 'string' ? requestedCwd : undefined,
-        timeoutMs: 12 * 60 * 1000,
-        signal,
+        timeoutMs: START_TIMEOUT_MS,
+        signal: startup.abort.signal,
         tool: 'stacktape_dev',
         clientName,
-        onProgress
+        env: { STACKTAPE_DEV_SESSION_ID: devSessionId },
+        onProgress: async (event) => {
+          startup.progress.push({
+            ts: event.ts,
+            eventType: event.eventType,
+            status: event.status,
+            message: event.message,
+            ...(event.instanceId ? { instanceId: event.instanceId } : {})
+          });
+          if (startup.progress.length > MAX_STARTUP_PROGRESS) startup.progress.shift();
+          if (event.detail?.kind === 'dev-agent') session.agentPort = event.detail.agentPort;
+          if (clientWaiting) await onProgress?.({ message: event.message });
+        }
       });
 
-      let session: DevSession | undefined;
-      // The CLI reports the port of the agent it started or found running, which may differ from the requested one.
-      const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
-      const agentPort = [payload?.port, payload?.agentPort].find((port): port is number => typeof port === 'number');
-      if (result.ok && agentPort !== undefined) {
-        session = {
-          devSessionId: createId(),
-          agentPort,
-          startedAt: now().toISOString(),
-          cwd: result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd
-        };
-        activeDevSessions.set(session.devSessionId, session);
-      }
-      const missingPort = result.ok && !session;
-
-      return toToolText({
-        ok: result.ok && !missingPort,
-        code: missingPort ? 'INTERNAL_ERROR' : result.code,
-        message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
-        data: {
-          ...(session ? { session } : {}),
-          resolvedContext: result.resolvedContext,
-          ...(result.data ? { cli: result.data } : {})
+      startup.done = run.then(
+        (result) => {
+          // The CLI reports the port of the agent it started or found running, which may differ from the requested one.
+          const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
+          const agentPort = [payload?.port, payload?.agentPort].find(
+            (port): port is number => typeof port === 'number'
+          );
+          const missingPort = result.ok && agentPort === undefined;
+          session.cwd = result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd;
+          if (result.ok && agentPort !== undefined) {
+            session.agentPort = agentPort;
+            if (typeof payload?.stage === 'string') session.stage = payload.stage;
+            activeDevSessions.set(devSessionId, session);
+            // An agent that was already running keeps its own session ID; it is the one a restarted server finds.
+            if (typeof payload?.sessionId === 'string' && payload.sessionId !== devSessionId) {
+              activeDevSessions.set(payload.sessionId, session);
+            }
+          } else {
+            activeDevSessions.delete(devSessionId);
+          }
+          const output: ToolOutput = {
+            ok: result.ok && !missingPort,
+            code: missingPort ? 'INTERNAL_ERROR' : result.code,
+            message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
+            data: {
+              ...(result.ok && !missingPort ? { session } : {}),
+              resolvedContext: result.resolvedContext,
+              ...(result.data ? { cli: result.data } : {})
+            },
+            ...(result.rawTail ? { rawTail: result.rawTail } : {})
+          };
+          finishStartup(output);
         },
-        ...(result.rawTail ? { rawTail: result.rawTail } : {})
-      });
+        (error: unknown) => {
+          activeDevSessions.delete(devSessionId);
+          finishStartup({
+            ok: false,
+            code: 'INTERNAL_ERROR',
+            message: `Dev mode failed to start: ${error instanceof Error ? error.message : String(error)}`
+          });
+        }
+      );
+      startups.set(devSessionId, startup);
+      // Follow-up calls (status, logs, stop) can address the session while it starts.
+      activeDevSessions.set(devSessionId, session);
+
+      const output = await waitForStartup(startup, getWaitMs(waitSeconds), signal);
+      clientWaiting = false;
+      signal?.removeEventListener('abort', forwardCancellation);
+      // This call reports the outcome itself, so nothing is kept for a later status call.
+      if (output) failedStarts.delete(devSessionId);
+      return toToolText(output ?? describeStartup(session, startup));
     }
 
     const devSessionId = typeof toolArgs.devSessionId === 'string' ? toolArgs.devSessionId : undefined;
+    for (const [id, { finishedAt }] of failedStarts) {
+      if (Date.now() - finishedAt > FAILED_START_RETENTION_MS) failedStarts.delete(id);
+    }
+    // A start that failed in the background: the next call about it gets the start's own error, code and hints. Without
+    // an ID, a status call gets it when it is the only thing this server knows about.
+    const failedStartId =
+      devSessionId ??
+      (action === 'status' && activeDevSessions.size === 0 && failedStarts.size === 1
+        ? [...failedStarts.keys()][0]
+        : undefined);
+    const failedStart = failedStartId === undefined ? undefined : failedStarts.get(failedStartId);
+    if (failedStartId !== undefined && failedStart) {
+      failedStarts.delete(failedStartId);
+      return toToolText(
+        action === 'stop'
+          ? {
+              ok: true,
+              code: 'OK',
+              message: 'The dev session failed to start, so nothing runs.',
+              data: { startError: failedStart.output }
+            }
+          : failedStart.output
+      );
+    }
     const sessionResult = await ensureDevSessionAvailable({
       devSessionId,
+      cwd: typeof toolArgs.cwd === 'string' ? toolArgs.cwd : undefined,
       requireExplicit: action === 'stop',
       activeDevSessions,
-      requestDevApi
+      requestDevApi,
+      discoverAgents,
+      isStarting: (session) => startups.has(session.devSessionId)
     });
     if (sessionResult.ok === false) {
       return toToolText(sessionResult.output);
     }
 
+    let startup = startups.get(sessionResult.session.devSessionId);
+    if (startup && action === 'status') {
+      const output = await waitForStartup(startup, getWaitMs(toolArgs.waitSeconds), signal);
+      if (output) failedStarts.delete(sessionResult.session.devSessionId);
+      if (output && !output.ok) return toToolText(output);
+      if (!output) return toToolText(describeStartup(sessionResult.session, startup));
+      // The start finished while this call waited: report the ready session's status.
+      startup = undefined;
+    }
+    if (startup && action === 'stop') {
+      // The agent stops through its stop route once it listens, which runs its cleanup; before that, ending the CLI
+      // process that starts it stops the start.
+      if (sessionResult.session.agentPort !== undefined) {
+        await requestDevApi({ port: sessionResult.session.agentPort, method: 'POST', path: '/stop', body: {} }).catch(
+          () => ({})
+        );
+      }
+      startup.abort.abort();
+      await startup.done;
+      forgetDevSession(activeDevSessions, sessionResult.session);
+      return toToolText({
+        ok: true,
+        code: 'OK',
+        message: 'Dev session start stopped.',
+        data: { session: sessionResult.session }
+      });
+    }
     const port = sessionResult.session.agentPort;
+    if (port === undefined || (startup && action !== 'logs')) {
+      return toToolText(
+        startup
+          ? { ...describeStartup(sessionResult.session, startup), ok: false }
+          : { ok: false, code: 'NOT_FOUND', message: 'The dev session has no agent port.' }
+      );
+    }
 
     if (action === 'status') {
       const response = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true' });
@@ -401,7 +705,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     if (action === 'logs') {
-      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' });
+      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' }).catch(
+        (error: unknown): Record<string, unknown> => ({ ok: false, code: 'UNREACHABLE', message: String(error) })
+      );
+      // A starting session's agent may not listen yet.
+      if (startup && logsMeta.ok === false) {
+        return toToolText({ ...describeStartup(sessionResult.session, startup), ok: false });
+      }
       const logFile = logsMeta.logFile as string | undefined;
       if (!logFile) {
         return toToolText({
@@ -412,35 +722,56 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         });
       }
 
-      const cursor = typeof toolArgs.cursor === 'number' ? toolArgs.cursor : Number(toolArgs.cursor || 0);
-      const limit = typeof toolArgs.limit === 'number' ? toolArgs.limit : Number(toolArgs.limit || 200);
+      const numberArg = (value: unknown) => {
+        const number = typeof value === 'number' ? value : Number(value);
+        return value === undefined || value === '' || !Number.isFinite(number) ? undefined : number;
+      };
+      const requestedWorkload = typeof toolArgs.workload === 'string' ? toolArgs.workload.trim() : undefined;
+      const requestedLevel = typeof toolArgs.level === 'string' ? toolArgs.level.trim().toLowerCase() : undefined;
+      if (requestedLevel && !(requestedLevel in LOG_LEVEL_RANK)) {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: 'args.level must be info, warn or error.'
+        });
+      }
+      const sinceMs = parseLogsSince(toolArgs.since, now());
+      if (toolArgs.since !== undefined && sinceMs === undefined) {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: 'args.since must be an ISO time or a duration such as 30s, 10m, 2h or 1d.'
+        });
+      }
+      const cursor = numberArg(toolArgs.cursor);
       const page = await readDevLogs({
         logFile,
-        cursor: Number.isFinite(cursor) ? cursor : 0,
-        limit: Number.isFinite(limit) ? limit : 200
+        cursor,
+        limit: numberArg(toolArgs.limit),
+        sinceMs,
+        minLevel: requestedLevel,
+        source: requestedWorkload || undefined,
+        // A level filter without a time or cursor looks for this session's problems, not an earlier session's.
+        currentSessionOnly: Boolean(requestedLevel) && sinceMs === undefined && cursor === undefined
       });
-
-      const requestedWorkload = typeof toolArgs.workload === 'string' ? toolArgs.workload.trim() : undefined;
-      const filteredEntries = requestedWorkload
-        ? page.entries.filter((entry) => {
-            const source = (entry as Record<string, unknown>).source;
-            return typeof source === 'string' && source === requestedWorkload;
-          })
-        : page.entries;
 
       return toToolText({
         ok: true,
         code: 'OK',
         message: requestedWorkload
-          ? `Fetched ${filteredEntries.length} log entries for workload '${requestedWorkload}'.`
-          : `Fetched ${filteredEntries.length} log entries.`,
+          ? `Fetched ${page.entries.length} log entries for workload '${requestedWorkload}'.`
+          : `Fetched ${page.entries.length} log entries.`,
         data: {
           session: sessionResult.session,
           logFile,
-          entries: filteredEntries,
+          entries: page.entries,
           nextCursor: page.nextCursor,
-          totalLines: page.totalLines
-        }
+          totalLines: page.totalLines,
+          ...(page.omitted ? { omittedOlderEntries: page.omitted } : {})
+        },
+        nextActions: [
+          `Pass args.cursor=${page.nextCursor} to read only the lines written after these; filter with args.level (info, warn, error), args.since (ISO time or 10m) and args.workload.`
+        ]
       });
     }
 
@@ -482,7 +813,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       });
       const ok = (response.ok as boolean | undefined) ?? false;
       if (ok) {
-        activeDevSessions.delete(sessionResult.session.devSessionId);
+        forgetDevSession(activeDevSessions, sessionResult.session);
       }
       return toToolText({
         ok,

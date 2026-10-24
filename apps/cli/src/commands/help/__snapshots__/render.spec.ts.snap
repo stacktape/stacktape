@@ -244,6 +244,9 @@ Stops a running dev agent.
 Options:
   -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
       --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
+  -c, --config <value>             The path to your Stacktape configuration file, relative to the current working directory.
+      --cwd <value>                The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.
+  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters.
       --cleanup-containers         Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.
 
 Global options:

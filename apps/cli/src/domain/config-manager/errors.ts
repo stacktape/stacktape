@@ -640,6 +640,16 @@ export const configErrors = {
       )}, which is always one instance in one zone. Use ${inlineCode('ha-ec2')} for one instance per zone with failover.`
     });
   },
+  reservedStackTag({ tagName }: { tagName: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_RESERVED_STACK_TAG',
+      message: `The stack tag ${inlineCode(tagName)} in ${inlineCode(
+        'stackConfig.tags'
+      )} uses the reserved ${inlineCode('stp:')} prefix. Stacktape sets these tags itself, for example to tell a dev stack from a deployed one.`,
+      hints: `Rename the tag so it does not start with ${inlineCode('stp:')}.`
+    });
+  },
   natInstanceSizeNotArm({ instanceSize }: { instanceSize: string }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',

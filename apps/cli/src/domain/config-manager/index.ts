@@ -97,7 +97,8 @@ import { buildSsrWebNestedResources } from './utils/ssr-webs';
 import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
 import {
   isResourceTypeExcludedInDevMode,
-  selectWorkloadsDeployedInDevMode
+  selectWorkloadsDeployedInDevMode,
+  withSourceMapsInPackage
 } from '@domain-services/config-manager/dev-mode';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { ApplicationLoadBalancerAlarm, HttpApiGatewayAlarm } from '@stacktape/config/alarms';
@@ -493,7 +494,9 @@ export class ConfigManager {
   }
 
   get functions() {
-    return this.getResourcesFromConfig('function').map(({ name, packaging, ...definition }) => {
+    const isDevStack = this.#stackContext?.command === 'dev';
+    return this.getResourcesFromConfig('function').map(({ name, packaging: configuredPackaging, ...definition }) => {
+      const packaging = isDevStack ? withSourceMapsInPackage(configuredPackaging) : configuredPackaging;
       return {
         ...definition,
         name,

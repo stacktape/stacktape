@@ -113,8 +113,19 @@ let agentState: AgentStatus = {
   logFile: null
 };
 
+/** Who this agent is, so a client that only knows its port (dev stop, a restarted MCP server) can match it to a project. */
+export type AgentSessionIdentity = {
+  /** Stable for the session; MCP passes its own ID through `STACKTAPE_DEV_SESSION_ID`, so it survives an MCP restart. */
+  sessionId: string;
+  projectDirectory: string;
+  projectName: string;
+  stage: string;
+  region: string;
+};
+
 let httpServer: Server | null = null;
 let agentPort: number | null = null;
+let agentSession: AgentSessionIdentity | null = null;
 let startTime: number | null = null;
 let agentToken: string | null = null;
 let agentTokenFile: string | null = null;
@@ -335,7 +346,9 @@ addRoute('GET', '/status', async ({ query }) => {
       localResources: agentState.localResources,
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...getDevBoxStatus(),
-      logFile: getAgentLogFilePath()
+      logFile: getAgentLogFilePath(),
+      ...agentSession,
+      pid: process.pid
     };
   }
 
@@ -353,6 +366,7 @@ addRoute('GET', '/status', async ({ query }) => {
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     workloads: workloadMap,
     ...getDevBoxStatus(),
+    ...agentSession,
     pid: process.pid
   };
 });
@@ -1499,14 +1513,16 @@ export const buildStartupMessage = (params: {
 export const startAgentServer = async (
   port: number,
   logDir: string,
-  environment?: AgentWorkloadEnvironment
+  environment?: AgentWorkloadEnvironment,
+  session?: AgentSessionIdentity
 ): Promise<void> => {
   if (environment) workloadEnvironment = environment;
   agentPort = port;
+  agentSession = session ?? null;
   startTime = Date.now();
 
   const logFile = `${logDir}/${port}-logs.txt`;
-  initAgentLogger(logFile);
+  initAgentLogger(logFile, { ...session, port, pid: process.pid });
   agentState.logFile = logFile;
 
   await new Promise<void>((resolve, reject) => {
@@ -1594,12 +1610,15 @@ export const stopAgentServer = () => {
   agentToken = null;
   agentTokenFile = null;
   agentPort = null;
+  agentSession = null;
   startTime = null;
   stopAgentLogger();
   agentState = { phase: 'stopped', workloads: [], localResources: [], logFile: null };
 };
 
 export const getAgentPort = (): number | null => agentPort;
+
+export const getAgentSessionId = (): string | undefined => agentSession?.sessionId;
 
 /** File holding the session token every request must send; the token itself is never printed. */
 export const getAgentTokenFile = (): string | null => agentTokenFile;

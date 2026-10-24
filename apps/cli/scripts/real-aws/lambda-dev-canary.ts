@@ -10,6 +10,10 @@
  * 4. box stop and wake: the box is stopped as its idle stop would, and the next `dev --agent` starts it;
  * 5. deletion: `delete` of the dev stage and `dev network delete`, then AWS is queried for every owned resource.
  *
+ * Along the way it checks that the first start reports its progress (agent port, dev network, dev box, dev stack with
+ * resource counts, workloads, databases) with no long silence, that a stack trace from a dev function points at the
+ * source file, and that a failed first start of the second stage leaves a stack the next start updates again.
+ *
  * Timings go to the report file. Recovery state is written before anything is created; `--cleanup-only` resumes it.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
@@ -21,7 +25,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { Client } from 'pg';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CancelUpdateStackCommand, CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
   DescribeAddressesCommand,
   DescribeInstancesCommand,
@@ -227,7 +231,8 @@ const redisPing = (url: string) =>
     socket.once('error', reject);
   });
 
-export const handler = async (event: { op: 'db' | 'ping' | 'cache' | 'egress' }) => {
+export const handler = async (event: { op: 'db' | 'ping' | 'cache' | 'egress' | 'throw' }) => {
+  if (event.op === 'throw') throw new Error('dev canary source map probe');
   if (event.op === 'cache') return { reply: await redisPing(process.env.STP_CACHE_CONNECTION_STRING!) };
   if (event.op === 'ping') {
     const db = new Client({ connectionString: process.env.STP_DB_CONNECTION_STRING, connectionTimeoutMillis: 8000 });
@@ -287,6 +292,66 @@ const cliEnvironment = (options: Options, state: State) => {
   return env;
 };
 
+type JsonlRecord = {
+  type?: string;
+  ts?: string;
+  eventType?: string;
+  status?: string;
+  message?: string;
+  detail?: { kind?: string; agentPort?: number; totalPlanned?: number; completedCount?: number };
+};
+
+const parseRecords = (output: string): JsonlRecord[] =>
+  output.split(/\r?\n/).flatMap((line) => {
+    try {
+      const value = JSON.parse(line) as JsonlRecord;
+      return value && typeof value === 'object' ? [value] : [];
+    } catch {
+      return [];
+    }
+  });
+
+/**
+ * A start must report what it is doing: an agent cannot tell a several-minute dev network creation from a hung start
+ * otherwise. Checks the steps of a first start and the longest silence between two records.
+ */
+const checkStartupProgress = (output: string) => {
+  const records = parseRecords(output);
+  const events = records.filter(({ type }) => type === 'event');
+  check(
+    events[0]?.eventType === 'DEV_SESSION' && events[0].detail?.kind === 'dev-agent',
+    `The start did not report its agent port first: ${JSON.stringify(events[0])}`
+  );
+  for (const step of ['DEV_NETWORK', 'DEV_BOX', 'DEV_STACK', 'DEV_WORKLOAD', 'DEV_DATABASE']) {
+    check(
+      events.some(({ eventType }) => eventType === step),
+      `The start reported no ${step} event.`
+    );
+  }
+  const counted = events.filter(
+    ({ detail }) => detail?.kind === 'cloudformation-progress' && typeof detail.totalPlanned === 'number'
+  );
+  check(counted.length, 'The dev stack deployment reported no resource counts.');
+  check(
+    events.some(({ eventType, message }) => eventType === 'DEV_SESSION' && message === 'Dev session ready'),
+    'The start did not report that the session is ready.'
+  );
+  const times = records.map(({ ts }) => Date.parse(ts ?? '')).filter(Number.isFinite);
+  const maxGapSeconds = Math.max(0, ...times.slice(1).map((time, index) => (time - times[index]) / 1000));
+  check(maxGapSeconds < 45, `The start was silent for ${maxGapSeconds} s.`);
+  return {
+    events: events.length,
+    resourceCountEvents: counted.length,
+    maxGapSeconds,
+    steps: Object.fromEntries(
+      ['DEV_SESSION', 'DEV_NETWORK', 'DEV_BOX', 'DEV_STACK', 'DEV_WORKLOAD', 'DEV_DATABASE'].map((step) => [
+        step,
+        events.filter(({ eventType }) => eventType === step).length
+      ])
+    )
+  };
+};
+
 const runCli = async (options: Options, state: State, args: string[], timeoutMs = 25 * 60_000) => {
   const child = spawn(process.execPath, ['scripts/dev.ts', ...args], {
     cwd: CLI_DIRECTORY,
@@ -337,6 +402,17 @@ const stackArgs = (options: Options, state: State, stage = STAGE) => [
 
 const tail = (output: string) => output.slice(-4000);
 
+const devAgentArgs = (options: Options, state: State, agentPort: number, stage: string, extraArgs: string[] = []) => [
+  'dev',
+  ...stackArgs(options, state, stage),
+  '--resources',
+  'all',
+  '--agent',
+  '--agentPort',
+  String(agentPort),
+  ...extraArgs
+];
+
 const startAgent = async (
   options: Options,
   state: State,
@@ -345,16 +421,7 @@ const startAgent = async (
   extraArgs: string[] = []
 ) => {
   const started = Date.now();
-  const run = await runCli(options, state, [
-    'dev',
-    ...stackArgs(options, state, stage),
-    '--resources',
-    'all',
-    '--agent',
-    '--agentPort',
-    String(agentPort),
-    ...extraArgs
-  ]);
+  const run = await runCli(options, state, devAgentArgs(options, state, agentPort, stage, extraArgs));
   check(run.exitCode === 0 && run.result?.ok === true, `dev --agent failed (${run.exitCode}):\n${tail(run.output)}`);
   const tokenFile = (run.result?.data?.result as { tokenFile?: string } | undefined)?.tokenFile;
   return { seconds: (Date.now() - started) / 1000, output: run.output, tokenFile };
@@ -611,6 +678,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     report.firstStartSeconds = first.seconds;
     check(first.tokenFile, 'dev --agent did not report its token file.');
     const firstAgent = { port: agentPort, tokenFile: first.tokenFile };
+    report.firstStartProgress = checkStartupProgress(first.output);
     const network = await cloudFormation.send(new DescribeStacksCommand({ StackName: networkName(state) }));
     const output = (key: string) =>
       network.Stacks?.[0]?.Outputs?.find(({ OutputKey }) => OutputKey === key)?.OutputValue;
@@ -656,6 +724,26 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       }
       report.redis = await invoke(state, 'queryArm', { op: 'cache' });
       check((report.redis as { reply?: string }).reply === 'PONG', 'Redis did not answer through the box.');
+      // Dev functions keep their source maps and run with --enable-source-maps: the trace names the source file.
+      const thrown = await invoke(state, 'queryArm', { op: 'throw' }).then(
+        () => '',
+        (error: Error) => error.message
+      );
+      check(
+        thrown.includes('source map probe') && thrown.includes('query.ts'),
+        `The dev function's stack trace does not point at src/query.ts: ${thrown.slice(0, 600)}`
+      );
+      // The session's log file records dev mode's own lifecycle next to the function lines.
+      const logFile = join(projectDirectory(state), '.stacktape', 'dev-agent', `${agentPort}-logs.txt`);
+      const logLines = (await readFile(logFile, 'utf8')).split('\n').filter(Boolean);
+      const devMessages = logLines.flatMap((line) => {
+        const entry = JSON.parse(line) as { source?: string; msg?: string };
+        return entry.source === 'dev' ? [entry.msg ?? ''] : [];
+      });
+      for (const expected of ['Dev session started', 'Dev stack deployed', 'Dev session ready']) {
+        check(devMessages.includes(expected), `The log file has no "${expected}" line from dev mode.`);
+      }
+      report.logFileDevLines = devMessages.length;
       const box = (await ec2.send(new DescribeInstancesCommand({ InstanceIds: [state.boxInstanceId] })))
         .Reservations?.[0]?.Instances?.[0];
       const egress = await waitUntil(
@@ -684,8 +772,42 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       // A second developer's stage on the same box at the same time: a second SSM session and its own relay ports.
       const secondPort = agentPort + 1;
       agentPorts.push(secondPort);
+
+      // Its first start fails while the dev stack update runs: the canary cancels the update, as any failed resource
+      // would end it. CloudFormation rolls the stack back to the bootstrap template, which has no dev-stack output; the
+      // stack tag still marks it, so the next start updates it again instead of refusing it as a foreign stack.
+      const failingRun = runCli(options, state, devAgentArgs(options, state, secondPort, SECOND_STAGE));
+      await waitUntil(
+        'the second stage dev stack update to start',
+        async () => check((await stackStatus(stackName(state!, SECOND_STAGE))) === 'UPDATE_IN_PROGRESS', 'not yet'),
+        15 * 60_000
+      );
+      await sleep(5000);
+      await cloudFormation.send(new CancelUpdateStackCommand({ StackName: stackName(state, SECOND_STAGE) }));
+      const failed = await failingRun;
+      check(failed.result?.ok === false, `The failed first start did not report a failure:\n${tail(failed.output)}`);
+      report.failedFirstStartCode = (failed.result as { code?: string } | undefined)?.code;
+      const rolledBack = await waitUntil(
+        'the failed dev stack to settle',
+        async () => {
+          const status = await stackStatus(stackName(state!, SECOND_STAGE));
+          check(status && !status.endsWith('_IN_PROGRESS'), `stack is ${status}`);
+          return status;
+        },
+        15 * 60_000
+      );
+      report.failedFirstStartStackStatus = rolledBack;
+      check(rolledBack === 'UPDATE_ROLLBACK_COMPLETE', `The failed dev stack is ${rolledBack}.`);
+      const tags =
+        (await cloudFormation.send(new DescribeStacksCommand({ StackName: stackName(state, SECOND_STAGE) })))
+          .Stacks?.[0]?.Tags ?? [];
+      check(
+        tags.some(({ Key, Value }) => Key === 'stp:dev-stack' && Value === 'true'),
+        'The rolled-back dev stack lost its dev-stack tag.'
+      );
+
       const second = await startAgent(options, state, secondPort, SECOND_STAGE);
-      report.secondStageStartSeconds = second.seconds;
+      report.secondStageStartAfterFailureSeconds = second.seconds;
       const ping = await waitUntil(
         'the second stage to reach its local database',
         () => invoke(state!, 'queryArm', { op: 'ping' }, SECOND_STAGE),
@@ -787,7 +909,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     await stopAgent(options, state, agentPort);
     agentPorts.length = 0;
     console.info(
-      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reconnected after a killed SSM plugin, woke a stopped box, and recovered from a box that stopped during session startup.'
+      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reported startup progress, mapped stack traces to source, recovered a failed first start, reconnected after a killed SSM plugin, woke a stopped box, and recovered from a box that stopped during session startup.'
     );
   } catch (error) {
     failure = error;
