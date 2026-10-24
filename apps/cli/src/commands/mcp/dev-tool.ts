@@ -71,6 +71,21 @@ const devApiRequest: DevApiRequest = async ({ port, method, path, body }) => {
   }
 };
 
+/**
+ * A rebuild's own outcome: the agent answers after the build and deployment finished, so a failed build or a changed
+ * configuration comes back as `ok: false` with its code, error and log file.
+ */
+const toRebuildOutput = (response: Record<string, unknown>, session: DevSession): ToolOutput => {
+  const { ok, code, message, ...data } = response;
+  const succeeded = ok === true;
+  return {
+    ok: succeeded,
+    code: typeof code === 'string' ? code : succeeded ? 'OK' : 'INTERNAL_ERROR',
+    message: typeof message === 'string' ? message : succeeded ? 'Rebuilt.' : 'Rebuild failed.',
+    data: { session, ...data }
+  };
+};
+
 const ensureDevSessionAvailable = async ({
   devSessionId,
   requireExplicit,
@@ -392,7 +407,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     const devSessionId = typeof toolArgs.devSessionId === 'string' ? toolArgs.devSessionId : undefined;
     const sessionResult = await ensureDevSessionAvailable({
       devSessionId,
-      requireExplicit: action === 'rebuild' || action === 'rebuild_all' || action === 'stop',
+      requireExplicit: action === 'stop',
       activeDevSessions,
       requestDevApi
     });
@@ -475,18 +490,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         path: `/rebuild/${encodeURIComponent(workload)}`,
         body: {}
       });
-      return toToolText({
-        ok: (response.ok as boolean | undefined) ?? false,
-        code: ((response.ok as boolean | undefined) ?? false) ? 'OK' : 'INTERNAL_ERROR',
-        message:
-          ((response.ok as boolean | undefined) ?? false)
-            ? `Rebuild requested for workload '${workload}'.`
-            : 'Failed to request workload rebuild.',
-        data: {
-          session: sessionResult.session,
-          response
-        }
-      });
+      return toToolText(toRebuildOutput(response, sessionResult.session));
     }
 
     if (action === 'rebuild_all') {
@@ -496,18 +500,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         path: '/rebuild/all',
         body: {}
       });
-      return toToolText({
-        ok: (response.ok as boolean | undefined) ?? false,
-        code: ((response.ok as boolean | undefined) ?? false) ? 'OK' : 'INTERNAL_ERROR',
-        message:
-          ((response.ok as boolean | undefined) ?? false)
-            ? 'Rebuild requested for all workloads.'
-            : 'Failed to request rebuild for all workloads.',
-        data: {
-          session: sessionResult.session,
-          response
-        }
-      });
+      return toToolText(toRebuildOutput(response, sessionResult.session));
     }
 
     if (action === 'stop') {

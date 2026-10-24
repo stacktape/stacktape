@@ -335,7 +335,7 @@ export STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID='<exact disposable account id>'
 export STP_AWS_LAMBDA_DEV_OWNER='<unique lowercase run id>'
 export STP_AWS_LAMBDA_DEV_STATE_FILE='<absolute fresh state file>'
 export STP_AWS_LAMBDA_DEV_REPORT='<absolute report file>'
-# Optional: eu-west-1 (default) or eu-central-1, so concurrent runs of different tasks do not share a region.
+# Optional: the AWS region (default eu-west-1), so concurrent runs of different tasks do not share one.
 export STP_AWS_LAMBDA_DEV_REGION=eu-west-1
 # Optional: the dev network suffix (default: the run's id); the run refuses a name that is taken.
 export STP_AWS_LAMBDA_DEV_NETWORK_SUFFIX='<lowercase letters or digits>'

@@ -2,10 +2,6 @@ import type { SupportedPackagingType } from '@domain-services/packaging-manager/
 import type { AnyFunction } from '@utils/type-helpers';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
-import type { FSWatcher } from 'chokidar';
-import type { Stats } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
-import { applicationManager } from '@application-services/application-manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -15,7 +11,6 @@ import { getDockerHostAddress, inspectDockerContainer, listDockerContainers, sto
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
-import chokidar from 'chokidar';
 import { createCleanupHook } from './cleanup-utils';
 import {
   DEV_SESSION_DURATION_SECONDS,
@@ -23,8 +18,6 @@ import {
   SESSION_DURATION_SECONDS
 } from '../_utils/assume-role';
 import type { EnvironmentVar } from '@stacktape/config/shared';
-
-type OnChangeFn = (props: { stats: Stats; changedFile: string }) => any;
 
 // Track credential expiry timers per workload so they can be cleared on rebuild
 const credentialExpiryTimers = new Map<string, NodeJS.Timeout>();
@@ -60,49 +53,6 @@ const clearCredentialExpiryTimers = () => {
   }
   credentialExpiryTimers.clear();
 };
-
-export class SourceCodeWatcher {
-  watcher: FSWatcher;
-  currentlyWatchedFiles: string[];
-  onChangeFn: OnChangeFn;
-
-  constructor() {
-    if (!this.watcher) {
-      this.watcher = chokidar.watch([], { persistent: true });
-    }
-    this.watcher.on('change', async (changedFile, stats) => {
-      try {
-        await this.onChangeFn({ stats, changedFile });
-      } catch (err) {
-        await applicationManager.gracefullyHandleError(err);
-        this.addFilesToWatch(this.currentlyWatchedFiles);
-      }
-    });
-  }
-
-  get watchedFiles() {
-    return Object.entries(this.watcher.getWatched())
-      .map(([folder, files]) => files.map((file) => join(folder, file)))
-      .flat();
-  }
-
-  unwatchAllFiles = () => {
-    this.watcher.unwatch(Array.from(this.currentlyWatchedFiles));
-  };
-
-  addFilesToWatch = (filesToWatch: string[]) => {
-    const adjustedFilesToWatch = filesToWatch.map((filePath) =>
-      isAbsolute(filePath) ? filePath : join(process.cwd(), filePath)
-    );
-    this.watcher.add(adjustedFilesToWatch);
-    this.currentlyWatchedFiles = adjustedFilesToWatch;
-  };
-
-  watch = ({ filesToWatch, onChangeFn }: { filesToWatch: string[]; onChangeFn: OnChangeFn }) => {
-    this.onChangeFn = onChangeFn;
-    this.addFilesToWatch(filesToWatch);
-  };
-}
 
 export const resolveEnvironmentDirectives = async (environment: Record<string, any>): Promise<Record<string, any>> => {
   return configManager.resolveDirectives({ itemToResolve: environment, useLocalResolve: true, resolveRuntime: true });

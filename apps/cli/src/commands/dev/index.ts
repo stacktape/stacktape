@@ -14,7 +14,6 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { devTuiState } from 'src/app/tui-manager/dev/state';
-import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import {
   captureCommandArgs,
   initializeStackServicesForDevPhase1,
@@ -30,18 +29,20 @@ import {
   getLockFilePath,
   getCustomArgsSuffix,
   getRunningAgent,
+  requestDevAgent,
   spawnAgentDaemon,
   stopRunningAgent,
-  writeAgentLockFile
+  writeAgentLockFile,
+  type AgentLockFile
 } from './agent-daemon';
 import { getAgentLogFilePath } from './agent-logger';
 import {
   buildStartupMessage,
   getAgentPort,
+  mirrorDevTuiState,
   registerAgentCleanupHook,
   setRebuildFunctions,
-  startAgentServer,
-  updateAgentState
+  startAgentServer
 } from './agent-server';
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
@@ -50,6 +51,7 @@ import { devStackConfigNeedsUpdate, getDevStackConfigFingerprint } from './dev-s
 import { getLocalEmulateableResources, registerLocalResourceCleanupHook } from './local-resources';
 import { registerHealthMonitorCleanupHook } from './local-resources/health-monitor';
 import {
+  captureSessionConfig,
   getWorkloadEnvVars,
   getWorkloadSecretEnvNames,
   rebuildAllWorkloads,
@@ -307,6 +309,44 @@ const getSelectedResources = async (
  */
 let agentReadyHeartbeatStopper: (() => void) | null = null;
 
+type ReportedAgentStatus = {
+  ready?: boolean;
+  restartRequired?: string;
+  workloads?: { name: string; type: string; url?: string }[];
+  localResources?: { name: string; type: string; port?: number }[];
+  failedWorkloads?: { name: string; error: string }[];
+  logFile?: string | null;
+};
+
+/**
+ * The ready payload of an agent that already runs, built from its own status as a fresh start builds it, with whether
+ * the session is ready: a failed workload or a pending restart makes it not ready.
+ */
+export const getRunningAgentReadyPayload = async (agent: AgentLockFile) => {
+  const status = await requestDevAgent(agent, '/status?verbose=true', { timeoutMs: 5000 })
+    .then(async (response) => ((await response.json()) as { data?: ReportedAgentStatus }).data)
+    .catch(() => undefined);
+  const payload = buildAgentReadyPayload({
+    port: agent.port,
+    projectName: agent.projectName,
+    stage: agent.stage,
+    region: agent.region,
+    workloads: Array.isArray(status?.workloads)
+      ? status.workloads.map(({ name, type, url }) => ({ name, type, url }))
+      : agent.workloads.map((name) => ({ name, type: 'unknown' })),
+    databases: Array.isArray(status?.localResources)
+      ? status.localResources.map(({ name, type, port }) => ({ name, type, port }))
+      : agent.databases.map((name) => ({ name, type: 'unknown' })),
+    logFile: status?.logFile || agent.logFile || '',
+    failedWorkloads: Array.isArray(status?.failedWorkloads) ? status.failedWorkloads : []
+  });
+  return {
+    ...payload,
+    ready: status?.ready === true,
+    ...(status?.restartRequired ? { restartRequired: status.restartRequired } : {})
+  };
+};
+
 export const commandDev = async () => {
   const initialArgs = captureCommandArgs();
   const agentPortArg = initialArgs.agentPort;
@@ -319,18 +359,28 @@ export const commandDev = async () => {
     // Check if agent is already running
     const runningAgent = await getRunningAgent();
     if (runningAgent) {
-      // Report the running agent exactly like a new one: clients such as the MCP tool take its port and token file
-      // from this result.
-      const readyPayload = buildAgentReadyPayload({
-        port: runningAgent.port,
-        projectName: runningAgent.projectName,
-        stage: runningAgent.stage,
-        region: runningAgent.region,
-        workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
-        databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
-        logFile: runningAgent.logFile || ''
-      });
-      process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
+      // Report the running agent exactly like a new one: clients such as the MCP tool take its port, token file,
+      // workload URLs and database ports from this result.
+      const readyPayload = await getRunningAgentReadyPayload(runningAgent);
+      // A session that waits for a restart runs outdated configuration: reporting it as started would be a false green.
+      if (readyPayload.restartRequired) {
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_DEV_RESTART_REQUIRED',
+          message: `The dev session of this stage on port ${readyPayload.port} has to restart: ${readyPayload.restartRequired}`,
+          hints: `Stop it with \`stacktape dev stop --agent-port ${readyPayload.port}\`, then start dev mode again.`
+        });
+      }
+      // A failed workload leaves the session usable (a rebuild can fix it), so it is reported with ready: false.
+      if (readyPayload.ready) process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
+      else {
+        tuiManager.warn(
+          `The dev session on port ${readyPayload.port} runs, but is not ready: ${
+            readyPayload.failedWorkloads?.map(({ name, error }) => `${name}: ${error}`).join('; ') ||
+            'it is still starting'
+          }`
+        );
+      }
       return readyPayload;
     }
 
@@ -426,6 +476,7 @@ export const commandDev = async () => {
   // Phase 1: Initialize credentials, config, packagingManager
   // This also prompts for stage if not provided
   const { args, stackContext } = await initializeStackServicesForDevPhase1();
+  captureSessionConfig();
 
   // Set agent mode early so spinners use plain text output
   if (agentEnabled) {
@@ -709,30 +760,8 @@ export const commandDev = async () => {
     // Initialize dev agent credentials (scoped IAM role for agent API)
     initDevAgentCredentials();
 
-    const syncAgentState = (state: DevTuiState) => {
-      updateAgentState({
-        phase: state.phase === 'running' ? 'ready' : 'starting',
-        workloads: state.workloads.map((workload) => ({
-          name: workload.name,
-          type: workload.type,
-          status: workload.status,
-          url: workload.url,
-          port: workload.port,
-          error: workload.error,
-          size: workload.size
-        })),
-        localResources: state.localResources.map((resource) => ({
-          name: resource.name,
-          type: resource.type,
-          status: resource.status,
-          port: resource.port,
-          error: resource.error
-        }))
-      });
-    };
-
-    syncAgentState(devTuiState.getState());
-    const unsubscribe = devTuiState.subscribe(syncAgentState);
+    mirrorDevTuiState(devTuiState.getState());
+    const unsubscribe = devTuiState.subscribe(mirrorDevTuiState);
     applicationManager.registerCleanUpHook(() => {
       unsubscribe();
     });

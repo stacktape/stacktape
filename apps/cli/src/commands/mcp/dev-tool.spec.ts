@@ -35,7 +35,23 @@ const daemon = async ({ logFile }: { logFile?: string } = {}) => {
     else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt };
     else if (path === '/logs' && logFile) data = { logFile };
     else if (request.method === 'POST' && path === '/stop') state.stopped = true;
-    else if (request.method === 'POST' && path.startsWith('/rebuild/'))
+    else if (request.method === 'POST' && path === '/rebuild/broken') {
+      // What the agent answers when the build fails: the error, the failed workloads and the log file.
+      response.setHeader('content-type', 'application/json');
+      response.end(
+        JSON.stringify({
+          v: '1.0',
+          ok: false,
+          code: 'REBUILD_FAILED',
+          message: 'Rebuild failed. broken: Build failed: Unexpected ;',
+          data: {
+            failedWorkloads: [{ name: 'broken', error: 'Build failed: Unexpected ;' }],
+            logFile: '/tmp/7331-logs.txt'
+          }
+        })
+      );
+      return;
+    } else if (request.method === 'POST' && path.startsWith('/rebuild/'))
       state.rebuilt.push(decodeURIComponent(path.slice('/rebuild/'.length)));
     else {
       response.writeHead(500);
@@ -133,9 +149,21 @@ describe('MCP dev session routing', () => {
         stopped: false,
         rebuilt: ['all']
       });
-      for (const action of ['rebuild', 'rebuild_all', 'stop'] as const) {
-        expect((await handler({ action })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
-      }
+      // With one session left, a rebuild goes to it; stopping still names the session.
+      expect((await handler({ action: 'stop' })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
+      expect((await handler({ action: 'rebuild', args: { workload: 'worker' } })).structuredContent.ok).toBe(true);
+      expect((await handler({ action: 'rebuild_all' })).structuredContent.ok).toBe(true);
+      expect(second.state.rebuilt).toEqual(['all', 'worker', 'all']);
+      // A failed build comes back as a failure with its error and log file, not as "rebuild requested".
+      expect((await handler({ action: 'rebuild', args: { workload: 'broken' } })).structuredContent).toMatchObject({
+        ok: false,
+        code: 'REBUILD_FAILED',
+        message: 'Rebuild failed. broken: Build failed: Unexpected ;',
+        data: {
+          failedWorkloads: [{ name: 'broken', error: 'Build failed: Unexpected ;' }],
+          logFile: '/tmp/7331-logs.txt'
+        }
+      });
       expect((await handler({ action: 'stop', args: { devSessionId: secondId } })).structuredContent.ok).toBe(true);
       expect(second.state.stopped).toBe(true);
       expect((await handler({ action: 'status' })).structuredContent.code).toBe('NOT_FOUND');
