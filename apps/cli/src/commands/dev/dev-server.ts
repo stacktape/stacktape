@@ -28,6 +28,11 @@ type DevServerConfig = {
    * actual process environment outranks every file in all the supported frameworks.
    */
   environment?: Record<string, string>;
+  /**
+   * Variables of this process that the dev server must not inherit: those of local databases and services the
+   * frontend does not connect to. Dev mode sets them on its own process for hooks and other workloads.
+   */
+  withheldEnvNames?: string[];
 };
 
 export type DevServerState = {
@@ -195,6 +200,9 @@ export const startDevServer = async ({
     ...(config.environment || {}),
     FORCE_COLOR: '1'
   };
+  for (const name of config.withheldEnvNames ?? []) {
+    if (!config.environment || !(name in config.environment)) delete env[name];
+  }
 
   env.PORT = String(targetPort);
   env.HOST = '127.0.0.1';

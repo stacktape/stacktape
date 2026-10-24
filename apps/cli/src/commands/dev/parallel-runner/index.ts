@@ -24,6 +24,7 @@ import { buildAndUpdateFunctionCode } from 'src/commands/_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage } from '../container';
+import { getFrontendEnvironment } from '../frontend-env';
 import { startHostingBucketDevServer } from '../hosting-bucket';
 import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
 import { startHealthMonitoring } from '../local-resources/health-monitor';
@@ -173,6 +174,7 @@ export const runParallelWorkloads = async (
 
   const {
     envVars: localWorkloadEnvVars,
+    envVarsByWorkload: localWorkloadEnvVarsByName,
     addresses: localWorkloadAddresses,
     stackInfoWorkloads
   } = await getLocalWorkloadInfo(
@@ -234,6 +236,24 @@ export const runParallelWorkloads = async (
 
   // Start all workloads in parallel
   const allLocalEnvVars = { ...localResourceEnvVars, ...localWorkloadEnvVars };
+  const localEnvVarsByResource = new Map<string, Record<string, string>>([
+    ...state.localResources.map((instance): [string, Record<string, string>] => [
+      instance.name,
+      getLocalResourceEnvVars([instance])
+    ]),
+    ...Object.entries(localWorkloadEnvVarsByName)
+  ]);
+  // A frontend gets the local variables of the resources in its own `connectTo`, as its deployed server would, and
+  // its dev server does not inherit the others, which dev mode sets on its own process.
+  const getFrontendEnv = (resource: { name: string; type: string }) => {
+    const connectTo: string[] = getConfigResource(resource.name, resource.type)?.connectTo ?? [];
+    const connectedEnvVars: Record<string, string> = Object.assign(
+      {},
+      ...connectTo.map((name) => localEnvVarsByResource.get(name) ?? {})
+    );
+    const withheldEnvNames = Object.keys(allLocalEnvVars).filter((name) => !(name in connectedEnvVars));
+    return { connectedEnvVars, withheldEnvNames };
+  };
   const startPromises = filteredResources.map(async (resource) => {
     if (resource.category === 'container') {
       return startContainerWorkload(
@@ -248,11 +268,11 @@ export const runParallelWorkloads = async (
     } else if (resource.category === 'function') {
       return startFunctionWorkload(resource.name, stackContext);
     } else if (resource.category === 'hosting-bucket') {
-      return startHostingBucketWorkload(resource.name, allLocalEnvVars);
+      return startHostingBucketWorkload(resource.name, getFrontendEnv(resource));
     } else if (resource.category === 'nextjs-web') {
-      return startNextjsWebWorkload(resource.name, allLocalEnvVars);
+      return startNextjsWebWorkload(resource.name, getFrontendEnv(resource));
     } else if (resource.category === 'ssr-web') {
-      return startSsrWebWorkload(resource.name, resource.type, allLocalEnvVars);
+      return startSsrWebWorkload(resource.name, resource.type, getFrontendEnv(resource));
     }
   });
 
@@ -420,6 +440,7 @@ const getConfigResource = (name: string, type: string): any => {
 
 type LocalWorkloadInfoResult = {
   envVars: Record<string, string>;
+  envVarsByWorkload: Record<string, Record<string, string>>;
   addresses: Record<string, string>;
   stackInfoWorkloads: { name: string; resourceType: string; url?: string; address?: string }[];
 };
@@ -435,9 +456,10 @@ const getLocalWorkloadInfo = async (
   containerPortBindings: Map<string, ContainerPortBinding>
 ): Promise<LocalWorkloadInfoResult> => {
   const envVars: Record<string, string> = {};
+  const envVarsByWorkload: Record<string, Record<string, string>> = {};
   const addresses: Record<string, string> = {};
   const stackInfoWorkloads: { name: string; resourceType: string; url?: string; address?: string }[] = [];
-  if (!containerResources.length) return { envVars, addresses, stackInfoWorkloads };
+  if (!containerResources.length) return { envVars, envVarsByWorkload, addresses, stackInfoWorkloads };
   const tunnelHost = await getDockerHostAddress();
 
   for (const resource of containerResources) {
@@ -465,7 +487,7 @@ const getLocalWorkloadInfo = async (
         const address = `${tunnelHost}:${hostPort}`;
         // Only set env vars for referenced workloads
         if (allReferencedResources.has(resource.name)) {
-          envVars[injectedParameterEnvVarName(resource.name, 'address')] = address;
+          envVarsByWorkload[resource.name] = { [injectedParameterEnvVarName(resource.name, 'address')]: address };
           addresses[resource.name] = address;
         }
         // Always add to stackInfoWorkloads for $ResourceParam resolution
@@ -474,7 +496,7 @@ const getLocalWorkloadInfo = async (
         const url = `http://${tunnelHost}:${hostPort}`;
         // Only set env vars for referenced workloads
         if (allReferencedResources.has(resource.name)) {
-          envVars[injectedParameterEnvVarName(resource.name, 'url')] = url;
+          envVarsByWorkload[resource.name] = { [injectedParameterEnvVarName(resource.name, 'url')]: url };
           addresses[resource.name] = url;
         }
         // Always add to stackInfoWorkloads for $ResourceParam resolution
@@ -483,7 +505,8 @@ const getLocalWorkloadInfo = async (
     }
   }
 
-  return { envVars, addresses, stackInfoWorkloads };
+  Object.assign(envVars, ...Object.values(envVarsByWorkload));
+  return { envVars, envVarsByWorkload, addresses, stackInfoWorkloads };
 };
 
 const allocateContainerPortBindings = async (
@@ -872,10 +895,9 @@ const startContainerWorkload = async (
   });
 };
 
-const startHostingBucketWorkload = async (
-  resourceName: string,
-  localEnvVars: Record<string, string>
-): Promise<void> => {
+type FrontendEnv = { connectedEnvVars: Record<string, string>; withheldEnvNames: string[] };
+
+const startHostingBucketWorkload = async (resourceName: string, { withheldEnvNames }: FrontendEnv): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
   if (useDevTui) {
@@ -884,10 +906,7 @@ const startHostingBucketWorkload = async (
 
   // startHostingBucketDevServer handles its own onStateChange callback
   // which updates the workload status with URL and compile time
-  await startHostingBucketDevServer({
-    name: resourceName,
-    localWorkloadEnvVars: localEnvVars
-  });
+  await startHostingBucketDevServer({ name: resourceName, withheldEnvNames });
 
   // Dev server handles its own hot reload, no need to track source files
   state.workloads.set(resourceName, {
@@ -895,7 +914,6 @@ const startHostingBucketWorkload = async (
     type: 'hosting-bucket',
     resourceType: 'hosting-bucket',
     sourceFiles: [],
-    envVars: localEnvVars,
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 
@@ -911,17 +929,14 @@ const startHostingBucketWorkload = async (
         devTuiManager.setRebuildStep(resourceName, 'starting');
       }
 
-      const restartResult = await startHostingBucketDevServer({
-        name: resourceName,
-        localWorkloadEnvVars: localEnvVars
-      });
+      const restartResult = await startHostingBucketDevServer({ name: resourceName, withheldEnvNames });
 
       assertDevServerRestarted(resourceName, restartResult);
     }
   });
 };
 
-const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record<string, string>): Promise<void> => {
+const startNextjsWebWorkload = async (resourceName: string, frontendEnv: FrontendEnv): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
   if (useDevTui) {
@@ -930,10 +945,7 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
 
   // startNextjsWebDevServer handles its own onStateChange callback
   // which updates the workload status with URL and compile time
-  await startNextjsWebDevServer({
-    name: resourceName,
-    localWorkloadEnvVars: localEnvVars
-  });
+  await startNextjsWebDevServer({ name: resourceName, ...frontendEnv });
 
   // Dev server handles its own hot reload, no need to track source files
   state.workloads.set(resourceName, {
@@ -941,7 +953,6 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
     type: 'nextjs-web',
     resourceType: 'nextjs-web',
     sourceFiles: [],
-    envVars: localEnvVars,
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 
@@ -957,10 +968,7 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
         devTuiManager.setRebuildStep(resourceName, 'starting');
       }
 
-      const restartResult = await startNextjsWebDevServer({
-        name: resourceName,
-        localWorkloadEnvVars: localEnvVars
-      });
+      const restartResult = await startNextjsWebDevServer({ name: resourceName, ...frontendEnv });
 
       assertDevServerRestarted(resourceName, restartResult);
     }
@@ -970,7 +978,7 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
 const startSsrWebWorkload = async (
   resourceName: string,
   resourceType: string,
-  localEnvVars: Record<string, string>
+  frontendEnv: FrontendEnv
 ): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
@@ -981,7 +989,7 @@ const startSsrWebWorkload = async (
   await startSsrWebDevServer({
     name: resourceName,
     resourceType: resourceType as SsrWebResourceType,
-    localWorkloadEnvVars: localEnvVars
+    ...frontendEnv
   });
 
   state.workloads.set(resourceName, {
@@ -989,7 +997,6 @@ const startSsrWebWorkload = async (
     type: 'ssr-web',
     resourceType,
     sourceFiles: [],
-    envVars: localEnvVars,
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 
@@ -1008,7 +1015,7 @@ const startSsrWebWorkload = async (
       const restartResult = await startSsrWebDevServer({
         name: resourceName,
         resourceType: resourceType as SsrWebResourceType,
-        localWorkloadEnvVars: localEnvVars
+        ...frontendEnv
       });
 
       assertDevServerRestarted(resourceName, restartResult);
@@ -1344,7 +1351,7 @@ export const rebuildAllWorkloads = (): Promise<RebuildResult> =>
  */
 export const getWorkloadEnvVars = (name: string): Record<string, string> | null => {
   const workload = state.workloads.get(name);
-  return workload?.envVars || null;
+  return workload?.envVars || getFrontendEnvironment(name) || null;
 };
 
 export const getWorkloadSecretEnvNames = (name: string): Set<string> => {
