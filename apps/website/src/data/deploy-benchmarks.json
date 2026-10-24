@@ -1,0 +1,892 @@
+{
+  "status": "Preliminary results",
+  "source": "https://github.com/stacktape/deploy-benchmarks",
+  "issues": "https://github.com/stacktape/deploy-benchmarks/issues",
+  "runs": [
+    {
+      "date": "2026-10-22",
+      "label": "22 October 2026",
+      "what": "Packaging, image size and deploys from the command line",
+      "window": "21 Oct 21:00 UTC to 22 Oct 01:57 UTC",
+      "machine": "Dedicated EC2 c7i.2xlarge (8 vCPUs, 16 GB) in eu-west-1",
+      "stacktape": "4.0.0-bench.028ef1a7, built from source",
+      "competitors": "Serverless Framework 4.44.0, SST 4.17.2, AWS CDK CLI 2.1145.0, Heroku CLI 11.12.0, Render as offered that night",
+      "readme": "https://github.com/stacktape/deploy-benchmarks#22-october-2026-rerun",
+      "files": "https://github.com/stacktape/deploy-benchmarks/tree/main/results/2026-10-22"
+    },
+    {
+      "date": "2026-10-23",
+      "label": "23 October 2026",
+      "what": "Stacktape Git push",
+      "window": "09:32 to 19:14 UTC",
+      "machine": "Console runner c7a.2xlarge in eu-west-1; timed from a laptop whose clock was corrected against AWS time",
+      "stacktape": "4.0.0-bench.0e48e9d0, built from source, on the dev Console",
+      "competitors": "Not rerun; Heroku and Render from 22 October",
+      "readme": "https://github.com/stacktape/deploy-benchmarks#23-october-2026-git-push-rerun",
+      "files": "https://github.com/stacktape/deploy-benchmarks/tree/main/results/2026-10-23"
+    }
+  ],
+  "tools": {
+    "stacktape": "Stacktape",
+    "serverless": "Serverless",
+    "sst": "SST",
+    "cdk": "AWS CDK",
+    "cdk-hotswap": "CDK hotswap",
+    "heroku": "Heroku",
+    "render": "Render"
+  },
+  "comparisons": [
+    {
+      "id": "packaging",
+      "label": "Packaging",
+      "title": "Package Lambda functions",
+      "description": "Seconds to turn the functions into what the tool uploads, with an empty build cache. Median of 10 runs; lower is better.",
+      "unit": "s",
+      "views": [
+        {
+          "id": "empty-cache",
+          "label": "Empty build cache",
+          "groups": [
+            {
+              "app": "lambda-1",
+              "label": "1 function",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 2.3,
+                  "min": 2.3,
+                  "max": 2.4,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 5.8,
+                  "min": 5.7,
+                  "max": 5.8,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 7.2,
+                  "min": 6.9,
+                  "max": 7.5,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 3.4,
+                  "min": 3.3,
+                  "max": 3.4,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "lambda-5",
+              "label": "5 functions",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 3.1,
+                  "min": 3.1,
+                  "max": 3.2,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 9.7,
+                  "min": 9.5,
+                  "max": 9.9,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 10.2,
+                  "min": 10.0,
+                  "max": 10.6,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 6.0,
+                  "min": 5.9,
+                  "max": 6.3,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "lambda-25",
+              "label": "25 functions",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 3.8,
+                  "min": 3.7,
+                  "max": 3.8,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 28.4,
+                  "min": 28.0,
+                  "max": 29.2,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 23.9,
+                  "min": 23.7,
+                  "max": 24.2,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 17.6,
+                  "min": 17.4,
+                  "max": 17.6,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Packaging after a source change takes about the same time for every tool.",
+        "SST's time includes `sst diff`, because SST has no packaging-only command. CDK's time excludes zipping, which CDK does during deploy."
+      ]
+    },
+    {
+      "id": "lambda-deploy",
+      "label": "Lambda deploy",
+      "title": "Deploy a code change to Lambda functions",
+      "description": "Seconds from starting the deploy command until the changed code answers requests. Median of 10 runs; lower is better.",
+      "unit": "s",
+      "views": [
+        {
+          "id": "handler",
+          "label": "Handler change",
+          "groups": [
+            {
+              "app": "lambda-1",
+              "label": "1 function",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 10.7,
+                  "min": 10.4,
+                  "max": 11.6,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 21.8,
+                  "min": 21.0,
+                  "max": 24.5,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 15.4,
+                  "min": 14.7,
+                  "max": 18.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 22.2,
+                  "min": 21.9,
+                  "max": 25.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 13.2,
+                  "min": 12.8,
+                  "max": 15.6,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "lambda-5",
+              "label": "5 functions",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 12.2,
+                  "min": 11.7,
+                  "max": 12.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 26.7,
+                  "min": 26.3,
+                  "max": 27.6,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 18.3,
+                  "min": 17.8,
+                  "max": 20.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 26.2,
+                  "min": 25.2,
+                  "max": 30.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 16.5,
+                  "min": 16.1,
+                  "max": 18.6,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "lambda-25",
+              "label": "25 functions",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 14.5,
+                  "min": 12.9,
+                  "max": 19.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 56.7,
+                  "min": 53.7,
+                  "max": 61.8,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 35.0,
+                  "min": 34.2,
+                  "max": 44.9,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 71.8,
+                  "min": 46.5,
+                  "max": 75.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 36.9,
+                  "min": 33.9,
+                  "max": 39.5,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "shared",
+          "label": "Shared-code change",
+          "groups": [
+            {
+              "app": "lambda-1",
+              "label": "1 function",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 10.8,
+                  "min": 10.6,
+                  "max": 10.9,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 21.8,
+                  "min": 21.3,
+                  "max": 22.8,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 15.2,
+                  "min": 14.7,
+                  "max": 15.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 22.0,
+                  "min": 21.6,
+                  "max": 26.9,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 13.1,
+                  "min": 12.7,
+                  "max": 13.8,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "lambda-5",
+              "label": "5 functions",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 17.3,
+                  "min": 16.9,
+                  "max": 18.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 27.2,
+                  "min": 26.2,
+                  "max": 31.5,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 18.4,
+                  "min": 17.9,
+                  "max": 18.9,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 25.5,
+                  "min": 24.8,
+                  "max": 25.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 16.4,
+                  "min": 15.8,
+                  "max": 17.2,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "lambda-25",
+              "label": "25 functions",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 19.3,
+                  "min": 18.6,
+                  "max": 20.7,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "serverless",
+                  "median": 57.3,
+                  "min": 53.4,
+                  "max": 83.2,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 35.2,
+                  "min": 32.5,
+                  "max": 44.4,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 62.8,
+                  "min": 47.9,
+                  "max": 80.8,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 36.2,
+                  "min": 35.0,
+                  "max": 39.9,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "A handler change edits each function's own code. A shared-code change edits the shared package every function imports.",
+        "Stacktape loses one cell: the 5-function shared-code change, 17.3 s against CDK hotswap's 16.4 s. Stacktape publishes a new shared layer version; CDK hotswap updates five function ZIPs. A faster shared-code path has been merged since and has not been measured yet.",
+        "CDK hotswap leaves the CloudFormation stack out of date and is documented for development stacks only. The AWS CDK row is the same tool without it."
+      ]
+    },
+    {
+      "id": "container-deploy",
+      "label": "Container deploy",
+      "title": "Deploy a code change to containers",
+      "description": "Seconds from starting the deploy until the changed code serves. Median of 10 runs; lower is better.",
+      "unit": "s",
+      "views": [
+        {
+          "id": "code-change",
+          "label": "Code change",
+          "groups": [
+            {
+              "app": "container-node",
+              "label": "Node.js service",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 4.1,
+                  "min": 4.0,
+                  "max": 4.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 54.5,
+                  "min": 42.0,
+                  "max": 65.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 63.0,
+                  "min": 60.0,
+                  "max": 92.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 44.5,
+                  "min": 36.0,
+                  "max": 56.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "heroku",
+                  "median": 26.6,
+                  "min": 25.0,
+                  "max": 28.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "container-python",
+              "label": "Python service",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 7.6,
+                  "min": 7.1,
+                  "max": 19.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 48.5,
+                  "min": 42.0,
+                  "max": 77.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 64.5,
+                  "min": 61.0,
+                  "max": 74.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 42.5,
+                  "min": 38.0,
+                  "max": 47.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "heroku",
+                  "median": 20.0,
+                  "min": 19.0,
+                  "max": 58.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "five-services",
+              "label": "Five services, three changed",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 6.1,
+                  "min": 5.1,
+                  "max": 6.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 58.5,
+                  "min": 53.0,
+                  "max": 76.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 80.1,
+                  "min": 70.0,
+                  "max": 91.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk-hotswap",
+                  "median": 55.0,
+                  "min": 47.0,
+                  "max": 59.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "heroku",
+                  "median": 29.0,
+                  "min": 26.0,
+                  "max": 35.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Stacktape's times use code swap, an opt-in setting (`codeSwap: true`). It replaces the code inside the running Fargate task, so no image is built and no task is replaced. SST, AWS CDK and CDK hotswap roll out a new image and task; Heroku builds a slug and restarts the dyno.",
+        "Code swap covers code changes only. A dependency or configuration change uses Stacktape's normal image deploy, last measured on 17 October at 40.1, 47.6 and 57.6 s. That loses to Heroku, and for Python and five services to CDK hotswap."
+      ]
+    },
+    {
+      "id": "git-push",
+      "label": "Git push",
+      "title": "Deploy a code change by Git push",
+      "description": "Seconds from `git push` until the new code serves. The build machine was already running (a warm push, 15 minutes after the previous one). Lower is better.",
+      "unit": "s",
+      "views": [
+        {
+          "id": "warm",
+          "label": "Warm push",
+          "groups": [
+            {
+              "app": "container-node",
+              "label": "Node.js service",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 18.2,
+                  "min": 17.2,
+                  "max": 21.9,
+                  "runs": 10,
+                  "date": "2026-10-23",
+                  "file": "results/2026-10-23/report.md"
+                },
+                {
+                  "tool": "heroku",
+                  "median": 26.6,
+                  "min": 25.0,
+                  "max": 28.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "render",
+                  "median": 44.1,
+                  "min": 36.1,
+                  "max": 89.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "container-python",
+              "label": "Python service",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 58.4,
+                  "min": 49.5,
+                  "max": 79.1,
+                  "runs": 8,
+                  "date": "2026-10-23",
+                  "file": "results/2026-10-23/report.md"
+                },
+                {
+                  "tool": "heroku",
+                  "median": 20.0,
+                  "min": 19.0,
+                  "max": 58.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "render",
+                  "median": 59.1,
+                  "min": 53.1,
+                  "max": 105.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "five-services",
+              "label": "Five services, three changed",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 80.9,
+                  "min": 72.2,
+                  "max": 95.2,
+                  "runs": 9,
+                  "date": "2026-10-23",
+                  "file": "results/2026-10-23/report.md"
+                },
+                {
+                  "tool": "heroku",
+                  "median": 29.0,
+                  "min": 26.0,
+                  "max": 35.0,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "render",
+                  "median": 43.1,
+                  "min": 36.1,
+                  "max": 67.1,
+                  "runs": 10,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Stacktape loses the Python and five-service pushes. In this series the Console's build runner did not use code swap for them, so every push built and rolled out a new image.",
+        "A Console fix for that (console-app#130) was measured in a second, smaller series on the same day: 17.1 s for Node.js (5 runs), 23.9 s for Python (6 runs) and 17.2 s for five services (6 runs). With it, Stacktape still loses the Python push to Heroku (20.0 s). The benchmark repository does not yet present that series as the current product, so the chart shows the first one.",
+        "Stacktape was measured on 23 October with the Console's runner in eu-west-1, timed from a laptop whose clock ran about 5% fast and was corrected against AWS time. Heroku's time is its 22 October build from the pushed source (`heroku builds:create`), and Render's is its 22 October warm Git push. Both build on their own machines, so their times include their build queues."
+      ]
+    },
+    {
+      "id": "image-size",
+      "label": "Image size",
+      "title": "Container image size",
+      "description": "Compressed megabytes of the image each tool builds by default. One measurement each; smaller is better.",
+      "unit": "MB",
+      "views": [
+        {
+          "id": "default-image",
+          "label": "Default image",
+          "groups": [
+            {
+              "app": "container-node",
+              "label": "Node.js service",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 63.39,
+                  "min": 63.39,
+                  "max": 63.39,
+                  "runs": 1,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 86.63,
+                  "min": 86.63,
+                  "max": 86.63,
+                  "runs": 1,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 86.63,
+                  "min": 86.63,
+                  "max": 86.63,
+                  "runs": 1,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            },
+            {
+              "app": "container-python",
+              "label": "Python service",
+              "values": [
+                {
+                  "tool": "stacktape",
+                  "median": 53.44,
+                  "min": 53.44,
+                  "max": 53.44,
+                  "runs": 1,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "sst",
+                  "median": 54.68,
+                  "min": 54.68,
+                  "max": 54.68,
+                  "runs": 1,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                },
+                {
+                  "tool": "cdk",
+                  "median": 54.68,
+                  "min": 54.68,
+                  "max": 54.68,
+                  "runs": 1,
+                  "date": "2026-10-22",
+                  "file": "results/2026-10-22/comparison.md"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Stacktape's sizes are its default image, without code swap. With code swap on, the images are 66.40 MB for Node.js and 56.46 MB for Python, plus a 2.2 MB sidecar image, so the Python image is then 1.8 MB larger than SST's and CDK's."
+      ]
+    }
+  ]
+}

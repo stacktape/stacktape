@@ -49,8 +49,9 @@ export const COMMANDS = [
 ] as const;
 
 export const LINKS = {
-  howItWorks: '#designs',
-  getStarted: '#get-started',
+  // Absolute, so the header works on the other pages that share it (`/benchmarks`).
+  howItWorks: '/#designs',
+  getStarted: '/#get-started',
   docs: 'https://docs.stacktape.com',
   pricing: '/pricing',
   blog: '/blog',
