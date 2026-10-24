@@ -30,20 +30,30 @@ retry() {
 TOKEN=$(curl -sS -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')
 imds() { curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/$1"; }
 
-if ! curl -sf -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/info >/dev/null; then
-  # The box starts before its instance profile is attached. The SSM agent that found no credentials retries only after
-  # many minutes, so it is restarted as soon as they appear.
-  cat > /usr/local/bin/stacktape-wait-for-profile <<'WAIT'
+# The box starts without its instance profile, and an update of the network can detach the profile while the box
+# boots; stacktape dev attaches it then. An SSM agent that found no credentials hibernates for many minutes, so it
+# is restarted whenever credentials appear.
+cat > /usr/local/bin/stacktape-profile-watch <<'WATCH'
 #!/bin/bash
-until curl -sf -H "X-aws-ec2-metadata-token: $(curl -sS -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')" http://169.254.169.254/latest/meta-data/iam/security-credentials/ | grep -q .; do
-  sleep 2
+had=unknown
+while true; do
+  token=$(curl -sS -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')
+  if curl -sf -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/iam/security-credentials/ | grep -q .; then
+    now=yes
+  else
+    now=no
+  fi
+  if [ "$had" = no ] && [ "$now" = yes ]; then
+    echo "stacktape-devbox: instance profile attached, restarting the SSM agent"
+    systemctl restart amazon-ssm-agent
+  fi
+  had=$now
+  sleep 3
 done
-echo "stacktape-devbox: instance profile attached, restarting the SSM agent"
-systemctl restart amazon-ssm-agent
-WAIT
-  chmod +x /usr/local/bin/stacktape-wait-for-profile
-  systemd-run --unit stacktape-wait-for-profile --no-block /usr/local/bin/stacktape-wait-for-profile
-fi
+WATCH
+chmod +x /usr/local/bin/stacktape-profile-watch
+systemd-run --unit stacktape-profile-watch --no-block /usr/local/bin/stacktape-profile-watch
+
 PRIVATE_IP=$(imds local-ipv4)
 PRIMARY_MAC=$(imds mac)
 PRIMARY_IF=$(ip -o link show | awk -v mac="$PRIMARY_MAC" '$0 ~ mac {print $2}' | sed 's/://' | head -n 1)
