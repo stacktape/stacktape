@@ -30,7 +30,7 @@ import {
   resolveRunArgs,
   verifyDestructiveConfirmationState
 } from './cli-planning';
-import { handleDevToolAction } from './dev-tool';
+import { DEV_TOOL_ACTIONS, handleDevToolAction } from './dev-tool';
 import { buildIncidentToolOutput, prepareIncidentRun } from './incident-tool';
 import {
   buildCliRunOutput,
@@ -57,6 +57,91 @@ const TOOL_RESULT_SCHEMA = fromJsonSchema<Record<string, unknown>>({
   },
   required: ['schemaVersion', 'ok', 'code', 'message'],
   additionalProperties: false
+});
+
+const stringList = z.union([z.string(), z.array(z.string())]);
+
+/**
+ * `stacktape_dev` arguments. Unlisted `stacktape dev` flags still pass through to start; the listed ones are what an
+ * assistant needs for the dev loop.
+ */
+const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
+  devSessionId: z
+    .string()
+    .optional()
+    .describe('Session ID that start returned. Required for stop; other actions infer it when one session is active'),
+  cwd: z
+    .string()
+    .optional()
+    .describe(
+      'Absolute path of the project directory. plan and start run there; other actions use it to pick the session'
+    ),
+  stage: z
+    .string()
+    .optional()
+    .describe('plan, start: stage of the dev stack, for example "dev". Default for plan: dev'),
+  region: z.string().optional().describe('plan, start: AWS region, for example "eu-west-1"'),
+  projectName: z.string().optional().describe('plan, start: Stacktape project name when the config does not set it'),
+  awsAccount: z.string().optional().describe('plan, start: connected Stacktape AWS account name'),
+  profile: z.string().optional().describe('plan, start: AWS profile to use'),
+  configPath: z.string().optional().describe('plan, start: config path relative to currentWorkingDirectory'),
+  currentWorkingDirectory: z
+    .string()
+    .optional()
+    .describe('plan, start: directory that resolves the config and application files. Default: cwd'),
+  resources: stringList
+    .optional()
+    .describe('start: workloads and databases to run, or "all". Without it, start runs every resource'),
+  skipResources: stringList.optional().describe('start: resources not to run'),
+  remoteResources: stringList
+    .optional()
+    .describe('start: databases to use from the deployed stage instead of running them locally'),
+  watch: z.boolean().optional().describe('start: rebuild workloads when their source files change'),
+  freshDb: z.boolean().optional().describe('start: delete local database data before starting'),
+  noTunnel: z.boolean().optional().describe('start: do not connect deployed functions to local databases'),
+  agentPort: z.number().optional().describe('start: port of the dev agent. Default: first free port from 7331'),
+  waitSeconds: z
+    .number()
+    .optional()
+    .describe('start, status: how long to wait for the start to finish before returning DEV_STARTING. Default: 50'),
+  workload: z.string().optional().describe('rebuild, env: workload name. logs: only lines of this workload'),
+  cursor: z.number().optional().describe('logs: nextCursor of the previous call, to read only newer lines'),
+  limit: z.number().optional().describe('logs: lines to return (default 100). query: rows or items (default 1000/100)'),
+  level: z.enum(['info', 'warn', 'error']).optional().describe('logs: minimum level'),
+  since: z.string().optional().describe('logs: ISO time or a duration back from now, for example "10m"'),
+  resource: z
+    .string()
+    .optional()
+    .describe(
+      'query, tables, reset_db: local database name. query infers it when only one runs; tables and reset_db default to every local database'
+    ),
+  sql: z.string().optional().describe('query on PostgreSQL or MySQL: one SQL statement'),
+  command: z
+    .string()
+    .optional()
+    .describe(
+      'query on Redis: the command, for example "GET session:1". aws: SDK command, for example "FilterLogEvents"'
+    ),
+  confirm: z
+    .boolean()
+    .optional()
+    .describe(
+      'query: set true for a statement that deletes or changes data in bulk (DROP, TRUNCATE, FLUSHALL, UPDATE/DELETE without WHERE). reset_db: required'
+    ),
+  pk: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('query on DynamoDB: partition key, for example {"userId": "1"}. Without it, query scans the table'),
+  sk: z.record(z.string(), z.unknown()).optional().describe('query on DynamoDB: sort key condition'),
+  index: z.string().optional().describe('query on DynamoDB: index to query'),
+  filter: z.string().optional().describe('query on DynamoDB without pk: scan filter expression'),
+  service: z.string().optional().describe('aws: service, for example "logs", "sqs" or "dynamodb"'),
+  input: z.record(z.string(), z.unknown()).optional().describe('aws: command input'),
+  keepTables: z
+    .array(z.string())
+    .optional()
+    .describe('reset_db: tables to keep in addition to migration history tables, which are always kept'),
+  script: z.string().optional().describe("seed: name of a local-script in the config's scripts section. Default: seed")
 });
 
 const getMcpServerVersion = (): string => {
@@ -558,14 +643,16 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
   server.registerTool(
     'stacktape_dev',
     {
-      description: `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, and stop.
+      description: `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, query and reset local databases, read workload environments, call AWS, and stop.
 
-Use this instead of running stacktape dev or stacktape dev stop through Bash. Use action=plan to prepare dev mode without starting it. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to stop; status, logs, rebuild and rebuild_all may omit it only when exactly one session is active (args.cwd narrows that to one project). Sessions started earlier, also by another MCP server process, are found again. rebuild and rebuild_all answer after the build and deployment finish: ok=false with code REBUILD_FAILED carries the build error and the log file, and CONFIG_CHANGED_RESTART_REQUIRED means the configuration file changed and dev mode must restart.
+Use this instead of running stacktape dev or stacktape dev stop through Bash, and instead of calling the dev agent's HTTP API. Use action=plan to prepare dev mode without starting it; its data.stacktapeDevStart.arguments is a complete start call. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to stop; other actions may omit it only when exactly one session is active (args.cwd narrows that to one project). Sessions started earlier, also by another MCP server process, are found again. rebuild and rebuild_all answer after the build and deployment finish: ok=false with code REBUILD_FAILED carries the build error and the log file, and CONFIG_CHANGED_RESTART_REQUIRED means the configuration file changed and dev mode must restart.
 
-start and status wait up to args.waitSeconds (default 50) and send progress notifications. A first start creates the dev network and the dev stack and takes several minutes: start then returns code DEV_STARTING with the latest progress while the start continues; call status with the devSessionId until it returns the ready status or the start's error. logs returns the newest lines by default; pass args.cursor (the previous nextCursor) for new lines only, args.level (info, warn, error) for a minimum level, args.since (ISO time or 10m) and args.workload to filter. Lines with source "dev" are dev mode's own lifecycle: rebuilds, file changes, dev stack updates, dev box state.`,
+start and status wait up to args.waitSeconds (default 50) and send progress notifications. A first start creates the dev network and the dev stack and takes several minutes: start then returns code DEV_STARTING with the latest progress while the start continues; call status with the devSessionId until it returns the ready status or the start's error. logs returns the newest lines by default; pass args.cursor (the previous nextCursor) for new lines only, args.level (info, warn, error) for a minimum level, args.since (ISO time or 10m) and args.workload to filter. Lines with source "dev" are dev mode's own lifecycle: rebuilds, file changes, dev stack updates, dev box state, resets and seeds.
+
+Database actions reach only the databases dev mode runs on this machine, never deployed ones. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a bulk delete or change returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output. env returns a workload's environment with secret values masked. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) scoped to the dev stack.`,
       inputSchema: z.object({
-        action: z.enum(['plan', 'start', 'status', 'logs', 'rebuild', 'rebuild_all', 'stop']),
-        args: z.record(z.string(), z.unknown()).optional()
+        action: z.enum(DEV_TOOL_ACTIONS),
+        args: DEV_TOOL_ARGS_SCHEMA.optional()
       }),
       outputSchema: TOOL_RESULT_SCHEMA
     },

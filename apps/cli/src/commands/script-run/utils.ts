@@ -25,7 +25,12 @@ import type {
   LocalScriptWithBastionTunneling
 } from '@stacktape/config/shared';
 
-export const getExecutableScriptFunction = (props: { scriptDefinition: Script; hookTrigger?: string }) => {
+export const getExecutableScriptFunction = (props: {
+  scriptDefinition: Script;
+  hookTrigger?: string;
+  /** Receives a local script's output lines; the script's own stdio setting is then ignored. */
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+}) => {
   const { scriptDefinition } = props;
   validateScript(scriptDefinition);
   if (scriptDefinition.type === 'local-script' || scriptDefinition.type === 'local-script-with-bastion-tunneling') {
@@ -138,10 +143,12 @@ const getBastionScriptExecutionFn = ({
 
 const getLocalScriptExecutionFn = ({
   scriptDefinition,
-  hookTrigger
+  hookTrigger,
+  onOutputLine: forwardOutputLine
 }: {
   scriptDefinition: (LocalScript | LocalScriptWithBastionTunneling) & { scriptName: string };
   hookTrigger?: string;
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
 }) => {
   return async ({ errorData, hookType }: ScriptFn) => {
     const resolvedScriptDefinition = (await configManager.resolveDirectives({
@@ -206,7 +213,7 @@ const getLocalScriptExecutionFn = ({
       });
     }
 
-    const stdioMode = resolveScriptStdioMode(resolvedScriptDefinition.properties);
+    const stdioMode = forwardOutputLine ? 'capture' : resolveScriptStdioMode(resolvedScriptDefinition.properties);
 
     const scriptDisplayName = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
     const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
@@ -235,6 +242,7 @@ const getLocalScriptExecutionFn = ({
               lines: [line],
               stream
             });
+            forwardOutputLine?.(line, stream);
           }
         : undefined;
 

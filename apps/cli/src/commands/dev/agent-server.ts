@@ -46,14 +46,18 @@ import {
   opensearchIndices,
   opensearchMapping,
   opensearchAnalyze,
-  opensearchCount
+  opensearchCount,
+  postgresReset,
+  mysqlReset,
+  dynamoDbReset
 } from '@domain-services/debug-services/db-client';
-import { getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
+import { agentLog, getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
 import { maskAgentEnvironment } from './agent-env-masking';
 import { getLambdaEnvVars } from './deployed-function-environment';
 import { getDevNetworkSession } from './dev-network-session';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
+import { runSeedScript } from './seed-script';
 
 /** What the dev command tells the agent about workload environments; injected to avoid an import cycle. */
 export type AgentWorkloadEnvironment = {
@@ -1036,6 +1040,92 @@ addRoute('GET', '/opensearch/:resource/count', async ({ pathParams, query }) => 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Reset and seed local databases
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Deletes a local database's data and keeps its schema; only instances this session runs on this machine get here. */
+const resetLocalDatabase = async (
+  instance: LocalResourceInstance,
+  keepTables?: string[]
+): Promise<{ ok: boolean; error?: string } & Record<string, unknown>> => {
+  if (instance.type === 'postgres') return postgresReset(getPostgresConn(instance.name).conn!, { keepTables });
+  if (instance.type === 'mysql' || instance.type === 'mariadb') {
+    return mysqlReset(getMysqlConn(instance.name).conn!, { keepTables });
+  }
+  if (instance.type === 'redis') {
+    const result = await redisCommand(getRedisConn(instance.name).conn!, { cmd: 'FLUSHALL', confirm: true });
+    return result.ok ? { ok: true, flushedAllKeys: true } : result;
+  }
+  if (instance.type === 'dynamodb') return dynamoDbReset(getDynamoConn(instance.name).conn!);
+  return {
+    ok: false,
+    error: `Reset does not support ${instance.type}.`,
+    hint: 'Restart dev mode with --fresh-db to delete its data.'
+  };
+};
+
+const RESETTABLE_TYPES = new Set(['postgres', 'mysql', 'mariadb', 'redis', 'dynamodb']);
+
+addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
+  const { confirm, keepTables } = (body ?? {}) as { confirm?: boolean; keepTables?: string[] };
+  if (confirm !== true) {
+    return {
+      ok: false,
+      code: 'DESTRUCTIVE_OPERATION',
+      error: 'Resetting deletes all data of the local database and requires confirmation',
+      hint: 'To proceed, set confirm: true in the request body.'
+    };
+  }
+  if (keepTables !== undefined && (!Array.isArray(keepTables) || keepTables.some((name) => typeof name !== 'string'))) {
+    return { ok: false, code: 'VALIDATION_ERROR', error: 'keepTables must be an array of table names' };
+  }
+
+  const all = pathParams.resource === 'all';
+  const instance = all ? undefined : findLocalResource(pathParams.resource);
+  if (!all && !instance) {
+    return {
+      ok: false,
+      code: 'NOT_FOUND',
+      error: `"${pathParams.resource}" is not a database that this dev session runs locally. Reset changes local databases only.`,
+      available: getLocalResourceNames()
+    };
+  }
+  const instances = instance ? [instance] : getRunningLocalInstances().filter(({ type }) => RESETTABLE_TYPES.has(type));
+  const skipped = all
+    ? getRunningLocalInstances()
+        .filter(({ type }) => !RESETTABLE_TYPES.has(type))
+        .map(({ name }) => name)
+    : [];
+
+  const results: Record<string, unknown>[] = [];
+  for (const target of instances) {
+    const { ok, ...result } = await resetLocalDatabase(target, keepTables);
+    agentLog('dev', `${ok ? 'Reset' : 'Reset failed:'} local database ${target.name}`, ok ? 'info' : 'error');
+    results.push({ resource: target.name, type: target.type, ok, ...result });
+  }
+  const failed = results.filter(({ ok }) => !ok);
+  return {
+    ok: failed.length === 0,
+    ...(failed.length
+      ? { code: 'RESET_FAILED', error: `Reset failed for ${failed.map(({ resource }) => resource).join(', ')}` }
+      : {
+          message: results.length
+            ? `Reset ${results.map(({ resource }) => resource).join(', ')}.`
+            : 'No local databases.'
+        }),
+    results,
+    ...(skipped.length
+      ? {
+          skipped,
+          hint: 'Reset does not support these resources; restart dev mode with --fresh-db to delete their data.'
+        }
+      : {})
+  };
+});
+
+addRoute('POST', '/scripts/:script/run', async ({ pathParams }) => runSeedScript(pathParams.script));
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AWS SDK endpoint
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1301,6 +1391,8 @@ const buildCompactDocumentation = () => {
       rebuild: 'POST /rebuild/{name} or /rebuild/all',
       logs: 'GET /logs (returns file path for tail/grep)',
       env: 'GET /env/{workload}',
+      reset: 'POST /reset/{database} or /reset/all {"confirm": true, "keepTables"?: [...]}',
+      seed: 'POST /scripts/{script}/run (a local-script from the config, against the local databases)',
       aws: 'POST /aws/sdk {"service": "lambda", "command": "ListFunctions", "input": {}}',
       stop: 'POST /stop'
     },
@@ -1321,6 +1413,8 @@ const buildEndpointDocumentation = () => {
     'GET  /env/:workload': '',
     'GET  /health/:resource': 'Check health of local resource',
     'POST /rebuild/:workload': '{} or use /rebuild/all',
+    'POST /reset/:database': '{confirm: true, keepTables?} or use /reset/all; deletes local data, keeps schema',
+    'POST /scripts/:script/run': '{} runs a local-script from the config against the local databases',
     'POST /stop': '{}'
   };
 
@@ -1474,6 +1568,8 @@ export const buildStartupMessage = (params: {
     lines.push('  GET  /{type}/{name}/schema   Table/index schema');
     lines.push('  GET  /{type}/{name}/tables   List tables');
     lines.push('  GET  /{type}/{name}/sample   ?table={name}&limit=5');
+    lines.push('  POST /reset/{name}           Delete local data, keep schema ({"confirm": true}; or /reset/all)');
+    lines.push('  POST /scripts/{script}/run   Run a local-script from the config against the local databases');
     lines.push(
       '  Note: Destructive operations (DROP, TRUNCATE, DELETE/UPDATE without WHERE) require {"confirm": true}'
     );
