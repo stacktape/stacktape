@@ -3400,6 +3400,10 @@ Dev network stacktape-dev-network in eu-west-1 (VPC vpc-0a1b2c3d4e5f60718)
   Stacks with relay ports: shop-dev-jane
 ```
 
+## Who can reach the tunnels
+
+The dev network is shared by the whole AWS account and region. Every dev function in it can connect to every developer's tunnel ports, not only the functions of that developer's stage. The AWS account is the trust boundary: anyone who can deploy a function into the dev network can reach the databases on the machines of other developers while their `stacktape dev` runs. Local Redis, DynamoDB and OpenSearch have no password. Use a separate AWS account for people who must not reach each other's local databases.
+
 ## Deleting the dev network
 
 ```bash

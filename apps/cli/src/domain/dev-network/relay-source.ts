@@ -170,6 +170,9 @@ async def handle(reader, writer):
     if not isinstance(message, dict) or len(message) != 1:
         writer.close()
         return
+    # Every control message restarts the idle time, a Ping too: a session that is starting must not find the box
+    # stopping before its tunnels and presence connection open.
+    touch()
     kind, value = next(iter(message.items()))
     if kind == 'Lease' and isinstance(value, dict):
         await run_tunnel(reader, writer, int(value.get('port') or 0), str(value.get('key') or ''),

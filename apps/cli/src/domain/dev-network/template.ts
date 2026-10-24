@@ -106,6 +106,8 @@ export const buildDevNetworkTemplate = ({ networkName }: { networkName: string }
       Tags: tags(networkName, `${networkName}-box`)
     }),
     BoxInstanceProfile: cfnResource('AWS::IAM::InstanceProfile', { Roles: [ref('BoxRole')] }),
+    // CloudFormation replaces an instance whose `LaunchTemplate` property changes, and a new version number changes it.
+    // A replaced box gets a new private IP, which every deployed dev stack carries: keep this launch template static.
     BoxLaunchTemplate: cfnResource('AWS::EC2::LaunchTemplate', {
       LaunchTemplateData: { MetadataOptions: { HttpTokens: 'required', HttpPutResponseHopLimit: 1 } }
     }),
