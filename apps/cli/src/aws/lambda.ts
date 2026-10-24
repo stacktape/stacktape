@@ -8,6 +8,7 @@ import {
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
+  ListFunctionsCommand,
   ListLayerVersionsCommand,
   ListTagsCommand,
   PublishLayerVersionCommand,
@@ -310,5 +311,22 @@ export class AwsLambda {
     return this.#createClient()
       .send(new UpdateAliasCommand({ FunctionName: lambdaResourceName, Name: aliasName, FunctionVersion: version }))
       .catch(errorHandler);
+  };
+
+  /** Names of the functions whose VPC configuration uses the security group. */
+  listFunctionsInSecurityGroup = async (securityGroupId: string) => {
+    const errorHandler = this.#getErrorHandler('Failed to list Lambda functions.');
+    const names: string[] = [];
+    let marker: string | undefined;
+    do {
+      const page = await this.#createClient()
+        .send(new ListFunctionsCommand({ Marker: marker }))
+        .catch(errorHandler);
+      for (const { FunctionName, VpcConfig } of page.Functions ?? []) {
+        if (FunctionName && VpcConfig?.SecurityGroupIds?.includes(securityGroupId)) names.push(FunctionName);
+      }
+      marker = page.NextMarker;
+    } while (marker);
+    return names;
   };
 }

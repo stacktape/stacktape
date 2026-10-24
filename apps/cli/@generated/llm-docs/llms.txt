@@ -43,6 +43,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [delete](/cli/delete) - source: apps/docs/content/cli/delete.mdx
 - [deploy](/cli/deploy) - source: apps/docs/content/cli/deploy.mdx
 - [deployment-script run](/cli/deployment-script-run) - source: apps/docs/content/cli/deployment-script-run.mdx
+- [dev network](/cli/dev-network) - source: apps/docs/content/cli/dev-network.mdx
 - [dev stop](/cli/dev-stop) - source: apps/docs/content/cli/dev-stop.mdx
 - [dev](/cli/dev) - source: apps/docs/content/cli/dev.mdx
 - [diff](/cli/diff) - source: apps/docs/content/cli/diff.mdx

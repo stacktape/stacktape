@@ -17,3 +17,15 @@ export const getSharedEmailConfigurationSetName = (canonicalIdentity: string) =>
 
 export const getSharedEmailFeedbackTopicName = (canonicalIdentity: string) =>
   `stacktape-email-feedback-${sharedResourceHash('email-identity', canonicalIdentity)}`;
+
+/**
+ * The dev network of one AWS account and region: the VPC, the dev box and the security groups every `stacktape dev`
+ * session in that account and region shares. A name suffix exists only for guarded live tests, which own an isolated
+ * network next to a real one.
+ */
+export const getDevNetworkStackName = (suffix?: string) =>
+  suffix ? `stacktape-dev-network-${suffix}` : 'stacktape-dev-network';
+
+/** Port leases of a dev network: one parameter per (stack, resource), holding the relay port. */
+export const getDevNetworkLeaseParameterPrefix = (networkStackName: string) =>
+  `/stacktape/dev-network/${networkStackName}/leases`;

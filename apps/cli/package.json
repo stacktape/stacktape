@@ -116,7 +116,7 @@
     "test:compute-events": "bun test tests/synthesis-families/compute-events.spec.ts",
     "test:endpoint-synthesis": "bun test tests/synthesis-families/endpoints.spec.ts",
     "test:real-aws-endpoint": "bun scripts/real-aws/appsync-endpoint-canary.ts",
-    "test:local-dev": "bun test src/commands/dev src/commands/dev-stop src/utils/ports.test.ts scripts/real-aws/lambda-dev-canary.spec.ts",
+    "test:local-dev": "bun test src/commands/dev src/commands/dev-stop src/domain/dev-network src/utils/ports.test.ts scripts/real-aws/lambda-dev-canary.spec.ts",
     "test:local-dev:containers": "bun test tests/local-development/container-cleanup.spec.ts tests/local-development/worktree-databases.spec.ts",
     "test:local-dev:next": "bun test tests/local-development/next-dev.spec.ts",
     "test:local-dev:ministack": "bun test tests/ministack/local-dev.spec.ts",

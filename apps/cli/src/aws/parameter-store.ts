@@ -2,8 +2,11 @@ import type { SSMClient } from '@aws-sdk/client-ssm';
 import type { TuiManager } from '@application-services/tui-manager';
 import {
   DeleteParameterCommand,
+  DeleteParametersCommand,
   GetParameterCommand,
+  GetParametersByPathCommand,
   GetParametersCommand,
+  ParameterAlreadyExists,
   ParameterNotFound,
   ParameterType,
   PutParameterCommand
@@ -77,5 +80,42 @@ export class AwsParameterStore {
       })
     );
     return parameterPages.flat();
+  };
+
+  /** Every plain parameter under `path`, at any depth. */
+  listByPath = async ({ path }: { path: string }) => {
+    const handleError = this.#getErrorHandler(`Failed to list SSM parameters under ${path}.`);
+    const result: Array<{ name: string; value: string }> = [];
+    let nextToken: string | undefined;
+    do {
+      const page = await this.#createClient()
+        .send(new GetParametersByPathCommand({ Path: path, Recursive: true, NextToken: nextToken }))
+        .catch(handleError);
+      for (const { Name, Value } of page.Parameters ?? []) {
+        if (Name && Value !== undefined) result.push({ name: Name, value: Value });
+      }
+      nextToken = page.NextToken;
+    } while (nextToken);
+    return result;
+  };
+
+  /** Creates a plain parameter; one that already exists keeps its value. */
+  createIfAbsent = async ({ name, value }: { name: string; value: string }) => {
+    const handleError = this.#getErrorHandler(`Failed to create SSM parameter ${name}.`);
+    await this.#createClient()
+      .send(new PutParameterCommand({ Name: name, Value: value, Type: ParameterType.STRING, Overwrite: false }))
+      .catch((error) => {
+        if (error instanceof ParameterAlreadyExists) return;
+        return handleError(error);
+      });
+  };
+
+  deleteMany = async ({ names }: { names: string[] }) => {
+    const handleError = this.#getErrorHandler('Failed to delete SSM parameters.');
+    for (const batch of chunkArray(names, 10)) {
+      await this.#createClient()
+        .send(new DeleteParametersCommand({ Names: batch }))
+        .catch(handleError);
+    }
   };
 }

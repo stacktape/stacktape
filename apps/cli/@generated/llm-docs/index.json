@@ -15860,6 +15860,28 @@
       ]
     },
     {
+      "id": "page:/cli/dev-network",
+      "title": "dev network",
+      "route": "/cli/dev-network",
+      "sourcePath": "apps/docs/content/cli/dev-network.mdx",
+      "outputPath": "pages/cli/dev-network.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "dev-network"
+      ],
+      "chunks": [
+        "page:/cli/dev-network#dev-network",
+        "page:/cli/dev-network#usage",
+        "page:/cli/dev-network#deleting-the-dev-network",
+        "page:/cli/dev-network#flags-reference",
+        "page:/cli/dev-network#cli-options-stacktape-dev-network",
+        "page:/cli/dev-network#cli-options-stacktape-dev-network-delete",
+        "page:/cli/dev-network#related-commands"
+      ]
+    },
+    {
       "id": "page:/cli/dev-stop",
       "title": "dev stop",
       "route": "/cli/dev-stop",

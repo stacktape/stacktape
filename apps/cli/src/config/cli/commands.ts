@@ -182,6 +182,29 @@ Use \`--cleanup-containers\` to remove orphaned Docker containers left behind by
     requiredArgs: [] as const
   },
 
+  'dev:network': {
+    description: `Shows the dev network of an AWS account and region.
+
+The first \`stacktape dev\` that needs it creates one dev network per account and region: a VPC with a small EC2 instance, the dev box. Deployed dev functions reach the databases on your machine through the box, and VPC functions get internet access through it. The command shows whether the box runs, which dev functions use the network, and which stages hold relay ports.`,
+    args: {
+      ...universalArgs,
+      ...stackArgs
+    },
+    requiredArgs: ['region'] as const
+  },
+
+  'dev:network:delete': {
+    description: `Deletes the dev network of an AWS account and region.
+
+Delete the dev stages that use it first (\`stacktape delete --stage <stage>\`); the command refuses while dev functions still run in the network. The next \`stacktape dev\` that needs a dev network creates it again.`,
+    args: {
+      ...universalArgs,
+      ...stackArgs,
+      autoConfirmOperation: autoConfirmOperation.optional()
+    },
+    requiredArgs: ['region'] as const
+  },
+
   'deployment-script:run': {
     description: `Runs a deployment script defined in your configuration.
 
