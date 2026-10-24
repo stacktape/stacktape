@@ -301,7 +301,7 @@ describe('MCP dev session routing', () => {
       const session = started.data?.session as { devSessionId: string; agentPort?: number };
       expect(passedSessionId).toBe(session.devSessionId);
       expect(session.agentPort).toBe(dev.port);
-      expect(started.message).toContain('Creating dev stack app-dev');
+      expect(started.message).toContain('still starting: Creating dev stack app-dev.');
 
       const devSessionId = session.devSessionId;
       expect(
@@ -312,7 +312,8 @@ describe('MCP dev session routing', () => {
         code: 'DEV_STARTING'
       });
 
-      finishStart();
+      // The start finishes while a status call waits for it: that call returns the ready status.
+      setTimeout(finishStart, 300);
       const ready = (await handler({ action: 'status', args: { devSessionId, waitSeconds: 5 } })).structuredContent;
       expect(ready).toMatchObject({ ok: true, code: 'OK' });
       expect(ready.data?.status).toMatchObject({ stopped: false });

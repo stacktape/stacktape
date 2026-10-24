@@ -389,9 +389,12 @@ test('dev --agent reports the agent port at once and passes the daemon error cod
       .map((line) => JSON.parse(line) as { type?: string; detail?: { kind?: string; agentPort?: number } });
     expect(records[0]).toMatchObject({ type: 'event', eventType: 'DEV_SESSION', detail: { kind: 'dev-agent' } });
     const result = parseResult(output);
-    // The daemon fails before it touches AWS, with its own code and hint.
-    expect(result?.code).toBe('API_KEY_E501');
-    expect(result?.data?.hints?.join(' ')).toContain('api-keys');
+    // The daemon fails before it touches AWS (which error depends on the machine), and its own code and hints come
+    // through instead of the parent's generic start failure.
+    expect(result?.ok).toBe(false);
+    expect(result?.code).not.toBe('CLI_DEV_AGENT_START_FAILED');
+    expect(result?.message).not.toContain('Failed to start dev agent');
+    expect(result?.data?.hints?.length).toBeGreaterThan(0);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

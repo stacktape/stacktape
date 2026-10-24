@@ -427,15 +427,19 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const now = dependencies.now || (() => new Date());
 
   /** What a session's start reports while it still runs: the latest steps and, once known, the agent's port. */
-  const describeStartup = (session: DevSession, startup: DevStartup): ToolOutput => ({
-    ok: true,
-    code: 'DEV_STARTING',
-    message: `Dev mode is still starting${startup.progress.length ? `: ${startup.progress[startup.progress.length - 1].message}` : '.'} A first start creates the dev network and the dev stack, which takes several minutes.`,
-    data: { session, startup: { state: 'starting', progress: startup.progress.slice(-10) } },
-    nextActions: [
-      `Call stacktape_dev with action=status and args.devSessionId=${session.devSessionId}; it waits up to ${DEFAULT_WAIT_SECONDS} s for the start to finish.`
-    ]
-  });
+  const describeStartup = (session: DevSession, startup: DevStartup): ToolOutput => {
+    // Heartbeats already say "Still starting: <step> (<seconds>)".
+    const latest = startup.progress.at(-1)?.message.replace(/^Still starting:?\s*/, '');
+    return {
+      ok: true,
+      code: 'DEV_STARTING',
+      message: `Dev mode is still starting${latest ? `: ${latest}.` : '.'} A first start creates the dev network and the dev stack, which takes several minutes.`,
+      data: { session, startup: { state: 'starting', progress: startup.progress.slice(-10) } },
+      nextActions: [
+        `Call stacktape_dev with action=status and args.devSessionId=${session.devSessionId}; it waits up to ${DEFAULT_WAIT_SECONDS} s for the start to finish.`
+      ]
+    };
+  };
 
   /** Waits up to `waitMs` for a background start; returns its output if it finished. */
   const waitForStartup = async (startup: DevStartup, waitMs: number, signal?: AbortSignal) => {
@@ -600,11 +604,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       return toToolText(sessionResult.output);
     }
 
-    const startup = startups.get(sessionResult.session.devSessionId);
+    let startup = startups.get(sessionResult.session.devSessionId);
     if (startup && action === 'status') {
       const output = await waitForStartup(startup, getWaitMs(toolArgs.waitSeconds), signal);
       if (output && !output.ok) return toToolText(output);
       if (!output) return toToolText(describeStartup(sessionResult.session, startup));
+      // The start finished while this call waited: report the ready session's status.
+      startup = undefined;
     }
     if (startup && action === 'stop') {
       // The agent stops through its stop route once it listens, which runs its cleanup; before that, ending the CLI

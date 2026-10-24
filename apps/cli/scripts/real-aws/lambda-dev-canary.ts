@@ -12,7 +12,7 @@
  *
  * Along the way it checks that the first start reports its progress (agent port, dev network, dev box, dev stack with
  * resource counts, workloads, databases) with no long silence, that a stack trace from a dev function points at the
- * source file, and that an interrupted first start of the second stage leaves a stack the next start updates again.
+ * source file, and that a failed first start of the second stage leaves a stack the next start updates again.
  *
  * Timings go to the report file. Recovery state is written before anything is created; `--cleanup-only` resumes it.
  */
@@ -25,7 +25,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { Client } from 'pg';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CancelUpdateStackCommand, CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
   DescribeAddressesCommand,
   DescribeInstancesCommand,
@@ -773,22 +773,22 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       const secondPort = agentPort + 1;
       agentPorts.push(secondPort);
 
-      // Its first start is interrupted while the dev stack update runs. CloudFormation rolls the stack back to the
-      // bootstrap template, which has no dev-stack output; the stack tag still marks it, so the next start updates it.
-      const interruptedRun = runCli(options, state, devAgentArgs(options, state, secondPort, SECOND_STAGE));
+      // Its first start fails while the dev stack update runs: the canary cancels the update, as any failed resource
+      // would end it. CloudFormation rolls the stack back to the bootstrap template, which has no dev-stack output; the
+      // stack tag still marks it, so the next start updates it again instead of refusing it as a foreign stack.
+      const failingRun = runCli(options, state, devAgentArgs(options, state, secondPort, SECOND_STAGE));
       await waitUntil(
         'the second stage dev stack update to start',
         async () => check((await stackStatus(stackName(state!, SECOND_STAGE))) === 'UPDATE_IN_PROGRESS', 'not yet'),
         15 * 60_000
       );
       await sleep(5000);
-      const daemons = findProcesses('--agentChild', `--stage=${SECOND_STAGE}`, projectDirectory(state));
-      check(daemons.length, 'The second stage start runs no dev daemon to interrupt.');
-      for (const pid of daemons) process.kill(pid, 'SIGINT');
-      const interrupted = await interruptedRun;
-      check(interrupted.result?.ok !== true, `The interrupted start reported success:\n${tail(interrupted.output)}`);
+      await cloudFormation.send(new CancelUpdateStackCommand({ StackName: stackName(state, SECOND_STAGE) }));
+      const failed = await failingRun;
+      check(failed.result?.ok === false, `The failed first start did not report a failure:\n${tail(failed.output)}`);
+      report.failedFirstStartCode = (failed.result as { code?: string } | undefined)?.code;
       const rolledBack = await waitUntil(
-        'the interrupted dev stack to settle',
+        'the failed dev stack to settle',
         async () => {
           const status = await stackStatus(stackName(state!, SECOND_STAGE));
           check(status && !status.endsWith('_IN_PROGRESS'), `stack is ${status}`);
@@ -796,8 +796,8 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
         },
         15 * 60_000
       );
-      report.interruptedStackStatus = rolledBack;
-      check(rolledBack === 'UPDATE_ROLLBACK_COMPLETE', `The interrupted dev stack is ${rolledBack}.`);
+      report.failedFirstStartStackStatus = rolledBack;
+      check(rolledBack === 'UPDATE_ROLLBACK_COMPLETE', `The failed dev stack is ${rolledBack}.`);
       const tags =
         (await cloudFormation.send(new DescribeStacksCommand({ StackName: stackName(state, SECOND_STAGE) })))
           .Stacks?.[0]?.Tags ?? [];
@@ -807,7 +807,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       );
 
       const second = await startAgent(options, state, secondPort, SECOND_STAGE);
-      report.secondStageStartAfterInterruptSeconds = second.seconds;
+      report.secondStageStartAfterFailureSeconds = second.seconds;
       const ping = await waitUntil(
         'the second stage to reach its local database',
         () => invoke(state!, 'queryArm', { op: 'ping' }, SECOND_STAGE),
@@ -909,7 +909,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     await stopAgent(options, state, agentPort);
     agentPorts.length = 0;
     console.info(
-      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reported startup progress, mapped stack traces to source, recovered an interrupted first start, reconnected after a killed SSM plugin, woke a stopped box, and recovered from a box that stopped during session startup.'
+      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reported startup progress, mapped stack traces to source, recovered a failed first start, reconnected after a killed SSM plugin, woke a stopped box, and recovered from a box that stopped during session startup.'
     );
   } catch (error) {
     failure = error;

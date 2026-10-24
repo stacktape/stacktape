@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { publicFlag } from '../../config/cli/public-names';
 import { operationReporter } from '@application-services/operation-manager';
 import { applicationManager } from '@application-services/application-manager';
@@ -72,7 +73,6 @@ import {
   startDevStartupReporting,
   stopDevStartupReporting
 } from './startup-progress';
-import { randomUUID } from 'node:crypto';
 
 type DevCompatibleResource = {
   name: string;
@@ -799,7 +799,20 @@ export const commandDev = async () => {
           // This MUST be printed for the daemon spawning to work
           agentReadyHeartbeatStopper?.();
           agentReadyHeartbeatStopper = null;
-          reportDevStartup({ step: 'DEV_SESSION', status: 'completed', message: 'Dev session ready' });
+          const failedWorkloadNames = devTuiState
+            .getState()
+            .workloads.filter((w) => w.status === 'error')
+            .map((w) => w.name);
+          reportDevStartup({
+            step: 'DEV_SESSION',
+            status: 'completed',
+            ...(failedWorkloadNames.length
+              ? {
+                  level: 'error',
+                  message: `Dev session started, but these workloads failed: ${failedWorkloadNames.join(', ')}`
+                }
+              : { message: 'Dev session ready' })
+          });
           stopDevStartupReporting();
           process.stdout.write(
             `${buildAgentReadyMessage({

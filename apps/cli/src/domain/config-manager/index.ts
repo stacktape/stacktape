@@ -494,7 +494,7 @@ export class ConfigManager {
   }
 
   get functions() {
-    const isDevStack = this.stackContext.command === 'dev';
+    const isDevStack = this.#stackContext?.command === 'dev';
     return this.getResourcesFromConfig('function').map(({ name, packaging: configuredPackaging, ...definition }) => {
       const packaging = isDevStack ? withSourceMapsInPackage(configuredPackaging) : configuredPackaging;
       return {
