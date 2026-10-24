@@ -23,6 +23,22 @@
  * per-page select sat a visibly darker grey next to the button beside it. */
 :root {
   --stp-control-surface: linear-gradient(180deg, rgb(52, 60, 60), rgb(44, 51, 51));
+  /* Every menu, select list and popover that opens from a control: the select below, and the consumer's own
+   * dropdown menus and popovers. One gap to the trigger, one surface, one row, so they read as the same thing. */
+  --stp-menu-gap: 4px;
+  --stp-menu-padding: 4px;
+  --stp-menu-radius: 10px;
+  --stp-menu-background: var(--stp-surface-element);
+  --stp-menu-border: 1px solid var(--stp-border-subtle);
+  --stp-menu-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --stp-menu-min-width: 160px;
+  --stp-menu-max-width: 420px;
+  --stp-menu-item-height: 34px;
+  --stp-menu-item-padding: 0 8px;
+  --stp-menu-item-gap: 10px;
+  --stp-menu-item-radius: 6px;
+  --stp-menu-item-hover: rgba(255, 255, 255, 0.06);
+  --stp-menu-item-selected: rgba(255, 255, 255, 0.09);
 }
 
 @layer stacktape-ui {
@@ -1254,14 +1270,20 @@
   .stp-ui-select__option-content {
     display: flex;
     align-items: center;
-    min-height: 34px;
-    gap: 10px;
+    min-height: var(--stp-menu-item-height);
+    gap: var(--stp-menu-item-gap);
   }
 
   .stp-ui-select__option-content--two-line {
     min-height: 48px;
     padding: 6px 0;
     box-sizing: border-box;
+  }
+
+  .stp-ui-select__option-check {
+    flex: none;
+    margin-left: auto;
+    color: var(--stp-text-primary);
   }
 
   .stp-ui-select__option-text {
