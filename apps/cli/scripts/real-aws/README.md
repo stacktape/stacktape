@@ -316,10 +316,12 @@ disposable `stacktape-e2e` account with an isolated dev network (`STACKTAPE_DEV_
 edited row of local PostgreSQL through the dev box and ping local Redis; a VPC function must read the database and leave
 for the internet through the box's public IP. A killed SSM plugin must recover on its own, a second stage must run at
 the same time on its own SSM session, `dev network` must show the stopped box, and the next `dev --agent` must start the
-stopped box. Cleanup deletes both stages and the network with the CLI and then verifies with AWS that the stacks, box,
-its interfaces, leases, functions, log groups, SSM sessions and local containers are gone. The run writes its timings
-(first start, wake, query latency, reconnect, deletion) to `STP_AWS_LAMBDA_DEV_REPORT`. It needs Linux and Docker and
-creates a Console project record named `v4lambdadev-<id>`, which the CLI cannot delete.
+stopped box. A last session has its box stopped as soon as its SSM session opens; it must start the box again and its
+tunnels must open. Cleanup deletes both stages and the network with the CLI and then verifies with AWS that the stacks,
+box, its interfaces, leases, functions, log groups, SSM sessions and local containers are gone. The run writes its
+timings (first start, wake, query latency, reconnect, recovery from a stop during startup, deletion) to
+`STP_AWS_LAMBDA_DEV_REPORT`. It needs Linux and Docker and creates a Console project record named `v4lambdadev-<id>`,
+which the CLI cannot delete.
 
 ```sh
 export STP_AWS_LAMBDA_DEV_DEPLOY=1

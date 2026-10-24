@@ -705,9 +705,44 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     await waitUntil('a query after the wake', () => invoke(state!, 'queryX86', { op: 'db' }), 180_000);
     report.firstQueryAfterWakeSeconds = (Date.now() - queryAt) / 1000;
     await stopAgent(options, state, agentPort);
+
+    // 5. The box stops while a session starts, as an idle stop that lands during the dev stack update would: once the
+    // new session has its SSM session to the box, stop the box. The session must start it again and open its tunnels.
+    const activeSessionIds = async () =>
+      new Set(
+        (
+          await ssm.send(
+            new DescribeSessionsCommand({ State: 'Active', Filters: [{ key: 'Target', value: state.boxInstanceId }] })
+          )
+        ).Sessions?.map(({ SessionId }) => SessionId!)
+      );
+    const earlierSessions = await activeSessionIds();
+    const stopping = { done: false, stoppedAt: 0 };
+    const stopper = (async () => {
+      const deadline = Date.now() + 10 * 60_000;
+      while (!stopping.done && Date.now() < deadline) {
+        if ([...(await activeSessionIds())].some((id) => !earlierSessions.has(id))) {
+          await ec2.send(new StopInstancesCommand({ InstanceIds: [state!.boxInstanceId!] }));
+          stopping.stoppedAt = Date.now();
+          return;
+        }
+        await sleep(500);
+      }
+    })();
+    const interrupted = await startAgent(options, state, agentPort).finally(() => (stopping.done = true));
+    await stopper;
+    check(stopping.stoppedAt, 'The session opened no SSM session to the box, so the box was not stopped.');
+    report.stopDuringStartupStartSeconds = interrupted.seconds;
+    await waitUntil(
+      'a query after the box stopped during startup',
+      () => invoke(state!, 'queryArm', { op: 'db' }),
+      480_000
+    );
+    report.recoveredAfterStopDuringStartupSeconds = (Date.now() - stopping.stoppedAt) / 1000;
+    await stopAgent(options, state, agentPort);
     agentPorts.length = 0;
     console.info(
-      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reconnected after a killed SSM plugin, and woke a stopped box.'
+      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reconnected after a killed SSM plugin, woke a stopped box, and recovered from a box that stopped during session startup.'
     );
   } catch (error) {
     failure = error;
