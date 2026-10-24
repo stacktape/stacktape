@@ -48,6 +48,8 @@ type DevStartup = {
 };
 
 const MAX_STARTUP_PROGRESS = 30;
+/** How long the error of a start that failed in the background waits for a call to read it. */
+const FAILED_START_RETENTION_MS = 60 * 60 * 1000;
 /**
  * How long `start` and `status` wait for a start to finish before they return. Below the common 60-second per-call
  * timeout of MCP clients, so a cold start that creates the dev network and the dev stack (several minutes) continues in
@@ -154,7 +156,8 @@ const ensureDevSessionAvailable = async ({
   requireExplicit,
   activeDevSessions,
   requestDevApi,
-  discoverAgents
+  discoverAgents,
+  isStarting
 }: {
   devSessionId?: string;
   /** Narrows the sessions an omitted `devSessionId` is inferred from to one project directory. */
@@ -163,6 +166,8 @@ const ensureDevSessionAvailable = async ({
   activeDevSessions: Map<string, DevSession>;
   requestDevApi: DevApiRequest;
   discoverAgents: () => Promise<DiscoveredDevAgent[]>;
+  /** A starting session reports its port before its agent listens, so it is not health-checked. */
+  isStarting: (session: DevSession) => boolean;
 }): Promise<{ ok: true; session: DevSession } | { ok: false; output: ToolOutput }> => {
   // A session can be registered under two IDs (see `start`), so the sessions are deduplicated.
   const candidates = () =>
@@ -211,13 +216,13 @@ const ensureDevSessionAvailable = async ({
     };
   }
 
-  if (session.agentPort === undefined) return { ok: true, session };
+  if (session.agentPort === undefined || isStarting(session)) return { ok: true, session };
 
   const health = await requestDevApi({
     port: session.agentPort,
     method: 'GET',
     path: '/health'
-  });
+  }).catch((error: unknown) => ({ ok: false, code: 'UNREACHABLE', message: String(error) }));
   if (health.ok === false) {
     forgetDevSession(activeDevSessions, session);
     return {
@@ -263,7 +268,8 @@ const readDevLogs = async ({
   limit,
   sinceMs,
   minLevel,
-  source
+  source,
+  currentSessionOnly
 }: {
   logFile: string;
   cursor?: number;
@@ -271,6 +277,8 @@ const readDevLogs = async ({
   sinceMs?: number;
   minLevel?: string;
   source?: string;
+  /** Starts at the last session marker: the lines of the session that writes the file now. */
+  currentSessionOnly?: boolean;
 }): Promise<{ entries: unknown[]; nextCursor: number; totalLines: number; omitted: number }> => {
   if (!(await pathExists(logFile))) {
     return { entries: [], nextCursor: 0, totalLines: 0, omitted: 0 };
@@ -280,16 +288,27 @@ const readDevLogs = async ({
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
   const maxItems = Math.max(1, Math.min(limit ?? 100, 1000));
   const minRank = minLevel ? (LOG_LEVEL_RANK[minLevel] ?? 0) : 0;
-  const start = cursor === undefined ? 0 : Math.max(0, cursor);
+  const parse = (line: string): Record<string, unknown> => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return { message: line };
+    }
+  };
+  let start = cursor === undefined ? 0 : Math.max(0, cursor);
+  if (currentSessionOnly) {
+    for (let index = lines.length - 1; index >= start; index--) {
+      const entry = parse(lines[index]);
+      if (entry.source === 'dev' && entry.session && entry.msg === 'Dev session started') {
+        start = index;
+        break;
+      }
+    }
+  }
 
   const matching: Array<{ index: number; entry: Record<string, unknown> }> = [];
   for (let index = start; index < lines.length; index++) {
-    let entry: Record<string, unknown>;
-    try {
-      entry = JSON.parse(lines[index]);
-    } catch {
-      entry = { message: lines[index] };
-    }
+    const entry = parse(lines[index]);
     if (source && entry.source !== source) continue;
     if (minRank && (LOG_LEVEL_RANK[String(entry.level)] ?? 0) < minRank) continue;
     if (sinceMs !== undefined) {
@@ -420,6 +439,8 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
 export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => {
   const activeDevSessions = new Map<string, DevSession>();
   const startups = new Map<string, DevStartup>();
+  // A start that failed after its tool call returned DEV_STARTING keeps its error here until a call reads it.
+  const failedStarts = new Map<string, { output: ToolOutput; finishedAt: number }>();
   const runCli = dependencies.runCli || runStacktapeCommandJsonl;
   const requestDevApi = dependencies.requestDevApi || devApiRequest;
   const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
@@ -507,6 +528,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         done: Promise.resolve()
       };
       const forwardCancellation = () => startup.abort.abort();
+      const finishStartup = (output: ToolOutput) => {
+        startup.output = output;
+        startup.state = 'finished';
+        startups.delete(devSessionId);
+        if (!output.ok) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
+      };
       signal?.addEventListener('abort', forwardCancellation, { once: true });
 
       const run = runCli({
@@ -556,7 +583,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           } else {
             activeDevSessions.delete(devSessionId);
           }
-          startup.output = {
+          const output: ToolOutput = {
             ok: result.ok && !missingPort,
             code: missingPort ? 'INTERNAL_ERROR' : result.code,
             message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
@@ -567,18 +594,15 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             },
             ...(result.rawTail ? { rawTail: result.rawTail } : {})
           };
-          startup.state = 'finished';
-          startups.delete(devSessionId);
+          finishStartup(output);
         },
         (error: unknown) => {
-          startup.output = {
+          activeDevSessions.delete(devSessionId);
+          finishStartup({
             ok: false,
             code: 'INTERNAL_ERROR',
             message: `Dev mode failed to start: ${error instanceof Error ? error.message : String(error)}`
-          };
-          startup.state = 'finished';
-          startups.delete(devSessionId);
-          activeDevSessions.delete(devSessionId);
+          });
         }
       );
       startups.set(devSessionId, startup);
@@ -588,17 +612,44 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       const output = await waitForStartup(startup, getWaitMs(waitSeconds), signal);
       clientWaiting = false;
       signal?.removeEventListener('abort', forwardCancellation);
+      // This call reports the outcome itself, so nothing is kept for a later status call.
+      if (output) failedStarts.delete(devSessionId);
       return toToolText(output ?? describeStartup(session, startup));
     }
 
     const devSessionId = typeof toolArgs.devSessionId === 'string' ? toolArgs.devSessionId : undefined;
+    for (const [id, { finishedAt }] of failedStarts) {
+      if (Date.now() - finishedAt > FAILED_START_RETENTION_MS) failedStarts.delete(id);
+    }
+    // A start that failed in the background: the next call about it gets the start's own error, code and hints. Without
+    // an ID, a status call gets it when it is the only thing this server knows about.
+    const failedStartId =
+      devSessionId ??
+      (action === 'status' && activeDevSessions.size === 0 && failedStarts.size === 1
+        ? [...failedStarts.keys()][0]
+        : undefined);
+    const failedStart = failedStartId === undefined ? undefined : failedStarts.get(failedStartId);
+    if (failedStartId !== undefined && failedStart) {
+      failedStarts.delete(failedStartId);
+      return toToolText(
+        action === 'stop'
+          ? {
+              ok: true,
+              code: 'OK',
+              message: 'The dev session failed to start, so nothing runs.',
+              data: { startError: failedStart.output }
+            }
+          : failedStart.output
+      );
+    }
     const sessionResult = await ensureDevSessionAvailable({
       devSessionId,
       cwd: typeof toolArgs.cwd === 'string' ? toolArgs.cwd : undefined,
       requireExplicit: action === 'stop',
       activeDevSessions,
       requestDevApi,
-      discoverAgents
+      discoverAgents,
+      isStarting: (session) => startups.has(session.devSessionId)
     });
     if (sessionResult.ok === false) {
       return toToolText(sessionResult.output);
@@ -607,6 +658,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     let startup = startups.get(sessionResult.session.devSessionId);
     if (startup && action === 'status') {
       const output = await waitForStartup(startup, getWaitMs(toolArgs.waitSeconds), signal);
+      if (output) failedStarts.delete(sessionResult.session.devSessionId);
       if (output && !output.ok) return toToolText(output);
       if (!output) return toToolText(describeStartup(sessionResult.session, startup));
       // The start finished while this call waited: report the ready session's status.
@@ -653,7 +705,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     if (action === 'logs') {
-      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' });
+      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' }).catch(
+        (error: unknown): Record<string, unknown> => ({ ok: false, code: 'UNREACHABLE', message: String(error) })
+      );
+      // A starting session's agent may not listen yet.
+      if (startup && logsMeta.ok === false) {
+        return toToolText({ ...describeStartup(sessionResult.session, startup), ok: false });
+      }
       const logFile = logsMeta.logFile as string | undefined;
       if (!logFile) {
         return toToolText({
@@ -685,13 +743,16 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           message: 'args.since must be an ISO time or a duration such as 30s, 10m, 2h or 1d.'
         });
       }
+      const cursor = numberArg(toolArgs.cursor);
       const page = await readDevLogs({
         logFile,
-        cursor: numberArg(toolArgs.cursor),
+        cursor,
         limit: numberArg(toolArgs.limit),
         sinceMs,
         minLevel: requestedLevel,
-        source: requestedWorkload || undefined
+        source: requestedWorkload || undefined,
+        // A level filter without a time or cursor looks for this session's problems, not an earlier session's.
+        currentSessionOnly: Boolean(requestedLevel) && sinceMs === undefined && cursor === undefined
       });
 
       return toToolText({

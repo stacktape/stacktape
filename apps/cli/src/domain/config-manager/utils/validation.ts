@@ -739,6 +739,16 @@ const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManage
   }
 };
 
+/**
+ * Stacktape owns every `stp:` stack tag. A user tag would replace Stacktape's own (`stp:dev-stack` on a deployed stack
+ * would let `stacktape dev` take it over), so the prefix is refused.
+ */
+export const validateStackTags = ({ configManager }: { configManager: Pick<ConfigManager, 'config'> }) => {
+  for (const { name } of configManager.config?.stackConfig?.tags ?? []) {
+    if (name.trim().toLowerCase().startsWith('stp:')) throw configErrors.reservedStackTag({ tagName: name });
+  }
+};
+
 const validateNatConfig = ({ configManager }: { configManager: ConfigManager }) => {
   const nat = configManager.config?.stackConfig?.nat;
   const required = configManager.resourcesRequiringNat;
@@ -779,6 +789,7 @@ export const runInitialValidations = ({
   validateResourceNames({ configManager });
   validateReuseVpcConfig({ configManager });
   validateNatConfig({ configManager });
+  validateStackTags({ configManager });
   // validateProviders();
   validateBastionReferences({ configManager });
   validateKafkaConsumerGroupUniqueness({ configManager });

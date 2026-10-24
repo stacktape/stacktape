@@ -4,6 +4,8 @@ import { CliError } from '@utils/errors';
 import { localStatePaths } from 'src/config/local-state-paths';
 import {
   type AgentLockFile,
+  type DiscoveredDevAgent,
+  deleteAgentLockFile,
   discoverDevAgents,
   getAllRunningAgents,
   isSameDirectory,
@@ -70,10 +72,24 @@ export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[] }> => 
   const projectDirectory = globalStateManager.workingDir;
   const matchesStage = (agentStage?: string) => !stage || agentStage === stage;
 
-  // The agents of this directory record themselves in its lock files.
-  const fromLockFiles = (await getAllRunningAgents()).filter((agent) => matchesStage(agent.stage));
-  // An agent whose lock file is gone still reports its project directory.
   const discovered = await discoverDevAgents();
+  // The agents of this directory record themselves in its lock files. A lock file can outlive its agent while another
+  // project's agent took over the port: the agent that answers must report the lock's session (or this directory).
+  const fromLockFiles = (await getAllRunningAgents()).filter((agent) => {
+    if (!matchesStage(agent.stage)) return false;
+    if (
+      isAnsweredByAnotherAgent({
+        lock: agent,
+        answering: discovered.find(({ port }) => port === agent.port),
+        projectDirectory
+      })
+    ) {
+      deleteAgentLockFile(agent.projectName, agent.stage);
+      return false;
+    }
+    return true;
+  });
+  // An agent whose lock file is gone still reports its project directory.
   const candidates: AgentLockFile[] = fromLockFiles.length
     ? fromLockFiles
     : discovered
@@ -122,6 +138,24 @@ export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[] }> => 
     tuiManager.info('Stop one with `dev stop --cwd <directory>` or `dev stop --agent-port <port>`.');
   }
   return { stopped: [] };
+};
+
+/**
+ * Whether the agent answering on a lock file's port is not the one that wrote it: its status reports another session
+ * or another project directory. Agents of older CLI versions report neither and are trusted.
+ */
+export const isAnsweredByAnotherAgent = ({
+  lock,
+  answering,
+  projectDirectory
+}: {
+  lock: Pick<AgentLockFile, 'sessionId'>;
+  answering: Pick<DiscoveredDevAgent, 'sessionId' | 'projectDirectory'> | undefined;
+  projectDirectory: string;
+}): boolean => {
+  if (!answering) return false;
+  if (lock.sessionId && answering.sessionId) return lock.sessionId !== answering.sessionId;
+  return Boolean(answering.projectDirectory && !isSameDirectory(answering.projectDirectory, projectDirectory));
 };
 
 /** The agent on an explicitly given port, from this directory's lock files or from the agent itself. */

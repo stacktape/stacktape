@@ -382,4 +382,131 @@ describe('MCP dev session routing', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  // The P1 of the review: a start that fails after start returned DEV_STARTING, while no status call waits, must keep
+  // its own error for the next call instead of answering NOT_FOUND.
+  test('a background start that fails while no call waits keeps its code and hints for the next status call', async () => {
+    let failStart!: () => void;
+    const gate = new Promise<void>((resolve) => (failStart = resolve));
+    const runCli: RunCli = async ({ cwd }) => {
+      await gate;
+      return {
+        ok: false,
+        code: 'CLI_DEV_STACK_CONFLICT',
+        message: 'Stack `app-dev` exists, but `stacktape dev` did not create it.',
+        data: { hints: ['Choose another stage with `--stage`.'] },
+        events: [],
+        logEvents: [],
+        outputEvents: [],
+        resolvedContext: { cwd: cwd || process.cwd() }
+      };
+    };
+    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [] });
+    const started = (await handler({ action: 'start', args: { waitSeconds: 0.05 } })).structuredContent;
+    expect(started.code).toBe('DEV_STARTING');
+    const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+
+    failStart();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const failed = (await handler({ action: 'status', args: { devSessionId } })).structuredContent;
+    expect(failed).toMatchObject({ ok: false, code: 'CLI_DEV_STACK_CONFLICT' });
+    expect(JSON.stringify(failed.data)).toContain('Choose another stage');
+    // Read once: afterwards the session is gone like any ended one.
+    expect((await handler({ action: 'status', args: { devSessionId } })).structuredContent.code).toBe('NOT_FOUND');
+
+    // Without an ID, a status call gets the failure when it is all this server knows.
+    const second = createDevToolHandler({
+      runCli: async (input) => ({ ...(await runCli(input)), code: 'STACK_ERROR', message: 'Stack update failed.' }),
+      discoverAgents: async () => []
+    });
+    expect((await second({ action: 'start', args: { waitSeconds: 0 } })).structuredContent.code).toBe('STACK_ERROR');
+    expect((await second({ action: 'status' })).structuredContent.code).toBe('NOT_FOUND');
+    let failThird!: () => void;
+    const thirdGate = new Promise<void>((resolve) => (failThird = resolve));
+    const third = createDevToolHandler({
+      runCli: async (input) => {
+        await thirdGate;
+        return { ...(await runCli(input)), code: 'CLI_DEV_STACK_NOT_UPDATABLE', message: 'Delete it.' };
+      },
+      discoverAgents: async () => []
+    });
+    expect((await third({ action: 'start', args: { waitSeconds: 0 } })).structuredContent.code).toBe('DEV_STARTING');
+    failThird();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await third({ action: 'status' })).structuredContent.code).toBe('CLI_DEV_STACK_NOT_UPDATABLE');
+  });
+
+  // The dev-agent event names the port before the daemon listens: status and logs must not fail or forget the session.
+  test('a starting session whose agent does not listen yet stays DEV_STARTING', async () => {
+    const probe = createServer();
+    await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+    const closedPort = (probe.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => probe.close(() => resolve()));
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => (finish = resolve));
+    const runCli: RunCli = async (input) => {
+      await input.onProgress?.({
+        type: 'event',
+        ts: new Date().toISOString(),
+        phase: 'DEV_STARTUP',
+        eventType: 'DEV_SESSION',
+        status: 'started',
+        message: `Starting the dev agent on port ${closedPort}`,
+        detail: { kind: 'dev-agent', agentPort: closedPort, tokenFile: 'unused' }
+      });
+      await gate;
+      return { ...(await startedDaemon(input)), ok: false, code: 'CANCELLED', message: 'stopped', data: undefined };
+    };
+    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [] });
+    const started = (await handler({ action: 'start', args: { waitSeconds: 0.05 } })).structuredContent;
+    const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+    expect((started.data?.session as { agentPort?: number }).agentPort).toBe(closedPort);
+    expect(
+      (await handler({ action: 'status', args: { devSessionId, waitSeconds: 0.05 } })).structuredContent.code
+    ).toBe('DEV_STARTING');
+    expect((await handler({ action: 'logs', args: { devSessionId } })).structuredContent).toMatchObject({
+      ok: false,
+      code: 'DEV_STARTING'
+    });
+    expect(
+      (await handler({ action: 'status', args: { devSessionId, waitSeconds: 0.05 } })).structuredContent.code
+    ).toBe('DEV_STARTING');
+    finish();
+  });
+
+  test('logs with a level and no time read only the current session', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-logs-'));
+    const logFile = join(directory, 'dev.jsonl');
+    const entry = (value: Record<string, unknown>) => `${JSON.stringify(value)}\n`;
+    const marker = (sessionId: string) =>
+      entry({ source: 'dev', level: 'info', msg: 'Dev session started', session: { sessionId } });
+    await writeFile(
+      logFile,
+      marker('earlier') +
+        entry({ source: 'api', level: 'error', msg: 'old TypeError' }) +
+        marker('current') +
+        entry({ source: 'api', level: 'error', msg: 'new TypeError' }) +
+        entry({ source: 'api', level: 'info', msg: 'GET / 200' })
+    );
+    const dev = await daemon({ logFile });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const messages = async (args: Record<string, unknown>) =>
+        (
+          (await handler({ action: 'logs', args: { devSessionId, ...args } })).structuredContent.data
+            ?.entries as Array<{
+            msg: string;
+          }>
+        ).map(({ msg }) => msg);
+      expect(await messages({ level: 'error' })).toEqual(['new TypeError']);
+      expect(await messages({ level: 'error', cursor: 0 })).toEqual(['old TypeError', 'new TypeError']);
+      expect(await messages({})).toContain('old TypeError');
+      await handler({ action: 'stop', args: { devSessionId } });
+    } finally {
+      await dev.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });

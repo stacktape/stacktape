@@ -1,3 +1,4 @@
+import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
@@ -179,8 +180,14 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     stack.bindExistingStackMutationsToId(initTargetExpectation.stackId);
   }
 
-  // Check if trying to deploy to an existing dev stack
-  if (deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack())) {
+  // Check if trying to deploy to an existing dev stack. A dev stack rolled back to its bootstrap template has only its
+  // stack tag left.
+  if (
+    isStackCreatedByDev({
+      isDevStack: deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack()),
+      tags: stack.existingStackDetails?.Tags
+    })
+  ) {
     throw stpErrors.e141({
       stackName: stackContext.stackName,
       stage: stackContext.stage

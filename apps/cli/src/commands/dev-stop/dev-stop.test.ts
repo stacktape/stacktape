@@ -370,6 +370,49 @@ test.skipIf(process.platform === 'win32')(
   90_000
 );
 
+// A lock file can outlive its agent while another project's agent took over its port. dev stop must not stop that agent.
+test.skipIf(process.platform === 'win32')(
+  'dev stop ignores a stale lock file whose port now answers for another session',
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), 'stacktape-dev-stop-stale-'));
+    const project = join(home, 'project');
+    const elsewhere = join(home, 'elsewhere');
+    await mkdir(join(project, '.stacktape', 'dev-agents'), { recursive: true });
+    await mkdir(elsewhere);
+    const other = await startProjectAgent(home, { projectDirectory: elsewhere, stage: 'dev' });
+    const lockFile = join(project, '.stacktape', 'dev-agents', 'fixture-dev.json');
+    await writeFile(
+      lockFile,
+      JSON.stringify({
+        pid: other.agent.pid,
+        port: other.port,
+        phase: 'ready',
+        projectName: 'fixture',
+        stage: 'dev',
+        region: 'eu-west-1',
+        startedAt: new Date().toISOString(),
+        workloads: [],
+        databases: [],
+        sessionId: 'session-that-wrote-the-lock'
+      })
+    );
+    try {
+      const run = await runCli(['dev:stop', '--cwd', project], { home });
+      expect(run.exitCode).toBe(0);
+      expect(parseResult(run.output)?.data?.result).toEqual({ stopped: [] });
+      expect(isRunning(other.agent.pid!)).toBeTrue();
+      expect(existsSync(lockFile)).toBeFalse();
+    } finally {
+      stopIfRunning(other.agent);
+      try {
+        process.kill(other.descendantPid, 'SIGKILL');
+      } catch {}
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
+
 // The daemon parent used to keep only the child's code and message, so the hint that says how to fix a failed start
 // never reached the agent. It also printed nothing until the start ended; the agent's port comes first now.
 test('dev --agent reports the agent port at once and passes the daemon error code and hints through', async () => {
