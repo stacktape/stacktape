@@ -572,20 +572,21 @@ addRoute('POST', '/postgres/:resource/query', async ({ pathParams, body }) => {
   const { conn, error, available } = getPostgresConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
-  const { sql, limit, timeout, confirm } = body as {
+  const { sql, limit, timeout, confirm, readOnly } = body as {
     sql?: string;
     limit?: number;
     timeout?: number;
     confirm?: boolean;
+    readOnly?: boolean;
   };
   if (!sql)
     return {
       ok: false,
       error: 'Missing required field "sql"',
-      hint: 'Expected: {sql: string, limit?: number, timeout?: number, confirm?: boolean}'
+      hint: 'Expected: {sql: string, limit?: number, timeout?: number, confirm?: boolean, readOnly?: boolean}'
     };
 
-  return postgresQuery(conn!, { sql, limit, timeout, confirm });
+  return postgresQuery(conn!, { sql, limit, timeout, confirm, readOnly: readOnly === true });
 });
 
 addRoute('GET', '/postgres/:resource/schema', async ({ pathParams, query }) => {
@@ -670,20 +671,21 @@ addRoute('POST', '/mysql/:resource/query', async ({ pathParams, body }) => {
   const { conn, error, available } = getMysqlConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
-  const { sql, limit, timeout, confirm } = body as {
+  const { sql, limit, timeout, confirm, readOnly } = body as {
     sql?: string;
     limit?: number;
     timeout?: number;
     confirm?: boolean;
+    readOnly?: boolean;
   };
   if (!sql)
     return {
       ok: false,
       error: 'Missing required field "sql"',
-      hint: 'Expected: {sql: string, limit?: number, timeout?: number, confirm?: boolean}'
+      hint: 'Expected: {sql: string, limit?: number, timeout?: number, confirm?: boolean, readOnly?: boolean}'
     };
 
-  return mysqlQuery(conn!, { sql, limit, timeout, confirm });
+  return mysqlQuery(conn!, { sql, limit, timeout, confirm, readOnly: readOnly === true });
 });
 
 addRoute('GET', '/mysql/:resource/schema', async ({ pathParams, query }) => {
@@ -768,7 +770,7 @@ addRoute('POST', '/redis/:resource/command', async ({ pathParams, body }) => {
   const { conn, error, available } = getRedisConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
-  const { cmd, confirm } = body as { cmd?: string; confirm?: boolean };
+  const { cmd, confirm, readOnly } = body as { cmd?: string; confirm?: boolean; readOnly?: boolean };
   if (!cmd)
     return {
       ok: false,
@@ -776,7 +778,7 @@ addRoute('POST', '/redis/:resource/command', async ({ pathParams, body }) => {
       hint: 'Expected: {cmd: "GET key", confirm?: true (for destructive commands)}'
     };
 
-  return redisCommand(conn!, { cmd, confirm });
+  return redisCommand(conn!, { cmd, confirm, readOnly: readOnly === true });
 });
 
 addRoute('GET', '/redis/:resource/keys', async ({ pathParams, query }) => {
@@ -1559,10 +1561,12 @@ export const buildStartupMessage = (params: {
     lines.push(
       '  Fields: {"ts": "ISO timestamp", "source": "workload name", "level": "info|warn|error", "msg": "..."}'
     );
+    // The examples name this session's log file and its first workload, so they run as printed.
+    const example = workloads[0]?.name ?? databases[0]?.name;
     lines.push('  Examples:');
-    lines.push('    tail -n 50 <logFile>                     # last 50 lines');
-    lines.push('    grep \'"level":"error"\' <logFile>         # errors only');
-    lines.push('    grep \'"source":"apiLambda"\' <logFile>    # specific workload');
+    lines.push(`    tail -n 50 '${logFile}'`);
+    lines.push(`    grep '"level":"error"' '${logFile}'`);
+    if (example) lines.push(`    grep '"source":"${example}"' '${logFile}'`);
     lines.push('');
   }
 
