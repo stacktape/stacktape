@@ -702,12 +702,12 @@
               "values": [
                 {
                   "tool": "stacktape",
-                  "median": 18.2,
-                  "min": 17.2,
-                  "max": 21.9,
-                  "runs": 10,
+                  "median": 17.1,
+                  "min": 14.3,
+                  "max": 18.8,
+                  "runs": 5,
                   "date": "2026-10-23",
-                  "file": "results/2026-10-23/report.md"
+                  "file": "results/2026-10-23/console-app-130/report.md"
                 },
                 {
                   "tool": "heroku",
@@ -735,12 +735,12 @@
               "values": [
                 {
                   "tool": "stacktape",
-                  "median": 58.4,
-                  "min": 49.5,
-                  "max": 79.1,
-                  "runs": 8,
+                  "median": 23.9,
+                  "min": 22.8,
+                  "max": 26.8,
+                  "runs": 6,
                   "date": "2026-10-23",
-                  "file": "results/2026-10-23/report.md"
+                  "file": "results/2026-10-23/console-app-130/report.md"
                 },
                 {
                   "tool": "heroku",
@@ -768,12 +768,12 @@
               "values": [
                 {
                   "tool": "stacktape",
-                  "median": 80.9,
-                  "min": 72.2,
-                  "max": 95.2,
-                  "runs": 9,
+                  "median": 17.2,
+                  "min": 16.1,
+                  "max": 19.0,
+                  "runs": 6,
                   "date": "2026-10-23",
-                  "file": "results/2026-10-23/report.md"
+                  "file": "results/2026-10-23/console-app-130/report.md"
                 },
                 {
                   "tool": "heroku",
@@ -799,8 +799,8 @@
         }
       ],
       "notes": [
-        "Stacktape loses the Python and five-service pushes. In this series the Console's build runner did not use code swap for them, so every push built and rolled out a new image.",
-        "A Console fix for that (console-app#130), merged after the run, was measured in a second, smaller series the same day: 17.1 s for Node.js (5 runs), 23.9 s for Python (6 runs) and 17.2 s for five services (6 runs). With it, Stacktape still loses the Python push to Heroku (20.0 s). The chart keeps the first series until the benchmark is rerun with the fix.",
+        "Stacktape loses the Python push to Heroku: 23.9 s against 20.0 s. It beats Render there, and beats both Heroku and Render for Node.js and five services. Every Stacktape push swapped the code in place; none built a new image.",
+        "Stacktape's times are the second 23 October series, measured with the Console fix console-app#130, which is now part of the product. The series is smaller: 5 runs for Node.js and 6 each for Python and five services. Earlier that day, before the fix, the runner did not use code swap for Python and five services, and their pushes took 58.4 and 80.9 s.",
         "Stacktape was measured on 23 October with the Console's runner in eu-west-1, timed from a laptop whose clock ran about 5% fast and was corrected against AWS time. Heroku's time is its 22 October build from the pushed source (`heroku builds:create`), and Render's is its 22 October warm Git push. Both build on their own machines, so their times include their build queues."
       ]
     },
