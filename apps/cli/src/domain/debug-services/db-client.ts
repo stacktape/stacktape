@@ -6,7 +6,8 @@ import {
   QueryCommand,
   GetCommand,
   PutCommand,
-  DeleteCommand
+  DeleteCommand,
+  BatchWriteCommand
 } from '@aws-sdk/lib-dynamodb';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
@@ -201,6 +202,65 @@ export type OpenSearchConnectionOpts =
 
 const DEFAULT_LIMIT = 1000;
 const DEFAULT_TIMEOUT = 30000;
+
+export type DatabaseResetResponse =
+  | SuccessResponse<{
+      /** Tables whose rows were deleted. */
+      resetTables: string[];
+      /** Tables left as they were: migration history and the tables the caller asked to keep. */
+      keptTables: string[];
+    }>
+  | ErrorResponse;
+
+/**
+ * Tables in which migration tools record the migrations they applied. A reset keeps the schema, so it keeps this
+ * history too; otherwise the next migration run would apply every migration to tables that already exist.
+ */
+const MIGRATION_HISTORY_TABLES = new Set(
+  [
+    '_prisma_migrations',
+    '__drizzle_migrations',
+    'knex_migrations',
+    'knex_migrations_lock',
+    'kysely_migration',
+    'kysely_migration_lock',
+    'pgmigrations',
+    'migrations',
+    'typeorm_metadata',
+    'mikro_orm_migrations',
+    'SequelizeMeta',
+    'schema_migrations',
+    'ar_internal_metadata',
+    'flyway_schema_history',
+    'databasechangelog',
+    'databasechangeloglock',
+    'alembic_version',
+    'django_migrations',
+    'goose_db_version',
+    '__EFMigrationsHistory'
+  ].map((name) => name.toLowerCase())
+);
+
+/** A table's name as a reset reports it: schema-qualified unless it lives in the default schema. */
+const resetTableName = ({ name, schema }: { name: string; schema?: string }) => (schema ? `${schema}.${name}` : name);
+
+/** Splits tables into the ones a reset empties and the ones it keeps; `keepTables` names them with or without schema. */
+export const partitionResetTables = <T extends { name: string; schema?: string }>(
+  tables: T[],
+  keepTables: string[] = []
+): { reset: T[]; kept: T[] } => {
+  const keep = new Set(keepTables.map((name) => name.toLowerCase()));
+  const reset: T[] = [];
+  const kept: T[] = [];
+  for (const table of tables) {
+    const isKept =
+      MIGRATION_HISTORY_TABLES.has(table.name.toLowerCase()) ||
+      keep.has(table.name.toLowerCase()) ||
+      keep.has(resetTableName(table).toLowerCase());
+    (isKept ? kept : reset).push(table);
+  }
+  return { reset, kept };
+};
 
 // Check if a single SQL statement is destructive
 const isStatementDestructive = (statement: string): { destructive: boolean; reason?: string } => {
@@ -637,6 +697,60 @@ export const postgresSample = async (
   return postgresQuery(conn, { sql: `SELECT * FROM "${opts.table}"`, limit: opts.limit ?? 5 });
 };
 
+/**
+ * Deletes the rows of every table in the database's own schemas and restarts their identity sequences, keeping the
+ * schema, migration history and `keepTables`. Tables that extensions own, such as PostGIS's `spatial_ref_sys`, are
+ * left alone. One TRUNCATE without CASCADE, so a kept table that references a reset table fails the reset instead of
+ * being emptied with it.
+ */
+export const postgresReset = async (
+  conn: PostgresConnectionOpts,
+  opts?: { keepTables?: string[] }
+): Promise<DatabaseResetResponse> => {
+  let client: PgClient | null = null;
+
+  try {
+    client = new PgClient({
+      host: conn.host,
+      port: conn.port,
+      user: conn.user,
+      password: conn.password,
+      database: conn.database,
+      connectionTimeoutMillis: 5000,
+      ssl: conn.ssl
+    });
+
+    await client.connect();
+    const result = await client.query<{ schema: string; name: string }>(`
+      SELECT n.nspname AS schema, c.relname AS name
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r', 'p')
+        AND NOT c.relispartition
+        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg\\_%'
+        AND NOT EXISTS (
+          SELECT 1 FROM pg_depend d
+          WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e'
+        )
+      ORDER BY n.nspname, c.relname
+    `);
+    const tables = result.rows.map(({ schema, name }) => ({ name, schema: schema === 'public' ? undefined : schema }));
+    const { reset, kept } = partitionResetTables(tables, opts?.keepTables);
+    if (reset.length) {
+      const quote = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;
+      const names = reset.map(({ name, schema }) => `${quote(schema ?? 'public')}.${quote(name)}`);
+      await client.query(`TRUNCATE TABLE ${names.join(', ')} RESTART IDENTITY`);
+    }
+
+    return { ok: true, resetTables: reset.map(resetTableName), keptTables: kept.map(resetTableName) };
+  } catch (err: unknown) {
+    return postgresError(err);
+  } finally {
+    if (client) await client.end().catch(() => {});
+  }
+};
+
 const postgresError = (err: unknown, query?: string): ErrorResponse => {
   const pgErr = err as { message?: string; code?: string; hint?: string; detail?: string };
   const message = pgErr.message || 'Unknown error';
@@ -990,6 +1104,78 @@ export const mysqlSample = async (
   opts: { table: string; limit?: number }
 ): Promise<SqlSampleResponse> => {
   return mysqlQuery(conn, { sql: `SELECT * FROM \`${opts.table}\``, limit: opts.limit ?? 5 });
+};
+
+/** MySQL's own schemas: the server's users and grants, and views of its state. */
+const MYSQL_SYSTEM_DATABASES = new Set(['mysql', 'sys', 'performance_schema', 'information_schema']);
+
+/**
+ * Empties every table of the configured database and resets its AUTO_INCREMENT counters, keeping the schema, migration
+ * history and `keepTables`. Foreign key checks are off for the reset's own connection only, so a kept table that
+ * references a reset table is looked for first and fails the reset, as in PostgreSQL. Refuses MySQL's system
+ * databases.
+ */
+export const mysqlReset = async (
+  conn: MysqlConnectionOpts,
+  opts?: { keepTables?: string[] }
+): Promise<DatabaseResetResponse> => {
+  if (MYSQL_SYSTEM_DATABASES.has(conn.database.toLowerCase())) {
+    return {
+      ok: false,
+      error: `The local database is the MySQL system database "${conn.database}"; resetting it would break the server.`,
+      hint: 'Set dbName on the resource so the application uses its own database, or restart dev mode with freshDb.'
+    };
+  }
+
+  let connection: MysqlConnection | null = null;
+
+  try {
+    connection = await createConnection({
+      host: conn.host,
+      port: conn.port,
+      user: conn.user,
+      password: conn.password,
+      database: conn.database,
+      connectTimeout: 5000
+    });
+
+    const [rows] = await connection.query(
+      `SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME`
+    );
+    const { reset, kept } = partitionResetTables(
+      (rows as { name: string }[]).map(({ name }) => ({ name })),
+      opts?.keepTables
+    );
+    const [references] = await connection.query(
+      `SELECT TABLE_NAME AS child, REFERENCED_TABLE_NAME AS parent FROM information_schema.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+    const resetNames = new Set(reset.map(({ name }) => name));
+    const keptReference = (references as { child: string; parent: string }[]).find(
+      ({ child, parent }) => !resetNames.has(child) && resetNames.has(parent)
+    );
+    if (keptReference) {
+      return {
+        ok: false,
+        error: `Kept table "${keptReference.child}" references "${keptReference.parent}", which the reset would empty.`,
+        hint: 'Keep both tables or neither.'
+      };
+    }
+    if (reset.length) {
+      await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+      try {
+        for (const { name } of reset) await connection.query(`TRUNCATE TABLE \`${name.replace(/`/g, '``')}\``);
+      } finally {
+        await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+      }
+    }
+
+    return { ok: true, resetTables: reset.map(resetTableName), keptTables: kept.map(resetTableName) };
+  } catch (err: unknown) {
+    return mysqlError(err);
+  } finally {
+    if (connection) await connection.end().catch(() => {});
+  }
 };
 
 const mysqlError = (err: unknown, query?: string): ErrorResponse => {
@@ -1495,6 +1681,49 @@ export const dynamoDbSample = async (
   opts?: { limit?: number }
 ): Promise<DynamoDbQueryResponse> => {
   return dynamoDbScan(conn, { limit: opts?.limit ?? 5 });
+};
+
+/** Deletes every item of the table, page by page, keeping the table and its indexes. */
+export const dynamoDbReset = async (
+  conn: DynamoDbConnectionOpts
+): Promise<DatabaseResetResponse & { deletedItems?: number }> => {
+  try {
+    const schema = await dynamoDbSchema(conn);
+    if (!('keySchema' in schema)) return schema;
+    const keyNames = [schema.keySchema.partitionKey.name, schema.keySchema.sortKey?.name].filter(
+      (name): name is string => Boolean(name)
+    );
+    const client = getDynamoClient(conn);
+    let deletedItems = 0;
+    let startKey: Record<string, unknown> | undefined;
+    do {
+      const page = await client.send(
+        new ScanCommand({
+          TableName: conn.tableName,
+          ProjectionExpression: keyNames.map((_, index) => `#k${index}`).join(', '),
+          ExpressionAttributeNames: Object.fromEntries(keyNames.map((name, index) => [`#k${index}`, name])),
+          ExclusiveStartKey: startKey
+        })
+      );
+      const keys = page.Items ?? [];
+      for (let index = 0; index < keys.length; index += 25) {
+        let requests: Record<string, any>[] | undefined = keys
+          .slice(index, index + 25)
+          .map((key) => ({ DeleteRequest: { Key: key } }));
+        for (let attempt = 0; requests?.length && attempt < 5; attempt++) {
+          const response = await client.send(new BatchWriteCommand({ RequestItems: { [conn.tableName]: requests } }));
+          requests = response.UnprocessedItems?.[conn.tableName];
+        }
+        if (requests?.length) throw new Error(`DynamoDB did not delete ${requests.length} items after 5 attempts.`);
+      }
+      deletedItems += keys.length;
+      startKey = page.LastEvaluatedKey;
+    } while (startKey);
+
+    return { ok: true, resetTables: [conn.tableName], keptTables: [], deletedItems };
+  } catch (err: unknown) {
+    return dynamoDbError(err);
+  }
 };
 
 const dynamoDbError = (err: unknown): ErrorResponse => {

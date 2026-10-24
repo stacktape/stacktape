@@ -60,13 +60,16 @@ export const executeCommandHook = ({
   env,
   cwd,
   stdioMode,
-  onOutputLine
+  onOutputLine,
+  timeoutMs
 }: {
   command: string;
   env: Record<string, any>;
   cwd: string;
   stdioMode: ChildStdioMode;
   onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+  /** Stops the command after this long. */
+  timeoutMs?: number;
 }) => {
   // When using onOutputLine callback, don't use prefix transformer
   // When piping directly to stdout (no callback), use prefix for visual hierarchy
@@ -75,7 +78,7 @@ export const executeCommandHook = ({
     cwd,
     env,
     // maybe use powershell.exe for windows? Originally cmd.exe was used so it could be a breaking change
-    rawOptions: { shell: process.platform === 'win32' ? undefined : '/bin/bash' },
+    rawOptions: { shell: process.platform === 'win32' ? undefined : '/bin/bash', timeout: timeoutMs },
     stdioMode,
     disableStderr: stdioMode === 'ignore',
     disableStdout: stdioMode === 'ignore',
@@ -94,13 +97,16 @@ export const executeScriptHook = ({
   cwd,
   env,
   stdioMode,
-  onOutputLine
+  onOutputLine,
+  timeoutMs
 }: {
   filePath: string;
   cwd: string;
   env: Record<string, any>;
   stdioMode: ChildStdioMode;
   onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+  /** Stops the script after this long. */
+  timeoutMs?: number;
 }) => {
   // When using onOutputLine callback, don't use prefix transformer
   const usePrefix = stdioMode === 'capture' && !onOutputLine;
@@ -111,7 +117,8 @@ export const executeScriptHook = ({
     stdioMode,
     transformStderrLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
     transformStdoutLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
-    onOutputLine
+    onOutputLine,
+    timeoutMs
   });
 };
 
@@ -130,7 +137,8 @@ const execScriptInNewProcess = async ({
   stdioMode,
   transformStderrLine,
   transformStdoutLine,
-  onOutputLine
+  onOutputLine,
+  timeoutMs
 }: {
   absoluteScriptPath: string;
   scriptCwd: string;
@@ -141,9 +149,11 @@ const execScriptInNewProcess = async ({
   transformStderrLine: AnyFunction;
   transformStdoutLine: AnyFunction;
   onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+  timeoutMs?: number;
 }) => {
   const ext = getFileExtension(absoluteScriptPath);
   const stdioOpts = {
+    rawOptions: { timeout: timeoutMs },
     stdioMode,
     disableStderr: stdioMode === 'ignore',
     disableStdout: stdioMode === 'ignore'

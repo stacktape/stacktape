@@ -21,7 +21,7 @@ afterAll(async () => {
 });
 
 const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Record<string, unknown> } = {}) => {
-  const state = { stopped: false, rebuilt: [] as string[] };
+  const state = { stopped: false, rebuilt: [] as string[], requests: [] as Array<{ path: string; body?: unknown }> };
   const token = randomUUID();
   const server = createServer((request, response) => {
     if (request.headers.authorization !== `Bearer ${token}`) {
@@ -31,6 +31,28 @@ const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Rec
     }
     const path = new URL(request.url!, 'http://127.0.0.1').pathname;
     let data: Record<string, unknown> = {};
+    if (path.startsWith('/env/') || path === '/aws/sdk') {
+      let body = '';
+      request.on('data', (chunk) => (body += chunk));
+      request.on('end', () => {
+        state.requests.push({ path, ...(body ? { body: JSON.parse(body) } : {}) });
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify(
+            path === '/aws/sdk'
+              ? {
+                  v: '1.0',
+                  ok: true,
+                  code: 'OK',
+                  message: 'OK',
+                  data: { output: { Attributes: { DelaySeconds: '0' } } }
+                }
+              : { v: '1.0', ok: true, code: 'OK', message: 'OK', data: { envVars: { PORT: '3000', TOKEN: '****' } } }
+          )
+        );
+      });
+      return;
+    }
     if (path === '/health') data = { healthy: !state.stopped };
     else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt, ...status };
     else if (path === '/logs' && logFile) data = { logFile };
@@ -126,8 +148,8 @@ describe('MCP dev session routing', () => {
       expect((await handler({ action: 'stop', args: { devSessionId: 'unknown' } })).structuredContent.code).toBe(
         'NOT_FOUND'
       );
-      expect(first.state).toEqual({ stopped: false, rebuilt: [] });
-      expect(second.state).toEqual({ stopped: false, rebuilt: [] });
+      expect(first.state).toMatchObject({ stopped: false, rebuilt: [] });
+      expect(second.state).toMatchObject({ stopped: false, rebuilt: [] });
       expect(
         (await handler({ action: 'rebuild', args: { devSessionId: firstId, workload: 'api worker' } }))
           .structuredContent.ok
@@ -507,6 +529,91 @@ describe('MCP dev session routing', () => {
     } finally {
       await dev.close();
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('MCP dev tool arguments', () => {
+  test('plan returns a start call that start accepts as it is, with the project directory in args', async () => {
+    const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-plan-'));
+    try {
+      await writeFile(
+        join(project, 'package.json'),
+        JSON.stringify({ scripts: { deploy: 'stacktape deploy --stage prod --region eu-west-1' } })
+      );
+      const planned = (
+        await createDevToolHandler()({ action: 'plan', args: { cwd: project, configPath: 'stacktape.config.ts' } })
+      ).structuredContent;
+      const startCall = (planned.data?.stacktapeDevStart as { arguments: Record<string, unknown> }).arguments;
+      expect(startCall).toEqual({
+        action: 'start',
+        args: {
+          stage: 'dev',
+          region: 'eu-west-1',
+          currentWorkingDirectory: project,
+          configPath: 'stacktape.config.ts',
+          cwd: project
+        }
+      });
+
+      const started: Array<{ cwd?: string; args?: Record<string, unknown> }> = [];
+      const handler = createDevToolHandler({
+        runCli: async (input) => {
+          started.push({ cwd: input.cwd, args: input.args });
+          return { ...(await startedDaemon(input)), ok: false, code: 'CONFIG_ERROR', data: undefined };
+        }
+      });
+      await handler(startCall as Parameters<typeof handler>[0]);
+      expect(started).toEqual([
+        {
+          cwd: project,
+          args: {
+            stage: 'dev',
+            region: 'eu-west-1',
+            currentWorkingDirectory: project,
+            configPath: 'stacktape.config.ts'
+          }
+        }
+      ]);
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+
+  test('env and aws go to the agent of the session and name what is missing', async () => {
+    const dev = await daemon();
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      expect(started.ok).toBe(true);
+
+      const env = (await handler({ action: 'env', args: { workload: 'api' } })).structuredContent;
+      expect(env).toMatchObject({ ok: true, data: { envVars: { PORT: '3000', TOKEN: '****' } } });
+      expect(env.message).toContain('masked');
+      const aws = (
+        await handler({
+          action: 'aws',
+          args: { service: 'sqs', command: 'GetQueueAttributes', input: { QueueUrl: 'https://queue' } }
+        })
+      ).structuredContent;
+      expect(aws).toMatchObject({ ok: true, message: 'Called sqs GetQueueAttributes.' });
+      expect(dev.state.requests).toEqual([
+        { path: '/env/api' },
+        {
+          path: '/aws/sdk',
+          body: { service: 'sqs', command: 'GetQueueAttributes', input: { QueueUrl: 'https://queue' } }
+        }
+      ]);
+
+      expect((await handler({ action: 'env' })).structuredContent.code).toBe('VALIDATION_ERROR');
+      expect((await handler({ action: 'aws', args: { service: 'sqs' } })).structuredContent.code).toBe(
+        'VALIDATION_ERROR'
+      );
+      // The fixture runs no databases.
+      expect((await handler({ action: 'query', args: { sql: 'select 1' } })).structuredContent.code).toBe('NOT_FOUND');
+      expect(dev.state.requests).toHaveLength(2);
+    } finally {
+      await dev.close();
     }
   });
 });
