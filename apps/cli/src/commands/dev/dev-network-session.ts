@@ -17,12 +17,14 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import findFreePorts from 'find-free-ports';
 import { localStatePaths } from 'src/config/local-state-paths';
+import { createSpinner } from '@application-services/tui-manager/spinner';
 import { recordDevBoxSession } from './agent-daemon';
 import { agentLog } from './agent-logger';
 import { createCleanupHook } from './cleanup-utils';
 import { DevBoxConnection, openDevBoxRelaySession } from './dev-box';
 import { getLocalEmulateableResources, getRelayedLocalResource } from './local-resources';
 import { getResourceParamReferences } from './resource-references';
+import { reportDevStartup } from './startup-progress';
 import { holdRelayPresence, listRelaySessions, pingRelay, setStageLostHandler } from './tunnel-manager';
 
 export type DevNetworkSession = {
@@ -34,6 +36,13 @@ export type DevNetworkSession = {
   owner: RelayOwner;
   /** `--take-over`: the tunnels replace those of another session of this stage. */
   takeOver: boolean;
+  /**
+   * Resolves once the network is complete. A network created by this start is returned while CloudFormation still
+   * creates part of it: the dev stack deploys meanwhile, and the session waits for this before it is ready.
+   */
+  ready: Promise<void>;
+  /** Whether `ready` has settled, and its error once it rejected, so a failed dev stack deployment reports the cause. */
+  readyState: () => { settled: boolean; error?: unknown };
 };
 
 let session: DevNetworkSession | undefined;
@@ -150,7 +159,8 @@ export const assertStageNotRunningElsewhere = async ({
 };
 
 const COST_EXPLANATION = [
-  'Creating the dev network for this AWS account and region. This happens once and takes about 4 minutes.',
+  'Creating the dev network for this AWS account and region. This happens once; the dev stack deploys while it is',
+  'created, and this first start takes about 5 minutes.',
   'It is a VPC with a small EC2 instance, the dev box. Your deployed dev functions reach the databases on your machine',
   'through it, and VPC functions get internet access through it. Nothing is exposed to the internet: your machine',
   'connects to the box through AWS Systems Manager.',
@@ -236,7 +246,7 @@ export const startDevNetworkSession = async ({
   }
   if (!Object.keys(functions).length) return undefined;
 
-  const { network } = await ensureDevNetwork({
+  const { network, action, ready } = await ensureDevNetwork({
     aws,
     onCreate: () => tuiManager.info(COST_EXPLANATION.join(' ')),
     onDeletionWait: () =>
@@ -263,8 +273,10 @@ export const startDevNetworkSession = async ({
       openSession: openDevBoxRelaySession
     }
   });
-  // Read before the connection starts a stopped box: only a box that already runs can have a session of this stage.
-  const boxState = (await aws.describeBox(network.boxInstanceId))?.state;
+  // Read before the connection starts a stopped box: only a box that already runs can have a session of this stage. A
+  // network that is being created has no sessions, and its new box would make the check wait for a relay that cannot
+  // answer before the network is complete.
+  const boxState = action === 'create' ? undefined : (await aws.describeBox(network.boxInstanceId))?.state;
   // The connection starts the box and connects while the dev stack deploys and the local databases start. Its presence
   // connection keeps a box that has been idle for almost 30 minutes from stopping itself meanwhile.
   void connection.connect();
@@ -305,6 +317,40 @@ export const startDevNetworkSession = async ({
     localResources
   };
   configManager.setDevNetworkPlacement(placement);
-  session = { network, connection, placement, leases, owner, takeOver };
+  const state: { settled: boolean; error?: unknown } = { settled: false };
+  ready.then(
+    () => (state.settled = true),
+    (error) => Object.assign(state, { settled: true, error })
+  );
+  session = { network, connection, placement, leases, owner, takeOver, ready, readyState: () => ({ ...state }) };
   return session;
+};
+
+/**
+ * Waits until the network this session started with is complete. The dev stack deploys while CloudFormation creates
+ * the rest of a new network, so this usually returns at once; a failed creation rejects.
+ */
+export const waitForDevNetwork = async (
+  devNetworkSession: Pick<DevNetworkSession, 'network' | 'ready' | 'readyState'>
+) => {
+  const { settled, error } = devNetworkSession.readyState();
+  if (error) throw error;
+  if (settled) return;
+  const message = `Waiting for CloudFormation to finish the dev network ${devNetworkSession.network.stackName}`;
+  const spinner = createSpinner(message, tuiManager.colorize.bind(tuiManager));
+  reportDevStartup({ step: 'DEV_NETWORK', status: 'started', message });
+  try {
+    await devNetworkSession.ready;
+  } catch (failure) {
+    spinner.error();
+    reportDevStartup({
+      step: 'DEV_NETWORK',
+      status: 'completed',
+      level: 'error',
+      message: `Creating the dev network failed: ${(failure as Error).message}`
+    });
+    throw failure;
+  }
+  spinner.success();
+  reportDevStartup({ step: 'DEV_NETWORK', status: 'completed', message });
 };

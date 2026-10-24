@@ -26,16 +26,35 @@ export type DevNetwork = {
   /** The relay host of every lease. The box keeps its private IP across stops, so dev stacks are deployed with it. */
   boxPrivateIp: string;
   keeperFunctionName: string;
+  /** The box's instance profile, which `stacktape dev` attaches; unknown until the network is created. */
+  boxInstanceProfileName?: string;
 };
 
-export type DevBoxState = { state: string; publicIp?: string; launchTime?: Date };
+export type DevBoxState = {
+  state: string;
+  publicIp?: string;
+  privateIp?: string;
+  launchTime?: Date;
+  /** Whether an instance profile is attached or being attached. */
+  hasInstanceProfile?: boolean;
+};
+
+export type DevNetworkStackResource = {
+  LogicalResourceId?: string;
+  PhysicalResourceId?: string;
+  ResourceStatus?: string;
+};
 
 /** The AWS operations of the dev network, narrow so the session flow can be tested with fakes. */
 export type DevNetworkAws = {
-  stacks: SharedResourceStackAdapter & { delete: (stackName: string) => Promise<void> };
+  stacks: SharedResourceStackAdapter & {
+    delete: (stackName: string) => Promise<void>;
+    listResources: (stackName: string) => Promise<DevNetworkStackResource[]>;
+  };
   resolveBoxImageId: () => Promise<string>;
   describeBox: (instanceId: string) => Promise<DevBoxState | undefined>;
   startBox: (instanceId: string) => Promise<void>;
+  attachBoxProfile: (instanceId: string, instanceProfileName: string) => Promise<void>;
   isBoxOnline: (instanceId: string) => Promise<boolean>;
   listFunctionsInSecurityGroup: (securityGroupId: string) => Promise<string[]>;
   leases: LeaseStore;
@@ -49,7 +68,13 @@ export const getDevNetworkName = () => getDevNetworkStackName(process.env.STACKT
 
 const toBoxState = (instance: Instance | undefined): DevBoxState | undefined =>
   instance?.State?.Name
-    ? { state: instance.State.Name, publicIp: instance.PublicIpAddress, launchTime: instance.LaunchTime }
+    ? {
+        state: instance.State.Name,
+        publicIp: instance.PublicIpAddress,
+        privateIp: instance.PrivateIpAddress,
+        launchTime: instance.LaunchTime,
+        hasInstanceProfile: Boolean(instance.IamInstanceProfile)
+      }
     : undefined;
 
 export const createDevNetworkAws = (): DevNetworkAws => ({
@@ -72,7 +97,8 @@ export const createDevNetworkAws = (): DevNetworkAws => ({
       }),
     delete: async (stackName) => {
       await awsSdkManager.cloudFormation.delete(stackName, {});
-    }
+    },
+    listResources: (stackName) => awsSdkManager.cloudFormation.getResources(stackName)
   },
   resolveBoxImageId: async () => {
     const { Parameter } = await awsSdkManager.parameterStore.get({ name: DEV_BOX_IMAGE_PARAMETER });
@@ -81,6 +107,8 @@ export const createDevNetworkAws = (): DevNetworkAws => ({
   },
   describeBox: async (instanceId) => toBoxState(await awsSdkManager.ec2.describeInstance(instanceId)),
   startBox: (instanceId) => awsSdkManager.ec2.startInstance(instanceId),
+  attachBoxProfile: (instanceId, instanceProfileName) =>
+    awsSdkManager.ec2.associateInstanceProfile({ instanceId, instanceProfileName }),
   isBoxOnline: (instanceId) => awsSdkManager.systemsManager.isInstanceOnline({ instanceId }),
   listFunctionsInSecurityGroup: (securityGroupId) => awsSdkManager.lambda.listFunctionsInSecurityGroup(securityGroupId),
   leases: {
@@ -110,7 +138,9 @@ const readOutputs = (stackName: string, stack: SharedStackDetails): DevNetwork =
     lambdaSecurityGroupId: output('LambdaSecurityGroupId'),
     boxInstanceId: output('BoxInstanceId'),
     boxPrivateIp: output('BoxPrivateIp'),
-    keeperFunctionName: output('KeeperFunctionName')
+    keeperFunctionName: output('KeeperFunctionName'),
+    // Networks created before contract version 3 have none; they are updated before they are used.
+    boxInstanceProfileName: stack.Outputs?.find(({ OutputKey }) => OutputKey === 'BoxInstanceProfileName')?.OutputValue
   };
 };
 
@@ -171,9 +201,75 @@ const waitForDeletion = async ({
   }
 };
 
+/** What the dev stack and the box connection need of a network that is being created, as its logical ids. */
+const EARLY_RESOURCES = ['Vpc', 'PrivateSubnet0', 'PrivateSubnet1', 'LambdaSecurityGroup', 'Box'] as const;
+
 /**
- * Returns the account and region's dev network, creating it on first use (about 4 minutes) or updating one created by
- * an older Stacktape version. `onCreate` runs once, before a creation starts.
+ * The network that is being created, once its subnets, the dev functions' security group and the box exist. The keeper
+ * function takes minutes longer: Lambda creates the network interfaces of the dev functions with it. Resolves
+ * `undefined` when `isSettled` turns true first, or when the stack is not being created.
+ */
+const waitForBoxOfCreatedNetwork = async ({
+  aws,
+  stackName,
+  isSettled,
+  pollIntervalMs
+}: {
+  aws: DevNetworkAws;
+  stackName: string;
+  isSettled: () => boolean;
+  pollIntervalMs: number;
+}): Promise<DevNetwork | undefined> => {
+  while (!isSettled()) {
+    const stack = await aws.stacks.get(stackName);
+    // Before the creation call returns the stack may not exist yet; any other state is a finished creation.
+    if (stack && stack.StackStatus !== 'CREATE_IN_PROGRESS') return undefined;
+    if (stack) {
+      const resources = new Map(
+        (await aws.stacks.listResources(stackName)).map((resource) => [resource.LogicalResourceId, resource])
+      );
+      const created = EARLY_RESOURCES.map((id) => resources.get(id));
+      if (created.every((resource) => resource?.ResourceStatus === 'CREATE_COMPLETE' && resource.PhysicalResourceId)) {
+        const [vpc, subnet0, subnet1, securityGroup, box] = created.map((resource) => resource!.PhysicalResourceId!);
+        const boxPrivateIp = (await aws.describeBox(box))?.privateIp;
+        if (boxPrivateIp) {
+          return {
+            stackName,
+            vpcId: vpc,
+            privateSubnetIds: [subnet0, subnet1],
+            lambdaSecurityGroupId: securityGroup,
+            boxInstanceId: box,
+            boxPrivateIp,
+            // The template names it.
+            keeperFunctionName: `${stackName}-keeper`
+          };
+        }
+      }
+    }
+    await delay(pollIntervalMs);
+  }
+  return undefined;
+};
+
+/**
+ * Attaches the box's instance profile when it has none: the template starts the box without it (see the template), and
+ * a session that created the network may have ended before it attached it.
+ */
+const attachMissingBoxProfile = async (aws: DevNetworkAws, network: DevNetwork) => {
+  if (!network.boxInstanceProfileName) return;
+  const box = await aws.describeBox(network.boxInstanceId);
+  if (!box || box.hasInstanceProfile || box.state === 'terminated' || box.state === 'shutting-down') return;
+  await aws.attachBoxProfile(network.boxInstanceId, network.boxInstanceProfileName);
+};
+
+/**
+ * Returns the account and region's dev network, creating it on first use or updating one created by an older Stacktape
+ * version. `onCreate` runs once, before a creation starts.
+ *
+ * A network that is being created is returned as soon as its box exists, about 1 minute after the creation starts, so
+ * the dev stack deploys while CloudFormation finishes the network: the keeper function and the box's instance profile
+ * take about 3 more minutes. `ready` resolves once the network is complete and the box has its instance profile, and
+ * rejects when the creation fails. A session must wait for it before it reports itself ready.
  */
 export const ensureDevNetwork = async ({
   aws,
@@ -186,7 +282,7 @@ export const ensureDevNetwork = async ({
   /** Called when a deletion of the network runs, before this waits for it to end and creates the network again. */
   onDeletionWait?: () => void;
   pollIntervalMs?: number;
-}): Promise<{ network: DevNetwork; action: 'create' | 'upgrade' | 'reuse' }> => {
+}): Promise<{ network: DevNetwork; action: 'create' | 'upgrade' | 'reuse'; ready: Promise<void> }> => {
   const stackName = getDevNetworkName();
   let existing = await aws.stacks.get(stackName);
   if (existing?.StackStatus === 'DELETE_IN_PROGRESS' || existing?.StackStatus === 'DELETE_FAILED') {
@@ -201,27 +297,69 @@ export const ensureDevNetwork = async ({
     existing = undefined;
   }
   const manager = new SharedResourceStackManager({ adapter: aws.stacks, pollIntervalMs });
-  const { action } = await manager.ensure({
-    kind: DEV_NETWORK_KIND,
-    contractVersion: DEV_NETWORK_CONTRACT_VERSION,
-    ownershipKey: stackName,
-    stackName,
-    // A new image would replace the box and change its private IP: keep the image the network was created with.
-    parameters: { ImageId: existing ? '' : await aws.resolveBoxImageId() },
-    mergeParameters: ({ desired, existing: current }) => ({ ImageId: current.ImageId || desired.ImageId }),
-    template: buildDevNetworkTemplate({ networkName: stackName }),
-    beforeCreate: async () => onCreate()
-  });
-  const stack = await aws.stacks.get(stackName);
-  if (!stack) {
-    throw new CliError({
-      category: 'CLOUDFORMATION',
-      code: 'DEV_NETWORK_DISAPPEARED',
-      message: `The dev network stack \`${stackName}\` disappeared while it was being prepared: \`stacktape dev network delete\` probably deleted it.`,
-      hints: 'Run `stacktape dev` again; it creates a new network.'
+  const ensured = manager
+    .ensure({
+      kind: DEV_NETWORK_KIND,
+      contractVersion: DEV_NETWORK_CONTRACT_VERSION,
+      ownershipKey: stackName,
+      stackName,
+      // A new image would replace the box and change its private IP: keep the image the network was created with.
+      parameters: { ImageId: existing ? '' : await aws.resolveBoxImageId() },
+      mergeParameters: ({ desired, existing: current }) => ({ ImageId: current.ImageId || desired.ImageId }),
+      template: buildDevNetworkTemplate({ networkName: stackName }),
+      beforeCreate: async () => onCreate()
+    })
+    .then(async ({ action }) => {
+      const stack = await aws.stacks.get(stackName);
+      if (!stack) {
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'DEV_NETWORK_DISAPPEARED',
+          message: `The dev network stack \`${stackName}\` disappeared while it was being prepared: \`stacktape dev network delete\` probably deleted it.`,
+          hints: 'Run `stacktape dev` again; it creates a new network.'
+        });
+      }
+      const network = readOutputs(stackName, stack);
+      return { action, network, profileAttached: attachMissingBoxProfile(aws, network) };
     });
+  let settled = false;
+  ensured.then(
+    () => (settled = true),
+    () => (settled = true)
+  );
+  // A network that exists already is used once it is ready, as before.
+  const early =
+    !existing || existing.StackStatus === 'CREATE_IN_PROGRESS'
+      ? await waitForBoxOfCreatedNetwork({
+          aws,
+          stackName,
+          isSettled: () => settled,
+          pollIntervalMs: pollIntervalMs ?? 3000
+        })
+      : undefined;
+  if (early) {
+    const ready = ensured.then(
+      ({ profileAttached }) => profileAttached,
+      (error: Error) => {
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'DEV_NETWORK_CREATE_FAILED',
+          cause: error,
+          message: `Creating the dev network \`${stackName}\` failed after its dev box was created: ${error.message}`,
+          hints: [
+            'Its CloudFormation events say which resource failed; a failed creation is deleted again.',
+            'The dev stage was deployed into the network meanwhile. Delete it with `stacktape delete --stage <stage>`, then run `stacktape dev` again.'
+          ]
+        });
+      }
+    );
+    // Awaited later; until then a failed creation must not crash the process.
+    ready.catch(() => {});
+    return { network: early, action: 'create', ready };
   }
-  return { network: readOutputs(stackName, stack), action };
+  const { action, network, profileAttached } = await ensured;
+  profileAttached.catch(() => {});
+  return { network, action, ready: profileAttached };
 };
 
 const BOX_POLL_MS = 2000;

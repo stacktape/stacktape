@@ -4,8 +4,9 @@
  * One run owns an isolated dev network (`STACKTAPE_DEV_NETWORK_SUFFIX`) and one dev stage, and goes through:
  * 1. first creation: `dev --agent` creates the dev network and the dev stack;
  * 2. arm64 and x86_64 functions query local PostgreSQL (initial and edited rows), one pings local Redis, and a VPC
- *    function queries PostgreSQL and reaches the internet through the box; with `--watch`, a syntax error in the
- *    shared entry file fails the rebuild and keeps the old code, and a configuration edit asks for a restart;
+ *    function queries PostgreSQL and reaches the internet through the box; with two stages running, `dev network`
+ *    names the session that runs each; with `--watch`, a syntax error in the shared entry file fails the rebuild and
+ *    keeps the old code, and a configuration edit asks for a restart;
  * 3. laptop reconnect: the SSM plugin is killed and the functions reach the database again;
  * 4. one stage, two machines: a copy of the project in another directory stands for the same developer's second
  *    machine. Its `dev --agent` of the running stage is refused before it deploys anything, `dev network delete` is
@@ -932,6 +933,28 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       );
       report.concurrentSessions = sessions.Sessions?.length;
       check((sessions.Sessions?.length ?? 0) >= 2, 'The two stages do not hold two SSM sessions.');
+      // `dev network` names the session that runs each stage: its holder label and since when.
+      const shownAt = Date.now();
+      const shownSessions = (
+        await runCli(options, state, [
+          'dev:network',
+          '--region',
+          options.region,
+          '--profile',
+          options.profile,
+          '--awsAccount',
+          state.awsAccountName,
+          '--agent'
+        ])
+      ).result?.data?.result as { sessions?: Array<{ stack: string; holder: string; since: string }> } | undefined;
+      report.devNetworkSessionsSeconds = (Date.now() - shownAt) / 1000;
+      for (const stage of STAGES) {
+        const holder = shownSessions?.sessions?.find(({ stack }) => stack === stackName(state!, stage));
+        check(
+          holder?.holder.includes(projectDirectory(state)) && Date.now() - Date.parse(holder.since) < 60 * 60_000,
+          `dev network did not show who runs ${stage}: ${JSON.stringify(shownSessions?.sessions)}`
+        );
+      }
       await stopAgent(options, state, secondPort);
       agentPorts.splice(agentPorts.indexOf(secondPort), 1);
 

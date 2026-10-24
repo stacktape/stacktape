@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { SharedStackDetails } from '@domain-services/shared-resource-stack-manager';
 import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
 import { deleteDevNetwork, ensureDevNetwork, type DevNetwork, type DevNetworkAws, type LiveDevSession } from './index';
@@ -26,7 +27,8 @@ const outputs = {
   LambdaSecurityGroupId: network.lambdaSecurityGroupId,
   BoxInstanceId: network.boxInstanceId,
   BoxPrivateIp: network.boxPrivateIp,
-  KeeperFunctionName: network.keeperFunctionName
+  KeeperFunctionName: network.keeperFunctionName,
+  BoxInstanceProfileName: 'stacktape-dev-network-box-profile'
 };
 const stackIn = (StackStatus: string, StackId = 'stack-1'): SharedStackDetails => ({
   StackId,
@@ -71,11 +73,13 @@ const fakeAws = ({
       },
       delete: async () => {
         calls.deletes++;
-      }
+      },
+      listResources: async () => []
     },
     resolveBoxImageId: async () => 'ami-1',
-    describeBox: async () => ({ state: boxState }),
+    describeBox: async () => ({ state: boxState, hasInstanceProfile: true }),
     startBox: async () => {},
+    attachBoxProfile: async () => {},
     isBoxOnline: async () => true,
     listFunctionsInSecurityGroup: async () => functions,
     leases: {
@@ -201,5 +205,99 @@ describe('dev network creation during a deletion', () => {
       code: 'DEV_NETWORK_DELETE_FAILED'
     });
     expect(calls.creates).toBe(0);
+  });
+});
+
+/**
+ * A creation as CloudFormation runs it: the stack is in progress without outputs, its box exists minutes before the
+ * keeper, and it ends complete or is deleted again after a failure. The test moves it from phase to phase.
+ */
+const creatingAws = () => {
+  let phase: 'absent' | 'creating' | 'box' | 'complete' | 'rolling-back' | 'deleted' = 'absent';
+  const attached: string[] = [];
+  const counts = { resourceReads: 0 };
+  const { aws: base } = fakeAws({ statuses: [undefined] });
+  const created = (LogicalResourceId: string, PhysicalResourceId: string) => ({
+    LogicalResourceId,
+    PhysicalResourceId,
+    ResourceStatus: 'CREATE_COMPLETE'
+  });
+  const aws: DevNetworkAws = {
+    ...base,
+    stacks: {
+      ...base.stacks,
+      get: async () => {
+        if (phase === 'absent' || phase === 'deleted') return undefined;
+        if (phase === 'complete') return stackIn('CREATE_COMPLETE');
+        return { ...stackIn(phase === 'rolling-back' ? 'DELETE_IN_PROGRESS' : 'CREATE_IN_PROGRESS'), Outputs: [] };
+      },
+      create: async () => void (phase = 'creating'),
+      listResources: async () => {
+        counts.resourceReads++;
+        const resources = [
+          created('Vpc', network.vpcId),
+          created('PrivateSubnet0', network.privateSubnetIds[0]),
+          created('PrivateSubnet1', network.privateSubnetIds[1]),
+          created('LambdaSecurityGroup', network.lambdaSecurityGroupId),
+          { LogicalResourceId: 'Keeper', ResourceStatus: 'CREATE_IN_PROGRESS' }
+        ];
+        if (phase === 'box') resources.push(created('Box', network.boxInstanceId));
+        else resources.push({ LogicalResourceId: 'Box', PhysicalResourceId: '', ResourceStatus: 'CREATE_IN_PROGRESS' });
+        return resources;
+      }
+    },
+    describeBox: async () => ({
+      state: 'running',
+      privateIp: network.boxPrivateIp,
+      hasInstanceProfile: attached.length > 0
+    }),
+    attachBoxProfile: async (instanceId, name) => void attached.push(`${instanceId}:${name}`)
+  };
+  return { aws, attached, counts, setPhase: (next: typeof phase) => (phase = next) };
+};
+
+describe('dev network creation', () => {
+  test('returns the network once its box exists, and is ready once CloudFormation finished and the profile is attached', async () => {
+    const { aws, attached, setPhase } = creatingAws();
+    const pending = ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    await delay(20);
+    setPhase('box');
+    const { network: early, action, ready } = await pending;
+    expect({ action, early }).toEqual({ action: 'create', early: network });
+    let readyNow = false;
+    void ready.then(() => (readyNow = true));
+    await delay(20);
+    expect({ readyNow, attached }).toEqual({ readyNow: false, attached: [] });
+    setPhase('complete');
+    await ready;
+    expect(attached).toEqual([`${network.boxInstanceId}:stacktape-dev-network-box-profile`]);
+  });
+
+  test('a creation that fails after the box exists rejects `ready`, saying the dev stage must be deleted', async () => {
+    const { aws, setPhase } = creatingAws();
+    const pending = ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    setPhase('box');
+    const { ready } = await pending;
+    setPhase('rolling-back');
+    await delay(10);
+    setPhase('deleted');
+    const error = await ready.then(
+      () => undefined,
+      (caught: { code?: string; hints?: string[] }) => caught
+    );
+    expect(error?.code).toBe('DEV_NETWORK_CREATE_FAILED');
+    expect(String(error?.hints)).toContain('stacktape delete --stage');
+  });
+
+  test('an existing network is not waited for resource by resource, and gets a missing profile attached', async () => {
+    const { aws, attached, counts, setPhase } = creatingAws();
+    setPhase('complete');
+    const { action, ready } = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    await ready;
+    expect({ action, resourceReads: counts.resourceReads, attached: attached.length }).toEqual({
+      action: 'reuse',
+      resourceReads: 0,
+      attached: 1
+    });
   });
 });

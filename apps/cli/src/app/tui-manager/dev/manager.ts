@@ -455,6 +455,7 @@ class DevTuiManager {
     if (status !== 'pending') {
       reportDevStartup({
         step: id === 'dev-box' ? 'DEV_BOX' : 'DEV_SESSION',
+        key: id,
         status: status === 'running' ? (firstReport ? 'started' : 'running') : 'completed',
         message: `${label}: ${status === 'running' ? detail || 'running' : status}${status !== 'running' && detail ? ` (${detail})` : ''}`
       });
