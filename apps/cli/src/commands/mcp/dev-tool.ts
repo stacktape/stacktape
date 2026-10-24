@@ -1,6 +1,10 @@
 import { pathExists, readFile } from 'fs-extra';
 import { randomUUID } from 'node:crypto';
-import { isAbsolute, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, posix, resolve, win32 } from 'node:path';
+import { isReadOnlyRedisCommand } from '@domain-services/debug-services/db-client';
+import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
 import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
@@ -11,11 +15,18 @@ import { type DiscoveredDevAgent, discoverDevAgents, isSameDirectory } from '../
 
 type DevSession = {
   devSessionId: string;
+  /** The ID the agent reports in its status. A start that found the agent already running gets the agent's own ID. */
+  agentSessionId?: string;
   /** Known once the CLI reports the agent it starts, before the start finishes. */
   agentPort?: number;
   startedAt: string;
+  /** The project directory. */
   cwd: string;
   stage?: string;
+  /** `started`: this MCP server started it. `found`: a running agent found through its token file. */
+  origin: 'started' | 'found';
+  /** Since when the session is known to run; a stop reason recorded earlier belongs to another session. */
+  knownSince: string;
 };
 
 type DevApiRequest = (input: {
@@ -23,10 +34,18 @@ type DevApiRequest = (input: {
   method: 'GET' | 'POST';
   path: string;
   body?: Record<string, unknown>;
+  /** Ends the request with a `TimeoutError`; a rebuild or a seed may take minutes, a status check must not. */
+  timeoutMs?: number;
 }) => Promise<Record<string, unknown>>;
+
+/** How long a status check waits: one agent that hangs must not block every call that looks for a session. */
+const STATUS_CHECK_TIMEOUT_MS = 3000;
 
 type DevToolDependencies = {
   runCli?: typeof runStacktapeCommandJsonl;
+  /** The MCP server's working directory: sessions there count as this server's own. Default: the process's. */
+  serverDirectory?: () => string;
+  statusCheckTimeoutMs?: number;
   requestDevApi?: DevApiRequest;
   /** Running agents of this user; a restarted MCP server finds its sessions again through them. */
   discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
@@ -71,10 +90,11 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
 
 // Every agent stores its session token in the user's state directory under its port. The token is read for each
 // request and never returned to the client.
-const devApiRequest: DevApiRequest = async ({ port, method, path, body }) => {
+const devApiRequest: DevApiRequest = async ({ port, method, path, body, timeoutMs }) => {
   const token = (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {})
@@ -122,7 +142,7 @@ const toAgentOutput = (
     ok: succeeded,
     code: typeof code === 'string' ? code : succeeded ? 'OK' : 'INTERNAL_ERROR',
     message: typeof message === 'string' && message !== 'OK' ? message : succeeded ? messages.ok : messages.failed,
-    data: { session, ...data }
+    data: { session: publicSession(session), ...data }
   };
 };
 
@@ -193,17 +213,20 @@ const selectLocalDatabase = (
 /** What `query` sends to the agent for a database of each type. */
 const buildDatabaseQuery = (
   database: LocalDatabase,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  /** The database refuses any write: SQL runs in a read-only transaction, Redis accepts only read commands. */
+  readOnly: boolean
 ): { ok: true; method: 'POST'; path: string; body: Record<string, unknown> } | { ok: false; message: string } => {
   const route = DATABASE_ROUTE[database.type];
   const base = `/${route}/${encodeURIComponent(database.name)}`;
   const limit = typeof args.limit === 'number' ? args.limit : undefined;
   const confirm = args.confirm === true ? true : undefined;
+  const onlyRead = readOnly ? { readOnly: true } : {};
   if (route === 'postgres' || route === 'mysql') {
     if (typeof args.sql !== 'string' || !args.sql.trim()) {
       return { ok: false, message: `args.sql is required to query ${database.type} database "${database.name}".` };
     }
-    return { ok: true, method: 'POST', path: `${base}/query`, body: { sql: args.sql, limit, confirm } };
+    return { ok: true, method: 'POST', path: `${base}/query`, body: { sql: args.sql, limit, confirm, ...onlyRead } };
   }
   if (route === 'redis') {
     if (typeof args.command !== 'string' || !args.command.trim()) {
@@ -212,7 +235,7 @@ const buildDatabaseQuery = (
         message: `args.command (for example "GET key") is required to query Redis "${database.name}".`
       };
     }
-    return { ok: true, method: 'POST', path: `${base}/command`, body: { cmd: args.command, confirm } };
+    return { ok: true, method: 'POST', path: `${base}/command`, body: { cmd: args.command, confirm, ...onlyRead } };
   }
   if (route === 'dynamodb') {
     return args.pk === undefined
@@ -239,144 +262,385 @@ const TABLES_PATH: Record<string, string> = {
   opensearch: '/indices'
 };
 
-const forgetDevSession = (activeDevSessions: Map<string, DevSession>, session: DevSession) => {
-  for (const [id, candidate] of activeDevSessions) if (candidate === session) activeDevSessions.delete(id);
+type PathPlatform = { platform?: NodeJS.Platform; home?: string };
+
+/**
+ * A directory as the file system names it: symbolic links followed as far as the path exists, and lower case where the
+ * file system usually ignores case (Windows, macOS), so `C:\Users\me` and `c:\users\me` are one directory.
+ */
+const canonicalDirectory = (directory: string, platform: NodeJS.Platform): string => {
+  const paths = platform === 'win32' ? win32 : posix;
+  let canonical = paths.resolve(directory);
+  if (platform === process.platform) {
+    // The longest existing part is resolved, so a link in it counts even when the rest does not exist yet.
+    let existing = canonical;
+    let rest = '';
+    for (;;) {
+      try {
+        canonical = paths.join(realpathSync.native(existing), rest);
+        break;
+      } catch {
+        const parent = paths.dirname(existing);
+        if (parent === existing) break;
+        rest = paths.join(paths.basename(existing), rest);
+        existing = parent;
+      }
+    }
+  }
+  const { root } = paths.parse(canonical);
+  if (canonical.length > root.length) canonical = canonical.replace(/[\\/]+$/, '');
+  return platform === 'win32' || platform === 'darwin' ? canonical.toLowerCase() : canonical;
+};
+
+const isWithin = (child: string, parent: string, separator: string) =>
+  child === parent || child.startsWith(parent.endsWith(separator) ? parent : `${parent}${separator}`);
+
+/**
+ * Whether a session's project directory belongs to a directory whose sessions this MCP server may pick without a
+ * `devSessionId`: the directory itself or a folder inside it. Clients that start the server in the home directory, a
+ * directory that contains homes (`/home`, `/Users`, `C:\Users`) or a filesystem root say nothing about the project, so
+ * such a directory counts only for a project in exactly that directory.
+ */
+export const isProjectDirectoryOf = (
+  directory: string,
+  scopeDirectory: string,
+  { platform = process.platform, home = homedir() }: PathPlatform = {}
+): boolean => {
+  const separator = platform === 'win32' ? win32.sep : posix.sep;
+  const project = canonicalDirectory(directory, platform);
+  const scope = canonicalDirectory(scopeDirectory, platform);
+  const isRoot = scope === canonicalDirectory((platform === 'win32' ? win32 : posix).parse(scope).root, platform);
+  if (isRoot || isWithin(canonicalDirectory(home, platform), scope, separator)) return project === scope;
+  return isWithin(project, scope, separator);
 };
 
 /**
- * Adds the running agents this MCP server does not know yet, for example after a client restarted it. Only agents that
- * report their session ID and project directory are adopted; their session ID is the `devSessionId` the earlier MCP
- * server returned, because it passed that ID to the agent.
+ * Whether a query may write. Only SQL that the `query sql` command accepts as read-only and a Redis command known to
+ * read count as reads; a call that passes both `sql` and `command` writes if either does. Functions can still write from
+ * a SELECT, so a query on another project's session also runs read-only in the database.
  */
-const rediscoverDevSessions = async ({
-  activeDevSessions,
-  discoverAgents
-}: {
-  activeDevSessions: Map<string, DevSession>;
-  discoverAgents: () => Promise<DiscoveredDevAgent[]>;
-}) => {
-  const knownPorts = new Set([...activeDevSessions.values()].map(({ agentPort }) => agentPort));
-  for (const agent of await discoverAgents().catch(() => [])) {
-    if (!agent.sessionId || !agent.projectDirectory || knownPorts.has(agent.port)) continue;
-    activeDevSessions.set(agent.sessionId, {
-      devSessionId: agent.sessionId,
-      agentPort: agent.port,
-      startedAt: '',
-      cwd: agent.projectDirectory,
-      ...(agent.stage ? { stage: agent.stage } : {})
-    });
-  }
+export const isWriteQuery = (args: Record<string, unknown>): boolean =>
+  (typeof args.sql === 'string' && !isDefinitelyReadOnlySql(args.sql)) ||
+  (typeof args.command === 'string' && !isReadOnlyRedisCommand(args.command));
+
+/** Actions that change a session's code, data or state; they never act on a session they have to guess elsewhere. */
+const isMutatingAction = (action: DevToolAction, args: Record<string, unknown>) =>
+  action === 'rebuild' ||
+  action === 'rebuild_all' ||
+  action === 'reset_db' ||
+  action === 'seed' ||
+  action === 'stop' ||
+  (action === 'query' && isWriteQuery(args));
+
+/** What a call returns about a session; the fields used to tell sessions apart stay inside the server. */
+const publicSession = ({ devSessionId, agentPort, startedAt, cwd, stage }: DevSession) => ({
+  devSessionId,
+  ...(agentPort !== undefined ? { agentPort } : {}),
+  startedAt,
+  cwd,
+  ...(stage ? { stage } : {})
+});
+
+/** How a refusal lists the sessions an agent could address with `devSessionId`. */
+const describeCandidates = (sessions: DevSession[]) => ({
+  activeDevSessionIds: sessions.map(({ devSessionId }) => devSessionId),
+  activeDevSessions: sessions.map(({ devSessionId, cwd, stage }) => ({
+    devSessionId,
+    projectDirectory: cwd,
+    ...(stage ? { stage } : {})
+  }))
+});
+
+/**
+ * The chosen session, and whether the agent chose it: by its `devSessionId`, or as a session of this server's own
+ * projects. A session read through `cwd` in another project is not, so its database queries run read-only.
+ */
+type SessionSelection = { ok: true; session: DevSession; ownProject: boolean } | { ok: false; output: ToolOutput };
+type RunningCheck = { ok: true } | { ok: false; output: ToolOutput };
+
+/**
+ * What an agent that lost its stage to a take-over answers. The take-over was a deliberate act of a person or another
+ * agent, so the answer names the holder and leaves taking the stage back to the user: two agents that each took it back
+ * would move it between them forever, redeploying every time.
+ */
+const describeTakeOver = (
+  session: DevSession,
+  recordedMessage: string
+): Pick<ToolOutput, 'message' | 'nextActions'> => {
+  const takeOver = /^(.+?) took over dev mode for (\S+?),/.exec(recordedMessage);
+  const holder = takeOver?.[1];
+  return {
+    message: holder
+      ? `Dev session ${session.devSessionId} (${session.cwd}) stopped because ${holder} took over dev mode for ${takeOver[2]} on purpose. Deployed functions now reach the databases of that session, and this one stopped so that it cannot redeploy functions over theirs.`
+      : `Dev session ${session.devSessionId} (${session.cwd}) stopped itself: ${recordedMessage.replace(/\s*To move the stage back[\s\S]*$/, '')}`,
+    nextActions: [
+      `Tell the user that ${holder ?? 'another session'} moved this stage on purpose. Do not take it back unless the user asks for it: that would stop the other session, which may be a person's or another agent's work.`
+    ]
+  };
 };
 
-const ensureDevSessionAvailable = async ({
-  devSessionId,
-  cwd,
-  requireExplicit,
-  activeDevSessions,
+/**
+ * The dev sessions this MCP server knows and how a call picks one. A call with `devSessionId` gets that session. A call
+ * without it may only pick a session this server started, or one whose project directory is the server's working
+ * directory or one of the client's roots: an agent must never rebuild or reset another worktree's session because it
+ * happens to be the only one running. Ended sessions are dropped before the choice, and a session another one took over
+ * keeps answering with that reason instead of letting the next call reach the new holder.
+ */
+const createSessionRegistry = ({
   requestDevApi,
   discoverAgents,
-  isStarting
+  isStarting,
+  now,
+  serverDirectory,
+  statusCheckTimeoutMs
 }: {
-  devSessionId?: string;
-  /** Narrows the sessions an omitted `devSessionId` is inferred from to one project directory. */
-  cwd?: string;
-  requireExplicit: boolean;
-  activeDevSessions: Map<string, DevSession>;
   requestDevApi: DevApiRequest;
   discoverAgents: () => Promise<DiscoveredDevAgent[]>;
-  /** A starting session reports its port before its agent listens, so it is not health-checked. */
+  /** A starting session reports its port before its agent listens, so it is not checked. */
   isStarting: (session: DevSession) => boolean;
-}): Promise<{ ok: true; session: DevSession } | { ok: false; output: ToolOutput }> => {
-  // A session can be registered under two IDs (see `start`), so the sessions are deduplicated.
-  const candidates = () =>
-    [...new Set(activeDevSessions.values())].filter((candidate) => !cwd || isSameDirectory(candidate.cwd, cwd));
-  const find = () => {
-    const matching = candidates();
-    return devSessionId
-      ? activeDevSessions.get(devSessionId)
-      : !requireExplicit && matching.length === 1
-        ? matching[0]
-        : undefined;
+  now: () => Date;
+  serverDirectory: () => string;
+  statusCheckTimeoutMs: number;
+}) => {
+  const active = new Map<string, DevSession>();
+  /** Sessions whose agent recorded why it stopped, under each of their IDs. */
+  const ended = new Map<string, { session: DevSession; output: ToolOutput }>();
+
+  // A session can be registered under two IDs (see `start`), so lists are deduplicated.
+  const sessions = () => [...new Set(active.values())];
+
+  const forget = (session: DevSession) => {
+    for (const [id, candidate] of active) if (candidate === session) active.delete(id);
   };
-  if (!find() && (devSessionId || candidates().length === 0)) {
-    await rediscoverDevSessions({ activeDevSessions, discoverAgents });
-  }
-  const session = find();
 
-  if (!session) {
-    const ambiguous = !devSessionId && candidates().length > 1;
-    const noActiveSessions = candidates().length === 0;
-    return {
-      ok: false,
-      output: {
+  /**
+   * Adds the running agents this MCP server does not know yet, for example after a client restarted it. Only agents
+   * that report their session ID and project directory are adopted; their session ID is the `devSessionId` the earlier
+   * MCP server returned, because it passed that ID to the agent.
+   */
+  const rediscover = async () => {
+    const knownPorts = new Set(sessions().map(({ agentPort }) => agentPort));
+    for (const agent of await discoverAgents().catch(() => [])) {
+      if (!agent.sessionId || !agent.projectDirectory || knownPorts.has(agent.port)) continue;
+      active.set(agent.sessionId, {
+        devSessionId: agent.sessionId,
+        agentSessionId: agent.sessionId,
+        agentPort: agent.port,
+        startedAt: '',
+        cwd: agent.projectDirectory,
+        ...(agent.stage ? { stage: agent.stage } : {}),
+        origin: 'found',
+        knownSince: now().toISOString()
+      });
+    }
+  };
+
+  /**
+   * Asks the session's agent whether it still runs. An agent that has exited refuses the connection, one whose token
+   * file is gone gets no token, and an agent that took over the port reports another session ID; each ends the session
+   * here, with the reason its agent recorded when there is one.
+   */
+  const checkRunning = async (session: DevSession): Promise<RunningCheck> => {
+    if (session.agentPort === undefined || isStarting(session)) return { ok: true };
+    const port = session.agentPort;
+    const status = await requestDevApi({ port, method: 'GET', path: '/status', timeoutMs: statusCheckTimeoutMs }).catch(
+      (error: unknown): Record<string, unknown> => ({
         ok: false,
-        code: ambiguous
-          ? 'AMBIGUOUS_DEV_SESSION'
-          : noActiveSessions || devSessionId
-            ? 'NOT_FOUND'
-            : 'DEV_SESSION_ID_REQUIRED',
-        message: noActiveSessions
-          ? 'No active Stacktape dev session found.'
-          : ambiguous
-            ? 'Multiple Stacktape dev sessions are active. Specify args.devSessionId.'
-            : devSessionId
-              ? `No active dev session matches devSessionId ${devSessionId}.`
-              : 'Specify args.devSessionId for this dev operation.',
-        data: {
-          activeDevSessionIds: candidates().map(({ devSessionId: id }) => id)
-        },
-        nextActions: [
-          activeDevSessions.size === 0
-            ? 'Call stacktape_dev with action=start first.'
-            : 'Use a devSessionId returned by stacktape_dev action=start.'
-        ]
-      }
-    };
-  }
-
-  if (session.agentPort === undefined || isStarting(session)) return { ok: true, session };
-
-  // An agent that has exited refuses the connection; that is the unreachable case below, not an error.
-  const health = await requestDevApi({
-    port: session.agentPort,
-    method: 'GET',
-    path: '/health'
-  }).catch((error: unknown) => ({ ok: false, code: 'UNREACHABLE', message: String(error) }));
-  if (health.ok === false) {
-    forgetDevSession(activeDevSessions, session);
-    const stopped = await readStopReason(session.agentPort, session.startedAt);
-    if (stopped) {
+        code: error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'UNREACHABLE',
+        message: String(error)
+      })
+    );
+    // An agent that hangs may still run: it stays known, but this call does not wait for it.
+    if (status.code === 'TIMEOUT') {
       return {
         ok: false,
         output: {
           ok: false,
-          code: stopped.code,
-          message: `Dev session ${session.devSessionId} stopped itself: ${stopped.message}`,
-          nextActions: ['Call stacktape_dev with action=start and take_over=true to move the stage back here']
+          code: 'DEV_AGENT_NOT_RESPONDING',
+          message: `The agent of dev session ${session.devSessionId} (${session.cwd}) on port ${port} did not answer within ${statusCheckTimeoutMs / 1000} s.`,
+          data: { session: publicSession(session) },
+          nextActions: [
+            'Try again in a moment. If it keeps hanging, read the dev log with action=logs, or stop it with action=stop and its devSessionId.'
+          ]
         }
       };
+    }
+    const reportedId = typeof status.sessionId === 'string' ? status.sessionId : undefined;
+    const anotherSession =
+      reportedId !== undefined && session.agentSessionId !== undefined && reportedId !== session.agentSessionId;
+    if (status.ok !== false && !anotherSession) return { ok: true };
+
+    forget(session);
+    const stopped = await readStopReason(port, session.knownSince);
+    if (stopped) {
+      const output: ToolOutput = {
+        ok: false,
+        code: stopped.code,
+        ...describeTakeOver(session, stopped.message),
+        data: { session: publicSession(session) }
+      };
+      for (const id of new Set([session.devSessionId, session.agentSessionId]))
+        if (id) ended.set(id, { session, output });
+      return { ok: false, output };
     }
     return {
       ok: false,
       output: {
         ok: false,
         code: 'NOT_FOUND',
-        message:
-          health.code === 'UNAUTHORIZED'
-            ? `The process on port ${session.agentPort} refused the session token in ${localStatePaths.devAgentTokenFile({ port: session.agentPort })}; dev session ${session.devSessionId} has ended.`
-            : `Dev session ${session.devSessionId} on port ${session.agentPort} is no longer reachable.`,
+        message: anotherSession
+          ? `Dev session ${session.devSessionId} has ended; port ${port} now serves another dev session.`
+          : status.code === 'UNAUTHORIZED'
+            ? `The process on port ${port} refused the session token in ${localStatePaths.devAgentTokenFile({ port })}; dev session ${session.devSessionId} has ended.`
+            : `Dev session ${session.devSessionId} on port ${port} is no longer reachable.`,
         nextActions: ['Call stacktape_dev with action=start to create a new dev session']
       }
     };
-  }
+  };
 
-  return { ok: true, session };
+  const select = async ({
+    devSessionId,
+    cwd,
+    mutating,
+    requireExplicit,
+    getProjectRoots
+  }: {
+    devSessionId?: string;
+    /** Narrows the sessions an omitted `devSessionId` is inferred from to one project directory. */
+    cwd?: string;
+    /** The call changes code, data or state, so it never picks a session outside this server's projects. */
+    mutating: boolean;
+    requireExplicit: boolean;
+    getProjectRoots: () => Promise<string[]>;
+  }): Promise<SessionSelection> => {
+    if (devSessionId) {
+      const stopped = ended.get(devSessionId);
+      if (stopped) return { ok: false, output: stopped.output };
+      if (!active.has(devSessionId)) await rediscover();
+      const session = active.get(devSessionId);
+      if (!session) {
+        return {
+          ok: false,
+          output: {
+            ok: false,
+            code: 'NOT_FOUND',
+            message: `No active dev session matches devSessionId ${devSessionId}.`,
+            data: describeCandidates(sessions()),
+            nextActions: ['Use a devSessionId returned by stacktape_dev action=start.']
+          }
+        };
+      }
+      const check = await checkRunning(session);
+      return check.ok === false ? { ok: false, output: check.output } : { ok: true, session, ownProject: true };
+    }
+
+    // Sessions stopped elsewhere would make the choice ambiguous or pick an ended session. One that hangs still counts.
+    const checks = new Map(
+      await Promise.all(sessions().map(async (session) => [session, await checkRunning(session)] as const))
+    );
+    let roots: string[] | undefined;
+    const isInScope = async (session: DevSession) => {
+      if (session.origin === 'started' || isProjectDirectoryOf(session.cwd, serverDirectory())) return true;
+      roots ??= await getProjectRoots().catch(() => []);
+      return roots.some((root) => isProjectDirectoryOf(session.cwd, root));
+    };
+    const matching = async () => {
+      const result: Array<{ session: DevSession; inScope: boolean }> = [];
+      for (const session of sessions()) {
+        if (cwd && !isSameDirectory(session.cwd, cwd)) continue;
+        result.push({ session, inScope: await isInScope(session) });
+      }
+      return result;
+    };
+    // An explicit cwd addresses that project for reading; changes stay with this server's own projects.
+    const eligible = async () =>
+      (await matching())
+        .filter(({ inScope }) => inScope || (cwd !== undefined && !mutating))
+        .map(({ session }) => session);
+
+    let candidates = await eligible();
+    if (candidates.length === 0) {
+      await rediscover();
+      candidates = await eligible();
+    }
+
+    // After a take-over the replaced session keeps answering; the next call must not reach the session that replaced it.
+    for (const { session, output } of new Set(ended.values())) {
+      if (cwd && !isSameDirectory(session.cwd, cwd)) continue;
+      if (!(await isInScope(session))) continue;
+      return {
+        ok: false,
+        output: {
+          ...output,
+          data: { ...output.data, ...describeCandidates(candidates) },
+          nextActions: [
+            ...(output.nextActions ?? []),
+            'To act on another running session, pass its devSessionId. Calls without one keep returning this until a start succeeds.'
+          ]
+        }
+      };
+    }
+
+    if (candidates.length === 1 && !requireExplicit) {
+      const [session] = candidates;
+      const check = checks.get(session);
+      if (check?.ok === false) return { ok: false, output: check.output };
+      return { ok: true, session, ownProject: await isInScope(session) };
+    }
+
+    const elsewhere = (await matching()).filter(({ inScope }) => !inScope).map(({ session }) => session);
+    if (candidates.length === 0 && elsewhere.length) {
+      return {
+        ok: false,
+        output: {
+          ok: false,
+          code: 'DEV_SESSION_ID_REQUIRED',
+          message: `No dev session of this MCP server's projects is running. Dev sessions run in other directories: ${elsewhere.map(({ devSessionId: id, cwd: directory }) => `${id} in ${directory}`).join(', ')}.`,
+          data: describeCandidates(elsewhere),
+          nextActions: [
+            mutating
+              ? 'Pass args.devSessionId to act on one of them, only if that is the project you mean; this call changes its code, data or state.'
+              : 'Pass args.devSessionId or args.cwd to read one of them, or call stacktape_dev with action=start to start dev mode for this project.'
+          ]
+        }
+      };
+    }
+
+    const noActiveSessions = candidates.length === 0;
+    const ambiguous = candidates.length > 1;
+    return {
+      ok: false,
+      output: {
+        ok: false,
+        code: ambiguous ? 'AMBIGUOUS_DEV_SESSION' : noActiveSessions ? 'NOT_FOUND' : 'DEV_SESSION_ID_REQUIRED',
+        message: noActiveSessions
+          ? 'No active Stacktape dev session found.'
+          : ambiguous
+            ? 'Multiple Stacktape dev sessions are active. Specify args.devSessionId.'
+            : 'Specify args.devSessionId for this dev operation.',
+        data: describeCandidates(candidates),
+        nextActions: [
+          noActiveSessions
+            ? 'Call stacktape_dev with action=start first.'
+            : 'Use a devSessionId returned by stacktape_dev action=start.'
+        ]
+      }
+    };
+  };
+
+  return {
+    active,
+    forget,
+    select,
+    /** A start succeeded: the agent chose where it works now, so earlier take-overs no longer answer for it. */
+    clearEnded: () => ended.clear()
+  };
 };
 
-/** Why the session's agent ended itself, when it recorded a reason after this session started. */
+/** Why the session's agent ended itself, when it recorded a reason after this session was known to run. */
 const readStopReason = async (
   port: number,
-  startedAt: string
+  knownSince: string
 ): Promise<{ code: string; message: string } | undefined> => {
   try {
     const recorded = JSON.parse(await readFile(localStatePaths.devAgentStopReasonFile({ port }), 'utf-8')) as {
@@ -385,8 +649,7 @@ const readStopReason = async (
       at?: unknown;
     };
     if (typeof recorded.message !== 'string' || typeof recorded.at !== 'string') return undefined;
-    // A session found running has no start time, so no reason can be told apart from an older one.
-    if (!startedAt || recorded.at < startedAt) return undefined;
+    if (!knownSince || recorded.at < knownSince) return undefined;
     return {
       code: typeof recorded.code === 'string' ? recorded.code : 'DEV_SESSION_STOPPED',
       message: recorded.message
@@ -591,7 +854,6 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
 };
 
 export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => {
-  const activeDevSessions = new Map<string, DevSession>();
   const startups = new Map<string, DevStartup>();
   // A start that failed after its tool call returned DEV_STARTING keeps its error here until a call reads it.
   const failedStarts = new Map<string, { output: ToolOutput; finishedAt: number }>();
@@ -600,6 +862,15 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
   const createId = dependencies.createId || randomUUID;
   const now = dependencies.now || (() => new Date());
+  const registry = createSessionRegistry({
+    requestDevApi,
+    discoverAgents,
+    isStarting: (session) => startups.has(session.devSessionId),
+    now,
+    serverDirectory: dependencies.serverDirectory || (() => process.cwd()),
+    statusCheckTimeoutMs: dependencies.statusCheckTimeoutMs ?? STATUS_CHECK_TIMEOUT_MS
+  });
+  const activeDevSessions = registry.active;
 
   /** What a session's start reports while it still runs: the latest steps and, once known, the agent's port. */
   const describeStartup = (session: DevSession, startup: DevStartup): ToolOutput => {
@@ -609,7 +880,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       ok: true,
       code: 'DEV_STARTING',
       message: `Dev mode is still starting${latest ? `: ${latest}.` : '.'} A first start creates the dev network and the dev stack, which takes several minutes.`,
-      data: { session, startup: { state: 'starting', progress: startup.progress.slice(-10) } },
+      data: { session: publicSession(session), startup: { state: 'starting', progress: startup.progress.slice(-10) } },
       nextActions: [
         `Call stacktape_dev with action=status and args.devSessionId=${session.devSessionId}; it waits up to ${DEFAULT_WAIT_SECONDS} s for the start to finish.`
       ]
@@ -638,13 +909,16 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     args,
     signal,
     clientName,
-    onProgress
+    onProgress,
+    getProjectRoots = async () => []
   }: {
     action: DevToolAction;
     args?: Record<string, unknown>;
     signal?: AbortSignal;
     clientName?: string;
     onProgress?: (event: { message: string }) => void | Promise<void>;
+    /** The directories of the client's MCP roots; sessions in them count as this server's own. */
+    getProjectRoots?: () => Promise<string[]>;
   }): Promise<ReturnType<typeof toToolText>> => {
     const toolArgs = normalizeToolArgs(args);
 
@@ -669,10 +943,14 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
 
       // The agent adopts this ID, reports it in its status, and a restarted MCP server finds the session by it again.
       const devSessionId = createId();
+      const startedAt = now().toISOString();
       const session: DevSession = {
         devSessionId,
-        startedAt: now().toISOString(),
-        cwd: typeof requestedCwd === 'string' ? requestedCwd : process.cwd()
+        agentSessionId: devSessionId,
+        startedAt,
+        cwd: typeof requestedCwd === 'string' ? requestedCwd : process.cwd(),
+        origin: 'started',
+        knownSince: startedAt
       };
       let clientWaiting = true;
       const startup: DevStartup = {
@@ -732,21 +1010,33 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             activeDevSessions.set(devSessionId, session);
             // An agent that was already running keeps its own session ID; it is the one a restarted server finds.
             if (typeof payload?.sessionId === 'string' && payload.sessionId !== devSessionId) {
+              session.agentSessionId = payload.sessionId;
               activeDevSessions.set(payload.sessionId, session);
             }
+            registry.clearEnded();
           } else {
             activeDevSessions.delete(devSessionId);
           }
+          const succeeded = result.ok && !missingPort;
           const output: ToolOutput = {
-            ok: result.ok && !missingPort,
+            ok: succeeded,
             code: missingPort ? 'INTERNAL_ERROR' : result.code,
             message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
             data: {
-              ...(result.ok && !missingPort ? { session } : {}),
+              ...(succeeded ? { session: publicSession(session) } : {}),
               resolvedContext: result.resolvedContext,
               ...(result.data ? { cli: result.data } : {})
             },
-            ...(result.rawTail ? { rawTail: result.rawTail } : {})
+            // The CLI's output explains a failure. After a successful start it is the banner for people, whose
+            // instructions (curl, `stacktape dev stop`) are not the ones an assistant uses here.
+            ...(!succeeded && result.rawTail ? { rawTail: result.rawTail } : {}),
+            ...(result.code === 'DEV_STAGE_RUNNING_ELSEWHERE'
+              ? {
+                  nextActions: [
+                    "Another session holds this stage. To move the stage here, call stacktape_dev with action=start, the same args and args.takeOver=true: deployed functions then reach the databases of this session, and the other session stops itself. Ask the user first if the other session may be someone else's work."
+                  ]
+                }
+              : {})
           };
           finishStartup(output);
         },
@@ -796,14 +1086,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           : failedStart.output
       );
     }
-    const sessionResult = await ensureDevSessionAvailable({
+    const sessionResult = await registry.select({
       devSessionId,
       cwd: typeof toolArgs.cwd === 'string' ? toolArgs.cwd : undefined,
+      mutating: isMutatingAction(action, toolArgs),
       requireExplicit: action === 'stop',
-      activeDevSessions,
-      requestDevApi,
-      discoverAgents,
-      isStarting: (session) => startups.has(session.devSessionId)
+      getProjectRoots
     });
     if (sessionResult.ok === false) {
       return toToolText(sessionResult.output);
@@ -828,12 +1116,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       }
       startup.abort.abort();
       await startup.done;
-      forgetDevSession(activeDevSessions, sessionResult.session);
+      registry.forget(sessionResult.session);
       return toToolText({
         ok: true,
         code: 'OK',
         message: 'Dev session start stopped.',
-        data: { session: sessionResult.session }
+        data: { session: publicSession(sessionResult.session) }
       });
     }
     const port = sessionResult.session.agentPort;
@@ -852,7 +1140,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         code: ((response.ok as boolean | undefined) ?? true) ? 'OK' : 'INTERNAL_ERROR',
         message: 'Fetched dev status.',
         data: {
-          session: sessionResult.session,
+          session: publicSession(sessionResult.session),
           status: response
         }
       });
@@ -916,7 +1204,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           ? `Fetched ${page.entries.length} log entries for workload '${requestedWorkload}'.`
           : `Fetched ${page.entries.length} log entries.`,
         data: {
-          session: sessionResult.session,
+          session: publicSession(sessionResult.session),
           logFile,
           entries: page.entries,
           nextCursor: page.nextCursor,
@@ -990,13 +1278,16 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           message: results.length
             ? `Listed the contents of ${results.length} local database(s).`
             : 'This dev session runs no local databases.',
-          data: { session: sessionResult.session, databases: results }
+          data: { session: publicSession(sessionResult.session), databases: results }
         });
       }
 
       const selected = selectLocalDatabase(databases, requested);
       if (selected.ok === false)
-        return toToolText({ ...selected.output, data: { session: sessionResult.session, ...selected.output.data } });
+        return toToolText({
+          ...selected.output,
+          data: { session: publicSession(sessionResult.session), ...selected.output.data }
+        });
       const { database } = selected;
       const base = `/${DATABASE_ROUTE[database.type]}/${encodeURIComponent(database.name)}`;
 
@@ -1014,7 +1305,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         );
       }
 
-      const request = buildDatabaseQuery(database, toolArgs);
+      // A query on another project's session, chosen through cwd, may only read, whatever the statement looks like.
+      const request = buildDatabaseQuery(database, toolArgs, !sessionResult.ownProject);
       if (request.ok === false) {
         return toToolText({ ok: false, code: 'VALIDATION_ERROR', message: request.message });
       }
@@ -1126,14 +1418,14 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       });
       const ok = (response.ok as boolean | undefined) ?? false;
       if (ok) {
-        forgetDevSession(activeDevSessions, sessionResult.session);
+        registry.forget(sessionResult.session);
       }
       return toToolText({
         ok,
         code: ok ? 'OK' : 'INTERNAL_ERROR',
         message: ok ? 'Dev session stop requested.' : 'Failed to stop dev session.',
         data: {
-          session: sessionResult.session,
+          session: publicSession(sessionResult.session),
           response
         }
       });
