@@ -104,7 +104,9 @@ function Panel({ data, comparison, active }: { data: BenchmarkData; comparison: 
   const max = scaleMax(comparison);
   const viewPanelId = `${panelId(comparison)}-view`;
   const files = [...new Set(comparison.views.flatMap((v) => v.groups.flatMap((g) => g.values.map((x) => x.file))))];
-  const dates = [...new Set(comparison.views.flatMap((v) => v.groups.flatMap((g) => g.values.map((x) => x.date))))];
+  const dates = [
+    ...new Set(comparison.views.flatMap((v) => v.groups.flatMap((g) => g.values.map((x) => x.date))))
+  ].toSorted();
 
   return (
     <section

@@ -2884,8 +2884,7 @@ a:hover .rm-arrow {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  font-family: var(--rm-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--rm-body);
   white-space: nowrap;
