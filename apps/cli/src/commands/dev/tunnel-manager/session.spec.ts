@@ -14,6 +14,7 @@ const waitFor = async (description: string, ready: () => boolean, timeout = 5000
   }
 };
 
+// A scripted relay drives the client through timing edge cases the real relay cannot produce on demand.
 // Bore's serde unit variant is the JSON string "Heartbeat"; all other messages carry an object.
 // https://github.com/ekzhang/bore/blob/main/src/shared.rs
 for (const behavior of ['heartbeat', 'reconnect-cleanup', 'startup-cleanup', 'relay-reset'] as const) {
@@ -42,9 +43,9 @@ for (const behavior of ['heartbeat', 'reconnect-cleanup', 'startup-cleanup', 're
         buffer += chunk.toString();
         const end = buffer.indexOf('\0');
         if (end < 0) return;
-        const message = JSON.parse(buffer.slice(0, end)) as { Hello?: number; Accept?: string };
+        const message = JSON.parse(buffer.slice(0, end)) as { Lease?: { port: number }; Accept?: string };
         socket.removeListener('data', receive);
-        if (message.Hello === 0) {
+        if (message.Lease) {
           hellos++;
           if (hellos > 1 && behavior === 'reconnect-cleanup') {
             pending = socket;
@@ -86,6 +87,13 @@ const local = createServer(socket => {
 });
 await new Promise(resolve => local.listen(0, '127.0.0.1', resolve));
 registerTunnelCleanupHook();
+const request = (localPort) => ({
+  resourceName: 'db',
+  localPort,
+  lease: { port: 20001, key: 'stack/db' },
+  owner: { id: 'user-1', label: 'Test User' },
+  relay: { controlHost: '127.0.0.1', controlPort: ${serverPort}, relayHost: '127.0.0.1' }
+});
 if (${JSON.stringify(behavior)} === 'relay-reset') {
   // Deliberate timing injection: keep real TCP, but hold the local connect notification until the relay reset arrives.
   const emit = Socket.prototype.emit;
@@ -110,16 +118,16 @@ if (${JSON.stringify(behavior)} === 'startup-cleanup') {
     });
   };
   let started = false;
-  try { await startTunnel('db', local.address().port); started = true; }
+  try { await startTunnel(request(local.address().port)); started = true; }
   catch (error) { if (error.name !== 'AbortError') throw error; }
   finally { AbortSignal.prototype.throwIfAborted = originalCheck; }
   console.log('FIXTURE ' + JSON.stringify({phase:'cancelled', started, active:getActiveTunnels().length}));
   local.close();
 } else {
-const tunnel = await startTunnel('db', local.address().port);
+const { tunnel } = await startTunnel(request(local.address().port));
 if (${JSON.stringify(behavior)} === 'relay-reset') {
   await new Promise((resolve, reject) => {
-    const socket = createConnection({host:'127.0.0.1', port:tunnel.publicPort});
+    const socket = createConnection({host:'127.0.0.1', port:tunnel.relayPort});
     const timer = setTimeout(() => { socket.destroy(); reject(new Error('reset connection did not close')); }, 2000);
     socket.on('error', () => {});
     socket.once('close', () => { clearTimeout(timer); resolve(); });
@@ -128,7 +136,7 @@ if (${JSON.stringify(behavior)} === 'relay-reset') {
   if (localSockets.size) throw new Error('failed relay left a database connection open');
 }
 const answer = await new Promise((resolve, reject) => {
-  const socket = createConnection({host:'127.0.0.1',port:tunnel.publicPort}, () => socket.write(Buffer.from([113, 0, 117, 101, 114, 121])));
+  const socket = createConnection({host:'127.0.0.1',port:tunnel.relayPort}, () => socket.write(Buffer.from([113, 0, 117, 101, 114, 121])));
   const timer = setTimeout(() => { socket.destroy(); reject(new Error('tunnel request timed out')); }, 2000);
   socket.once('data', data => { clearTimeout(timer); resolve(String(data)); });
   socket.once('error', reject);
@@ -152,8 +160,7 @@ process.stdin.once('data', async () => {
           PATH: process.env.PATH,
           HOME: directory,
           SKIP_LOADING_ENV: '1',
-          STP_DISABLE_TELEMETRY: '1',
-          STACKTAPE_TUNNEL_SERVER: `127.0.0.1:${serverPort}`
+          STP_DISABLE_TELEMETRY: '1'
         },
         stdio: ['pipe', 'pipe', 'pipe']
       }

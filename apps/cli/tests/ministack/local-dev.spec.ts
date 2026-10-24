@@ -13,15 +13,12 @@ import {
 } from '@aws-sdk/client-lambda';
 import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { applicationManager } from '@application-services/application-manager';
-import { configManager } from '@domain-services/config-manager';
 import type { ValidatedAwsCredentials } from '../../src/aws/credentials';
 import { getAgentTokenFile, startAgentServer, stopAgentServer } from '../../src/commands/dev/agent-server';
-import {
-  detectLambdasNeedingTunnels,
-  registerLambdaEnvCleanupHook,
-  updateLambdaEnvVarsWithTunnels
-} from '../../src/commands/dev/lambda-env-manager';
+import { createDevNetworkAws } from '@domain-services/dev-network';
+import { ensureLeases, releaseStackLeases } from '@domain-services/dev-network/leases';
+import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 let ministack: MiniStack;
 let lambda: LambdaClient;
@@ -88,171 +85,24 @@ afterAll(async () => {
   await ministack?.stop();
 });
 
-test.each(['postgresql://deployed:5432/production', 'postgresql://olduser:oldpass@localhost:5432/oldDb'])(
-  'dev switches a function from %s to local tunnel params and restores it',
-  async (originalConnection) => {
-    const original = { ...originals, STP_DB_CONNECTION_STRING: originalConnection };
-    await lambda.send(
-      new UpdateFunctionConfigurationCommand({ FunctionName: functionName, Environment: { Variables: original } })
-    );
-    // Seed authored function selection; discovery and AWS reads/updates remain production code.
-    configManager.setStackContext({
-      accountId: globalStateManager.credentials.identity.account,
-      command: 'dev',
-      globallyUniqueStackHash: 'test',
-      invocationId: 'test',
-      projectName: 'localdev',
-      region: 'eu-west-1',
-      stackName: 'localdev-test',
-      stage: 'test',
-      workingDir: directory
-    });
-    configManager.config = {
-      resources: {
-        api: {
-          type: 'function',
-          properties: {
-            packaging: { type: 'custom-artifact', properties: { packagePath: 'unused.zip', handler: 'index:handler' } },
-            connectTo: ['db']
-          }
-        }
-      }
-    };
-    const { lambdasNeedingTunnels, skippedLambdas } = await detectLambdasNeedingTunnels(['db']);
-    expect(skippedLambdas).toEqual([]);
-    expect(lambdasNeedingTunnels).toEqual([{ name: 'api', functionName, referencedLocalResources: ['db'] }]);
-    const localConnection = 'postgresql://localuser:localpass@127.0.0.1:15432/localdb';
-    registerLambdaEnvCleanupHook();
-    try {
-      const result = await updateLambdaEnvVarsWithTunnels({
-        lambdas: lambdasNeedingTunnels,
-        // This scenario observes Lambda configuration. Relay reachability is qualified by the live dev lane.
-        tunnels: [
-          {
-            resourceName: 'db',
-            localPort: 15432,
-            publicHost: 'relay.example',
-            publicPort: 25432,
-            process: {
-              kill() {},
-              killed: false,
-              exitCode: null,
-              on() {
-                return this;
-              }
-            }
-          }
-        ],
-        localResources: [
-          {
-            name: 'db',
-            type: 'postgres',
-            version: '16.4',
-            port: 15432,
-            actualPort: 15432,
-            dataDir: directory,
-            containerName: 'unused',
-            host: '127.0.0.1',
-            connectionString: localConnection,
-            referencableParams: {
-              connectionString: localConnection,
-              host: '127.0.0.1',
-              port: '15432',
-              dbName: 'localdb'
-            }
-          }
-        ]
-      });
-      expect(result).toEqual({ updated: ['api'], failed: [] });
-      const active = (await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName })))
-        .Environment?.Variables;
-      expect(active).toEqual({
-        KEEP: 'untouched',
-        STP_DB_CONNECTION_STRING: 'postgresql://localuser:localpass@relay.example:25432/localdb',
-        STP_DB_HOST: 'relay.example',
-        STP_DB_PORT: '25432',
-        STP_DB_DB_NAME: 'localdb'
-      });
-    } finally {
-      await Promise.all(applicationManager.cleanUpHooks.map((hook) => hook({ success: true, interrupted: false })));
-    }
-    expect(
-      (await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }))).Environment?.Variables
-    ).toEqual(original);
-  },
-  45_000
-);
-
-test('an update accepted by Lambda but reported failed is still restored during dev cleanup', async () => {
-  await lambda.send(
-    new UpdateFunctionConfigurationCommand({ FunctionName: functionName, Environment: { Variables: originals } })
-  );
-  registerLambdaEnvCleanupHook();
-  const transport = globalThis.fetch;
-  let accepted = false;
-  globalThis.fetch = Object.assign(
-    async (input: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
-      const response = await transport(input, options);
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
-      if (url.origin === ministack.endpoint && url.pathname.endsWith('/configuration')) {
-        const method = options?.method ?? (input instanceof Request ? input.method : 'GET');
-        if (method === 'PUT' && response.ok) accepted = true;
-        if (accepted && method === 'GET' && response.ok) {
-          const body = (await response.json()) as Record<string, unknown>;
-          // Deliberate fault injection after the real SDK update has changed MiniStack state.
-          return new Response(
-            JSON.stringify({ ...body, LastUpdateStatus: 'Failed', LastUpdateStatusReason: 'injected update failure' }),
-            { status: 200, headers: response.headers }
-          );
-        }
-      }
-      return response;
-    },
-    transport
-  );
-  try {
-    const result = await updateLambdaEnvVarsWithTunnels({
-      lambdas: [{ name: 'api', functionName, referencedLocalResources: ['db'] }],
-      tunnels: [
-        {
-          resourceName: 'db',
-          localPort: 15432,
-          publicHost: 'relay.example',
-          publicPort: 25432,
-          process: {
-            kill() {},
-            killed: false,
-            exitCode: null,
-            on() {
-              return this;
-            }
-          }
-        }
-      ],
-      localResources: [
-        {
-          name: 'db',
-          type: 'postgres',
-          version: '16.4',
-          port: 15432,
-          actualPort: 15432,
-          dataDir: directory,
-          containerName: 'unused',
-          host: '127.0.0.1',
-          connectionString: 'postgresql://localhost:15432/localdb',
-          referencableParams: { connectionString: 'postgresql://localhost:15432/localdb' }
-        }
-      ]
-    });
-    expect(accepted).toBeTrue();
-    expect(result).toEqual({ updated: [], failed: ['api'] });
-  } finally {
-    globalThis.fetch = transport;
-    await Promise.all(applicationManager.cleanUpHooks.map((hook) => hook({ success: true, interrupted: false })));
-  }
+test('dev network leases persist in Parameter Store and are released with their stage', async () => {
+  awsSdkManager.init({ ...ministack.clientConfig(ministack.account()), region: 'eu-west-1', plugins: [] });
+  const store = createDevNetworkAws().leases;
+  const networkName = 'stacktape-dev-network-ministack';
+  const first = await ensureLeases({ store, networkName, stackName: 'localdev-test', resourceNames: ['db', 'cache'] });
+  expect(new Set(first.values()).size).toBe(2);
+  // The next session of the same stage reads the same ports, so its deployed environment stays valid.
   expect(
-    (await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }))).Environment?.Variables
-  ).toEqual(originals);
+    await ensureLeases({ store, networkName, stackName: 'localdev-test', resourceNames: ['db', 'cache'] })
+  ).toEqual(first);
+  // Creating a lease that exists (another session was first) keeps the stored port.
+  const dbLease = `${getDevNetworkLeaseParameterPrefix(networkName)}/localdev-test/db`;
+  await store.create(dbLease, '29999');
+  expect(
+    (await store.list(getDevNetworkLeaseParameterPrefix(networkName))).find(({ name }) => name === dbLease)?.value
+  ).toBe(String(first.get('db')));
+  expect(await releaseStackLeases({ store, networkName, stackName: 'localdev-test' })).toBe(2);
+  expect(await store.list(getDevNetworkLeaseParameterPrefix(networkName))).toEqual([]);
 }, 30_000);
 
 test('the dev agent exposes reviewed reads with redacted values and refuses mutations and secret reads', async () => {

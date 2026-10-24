@@ -1,44 +1,51 @@
-/** Deployed Lambda → real dev tunnel → local PostgreSQL, including log readback and environment restoration. */
-import { plugin } from 'bun';
+/**
+ * Deployed Lambda functions → dev box → local databases, through the real `stacktape dev` (source CLI).
+ *
+ * One run owns an isolated dev network (`STACKTAPE_DEV_NETWORK_SUFFIX`) and one dev stage, and goes through:
+ * 1. first creation: `dev --agent` creates the dev network and the dev stack;
+ * 2. arm64 and x86_64 functions query local PostgreSQL (initial and edited rows), one pings local Redis, and a VPC
+ *    function queries PostgreSQL and reaches the internet through the box;
+ * 3. laptop reconnect: the SSM plugin is killed and the functions reach the database again;
+ * 4. box stop and wake: the box is stopped as its idle stop would, and the next `dev --agent` starts it;
+ * 5. deletion: `delete` of the dev stage and `dev network delete`, then AWS is queried for every owned resource.
+ *
+ * Timings go to the report file. Recovery state is written before anything is created; `--cleanup-only` resumes it.
+ */
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, dirname, basename } from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { createConnection } from 'node:net';
-import AdmZip from 'adm-zip';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { Client } from 'pg';
 import { fromIni } from '@aws-sdk/credential-providers';
-import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
-  IAMClient,
-  CreateRoleCommand,
-  PutRolePolicyCommand,
-  GetRoleCommand,
-  DeleteRoleCommand,
-  DeleteRolePolicyCommand
-} from '@aws-sdk/client-iam';
+  DescribeAddressesCommand,
+  DescribeInstancesCommand,
+  DescribeNetworkInterfacesCommand,
+  EC2Client,
+  StopInstancesCommand
+} from '@aws-sdk/client-ec2';
+import { InvokeCommand, LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
+import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import {
-  LambdaClient,
-  CreateFunctionCommand,
-  GetFunctionCommand,
-  GetFunctionConfigurationCommand,
-  InvokeCommand,
-  DeleteFunctionCommand,
-  waitUntilFunctionActiveV2
-} from '@aws-sdk/client-lambda';
-import {
-  CloudWatchLogsClient,
-  CreateLogGroupCommand,
-  DeleteLogGroupCommand,
-  DescribeLogGroupsCommand
-} from '@aws-sdk/client-cloudwatch-logs';
-import { createStacktapeOpenTuiBuildPlugin } from '../support/opentui-loader';
+  DeleteParametersCommand,
+  DescribeSessionsCommand,
+  GetParametersByPathCommand,
+  SSMClient,
+  TerminateSessionCommand
+} from '@aws-sdk/client-ssm';
+import { getDevNetworkLeaseParameterPrefix, getDevNetworkStackName } from '@stacktape/naming/shared-stacks';
 
 const check: (value: unknown, message: string) => asserts value = (value, message) => {
   if (!value) throw new Error(message);
 };
+const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const PREFIX = 'STP_AWS_LAMBDA_DEV_';
+const CLI_DIRECTORY = join(import.meta.dir, '..', '..');
+
 export const resolveLambdaDevOptions = (env: Record<string, string | undefined> = process.env) => {
   check(env[`${PREFIX}DEPLOY`] === '1', 'Explicit Lambda dev canary opt-in is required.');
   check(
@@ -52,35 +59,40 @@ export const resolveLambdaDevOptions = (env: Record<string, string | undefined> 
   check(stateFile && isAbsolute(stateFile), 'An absolute recovery state file is required.');
   const owner = env[`${PREFIX}OWNER`];
   check(owner && /^[a-z0-9-]{1,40}$/.test(owner), 'A safe unique owner is required.');
+  const reportFile = env[`${PREFIX}REPORT`];
+  check(!reportFile || isAbsolute(reportFile), 'The report file must be an absolute path.');
   check(
     !Object.keys(env).some((key) => key === 'AWS_ENDPOINT_URL' || key.startsWith('AWS_ENDPOINT_URL_')),
     'Endpoint overrides are forbidden.'
   );
   check(process.platform === 'linux', 'This canary currently qualifies Linux only.');
-  // Dev mode has no default relay: bore relays are unauthenticated, so only one the operator controls is acceptable.
-  check(
-    env.STACKTAPE_TUNNEL_SERVER?.trim(),
-    'Set STACKTAPE_TUNNEL_SERVER to a bore-compatible relay you control; dev mode never uses a public relay.'
-  );
-  return { accountId, stateFile, owner, region: 'eu-west-1' as const, profile: 'stacktape-e2e' };
+  return {
+    accountId,
+    stateFile,
+    owner,
+    reportFile,
+    region: 'eu-west-1' as const,
+    profile: 'stacktape-e2e'
+  };
 };
+type Options = ReturnType<typeof resolveLambdaDevOptions>;
 
 type State = {
   accountId: string;
   owner: string;
   region: string;
-  name: string;
+  /** Project `v4lambdadev-<8 hex>`; its stage is `dev`, and its network suffix the same 8 hex digits. */
+  projectName: string;
+  networkSuffix: string;
   directory: string;
-  container: string;
-  roleAttempted: boolean;
-  functionAttempted: boolean;
-  containerAttempted: boolean;
+  awsAccountName?: string;
+  /** The dev network's box, once the network exists: its SSM sessions are ended in cleanup. */
+  boxInstanceId?: string;
+  createAttempted: boolean;
   cleanupVerified?: boolean;
 };
-export const validateLambdaDevRecoveryState = (
-  value: unknown,
-  options: ReturnType<typeof resolveLambdaDevOptions>
-): State => {
+
+export const validateLambdaDevRecoveryState = (value: unknown, options: Options): State => {
   check(typeof value === 'object' && value !== null, 'Recovery state must be an object.');
   const candidate = value as Record<string, unknown>;
   check(
@@ -90,9 +102,10 @@ export const validateLambdaDevRecoveryState = (
     'Recovery state identity differs from this run.'
   );
   check(
-    typeof candidate.name === 'string' &&
-      new RegExp(`^v4lambdadev-${options.owner}-[a-f0-9]{8}$`).test(candidate.name) &&
-      candidate.container === candidate.name,
+    typeof candidate.projectName === 'string' &&
+      typeof candidate.networkSuffix === 'string' &&
+      /^[a-f0-9]{8}$/.test(candidate.networkSuffix) &&
+      candidate.projectName === `v4lambdadev-${candidate.networkSuffix}`,
     'Recovery resource names differ from this run.'
   );
   check(
@@ -101,53 +114,255 @@ export const validateLambdaDevRecoveryState = (
       /^stacktape-lambda-dev-[a-zA-Z0-9]{6}$/.test(basename(candidate.directory)),
     'Recovery directory is not an owned temporary directory.'
   );
+  check(typeof candidate.createAttempted === 'boolean', 'Recovery creation flag is invalid.');
   check(
-    typeof candidate.roleAttempted === 'boolean' &&
-      typeof candidate.functionAttempted === 'boolean' &&
-      typeof candidate.containerAttempted === 'boolean',
-    'Recovery creation flags are invalid.'
+    candidate.boxInstanceId === undefined ||
+      (typeof candidate.boxInstanceId === 'string' && /^i-[a-f0-9]{8,17}$/.test(candidate.boxInstanceId)),
+    'Recovery instance id is invalid.'
   );
   return {
     accountId: options.accountId,
     owner: options.owner,
     region: options.region,
-    name: candidate.name,
-    container: candidate.name,
+    projectName: candidate.projectName,
+    networkSuffix: candidate.networkSuffix,
     directory: candidate.directory,
-    roleAttempted: candidate.roleAttempted,
-    functionAttempted: candidate.functionAttempted,
-    containerAttempted: candidate.containerAttempted,
+    awsAccountName: typeof candidate.awsAccountName === 'string' ? candidate.awsAccountName : undefined,
+    boxInstanceId: candidate.boxInstanceId as string | undefined,
+    createAttempted: candidate.createAttempted,
     cleanupVerified: candidate.cleanupVerified === true
   };
 };
 
-const absent = (error: unknown) =>
-  error instanceof Error && ['ResourceNotFoundException', 'NoSuchEntityException', 'NoSuchEntity'].includes(error.name);
-const docker = (args: string[], allowMissing = false) => {
-  const result = spawnSync('docker', args, { encoding: 'utf8', timeout: 60_000 });
-  if (result.status !== 0 && !(allowMissing && /No such (?:object|container)/i.test(result.stderr ?? ''))) {
-    // Docker run contains a test DB password; never repeat argv or its command in failure output.
-    throw new Error(`Docker ${args[0]} failed (${result.status}).`);
-  }
-  return result.stdout.trim();
-};
-const waitFor = async (description: string, predicate: () => Promise<boolean>, timeout = 60_000) => {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    if (await predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error(`Timed out waiting for ${description}.`);
-};
-const portIsOpen = (port: number) =>
-  new Promise<boolean>((resolve) => {
-    const socket = createConnection({ host: '127.0.0.1', port });
-    socket.once('connect', () => {
-      socket.destroy();
-      resolve(true);
+const STAGE = 'dev';
+/** A second developer's stage, run at the same time on the same box: a second SSM session to it. */
+const SECOND_STAGE = 'dev2';
+const STAGES = [STAGE, SECOND_STAGE];
+const stackName = (state: State, stage = STAGE) => `${state.projectName}-${stage}`;
+const networkName = (state: State) => getDevNetworkStackName(state.networkSuffix);
+const functionName = (state: State, name: string, stage = STAGE) => `${stackName(state, stage)}-${name}`;
+const FUNCTIONS = ['queryArm', 'queryX86', 'vpcEgress'] as const;
+/** The fixture's local PostgreSQL password; the local database runs only on this machine, behind the dev box. */
+const DATABASE_PASSWORD = 'lambda-dev-canary-db-password';
+const projectDirectory = (state: State) => join(state.directory, 'project');
+
+/** The fixture: the canary writes it per run, with `pg` imported from this checkout, so it needs no install. */
+const writeFixture = async (state: State) => {
+  const directory = projectDirectory(state);
+  await mkdir(join(directory, 'src'), { recursive: true });
+  const pg = join(CLI_DIRECTORY, 'node_modules/pg/lib/index.js');
+  await writeFile(
+    join(directory, 'stacktape.yml'),
+    `# Lambda dev canary fixture (${state.owner}).
+resources:
+  db:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: ${DATABASE_PASSWORD}
+      engine:
+        type: postgres
+        properties:
+          version: '16.4'
+          primaryInstance:
+            instanceSize: db.t3.micro
+  cache:
+    type: redis-cluster
+    properties:
+      defaultUserPassword: lambda-dev-canary-cache-password
+      instanceSize: cache.t3.micro
+      engineVersion: '7.1'
+  queryArm:
+    type: function
+    properties:
+      packaging: { type: js-bundle, properties: { entryfilePath: ./src/query.ts } }
+      architecture: arm64
+      timeout: 30
+      connectTo: [db, cache]
+  queryX86:
+    type: function
+    properties:
+      packaging: { type: js-bundle, properties: { entryfilePath: ./src/query.ts } }
+      architecture: x86_64
+      timeout: 30
+      connectTo: [db]
+  vpcEgress:
+    type: function
+    properties:
+      packaging: { type: js-bundle, properties: { entryfilePath: ./src/query.ts } }
+      architecture: arm64
+      timeout: 30
+      joinDefaultVpc: true
+      connectTo: [db]
+`
+  );
+  await writeFile(
+    join(directory, 'src/query.ts'),
+    `import { connect } from 'node:net';
+import { Client } from ${JSON.stringify(pg)};
+
+const redisPing = (url: string) =>
+  new Promise<string>((resolve, reject) => {
+    const { hostname, port, password } = new URL(url);
+    const socket = connect({ host: hostname, port: Number(port) }, () =>
+      socket.write('AUTH default ' + decodeURIComponent(password) + '\\r\\nPING\\r\\n')
+    );
+    let reply = '';
+    socket.setTimeout(8000, () => socket.destroy(new Error('redis timeout')));
+    socket.on('data', (chunk) => {
+      reply += chunk;
+      if (reply.includes('PONG')) {
+        socket.destroy();
+        resolve('PONG');
+      }
     });
-    socket.once('error', () => resolve(false));
+    socket.once('error', reject);
   });
+
+export const handler = async (event: { op: 'db' | 'ping' | 'cache' | 'egress' }) => {
+  if (event.op === 'cache') return { reply: await redisPing(process.env.STP_CACHE_CONNECTION_STRING!) };
+  if (event.op === 'ping') {
+    const db = new Client({ connectionString: process.env.STP_DB_CONNECTION_STRING, connectionTimeoutMillis: 8000 });
+    await db.connect();
+    try {
+      return { ping: (await db.query('select 1 as one')).rows[0].one };
+    } finally {
+      await db.end();
+    }
+  }
+  if (event.op === 'egress') {
+    const response = await fetch('https://checkip.amazonaws.com', { signal: AbortSignal.timeout(8000) });
+    return { ip: (await response.text()).trim() };
+  }
+  const started = Date.now();
+  const db = new Client({ connectionString: process.env.STP_DB_CONNECTION_STRING, connectionTimeoutMillis: 8000 });
+  await db.connect();
+  const connectMs = Date.now() - started;
+  try {
+    const samples: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const at = performance.now();
+      await db.query('select 1');
+      samples.push(performance.now() - at);
+    }
+    samples.sort((a, b) => a - b);
+    const { rows } = await db.query('select value from dev_values');
+    console.info('DEV_DATABASE_VALUE=' + rows[0].value);
+    return { value: rows[0].value, connectMs, selectP50Ms: samples[10], host: process.env.STP_DB_HOST };
+  } finally {
+    await db.end();
+  }
+};
+`
+  );
+};
+
+// ─── Source CLI ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+const startedProcesses = new Set<ChildProcess>();
+
+const cliEnvironment = (options: Options, state: State) => {
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    AWS_PROFILE: options.profile,
+    AWS_DEFAULT_PROFILE: options.profile,
+    AWS_SDK_LOAD_CONFIG: '1',
+    AWS_IGNORE_CONFIGURED_ENDPOINT_URLS: 'true',
+    STP_DISABLE_TELEMETRY: '1',
+    STACKTAPE_DEV_NETWORK_SUFFIX: state.networkSuffix
+  };
+  // The API key comes from apps/cli/.env.local, which the source CLI loads; nothing inherited may replace it.
+  for (const name of ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'STACKTAPE_API_KEY']) {
+    delete env[name];
+  }
+  delete env.SKIP_LOADING_ENV;
+  return env;
+};
+
+const runCli = async (options: Options, state: State, args: string[], timeoutMs = 25 * 60_000) => {
+  const child = spawn(process.execPath, ['scripts/dev.ts', ...args], {
+    cwd: CLI_DIRECTORY,
+    env: cliEnvironment(options, state),
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  startedProcesses.add(child);
+  let stdout = '';
+  let stderr = '';
+  child.stdout!.on('data', (data) => (stdout += data));
+  child.stderr!.on('data', (data) => (stderr += data));
+  const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+  const exitCode = await new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+  clearTimeout(timer);
+  startedProcesses.delete(child);
+  const result = stdout
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      try {
+        const value = JSON.parse(line) as { type?: string };
+        return value?.type === 'result'
+          ? [value as { ok?: boolean; data?: { result?: unknown }; message?: string }]
+          : [];
+      } catch {
+        return [];
+      }
+    })
+    .at(-1);
+  return { exitCode, result, output: `${stdout}\n${stderr}` };
+};
+
+const stackArgs = (options: Options, state: State, stage = STAGE) => [
+  '--currentWorkingDirectory',
+  projectDirectory(state),
+  '--configPath',
+  'stacktape.yml',
+  '--projectName',
+  state.projectName,
+  '--stage',
+  stage,
+  '--region',
+  options.region,
+  '--profile',
+  options.profile,
+  '--awsAccount',
+  state.awsAccountName!
+];
+
+const tail = (output: string) => output.slice(-4000);
+
+const startAgent = async (options: Options, state: State, agentPort: number, stage = STAGE) => {
+  const started = Date.now();
+  const run = await runCli(options, state, [
+    'dev',
+    ...stackArgs(options, state, stage),
+    '--resources',
+    'all',
+    '--agent',
+    '--agentPort',
+    String(agentPort)
+  ]);
+  check(run.exitCode === 0 && run.result?.ok === true, `dev --agent failed (${run.exitCode}):\n${tail(run.output)}`);
+  return { seconds: (Date.now() - started) / 1000, output: run.output };
+};
+
+const stopAgent = async (options: Options, state: State, agentPort: number) => {
+  const run = await runCli(options, state, ['dev:stop', '--agentPort', String(agentPort), '--agent']);
+  check(run.exitCode === 0, `dev:stop failed (${run.exitCode}):\n${tail(run.output)}`);
+};
+
+/** Processes whose command line contains every fragment (Linux /proc). */
+const findProcesses = (...fragments: string[]) =>
+  readdirSync('/proc')
+    .filter((entry) => /^\d+$/.test(entry))
+    .flatMap((pid) => {
+      try {
+        const commandLine = readFileSync(`/proc/${pid}/cmdline`, 'utf8').replaceAll('\0', ' ');
+        return fragments.every((fragment) => commandLine.includes(fragment)) ? [Number(pid)] : [];
+      } catch {
+        return [];
+      }
+    });
+
+// ─── Run ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export const runLambdaDevCanary = async (cleanupOnly = false) => {
   const options = resolveLambdaDevOptions();
@@ -155,338 +370,379 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     region: options.region,
     credentials: fromIni({ profile: options.profile }),
     ignoreConfiguredEndpointUrls: true,
-    maxAttempts: 3
+    maxAttempts: 4
   };
   const sts = new STSClient(config);
-  const iam = new IAMClient(config);
+  const cloudFormation = new CloudFormationClient(config);
+  const ec2 = new EC2Client(config);
   const lambda = new LambdaClient(config);
   const logs = new CloudWatchLogsClient(config);
+  const ssm = new SSMClient(config);
+  const report: Record<string, unknown> = {};
   let state: State | undefined;
-  let db: Client | undefined;
-  let port: number | undefined;
-  let closeDev = async () => {};
   const save = () => writeFile(options.stateFile, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
+  const agentPorts: number[] = [];
+
+  const stackStatus = async (name: string) => {
+    try {
+      return (await cloudFormation.send(new DescribeStacksCommand({ StackName: name }))).Stacks?.[0]?.StackStatus;
+    } catch (error) {
+      if (error instanceof Error && /does not exist/i.test(error.message)) return undefined;
+      throw error;
+    }
+  };
+  const invoke = async (state: State, name: string, payload: unknown, stage = STAGE) => {
+    const result = await lambda.send(
+      new InvokeCommand({
+        FunctionName: functionName(state, name, stage),
+        Payload: Buffer.from(JSON.stringify(payload))
+      })
+    );
+    const body = result.Payload ? JSON.parse(Buffer.from(result.Payload).toString()) : undefined;
+    if (result.FunctionError) throw new Error(`${name} failed: ${JSON.stringify(body)}`);
+    return body as Record<string, unknown>;
+  };
+  const waitUntil = async <T>(description: string, probe: () => Promise<T>, timeoutMs: number) => {
+    const deadline = Date.now() + timeoutMs;
+    let lastError = '';
+    while (Date.now() < deadline) {
+      try {
+        return await probe();
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+        await sleep(1000);
+      }
+    }
+    throw new Error(`Timed out waiting for ${description}: ${lastError}`);
+  };
+
   const cleanup = async () => {
-    if (!state || state.cleanupVerified) return;
-    if (state.containerAttempted) {
-      const inspected = spawnSync('docker', ['inspect', state.container], { encoding: 'utf8', timeout: 10_000 });
-      if (inspected.status === 0) {
-        const [container] = JSON.parse(inspected.stdout) as Array<{ Config: { Labels: Record<string, string> } }>;
-        check(
-          container.Config.Labels['stacktape-canary-owner'] === state.owner,
-          'Refusing to remove a foreign container.'
-        );
-        docker(['rm', '-f', '-v', state.container]);
-      } else
-        check(/No such (?:object|container)/i.test(inspected.stderr), 'Docker cannot establish container absence.');
-      docker(['inspect', state.container], true);
-      const exists = spawnSync('docker', ['inspect', state.container], { encoding: 'utf8', timeout: 10_000 });
-      check(
-        exists.status !== 0 && /No such (?:object|container)/i.test(exists.stderr),
-        'The owned database container remains.'
-      );
+    if (!state || state.cleanupVerified || !state.createAttempted) {
+      if (state && !state.createAttempted) await rm(state.directory, { recursive: true, force: true });
+      return;
     }
-    if (port) check(!(await portIsOpen(port)), 'The local database port remains open.');
-    // Exact identities and tags authorize deletion after a partial setup or a resumed cleanup.
-    if (state.functionAttempted) {
-      try {
-        const existing = await lambda.send(new GetFunctionCommand({ FunctionName: state.name }));
-        check(
-          existing.Tags?.['stacktape-canary-owner'] === state.owner,
-          'Refusing to delete a function with another owner.'
-        );
-        await lambda.send(new DeleteFunctionCommand({ FunctionName: state.name }));
-      } catch (error) {
-        if (!absent(error)) throw error;
+    for (const port of agentPorts) await stopAgent(options, state, port).catch(() => {});
+    for (const child of startedProcesses) child.kill('SIGKILL');
+    if (!state.awsAccountName) state.awsAccountName = await resolveAwsAccountName(options, state);
+    for (const stage of STAGES) {
+      if (existsSync(projectDirectory(state)) && (await stackStatus(stackName(state, stage)))) {
+        const started = Date.now();
+        const run = await runCli(options, state, [
+          'delete',
+          ...stackArgs(options, state, stage),
+          '--autoConfirmOperation'
+        ]);
+        check(run.exitCode === 0, `delete of the dev stage ${stage} failed (${run.exitCode}):\n${tail(run.output)}`);
+        report[`devStackDeleteSeconds_${stage}`] = (Date.now() - started) / 1000;
       }
-      await waitFor('function deletion', async () => {
-        try {
-          await lambda.send(new GetFunctionCommand({ FunctionName: state!.name }));
-          return false;
-        } catch (error) {
-          if (absent(error)) return true;
-          throw error;
-        }
-      });
-      const groupName = `/aws/lambda/${state.name}`;
-      await logs.send(new DeleteLogGroupCommand({ logGroupName: groupName })).catch((error) => {
-        if (!absent(error)) throw error;
-      });
-      check(
-        !(await logs.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: groupName }))).logGroups?.some(
-          (group) => group.logGroupName === groupName
-        ),
-        'The exact Lambda log group still exists.'
-      );
+      check(!(await stackStatus(stackName(state, stage))), `The dev stack of ${stage} still exists.`);
     }
-    if (state.roleAttempted) {
-      try {
-        const existing = await iam.send(new GetRoleCommand({ RoleName: state.name }));
-        check(
-          existing.Role?.Tags?.some(({ Key, Value }) => Key === 'stacktape-canary-owner' && Value === state!.owner),
-          'Refusing to delete a role with another owner.'
-        );
-        await iam.send(new DeleteRolePolicyCommand({ RoleName: state.name, PolicyName: 'logs' })).catch((error) => {
-          if (!absent(error)) throw error;
-        });
-        await iam.send(new DeleteRoleCommand({ RoleName: state.name }));
-      } catch (error) {
-        if (!absent(error)) throw error;
+    if (await stackStatus(networkName(state))) {
+      const started = Date.now();
+      const run = await runCli(options, state, [
+        'dev:network:delete',
+        '--region',
+        options.region,
+        '--profile',
+        options.profile,
+        '--awsAccount',
+        state.awsAccountName,
+        '--autoConfirmOperation'
+      ]);
+      check(run.exitCode === 0, `dev network delete failed (${run.exitCode}):\n${tail(run.output)}`);
+      report.networkDeleteSeconds = (Date.now() - started) / 1000;
+    }
+    check(!(await stackStatus(networkName(state))), 'The dev network stack still exists.');
+    // Exact names and the owned network authorize these checks; nothing is discovered from a broad prefix.
+    if (state.boxInstanceId) {
+      const instance = (await ec2.send(new DescribeInstancesCommand({ InstanceIds: [state.boxInstanceId] })))
+        .Reservations?.[0]?.Instances?.[0];
+      check(!instance || instance.State?.Name === 'terminated', 'The dev box instance remains.');
+      const sessions = await ssm.send(
+        new DescribeSessionsCommand({ State: 'Active', Filters: [{ key: 'Target', value: state.boxInstanceId }] })
+      );
+      for (const { SessionId } of sessions.Sessions ?? []) {
+        if (SessionId) await ssm.send(new TerminateSessionCommand({ SessionId }));
       }
-      await waitFor('role deletion', async () => {
-        try {
-          await iam.send(new GetRoleCommand({ RoleName: state!.name }));
-          return false;
-        } catch (error) {
-          if (absent(error)) return true;
-          throw error;
+      const interfaces = await ec2.send(
+        new DescribeNetworkInterfacesCommand({
+          Filters: [{ Name: 'attachment.instance-id', Values: [state.boxInstanceId] }]
+        })
+      );
+      check(!interfaces.NetworkInterfaces?.length, 'An interface of the dev box remains.');
+    }
+    const addresses = await ec2.send(
+      new DescribeAddressesCommand({ Filters: [{ Name: 'tag:stacktape:dev-network', Values: [networkName(state)] }] })
+    );
+    check(!addresses.Addresses?.length, 'An Elastic IP of the dev network remains.');
+    const leases = await ssm.send(
+      new GetParametersByPathCommand({ Path: getDevNetworkLeaseParameterPrefix(networkName(state)), Recursive: true })
+    );
+    const leaseNames = (leases.Parameters ?? []).map(({ Name }) => Name!).filter(Boolean);
+    if (leaseNames.length) await ssm.send(new DeleteParametersCommand({ Names: leaseNames }));
+    const remainingFunctions: string[] = [];
+    let marker: string | undefined;
+    do {
+      const page = await lambda.send(new ListFunctionsCommand({ Marker: marker }));
+      for (const { FunctionName } of page.Functions ?? []) {
+        if (
+          STAGES.some((stage) => FunctionName?.startsWith(`${stackName(state!, stage)}-`)) ||
+          FunctionName === `${networkName(state)}-keeper`
+        ) {
+          remainingFunctions.push(FunctionName);
         }
-      });
+      }
+      marker = page.NextMarker;
+    } while (marker);
+    check(!remainingFunctions.length, `Functions remain: ${remainingFunctions.join(', ')}.`);
+    for (const groupName of [
+      ...STAGES.flatMap((stage) => FUNCTIONS.map((name) => `/aws/lambda/${functionName(state!, name, stage)}`)),
+      `/aws/lambda/${networkName(state)}-keeper`
+    ]) {
+      const exists = (await logs.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: groupName }))).logGroups?.some(
+        ({ logGroupName }) => logGroupName === groupName
+      );
+      if (exists) await logs.send(new DeleteLogGroupCommand({ logGroupName: groupName }));
+    }
+    const containers = spawnSync('docker', ['ps', '-a', '--format', '{{.Names}}'], { encoding: 'utf8' })
+      .stdout.split('\n')
+      .filter((name) => name.includes(state!.projectName));
+    for (const container of containers) spawnSync('docker', ['rm', '-f', '-v', container], { stdio: 'ignore' });
+    check(
+      !findProcesses('session-manager-plugin', state.boxInstanceId ?? state.networkSuffix).length,
+      'An SSM plugin remains.'
+    );
+    // The database containers own the files they wrote; remove them as root from the image that wrote them.
+    const dataDirectory = join(projectDirectory(state), '.stacktape', 'dev-data');
+    if (existsSync(dataDirectory)) {
+      spawnSync(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '--user',
+          '0',
+          '--entrypoint',
+          'rm',
+          '-v',
+          `${dataDirectory}:/dev-data`,
+          'postgres:16.4'
+        ].concat(['-rf', ...STAGES.map((stage) => `/dev-data/${stage}`)]),
+        { stdio: 'ignore', timeout: 120_000 }
+      );
     }
     await rm(state.directory, { recursive: true, force: true });
     state.cleanupVerified = true;
     await save();
-    console.info('Lambda dev canary cleanup verified: function, role, log group, container and local port removed.');
+    console.info(
+      'Lambda dev canary cleanup verified: dev stack, dev network, box, interfaces, leases, functions, log groups, SSM sessions and containers removed.'
+    );
   };
+
   let failure: unknown;
   try {
-    await (async () => {
-      check(
-        (await sts.send(new GetCallerIdentityCommand({}))).Account === options.accountId,
-        'The profile account differs from the expected account.'
+    check(
+      (await sts.send(new GetCallerIdentityCommand({}))).Account === options.accountId,
+      'The profile account differs from the expected account.'
+    );
+    if (cleanupOnly) {
+      state = validateLambdaDevRecoveryState(JSON.parse(await readFile(options.stateFile, 'utf8')), options);
+      await cleanup();
+      return;
+    }
+    check(!(await Bun.file(options.stateFile).exists()), 'Recovery state already exists; run --cleanup-only first.');
+    const suffix = randomBytes(4).toString('hex');
+    state = {
+      accountId: options.accountId,
+      owner: options.owner,
+      region: options.region,
+      projectName: `v4lambdadev-${suffix}`,
+      networkSuffix: suffix,
+      directory: await mkdtemp(join(tmpdir(), 'stacktape-lambda-dev-')),
+      createAttempted: false
+    };
+    await save();
+    for (const stage of STAGES) {
+      check(!(await stackStatus(stackName(state, stage))), `The dev stack name of ${stage} is already taken.`);
+    }
+    check(!(await stackStatus(networkName(state))), 'The dev network name is already taken.');
+    state.awsAccountName = await resolveAwsAccountName(options, state);
+    await writeFixture(state);
+    state.createAttempted = true;
+    await save();
+
+    // 1. First creation of the dev network and the dev stack.
+    const agentPort = 7400 + Math.floor(Math.random() * 400);
+    agentPorts.push(agentPort);
+    const first = await startAgent(options, state, agentPort);
+    report.firstStartSeconds = first.seconds;
+    const network = await cloudFormation.send(new DescribeStacksCommand({ StackName: networkName(state) }));
+    const output = (key: string) =>
+      network.Stacks?.[0]?.Outputs?.find(({ OutputKey }) => OutputKey === key)?.OutputValue;
+    state.boxInstanceId = output('BoxInstanceId');
+    check(state.boxInstanceId, 'The dev network has no box output.');
+    await save();
+    const boxIp = output('BoxPrivateIp');
+
+    // 2. Every function reaches the local databases through the box; the VPC function also reaches the internet.
+    const password = DATABASE_PASSWORD;
+    const databasePort = await waitUntil(
+      'the local database port',
+      async () => {
+        const line = spawnSync('docker', ['ps', '--format', '{{.Names}} {{.Ports}}'], { encoding: 'utf8' })
+          .stdout.split('\n')
+          .find((entry) => entry.includes(state!.projectName) && entry.includes('5432/tcp'));
+        const port = Number(line?.match(/127\.0\.0\.1:(\d+)->5432/)?.[1]);
+        check(port, 'not yet');
+        return port;
+      },
+      60_000
+    );
+    const db = new Client({ connectionString: `postgresql://postgres:${password}@127.0.0.1:${databasePort}/postgres` });
+    await db.connect();
+    try {
+      await db.query(
+        "create table if not exists dev_values(value text); delete from dev_values; insert into dev_values values ('first');"
       );
-      if (cleanupOnly) {
-        // Only validated recovery state authorizes cleanup, including from finally after a failure.
-        state = validateLambdaDevRecoveryState(JSON.parse(await readFile(options.stateFile, 'utf8')), options);
-        await cleanup();
-        return;
+      const results: Record<string, unknown> = {};
+      for (const name of FUNCTIONS) {
+        const answer = await waitUntil(
+          `${name} to read the local database`,
+          () => invoke(state!, name, { op: 'db' }),
+          120_000
+        );
+        check(answer.value === 'first' && answer.host === boxIp, `${name} read ${JSON.stringify(answer)}.`);
+        results[name] = answer;
       }
-      check(!(await Bun.file(options.stateFile).exists()), 'Recovery state already exists; run --cleanup-only first.');
-      const name = `v4lambdadev-${options.owner}-${randomBytes(4).toString('hex')}`;
-      state = {
-        accountId: options.accountId,
-        owner: options.owner,
-        region: options.region,
-        name,
-        directory: await mkdtemp(join(tmpdir(), 'stacktape-lambda-dev-')),
-        container: name,
-        roleAttempted: false,
-        functionAttempted: false,
-        containerAttempted: false
-      };
-      await save();
-      state.roleAttempted = true;
-      await save();
-      const role = await iam.send(
-        new CreateRoleCommand({
-          RoleName: name,
-          Tags: [{ Key: 'stacktape-canary-owner', Value: options.owner }],
-          AssumeRolePolicyDocument: JSON.stringify({
-            Version: '2012-10-17',
-            Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }]
-          })
-        })
-      );
-      await iam.send(
-        new PutRolePolicyCommand({
-          RoleName: name,
-          PolicyName: 'logs',
-          PolicyDocument: JSON.stringify({
-            Version: '2012-10-17',
-            Statement: [
-              {
-                Effect: 'Allow',
-                Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
-                Resource: `arn:aws:logs:${options.region}:${options.accountId}:log-group:/aws/lambda/${name}:*`
-              }
-            ]
-          })
-        })
-      );
-      const entry = join(state.directory, 'index.ts');
-      await writeFile(
-        entry,
-        `import { Client } from ${JSON.stringify(join(import.meta.dir, '../../node_modules/pg/lib/index.js'))};\nexport async function handler() { const db = new Client({ connectionString: process.env.STP_DB_CONNECTION_STRING, connectionTimeoutMillis: 8000 }); await db.connect(); try { const result = await db.query('select value from dev_values'); const value = result.rows[0].value; console.info('DEV_DATABASE_VALUE=' + value); return { value }; } finally { await db.end(); } }\n`
-      );
-      const built = await Bun.build({ entrypoints: [entry], target: 'node', format: 'cjs', minify: true });
-      check(built.success, 'Lambda fixture did not bundle.');
-      const zip = new AdmZip();
-      zip.addFile('index.js', Buffer.from(await built.outputs[0].text()));
-      const originals = { STP_DB_CONNECTION_STRING: 'postgresql://deployed.invalid:5432/original' };
-      state.functionAttempted = true;
-      await save();
-      // IAM role propagation is an external contract; retry only this specific create rejection.
-      await waitFor('IAM role propagation', async () => {
-        try {
-          await lambda.send(
-            new CreateFunctionCommand({
-              FunctionName: name,
-              Role: role.Role!.Arn!,
-              Runtime: 'nodejs22.x',
-              Handler: 'index.handler',
-              Timeout: 15,
-              Code: { ZipFile: zip.toBuffer() },
-              Environment: { Variables: originals },
-              Tags: { 'stacktape-canary-owner': options.owner }
-            })
-          );
-          return true;
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            error.name === 'InvalidParameterValueException' &&
-            /role.*assumed/i.test(error.message)
-          )
-            return false;
-          throw error;
-        }
-      });
-      await waitUntilFunctionActiveV2({ client: lambda, maxWaitTime: 60 }, { FunctionName: name });
-      // Stacktape normally creates this log group in CloudFormation. Seed that unrelated prerequisite here.
-      await logs.send(
-        new CreateLogGroupCommand({
-          logGroupName: `/aws/lambda/${name}`,
-          tags: { 'stacktape-canary-owner': options.owner }
-        })
-      );
-      state.containerAttempted = true;
-      await save();
-      const password = randomBytes(16).toString('hex');
-      docker([
-        'run',
-        '-d',
-        '--name',
-        name,
-        '--label',
-        `stacktape-canary-owner=${options.owner}`,
-        '-p',
-        '127.0.0.1::5432',
-        '--tmpfs',
-        '/var/lib/postgresql/data',
-        '-e',
-        `POSTGRES_PASSWORD=${password}`,
-        'postgres:16.4'
-      ]);
-      port = Number(docker(['port', name, '5432/tcp']).split(':').at(-1));
-      check(Number.isInteger(port) && port > 0, 'Docker returned no database port.');
-      await waitFor(
-        'PostgreSQL readiness',
-        async () =>
-          spawnSync('docker', ['exec', name, 'pg_isready', '-U', 'postgres'], { stdio: 'ignore', timeout: 5000 })
-            .status === 0
-      );
-      const connectionString = `postgresql://postgres:${password}@127.0.0.1:${port}/postgres`;
-      db = new Client({ connectionString });
-      await db.connect();
-      await db.query("create table dev_values(value text); insert into dev_values values ('first');");
-      plugin(createStacktapeOpenTuiBuildPlugin());
-      const [
-        { globalStateManager },
-        { applicationManager },
-        { awsSdkManager },
-        { startTunnel, registerTunnelCleanupHook, getActiveTunnels },
-        { updateLambdaEnvVarsWithTunnels, registerLambdaEnvCleanupHook },
-        { LambdaCloudwatchLogPrinter }
-      ] = await Promise.all([
-        import('../../src/app/global-state-manager'),
-        import('../../src/app/application-manager'),
-        import('../../src/utils/aws-sdk-manager'),
-        import('../../src/commands/dev/tunnel-manager'),
-        import('../../src/commands/dev/lambda-env-manager'),
-        import('../../src/utils/cloudwatch-logs')
-      ]);
-      globalStateManager.rawArgs = { region: options.region, profile: options.profile };
-      // The env manager uses the explicitly selected profile's standard credential chain.
-      process.env.AWS_PROFILE = options.profile;
-      process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'true';
-      delete process.env.AWS_ACCESS_KEY_ID;
-      delete process.env.AWS_SECRET_ACCESS_KEY;
-      delete process.env.AWS_SESSION_TOKEN;
-      awsSdkManager.init({ region: options.region, credentials: config.credentials, plugins: [] });
-      registerLambdaEnvCleanupHook();
-      registerTunnelCleanupHook();
-      closeDev = async () => {
-        await Promise.all(applicationManager.cleanUpHooks.map((hook) => hook({ success: true, interrupted: false })));
-        check(getActiveTunnels().length === 0, 'Dev cleanup left an active tunnel.');
-      };
-      const startedAt = Date.now() - 1000;
-      const tunnel = await startTunnel('db', port);
-      const updated = await updateLambdaEnvVarsWithTunnels({
-        lambdas: [{ name: 'query', functionName: name, referencedLocalResources: ['db'] }],
-        tunnels: [tunnel],
-        localResources: [
-          {
-            name: 'db',
-            type: 'postgres',
-            version: '16.4',
-            port,
-            actualPort: port,
-            dataDir: state.directory,
-            host: '127.0.0.1',
-            containerName: name,
-            connectionString,
-            referencableParams: { connectionString }
-          }
-        ]
-      });
-      check(updated.updated.includes('query'), 'Dev did not update the deployed Lambda.');
-      const invoke = async (expected: string) => {
-        const result = await lambda.send(new InvokeCommand({ FunctionName: name, Payload: Buffer.from('{}') }));
-        check(
-          !result.FunctionError &&
-            result.Payload &&
-            JSON.parse(Buffer.from(result.Payload).toString()).value === expected,
-          `The deployed Lambda did not query the local database (${expected}).`
-        );
-      };
-      await invoke('first');
+      report.firstQueries = results;
       await db.query("update dev_values set value = 'edited'");
-      await invoke('edited');
-      const lines: string[] = [];
-      const printer = new LambdaCloudwatchLogPrinter({
-        fetchSince: startedAt,
-        logGroupAwsResourceName: `/aws/lambda/${name}`,
-        onLog: (line) => lines.push(line)
-      });
-      await waitFor('dev log printer to observe both database values', async () => {
-        await printer.printLogs();
-        return (
-          lines.some((line) => line.includes('DEV_DATABASE_VALUE=first')) &&
-          lines.some((line) => line.includes('DEV_DATABASE_VALUE=edited'))
-        );
-      });
-      await closeDev();
-      check(
-        (await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: name }))).Environment?.Variables
-          ?.STP_DB_CONNECTION_STRING === originals.STP_DB_CONNECTION_STRING,
-        'Dev cleanup did not restore the original Lambda environment.'
+      for (const name of FUNCTIONS) {
+        check((await invoke(state, name, { op: 'db' })).value === 'edited', `${name} did not read the edited row.`);
+      }
+      report.redis = await invoke(state, 'queryArm', { op: 'cache' });
+      check((report.redis as { reply?: string }).reply === 'PONG', 'Redis did not answer through the box.');
+      const box = (await ec2.send(new DescribeInstancesCommand({ InstanceIds: [state.boxInstanceId] })))
+        .Reservations?.[0]?.Instances?.[0];
+      const egress = await waitUntil(
+        'NAT egress through the box',
+        () => invoke(state!, 'vpcEgress', { op: 'egress' }),
+        180_000
       );
-      console.info(
-        'Deployed Lambda read initial and edited local PostgreSQL values through the real dev tunnel; dev logs and environment restoration passed.'
+      check(egress.ip === box?.PublicIpAddress, `The VPC function left through ${egress.ip}, not the box.`);
+      const latency: number[] = [];
+      for (let i = 0; i < 5; i++) latency.push(Number((await invoke(state, 'queryArm', { op: 'db' })).selectP50Ms));
+      report.selectP50Ms = latency;
+
+      // 3. Laptop reconnect: kill the SSM plugin; the session supervisor and the tunnels recover on their own.
+      const plugins = findProcesses('session-manager-plugin', state.boxInstanceId);
+      check(plugins.length, 'No SSM plugin runs for the dev box.');
+      const killedAt = Date.now();
+      for (const pid of plugins) process.kill(pid, 'SIGKILL');
+      await sleep(1000);
+      await waitUntil(
+        'the functions to reach the database after the reconnect',
+        () => invoke(state!, 'queryArm', { op: 'db' }),
+        120_000
       );
-    })();
+      report.reconnectSeconds = (Date.now() - killedAt) / 1000;
+
+      // A second developer's stage on the same box at the same time: a second SSM session and its own relay ports.
+      const secondPort = agentPort + 1;
+      agentPorts.push(secondPort);
+      const second = await startAgent(options, state, secondPort, SECOND_STAGE);
+      report.secondStageStartSeconds = second.seconds;
+      const ping = await waitUntil(
+        'the second stage to reach its local database',
+        () => invoke(state!, 'queryArm', { op: 'ping' }, SECOND_STAGE),
+        120_000
+      );
+      check(ping.ping === 1, `The second stage answered ${JSON.stringify(ping)}.`);
+      check((await invoke(state, 'queryX86', { op: 'db' })).value === 'edited', 'The first stage lost its database.');
+      const sessions = await ssm.send(
+        new DescribeSessionsCommand({ State: 'Active', Filters: [{ key: 'Target', value: state.boxInstanceId }] })
+      );
+      report.concurrentSessions = sessions.Sessions?.length;
+      check((sessions.Sessions?.length ?? 0) >= 2, 'The two stages do not hold two SSM sessions.');
+      await stopAgent(options, state, secondPort);
+      agentPorts.splice(agentPorts.indexOf(secondPort), 1);
+    } finally {
+      await db.end().catch(() => {});
+    }
+    await stopAgent(options, state, agentPort);
+
+    // 4. Box stop and wake: stop the box as its idle stop would; the next session starts it.
+    await ec2.send(new StopInstancesCommand({ InstanceIds: [state.boxInstanceId] }));
+    await waitUntil(
+      'the box to stop',
+      async () => {
+        const stateName = (await ec2.send(new DescribeInstancesCommand({ InstanceIds: [state!.boxInstanceId!] })))
+          .Reservations?.[0]?.Instances?.[0]?.State?.Name;
+        check(stateName === 'stopped', `box is ${stateName}`);
+      },
+      300_000
+    );
+    const status = await runCli(options, state, [
+      'dev:network',
+      '--region',
+      options.region,
+      '--profile',
+      options.profile,
+      '--awsAccount',
+      state.awsAccountName,
+      '--agent'
+    ]);
+    const shown = status.result?.data?.result as { box?: { state?: string }; devFunctions?: string[] } | undefined;
+    check(
+      shown?.box?.state === 'stopped' &&
+        STAGES.every((stage) =>
+          FUNCTIONS.every((name) => shown.devFunctions?.includes(functionName(state!, name, stage)))
+        ),
+      `dev network did not show the stopped box and the dev functions: ${JSON.stringify(shown)}`
+    );
+    const wake = await startAgent(options, state, agentPort);
+    report.wakeStartSeconds = wake.seconds;
+    const queryAt = Date.now();
+    await waitUntil('a query after the wake', () => invoke(state!, 'queryX86', { op: 'db' }), 180_000);
+    report.firstQueryAfterWakeSeconds = (Date.now() - queryAt) / 1000;
+    await stopAgent(options, state, agentPort);
+    agentPorts.length = 0;
+    console.info(
+      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reconnected after a killed SSM plugin, and woke a stopped box.'
+    );
   } catch (error) {
     failure = error;
   } finally {
-    const localCleanup = await Promise.allSettled([closeDev(), db?.end()]);
-    for (const result of localCleanup) if (result.status === 'rejected') failure ??= result.reason;
     try {
       await cleanup();
     } catch (error) {
       console.error('Cleanup failed:', error instanceof Error ? error.message : 'unknown error');
       failure ??= error;
     }
-    if (state && !state.cleanupVerified) {
+    if (state && state.createAttempted && !state.cleanupVerified) {
       console.error(
         `Cleanup incomplete. Recover with ${PREFIX}DEPLOY=1 ${PREFIX}CONFIRM_DISPOSABLE=this-is-a-disposable-test-account ${PREFIX}PROFILE=stacktape-e2e ${PREFIX}EXPECTED_ACCOUNT_ID=${options.accountId} ${PREFIX}OWNER=${options.owner} ${PREFIX}STATE_FILE=${options.stateFile} pnpm --filter @stacktape/cli run test:real-aws-lambda-dev -- --cleanup-only`
       );
     }
-    sts.destroy();
-    iam.destroy();
-    lambda.destroy();
-    logs.destroy();
+    if (options.reportFile) await writeFile(options.reportFile, JSON.stringify(report, null, 2) + '\n');
+    console.info(JSON.stringify(report, null, 2));
+    for (const client of [sts, cloudFormation, ec2, lambda, logs, ssm]) client.destroy();
   }
   if (failure) throw failure;
+};
+
+const resolveAwsAccountName = async (options: Options, state: State) => {
+  const run = await runCli(options, state, ['info:whoami', '--agent']);
+  const whoami = (run.result?.data?.result ?? {}) as {
+    connectedAwsAccounts?: Array<{ awsAccountId?: string; state?: string; name?: string }>;
+  };
+  const matching = (whoami.connectedAwsAccounts ?? []).filter(
+    ({ awsAccountId, state: connectionState }) => awsAccountId === options.accountId && connectionState === 'ACTIVE'
+  );
+  check(
+    matching.length === 1 && matching[0].name,
+    `Expected one active Stacktape connection to account ${options.accountId}, found ${matching.length}.`
+  );
+  return matching[0].name;
 };
 
 if (import.meta.main) {

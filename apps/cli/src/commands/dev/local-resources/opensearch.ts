@@ -21,7 +21,7 @@ export const getLocalOpenSearchImageTag = (version: string) =>
   `${OPENSEARCH_IMAGE}:${version === 'latest' ? '2.17.0' : version}`;
 const OPENSEARCH_DATA_PATH = '/usr/share/opensearch/data';
 
-const buildConnectionInfo = (host: string, port: number) => {
+export const buildConnectionInfo = (host: string, port: number) => {
   const endpoint = `http://${host}:${port}`;
   return {
     connectionString: endpoint,

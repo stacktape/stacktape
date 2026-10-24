@@ -139,7 +139,7 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
 - Deploys a minimal "dev stack" to AWS with only essential infrastructure (IAM roles, secrets).
 - Runs workloads (containers, functions) locally on your machine.
 - Emulates databases (PostgreSQL, MySQL, DynamoDB) and Redis locally using Docker.
-- Automatically sets up tunnels so AWS Lambda functions can reach your local databases.
+- Connects deployed Lambda functions to your local databases through the dev box, a small EC2 instance shared by the account and region (see \`dev network\`).
 - No need for a pre-deployed stack - creates one automatically if needed.
 - Interactive resource picker (or use \`--resources\` to specify).
 - Hot-reload: type a number + enter to rebuild a workload, or \`a\` + enter to rebuild all.

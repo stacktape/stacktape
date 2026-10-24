@@ -310,13 +310,16 @@ preflight grants no cleanup authority. A recovery state mismatch stops deletion.
 
 ## Deployed Lambda development canary
 
-`test:real-aws-lambda-dev` seeds a tagged Lambda and IAM role in the disposable `stacktape-e2e` account, then drives the
-production dev tunnel, environment manager and Lambda log printer against local PostgreSQL. The deployed function must
-read the initial row and an edited row through the relay. Dev cleanup must restore its original environment and close
-the tunnel. Final cleanup verifies deletion of the function, role, exact log group and database container. It needs
-Linux, Docker, the `stacktape-e2e` profile and a bore-compatible relay you control, named in `STACKTAPE_TUNNEL_SERVER`
-(`host` or `host:controlPort`). Dev mode has no default relay because bore relays are unauthenticated. It does not
-require a Console API key. Each run writes recovery state before attempting resource creation.
+`test:real-aws-lambda-dev` runs the real `stacktape dev` (source CLI, API key from `apps/cli/.env.local`) against the
+disposable `stacktape-e2e` account with an isolated dev network (`STACKTAPE_DEV_NETWORK_SUFFIX`). The first
+`dev --agent` creates the dev network and the dev stack. Deployed arm64 and x86_64 functions must read an initial and an
+edited row of local PostgreSQL through the dev box and ping local Redis; a VPC function must read the database and leave
+for the internet through the box's public IP. A killed SSM plugin must recover on its own, a second stage must run at
+the same time on its own SSM session, `dev network` must show the stopped box, and the next `dev --agent` must start the
+stopped box. Cleanup deletes both stages and the network with the CLI and then verifies with AWS that the stacks, box,
+its interfaces, leases, functions, log groups, SSM sessions and local containers are gone. The run writes its timings
+(first start, wake, query latency, reconnect, deletion) to `STP_AWS_LAMBDA_DEV_REPORT`. It needs Linux and Docker and
+creates a Console project record named `v4lambdadev-<id>`, which the CLI cannot delete.
 
 ```sh
 export STP_AWS_LAMBDA_DEV_DEPLOY=1
@@ -325,7 +328,7 @@ export STP_AWS_LAMBDA_DEV_PROFILE=stacktape-e2e
 export STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID='<exact disposable account id>'
 export STP_AWS_LAMBDA_DEV_OWNER='<unique lowercase run id>'
 export STP_AWS_LAMBDA_DEV_STATE_FILE='<absolute fresh state file>'
-export STACKTAPE_TUNNEL_SERVER='<relay host you control>'
+export STP_AWS_LAMBDA_DEV_REPORT='<absolute report file>'
 pnpm --filter @stacktape/cli run test:real-aws-lambda-dev
 ```
 

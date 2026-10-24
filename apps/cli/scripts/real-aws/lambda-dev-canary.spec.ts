@@ -7,8 +7,7 @@ const valid = {
   STP_AWS_LAMBDA_DEV_PROFILE: 'stacktape-e2e',
   STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID: '123456789012',
   STP_AWS_LAMBDA_DEV_STATE_FILE: '/tmp/lambda-dev-state.json',
-  STP_AWS_LAMBDA_DEV_OWNER: 'unique-run',
-  STACKTAPE_TUNNEL_SERVER: 'relay.example.internal'
+  STP_AWS_LAMBDA_DEV_OWNER: 'unique-run'
 };
 
 test.skipIf(process.platform !== 'linux')(
@@ -26,7 +25,7 @@ test.skipIf(process.platform !== 'linux')(
       { STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID: '12345' },
       { STP_AWS_LAMBDA_DEV_STATE_FILE: 'relative.json' },
       { STP_AWS_LAMBDA_DEV_OWNER: '../unsafe' },
-      { STACKTAPE_TUNNEL_SERVER: undefined },
+      { STP_AWS_LAMBDA_DEV_REPORT: 'relative-report.json' },
       { AWS_ENDPOINT_URL_LAMBDA: 'http://127.0.0.1:4566' }
     ])
       expect(() => resolveLambdaDevOptions({ ...valid, ...override })).toThrow();
@@ -41,25 +40,23 @@ test.skipIf(process.platform !== 'linux')(
       accountId: options.accountId,
       owner: options.owner,
       region: options.region,
-      name: 'v4lambdadev-unique-run-1234abcd',
-      container: 'v4lambdadev-unique-run-1234abcd',
+      projectName: 'v4lambdadev-1234abcd',
+      networkSuffix: '1234abcd',
       directory: '/tmp/stacktape-lambda-dev-Ab1234',
-      roleAttempted: true,
-      functionAttempted: true,
-      containerAttempted: true
+      boxInstanceId: 'i-0123456789abcdef0',
+      createAttempted: true
     };
     expect(validateLambdaDevRecoveryState(state, options)).toMatchObject(state);
     for (const override of [
       { accountId: '999999999999' },
       { owner: 'other-run' },
       { region: 'us-east-1' },
-      { name: 'v4lambdadev-other-run-1234abcd' },
-      { container: 'unrelated' },
+      { projectName: 'v4lambdadev-ffffffff' },
+      { networkSuffix: '../other' },
       { directory: '/tmp/stacktape-lambda-dev-owned/../../unrelated' },
       { directory: '/' },
-      { roleAttempted: 'true' },
-      { functionAttempted: undefined },
-      { containerAttempted: 1 }
+      { boxInstanceId: 'i-unrelated; rm' },
+      { createAttempted: 'true' }
     ])
       expect(() => validateLambdaDevRecoveryState({ ...state, ...override }, options)).toThrow();
   }

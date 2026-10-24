@@ -12,7 +12,7 @@ Stacktape deploys a dev stack when one does not already exist for the target sta
 2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skip-resources` flags
 3. **Deploy dev stack** — A dev stack is deployed automatically on first run
 4. **Start local databases** — Selected databases run as Docker containers on your machine
-5. **Set up environment** — an "Injecting environment" setup step configures the active dev session. Deployed Lambda functions do not reach local databases unless you run your own tunnel relay (see below)
+5. **Connect the dev box** — when deployed functions use local databases, dev mode starts the [dev box](#connecting-to-local-databases) if it is stopped and opens one tunnel per database
 6. **Run workloads and stream logs** — Functions are deployed, logs appear in the dev TUI, and you can rebuild on demand
 
 ## Starting dev mode
@@ -161,19 +161,40 @@ The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolut
 
 ## Connecting to local databases
 
-Lambda functions in dev mode run on AWS and cannot reach the [local databases](/local-development/local-databases) on your machine. When a selected function uses a local database, dev mode warns which function cannot reach which database and leaves the function's configuration as deployed. To give the function a database, connect it to the deployed one with `--remote-resources` (see [Using deployed databases](#using-deployed-databases)).
+Deployed dev functions reach the [local databases](/local-development/local-databases) on your machine through the **dev box**. A function that uses a local database, through `connectTo` or `$ResourceParam`, gets the database's usual `STP_*` variables pointing at the box, and the box forwards each connection to your machine.
 
-Earlier versions published local databases through the public `bore.pub` relay so that Lambda functions could reach them. That relay has no authentication, so anyone who found the relay port could reach your database. Dev mode no longer does this.
-
-### Using your own tunnel relay
-
-If you run a [bore](https://github.com/ekzhang/bore)-compatible relay that you control, set `STACKTAPE_TUNNEL_SERVER` to its host (or `host:controlPort`). Dev mode then opens a tunnel through it for each local database a selected function uses, points those functions at the tunnels while the session runs, and restores their configuration when it stops. Bore relays are unauthenticated: anyone who can reach the relay's ports can reach your database, protected only by its password. Restrict the relay's network access accordingly.
-
-```bash
-STACKTAPE_TUNNEL_SERVER=relay.internal.example.com stacktape dev --stage dev
+```
+dev function (dev network, private subnet) ──► dev box ──► Systems Manager session ──► your machine ──► local database
 ```
 
-`--no-tunnel` skips the tunnel step even when a relay is configured. The "Injecting environment" step still runs whenever selected local resources exist.
+Nothing is published on the internet. Your machine opens the connection to the box, through an AWS Systems Manager session authenticated by your AWS credentials and encrypted. On the box, the relay port of each database admits only dev functions. The database password still applies.
+
+A query takes your machine's round trip to the region plus a few milliseconds; about 45 ms from Central Europe to `eu-west-1`. Bulk transfers are limited to about 0.7 MB/s per developer by Systems Manager, so a query that returns 5 MB takes about 7 s. Seeding or exporting large amounts of data is faster from your machine directly.
+
+### The dev network
+
+The first `stacktape dev` that needs it creates the **dev network** of the AWS account and region. It takes about 4 minutes, once, and every later session and stage reuses it:
+
+- a VPC with private subnets, where dev functions that use a local database run, and every dev function with `joinDefaultVpc: true`. All of them share one security group, so new dev stages create their functions in seconds;
+- the dev box, a `t4g.nano` EC2 instance. It runs the relay for local databases and gives VPC functions internet access (it is their NAT).
+
+A dev stage no longer creates a VPC or NAT of its own. VPC functions work in dev mode and reach the internet through the box. The exception is a dev stage that still deploys VPC resources itself, such as a database marked `dev.remote`: its VPC functions stay in that stage's VPC and cannot reach local databases.
+
+The dev box costs about $0.01 per hour while a dev session runs. It stops itself 30 minutes after the last session ends, and the next `stacktape dev` starts it again (the TUI shows "Starting the dev box…", which takes about 30 seconds and overlaps the rest of startup). A stopped box costs about $0.70 per month for its disk. While it is stopped, dev functions in the network have no internet access: schedules and queue consumers of a dev stage that fire while nobody develops fail until the next session.
+
+See the network with [`stacktape dev network`](/cli/dev-network) and delete it with `stacktape dev network delete`.
+
+### Several developers
+
+Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two developers run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one developer's databases. The developer who started first keeps them; the second one is told who holds them and takes over when the first stops.
+
+### AWS permissions
+
+The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, `ssm:DescribeInstanceInformation`, `ec2:DescribeInstances` and `ec2:StartInstances` on the box, and `ssm:GetParametersByPath`, `ssm:PutParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases are kept.
+
+### Skipping the tunnels
+
+`--no-tunnel` keeps deployed functions away from your local databases for one session; they get no database variables. VPC functions still run in the dev network. To connect functions to deployed databases instead, use `--remote-resources`.
 
 ## Using deployed databases
 
@@ -193,15 +214,12 @@ Stacktape registers cleanup hooks when dev mode starts. When you press `Ctrl+C` 
 - **Local resources** — Docker containers for local databases
 - **Health monitor** — the local resource health monitor
 - **Dev server** — the dev server process
-- **Tunnels** — active TCP tunnels
-- **Lambda environment** — Lambda environment changes from the dev session
+- **Tunnels** — the tunnels to the dev box and its Systems Manager session
 - **Named proxy** — the named proxy process
 
 The dev TUI prints a cleanup summary showing which workloads, local resources, and tunnels are being stopped.
 
-
-> **Warning:** If dev mode exits unexpectedly (process kill, power loss, system crash), cleanup hooks may not run. Use a fresh [`stacktape deploy`](/cli/deploy) or restart dev mode if the deployed stack's Lambda configuration needs to be reconciled.
-
+Dev mode does not change deployed functions at session start or exit: they are deployed with the dev box address, which stays valid. If dev mode exits unexpectedly (process kill, power loss), the next start of the same stage ends the Systems Manager session the old one left open.
 
 ## Agent mode
 
@@ -271,7 +289,7 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 |--------|---------------------------|-------------------------------|
 | Log delivery | Streamed in the dev TUI | Historical fetch from CloudWatch |
 | Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
-| Database access | Deployed databases via `--remote-resources` | AWS-deployed databases |
+| Database access | Local databases through the dev box, or deployed ones via `--remote-resources` | AWS-deployed databases |
 | Interaction model | Interactive TUI with keyboard commands | Single CLI command |
 | Infrastructure | Dev stack | Full production stack |
 | Local resources | Docker-based databases on your machine | Not applicable |
@@ -299,11 +317,11 @@ Dev mode and full deployments share the same stage namespace, so running `stackt
 
 ### How do my local databases connect to functions running on AWS?
 
-They do not by default. Lambda functions in dev mode run on AWS and cannot reach `localhost` on your machine, and dev mode does not publish local databases on the internet. Use `--remote-resources <databaseName>` to connect functions to the deployed database, or run your own tunnel relay as described in [Using your own tunnel relay](#using-your-own-tunnel-relay).
+Through the dev box of your account's dev network: functions connect to the box's private address, and the box forwards each connection to your machine over an encrypted Systems Manager session. See [Connecting to local databases](#connecting-to-local-databases).
 
 ### How much does running dev mode cost?
 
-Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
+Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). The dev box costs about $0.01 per hour while a dev session runs and about $0.70 per month while it is stopped. Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
 
 ### How do I view logs from a Lambda function that's already deployed?
 

@@ -29,7 +29,7 @@ const isIncompatibleMysqlDataError = (err: unknown): boolean => {
   );
 };
 
-const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
+export const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
   const connectionString = `mysql://${user}:${pass}@${host}:${port}/${database}`;
   return {
     connectionString,

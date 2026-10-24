@@ -195,7 +195,7 @@ This file-based approach is intentional — AI coding assistants already have fi
 
 ### Environment variables
 
-The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. For other workload types whose env vars are tracked by dev mode (currently container, hosting-bucket, and nextjs-web workloads), variables are read from the local runner state.
+The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. A function that uses a local database shows that database's `STP_*` variables with the address of the [dev box](/local-development/debugging-lambda-functions#connecting-to-local-databases), through which the function reaches it. For other workload types whose env vars are tracked by dev mode (currently container, hosting-bucket, and nextjs-web workloads), variables are read from the local runner state.
 
 ```bash
 curl -H "$AUTH" $AGENT/env/api

@@ -26,7 +26,7 @@ import { configErrors } from './errors';
 export type BuiltInDirectiveContext = Readonly<{
   runtime: Readonly<{
     calculatedStackOverviewManager: Pick<typeof calculatedStackOverviewManager, 'getStpResource'>;
-    configManager: Pick<typeof configManager, 'findResourceInConfig'>;
+    configManager: Pick<typeof configManager, 'findResourceInConfig' | 'deploymentContext'>;
     deployedStackOverviewManager: Pick<typeof deployedStackOverviewManager, 'getStpResource'>;
     stackManager: Pick<typeof stackManager, 'getExistingResourceDetails' | 'existingStackDetails'>;
     templateManager: Pick<typeof templateManager, 'template' | 'addFinalTemplateOverrideFn' | 'addStackOutput'>;
@@ -193,6 +193,9 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       isRuntime: true,
       resolveFunction: () => (resourceReference: string, property: string) => {
         const resource = calculatedStackOverviewManager.getStpResource({ nameChain: resourceReference });
+        // A local database of a dev session is not in the dev stack; deployed functions reach it through the dev box.
+        const relayed = !resource && configManager.deploymentContext.devNetwork?.localResources[resourceReference];
+        if (relayed && relayed.params[property] !== undefined) return relayed.params[property];
         if (!resource) {
           throw configErrors.directiveResourceNotFound({
             resourceName: resourceReference,

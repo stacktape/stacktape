@@ -15,11 +15,15 @@ import {
   removeContainerIfExists,
   resolveLocalDatabasePassword
 } from './container-helpers';
-import { DYNAMODB_IMAGE, startLocalDynamoDb } from './dynamodb';
-import { startLocalMysql } from './mysql';
-import { getLocalOpenSearchImageTag, startLocalOpenSearch } from './opensearch';
-import { startLocalPostgres } from './postgres';
-import { getLocalRedisImageTag, startLocalRedis } from './redis';
+import { buildConnectionInfo as dynamoDbConnectionInfo, DYNAMODB_IMAGE, startLocalDynamoDb } from './dynamodb';
+import { buildConnectionInfo as mysqlConnectionInfo, startLocalMysql } from './mysql';
+import {
+  buildConnectionInfo as openSearchConnectionInfo,
+  getLocalOpenSearchImageTag,
+  startLocalOpenSearch
+} from './opensearch';
+import { buildConnectionInfo as postgresConnectionInfo, startLocalPostgres } from './postgres';
+import { buildConnectionInfo as redisConnectionInfo, getLocalRedisImageTag, startLocalRedis } from './redis';
 
 /**
  * Parse Docker errors and return user-friendly message
@@ -65,6 +69,8 @@ export type LocalResourceInstance = LocalResourceConfig & {
 };
 
 const localResourceInstances: LocalResourceInstance[] = [];
+/** Configs whose data directory and password are settled for this session; see `prepareLocalResource`. */
+const preparedConfigs = new Map<string, LocalResourceConfig>();
 
 const getDataDir = (resourceName: string) => {
   const { stage } = globalStateManager;
@@ -303,16 +309,88 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
   return null;
 };
 
+/**
+ * Builds a local database's config and settles its data directory and password: `--fresh-db` deletes the data once,
+ * and a database without a configured password gets its generated one. Runs once per resource and session, before the
+ * dev stack is deployed when deployed functions reach the database, because their environment carries the password.
+ */
+export const prepareLocalResource = async (resourceName: string): Promise<LocalResourceConfig | null> => {
+  const prepared = preparedConfigs.get(resourceName);
+  if (prepared) return prepared;
+  const config = buildLocalResourceConfig(resourceName);
+  if (!config) return null;
+  await removeLegacyContainerUsingDataDir(resourceName, config.dataDir);
+  // With --fresh-db, remove the existing data directory and its password; the new data gets a new password.
+  if (globalStateManager.args.freshDb) {
+    await removeLocalData(config);
+    await remove(getPasswordFile(resourceName));
+  }
+  await ensureDir(config.dataDir);
+  if (RELATIONAL_TYPES.has(config.type) && config.credentials && !config.credentials.password) {
+    const { password, legacy } = resolveLocalDatabasePassword({
+      passwordFile: getPasswordFile(resourceName),
+      dataDir: config.dataDir
+    });
+    config.credentials.password = password;
+    if (legacy) {
+      tuiManager.warn(
+        `Local database "${resourceName}" keeps the password "${password}" its data was created with. ` +
+          'To switch it to a generated password, start dev mode once with --fresh-db (this deletes its local data).'
+      );
+    }
+  }
+  preparedConfigs.set(resourceName, config);
+  return config;
+};
+
+/**
+ * A local database as deployed dev functions see it through the dev box: its referenceable parameters at the relay
+ * address, and the environment its clients need besides them.
+ */
+export const getRelayedLocalResource = async (
+  resourceName: string,
+  relay: { host: string; port: number }
+): Promise<{ params: Record<string, string>; environment: Record<string, string> } | null> => {
+  const config = await prepareLocalResource(resourceName);
+  if (!config) return null;
+  const { host, port } = relay;
+  const user = config.credentials?.username ?? '';
+  const password = config.credentials?.password ?? '';
+  switch (config.type) {
+    case 'postgres':
+      return {
+        params: postgresConnectionInfo(user || 'postgres', password, host, port, config.dbName || 'postgres')
+          .referencableParams,
+        environment: {}
+      };
+    case 'mysql':
+    case 'mariadb':
+      return {
+        params: mysqlConnectionInfo(user || 'root', password, host, port, config.dbName || 'mysql').referencableParams,
+        environment: {}
+      };
+    case 'redis':
+      return {
+        params: redisConnectionInfo(host, port, config.credentials?.password).referencableParams,
+        environment: {}
+      };
+    case 'dynamodb': {
+      const { referencableParams } = dynamoDbConnectionInfo(host, port, config.name);
+      return { params: referencableParams, environment: { AWS_ENDPOINT_URL_DYNAMODB: referencableParams.endpoint } };
+    }
+    case 'opensearch':
+      return { params: openSearchConnectionInfo(host, port).referencableParams, environment: {} };
+  }
+};
+
 export const startLocalResources = async (resourceNames: string[]): Promise<LocalResourceInstance[]> => {
   if (!resourceNames.length) return [];
 
-  const freshDb = Boolean(globalStateManager.args.freshDb);
-
-  // Build configs - port conflicts are handled per-resource in findAvailablePort (with stage offset)
+  // Port conflicts are handled per resource in findAvailablePort (with stage offset)
   const configs: Array<{ resourceName: string; config: LocalResourceConfig; containerName: string }> = [];
 
   for (const resourceName of resourceNames) {
-    const config = buildLocalResourceConfig(resourceName);
+    const config = await prepareLocalResource(resourceName);
     if (!config) {
       tuiManager.warn(`Cannot create local config for resource "${resourceName}"`);
       continue;
@@ -325,27 +403,6 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
   const errors: Array<{ resourceName: string; error: Error }> = [];
 
   const startPromises = configs.map(async ({ resourceName, config, containerName }) => {
-    await removeLegacyContainerUsingDataDir(resourceName, config.dataDir);
-    // If --freshDb flag is set, remove existing data directory and its password; the new data gets a new password
-    if (freshDb) {
-      await removeLocalData(config);
-      await remove(getPasswordFile(resourceName));
-    }
-    await ensureDir(config.dataDir);
-    if (RELATIONAL_TYPES.has(config.type) && config.credentials && !config.credentials.password) {
-      const { password, legacy } = resolveLocalDatabasePassword({
-        passwordFile: getPasswordFile(resourceName),
-        dataDir: config.dataDir
-      });
-      config.credentials.password = password;
-      if (legacy) {
-        tuiManager.warn(
-          `Local database "${resourceName}" keeps the password "${password}" its data was created with. ` +
-            'To switch it to a generated password, start dev mode once with --fresh-db (this deletes its local data).'
-        );
-      }
-    }
-
     // Update DevTui status
     if (useDevTui) {
       devTuiManager.setLocalResourceStatus(resourceName, 'starting');
@@ -430,6 +487,7 @@ const stopLocalResources = async (): Promise<void> => {
 
   await Promise.all(stopPromises);
   localResourceInstances.length = 0;
+  preparedConfigs.clear();
 };
 
 export const getLocalResourceEnvVars = (instances: LocalResourceInstance[]): Record<string, string> => {

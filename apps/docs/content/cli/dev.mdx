@@ -88,7 +88,7 @@ stacktape dev --stage dev --region eu-west-1 --fresh-db
 
 ### --no-tunnel
 
-Skips tunnels from deployed Lambda functions to local databases. Dev mode opens these tunnels only through a bore-compatible relay you run yourself and name in the `STACKTAPE_TUNNEL_SERVER` environment variable; without one, Lambda functions cannot reach local databases. See [Using your own tunnel relay](/local-development/debugging-lambda-functions#using-your-own-tunnel-relay).
+Skips the tunnels from deployed Lambda functions to local databases. Without it, functions that use a local database reach it through the dev box of your account's dev network; see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases). VPC functions still run in the dev network.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --no-tunnel
@@ -191,5 +191,6 @@ to the Flexible plan lifts the limit immediately. Running infrastructure is not 
 ## Related commands
 
 - [`dev stop`](/cli/dev-stop) — stop a running dev agent
+- [`dev network`](/cli/dev-network) — see or delete the dev network that connects deployed functions to local databases
 - [`deploy`](/cli/deploy) — deploy your stack to AWS
 - [`logs`](/cli/logs) — fetch logs from deployed resources

@@ -24,7 +24,7 @@ Dev mode splits your stack between your local machine and AWS. Container workloa
 | [Hosting buckets](/resources/frontend/static-hosting) (with `dev` config) | Local machine | Custom dev command |
 | SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)) | Local machine | Framework dev server |
 
-Lambda functions deployed to AWS cannot reach the databases emulated on your machine. Dev mode warns when a selected function uses a local database; connect such functions to the deployed database with `--remote-resources`. Local databases are published on `127.0.0.1` only. If you run your own tunnel relay, see [Using your own tunnel relay](/local-development/debugging-lambda-functions#using-your-own-tunnel-relay).
+Lambda functions deployed to AWS reach the databases emulated on your machine through the dev box, a small EC2 instance in your account's shared dev network; see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases). Local databases are published on `127.0.0.1` only, and nothing is exposed on the internet.
 
 ### Startup flow
 
@@ -34,8 +34,9 @@ When you run `stacktape dev`, the following steps execute in order:
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
 3. **Load AWS metadata** — Stacktape fetches stack information from AWS.
 4. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config.
-5. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
-6. **Start local resources and workloads** — Docker containers start for selected databases, then container workloads, frontends, and Lambda deploys run in parallel.
+5. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use (about 4 minutes, once per account and region) and starts its dev box in the background.
+6. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
+7. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
 
 <Info>
 After the first run, dev mode skips the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
@@ -91,7 +92,7 @@ Without `--watch`, you trigger rebuilds manually from the dev mode terminal usin
 
 ### Disabling tunnels
 
-Dev mode opens Lambda tunnels to local databases only through a relay you configured with `STACKTAPE_TUNNEL_SERVER`. Pass `--no-tunnel` to skip them for one session even when a relay is configured:
+Pass `--no-tunnel` to keep deployed Lambda functions away from your local databases for one session:
 
 ```bash
 stacktape dev --stage dev --region us-east-1 --no-tunnel
@@ -203,7 +204,7 @@ For the complete list of flags and options, see the [`stacktape dev`](/cli/dev) 
 | `--watch` | Auto-rebuild on file changes |
 | `--remote-resources` | Emulatable databases to connect to AWS instead of local emulation |
 | `--fresh-db` | Start local databases from a fresh state |
-| `--no-tunnel` | Skip Lambda tunnels through your own relay |
+| `--no-tunnel` | Skip the tunnels from deployed Lambda functions to local databases |
 | `--agent` | Run as a background daemon with HTTP server |
 | `--agent-port` | Port for the agent HTTP server (default: 7331) |
 
@@ -219,7 +220,7 @@ Dev mode supports container workloads ([web-service](/resources/compute/web-serv
 
 ### How do Lambda functions connect to local databases in dev mode?
 
-They do not by default. A Lambda function runs in AWS and cannot reach the Docker containers on your machine, and dev mode does not publish local databases on the internet. Use `--remote-resources <databaseName>` to connect functions to the deployed database. If you run your own tunnel relay, set `STACKTAPE_TUNNEL_SERVER` as described in [Using your own tunnel relay](/local-development/debugging-lambda-functions#using-your-own-tunnel-relay).
+Through the dev box of your account's dev network. Functions connect to the box's private address, and the box forwards each connection to your machine over an encrypted AWS Systems Manager session that your machine opens. Nothing is published on the internet. Bulk transfers are limited to about 0.7 MB/s. See [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases).
 
 ### How do I reset my local database data?
 
@@ -231,4 +232,4 @@ Dev mode (`stacktape dev`) runs workloads on your local machine with Docker and 
 
 ### Does dev mode cost anything on AWS?
 
-Dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AWS resources in that dev stack, Lambda invocations, and any deployed resources you choose to use through `--remote-resources`. Container workloads and locally emulated databases run on your machine and don't generate AWS charges. Small development workloads may fall within AWS Lambda free-tier usage, depending on account eligibility and invocation volume.
+Dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AWS resources in that dev stack, Lambda invocations, and any deployed resources you choose to use through `--remote-resources`. The dev box costs about $0.01 per hour while a dev session runs; it stops itself 30 minutes after the last session and then costs about $0.70 per month for its disk. Container workloads and locally emulated databases run on your machine and don't generate AWS charges. Small development workloads may fall within AWS Lambda free-tier usage, depending on account eligibility and invocation volume.

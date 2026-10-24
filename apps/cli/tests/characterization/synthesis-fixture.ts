@@ -16,6 +16,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { assertLocalAwsEndpoint, type MiniStackClientConfig } from '@stacktape/ministack/fixture';
 import type { StackContext } from '@domain-services/stack-context';
+import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { CompiledStacktapeConfig } from '@stacktape/config-authoring';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -52,7 +53,8 @@ export const synthesizeFixture = async ({
   remoteResources,
   identity: identityOverride,
   deployedTemplate,
-  localAws
+  localAws,
+  devNetwork
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
   compiledConfig?: CompiledStacktapeConfig;
@@ -68,6 +70,8 @@ export const synthesizeFixture = async ({
   deployedTemplate?: CloudFormationTemplate;
   /** Explicit synthetic clients for runtime directives; every other network request stays forbidden. */
   localAws?: MiniStackClientConfig;
+  /** The dev network placement `stacktape dev` decides before it synthesizes a dev stack. */
+  devNetwork?: DevNetworkPlacement;
 }) => {
   if (!compiledConfig === !configPath) {
     throw new Error('synthesizeFixture needs exactly one of compiledConfig or configPath.');
@@ -156,6 +160,7 @@ export const synthesizeFixture = async ({
       ...synthesisContext
     };
     await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+    configManager.setDevNetworkPlacement(devNetwork);
     if (compiledConfig) {
       configManager.transforms = compiledConfig.transforms ?? {};
       configManager.finalTransform = compiledConfig.finalTransform;

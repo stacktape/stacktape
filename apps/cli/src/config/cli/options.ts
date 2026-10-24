@@ -166,7 +166,7 @@ Disables the automatic injection of parameters and credentials during local emul
 
 export const noTunnel = z.boolean().describe(`#### No Tunnel
 ---
-Disables tunnels from deployed Lambda functions to your locally emulated databases. Dev mode creates these tunnels only through a relay you run yourself, set with the \`STACKTAPE_TUNNEL_SERVER\` environment variable (a bore-compatible server). Without one, deployed Lambda functions cannot reach local databases; use \`--remote-resources\` to connect them to the deployed databases instead.`);
+Disables tunnels from deployed Lambda functions to your locally emulated databases. Without this flag, functions that use a local database reach it through the dev box of your account's dev network, over an encrypted AWS Systems Manager session from your machine. With it, they cannot reach local databases; use \`--remote-resources\` to connect them to the deployed databases instead. VPC functions still run in the dev network.`);
 
 export const remoteResources = z.array(z.string()).describe(`#### Remote Resources
 ---

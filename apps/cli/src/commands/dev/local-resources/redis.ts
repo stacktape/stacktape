@@ -18,7 +18,7 @@ import {
 
 const REDIS_DATA_PATH = '/data';
 
-const buildConnectionInfo = (host: string, port: number, password?: string) => {
+export const buildConnectionInfo = (host: string, port: number, password?: string) => {
   // Use redis:// (not rediss://) for local - no TLS
   const connectionString = password ? `redis://default:${password}@${host}:${port}` : `redis://${host}:${port}`;
 

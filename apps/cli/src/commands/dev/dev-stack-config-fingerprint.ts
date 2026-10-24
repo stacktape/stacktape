@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 // v2 removes VPC infrastructure required only by locally running/emulated resources.
-const FINGERPRINT_VERSION = 2;
+// v3 places functions in the shared dev network and deploys them with the relay addresses of local databases.
+const FINGERPRINT_VERSION = 3;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;
@@ -33,8 +34,15 @@ const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown =>
  * Identifies the resolved configuration used to synthesize the minimal dev support stack.
  * Increment the version when synthesis changes without a corresponding resolved-config change.
  */
-export const getDevStackConfigFingerprint = (config: unknown): string => {
-  const canonicalConfig = JSON.stringify(canonicalize(config));
+export const getDevStackConfigFingerprint = ({
+  config,
+  devNetwork
+}: {
+  config: unknown;
+  /** The dev network placement: its subnets, leases and local passwords end up in the template too. */
+  devNetwork?: unknown;
+}): string => {
+  const canonicalConfig = JSON.stringify(canonicalize({ config, devNetwork }));
   const digest = createHash('sha256').update(canonicalConfig, 'utf8').digest('hex').slice(0, 24);
   return `v${FINGERPRINT_VERSION}:${digest}`;
 };

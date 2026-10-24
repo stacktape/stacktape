@@ -33,7 +33,7 @@ const getDynamoDbHeaders = (target: string) => ({
   'X-Amz-Target': target
 });
 
-const buildConnectionInfo = (host: string, port: number, tableName: string) => {
+export const buildConnectionInfo = (host: string, port: number, tableName: string) => {
   const endpoint = `http://${host}:${port}`;
   return {
     connectionString: endpoint,

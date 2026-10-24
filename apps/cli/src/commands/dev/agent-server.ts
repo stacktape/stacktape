@@ -49,7 +49,7 @@ import {
 } from '@domain-services/debug-services/db-client';
 import { getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
 import { maskAgentEnvironment } from './agent-env-masking';
-import { getLambdaEnvVars } from './lambda-env-manager';
+import { getLambdaEnvVars } from './deployed-function-environment';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 
