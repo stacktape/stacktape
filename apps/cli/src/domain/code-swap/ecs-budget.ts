@@ -3,6 +3,18 @@
 // Matches the supervisor: an old process finishes in-flight requests for at most the 35 s Cloud Map drain plus the
 // 30 s default stop timeout that an image deploy allows. The switch does not wait when no request is open.
 export const SWAP_DRAIN_SECONDS = 65;
+
+// Open WebSocket and event-stream connections do not delay a swap's completion. Each task reports how many still run
+// on its previous process; they close at that process's drain deadline.
+export const swapCompletedMessage = (service: string, statuses: { timings: Record<string, unknown> }[]) => {
+  const open = statuses.reduce(
+    (sum, { timings }) => sum + (typeof timings.longLivedRemaining === 'number' ? timings.longLivedRemaining : 0),
+    0
+  );
+  if (!open) return `Swapped code in ${service}; every task serves the new release and the old processes have exited.`;
+  const connections = open === 1 ? 'connection still runs' : 'connections still run';
+  return `Swapped code in ${service}; every task serves the new release. ${open} open WebSocket/SSE ${connections} on the previous code and ${open === 1 ? 'closes' : 'close'} within ${SWAP_DRAIN_SECONDS} s; clients reconnect to the new release.`;
+};
 export const supervisorStopBudget = (grace = 2) => {
   if (!Number.isInteger(grace) || grace < 0) throw new Error('Invalid application shutdown grace.');
   const drain = grace;

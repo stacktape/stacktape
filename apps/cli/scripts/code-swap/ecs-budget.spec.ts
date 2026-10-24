@@ -164,6 +164,20 @@ test('memory fallback explains the measured requirement and a supported remedy',
   expect(memoryFallbackReason({ ...memory, peakBytes: 0 }, [512, 1024])).toContain('Increasing memory alone cannot');
 });
 
+test('swap completion names long-lived connections still on the previous code', async () => {
+  const { swapCompletedMessage } = await import('../../src/domain/code-swap/ecs-budget');
+  const task = (longLivedRemaining?: number) => ({ timings: { longLivedRemaining } });
+  expect(swapCompletedMessage('api', [task(0), task()])).toBe(
+    'Swapped code in api; every task serves the new release and the old processes have exited.'
+  );
+  expect(swapCompletedMessage('api', [task(1), task(0)])).toBe(
+    'Swapped code in api; every task serves the new release. 1 open WebSocket/SSE connection still runs on the previous code and closes within 65 s; clients reconnect to the new release.'
+  );
+  expect(swapCompletedMessage('api', [task(2), task(1)])).toContain(
+    '3 open WebSocket/SSE connections still run on the previous code and close within 65 s'
+  );
+});
+
 test('surge must permit a replacement at the smallest configured fleet too', () => {
   const service = { name: 'api', minimum: 1, maximum: 7, maximumPercent: 150 };
   expect(capacityWithOverrides(service, undefined).reason).toContain('surge');

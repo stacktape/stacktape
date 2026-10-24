@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -33,10 +34,12 @@ type generation struct {
 	revision       string
 	proxy          *httputil.ReverseProxy
 	inflight       atomic.Int64
+	longLived      atomic.Int64
 	exited         atomic.Bool
 	membership     map[int]string
 	treeMu         sync.Mutex
 	termAt         time.Time
+	killAt         time.Time
 	drainUntil     time.Time
 	treeFailure    atomic.Bool
 	traceFailure   atomic.Bool
@@ -45,11 +48,16 @@ type generation struct {
 	terminateMu    sync.Mutex
 	requestsMu     sync.Mutex
 	requests       map[*requestLease]bool
+	lingerCut      chan struct{}
+	lingerCutOnce  sync.Once
+	lingerDone     chan struct{}
 }
 type requestLease struct {
-	cancel context.CancelFunc
-	conn   net.Conn
+	cancel    context.CancelFunc
+	conn      net.Conn
+	longLived bool
 }
+type leaseKey struct{}
 type bundleIdentity struct {
 	Revision, Key, Sha256 string
 	Size                  int64
@@ -70,6 +78,9 @@ type record struct {
 }
 
 var current, candidate, oldGeneration atomic.Pointer[generation]
+
+// The previous tree after a completed swap, still serving its open WebSocket and event-stream connections.
+var lingering atomic.Pointer[generation]
 var routing sync.Mutex
 var taskID, app, table, bucket, baseline, taskDefinition string
 var privateIP = "127.0.0.1"
@@ -84,7 +95,12 @@ var grace, drain = 2 * time.Second, 2 * time.Second
 
 // An image deploy lets an old task finish requests through the 35 s Cloud Map drain and the 30 s default stop timeout.
 // A swap gives the old process the same time to finish in-flight requests. It stops waiting as soon as none remain.
+// WebSocket and event-stream connections do not delay completion: they stay on the old process in the background
+// until they close or the same deadline passes, as on an old task after an image deploy.
 var swapDrain = 65 * time.Second
+
+// A new swap closes a lingering tree first: SIGTERM, then SIGKILL after at most this grace.
+var lingerCutGrace = 5 * time.Second
 
 // Status writes retry with backoff from 100 ms to 2 s, up to about 9 s in total, through throttling and endpoint blips.
 var statusRetryDelays = []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, 1600 * time.Millisecond, 2 * time.Second, 2 * time.Second, 2 * time.Second}
@@ -223,9 +239,9 @@ func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, er
 	if entry == "" {
 		entry = "index.mjs"
 	}
-	value := -998
+	value := protectedScore
 	if isCandidate {
-		value = 500
+		value = expendableScore
 	}
 	port := 20000 + rand.Intn(12000)
 	// A native shell waits for tracing, then verifies its own score and execs
@@ -265,14 +281,7 @@ exec "$@"
 		return nil, err
 	}
 	fmt.Printf("{\"benchmarkEvent\":\"preparing\",\"pid\":%d,\"revision\":%q}\n", u.pid, rev)
-	target, _ := url.Parse(fmt.Sprintf("http://%s:%d", privateIP, port))
-	u.proxy = httputil.NewSingleHostReverseProxy(target)
-	u.proxy.FlushInterval = -1
-	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second, ResponseHeaderTimeout: 30 * time.Second}
-	u.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		fmt.Printf("{\"benchmarkEvent\":\"proxyError\",\"atMs\":%d,\"revision\":%q}\n", now(), rev)
-		http.Error(w, "upstream unavailable", 502)
-	}
+	u.useProxy(fmt.Sprintf("http://%s:%d", privateIP, port))
 	for {
 		_, treeErr := u.members()
 		if stopping.Load() || u.exited.Load() || treeErr != nil || time.Since(started) > 30*time.Second {
@@ -288,7 +297,43 @@ exec "$@"
 	return u, nil
 }
 
-// Hijacked WebSocket connections remain counted until the reverse proxy returns.
+func (u *generation) useProxy(address string) {
+	target, _ := url.Parse(address)
+	u.proxy = httputil.NewSingleHostReverseProxy(target)
+	u.proxy.FlushInterval = -1
+	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second, ResponseHeaderTimeout: 30 * time.Second}
+	u.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		fmt.Printf("{\"benchmarkEvent\":\"proxyError\",\"atMs\":%d,\"revision\":%q}\n", now(), u.revision)
+		http.Error(w, "upstream unavailable", 502)
+	}
+	// An event stream becomes long-lived when its response headers arrive. Every other response, including other
+	// streaming bodies, stays an ordinary request.
+	u.proxy.ModifyResponse = func(res *http.Response) error {
+		mediaType, _, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
+		if lease, ok := res.Request.Context().Value(leaseKey{}).(*requestLease); ok && err == nil && mediaType == "text/event-stream" {
+			u.markLongLived(lease, nil)
+		}
+		return nil
+	}
+}
+
+// markLongLived moves a request from the ordinary count, which delays a swap's completion, to the long-lived count.
+// The long-lived count rises first, so the total never reaches zero while the connection is open.
+func (u *generation) markLongLived(lease *requestLease, conn net.Conn) {
+	u.requestsMu.Lock()
+	defer u.requestsMu.Unlock()
+	if conn != nil {
+		lease.conn = conn
+	}
+	if !lease.longLived {
+		lease.longLived = true
+		u.longLived.Add(1)
+		u.inflight.Add(-1)
+	}
+}
+
+// The reverse proxy hijacks the client connection only for a successful upgrade (101), such as a WebSocket. The
+// connection stays counted as long-lived until the reverse proxy returns.
 type trackedWriter struct {
 	http.ResponseWriter
 	u     *generation
@@ -300,9 +345,7 @@ func (w *trackedWriter) Flush()                      { http.NewResponseControlle
 func (w *trackedWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	c, b, err := http.NewResponseController(w.ResponseWriter).Hijack()
 	if err == nil {
-		w.u.requestsMu.Lock()
-		w.lease.conn = c
-		w.u.requestsMu.Unlock()
+		w.u.markLongLived(w.lease, c)
 	}
 	return c, b, err
 }
@@ -331,10 +374,14 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 		cancel()
 		u.requestsMu.Lock()
 		delete(u.requests, lease)
+		if lease.longLived {
+			u.longLived.Add(-1)
+		} else {
+			u.inflight.Add(-1)
+		}
 		u.requestsMu.Unlock()
-		u.inflight.Add(-1)
 	}()
-	r = r.WithContext(ctx)
+	r = r.WithContext(context.WithValue(ctx, leaseKey{}, lease))
 	r.Header.Del("X-Lab-Prepare")
 	r.Header.Del("X-Lab-Check")
 	w.Header().Set("X-Lab-Now-Ms", fmt.Sprint(now()))
@@ -505,31 +552,25 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	t["drainMs"] = ms(started)
 	t["oldInflightAtTerm"] = old.inflight.Load()
 	t["forcedDrain"] = old.inflight.Load() > 0
-	if old.inflight.Load() > 0 {
-		old.closeRequests()
-	}
-	started = time.Now()
 	t["oldPid"] = old.pid
-	// Continue transition monitoring during the old tree's shutdown grace.
-	finished := make(chan error, 1)
-	go func() { finished <- old.terminate() }()
-	for {
-		select {
-		case err := <-finished:
-			if err != nil {
-				return err
-			}
-			goto reaped
-		case <-time.After(5 * time.Millisecond):
-			if err := transitionCheck(u, oom); err != nil {
-				<-finished
-				return err
-			}
+	// Ordinary requests have finished, so only long-lived connections remain; they no longer arrive after the switch.
+	lingers := old.inflight.Load() == 0 && old.longLived.Load() > 0
+	if lingers {
+		// An OOM while the old tree lingers must kill it, not the serving tree.
+		if err := old.setScore(expendableScore); err != nil {
+			fmt.Printf("{\"benchmarkEvent\":\"lingerRefused\",\"revision\":%q,\"reason\":%q}\n", old.revision, err.Error())
+			lingers = false
 		}
 	}
-reaped:
-	t["oldExitMs"] = ms(started)
-	t["oldReapedAtMs"] = now()
+	if !lingers {
+		old.closeRequests()
+		started = time.Now()
+		if err := terminateWatched(old, u, oom); err != nil {
+			return err
+		}
+		t["oldExitMs"] = ms(started)
+		t["oldReapedAtMs"] = now()
+	}
 	if err := transitionCheck(u, oom); err != nil {
 		return err
 	}
@@ -544,8 +585,100 @@ reaped:
 	}
 	t["newPid"] = u.pid
 	t["memoryAfter"] = memory()
+	t["longLivedRemaining"] = int64(0)
+	if lingers {
+		// From here on the swap is final: nothing routes back to the old tree, and its outcome is only logged.
+		t["longLivedRemaining"] = old.longLived.Load()
+		old.lingerCut, old.lingerDone = make(chan struct{}), make(chan struct{})
+		lingering.Store(old)
+		oldGeneration.Store(nil)
+		go linger(old, oomCount())
+		return nil
+	}
 	old.remove()
 	oldGeneration.Store(nil)
+	return nil
+}
+
+// Continue transition monitoring during the old tree's shutdown grace.
+func terminateWatched(old, u *generation, oom int64) error {
+	finished := make(chan error, 1)
+	go func() { finished <- old.terminate() }()
+	for {
+		select {
+		case err := <-finished:
+			return err
+		case <-time.After(5 * time.Millisecond):
+			if err := transitionCheck(u, oom); err != nil {
+				<-finished
+				return err
+			}
+		}
+	}
+}
+
+// linger keeps the old tree after a completed swap until its last long-lived connection closes, its drain deadline
+// passes, it exits, or a newer swap or task stop cuts it short. Then it closes the remaining connections (WebSocket
+// close 1001) and stops the tree. It never writes a status: the swap already reported complete.
+func linger(old *generation, oom int64) {
+	defer close(old.lingerDone)
+	outcome := "closed"
+	for outcome == "closed" && old.longLived.Load() > 0 {
+		select {
+		case <-old.lingerCut:
+			outcome = "cut"
+		case <-time.After(10 * time.Millisecond):
+			if old.exited.Load() {
+				outcome = "exited"
+			} else if !time.Now().Before(old.drainUntil) {
+				outcome = "deadline"
+			}
+		}
+	}
+	if outcome == "closed" && old.exited.Load() {
+		outcome = "exited"
+	}
+	remaining := old.longLived.Load()
+	old.closeRequests()
+	err := old.terminate()
+	reason := ""
+	if err == nil {
+		old.remove()
+		lingering.CompareAndSwap(old, nil)
+	} else {
+		reason = err.Error()
+	}
+	fmt.Printf("{\"benchmarkEvent\":\"lingerEnded\",\"atMs\":%d,\"revision\":%q,\"outcome\":%q,\"closedConnections\":%d,\"oomKills\":%d,\"reaped\":%t,\"reason\":%q}\n", now(), old.revision, outcome, remaining, oomCount()-oom, err == nil, reason)
+}
+
+// stopLingering closes a lingering tree before a new candidate starts, so at most two trees ever run. A newer swap
+// gives it lingerCutGrace; a task stop gives it the application's grace.
+func stopLingering(cutGrace time.Duration) error {
+	old := lingering.Load()
+	if old == nil {
+		return nil
+	}
+	old.limitGrace(cutGrace)
+	old.lingerCutOnce.Do(func() { close(old.lingerCut) })
+	select {
+	case <-old.lingerDone:
+	case <-time.After(cutGrace + 5*time.Second):
+	}
+	if lingering.Load() == old {
+		return fmt.Errorf("lingering process tree not reaped")
+	}
+	return nil
+}
+
+// commit switches to a prepared candidate and reports the attempt's outcome once.
+func commit(u *generation, t map[string]any, oom int64) error {
+	if err := activate(u, t, oom); err != nil {
+		if !stopping.Load() {
+			fail(u, t, err)
+		}
+		return err
+	}
+	status("complete", u.revision, t, "")
 	return nil
 }
 
@@ -659,6 +792,10 @@ func shutdown(server *http.Server) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	// A lingering tree keeps its own drain deadline until here. Then its remaining connections close, including
+	// hijacked WebSockets that server.Close leaves open, and it stops alongside the serving tree.
+	lingered := make(chan error, 1)
+	go func() { lingered <- stopLingering(grace) }()
 	server.Close()
 	terminateAsync(current.Load())
 	terminateAsync(oldGeneration.Load())
@@ -668,6 +805,9 @@ func shutdown(server *http.Server) {
 			continue
 		}
 		u.remove()
+	}
+	if err := <-lingered; err != nil {
+		fmt.Printf("{\"benchmarkEvent\":\"cleanupFailed\",\"revision\":\"lingering\",\"reason\":%q}\n", err.Error())
 	}
 
 }
@@ -872,6 +1012,12 @@ func main() {
 		if r.Revision != "" && r.Revision != current.Load().revision && r.Revision != failed {
 			if prepared == nil && candidate.Load() == nil && oldGeneration.Load() == nil && r.Phase == "prepare" {
 				timing = map[string]any{"detectedAtMs": now()}
+				// A redeploy within the drain window closes the previous swap's long-lived connections early.
+				if err := stopLingering(lingerCutGrace); err != nil {
+					status("refused", r.Revision, timing, "lingering_tree")
+					failed = r.Revision
+					continue
+				}
 				m := memory()
 				timing["memoryBefore"] = m
 				if !m["allowed"].(bool) {
@@ -918,13 +1064,8 @@ func main() {
 				}
 			}
 			if prepared != nil && r.Phase == "commit" && r.Revision == p.Revision {
-				if err := activate(prepared, timing, oom); err != nil {
-					if !stopping.Load() {
-						fail(prepared, timing, err)
-						failed = r.Revision
-					}
-				} else {
-					status("complete", r.Revision, timing, "")
+				if err := commit(prepared, timing, oom); err != nil && !stopping.Load() {
+					failed = r.Revision
 				}
 				prepared = nil
 			}

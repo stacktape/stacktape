@@ -40,7 +40,7 @@ import { resolveStatusRole } from './ecs-policy';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 import { codeSwapBaseInputs } from './base-inputs';
 import { trace, traceAsync } from './trace';
-import { SWAP_DRAIN_SECONDS } from './ecs-budget';
+import { SWAP_DRAIN_SECONDS, swapCompletedMessage } from './ecs-budget';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
 import { memoryFallbackReason, serviceCapacity, declaredCapacity } from './ecs-budget';
 import { parse as parseYaml } from 'yaml';
@@ -89,6 +89,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
   let runningHead: Identity | undefined;
   let jobName: string | undefined;
   let result: Record<string, unknown> = {};
+  let completedStatuses: Status[] = [];
 
   let prepare: Promise<{ ids: string[]; statuses: Status[]; service: string; cluster: string }> | undefined;
   let preparationError: unknown;
@@ -734,7 +735,8 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       });
       await faultCheckpoint('after-commit');
       const grace = update.workload.containers[0]?.stopTimeout ?? 2;
-      // The old process may finish in-flight requests for up to SWAP_DRAIN_SECONDS, then gets its shutdown grace.
+      // The old process may finish ordinary in-flight requests for up to SWAP_DRAIN_SECONDS, then gets its shutdown
+      // grace. Open WebSocket/SSE connections do not delay completion.
       const completed = await waitStatus(ids, identity!.revision, 'complete', (SWAP_DRAIN_SECONDS + grace + 30) * 1000);
       trace('allComplete');
       if (JSON.stringify((await fleet(service, cluster)).ids) !== JSON.stringify(ids))
@@ -750,6 +752,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       if (JSON.parse(committed.Item!.data!.S!).Revision !== identity!.revision)
         throw new Error('Committed identity lost.');
       result = { ...result, mode: 'swap', completed };
+      completedStatuses = completed;
       return true;
     } catch (error) {
       const capReason =
@@ -1090,9 +1093,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     const { tuiManager } = await import('../../app/tui-manager');
     const { run } = await clients();
     if (result.mode === 'swap') {
-      tuiManager.info(
-        `Swapped code in ${run.service}; every task serves the new release and the old processes have exited.`
-      );
+      tuiManager.info(swapCompletedMessage(run.service, completedStatuses));
       return;
     }
     const reasons: Record<string, string> = {
@@ -1102,7 +1103,8 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       memory_screen: 'the kernel peak-memory screen refused a swap',
       swap_failed: `candidate or fleet check failed (${result.failure})`,
       interrupted_swap_image_repair: 'repairing an interrupted swap',
-      task_cap_exceeded: 'task capacity is outside the supported bounds'
+      task_cap_exceeded: 'task capacity is outside the supported bounds',
+      lingering_tree: "a task could not stop the previous code's open WebSocket/SSE connections"
     };
     const reason =
       result.reason ??

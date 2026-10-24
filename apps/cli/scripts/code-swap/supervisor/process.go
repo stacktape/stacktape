@@ -134,7 +134,14 @@ func (u *generation) members() (map[int]processInfo, error) {
 	}
 	return out, err
 }
-func (u *generation) protect() error {
+// The serving tree is the last OOM victim; a candidate or a lingering previous tree goes first.
+var protectedScore, expendableScore = -998, 500
+
+func (u *generation) protect() error { return u.setScore(protectedScore) }
+
+// setScore applies one OOM score to the whole tree, including processes it forks meanwhile.
+func (u *generation) setScore(value int) error {
+	want := strconv.Itoa(value)
 	for tries := 0; tries < 20; tries++ {
 		members, err := u.members()
 		if err != nil {
@@ -145,7 +152,7 @@ func (u *generation) protect() error {
 		}
 		for pid, p := range members {
 			if !p.zombie {
-				if err := score(pid, -998); err != nil && !os.IsNotExist(err) {
+				if err := score(pid, value); err != nil && !os.IsNotExist(err) {
 					return err
 				}
 			}
@@ -160,7 +167,7 @@ func (u *generation) protect() error {
 				continue
 			}
 			b, err := os.ReadFile(fmt.Sprintf("/proc/%d/oom_score_adj", pid))
-			if err == nil && strings.TrimSpace(string(b)) != "-998" {
+			if err == nil && strings.TrimSpace(string(b)) != want {
 				ready = false
 			}
 		}
@@ -168,7 +175,7 @@ func (u *generation) protect() error {
 			return nil
 		}
 	}
-	return fmt.Errorf("could not protect concurrently forking tree")
+	return fmt.Errorf("could not score concurrently forking tree")
 }
 func (u *generation) signal(sig syscall.Signal) {
 	// Signal group plus known descendants: a detected setsid escape must also be cleaned up.
@@ -204,6 +211,7 @@ func (u *generation) terminate() error {
 	if u == nil {
 		return nil
 	}
+	u.limitGrace(grace)
 	u.terminateMu.Lock()
 	defer u.terminateMu.Unlock()
 	u.treeMu.Lock()
@@ -211,12 +219,11 @@ func (u *generation) terminate() error {
 	if first {
 		u.termAt = time.Now()
 	}
-	deadline := u.termAt.Add(grace)
 	u.treeMu.Unlock()
 	if first {
 		u.signal(syscall.SIGTERM)
 	}
-	for time.Now().Before(deadline) {
+	for time.Now().Before(u.killDeadline()) {
 		members, _ := u.members()
 		if len(members) == 0 && u.exited.Load() {
 			return u.reap(time.Now())
@@ -225,6 +232,21 @@ func (u *generation) terminate() error {
 	}
 	u.signal(syscall.SIGKILL)
 	return u.reap(time.Now().Add(2 * time.Second))
+}
+
+// limitGrace moves the tree's SIGKILL to at most d from now, also during a termination already in progress. It never
+// postpones an earlier deadline.
+func (u *generation) limitGrace(d time.Duration) {
+	u.treeMu.Lock()
+	defer u.treeMu.Unlock()
+	if at := time.Now().Add(d); u.killAt.IsZero() || at.Before(u.killAt) {
+		u.killAt = at
+	}
+}
+func (u *generation) killDeadline() time.Time {
+	u.treeMu.Lock()
+	defer u.treeMu.Unlock()
+	return u.killAt
 }
 func (u *generation) remove() {
 	if u != nil && u.cmd.Dir != baseline {
