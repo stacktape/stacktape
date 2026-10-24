@@ -280,7 +280,7 @@ Yes. Dev mode mounts a local data directory into each database container, so dat
 
 ### Can I run multiple stages locally at the same time?
 
-Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel. Two Git worktrees of the same project can also run the same stage in parallel: each worktree has its own data directory, containers and ports. When the stage's deployed Lambda functions use local databases, only one session can receive their connections, so the second session refuses to start unless you pass [`--take-over`](/cli/dev#take-over).
+Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel. Two Git worktrees of the same project can also run the same stage in parallel: each worktree has its own data directory, containers and ports. When the stage's deployed Lambda functions use local databases, only one session can receive their connections, so the second session refuses to start unless you pass [`--take-over`](/cli/dev#--take-over).
 
 ### Why does dev mode warn that my database keeps the password `localdevpassword`?
 
