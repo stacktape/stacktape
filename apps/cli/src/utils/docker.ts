@@ -455,6 +455,13 @@ export const getDockerHostAddress = async (): Promise<'127.0.0.1' | 'host.docker
   return stdout.trim() === 'Docker Desktop' ? 'host.docker.internal' : '127.0.0.1';
 };
 
+/**
+ * Whether `dockerRun` puts containers on the host network. Native Linux Docker does, so containers reach the tunnels and
+ * local databases bound to the host's 127.0.0.1. The host network has no port mappings: a container listens on host
+ * ports directly.
+ */
+export const dockerRunUsesHostNetwork = async () => (await getDockerHostAddress()) === '127.0.0.1';
+
 const inspectContainers = async (containerIds: string[]): Promise<DockerContainerInspectInfo[]> => {
   if (!containerIds.length) {
     return [];
@@ -762,7 +769,7 @@ export const dockerRun = async ({
   // see here https://github.com/aws/session-manager-plugin/pull/54
   // NOTE: --network host only works properly on Linux. On macOS/Windows, Docker runs in a VM,
   // so host networking only shares the VM's network, not the actual host. Use port mappings instead.
-  const useHostNetwork = (await getDockerHostAddress()) === '127.0.0.1';
+  const useHostNetwork = await dockerRunUsesHostNetwork();
   if (useHostNetwork) {
     dockerArgs.push('--network', 'host');
   }
