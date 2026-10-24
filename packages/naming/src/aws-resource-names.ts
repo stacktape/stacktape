@@ -482,6 +482,20 @@ export const awsResourceNames = {
       lengthLimit: 255
     });
   },
+  // Resource names are alphanumeric, so these names never collide with `workloadSecurityGroup` names.
+  vpcFunctionsSecurityGroup(stackName: string, scopeId?: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-vpc-functions${scopeId ? `-${scopeId}` : ''}-sg`,
+      lengthLimit: 255
+    });
+  },
+  // max 255 characters
+  vpcFunctionsSecurityGroupDescription(stackName: string, connectedResourceNames: string[]) {
+    const description = connectedResourceNames.length
+      ? `VPC functions in stack ${stackName} connecting to ${connectedResourceNames.join(', ')}`
+      : `VPC functions in stack ${stackName} without security-group scoped connections`;
+    return description.length > 255 ? `${description.slice(0, 252)}...` : description;
+  },
   workloadSecurityGroupGroupDescription(workloadName: string, stackName: string) {
     return `Security group associated with ${workloadName} in stack ${stackName}`;
   },

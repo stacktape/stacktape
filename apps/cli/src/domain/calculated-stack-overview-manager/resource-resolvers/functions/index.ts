@@ -1,4 +1,5 @@
 import type { Environment, FunctionProperties } from '@stacktape/cloudformation/resources/aws-lambda-function';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaName } from '@config';
@@ -16,6 +17,7 @@ import { getLambdaRuntime, getLambdaTracingRoleStatements } from '@domain-servic
 import { tuiManager } from '@application-services/tui-manager';
 
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
+import { getVpcLambdaSecurityGroup } from '@domain-services/config-manager/utils/lambda-security-groups';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { domainManager } from '@domain-services/domain-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
@@ -79,11 +81,11 @@ import {
   getCodeDeployDeploymentGroup,
   getLambdaAliasResource,
   getLambdaFunctionRole,
-  getLambdaFunctionSecurityGroup,
   getLambdaLogGroup,
   getLambdaPublicUrlPermissions,
   getLambdaUrl,
-  getLambdaVersionPublisherCustomResource
+  getLambdaVersionPublisherCustomResource,
+  getVpcFunctionsSecurityGroup
 } from './utils';
 import type { JsBundleLambdaPackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
@@ -363,15 +365,31 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       VpcConfig: { SecurityGroupIds: [devNetwork!.securityGroupId], SubnetIds: devNetwork!.subnetIds }
     });
   } else if (joinDefaultVpc) {
-    const securityGroupLogicalName = cfLogicalNames.workloadSecurityGroup(name);
-    calculatedStackOverviewManager.addCfChildResource({
+    // Functions with the same connections share a security group, so Lambda reuses its network interfaces for them.
+    const {
       cfLogicalName: securityGroupLogicalName,
-      resource: getLambdaFunctionSecurityGroup({
-        stackName,
-        stpFunctionName: name
-      }),
-      nameChain
-    });
+      scopeId,
+      connectedTo,
+      previousSecurityGroup
+    } = getVpcLambdaSecurityGroup({ lambda: lambdaProps, activeConfig: configManager });
+    if (!templateManager.getCfResourceFromTemplate(securityGroupLogicalName)) {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: securityGroupLogicalName,
+        resource: getVpcFunctionsSecurityGroup({ stackName, scopeId, connectedTo }),
+        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      });
+    }
+    if (previousSecurityGroup && !templateManager.getCfResourceFromTemplate(previousSecurityGroup.cfLogicalName)) {
+      // Kept unchanged for the deploy that moves the function out of it, so its connections keep working meanwhile.
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: previousSecurityGroup.cfLogicalName,
+        resource: previousSecurityGroup.resource as AnyCloudFormationResource,
+        nameChain:
+          previousSecurityGroup.cfLogicalName === cfLogicalNames.workloadSecurityGroup(name)
+            ? nameChain
+            : [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      });
+    }
     Object.assign(lambdaFunctionResource.Properties, {
       VpcConfig: {
         SecurityGroupIds: [ref(securityGroupLogicalName)],

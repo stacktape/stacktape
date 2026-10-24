@@ -161,14 +161,16 @@ export const getOpenSearchDomainSecurityGroup = ({ resource }: { resource: StpOp
     resource.accessibility.accessibilityMode === 'vpc'
       ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: 443, ToPort: 443, IpProtocol: 'tcp' }]
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
-        ? getConnectToReferencesForResource({ activeConfig: configManager, nameChain: resource.nameChain }).map(
-            ({ scopingCfLogicalNameOfSecurityGroup }) => ({
-              SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
-              FromPort: 443,
-              ToPort: 443,
-              IpProtocol: 'tcp'
-            })
-          ) || []
+        ? getConnectToReferencesForResource({
+            activeConfig: configManager,
+            nameChain: resource.nameChain,
+            admittingCfLogicalName: cfLogicalNames.openSearchSecurityGroup(resource.name)
+          }).map(({ scopingCfLogicalNameOfSecurityGroup }) => ({
+            SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
+            FromPort: 443,
+            ToPort: 443,
+            IpProtocol: 'tcp'
+          })) || []
         : [];
   return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),

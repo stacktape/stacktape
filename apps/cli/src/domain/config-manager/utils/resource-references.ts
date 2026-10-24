@@ -14,14 +14,21 @@ import {
   isResourceTypeRemoteOnlyInDevMode
 } from '@domain-services/config-manager/dev-mode';
 
+import { getAdmittedLambdaSecurityGroups } from './lambda-security-groups';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
+/**
+ * The workloads that connect to a resource and the security groups its own security group (or access list),
+ * `admittingCfLogicalName`, admits for them.
+ */
 export const getConnectToReferencesForResource = ({
   activeConfig,
-  nameChain
+  nameChain,
+  admittingCfLogicalName
 }: {
   activeConfig: ConfigManager;
   nameChain: string | string[];
+  admittingCfLogicalName: string;
 }): { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] => {
   const resourceReferenceableName = typeof nameChain === 'string' ? nameChain : nameChain.join('.');
   const result: { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] = [];
@@ -32,21 +39,31 @@ export const getConnectToReferencesForResource = ({
     ...activeConfig.agentCoreRuntimes
   ].forEach((scopingResource) => {
     const { name, connectTo, type } = scopingResource;
-    if (connectTo) {
-      connectTo.forEach((scopedStpResource) => {
-        if (scopedStpResource === resourceReferenceableName) {
-          result.push({
-            scopingResource,
-            scopingCfLogicalNameOfSecurityGroup:
-              type === 'batch-job'
-                ? cfLogicalNames.batchInstanceDefaultSecurityGroup()
-                : cfLogicalNames.workloadSecurityGroup(name)
-          });
-        }
-      });
+    if (!connectTo?.includes(resourceReferenceableName)) {
+      return;
     }
+    if (type === 'function') {
+      getAdmittedLambdaSecurityGroups({ lambda: scopingResource, activeConfig, admittingCfLogicalName }).forEach(
+        (scopingCfLogicalNameOfSecurityGroup) => result.push({ scopingResource, scopingCfLogicalNameOfSecurityGroup })
+      );
+      return;
+    }
+    result.push({
+      scopingResource,
+      scopingCfLogicalNameOfSecurityGroup:
+        type === 'batch-job'
+          ? cfLogicalNames.batchInstanceDefaultSecurityGroup()
+          : cfLogicalNames.workloadSecurityGroup(name)
+    });
   });
-  return result;
+  // Workloads that share a security group need one ingress rule; EC2 rejects duplicate rules.
+  return result.filter(
+    (entry, index) =>
+      result.findIndex(
+        ({ scopingCfLogicalNameOfSecurityGroup }) =>
+          scopingCfLogicalNameOfSecurityGroup === entry.scopingCfLogicalNameOfSecurityGroup
+      ) === index
+  );
 };
 export const resolveConnectToList = ({
   stpResourceNameOfReferencer,

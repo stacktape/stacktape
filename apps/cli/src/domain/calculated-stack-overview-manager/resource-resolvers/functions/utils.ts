@@ -43,6 +43,21 @@ export const getLambdaFunctionSecurityGroup = ({
     GroupDescription: awsResourceNames.workloadSecurityGroupGroupDescription(stpFunctionName, stackName)
   });
 
+export const getVpcFunctionsSecurityGroup = ({
+  stackName,
+  scopeId,
+  connectedTo
+}: {
+  stackName: string;
+  scopeId?: string;
+  connectedTo: string[];
+}) =>
+  cfnResource('AWS::EC2::SecurityGroup', {
+    VpcId: vpcManager.getVpcId(),
+    GroupName: awsResourceNames.vpcFunctionsSecurityGroup(stackName, scopeId),
+    GroupDescription: awsResourceNames.vpcFunctionsSecurityGroupDescription(stackName, connectedTo)
+  });
+
 export const getLambdaLogGroup = (
   logGroupName: string,
   logRetentionInDays?: number,

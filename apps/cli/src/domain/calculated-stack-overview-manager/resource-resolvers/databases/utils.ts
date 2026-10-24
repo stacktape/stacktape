@@ -51,14 +51,16 @@ export const getDbSecurityGroup = ({ resource }: { resource: StpRelationalDataba
       : resource.accessibility.accessibilityMode === 'vpc'
         ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: databasePort, ToPort: databasePort, IpProtocol: 'tcp' }]
         : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
-          ? getConnectToReferencesForResource({ activeConfig: configManager, nameChain: resource.nameChain }).map(
-              ({ scopingCfLogicalNameOfSecurityGroup }) => ({
-                SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
-                FromPort: databasePort,
-                ToPort: databasePort,
-                IpProtocol: 'tcp'
-              })
-            ) || []
+          ? getConnectToReferencesForResource({
+              activeConfig: configManager,
+              nameChain: resource.nameChain,
+              admittingCfLogicalName: cfLogicalNames.dbSecurityGroup(resource.name)
+            }).map(({ scopingCfLogicalNameOfSecurityGroup }) => ({
+              SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
+              FromPort: databasePort,
+              ToPort: databasePort,
+              IpProtocol: 'tcp'
+            })) || []
           : [];
   return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),

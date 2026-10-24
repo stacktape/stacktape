@@ -66,7 +66,7 @@ export const synthesizeFixture = async ({
   command?: 'dev' | 'synth';
   remoteResources?: string[];
   identity?: Partial<SynthesisIdentity>;
-  /** The template of the stack as deployed, for an update of an existing stack. Only read with `identity`. */
+  /** The template of the stack as deployed, for an update of an existing stack. Default domains read it only with `identity`. */
   deployedTemplate?: CloudFormationTemplate;
   /** Explicit synthetic clients for runtime directives; every other network request stays forbidden. */
   localAws?: MiniStackClientConfig;
@@ -200,6 +200,7 @@ export const synthesizeFixture = async ({
         context: stackContext
       })
     ]);
+    if (deployedTemplate) templateManager.oldTemplate = deployedTemplate;
     await resolveAllResources();
     beforeFinalize?.();
     await finalizeTemplate();

@@ -99,7 +99,6 @@ export const CHILD_RESOURCES: Record<
     { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
     { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
     { logicalName: cfLogicalNames.efsAccessPoint, resourceType: 'AWS::EFS::AccessPoint', conditional: true },
-    { logicalName: cfLogicalNames.workloadSecurityGroup, resourceType: 'AWS::EC2::SecurityGroup', conditional: true },
     { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true },
     {
       logicalName: cfLogicalNames.lambdaPublicUrlPermission,

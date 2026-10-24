@@ -4,6 +4,7 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import type { StpResource, StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '..';
+import { getAdmittedLambdaSecurityGroups } from './lambda-security-groups';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 const resolveReferenceToEfsFilesystem = ({
@@ -60,26 +61,31 @@ export const resolveReferencesToMountedEfsFilesystems = ({
   return resolvedFilesystems;
 };
 
+/** The workloads that mount a filesystem and the security groups its security group `admittingCfLogicalName` admits. */
 export const getMountsForEfsFilesystem = ({
-  efsFileSystemNameChain
+  efsFileSystemNameChain,
+  admittingCfLogicalName
 }: {
   efsFileSystemNameChain: string | string[];
+  admittingCfLogicalName: string;
 }): { mountingResource: StpResource; mountingResourceCfLogicalNameOfSecurityGroup?: string }[] => {
   const resourceReferenceableName =
     typeof efsFileSystemNameChain === 'string' ? efsFileSystemNameChain : efsFileSystemNameChain.join('.');
   const result: { mountingResource: StpResource; mountingResourceCfLogicalNameOfSecurityGroup?: string }[] = [];
   [...configManager.allLambdasToUpload, ...configManager.allContainerWorkloads].forEach((mountingResource) => {
     if (mountingResource.type === 'function') {
-      const { name, volumeMounts } = mountingResource;
-      if (volumeMounts) {
-        volumeMounts.forEach((mount) => {
-          if (mount.type === 'efs' && mount.properties?.efsFilesystemName === resourceReferenceableName) {
-            result.push({
-              mountingResource,
-              mountingResourceCfLogicalNameOfSecurityGroup: cfLogicalNames.workloadSecurityGroup(name)
-            });
-          }
-        });
+      if (
+        mountingResource.volumeMounts?.some(
+          (mount) => mount.type === 'efs' && mount.properties?.efsFilesystemName === resourceReferenceableName
+        )
+      ) {
+        getAdmittedLambdaSecurityGroups({
+          lambda: mountingResource,
+          activeConfig: configManager,
+          admittingCfLogicalName
+        }).forEach((mountingResourceCfLogicalNameOfSecurityGroup) =>
+          result.push({ mountingResource, mountingResourceCfLogicalNameOfSecurityGroup })
+        );
       }
     } else if (mountingResource.type === 'multi-container-workload') {
       const { name, containers } = mountingResource;
@@ -95,5 +101,12 @@ export const getMountsForEfsFilesystem = ({
       });
     }
   });
-  return result;
+  // Functions that share a security group need one ingress rule; EC2 rejects duplicate rules.
+  return result.filter(
+    (entry, index) =>
+      result.findIndex(
+        ({ mountingResourceCfLogicalNameOfSecurityGroup }) =>
+          mountingResourceCfLogicalNameOfSecurityGroup === entry.mountingResourceCfLogicalNameOfSecurityGroup
+      ) === index
+  );
 };
