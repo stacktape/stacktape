@@ -3412,6 +3412,13 @@ stacktape dev network delete --region eu-west-1
 
 Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. The next `stacktape dev` that needs a dev network creates it again.
 
+The command also refuses while someone else depends on the network:
+
+- While a `stacktape dev` session uses it. The command asks the running dev box for its sessions and lists them. A box that has just started may not answer for about a minute; the command then refuses too. `--force` deletes the network anyway, and those sessions lose their connection.
+- While a `stacktape dev` session creates or updates the network. Run the command again when CloudFormation has finished.
+
+A `stacktape dev` that starts while the network is being deleted waits for the deletion to finish and then creates a new network.
+
 Pass `--yes` to skip the confirmation prompt, for example in a script.
 
 ## Flags reference
@@ -3438,6 +3445,7 @@ Pass `--yes` to skip the confirmation prompt, for example in a script.
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--force` | no | `boolean` | Force — Deletes the dev network even while `stacktape dev` sessions use it, or when the command cannot check for them. Those sessions lose their connection to deployed functions. Dev functions still in the network block the deletion even with this flag. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
@@ -3556,6 +3564,7 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
 | `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
 | `--skip-resources` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
+| `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back. | - |
 | `--watch` | no | `boolean` | Watch — If `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected. | - |
 
 
@@ -3634,6 +3643,14 @@ Skips the tunnels from deployed Lambda functions to local databases. Without it,
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --no-tunnel
+```
+
+### --take-over
+
+Moves a stage that another `stacktape dev` session runs, on another machine or in another worktree, to this session. Without it, `stacktape dev` refuses to start a stage whose deployed functions already reach another session's databases, and names that session. With it, the functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back.
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --take-over
 ```
 
 ### --no-emulation
@@ -18564,7 +18581,7 @@ See the network with [`stacktape dev network`](/cli/dev-network) and delete it w
 
 ### Several developers
 
-Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two developers run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one developer's databases. The developer who started first keeps them; the second one is told who holds them and takes over when the first stops.
+Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two sessions run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one session's databases. This applies to two developers, and to one developer on two machines or in two worktrees. The session that started first keeps the stage: the second one stops before it deploys anything and names the session that runs it. To move the stage to the second session, for example from the office desktop to your laptop, start it with [`--take-over`](/cli/dev#take-over); the first session then stops receiving the functions' connections and does not take them back.
 
 ### AWS permissions
 
@@ -19228,7 +19245,7 @@ Yes. Dev mode mounts a local data directory into each database container, so dat
 
 ### Can I run multiple stages locally at the same time?
 
-Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel. Two Git worktrees of the same project can also run the same stage in parallel: each worktree has its own data directory, containers and ports.
+Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel. Two Git worktrees of the same project can also run the same stage in parallel: each worktree has its own data directory, containers and ports. When the stage's deployed Lambda functions use local databases, only one session can receive their connections, so the second session refuses to start unless you pass [`--take-over`](/cli/dev#take-over).
 
 ### Why does dev mode warn that my database keeps the password `localdevpassword`?
 

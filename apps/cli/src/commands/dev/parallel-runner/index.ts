@@ -298,7 +298,7 @@ const connectDevNetwork = async ({
   useDevTui: boolean;
   stackName: string;
 }) => {
-  const { connection, placement, leases, owner } = devNetwork;
+  const { connection, placement, leases, owner, takeOver } = devNetwork;
   let reportFailure!: (reason: string) => void;
   const failed = new Promise<string>((resolve) => (reportFailure = resolve));
   let warnedReason: string | undefined;
@@ -326,7 +326,7 @@ const connectDevNetwork = async ({
   };
   const tunnelsOpened = connection
     .connect()
-    .then((relay) => openRelayTunnels({ relay, placement, leases, owner, stackName, useDevTui }))
+    .then((relay) => openRelayTunnels({ relay, placement, leases, owner, takeOver, stackName, useDevTui }))
     .catch(() => {});
   const failure = await Promise.race([tunnelsOpened.then(() => undefined), failed]);
   if (failure !== undefined && useDevTui) {
@@ -342,9 +342,10 @@ const openRelayTunnels = async ({
   placement,
   leases,
   owner,
+  takeOver,
   stackName,
   useDevTui
-}: Pick<DevNetworkSession, 'placement' | 'leases' | 'owner'> & {
+}: Pick<DevNetworkSession, 'placement' | 'leases' | 'owner' | 'takeOver'> & {
   relay: RelayEndpoint;
   stackName: string;
   useDevTui: boolean;
@@ -364,7 +365,8 @@ const openRelayTunnels = async ({
           localPort: localResource.actualPort,
           lease: { port: leases.get(resourceName)!, key: `${stackName}/${resourceName}` },
           owner,
-          relay
+          relay,
+          takeOver
         });
         if ('tunnel' in result) {
           state.relayTunnels.push(result.tunnel);

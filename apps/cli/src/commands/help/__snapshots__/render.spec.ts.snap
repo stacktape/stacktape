@@ -224,6 +224,7 @@ Options:
       --resources <value>          Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use all to run all resources without prompting. Examples: --resources myApi, --resources myApi,myDb, or --resources all.
       --skip-resources <value>     Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: --skip-resources myHeavyDb, --skip-resources fn1,fn2.
       --fresh-db                   If true, deletes existing local database data before starting. Use this to start with a clean database state.
+      --take-over                  Moves a stage that another stacktape dev session runs, on another machine or in another terminal, to this session. Without this flag, stacktape dev refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back.
 
 Global options:
   -h, --help               Show help for a command or group

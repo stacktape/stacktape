@@ -191,7 +191,7 @@ See the network with [`stacktape dev network`](/cli/dev-network) and delete it w
 
 ### Several developers
 
-Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two developers run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one developer's databases. The developer who started first keeps them; the second one is told who holds them and takes over when the first stops.
+Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two sessions run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one session's databases. This applies to two developers, and to one developer on two machines or in two worktrees. The session that started first keeps the stage: the second one stops before it deploys anything and names the session that runs it. To move the stage to the second session, for example from the office desktop to your laptop, start it with [`--take-over`](/cli/dev#take-over); the first session then stops receiving the functions' connections and does not take them back.
 
 ### AWS permissions
 

@@ -18,6 +18,9 @@ test.skipIf(process.platform !== 'linux')(
       profile: 'stacktape-e2e',
       region: 'eu-west-1'
     });
+    expect(resolveLambdaDevOptions({ ...valid, STP_AWS_LAMBDA_DEV_REGION: 'eu-central-1' }).region).toBe(
+      'eu-central-1'
+    );
     for (const override of [
       { STP_AWS_LAMBDA_DEV_DEPLOY: undefined },
       { STP_AWS_LAMBDA_DEV_CONFIRM_DISPOSABLE: undefined },
@@ -26,7 +29,8 @@ test.skipIf(process.platform !== 'linux')(
       { STP_AWS_LAMBDA_DEV_STATE_FILE: 'relative.json' },
       { STP_AWS_LAMBDA_DEV_OWNER: '../unsafe' },
       { STP_AWS_LAMBDA_DEV_REPORT: 'relative-report.json' },
-      { AWS_ENDPOINT_URL_LAMBDA: 'http://127.0.0.1:4566' }
+      { AWS_ENDPOINT_URL_LAMBDA: 'http://127.0.0.1:4566' },
+      { STP_AWS_LAMBDA_DEV_REGION: 'us-east-1' }
     ])
       expect(() => resolveLambdaDevOptions({ ...valid, ...override })).toThrow();
   }

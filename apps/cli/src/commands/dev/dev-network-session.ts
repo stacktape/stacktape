@@ -1,7 +1,9 @@
 import type { DevNetwork, DevNetworkAws } from '@domain-services/dev-network';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
-import type { RelayOwner } from './tunnel-manager';
+import type { RelayEndpoint, RelayOwner, RelaySessionInfo } from './tunnel-manager';
+import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -10,14 +12,14 @@ import { createDevNetworkAws, ensureDevNetwork } from '@domain-services/dev-netw
 import { ensureLeases } from '@domain-services/dev-network/leases';
 import type { StackContext } from '@domain-services/stack-context';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { SsmPortForwardingTunnel } from '@utils/ssm-session';
+import { CliError } from '@utils/errors';
 import findFreePorts from 'find-free-ports';
 import { recordDevBoxSession } from './agent-daemon';
 import { createCleanupHook } from './cleanup-utils';
-import { DevBoxConnection } from './dev-box';
+import { DevBoxConnection, openDevBoxRelaySession } from './dev-box';
 import { getLocalEmulateableResources, getRelayedLocalResource } from './local-resources';
 import { getResourceParamReferences } from './resource-references';
-import { holdRelayPresence, pingRelay } from './tunnel-manager';
+import { holdRelayPresence, listRelaySessions, pingRelay } from './tunnel-manager';
 
 export type DevNetworkSession = {
   network: DevNetwork;
@@ -26,6 +28,8 @@ export type DevNetworkSession = {
   /** The leased relay port of each relayed local resource. */
   leases: Map<string, number>;
   owner: RelayOwner;
+  /** `--take-over`: the tunnels replace those of another session of this stage. */
+  takeOver: boolean;
 };
 
 let session: DevNetworkSession | undefined;
@@ -70,8 +74,69 @@ const getOwner = (): RelayOwner => {
   const user = globalStateManager.userData;
   return {
     id: user?.id || `${process.env.USER || 'developer'}@${hostname()}`,
-    label: `${user?.name || user?.email || process.env.USER || 'another developer'} (${hostname()})`
+    label: `${user?.name || user?.email || process.env.USER || 'another developer'} (${hostname()})`,
+    session: randomUUID()
   };
+};
+
+/** How long the stage check waits for a running box's relay; after that the tunnels' own refusal decides. */
+const STAGE_CHECK_TIMEOUT_MS = 45_000;
+
+/**
+ * Refuses to start a stage that another `stacktape dev` session runs, before this one deploys anything: both would
+ * deploy their function code, and only one can receive the deployed functions' database connections. A live session
+ * keeps the box running, so a box that is not running needs no check. With `takeOver`, it reports whom it replaces.
+ */
+export const assertStageNotRunningElsewhere = async ({
+  boxState,
+  relay,
+  listSessions,
+  stackName,
+  owner,
+  takeOver,
+  timeoutMs = STAGE_CHECK_TIMEOUT_MS
+}: {
+  boxState: string | undefined;
+  relay: () => Promise<Pick<RelayEndpoint, 'controlHost' | 'controlPort'>>;
+  listSessions: (
+    relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>,
+    stack: string
+  ) => Promise<RelaySessionInfo[]>;
+  stackName: string;
+  owner: RelayOwner;
+  takeOver: boolean;
+  timeoutMs?: number;
+}) => {
+  if (boxState !== 'running' && boxState !== 'pending') return;
+  const timeout = new AbortController();
+  const endpoint = await Promise.race([
+    relay(),
+    delay(timeoutMs, undefined, { signal: timeout.signal }).then(
+      () => undefined,
+      () => undefined
+    )
+  ]).finally(() => timeout.abort());
+  if (!endpoint) return;
+  const others = (await listSessions(endpoint, stackName).catch(() => [])).filter(
+    ({ session }) => session !== owner.session
+  );
+  if (!others.length) return;
+  const holders = others
+    .map(({ label, since }) => `${label}, since ${new Date(since * 1000).toLocaleTimeString()}`)
+    .join('; ');
+  if (takeOver) {
+    tuiManager.info(`Taking over dev mode for ${stackName} from ${holders}.`);
+    return;
+  }
+  throw new CliError({
+    category: 'CLI',
+    code: 'DEV_STAGE_RUNNING_ELSEWHERE',
+    message: `Dev mode for ${stackName} already runs in another session: ${holders}.`,
+    hints: [
+      'Stop that session first, or run this command again with `--take-over` to move the stage to this machine.',
+      'With `--take-over`, deployed functions reach the databases on this machine, and the other session stops receiving their connections.'
+    ]
+  });
 };
 
 const COST_EXPLANATION = [
@@ -97,11 +162,13 @@ const registerSessionCleanupHook = createCleanupHook('dev-network', async () => 
 export const startDevNetworkSession = async ({
   stackContext,
   noTunnel,
+  takeOver,
   orphanedSessionId,
   aws = createDevNetworkAws()
 }: {
   stackContext: Pick<StackContext, 'stackName' | 'projectName' | 'stage'>;
   noTunnel: boolean;
+  takeOver: boolean;
   /** The SSM session of a killed earlier session of this stage, ended before the new one opens. */
   orphanedSessionId?: string;
   aws?: DevNetworkAws;
@@ -119,50 +186,54 @@ export const startDevNetworkSession = async ({
   }
   if (!Object.keys(functions).length) return undefined;
 
-  const { network } = await ensureDevNetwork({ aws, onCreate: () => tuiManager.info(COST_EXPLANATION.join(' ')) });
+  const { network } = await ensureDevNetwork({
+    aws,
+    onCreate: () => tuiManager.info(COST_EXPLANATION.join(' ')),
+    onDeletionWait: () =>
+      tuiManager.info('The dev network is being deleted. Waiting for the deletion to finish, then creating it again.')
+  });
   const owner = getOwner();
   registerSessionCleanupHook();
   const connection = new DevBoxConnection({
     network,
     owner,
+    stackName,
     deps: {
       aws,
       onSession: (sessionId) => recordDevBoxSession(sessionId, projectName, stage),
       findFreePort: async () => (await findFreePorts(1))[0],
       pingRelay,
       holdPresence: holdRelayPresence,
-      openSession: async ({ instanceId, localPort, remotePort }) => {
-        const tunnel = new SsmPortForwardingTunnel({
-          localPort,
-          targetInfo: {
-            bastionInstanceId: instanceId,
-            remoteHost: '127.0.0.1',
-            remotePort,
-            label: 'dev box relay',
-            targetStpName: 'devBox'
-          }
-        });
-        try {
-          await tunnel.connect();
-        } catch (error) {
-          await tunnel.kill().catch(() => {});
-          throw error;
-        }
-        return tunnel;
-      }
+      openSession: openDevBoxRelaySession
     }
   });
+  // Read before the connection starts a stopped box: only a box that already runs can have a session of this stage.
+  const boxState = (await aws.describeBox(network.boxInstanceId))?.state;
   // The connection starts the box and connects while the dev stack deploys and the local databases start. Its presence
   // connection keeps a box that has been idle for almost 30 minutes from stopping itself meanwhile.
   void connection.connect();
-
   const relayedNames = [...new Set(Object.values(functions).flat())];
-  const leases = await ensureLeases({
-    store: aws.leases,
-    networkName: network.stackName,
-    stackName,
-    resourceNames: relayedNames
-  });
+  let leases: Map<string, number>;
+  try {
+    await assertStageNotRunningElsewhere({
+      boxState,
+      relay: connection.connect,
+      listSessions: listRelaySessions,
+      stackName,
+      owner,
+      takeOver
+    });
+    leases = await ensureLeases({
+      store: aws.leases,
+      networkName: network.stackName,
+      stackName,
+      resourceNames: relayedNames
+    });
+  } catch (error) {
+    // The session is not recorded yet, so the cleanup hook would not end this connection.
+    await connection.stop();
+    throw error;
+  }
   const localResources: DevNetworkPlacement['localResources'] = {};
   for (const resourceName of relayedNames) {
     const relayed = await getRelayedLocalResource(resourceName, {
@@ -178,6 +249,6 @@ export const startDevNetworkSession = async ({
     localResources
   };
   configManager.setDevNetworkPlacement(placement);
-  session = { network, connection, placement, leases, owner };
+  session = { network, connection, placement, leases, owner, takeOver };
   return session;
 };

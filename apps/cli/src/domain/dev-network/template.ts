@@ -3,7 +3,7 @@ import { cfnResource, type CloudFormationTemplate } from '@stacktape/cloudformat
 import { getDevBoxUserData } from './boot-script';
 
 /** Increment when the template changes: an older network is updated on the next `stacktape dev` that uses it. */
-export const DEV_NETWORK_CONTRACT_VERSION = 1;
+export const DEV_NETWORK_CONTRACT_VERSION = 2;
 export const DEV_NETWORK_KIND = 'dev-network';
 export const DEV_BOX_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64';
 export const DEV_BOX_INSTANCE_TYPE = 't4g.nano';
@@ -145,13 +145,16 @@ export const buildDevNetworkTemplate = ({ networkName }: { networkName: string }
     Keeper: cfnResource('AWS::Lambda::Function', {
       FunctionName: `${networkName}-keeper`,
       Description: 'Keeps the network interfaces of Stacktape dev functions ready. Never invoked.',
-      Runtime: 'nodejs22.x',
+      // A runtime whose function updates Lambda blocks would block every update of this stack. Python 3.14 is supported
+      // as long as the OS-only `provided.al2023` (both until June 2029, with Amazon Linux 2023) and, unlike it, takes
+      // inline code; Node.js 24 ends in April 2028.
+      Runtime: 'python3.14',
       Architectures: ['arm64'],
       Handler: 'index.handler',
       MemorySize: 128,
       Timeout: 3,
       Role: getAtt('KeeperRole', 'Arn'),
-      Code: { ZipFile: 'exports.handler = async () => null;' },
+      Code: { ZipFile: 'def handler(event, context):\n    return None\n' },
       VpcConfig: {
         SubnetIds: [ref('PrivateSubnet0'), ref('PrivateSubnet1')],
         SecurityGroupIds: [ref('LambdaSecurityGroup')]

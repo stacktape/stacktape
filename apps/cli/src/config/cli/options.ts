@@ -220,6 +220,14 @@ export const freshDb = z.boolean().describe(`#### Fresh Database
 ---
 If \`true\`, deletes existing local database data before starting. Use this to start with a clean database state.`);
 
+export const takeOver = z.boolean().describe(`#### Take Over
+---
+Moves a stage that another \`stacktape dev\` session runs, on another machine or in another terminal, to this session. Without this flag, \`stacktape dev\` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, and the other session stops receiving their connections without trying to take them back.`);
+
+export const forceDevNetworkDelete = z.boolean().describe(`#### Force
+---
+Deletes the dev network even while \`stacktape dev\` sessions use it, or when the command cannot check for them. Those sessions lose their connection to deployed functions. Dev functions still in the network block the deletion even with this flag.`);
+
 export const startTime = z.union([z.number(), z.string()]).describe(`#### Start Time
 ---
 The start time from which to print logs. This can be any format accepted by the JavaScript \`Date\` constructor.`);
@@ -675,6 +683,8 @@ export const allCliArgsSchema = z.object({
   ui: ui.optional(),
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),
+  takeOver: takeOver.optional(),
+  force: forceDevNetworkDelete.optional(),
   limit: limit.optional(),
   stackName: stackName.optional(),
   secretName: secretName.optional(),

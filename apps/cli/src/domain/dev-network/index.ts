@@ -114,12 +114,56 @@ const readOutputs = (stackName: string, stack: SharedStackDetails): DevNetwork =
   };
 };
 
+/** A CloudFormation operation other than a deletion runs on the stack: a `stacktape dev` session creates or updates it. */
+const isBeingChanged = (status: string | undefined) =>
+  Boolean(status?.endsWith('_IN_PROGRESS') && status !== 'DELETE_IN_PROGRESS');
+
+const devNetworkBusyError = (stackName: string, status: string | undefined) =>
+  new CliError({
+    category: 'CLOUDFORMATION',
+    code: 'DEV_NETWORK_BUSY',
+    message: `The dev network stack \`${stackName}\` is being ${status?.startsWith('CREATE') ? 'created' : 'updated'} (${status}), most likely by a \`stacktape dev\` session that just started.`,
+    hints: 'Run the command again once CloudFormation has finished, in a few minutes.'
+  });
+
 /** The network as deployed, or `undefined` when this account and region has none. */
 export const readDevNetwork = async (aws: DevNetworkAws): Promise<DevNetwork | undefined> => {
   const stackName = getDevNetworkName();
   const stack = await aws.stacks.get(stackName);
   if (!stack || stack.StackStatus === 'DELETE_COMPLETE') return undefined;
+  // A network being created has no outputs yet.
+  if (isBeingChanged(stack.StackStatus) && !stack.Outputs?.length)
+    throw devNetworkBusyError(stackName, stack.StackStatus);
   return readOutputs(stackName, stack);
+};
+
+/** Waits until a deletion that runs ends: `stacktape dev network delete` may run while a session starts. */
+const waitForDeletion = async ({
+  aws,
+  stackName,
+  pollIntervalMs,
+  timeoutMs
+}: {
+  aws: DevNetworkAws;
+  stackName: string;
+  pollIntervalMs: number;
+  timeoutMs: number;
+}) => {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const stack = await aws.stacks.get(stackName);
+    if (!stack || stack.StackStatus === 'DELETE_COMPLETE') return;
+    if (stack.StackStatus !== 'DELETE_IN_PROGRESS' || Date.now() > deadline) {
+      throw new CliError({
+        category: 'CLOUDFORMATION',
+        code: 'DEV_NETWORK_DELETE_FAILED',
+        message: `The dev network stack \`${stackName}\` is ${stack.StackStatus === 'DELETE_IN_PROGRESS' ? 'still being deleted' : `in state ${stack.StackStatus} after a deletion`}.`,
+        hints:
+          'Run `stacktape dev network delete` to finish the deletion, then run `stacktape dev` again; it creates a new network.'
+      });
+    }
+    await delay(pollIntervalMs);
+  }
 };
 
 /**
@@ -129,14 +173,22 @@ export const readDevNetwork = async (aws: DevNetworkAws): Promise<DevNetwork | u
 export const ensureDevNetwork = async ({
   aws,
   onCreate,
+  onDeletionWait,
   pollIntervalMs
 }: {
   aws: DevNetworkAws;
   onCreate: () => void;
+  /** Called when a deletion of the network runs, before this waits for it to end and creates the network again. */
+  onDeletionWait?: () => void;
   pollIntervalMs?: number;
 }): Promise<{ network: DevNetwork; action: 'create' | 'upgrade' | 'reuse' }> => {
   const stackName = getDevNetworkName();
-  const existing = await aws.stacks.get(stackName);
+  let existing = await aws.stacks.get(stackName);
+  if (existing?.StackStatus === 'DELETE_IN_PROGRESS' || existing?.StackStatus === 'DELETE_FAILED') {
+    if (existing.StackStatus === 'DELETE_IN_PROGRESS') onDeletionWait?.();
+    await waitForDeletion({ aws, stackName, pollIntervalMs: pollIntervalMs ?? 5000, timeoutMs: 20 * 60_000 });
+    existing = undefined;
+  }
   const manager = new SharedResourceStackManager({ adapter: aws.stacks, pollIntervalMs });
   const { action } = await manager.ensure({
     kind: DEV_NETWORK_KIND,
@@ -154,8 +206,8 @@ export const ensureDevNetwork = async ({
     throw new CliError({
       category: 'CLOUDFORMATION',
       code: 'DEV_NETWORK_DISAPPEARED',
-      message: `The dev network stack \`${stackName}\` disappeared while it was being prepared.`,
-      hints: 'Run `stacktape dev` again.'
+      message: `The dev network stack \`${stackName}\` disappeared while it was being prepared: \`stacktape dev network delete\` probably deleted it.`,
+      hints: 'Run `stacktape dev` again; it creates a new network.'
     });
   }
   return { network: readOutputs(stackName, stack), action };
@@ -251,46 +303,105 @@ export const waitForDevBoxOnline = async ({
   });
 };
 
+/** A live `stacktape dev` session in the network, as the relay reports it. */
+export type LiveDevSession = { stack: string; label: string; since: number };
+
 /**
- * Deletes the network and its leases. Dev functions still in the network would keep its subnets in use and make the
- * deletion fail after many minutes, so their presence refuses the deletion up front.
+ * Deletes the network and its leases. It refuses up front, instead of failing after many minutes or breaking someone's
+ * session:
+ * - while CloudFormation creates or updates the network, which a starting `stacktape dev` session does;
+ * - while `stacktape dev` sessions use the network, unless `force`. A session keeps the box running, so only a running
+ *   or starting box is asked; a box whose sessions cannot be listed refuses too;
+ * - while dev functions are in the network: they keep its subnets in use, and the deletion would fail.
+ *
+ * The stack state is read again right before the deletion, so an update a session started meanwhile is not cut off.
+ * A deletion that runs already is waited for.
  */
 export const deleteDevNetwork = async ({
   aws,
   network,
+  force = false,
+  findLiveSessions,
   pollIntervalMs = 5000,
   timeoutMs = 20 * 60_000
 }: {
   aws: DevNetworkAws;
   network: DevNetwork;
+  force?: boolean;
+  /** Lists the sessions through the relay of a running box; rejects when it cannot. */
+  findLiveSessions: (network: DevNetwork) => Promise<LiveDevSession[]>;
   pollIntervalMs?: number;
   timeoutMs?: number;
 }) => {
-  const users = (await aws.listFunctionsInSecurityGroup(network.lambdaSecurityGroupId)).filter(
-    (name) => name !== network.keeperFunctionName
-  );
-  if (users.length) {
-    throw new CliError({
-      category: 'CLI',
-      code: 'DEV_NETWORK_IN_USE',
-      message: `The dev network is still used by ${users.length} dev function${users.length === 1 ? '' : 's'}: ${users.join(', ')}.`,
-      hints: 'Delete the dev stages they belong to first, with `stacktape delete --stage <stage>`.'
-    });
+  const assertNotBeingChanged = async () => {
+    const stack = await aws.stacks.get(network.stackName);
+    if (isBeingChanged(stack?.StackStatus)) throw devNetworkBusyError(network.stackName, stack?.StackStatus);
+    return stack;
+  };
+  const stack = await assertNotBeingChanged();
+  if (stack && stack.StackStatus !== 'DELETE_IN_PROGRESS') {
+    const box = await aws.describeBox(network.boxInstanceId);
+    if (!force && (box?.state === 'running' || box?.state === 'pending')) {
+      let sessions: LiveDevSession[];
+      try {
+        sessions = await findLiveSessions(network);
+      } catch (error) {
+        throw new CliError({
+          category: 'CLI',
+          code: 'DEV_NETWORK_SESSIONS_UNKNOWN',
+          message: `The dev box runs, so a \`stacktape dev\` session may use the network, but its sessions could not be listed: ${(error as Error).message}.`,
+          hints: [
+            'Run the command again in a minute. A box that has just started needs about a minute to answer.',
+            'To delete the network anyway, add `--force`; sessions that use it lose their connection.'
+          ]
+        });
+      }
+      if (sessions.length) {
+        const listed = sessions
+          .map(
+            ({ stack: stackName, label, since }) =>
+              `${stackName} (${label}, since ${new Date(since * 1000).toLocaleTimeString()})`
+          )
+          .join(', ');
+        throw new CliError({
+          category: 'CLI',
+          code: 'DEV_NETWORK_SESSIONS_LIVE',
+          message: `\`stacktape dev\` sessions use the dev network: ${listed}.`,
+          hints: [
+            'Stop those sessions, then delete their dev stages with `stacktape delete --stage <stage>`.',
+            'To delete the network anyway, add `--force`; those sessions lose their connection.'
+          ]
+        });
+      }
+    }
+    const users = (await aws.listFunctionsInSecurityGroup(network.lambdaSecurityGroupId)).filter(
+      (name) => name !== network.keeperFunctionName
+    );
+    if (users.length) {
+      throw new CliError({
+        category: 'CLI',
+        code: 'DEV_NETWORK_IN_USE',
+        message: `The dev network is still used by ${users.length} dev function${users.length === 1 ? '' : 's'}: ${users.join(', ')}.`,
+        hints: 'Delete the dev stages they belong to first, with `stacktape delete --stage <stage>`.'
+      });
+    }
+    // A session may have started creating or updating the network while the checks above ran.
+    await assertNotBeingChanged();
+    await aws.stacks.delete(network.stackName);
   }
-  await aws.stacks.delete(network.stackName);
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const stack = await aws.stacks.get(network.stackName);
-    if (!stack || stack.StackStatus === 'DELETE_COMPLETE') break;
+    const current = await aws.stacks.get(network.stackName);
+    if (!current || current.StackStatus === 'DELETE_COMPLETE') break;
     if (Date.now() > deadline) {
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_DELETE_TIMEOUT',
-        message: `The dev network stack \`${network.stackName}\` is still being deleted (${stack.StackStatus}).`,
+        message: `The dev network stack \`${network.stackName}\` is still being deleted (${current.StackStatus}).`,
         hints: 'Run the command again later; it continues the deletion.'
       });
     }
-    if (stack.StackStatus === 'DELETE_FAILED') {
+    if (current.StackStatus === 'DELETE_FAILED') {
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_DELETE_FAILED',

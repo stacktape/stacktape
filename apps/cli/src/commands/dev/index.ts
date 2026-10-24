@@ -557,6 +557,7 @@ export const commandDev = async () => {
     devNetworkSession = await startDevNetworkSession({
       stackContext,
       noTunnel: Boolean(args.noTunnel),
+      takeOver: Boolean(args.takeOver),
       orphanedSessionId: orphanedDevBoxSessionId
     });
     devNetworkSpinner.success();

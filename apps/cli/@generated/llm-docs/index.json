@@ -15929,6 +15929,7 @@
         "page:/cli/dev#remote-resources",
         "page:/cli/dev#fresh-db",
         "page:/cli/dev#no-tunnel",
+        "page:/cli/dev#take-over",
         "page:/cli/dev#no-emulation",
         "page:/cli/dev#agent-agent-port",
         "page:/cli/dev#interactive-commands",

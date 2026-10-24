@@ -9,7 +9,14 @@ import { applicationManager } from '@application-services/application-manager';
 import type { DevNetworkAws } from '@domain-services/dev-network';
 import { DEV_BOX_RELAY_SOURCE } from '@domain-services/dev-network/relay-source';
 import { DevBoxConnection } from '../dev-box';
-import { getActiveTunnels, holdRelayPresence, pingRelay, registerTunnelCleanupHook, startTunnel } from './index';
+import {
+  getActiveTunnels,
+  holdRelayPresence,
+  listRelaySessions,
+  pingRelay,
+  registerTunnelCleanupHook,
+  startTunnel
+} from './index';
 
 // The relay the dev box runs, under the Python 3 of this machine (the box has 3.9), driven by the CLI's own client.
 // Tunnel ports listen on loopback here instead of the box's private IP.
@@ -67,8 +74,8 @@ const stopRelay = async () => {
 };
 
 const relay = () => ({ controlHost: '127.0.0.1', controlPort, relayHost: '127.0.0.1' });
-const alice = { id: 'user-alice', label: 'Alice (alice-laptop)' };
-const bob = { id: 'user-bob', label: 'Bob (bob-laptop)' };
+const alice = { id: 'user-alice', label: 'Alice (alice-laptop)', session: 'alice-laptop-session' };
+const bob = { id: 'user-bob', label: 'Bob (bob-laptop)', session: 'bob-laptop-session' };
 
 /** One request through a tunnel port: the local database echoes it with a prefix, binary bytes included. */
 const query = (port: number, payload: Buffer) =>
@@ -135,6 +142,57 @@ test('a leased tunnel carries binary database traffic, refuses another developer
   expect(String(await query(leasePort, Buffer.from('select 1')))).toBe('db:select 1');
   await cleanUpTunnels();
   expect(getActiveTunnels()).toHaveLength(0);
+  await stopRelay();
+}, 30_000);
+
+test('a second session of the same developer is refused instead of taking the port in turn, and --take-over moves it once', async () => {
+  // The same Stacktape user on a laptop and on a desktop: one owner, two `stacktape dev` processes.
+  const laptop = alice;
+  const desktop = { ...alice, label: 'Alice (alice-desktop)', session: 'alice-desktop-session' };
+  await startRelay({ idleSeconds: 3600 });
+  relayOutput = '';
+  const leasePort = await freePort();
+  const localPort = (database.address() as AddressInfo).port;
+  const lease = { port: leasePort, key: 'shop-dev/db' };
+  const presence = new AbortController();
+  const held = holdRelayPresence({ relay: relay(), owner: laptop, stack: 'shop-dev', signal: presence.signal });
+  expect('tunnel' in (await startTunnel({ resourceName: 'db', localPort, lease, owner: laptop, relay: relay() }))).toBe(
+    true
+  );
+
+  // The stage check of `stacktape dev` finds the laptop's session, once, from its tunnel and its presence.
+  await waitFor('the presence to register', async () => (await listRelaySessions(relay(), 'shop-dev')).length > 0);
+  expect(await listRelaySessions(relay(), 'shop-dev')).toEqual([
+    { stack: 'shop-dev', session: laptop.session, owner: laptop.id, label: laptop.label, since: expect.any(Number) }
+  ]);
+  expect(await listRelaySessions(relay(), 'other-dev')).toEqual([]);
+
+  const refused = await startTunnel({ resourceName: 'db', localPort, lease, owner: desktop, relay: relay() });
+  expect(refused).toMatchObject({ refused: { label: laptop.label } });
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  expect(relayOutput).not.toContain('taken over');
+  expect(getActiveTunnels()).toHaveLength(1);
+
+  // An explicit take-over replaces the laptop's tunnel; the laptop is told and does not ask for the port again.
+  const [laptopTunnel] = getActiveTunnels();
+  const tookOver = await startTunnel({
+    resourceName: 'db',
+    localPort,
+    lease,
+    owner: desktop,
+    relay: relay(),
+    takeOver: true
+  });
+  expect('tunnel' in tookOver).toBe(true);
+  await waitFor('the laptop to learn about the take-over', () => laptopTunnel.process.takenOverBy === desktop.label);
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  expect(relayOutput.match(/taken over/g)).toHaveLength(1);
+  expect(getActiveTunnels()).toEqual([('tunnel' in tookOver && tookOver.tunnel) as never]);
+  expect(String(await query(leasePort, Buffer.from('select 2')))).toBe('db:select 2');
+
+  presence.abort();
+  await held;
+  await cleanUpTunnels();
   await stopRelay();
 }, 30_000);
 

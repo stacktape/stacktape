@@ -6,8 +6,12 @@
  * 2. arm64 and x86_64 functions query local PostgreSQL (initial and edited rows), one pings local Redis, and a VPC
  *    function queries PostgreSQL and reaches the internet through the box;
  * 3. laptop reconnect: the SSM plugin is killed and the functions reach the database again;
- * 4. box stop and wake: the box is stopped as its idle stop would, and the next `dev --agent` starts it;
- * 5. deletion: `delete` of the dev stage and `dev network delete`, then AWS is queried for every owned resource.
+ * 4. one stage, two machines: a copy of the project in another directory stands for the same developer's second
+ *    machine. Its `dev --agent` of the running stage is refused before it deploys anything, `dev network delete` is
+ *    refused while the session runs, and `--takeOver` moves the stage once, without the two sessions taking the
+ *    relay ports from each other in turn (the relay's log on the box is read through SSM Run Command);
+ * 5. box stop and wake: the box is stopped as its idle stop would, and the next `dev --agent` starts it;
+ * 6. deletion: `delete` of the dev stage and `dev network delete`, then AWS is queried for every owned resource.
  *
  * Timings go to the report file. Recovery state is written before anything is created; `--cleanup-only` resumes it.
  */
@@ -33,7 +37,9 @@ import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand }
 import {
   DeleteParametersCommand,
   DescribeSessionsCommand,
+  GetCommandInvocationCommand,
   GetParametersByPathCommand,
+  SendCommandCommand,
   SSMClient,
   TerminateSessionCommand
 } from '@aws-sdk/client-ssm';
@@ -66,12 +72,15 @@ export const resolveLambdaDevOptions = (env: Record<string, string | undefined> 
     'Endpoint overrides are forbidden.'
   );
   check(process.platform === 'linux', 'This canary currently qualifies Linux only.');
+  // Concurrent runs of different tasks use different regions, so their dev networks and quotas do not meet.
+  const region = env[`${PREFIX}REGION`] ?? 'eu-west-1';
+  check(region === 'eu-west-1' || region === 'eu-central-1', 'The region must be eu-west-1 or eu-central-1.');
   return {
     accountId,
     stateFile,
     owner,
     reportFile,
-    region: 'eu-west-1' as const,
+    region,
     profile: 'stacktape-e2e'
   };
 };
@@ -145,10 +154,11 @@ const FUNCTIONS = ['queryArm', 'queryX86', 'vpcEgress'] as const;
 /** The fixture's local PostgreSQL password; the local database runs only on this machine, behind the dev box. */
 const DATABASE_PASSWORD = 'lambda-dev-canary-db-password';
 const projectDirectory = (state: State) => join(state.directory, 'project');
+/** The same project on the developer's second machine: its own containers, databases and agent registry. */
+const secondMachineDirectory = (state: State) => join(state.directory, 'second-machine');
 
 /** The fixture: the canary writes it per run, with `pg` imported from this checkout, so it needs no install. */
-const writeFixture = async (state: State) => {
-  const directory = projectDirectory(state);
+const writeFixture = async (state: State, directory = projectDirectory(state)) => {
   await mkdir(join(directory, 'src'), { recursive: true });
   const pg = join(CLI_DIRECTORY, 'node_modules/pg/lib/index.js');
   await writeFile(
@@ -300,7 +310,7 @@ const runCli = async (options: Options, state: State, args: string[], timeoutMs 
       try {
         const value = JSON.parse(line) as { type?: string };
         return value?.type === 'result'
-          ? [value as { ok?: boolean; data?: { result?: unknown }; message?: string }]
+          ? [value as { ok?: boolean; code?: string; data?: { result?: unknown }; message?: string }]
           : [];
       } catch {
         return [];
@@ -310,9 +320,9 @@ const runCli = async (options: Options, state: State, args: string[], timeoutMs 
   return { exitCode, result, output: `${stdout}\n${stderr}` };
 };
 
-const stackArgs = (options: Options, state: State, stage = STAGE) => [
+const stackArgs = (options: Options, state: State, stage = STAGE, directory = projectDirectory(state)) => [
   '--currentWorkingDirectory',
-  projectDirectory(state),
+  directory,
   '--configPath',
   'stacktape.yml',
   '--projectName',
@@ -329,17 +339,32 @@ const stackArgs = (options: Options, state: State, stage = STAGE) => [
 
 const tail = (output: string) => output.slice(-4000);
 
-const startAgent = async (options: Options, state: State, agentPort: number, stage = STAGE) => {
-  const started = Date.now();
-  const run = await runCli(options, state, [
+const runAgent = (
+  options: Options,
+  state: State,
+  agentPort: number,
+  { stage = STAGE, directory, extraArgs = [] }: { stage?: string; directory?: string; extraArgs?: string[] } = {}
+) =>
+  runCli(options, state, [
     'dev',
-    ...stackArgs(options, state, stage),
+    ...stackArgs(options, state, stage, directory),
     '--resources',
     'all',
     '--agent',
     '--agentPort',
-    String(agentPort)
+    String(agentPort),
+    ...extraArgs
   ]);
+
+const startAgent = async (
+  options: Options,
+  state: State,
+  agentPort: number,
+  stage = STAGE,
+  { directory, extraArgs }: { directory?: string; extraArgs?: string[] } = {}
+) => {
+  const started = Date.now();
+  const run = await runAgent(options, state, agentPort, { stage, directory, extraArgs });
   check(run.exitCode === 0 && run.result?.ok === true, `dev --agent failed (${run.exitCode}):\n${tail(run.output)}`);
   return { seconds: (Date.now() - started) / 1000, output: run.output };
 };
@@ -401,6 +426,35 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     const body = result.Payload ? JSON.parse(Buffer.from(result.Payload).toString()) : undefined;
     if (result.FunctionError) throw new Error(`${name} failed: ${JSON.stringify(body)}`);
     return body as Record<string, unknown>;
+  };
+  /** Counts the relay's port take-overs on the box since a time, from its journal, through SSM Run Command. */
+  const readRelayTakeOvers = async (sinceEpochSeconds: number) => {
+    const journal = `journalctl -u stacktape-relay --since @${sinceEpochSeconds} --no-pager -o cat`;
+    const { Command } = await ssm.send(
+      new SendCommandCommand({
+        InstanceIds: [state!.boxInstanceId!],
+        DocumentName: 'AWS-RunShellScript',
+        Parameters: {
+          commands: [
+            `${journal} | grep -c 'taken over by' || true`,
+            `${journal} | grep -c 'taken over by a new connection of the same session' || true`
+          ]
+        }
+      })
+    );
+    const output = await waitUntil(
+      'the relay journal',
+      async () => {
+        const invocation = await ssm.send(
+          new GetCommandInvocationCommand({ CommandId: Command!.CommandId!, InstanceId: state!.boxInstanceId! })
+        );
+        check(invocation.Status === 'Success', `command ${invocation.Status}`);
+        return invocation.StandardOutputContent ?? '';
+      },
+      60_000
+    );
+    const [all, sameSession] = output.trim().split(/\s+/).map(Number);
+    return { otherSession: all - sameSession, sameSession };
   };
   const waitUntil = async <T>(description: string, probe: () => Promise<T>, timeoutMs: number) => {
     const deadline = Date.now() + timeoutMs;
@@ -513,8 +567,10 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       'An SSM plugin remains.'
     );
     // The database containers own the files they wrote; remove them as root from the image that wrote them.
-    const dataDirectory = join(projectDirectory(state), '.stacktape', 'dev-data');
-    if (existsSync(dataDirectory)) {
+    for (const dataDirectory of [projectDirectory(state), secondMachineDirectory(state)].map((directory) =>
+      join(directory, '.stacktape', 'dev-data')
+    )) {
+      if (!existsSync(dataDirectory)) continue;
       spawnSync(
         'docker',
         [
@@ -665,12 +721,97 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       check((sessions.Sessions?.length ?? 0) >= 2, 'The two stages do not hold two SSM sessions.');
       await stopAgent(options, state, secondPort);
       agentPorts.splice(agentPorts.indexOf(secondPort), 1);
+
+      // 4. One stage, two machines. The second machine's session of the running stage stops before it deploys.
+      const secondMachine = secondMachineDirectory(state);
+      await writeFixture(state, secondMachine);
+      const secondMachinePort = agentPort + 2;
+      agentPorts.push(secondMachinePort);
+      const refusedAt = Date.now();
+      const refused = await runAgent(options, state, secondMachinePort, { directory: secondMachine });
+      report.secondMachineRefusedSeconds = (Date.now() - refusedAt) / 1000;
+      check(
+        refused.exitCode !== 0 && refused.output.includes('DEV_STAGE_RUNNING_ELSEWHERE'),
+        `The second machine's session was not refused (${refused.exitCode}):\n${tail(refused.output)}`
+      );
+      check((await invoke(state, 'queryArm', { op: 'db' })).value === 'edited', 'The refused session took the stage.');
+
+      // `dev network delete` refuses while a session runs, and names it.
+      const deleteAt = Date.now();
+      const refusedDelete = await runCli(options, state, [
+        'dev:network:delete',
+        '--region',
+        options.region,
+        '--profile',
+        options.profile,
+        '--awsAccount',
+        state.awsAccountName,
+        '--autoConfirmOperation',
+        '--agent'
+      ]);
+      report.networkDeleteRefusedSeconds = (Date.now() - deleteAt) / 1000;
+      check(
+        refusedDelete.exitCode !== 0 &&
+          refusedDelete.result?.code === 'DEV_NETWORK_SESSIONS_LIVE' &&
+          refusedDelete.output.includes(stackName(state)),
+        `dev network delete did not refuse the live session (${refusedDelete.exitCode}):\n${tail(refusedDelete.output)}`
+      );
+      check((await stackStatus(networkName(state)))?.endsWith('_COMPLETE'), 'The refused delete changed the network.');
+
+      // `--takeOver` moves the stage to the second machine once: its database answers the deployed functions, and
+      // the first session does not take the ports back.
+      const takeOverSince = Math.floor(Date.now() / 1000) - 120;
+      const takeOver = await startAgent(options, state, secondMachinePort, STAGE, {
+        directory: secondMachine,
+        extraArgs: ['--takeOver']
+      });
+      report.takeOverStartSeconds = takeOver.seconds;
+      const secondDatabasePort = await waitUntil(
+        'the second machine database port',
+        async () => {
+          const port = spawnSync('docker', ['ps', '--format', '{{.Names}} {{.Ports}}'], { encoding: 'utf8' })
+            .stdout.split('\n')
+            .filter((entry) => entry.includes(state!.projectName) && entry.includes('5432/tcp'))
+            .map((entry) => Number(entry.match(/127\.0\.0\.1:(\d+)->5432/)?.[1]))
+            .find((candidate) => candidate && candidate !== databasePort);
+          check(port, 'not yet');
+          return port;
+        },
+        60_000
+      );
+      const secondDb = new Client({
+        connectionString: `postgresql://postgres:${password}@127.0.0.1:${secondDatabasePort}/postgres`
+      });
+      await secondDb.connect();
+      try {
+        await secondDb.query(
+          "create table if not exists dev_values(value text); delete from dev_values; insert into dev_values values ('second-machine');"
+        );
+      } finally {
+        await secondDb.end().catch(() => {});
+      }
+      await waitUntil(
+        'the functions to read the second machine database',
+        async () => check((await invoke(state!, 'queryArm', { op: 'db' })).value === 'second-machine', 'not yet'),
+        60_000
+      );
+      await sleep(20_000);
+      const relayTakeOvers = await readRelayTakeOvers(takeOverSince);
+      report.relayTakeOversAfterTakeOver = relayTakeOvers;
+      // One take-over per relayed database (db and cache); a ping-pong logs hundreds per minute.
+      check(relayTakeOvers.otherSession === 2, `The relay logged ${JSON.stringify(relayTakeOvers)} take-overs.`);
+      check(
+        (await invoke(state, 'queryX86', { op: 'db' })).value === 'second-machine',
+        'The first session took the stage back.'
+      );
+      await stopAgent(options, state, secondMachinePort);
+      agentPorts.splice(agentPorts.indexOf(secondMachinePort), 1);
     } finally {
       await db.end().catch(() => {});
     }
     await stopAgent(options, state, agentPort);
 
-    // 4. Box stop and wake: stop the box as its idle stop would; the next session starts it.
+    // 5. Box stop and wake: stop the box as its idle stop would; the next session starts it.
     await ec2.send(new StopInstancesCommand({ InstanceIds: [state.boxInstanceId] }));
     await waitUntil(
       'the box to stop',
@@ -702,11 +843,15 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     const wake = await startAgent(options, state, agentPort);
     report.wakeStartSeconds = wake.seconds;
     const queryAt = Date.now();
-    await waitUntil('a query after the wake', () => invoke(state!, 'queryX86', { op: 'db' }), 180_000);
+    await waitUntil(
+      'a query after the wake',
+      async () => check((await invoke(state!, 'queryX86', { op: 'db' })).value === 'edited', 'not the first database'),
+      180_000
+    );
     report.firstQueryAfterWakeSeconds = (Date.now() - queryAt) / 1000;
     await stopAgent(options, state, agentPort);
 
-    // 5. The box stops while a session starts, as an idle stop that lands during the dev stack update would: once the
+    // 6. The box stops while a session starts, as an idle stop that lands during the dev stack update would: once the
     // new session has its SSM session to the box, stop the box. The session must start it again and open its tunnels.
     const activeSessionIds = async () =>
       new Set(
@@ -742,7 +887,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     await stopAgent(options, state, agentPort);
     agentPorts.length = 0;
     console.info(
-      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reconnected after a killed SSM plugin, woke a stopped box, and recovered from a box that stopped during session startup.'
+      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reconnected after a killed SSM plugin, refused and then took over a stage from a second machine once, refused a network delete during a session, woke a stopped box, and recovered from a box that stopped during session startup.'
     );
   } catch (error) {
     failure = error;

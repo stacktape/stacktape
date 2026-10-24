@@ -38,6 +38,13 @@ stacktape dev network delete --region eu-west-1
 
 Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. The next `stacktape dev` that needs a dev network creates it again.
 
+The command also refuses while someone else depends on the network:
+
+- While a `stacktape dev` session uses it. The command asks the running dev box for its sessions and lists them. A box that has just started may not answer for about a minute; the command then refuses too. `--force` deletes the network anyway, and those sessions lose their connection.
+- While a `stacktape dev` session creates or updates the network. Run the command again when CloudFormation has finished.
+
+A `stacktape dev` that starts while the network is being deleted waits for the deletion to finish and then creates a new network.
+
 Pass `--yes` to skip the confirmation prompt, for example in a script.
 
 ## Flags reference

@@ -4260,6 +4260,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/tunnel-manager/relay.spec.ts',
       'apps/cli/src/commands/dev/dev-box/connection.spec.ts',
       'apps/cli/src/domain/dev-network/leases.spec.ts',
+      'apps/cli/src/domain/dev-network/network.spec.ts',
+      'apps/cli/src/commands/dev/dev-network-session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/utils/ports.test.ts',
