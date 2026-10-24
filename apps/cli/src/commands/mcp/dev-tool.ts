@@ -2,7 +2,9 @@ import { pathExists, readFile } from 'fs-extra';
 import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { isAbsolute, parse, resolve, sep } from 'node:path';
+import { isAbsolute, posix, resolve, win32 } from 'node:path';
+import { isReadOnlyRedisCommand } from '@domain-services/debug-services/db-client';
+import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
 import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
@@ -32,12 +34,18 @@ type DevApiRequest = (input: {
   method: 'GET' | 'POST';
   path: string;
   body?: Record<string, unknown>;
+  /** Ends the request with a `TimeoutError`; a rebuild or a seed may take minutes, a status check must not. */
+  timeoutMs?: number;
 }) => Promise<Record<string, unknown>>;
+
+/** How long a status check waits: one agent that hangs must not block every call that looks for a session. */
+const STATUS_CHECK_TIMEOUT_MS = 3000;
 
 type DevToolDependencies = {
   runCli?: typeof runStacktapeCommandJsonl;
   /** The MCP server's working directory: sessions there count as this server's own. Default: the process's. */
   serverDirectory?: () => string;
+  statusCheckTimeoutMs?: number;
   requestDevApi?: DevApiRequest;
   /** Running agents of this user; a restarted MCP server finds its sessions again through them. */
   discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
@@ -82,10 +90,11 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
 
 // Every agent stores its session token in the user's state directory under its port. The token is read for each
 // request and never returned to the client.
-const devApiRequest: DevApiRequest = async ({ port, method, path, body }) => {
+const devApiRequest: DevApiRequest = async ({ port, method, path, body, timeoutMs }) => {
   const token = (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {})
@@ -204,17 +213,20 @@ const selectLocalDatabase = (
 /** What `query` sends to the agent for a database of each type. */
 const buildDatabaseQuery = (
   database: LocalDatabase,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  /** The database refuses any write: SQL runs in a read-only transaction, Redis accepts only read commands. */
+  readOnly: boolean
 ): { ok: true; method: 'POST'; path: string; body: Record<string, unknown> } | { ok: false; message: string } => {
   const route = DATABASE_ROUTE[database.type];
   const base = `/${route}/${encodeURIComponent(database.name)}`;
   const limit = typeof args.limit === 'number' ? args.limit : undefined;
   const confirm = args.confirm === true ? true : undefined;
+  const onlyRead = readOnly ? { readOnly: true } : {};
   if (route === 'postgres' || route === 'mysql') {
     if (typeof args.sql !== 'string' || !args.sql.trim()) {
       return { ok: false, message: `args.sql is required to query ${database.type} database "${database.name}".` };
     }
-    return { ok: true, method: 'POST', path: `${base}/query`, body: { sql: args.sql, limit, confirm } };
+    return { ok: true, method: 'POST', path: `${base}/query`, body: { sql: args.sql, limit, confirm, ...onlyRead } };
   }
   if (route === 'redis') {
     if (typeof args.command !== 'string' || !args.command.trim()) {
@@ -223,7 +235,7 @@ const buildDatabaseQuery = (
         message: `args.command (for example "GET key") is required to query Redis "${database.name}".`
       };
     }
-    return { ok: true, method: 'POST', path: `${base}/command`, body: { cmd: args.command, confirm } };
+    return { ok: true, method: 'POST', path: `${base}/command`, body: { cmd: args.command, confirm, ...onlyRead } };
   }
   if (route === 'dynamodb') {
     return args.pk === undefined
@@ -250,94 +262,66 @@ const TABLES_PATH: Record<string, string> = {
   opensearch: '/indices'
 };
 
-/** Whether `directory` is `parent` or inside it, following symbolic links where the paths exist. */
-const isWithinDirectory = (directory: string, parent: string): boolean => {
-  const canonical = (path: string) => {
-    try {
-      return realpathSync(path);
-    } catch {
-      return resolve(path);
+type PathPlatform = { platform?: NodeJS.Platform; home?: string };
+
+/**
+ * A directory as the file system names it: symbolic links followed as far as the path exists, and lower case where the
+ * file system usually ignores case (Windows, macOS), so `C:\Users\me` and `c:\users\me` are one directory.
+ */
+const canonicalDirectory = (directory: string, platform: NodeJS.Platform): string => {
+  const paths = platform === 'win32' ? win32 : posix;
+  let canonical = paths.resolve(directory);
+  if (platform === process.platform) {
+    // The longest existing part is resolved, so a link in it counts even when the rest does not exist yet.
+    let existing = canonical;
+    let rest = '';
+    for (;;) {
+      try {
+        canonical = paths.join(realpathSync.native(existing), rest);
+        break;
+      } catch {
+        const parent = paths.dirname(existing);
+        if (parent === existing) break;
+        rest = paths.join(paths.basename(existing), rest);
+        existing = parent;
+      }
     }
-  };
-  const child = canonical(directory);
-  const base = canonical(parent);
-  return child === base || child.startsWith(base.endsWith(sep) ? base : `${base}${sep}`);
+  }
+  const { root } = paths.parse(canonical);
+  if (canonical.length > root.length) canonical = canonical.replace(/[\\/]+$/, '');
+  return platform === 'win32' || platform === 'darwin' ? canonical.toLowerCase() : canonical;
+};
+
+const isWithin = (child: string, parent: string, separator: string) =>
+  child === parent || child.startsWith(parent.endsWith(separator) ? parent : `${parent}${separator}`);
+
+/**
+ * Whether a session's project directory belongs to a directory whose sessions this MCP server may pick without a
+ * `devSessionId`: the directory itself or a folder inside it. Clients that start the server in the home directory, a
+ * directory that contains homes (`/home`, `/Users`, `C:\Users`) or a filesystem root say nothing about the project, so
+ * such a directory counts only for a project in exactly that directory.
+ */
+export const isProjectDirectoryOf = (
+  directory: string,
+  scopeDirectory: string,
+  { platform = process.platform, home = homedir() }: PathPlatform = {}
+): boolean => {
+  const separator = platform === 'win32' ? win32.sep : posix.sep;
+  const project = canonicalDirectory(directory, platform);
+  const scope = canonicalDirectory(scopeDirectory, platform);
+  const isRoot = scope === canonicalDirectory((platform === 'win32' ? win32 : posix).parse(scope).root, platform);
+  if (isRoot || isWithin(canonicalDirectory(home, platform), scope, separator)) return project === scope;
+  return isWithin(project, scope, separator);
 };
 
 /**
- * The directories whose dev sessions this MCP server may pick without a `devSessionId`. Clients that start the server
- * in the home directory or the filesystem root say nothing about the project, so those count only as themselves.
+ * Whether a query may write. Only SQL that the `query sql` command accepts as read-only and a Redis command known to
+ * read count as reads; a call that passes both `sql` and `command` writes if either does. Functions can still write from
+ * a SELECT, so a query on another project's session also runs read-only in the database.
  */
-const isProjectDirectoryOf = (directory: string, scopeDirectory: string): boolean => {
-  const scope = resolve(scopeDirectory);
-  if (scope === resolve(homedir()) || scope === parse(scope).root) return isSameDirectory(directory, scope);
-  return isWithinDirectory(directory, scope);
-};
-
-/** A bulk or single write: anything but a statement or command that only reads. */
-export const isWriteQuery = (args: Record<string, unknown>): boolean => {
-  if (typeof args.sql === 'string') {
-    const sql = args.sql
-      .replace(/\/\*[\s\S]*?\*\//g, ' ')
-      .replace(/--[^\n]*/g, ' ')
-      .trim()
-      .toLowerCase();
-    const [keyword = '', second = ''] = sql.split(/[\s(;]+/);
-    if (['show', 'describe', 'desc', 'values', 'table'].includes(keyword)) return false;
-    // EXPLAIN ANALYZE runs the statement; SELECT ... INTO creates a table.
-    if (keyword === 'explain') return second === 'analyze' || second === 'analyse';
-    if (keyword === 'select') return /\binto\b/.test(sql);
-    return true;
-  }
-  if (typeof args.command === 'string') {
-    const name = args.command.trim().split(/\s+/)[0]?.toUpperCase() ?? '';
-    return !READ_ONLY_REDIS_COMMANDS.has(name);
-  }
-  // A DynamoDB query or scan reads.
-  return false;
-};
-
-const READ_ONLY_REDIS_COMMANDS = new Set([
-  'GET',
-  'MGET',
-  'GETRANGE',
-  'STRLEN',
-  'EXISTS',
-  'TYPE',
-  'TTL',
-  'PTTL',
-  'KEYS',
-  'SCAN',
-  'DBSIZE',
-  'INFO',
-  'PING',
-  'HGET',
-  'HGETALL',
-  'HMGET',
-  'HKEYS',
-  'HVALS',
-  'HLEN',
-  'HEXISTS',
-  'HSCAN',
-  'LRANGE',
-  'LLEN',
-  'LINDEX',
-  'SMEMBERS',
-  'SISMEMBER',
-  'SCARD',
-  'SRANDMEMBER',
-  'SSCAN',
-  'ZRANGE',
-  'ZREVRANGE',
-  'ZRANGEBYSCORE',
-  'ZSCORE',
-  'ZCARD',
-  'ZRANK',
-  'ZSCAN',
-  'XRANGE',
-  'XREVRANGE',
-  'XLEN'
-]);
+export const isWriteQuery = (args: Record<string, unknown>): boolean =>
+  (typeof args.sql === 'string' && !isDefinitelyReadOnlySql(args.sql)) ||
+  (typeof args.command === 'string' && !isReadOnlyRedisCommand(args.command));
 
 /** Actions that change a session's code, data or state; they never act on a session they have to guess elsewhere. */
 const isMutatingAction = (action: DevToolAction, args: Record<string, unknown>) =>
@@ -367,7 +351,33 @@ const describeCandidates = (sessions: DevSession[]) => ({
   }))
 });
 
-type SessionSelection = { ok: true; session: DevSession } | { ok: false; output: ToolOutput };
+/**
+ * The chosen session, and whether the agent chose it: by its `devSessionId`, or as a session of this server's own
+ * projects. A session read through `cwd` in another project is not, so its database queries run read-only.
+ */
+type SessionSelection = { ok: true; session: DevSession; ownProject: boolean } | { ok: false; output: ToolOutput };
+type RunningCheck = { ok: true } | { ok: false; output: ToolOutput };
+
+/**
+ * What an agent that lost its stage to a take-over answers. The take-over was a deliberate act of a person or another
+ * agent, so the answer names the holder and leaves taking the stage back to the user: two agents that each took it back
+ * would move it between them forever, redeploying every time.
+ */
+const describeTakeOver = (
+  session: DevSession,
+  recordedMessage: string
+): Pick<ToolOutput, 'message' | 'nextActions'> => {
+  const takeOver = /^(.+?) took over dev mode for (\S+?),/.exec(recordedMessage);
+  const holder = takeOver?.[1];
+  return {
+    message: holder
+      ? `Dev session ${session.devSessionId} (${session.cwd}) stopped because ${holder} took over dev mode for ${takeOver[2]} on purpose. Deployed functions now reach the databases of that session, and this one stopped so that it cannot redeploy functions over theirs.`
+      : `Dev session ${session.devSessionId} (${session.cwd}) stopped itself: ${recordedMessage.replace(/\s*To move the stage back[\s\S]*$/, '')}`,
+    nextActions: [
+      `Tell the user that ${holder ?? 'another session'} moved this stage on purpose. Do not take it back unless the user asks for it: that would stop the other session, which may be a person's or another agent's work.`
+    ]
+  };
+};
 
 /**
  * The dev sessions this MCP server knows and how a call picks one. A call with `devSessionId` gets that session. A call
@@ -381,7 +391,8 @@ const createSessionRegistry = ({
   discoverAgents,
   isStarting,
   now,
-  serverDirectory
+  serverDirectory,
+  statusCheckTimeoutMs
 }: {
   requestDevApi: DevApiRequest;
   discoverAgents: () => Promise<DiscoveredDevAgent[]>;
@@ -389,6 +400,7 @@ const createSessionRegistry = ({
   isStarting: (session: DevSession) => boolean;
   now: () => Date;
   serverDirectory: () => string;
+  statusCheckTimeoutMs: number;
 }) => {
   const active = new Map<string, DevSession>();
   /** Sessions whose agent recorded why it stopped, under each of their IDs. */
@@ -428,16 +440,35 @@ const createSessionRegistry = ({
    * file is gone gets no token, and an agent that took over the port reports another session ID; each ends the session
    * here, with the reason its agent recorded when there is one.
    */
-  const checkRunning = async (session: DevSession): Promise<SessionSelection> => {
-    if (session.agentPort === undefined || isStarting(session)) return { ok: true, session };
+  const checkRunning = async (session: DevSession): Promise<RunningCheck> => {
+    if (session.agentPort === undefined || isStarting(session)) return { ok: true };
     const port = session.agentPort;
-    const status = await requestDevApi({ port, method: 'GET', path: '/status' }).catch(
-      (error: unknown): Record<string, unknown> => ({ ok: false, code: 'UNREACHABLE', message: String(error) })
+    const status = await requestDevApi({ port, method: 'GET', path: '/status', timeoutMs: statusCheckTimeoutMs }).catch(
+      (error: unknown): Record<string, unknown> => ({
+        ok: false,
+        code: error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'UNREACHABLE',
+        message: String(error)
+      })
     );
+    // An agent that hangs may still run: it stays known, but this call does not wait for it.
+    if (status.code === 'TIMEOUT') {
+      return {
+        ok: false,
+        output: {
+          ok: false,
+          code: 'DEV_AGENT_NOT_RESPONDING',
+          message: `The agent of dev session ${session.devSessionId} (${session.cwd}) on port ${port} did not answer within ${statusCheckTimeoutMs / 1000} s.`,
+          data: { session: publicSession(session) },
+          nextActions: [
+            'Try again in a moment. If it keeps hanging, read the dev log with action=logs, or stop it with action=stop and its devSessionId.'
+          ]
+        }
+      };
+    }
     const reportedId = typeof status.sessionId === 'string' ? status.sessionId : undefined;
     const anotherSession =
       reportedId !== undefined && session.agentSessionId !== undefined && reportedId !== session.agentSessionId;
-    if (status.ok !== false && !anotherSession) return { ok: true, session };
+    if (status.ok !== false && !anotherSession) return { ok: true };
 
     forget(session);
     const stopped = await readStopReason(port, session.knownSince);
@@ -445,11 +476,8 @@ const createSessionRegistry = ({
       const output: ToolOutput = {
         ok: false,
         code: stopped.code,
-        message: `Dev session ${session.devSessionId} (${session.cwd}) stopped itself: ${stopped.message}`,
-        data: { session: publicSession(session) },
-        nextActions: [
-          `To move the stage back to ${session.cwd}, call stacktape_dev with action=start, args.cwd=${session.cwd} and args.takeOver=true; the session that holds it stops itself.`
-        ]
+        ...describeTakeOver(session, stopped.message),
+        data: { session: publicSession(session) }
       };
       for (const id of new Set([session.devSessionId, session.agentSessionId]))
         if (id) ended.set(id, { session, output });
@@ -502,11 +530,14 @@ const createSessionRegistry = ({
           }
         };
       }
-      return checkRunning(session);
+      const check = await checkRunning(session);
+      return check.ok === false ? { ok: false, output: check.output } : { ok: true, session, ownProject: true };
     }
 
-    // Sessions stopped elsewhere would make the choice ambiguous or pick an ended session.
-    await Promise.all(sessions().map(checkRunning));
+    // Sessions stopped elsewhere would make the choice ambiguous or pick an ended session. One that hangs still counts.
+    const checks = new Map(
+      await Promise.all(sessions().map(async (session) => [session, await checkRunning(session)] as const))
+    );
     let roots: string[] | undefined;
     const isInScope = async (session: DevSession) => {
       if (session.origin === 'started' || isProjectDirectoryOf(session.cwd, serverDirectory())) return true;
@@ -544,13 +575,18 @@ const createSessionRegistry = ({
           data: { ...output.data, ...describeCandidates(candidates) },
           nextActions: [
             ...(output.nextActions ?? []),
-            'To act on another running session, pass its devSessionId; calls without one keep returning this until a start succeeds.'
+            'To act on another running session, pass its devSessionId. Calls without one keep returning this until a start succeeds.'
           ]
         }
       };
     }
 
-    if (candidates.length === 1 && !requireExplicit) return { ok: true, session: candidates[0] };
+    if (candidates.length === 1 && !requireExplicit) {
+      const [session] = candidates;
+      const check = checks.get(session);
+      if (check?.ok === false) return { ok: false, output: check.output };
+      return { ok: true, session, ownProject: await isInScope(session) };
+    }
 
     const elsewhere = (await matching()).filter(({ inScope }) => !inScope).map(({ session }) => session);
     if (candidates.length === 0 && elsewhere.length) {
@@ -831,7 +867,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     discoverAgents,
     isStarting: (session) => startups.has(session.devSessionId),
     now,
-    serverDirectory: dependencies.serverDirectory || (() => process.cwd())
+    serverDirectory: dependencies.serverDirectory || (() => process.cwd()),
+    statusCheckTimeoutMs: dependencies.statusCheckTimeoutMs ?? STATUS_CHECK_TIMEOUT_MS
   });
   const activeDevSessions = registry.active;
 
@@ -1268,7 +1305,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         );
       }
 
-      const request = buildDatabaseQuery(database, toolArgs);
+      // A query on another project's session, chosen through cwd, may only read, whatever the statement looks like.
+      const request = buildDatabaseQuery(database, toolArgs, !sessionResult.ownProject);
       if (request.ok === false) {
         return toToolText({ ok: false, code: 'VALIDATION_ERROR', message: request.message });
       }

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { readDevAgentToken } from '../../src/commands/dev/agent-daemon';
 import { createDevToolHandler } from '../../src/commands/mcp/dev-tool';
 
 // An assistant's database loop through the MCP `stacktape_dev` tool: list tables, write rows, reset to a known state and
@@ -20,6 +21,8 @@ const docker = (args: string[]) => spawnSync('docker', args, { encoding: 'utf8',
 const PROJECT_NAME = `agentdb${randomBytes(3).toString('hex')}`;
 let root: string;
 let agent: ChildProcess | undefined;
+let agentPort: number;
+let discover: NonNullable<Parameters<typeof createDevToolHandler>[0]>['discoverAgents'];
 let call: (
   action: Parameters<ReturnType<typeof createDevToolHandler>>[0]['action'],
   args?: Record<string, unknown>
@@ -131,12 +134,11 @@ beforeAll(async () => {
   const started = await startAgent();
   // The MCP server runs in the project, as a client starts it there: calls without a devSessionId may then reset and
   // seed the session it finds running.
-  const handler = createDevToolHandler({
-    serverDirectory: () => join(root, 'project'),
-    discoverAgents: async () => [
-      { port: started.port, pid: agent!.pid!, sessionId: 'agentdb-session', projectDirectory: join(root, 'project') }
-    ]
-  });
+  agentPort = started.port;
+  discover = async () => [
+    { port: started.port, pid: agent!.pid!, sessionId: 'agentdb-session', projectDirectory: join(root, 'project') }
+  ];
+  const handler = createDevToolHandler({ serverDirectory: () => join(root, 'project'), discoverAgents: discover });
   call = async (action, args) => (await handler({ action, args })).structuredContent;
 }, 600_000);
 
@@ -303,3 +305,42 @@ test('an assistant lists, writes, resets and seeds local databases through stack
     'seedHangs'
   ]);
 }, 300_000);
+
+// Review of #336: an MCP server of another project may read this session through cwd but never write to it. A statement
+// that looks like a read can still write through a function, so the databases themselves refuse the write.
+test("another project's MCP server reads through cwd, and the databases refuse its writes", async () => {
+  await sql(
+    'db',
+    "create function r2m_bump() returns int language sql as $$ insert into settings values ('r2m', 'x') returning 1 $$"
+  );
+  await sql(
+    'mydb',
+    "create function r2m_bump() returns int deterministic modifies sql data begin insert into todos (title) values ('r2m'); return 1; end"
+  );
+  const elsewhere = createDevToolHandler({ serverDirectory: () => join(root, 'elsewhere'), discoverAgents: discover });
+  const read = async (args: Record<string, unknown>) =>
+    (await elsewhere({ action: 'query', args: { cwd: join(root, 'project'), ...args } })).structuredContent;
+
+  expect((await read({ resource: 'db', sql: 'select count(*) as n from settings' })).ok).toBe(true);
+  const postgresWrite = await read({ resource: 'db', sql: 'select r2m_bump()' });
+  expect(postgresWrite.ok).toBe(false);
+  expect(JSON.stringify(postgresWrite)).toContain('read-only transaction');
+  const mysqlWrite = await read({ resource: 'mydb', sql: 'select r2m_bump()' });
+  expect(mysqlWrite.ok).toBe(false);
+  expect(JSON.stringify(mysqlWrite)).toMatch(/READ ONLY transaction/i);
+  expect((await read({ resource: 'db', sql: "insert into settings values ('r2m', 'x')" })).code).toBe(
+    'DEV_SESSION_ID_REQUIRED'
+  );
+  expect((await read({ resource: 'cache', command: 'SET r2m x' })).code).toBe('DEV_SESSION_ID_REQUIRED');
+  expect((await sql('db', "select count(*)::int as n from settings where name = 'r2m'")).rows).toEqual([{ n: 0 }]);
+  expect((await sql('mydb', "select count(*) as n from todos where title = 'r2m'")).rows).toEqual([{ n: 0 }]);
+
+  // The agent's Redis route enforces the same read-only mode.
+  const response = await fetch(`http://127.0.0.1:${agentPort}/redis/cache/command`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${readDevAgentToken(agentPort)}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ cmd: 'SET r2m x', readOnly: true })
+  });
+  expect(await response.json()).toMatchObject({ ok: false, code: 'READ_ONLY' });
+  expect((await call('query', { resource: 'cache', command: 'EXISTS r2m' })).data.result).toBe(0);
+}, 120_000);

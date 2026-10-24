@@ -1,13 +1,13 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
-import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localStatePaths } from 'src/config/local-state-paths';
-import { createDevToolHandler, isWriteQuery } from './dev-tool';
+import { createDevToolHandler, isProjectDirectoryOf, isWriteQuery } from './dev-tool';
 
 // Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
 // Each one, like the real agent, answers only requests that carry the session token it stored under its port.
@@ -20,7 +20,16 @@ afterAll(async () => {
   else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
 });
 
-const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Record<string, unknown> } = {}) => {
+const daemon = async ({
+  logFile,
+  status = {},
+  hangs = false
+}: {
+  logFile?: string;
+  status?: Record<string, unknown>;
+  /** Accepts connections and never answers, like an agent stuck in a long synchronous step. */
+  hangs?: boolean;
+} = {}) => {
   const state = {
     stopped: false,
     rebuilt: [] as string[],
@@ -35,9 +44,20 @@ const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Rec
       response.end(JSON.stringify({ ok: false, code: 'UNAUTHORIZED', message: 'missing token' }));
       return;
     }
+    if (hangs) return;
     const path = new URL(request.url!, 'http://127.0.0.1').pathname;
     if (request.method === 'POST' && !path.startsWith('/env/') && path !== '/aws/sdk') state.changes.push(path);
     let data: Record<string, unknown> = {};
+    if (/^\/(postgres|mysql|redis)\/[^/]+\/(query|command)$/.test(path)) {
+      let body = '';
+      request.on('data', (chunk) => (body += chunk));
+      request.on('end', () => {
+        state.requests.push({ path, body: JSON.parse(body) });
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ ok: true, code: 'OK', data: { rows: [] } }));
+      });
+      return;
+    }
     if (path.startsWith('/env/') || path === '/aws/sdk') {
       let body = '';
       request.on('data', (chunk) => (body += chunk));
@@ -64,13 +84,7 @@ const daemon = async ({ logFile, status = {} }: { logFile?: string; status?: Rec
     else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt, ...status };
     else if (path === '/logs' && logFile) data = { logFile };
     else if (request.method === 'POST' && path === '/stop') state.stopped = true;
-    else if (
-      request.method === 'POST' &&
-      (path.startsWith('/reset/') ||
-        path.startsWith('/scripts/') ||
-        /^\/(postgres|mysql|redis)\/[^/]+\/(query|command)$/.test(path))
-    )
-      data = {};
+    else if (request.method === 'POST' && (path.startsWith('/reset/') || path.startsWith('/scripts/'))) data = {};
     else if (request.method === 'POST' && path === '/rebuild/broken') {
       // What the agent answers when the build fails: the error, the failed workloads and the log file.
       response.setHeader('content-type', 'application/json');
@@ -719,10 +733,23 @@ describe('MCP dev session scope', () => {
         (await handler({ action: 'query', args: { cwd: projectB, sql: 'select count(*) from notes' } }))
           .structuredContent.ok
       ).toBe(true);
+      // A statement that looks like a read can still write through a function, so the database enforces the read.
+      expect(
+        (await handler({ action: 'query', args: { cwd: projectB, sql: "select nextval('notes_id_seq')" } }))
+          .structuredContent.code
+      ).toBe('DEV_SESSION_ID_REQUIRED');
+      expect(
+        (await handler({ action: 'query', args: { devSessionId: sessionB, sql: 'delete from notes where id = 1' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      expect(b.state.requests).toEqual([
+        { path: '/postgres/db/query', body: { sql: 'select count(*) from notes', readOnly: true } },
+        { path: '/postgres/db/query', body: { sql: 'delete from notes where id = 1' } }
+      ]);
       expect(
         (await handler({ action: 'rebuild', args: { devSessionId: sessionB, workload: 'api' } })).structuredContent.ok
       ).toBe(true);
-      expect(b.state.changes).toEqual(['/postgres/db/query', '/rebuild/api']);
+      expect(b.state.changes).toEqual(['/postgres/db/query', '/postgres/db/query', '/rebuild/api']);
 
       // The same session counts as this server's own when the client names project B as one of its roots.
       const withRoots = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => projectA });
@@ -735,7 +762,13 @@ describe('MCP dev session scope', () => {
       // And when the MCP server itself runs there, or in a folder that contains the project.
       const inB = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => join(projectB, '..') });
       expect((await inB({ action: 'rebuild', args: { workload: 'web' } })).structuredContent.ok).toBe(true);
-      expect(b.state.changes).toEqual(['/postgres/db/query', '/rebuild/api', '/reset/all', '/rebuild/web']);
+      expect(b.state.changes).toEqual([
+        '/postgres/db/query',
+        '/postgres/db/query',
+        '/rebuild/api',
+        '/reset/all',
+        '/rebuild/web'
+      ]);
     } finally {
       await b.close();
     }
@@ -746,7 +779,7 @@ describe('MCP dev session scope', () => {
     const projectUnderHome = join(homedir(), `stacktape-mcp-dev-${randomUUID()}`, 'app');
     const b = await daemon({ status: { sessionId: `s-${randomUUID()}`, projectDirectory: projectUnderHome } });
     try {
-      for (const serverDirectory of [homedir(), '/']) {
+      for (const serverDirectory of [homedir(), join(homedir(), '..'), '/']) {
         const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => serverDirectory });
         expect((await handler({ action: 'rebuild_all' })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
       }
@@ -757,6 +790,65 @@ describe('MCP dev session scope', () => {
       expect((await inParent({ action: 'rebuild_all' })).structuredContent.ok).toBe(true);
     } finally {
       await b.close();
+    }
+  });
+
+  // Review of #336: the home check compared paths as strings, so a symlinked home or a differently cased Windows path
+  // made every project under the home directory count as the server's own.
+  test('home, the directories that hold homes and roots never own the projects below them', async () => {
+    const root = await projectDirectory('linked-home');
+    await mkdir(join(root, 'data', 'home', 'u', 'shop'), { recursive: true });
+    await symlink(join(root, 'data', 'home'), join(root, 'home'), 'junction');
+    const linux = { platform: 'linux' as const, home: join(root, 'home', 'u') };
+    const cases: Array<[string, string, { platform: NodeJS.Platform; home: string }, boolean]> = [
+      // HOME is a link; the server reports the real path.
+      [join(root, 'data', 'home', 'u', 'shop'), join(root, 'data', 'home', 'u'), linux, false],
+      [join(root, 'home', 'u', 'shop'), join(root, 'data', 'home'), linux, false],
+      [join(root, 'data', 'home', 'u', 'shop'), join(root, 'home', 'u', 'shop'), linux, true],
+      [join(root, 'data', 'home', 'u', 'shop', 'api'), join(root, 'home', 'u', 'shop'), linux, true],
+      [join(root, 'data', 'home', 'u'), join(root, 'data', 'home', 'u'), linux, true],
+      ['/srv/app', '/', linux, false],
+      // A VS Code root on Windows arrives as c:\Users\u; os.homedir() says C:\Users\u.
+      ['C:\\Users\\u\\shop', 'c:\\Users\\u', { platform: 'win32', home: 'C:\\Users\\u' }, false],
+      ['C:\\Users\\u\\shop', 'c:\\users', { platform: 'win32', home: 'C:\\Users\\u' }, false],
+      ['D:\\shop', 'D:\\', { platform: 'win32', home: 'C:\\Users\\u' }, false],
+      ['c:\\users\\U\\work\\shop', 'C:\\Users\\u\\work', { platform: 'win32', home: 'C:\\Users\\u' }, true],
+      ['/Users/u/shop', '/users/U', { platform: 'darwin', home: '/Users/u' }, false],
+      ['/Users/u/Work/shop', '/Users', { platform: 'darwin', home: '/Users/u' }, false],
+      ['/Users/u/Work/shop', '/users/u/work', { platform: 'darwin', home: '/Users/u' }, true]
+    ];
+    for (const [directory, scope, platform, expected] of cases) {
+      expect([directory, scope, isProjectDirectoryOf(directory, scope, platform)]).toEqual([
+        directory,
+        scope,
+        expected
+      ]);
+    }
+  });
+
+  test('an agent that does not answer blocks no call longer than the status timeout and is not guessed past', async () => {
+    const project = await projectDirectory('hung');
+    const hung = await daemon({ hangs: true });
+    const healthy = await daemon();
+    try {
+      const handler = createDevToolHandler({
+        runCli: startedDaemon,
+        serverDirectory: () => project,
+        statusCheckTimeoutMs: 200
+      });
+      // The hung agent is registered as started; a start never asks it for anything.
+      await handler({ action: 'start', args: { agentPort: hung.port, cwd: project } });
+      const startedAt = Date.now();
+      const output = (await handler({ action: 'rebuild_all' })).structuredContent;
+      expect(output).toMatchObject({ ok: false, code: 'DEV_AGENT_NOT_RESPONDING' });
+      expect(Date.now() - startedAt).toBeLessThan(2000);
+      // It stays known: with a second session, a call without an ID is ambiguous instead of picking the one that answers.
+      await handler({ action: 'start', args: { agentPort: healthy.port, cwd: project } });
+      expect((await handler({ action: 'rebuild_all' })).structuredContent.code).toBe('AMBIGUOUS_DEV_SESSION');
+      expect(healthy.state.changes).toEqual([]);
+    } finally {
+      await hung.close();
+      await healthy.close();
     }
   });
 
@@ -775,7 +867,9 @@ describe('MCP dev session scope', () => {
         localStatePaths.devAgentStopReasonFile({ port: replaced.port }),
         JSON.stringify({
           code: 'DEV_STAGE_TAKEN_OVER',
-          message: 'Bob (laptop, ~/shop-wt2) took over dev mode for shop-dev.',
+          // What `endSessionForLostStage` records.
+          message:
+            'Bob (laptop, ~/shop-wt2) took over dev mode for shop-dev, so deployed functions now reach the databases there. This session stopped so that it cannot redeploy functions over theirs. To move the stage back, run `stacktape dev` again with --take-over.',
           at: new Date().toISOString()
         })
       );
@@ -784,8 +878,10 @@ describe('MCP dev session scope', () => {
       for (const [action, args] of [...CHANGES, ['status', {}]] as const) {
         const output = (await handler({ action, args })).structuredContent;
         expect(output).toMatchObject({ ok: false, code: 'DEV_STAGE_TAKEN_OVER' });
-        expect(output.message).toContain('Bob (laptop, ~/shop-wt2) took over');
-        expect(output.nextActions?.join(' ')).toContain('args.takeOver=true');
+        expect(output.message).toContain('Bob (laptop, ~/shop-wt2) took over dev mode for shop-dev on purpose');
+        // Two agents that each took the stage back would move it between them forever, so only the user decides.
+        expect(output.nextActions?.join(' ')).toContain('Do not take it back unless the user asks for it');
+        expect(JSON.stringify(output)).not.toMatch(/takeOver|--take-over/);
       }
       expect((await handler({ action: 'status', args: { devSessionId: replacedId } })).structuredContent.code).toBe(
         'DEV_STAGE_TAKEN_OVER'
@@ -920,6 +1016,11 @@ describe('which queries write', () => {
     [{ command: 'SET session:1 alive' }, true],
     [{ command: 'FLUSHALL' }, true],
     [{ command: 'EVAL "return 1" 0' }, true],
+    [{ sql: 'select 1; update notes set seen = true' }, true],
+    [{ sql: 'EXPLAIN (ANALYZE) DELETE FROM notes' }, true],
+    [{ sql: "select nextval('notes_id_seq')" }, true],
+    [{ sql: 'select 1', command: 'SET session:1 alive' }, true],
+    [{ sql: 'select 1;' }, false],
     [{ pk: { pk: 'user#1' } }, false],
     [{}, false]
   ];

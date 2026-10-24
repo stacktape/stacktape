@@ -1221,7 +1221,58 @@ const DESTRUCTIVE_REDIS_COMMANDS = new Set([
   'CLUSTER'
 ]);
 
-export type RedisCommandOpts = { cmd: string; confirm?: boolean };
+/** Commands that only read; a read-only call accepts nothing else. */
+const READ_ONLY_REDIS_COMMANDS = new Set([
+  'GET',
+  'MGET',
+  'GETRANGE',
+  'STRLEN',
+  'EXISTS',
+  'TYPE',
+  'TTL',
+  'PTTL',
+  'KEYS',
+  'SCAN',
+  'DBSIZE',
+  'INFO',
+  'PING',
+  'HGET',
+  'HGETALL',
+  'HMGET',
+  'HKEYS',
+  'HVALS',
+  'HLEN',
+  'HEXISTS',
+  'HSCAN',
+  'LRANGE',
+  'LLEN',
+  'LINDEX',
+  'SMEMBERS',
+  'SISMEMBER',
+  'SCARD',
+  'SRANDMEMBER',
+  'SSCAN',
+  'ZRANGE',
+  'ZREVRANGE',
+  'ZRANGEBYSCORE',
+  'ZSCORE',
+  'ZCARD',
+  'ZRANK',
+  'ZSCAN',
+  'XRANGE',
+  'XREVRANGE',
+  'XLEN'
+]);
+
+export const isReadOnlyRedisCommand = (command: string): boolean =>
+  READ_ONLY_REDIS_COMMANDS.has((parseCommandString(command)[0] ?? '').toUpperCase());
+
+export type RedisCommandOpts = {
+  cmd: string;
+  confirm?: boolean;
+  /** Accept only commands that read. */
+  readOnly?: boolean;
+};
 
 export const redisCommand = async (
   conn: RedisConnectionOpts,
@@ -1237,6 +1288,15 @@ export const redisCommand = async (
 
     const [cmd, ...args] = parts;
     const cmdUpper = cmd.toUpperCase();
+
+    if (opts.readOnly && !READ_ONLY_REDIS_COMMANDS.has(cmdUpper)) {
+      return {
+        ok: false,
+        error: `Command "${cmdUpper}" can change data, and this call may only read`,
+        code: 'READ_ONLY',
+        hint: 'Use a command that reads, such as GET, HGETALL, SCAN or LRANGE.'
+      };
+    }
 
     // Check for destructive commands
     if (DESTRUCTIVE_REDIS_COMMANDS.has(cmdUpper) && !opts.confirm) {
