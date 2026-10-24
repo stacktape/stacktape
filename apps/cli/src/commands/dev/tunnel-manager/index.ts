@@ -19,12 +19,19 @@ const REFUSED_RETRY_MS = 30_000;
  */
 export type RelayEndpoint = { controlHost: string; controlPort: number; relayHost: string };
 
-/** Who holds a lease: the same owner may take a port over, another one is refused and told this label. */
-export type RelayOwner = { id: string; label: string };
+/**
+ * Who holds a lease. `session` identifies one `stacktape dev` process: it takes its own port over after a lost
+ * connection, while another session, of the same developer on another machine too, is refused and told this label.
+ */
+export type RelayOwner = { id: string; label: string; session: string };
+
+/** A `stacktape dev` session the relay knows: one that holds a tunnel or a presence connection. */
+export type RelaySessionInfo = { stack: string; session: string; owner: string; label: string; since: number };
 
 type ClientMessage =
-  | { type: 'Lease'; port: number; key: string; owner: RelayOwner }
-  | { type: 'Presence'; owner: RelayOwner }
+  | { type: 'Lease'; port: number; key: string; owner: RelayOwner; takeOver: boolean }
+  | { type: 'Presence'; owner: RelayOwner; stack?: string }
+  | { type: 'Sessions'; stack?: string }
   | { type: 'Ping' }
   | { type: 'Accept'; connectionId: string };
 
@@ -34,12 +41,18 @@ type ServerMessage =
   | { type: 'Connection'; connectionId: string }
   | { type: 'Pong'; version: number }
   | { type: 'Refused'; port: number; key: string; label: string; since: number }
+  | { type: 'TakenOver'; label: string }
+  | { type: 'Sessions'; sessions: RelaySessionInfo[] }
   | { type: 'Error'; message: string };
 
 type TunnelProcess = {
   kill: () => void;
   killed: boolean;
   exitCode: number | null;
+  /** Set when another session took the port over with `--take-over`: the tunnel must not ask for it again. */
+  takenOverBy?: string;
+  /** The database connections the tunnel carries now. */
+  readonly connections: ReadonlySet<Socket>;
   on: (event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void) => TunnelProcess;
 };
 
@@ -58,6 +71,8 @@ type TunnelRequest = {
   lease: { port: number; key: string };
   owner: RelayOwner;
   relay: RelayEndpoint;
+  /** Replaces a tunnel another session holds (`--take-over`) instead of waiting for it to end. */
+  takeOver?: boolean;
 };
 
 /** A held lease of another developer: the tunnel is not open, and is asked for again later. */
@@ -84,10 +99,26 @@ const serializeClientMessage = (message: ClientMessage): string => {
   switch (message.type) {
     case 'Lease':
       return JSON.stringify({
-        Lease: { port: message.port, key: message.key, owner: message.owner.id, label: message.owner.label }
+        Lease: {
+          port: message.port,
+          key: message.key,
+          owner: message.owner.id,
+          label: message.owner.label,
+          session: message.owner.session,
+          takeOver: message.takeOver
+        }
       });
     case 'Presence':
-      return JSON.stringify({ Presence: { owner: message.owner.id, label: message.owner.label } });
+      return JSON.stringify({
+        Presence: {
+          owner: message.owner.id,
+          label: message.owner.label,
+          session: message.owner.session,
+          stack: message.stack
+        }
+      });
+    case 'Sessions':
+      return JSON.stringify({ Sessions: { stack: message.stack } });
     case 'Ping':
       return JSON.stringify({ Ping: null });
     case 'Accept':
@@ -127,6 +158,24 @@ const parseServerMessage = (message: string): ServerMessage => {
       key: String(key ?? ''),
       label: String(label || 'another developer'),
       since: Number(since)
+    };
+  }
+
+  if ('TakenOver' in parsed && typeof parsed.TakenOver === 'object' && parsed.TakenOver !== null) {
+    const { label } = parsed.TakenOver as Record<string, unknown>;
+    return { type: 'TakenOver', label: String(label || 'another developer') };
+  }
+
+  if ('Sessions' in parsed && Array.isArray(parsed.Sessions)) {
+    return {
+      type: 'Sessions',
+      sessions: parsed.Sessions.map((entry: Record<string, unknown>) => ({
+        stack: String(entry.stack ?? ''),
+        session: String(entry.session ?? ''),
+        owner: String(entry.owner ?? ''),
+        label: String(entry.label || 'another developer'),
+        since: Number(entry.since)
+      }))
     };
   }
 
@@ -316,6 +365,9 @@ class DelimitedSocket {
 class TunnelClientProcess extends EventEmitter implements TunnelProcess {
   public killed = false;
   public exitCode: number | null = null;
+  public takenOverBy: string | undefined;
+  /** The database connections this tunnel carries; they end with a take-over, not only with the session. */
+  readonly connections = new Set<Socket>();
 
   private hasExited = false;
 
@@ -335,6 +387,11 @@ class TunnelClientProcess extends EventEmitter implements TunnelProcess {
 
   async recv(): Promise<ServerMessage | null> {
     return await this.controlSocket.recv();
+  }
+
+  dropConnections(): void {
+    for (const socket of this.connections) socket.destroy();
+    this.connections.clear();
   }
 
   markExited(code: number | null, signal: NodeJS.Signals | null = null): void {
@@ -384,12 +441,15 @@ const proxyRemoteConnection = async ({
   connectionId,
   localPort,
   relay,
-  signal
+  signal,
+  connections
 }: {
   connectionId: string;
   localPort: number;
   relay: RelayEndpoint;
   signal: AbortSignal;
+  /** The tunnel's connections, which a take-over ends. */
+  connections: Set<Socket>;
 }): Promise<void> => {
   const acceptConnection = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   let localConnection: Socket | undefined;
@@ -404,6 +464,8 @@ const proxyRemoteConnection = async ({
     // the relay can immediately send binary data containing the JSON frame delimiter.
     const { socket: remoteConnection, bufferedData } = acceptConnection.intoSocket();
     const close = () => {
+      connections.delete(remoteConnection);
+      if (localConnection) connections.delete(localConnection);
       if (localConnection) closeSocketPair(localConnection, remoteConnection);
       else remoteConnection.destroy();
     };
@@ -416,6 +478,8 @@ const proxyRemoteConnection = async ({
     if (remoteConnection.destroyed) throw new Error('Relay connection closed while opening the local resource.');
     activeConnections.add(localConnection);
     activeConnections.add(remoteConnection);
+    connections.add(localConnection);
+    connections.add(remoteConnection);
     localConnection.once('error', close);
     localConnection.once('close', close);
     if (bufferedData.length > 0) localConnection.write(bufferedData);
@@ -448,11 +512,18 @@ const listenForTunnelConnections = ({
             connectionId: message.connectionId,
             localPort: request.localPort,
             relay: request.relay,
-            signal
+            signal,
+            connections: process.connections
           }).catch((error) => {
             const errorMessage = error instanceof Error ? error.message : String(error);
             tuiManager.warn(`Tunnel connection failed for ${request.resourceName}: ${errorMessage}`);
           });
+          continue;
+        }
+        if (message.type === 'TakenOver') {
+          // Pooled connections of warm functions must reach the new holder, not this session.
+          process.takenOverBy = message.label;
+          process.dropConnections();
           continue;
         }
         if (message.type === 'Error') throw new Error(message.message);
@@ -472,13 +543,13 @@ const listenForTunnelConnections = ({
 };
 
 const startTunnelAttempt = async (request: TunnelRequest, signal: AbortSignal): Promise<TunnelInfo> => {
-  const { relay, lease, owner, resourceName, localPort } = request;
+  const { relay, lease, owner, resourceName, localPort, takeOver = false } = request;
   const controlSocket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   const abort = () => controlSocket.destroy();
   signal.addEventListener('abort', abort, { once: true });
   try {
     signal.throwIfAborted();
-    await controlSocket.send({ type: 'Lease', port: lease.port, key: lease.key, owner });
+    await controlSocket.send({ type: 'Lease', port: lease.port, key: lease.key, owner, takeOver });
     const response = await controlSocket.recv({ timeoutMs: TUNNEL_STARTUP_TIMEOUT_MS });
     if (!response) throw new Error('The dev box relay closed the connection before the tunnel was open.');
     if (response.type === 'Refused') throw new LeaseRefusedError(response);
@@ -505,17 +576,37 @@ const startTunnelAttempt = async (request: TunnelRequest, signal: AbortSignal): 
 
 const refusalMessage = (resourceName: string, { label, since }: LeaseRefusedError['holder']) =>
   `${label} has been running dev mode for this stage since ${new Date(since * 1000).toLocaleTimeString()}, so deployed ` +
-  `functions reach their local ${resourceName}, not yours. Yours takes over when they stop.`;
+  `functions reach their local ${resourceName}, not yours. Yours takes over when that session stops; to take over now, ` +
+  'run `stacktape dev` again with `--take-over`.';
+
+/** What happens when another session holds the stage this session held: by default a warning; a dev session ends. */
+export type StageLostHandler = (input: { label: string; resourceName: string }) => void;
+
+let onStageLost: StageLostHandler = ({ label, resourceName }) =>
+  tuiManager.warn(
+    `${label} took over dev mode for this stage, so deployed functions now reach their local ${resourceName}, not yours.`
+  );
+
+/** Replaces the handler of a lost stage; `stacktape dev` ends its session there. */
+export const setStageLostHandler = (handler: StageLostHandler) => {
+  onStageLost = handler;
+};
 
 /**
  * Keeps asking for the tunnel until it is open again or dev mode stops. The relay and the SSM session come back on
- * their own after a network drop or a box restart, so there is no attempt limit.
+ * their own after a network drop or a box restart, so there is no attempt limit. A tunnel this session `held` before
+ * never takes the stage over: if another session holds it now, for example after this machine slept through a
+ * take-over, the stage is lost.
  */
-const reconnect = async (request: TunnelRequest, signal: AbortSignal, refusedAlready = false): Promise<void> => {
+const reconnect = async (
+  request: TunnelRequest,
+  signal: AbortSignal,
+  { warned: warnedAlready = false, held = false }: { warned?: boolean; held?: boolean } = {}
+): Promise<void> => {
   const { resourceName } = request;
   if (reconnectingTunnels.has(resourceName)) return;
   reconnectingTunnels.add(resourceName);
-  let warned = refusedAlready;
+  let warned = warnedAlready;
   try {
     for (let attempt = 1; !applicationManager.isInterrupted && !signal.aborted; attempt++) {
       try {
@@ -531,6 +622,10 @@ const reconnect = async (request: TunnelRequest, signal: AbortSignal, refusedAlr
       } catch (error) {
         if (signal.aborted) return;
         if (error instanceof LeaseRefusedError) {
+          if (held) {
+            onStageLost({ label: error.holder.label, resourceName });
+            return;
+          }
           if (!warned) tuiManager.warn(refusalMessage(resourceName, error.holder));
           warned = true;
           await sleep(REFUSED_RETRY_MS, signal);
@@ -554,15 +649,22 @@ const setupTunnelExitHandler = (tunnel: TunnelInfo, request: TunnelRequest, sess
   tunnel.process.on('exit', (code) => {
     const index = activeTunnels.indexOf(tunnel);
     if (index !== -1) activeTunnels.splice(index, 1);
-    if (code !== 0 && code !== null && !applicationManager.isInterrupted && !sessionSignal.aborted) {
-      void reconnect(request, sessionSignal).catch(() => {});
+    if (applicationManager.isInterrupted || sessionSignal.aborted) return;
+    if (tunnel.process.takenOverBy) {
+      onStageLost({ label: tunnel.process.takenOverBy, resourceName: request.resourceName });
+      return;
+    }
+    // `--take-over` applies to the first acquisition only: a later reconnect must not take the stage back.
+    if (code !== 0 && code !== null) {
+      void reconnect({ ...request, takeOver: false }, sessionSignal, { held: true }).catch(() => {});
     }
   });
 };
 
 /**
- * Opens the tunnel of one local resource at its leased relay port. A lease another developer holds is not an error:
- * the tunnel is returned as `refused`, and this session takes the port over once they stop.
+ * Opens the tunnel of one local resource at its leased relay port. A lease another session holds is not an error: the
+ * tunnel is returned as `refused`, and this session takes the port over once that one stops. A tunnel that cannot open
+ * rejects, and is asked for again in the background until dev mode stops.
  */
 export const startTunnel = async (
   request: TunnelRequest
@@ -583,10 +685,15 @@ export const startTunnel = async (
       signal.throwIfAborted();
       if (error instanceof LeaseRefusedError) {
         tuiManager.warn(refusalMessage(request.resourceName, error.holder));
-        void reconnect(request, signal, true).catch(() => {});
+        void reconnect(request, signal, { warned: true }).catch(() => {});
         return { refused: error.holder };
       }
-      if (attempt >= 3) throw error;
+      if (attempt >= 3) {
+        // The box or its SSM session may be on its way back, for example a box that stopped while this session started:
+        // keep asking in the background, as for any lost tunnel.
+        void reconnect(request, signal, { warned: true }).catch(() => {});
+        throw new Error(`${(error as Error).message}. Stacktape keeps retrying in the background.`);
+      }
       await sleep(1000 * attempt, signal);
     }
   }
@@ -606,23 +713,45 @@ export const pingRelay = async (relay: Pick<RelayEndpoint, 'controlHost' | 'cont
 };
 
 /**
+ * The live sessions the relay knows, of one stack or of all. A relay older than version 2 does not know the message
+ * and closes the connection, which rejects.
+ */
+export const listRelaySessions = async (
+  relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>,
+  stack?: string
+): Promise<RelaySessionInfo[]> => {
+  const socket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
+  try {
+    await socket.send({ type: 'Sessions', stack });
+    const response = await socket.recv({ timeoutMs: NETWORK_TIMEOUT_MS * 2 });
+    if (response?.type !== 'Sessions') throw new Error('The dev box relay does not list its sessions.');
+    return response.sessions;
+  } finally {
+    socket.destroy();
+  }
+};
+
+/**
  * Holds a presence connection: the box stays awake while it is open, also for a session without tunnels whose VPC
- * functions only need the box as NAT. Resolves when the connection ends.
+ * functions only need the box as NAT. The stack lets another session of the same stage find this one. Resolves when
+ * the connection ends.
  */
 export const holdRelayPresence = async ({
   relay,
   owner,
+  stack,
   signal
 }: {
   relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
   owner: RelayOwner;
+  stack?: string;
   signal: AbortSignal;
 }) => {
   const socket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   const abort = () => socket.destroy();
   signal.addEventListener('abort', abort, { once: true });
   try {
-    await socket.send({ type: 'Presence', owner });
+    await socket.send({ type: 'Presence', owner, stack });
     while (!signal.aborted) {
       const message = await socket.recv();
       if (!message) return;

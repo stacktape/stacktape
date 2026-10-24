@@ -91,7 +91,7 @@ const request = (localPort) => ({
   resourceName: 'db',
   localPort,
   lease: { port: 20001, key: 'stack/db' },
-  owner: { id: 'user-1', label: 'Test User' },
+  owner: { id: 'user-1', label: 'Test User', session: 'session-1' },
   relay: { controlHost: '127.0.0.1', controlPort: ${serverPort}, relayHost: '127.0.0.1' }
 });
 if (${JSON.stringify(behavior)} === 'relay-reset') {

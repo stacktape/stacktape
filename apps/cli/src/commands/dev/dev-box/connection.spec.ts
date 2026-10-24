@@ -80,7 +80,7 @@ const fakeWorld = ({ boxState }: { boxState: string }) => {
 
 test('a session starts a stopped box, waits for the relay and holds its presence', async () => {
   const { world, deps } = fakeWorld({ boxState: 'stopped' });
-  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
   const statuses: DevBoxStatus['phase'][] = [];
   connection.onStatus = (status) => statuses.push(status.phase);
   const relay = await connection.connect();
@@ -95,7 +95,7 @@ test('a session starts a stopped box, waits for the relay and holds its presence
 test('a lost session is ended on the server and reopened on the same local port', async () => {
   const { world, deps } = fakeWorld({ boxState: 'running' });
   world.relayUp = true;
-  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
   await connection.connect();
   // The plugin dies (laptop sleep, network drop). The old server-side session still holds the relay ports.
   world.sessions[0].exit();
@@ -108,7 +108,7 @@ test('a lost session is ended on the server and reopened on the same local port'
 test('a box that stopped itself under a running session is started again', async () => {
   const { world, deps } = fakeWorld({ boxState: 'running' });
   world.relayUp = true;
-  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
   await connection.connect();
   world.boxState = 'stopped';
   world.relayUp = false;
@@ -141,7 +141,7 @@ test('a first connection that fails keeps retrying and starts a box that stopped
     if (++opens === 1) throw new Error('TargetNotConnected');
     return failing(input);
   };
-  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
   const statuses: DevBoxStatus['phase'][] = [];
   connection.onStatus = (status) => statuses.push(status.phase);
   const relay = await connection.connect();
@@ -158,7 +158,7 @@ test('a connection that never succeeds rejects only when the session stops', asy
   deps.openSession = async () => {
     throw new Error('SessionManagerPlugin is not found');
   };
-  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U' } });
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
   const connected = connection.connect();
   await waitFor('a reconnecting status', () => connection.status?.phase === 'reconnecting');
   expect(connection.status).toEqual({ phase: 'reconnecting', reason: 'SessionManagerPlugin is not found' });

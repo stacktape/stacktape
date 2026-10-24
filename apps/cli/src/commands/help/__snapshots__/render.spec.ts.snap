@@ -226,6 +226,7 @@ Options:
       --skip-resources <value>     Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: --skip-resources myHeavyDb, --skip-resources fn1,fn2.
       --agent-port <number>        The port of the agent mode HTTP API. Implies --agent. By default, the first free port from 7331.
       --fresh-db                   If true, deletes existing local database data before starting. Use this to start with a clean database state.
+      --take-over                  Moves a stage that another stacktape dev session runs, on another machine or in another terminal, to this session. Without this flag, stacktape dev refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself.
 
 Global options:
   -h, --help               Show help for a command or group

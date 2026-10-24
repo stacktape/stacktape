@@ -31,6 +31,13 @@ stacktape dev network delete --region eu-west-1
 
 Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. The next `stacktape dev` that needs a dev network creates it again.
 
+The command also refuses while someone else depends on the network:
+
+- While a `stacktape dev` session uses it. The command asks the running dev box for its sessions and lists them. A box that has just started may not answer for about a minute; the command then refuses too. `--force` deletes the network anyway, and those sessions lose their connection.
+- While a `stacktape dev` session creates or updates the network. Run the command again when CloudFormation has finished.
+
+A `stacktape dev` that starts while the network is being deleted waits for the deletion to finish and then creates a new network.
+
 Pass `--yes` to skip the confirmation prompt, for example in a script.
 
 ## Flags reference
@@ -57,6 +64,7 @@ Pass `--yes` to skip the confirmation prompt, for example in a script.
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--force` | no | `boolean` | Force — Deletes the dev network even while `stacktape dev` sessions use it, or when the command cannot check for them. Those sessions lose their connection to deployed functions. Dev functions still in the network block the deletion even with this flag. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |

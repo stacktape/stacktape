@@ -19,6 +19,13 @@ test.skipIf(process.platform !== 'linux')(
       region: 'eu-west-1'
     });
     expect(resolveLambdaDevOptions({ ...valid, STP_AWS_LAMBDA_DEV_REGION: 'eu-north-1' }).region).toBe('eu-north-1');
+    expect(
+      resolveLambdaDevOptions({
+        ...valid,
+        STP_AWS_LAMBDA_DEV_REGION: 'eu-central-1',
+        STP_AWS_LAMBDA_DEV_NETWORK_SUFFIX: 'r2b'
+      })
+    ).toMatchObject({ region: 'eu-central-1', networkSuffix: 'r2b' });
     for (const override of [
       { STP_AWS_LAMBDA_DEV_REGION: 'eu-north-1; rm -rf /' },
       { STP_AWS_LAMBDA_DEV_DEPLOY: undefined },
@@ -28,7 +35,8 @@ test.skipIf(process.platform !== 'linux')(
       { STP_AWS_LAMBDA_DEV_STATE_FILE: 'relative.json' },
       { STP_AWS_LAMBDA_DEV_OWNER: '../unsafe' },
       { STP_AWS_LAMBDA_DEV_REPORT: 'relative-report.json' },
-      { AWS_ENDPOINT_URL_LAMBDA: 'http://127.0.0.1:4566' }
+      { AWS_ENDPOINT_URL_LAMBDA: 'http://127.0.0.1:4566' },
+      { STP_AWS_LAMBDA_DEV_NETWORK_SUFFIX: '../other' }
     ])
       expect(() => resolveLambdaDevOptions({ ...valid, ...override })).toThrow();
   }
@@ -49,6 +57,12 @@ test.skipIf(process.platform !== 'linux')(
       createAttempted: true
     };
     expect(validateLambdaDevRecoveryState(state, options)).toMatchObject(state);
+    // A run that named its network keeps that name in its recovery state.
+    const named = resolveLambdaDevOptions({ ...valid, STP_AWS_LAMBDA_DEV_NETWORK_SUFFIX: 'r2b' });
+    expect(validateLambdaDevRecoveryState({ ...state, networkSuffix: 'r2b' }, named)).toMatchObject({
+      networkSuffix: 'r2b'
+    });
+    expect(() => validateLambdaDevRecoveryState(state, named)).toThrow();
     for (const override of [
       { accountId: '999999999999' },
       { owner: 'other-run' },

@@ -3,6 +3,9 @@ import type { RelayEndpoint, RelayOwner } from '../tunnel-manager';
 import { setTimeout as delay } from 'node:timers/promises';
 import { DEV_BOX_RELAY_CONTROL_PORT } from '@domain-services/dev-network/boot-script';
 import { wakeDevBox, waitForDevBoxOnline } from '@domain-services/dev-network';
+import { SsmPortForwardingTunnel } from '@utils/ssm-session';
+import findFreePorts from 'find-free-ports';
+import { pingRelay } from '../tunnel-manager';
 
 /** One SSM port-forwarding session from this machine to the relay's control port on the box. */
 export type RelaySession = {
@@ -26,6 +29,7 @@ export type DevBoxDependencies = {
   holdPresence: (input: {
     relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
     owner: RelayOwner;
+    stack?: string;
     signal: AbortSignal;
   }) => Promise<void>;
   /** Called with every new server-side session, so a later start can end one a killed CLI left open. */
@@ -33,6 +37,82 @@ export type DevBoxDependencies = {
   /** How long the relay may take to answer after the session opens: a first boot installs it. */
   relayTimeoutMs?: number;
   pollMs?: number;
+};
+
+/** Opens an SSM port-forwarding session from `localPort` on this machine to the relay's control port on the box. */
+export const openDevBoxRelaySession = async ({
+  instanceId,
+  localPort,
+  remotePort
+}: {
+  instanceId: string;
+  localPort: number;
+  remotePort: number;
+}): Promise<RelaySession> => {
+  const tunnel = new SsmPortForwardingTunnel({
+    localPort,
+    targetInfo: {
+      bastionInstanceId: instanceId,
+      remoteHost: '127.0.0.1',
+      remotePort,
+      label: 'dev box relay',
+      targetStpName: 'devBox'
+    }
+  });
+  try {
+    await tunnel.connect();
+  } catch (error) {
+    await tunnel.kill().catch(() => {});
+    throw error;
+  }
+  return tunnel;
+};
+
+/**
+ * Runs one request against the relay of a box that runs or starts, through a short SSM session that holds no presence,
+ * so the request does not keep the box awake. Does not start a stopped box.
+ */
+export const queryDevBoxRelay = async <T>({
+  aws,
+  network,
+  request,
+  timeoutMs = 90_000
+}: {
+  aws: DevNetworkAws;
+  network: DevNetwork;
+  request: (relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>) => Promise<T>;
+  timeoutMs?: number;
+}): Promise<T> => {
+  const deadline = Date.now() + timeoutMs;
+  await waitForDevBoxOnline({
+    aws,
+    instanceId: network.boxInstanceId,
+    timeoutMs,
+    onStart: () => {
+      throw new Error('the dev box stopped');
+    }
+  });
+  const localPort = (await findFreePorts(1))[0];
+  const session = await openDevBoxRelaySession({
+    instanceId: network.boxInstanceId,
+    localPort,
+    remotePort: DEV_BOX_RELAY_CONTROL_PORT
+  });
+  const relay = { controlHost: '127.0.0.1', controlPort: localPort };
+  try {
+    for (;;) {
+      try {
+        await pingRelay(relay);
+        break;
+      } catch (error) {
+        if (Date.now() > deadline) throw new Error(`the dev box relay did not answer: ${(error as Error).message}`);
+        await delay(1000);
+      }
+    }
+    return await request(relay);
+  } finally {
+    await session.kill().catch(() => {});
+  }
 };
 
 /**
@@ -47,6 +127,7 @@ export class DevBoxConnection {
   readonly #deps: DevBoxDependencies;
   readonly #network: DevNetwork;
   readonly #owner: RelayOwner;
+  readonly #stackName: string | undefined;
   readonly #stopped = new AbortController();
   #ready: Promise<RelayEndpoint> | undefined;
   #session: RelaySession | undefined;
@@ -54,10 +135,22 @@ export class DevBoxConnection {
   #status: DevBoxStatus | undefined;
   #onStatus: ((status: DevBoxStatus) => void) | undefined;
 
-  constructor({ deps, network, owner }: { deps: DevBoxDependencies; network: DevNetwork; owner: RelayOwner }) {
+  constructor({
+    deps,
+    network,
+    owner,
+    stackName
+  }: {
+    deps: DevBoxDependencies;
+    network: DevNetwork;
+    owner: RelayOwner;
+    /** The dev stack this session runs; its presence connection names it, so the stage's other sessions find it. */
+    stackName?: string;
+  }) {
     this.#deps = deps;
     this.#network = network;
     this.#owner = owner;
+    this.#stackName = stackName;
   }
 
   /**
@@ -143,7 +236,7 @@ export class DevBoxConnection {
   #hold = async (session: RelaySession) => {
     const presence = new AbortController();
     const presenceEnded = this.#deps
-      .holdPresence({ relay: this.#endpoint(), owner: this.#owner, signal: presence.signal })
+      .holdPresence({ relay: this.#endpoint(), owner: this.#owner, stack: this.#stackName, signal: presence.signal })
       .catch(() => {});
     await Promise.race([session.waitForExit(), presenceEnded]);
     presence.abort();
@@ -168,7 +261,8 @@ export class DevBoxConnection {
         this.#setStatus({ phase: 'reconnecting', reason: 'the connection to the dev box was lost' });
         await this.#endSession();
       } catch (error) {
-        if (signal.aborted) return;
+        // A stop while a session was opening finds no session to end yet: end the one that opened meanwhile.
+        if (signal.aborted) return this.#endSession();
         this.#setStatus({ phase: 'reconnecting', reason: (error as Error).message });
         await this.#endSession();
         await delay(Math.min(1000 * attempt++, 5000), undefined, { signal }).catch(() => {});

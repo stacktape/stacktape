@@ -8,17 +8,22 @@
  * to the dev Lambda security group only.
  *
  * Messages a client sends first:
- * - `{"Lease": {"port", "key", "owner", "label"}}` opens the tunnel port of one (stack, resource) lease. A port held by
- *   a live tunnel of another owner is refused with `{"Refused": {...}}`, naming the holder; the same owner takes the port
- *   over, because a laptop that lost its SSM session comes back before the old session's sockets close.
- * - `{"Presence": {"owner", "label"}}` keeps the box awake while a dev session runs without any tunnel.
+ * - `{"Lease": {"port", "key", "owner", "label", "session", "takeOver"}}` opens the tunnel port of one (stack, resource)
+ *   lease. The stage belongs to one `stacktape dev` process: while another process holds any tunnel of the same stack,
+ *   or this port, the lease is refused with `{"Refused": {...}}`, naming the holder, so two sessions of one stage never
+ *   split its databases or take a port from each other in turn. The same process takes its port over, because a laptop
+ *   that lost its SSM session comes back before the old session's sockets close. With `takeOver`, every tunnel of the
+ *   stack that another process holds is closed at once, with the connections it carries (a warm function's pooled
+ *   database connection included); each is told `{"TakenOver": {"label"}}` first, and its session must end.
+ * - `{"Presence": {"owner", "label", "session", "stack"}}` keeps the box awake while a dev session runs.
+ * - `{"Sessions": {"stack"}}` answers the live sessions of one stack (all stacks when it is empty) and closes.
  * - `{"Ping": null}` answers `{"Pong": {"version"}}` and closes: the readiness probe.
  * - `{"Hello": port}` and `{"Accept": id}` are bore's own messages.
  *
  * The box stops itself: once no tunnel and no presence connection has been open for the idle time, the relay runs the
  * shutdown command, and `InstanceInitiatedShutdownBehavior: stop` turns that into an EC2 stop.
  */
-export const DEV_BOX_RELAY_VERSION = 1;
+export const DEV_BOX_RELAY_VERSION = 2;
 
 export const DEV_BOX_RELAY_SOURCE = String.raw`#!/usr/bin/env python3
 import asyncio
@@ -40,7 +45,7 @@ PENDING_SECONDS = 10
 
 pending = {}
 tunnels = {}
-presences = set()
+presences = {}
 idle_since = time.monotonic()
 
 
@@ -98,41 +103,79 @@ async def hold(reader, writer):
 
 
 async def close_tunnel(tunnel):
-    tunnel['server'].close()
+    """Closes the tunnel's port, its control connection and every connection it carries: a pooled database
+    connection of a warm function must not keep reaching the replaced session."""
     tunnel['writer'].close()
-    await tunnel['server'].wait_closed()
+    for conn_writer in list(tunnel['connections']):
+        conn_writer.close()
+    tunnel['connections'].clear()
+    if tunnel['server']:
+        tunnel['server'].close()
+        await tunnel['server'].wait_closed()
 
 
-async def run_tunnel(reader, writer, port, key, owner, label):
-    holder = tunnels.get(port) if port else None
-    if holder:
-        if holder['owner'] != owner:
-            writer.write(frame({'Refused': {'port': port, 'key': holder['key'], 'label': holder['label'],
-                                            'since': holder['since']}}))
-            writer.close()
-            return
-        log('port %d taken over by a new connection of the same owner' % port)
+def stack_of(key):
+    return key.split('/')[0] if key else ''
+
+
+async def run_tunnel(reader, writer, port, key, owner, label, session, take_over):
+    stack = stack_of(key)
+    others = sorted(
+        [(held_port, held) for held_port, held in tunnels.items()
+         if (held_port == port or (stack and stack_of(held['key']) == stack))
+         and not (held['owner'] == owner and held['session'] == session)],
+        key=lambda entry: entry[1]['since'])
+    if others and not take_over:
+        holder = others[0][1]
+        writer.write(frame({'Refused': {'port': port, 'key': holder['key'], 'label': holder['label'],
+                                        'since': holder['since']}}))
+        writer.close()
+        return
+    same_session = tunnels.get(port) if port else None
+    # Everything up to the reservation below runs without an await, so a concurrent lease of another session sees
+    # either the old holders or this tunnel, never a gap in which both could take part of the stage.
+    tunnel = {'server': None, 'writer': writer, 'owner': owner, 'key': key, 'label': label,
+              'session': session, 'since': int(time.time()), 'connections': set()}
+    replaced = []
+    for held_port, held in others:
+        log('port %d taken over by %s' % (held_port, label or '-'))
+        held['writer'].write(frame({'TakenOver': {'label': label}}))
+        del tunnels[held_port]
+        replaced.append(held)
+    if same_session and same_session not in replaced:
+        log('port %d taken over by a new connection of the same session' % port)
         del tunnels[port]
-        await close_tunnel(holder)
+        replaced.append(same_session)
+    if port:
+        tunnels[port] = tunnel
+    for held in replaced:
+        await close_tunnel(held)
 
     async def on_connection(conn_reader, conn_writer):
         connection_id = str(uuid.uuid4())
-        pending[connection_id] = (conn_reader, conn_writer)
+        pending[connection_id] = (conn_reader, conn_writer, tunnel)
+        tunnel['connections'].add(conn_writer)
         writer.write(frame({'Connection': connection_id}))
         await asyncio.sleep(PENDING_SECONDS)
         stale = pending.pop(connection_id, None)
         if stale:
+            tunnel['connections'].discard(conn_writer)
             stale[1].close()
 
     try:
         server = await asyncio.start_server(on_connection, TUNNEL_HOST, port, reuse_address=True)
     except OSError as error:
+        if tunnels.get(port) is tunnel:
+            del tunnels[port]
         writer.write(frame({'Error': 'port %d is not available: %s' % (port, error.strerror)}))
         writer.close()
         return
     actual_port = server.sockets[0].getsockname()[1]
-    tunnel = {'server': server, 'writer': writer, 'owner': owner, 'key': key, 'label': label,
-              'since': int(time.time())}
+    tunnel['server'] = server
+    if port and tunnels.get(port) is not tunnel:
+        # Another session took this port over while it was opening.
+        await close_tunnel(tunnel)
+        return
     tunnels[actual_port] = tunnel
     touch()
     writer.write(frame({'Hello': actual_port}))
@@ -148,17 +191,31 @@ async def run_tunnel(reader, writer, port, key, owner, label):
         writer.close()
 
 
-async def run_presence(reader, writer, owner, label):
-    entry = (owner, label, id(writer))
-    presences.add(entry)
+async def run_presence(reader, writer, owner, label, session, stack):
+    presences[id(writer)] = {'owner': owner, 'label': label, 'session': session, 'stack': stack,
+                             'since': int(time.time())}
     touch()
     writer.write(frame({'Pong': {'version': VERSION}}))
     try:
         await hold(reader, writer)
     finally:
-        presences.discard(entry)
+        presences.pop(id(writer), None)
         touch()
         writer.close()
+
+
+def live_sessions(stack):
+    """One entry per (stack, session) that holds a tunnel or a presence connection, the earliest first."""
+    found = {}
+    entries = [dict(tunnel, stack=stack_of(tunnel['key'])) for tunnel in tunnels.values()]
+    for entry in entries + list(presences.values()):
+        if not entry['stack'] or (stack and entry['stack'] != stack):
+            continue
+        name = (entry['stack'], entry['session'], entry['owner'])
+        if name not in found or entry['since'] < found[name]['since']:
+            found[name] = {'stack': entry['stack'], 'session': entry['session'], 'owner': entry['owner'],
+                           'label': entry['label'], 'since': entry['since']}
+    return sorted(found.values(), key=lambda entry: entry['since'])
 
 
 async def handle(reader, writer):
@@ -176,11 +233,18 @@ async def handle(reader, writer):
     kind, value = next(iter(message.items()))
     if kind == 'Lease' and isinstance(value, dict):
         await run_tunnel(reader, writer, int(value.get('port') or 0), str(value.get('key') or ''),
-                         str(value.get('owner') or ''), str(value.get('label') or ''))
+                         str(value.get('owner') or ''), str(value.get('label') or ''),
+                         str(value.get('session') or ''), value.get('takeOver') is True)
     elif kind == 'Hello':
-        await run_tunnel(reader, writer, int(value or 0), '', '', '')
+        await run_tunnel(reader, writer, int(value or 0), '', '', '', '', False)
     elif kind == 'Presence' and isinstance(value, dict):
-        await run_presence(reader, writer, str(value.get('owner') or ''), str(value.get('label') or ''))
+        await run_presence(reader, writer, str(value.get('owner') or ''), str(value.get('label') or ''),
+                           str(value.get('session') or ''), str(value.get('stack') or ''))
+    elif kind == 'Sessions':
+        stack = str(value.get('stack') or '') if isinstance(value, dict) else ''
+        writer.write(frame({'Sessions': live_sessions(stack)}))
+        await writer.drain()
+        writer.close()
     elif kind == 'Ping':
         writer.write(frame({'Pong': {'version': VERSION}}))
         await writer.drain()
@@ -190,7 +254,17 @@ async def handle(reader, writer):
         if not entry:
             writer.close()
             return
-        await asyncio.gather(pipe(reader, entry[1]), pipe(entry[0], writer))
+        conn_reader, conn_writer, tunnel = entry
+        if conn_writer not in tunnel['connections']:
+            conn_writer.close()
+            writer.close()
+            return
+        tunnel['connections'].add(writer)
+        try:
+            await asyncio.gather(pipe(reader, conn_writer), pipe(conn_reader, writer))
+        finally:
+            tunnel['connections'].discard(conn_writer)
+            tunnel['connections'].discard(writer)
     else:
         writer.close()
 

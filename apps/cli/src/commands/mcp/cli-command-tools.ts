@@ -118,6 +118,7 @@ const ARG_ALIASES: Record<string, string> = {
   show_sensitive_values: 'showSensitiveValues',
   source_path: 'sourcePath',
   start_time: 'startTime',
+  take_over: 'takeOver',
   task_arn: 'taskArn'
 };
 

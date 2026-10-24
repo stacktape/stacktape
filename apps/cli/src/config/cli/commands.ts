@@ -10,6 +10,8 @@ import {
   awsAccount,
   cleanupContainers,
   freshDb,
+  takeOver,
+  forceDevNetworkDelete,
   assumeRoleOfResource,
   autoConfirmOperation,
   awsRegion,
@@ -163,7 +165,8 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       agent: devAgent.optional(),
       agentPort: devAgentPort.optional(),
       agentChild: agentChild.optional(),
-      freshDb: freshDb.optional()
+      freshDb: freshDb.optional(),
+      takeOver: takeOver.optional()
     },
     requiredArgs: ['region', 'stage'] as const
   },
@@ -200,11 +203,12 @@ The first \`stacktape dev\` that needs it creates one dev network per account an
   'dev:network:delete': {
     description: `Deletes the dev network of an AWS account and region.
 
-Delete the dev stages that use it first (\`stacktape delete --stage <stage>\`); the command refuses while dev functions still run in the network. The next \`stacktape dev\` that needs a dev network creates it again.`,
+Delete the dev stages that use it first (\`stacktape delete --stage <stage>\`); the command refuses while dev functions still run in the network. It also refuses while a \`stacktape dev\` session uses the network, or while a session creates or updates it; \`--force\` deletes it despite live sessions. The next \`stacktape dev\` that needs a dev network creates it again.`,
     args: {
       ...universalArgs,
       ...stackArgs,
-      autoConfirmOperation: autoConfirmOperation.optional()
+      autoConfirmOperation: autoConfirmOperation.optional(),
+      force: forceDevNetworkDelete.optional()
     },
     requiredArgs: ['region'] as const
   },
