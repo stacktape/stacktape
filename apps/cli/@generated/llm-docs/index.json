@@ -17615,6 +17615,7 @@
         "page:/deployment-and-lifecycle/code-swap#supported-services",
         "page:/deployment-and-lifecycle/code-swap#memory-and-request-failures",
         "page:/deployment-and-lifecycle/code-swap#completion-and-fallback",
+        "page:/deployment-and-lifecycle/code-swap#websocket-and-sse-connections",
         "page:/deployment-and-lifecycle/code-swap#rollback-disabling-and-interrupted-deploys"
       ]
     },

@@ -271,9 +271,10 @@ const main = async () => {
           await sleep(20);
         }
       })();
-      let s;
+      let s, completedAt;
       try {
         s = await attempt('old', true, swapDrainMs + 30000);
+        completedAt = performance.now();
       } finally {
         trafficController.abort();
         await loop;
@@ -287,15 +288,22 @@ const main = async () => {
         end += new TextDecoder().decode(b.value);
       }
       assert(end.endsWith('new'));
+      // The ordinary 1.5 s request finished on the old process; the SSE stream and the WebSocket did not delay completion.
+      assert.equal(s.timings.forcedDrain, false);
+      assert(s.timings.drainMs < 5000);
+      assert.equal(s.timings.longLivedRemaining, 2);
+      assert.equal(ws.socket.destroyed, false);
+      // They stay on the old process until the drain deadline, then close (WebSocket close 1001).
       try {
         while (!(await sse.reader.read()).done) {}
       } catch {}
-      await wait(() => ws.socket.destroyed);
+      await wait(() => ws.socket.destroyed, swapDrainMs + 10000);
+      // Monotonic: the deadline runs from the switch, which precedes the observed completion by the short drain.
+      const closedAfterCompleteMs = performance.now() - completedAt;
       assert(Buffer.concat(ws.received).includes(Buffer.from([0x88, 2, 3, 0xe9])));
-      // SSE and WebSocket never end on their own, so they hold the old process until the drain deadline.
-      assert.equal(s.timings.forcedDrain, true);
-      assert(s.timings.drainMs >= swapDrainMs - 100 && s.timings.drainMs < swapDrainMs + 5000);
+      assert(closedAfterCompleteMs >= swapDrainMs - 5000 && closedAfterCompleteMs < swapDrainMs + 1000);
       await pidsGone([old.pid]);
+      assert.equal((await status()).state, 'complete');
       const post = await new Promise((resolve, reject) => {
         const r = request(
           url,
@@ -321,7 +329,13 @@ const main = async () => {
       assert.equal(post.bytes, 1048576);
       assert.equal(post.host, 'preserved.example');
       assert(post.forwarded.startsWith('192.0.2.4'));
-      return { naturalTimings: first.timings, timings: s.timings, swapRequestFailures: traffic.length, post };
+      return {
+        naturalTimings: first.timings,
+        timings: s.timings,
+        closedAfterCompleteMs,
+        swapRequestFailures: traffic.length,
+        post
+      };
     });
     await stop();
     for (const rev of ['startupCrash', 'detach', 'doubleFork']) {
@@ -341,7 +355,7 @@ const main = async () => {
   if (scenario === 'normal' || scenario === 'crash') {
     await test('B3 post-switch leader crash preserves old request deadline and sticky failure', async () => {
       await start('old', 3);
-      const long = await stream('/sse');
+      const long = await stream('/hold');
       const old = await inspect();
       await attempt('workers', false);
       await signalRecord('workers', 'commit');
@@ -438,7 +452,7 @@ const main = async () => {
     await test('B3 real candidate worker OOM ' + phase, async () => {
       await start('old', 3);
       const old = await inspect();
-      const long = await stream('/sse');
+      const long = await stream('/hold');
       await attempt('oom', false);
       const prep = await fetch(url + '/inspect', { headers: { 'X-Lab-Prepare': '1' } }).then((r) => r.json());
       if (phase === 'switch') {
@@ -511,7 +525,7 @@ const main = async () => {
       const stopGrace = Number(process.env.QUAL_STOP_GRACE ?? (external ? '40' : '2'));
       await start('ignoreTerm', stopGrace);
       let held;
-      if (phase === 'switch') held = await stream('/sse');
+      if (phase === 'switch') held = await stream('/hold');
       if (phase === 'prepare') {
         await signalRecord('slowStartup', 'prepare');
         // A running child proves spawn is in progress; prepared must not have been published.
