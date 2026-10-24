@@ -60,6 +60,7 @@ import {
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
+import { getEfsMountTargetSubnetIds } from '../efs-filesystems/utils';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
 import { resolveApplicationLoadBalancerEvents } from './events/application-load-balancer';
@@ -229,8 +230,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     : [];
   const mountedS3FilesAccessPointArns = s3FilesVolumeMounts.map((mount) => mount.properties.accessPointArn);
   mountedEfsFilesystems.forEach(({ name: efsFilesystemName }) => {
-    lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 0));
-    lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 1));
+    getEfsMountTargetSubnetIds().forEach((_subnetId, index) => {
+      lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, index));
+    });
   });
 
   // Tracing instrumentation is skipped in dev mode together with the Transaction Search enablement

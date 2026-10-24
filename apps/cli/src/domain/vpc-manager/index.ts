@@ -225,6 +225,23 @@ class VpcManager {
     return [...subnetsByAvailabilityZone.values()];
   };
 
+  /**
+   * One subnet in each availability zone that workloads in the VPC run in: the zones of the public subnets, plus the
+   * zones of the private subnets when `includePrivateSubnets`. Public subnets win within a zone and keep their order,
+   * so the first entries stay the first public subnets. In the stack's own VPC, public and private subnet `i` share
+   * zone `i`, so these are the three public subnets.
+   */
+  getSubnetIdPerAvailabilityZone = ({ includePrivateSubnets }: { includePrivateSubnets: boolean }) => {
+    if (this.#publicSubnets.length === 0) return this.getPublicSubnetIds();
+    const subnetsByAvailabilityZone = new Map<string, string>();
+    [...this.#publicSubnets, ...(includePrivateSubnets ? this.#privateSubnets : [])].forEach(({ subnet }) => {
+      if (subnet.SubnetId && subnet.AvailabilityZone && !subnetsByAvailabilityZone.has(subnet.AvailabilityZone)) {
+        subnetsByAvailabilityZone.set(subnet.AvailabilityZone, subnet.SubnetId);
+      }
+    });
+    return [...subnetsByAvailabilityZone.values()];
+  };
+
   getPrivateSubnetIds = () => {
     if (this.#privateSubnets.length > 0) {
       return this.#privateSubnets.map((subnetDetails) => subnetDetails.subnet.SubnetId!);
