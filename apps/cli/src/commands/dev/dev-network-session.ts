@@ -131,11 +131,10 @@ export const assertStageNotRunningElsewhere = async ({
   throw new CliError({
     category: 'CLI',
     code: 'DEV_STAGE_RUNNING_ELSEWHERE',
-    message: `Dev mode for ${stackName} already runs in another session: ${holders}.`,
-    hints: [
-      'Stop that session first, or run this command again with `--take-over` to move the stage to this machine.',
+    // The message carries the way out: `dev --agent` passes on only the message of its daemon's error.
+    message: `Dev mode for ${stackName} already runs in another session: ${holders}. Stop that session, or run this command again with --take-over to move the stage here.`,
+    hints:
       'With `--take-over`, deployed functions reach the databases on this machine, and the other session stops receiving their connections.'
-    ]
   });
 };
 

@@ -91,15 +91,21 @@ export const commandDevNetworkDelete = async () => {
     }
   }
   tuiManager.info(`Deleting the dev network ${network.stackName}. This takes about 2 minutes.`);
-  const { deletedLeases } = await deleteDevNetwork({
+  const { deletedLeases, recreated } = await deleteDevNetwork({
     aws,
     network,
     force: Boolean(args.force),
     findLiveSessions: (target) =>
       queryDevBoxRelay({ aws, network: target, request: (relay) => listRelaySessions(relay) })
   });
+  if (recreated) {
+    tuiManager.success(
+      `Deleted the dev network ${network.stackName}. A \`stacktape dev\` session that started meanwhile created a new one under the same name; its relay port leases were kept.`
+    );
+    return { deleted: true, recreated };
+  }
   tuiManager.success(
     `Deleted the dev network ${network.stackName} and ${deletedLeases} relay port lease${deletedLeases === 1 ? '' : 's'}.`
   );
-  return { deleted: true };
+  return { deleted: true, recreated };
 };

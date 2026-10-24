@@ -137,22 +137,27 @@ export const readDevNetwork = async (aws: DevNetworkAws): Promise<DevNetwork | u
   return readOutputs(stackName, stack);
 };
 
-/** Waits until a deletion that runs ends: `stacktape dev network delete` may run while a session starts. */
+/**
+ * Waits until a deletion that runs ends: `stacktape dev network delete` may run while a session starts. A stack with
+ * another id under the same name is a network another session created after the deletion.
+ */
 const waitForDeletion = async ({
   aws,
   stackName,
+  stackId,
   pollIntervalMs,
   timeoutMs
 }: {
   aws: DevNetworkAws;
   stackName: string;
+  stackId: string | undefined;
   pollIntervalMs: number;
   timeoutMs: number;
 }) => {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const stack = await aws.stacks.get(stackName);
-    if (!stack || stack.StackStatus === 'DELETE_COMPLETE') return;
+    if (!stack || stack.StackStatus === 'DELETE_COMPLETE' || stack.StackId !== stackId) return;
     if (stack.StackStatus !== 'DELETE_IN_PROGRESS' || Date.now() > deadline) {
       throw new CliError({
         category: 'CLOUDFORMATION',
@@ -186,7 +191,13 @@ export const ensureDevNetwork = async ({
   let existing = await aws.stacks.get(stackName);
   if (existing?.StackStatus === 'DELETE_IN_PROGRESS' || existing?.StackStatus === 'DELETE_FAILED') {
     if (existing.StackStatus === 'DELETE_IN_PROGRESS') onDeletionWait?.();
-    await waitForDeletion({ aws, stackName, pollIntervalMs: pollIntervalMs ?? 5000, timeoutMs: 20 * 60_000 });
+    await waitForDeletion({
+      aws,
+      stackName,
+      stackId: existing.StackId,
+      pollIntervalMs: pollIntervalMs ?? 5000,
+      timeoutMs: 20 * 60_000
+    });
     existing = undefined;
   }
   const manager = new SharedResourceStackManager({ adapter: aws.stacks, pollIntervalMs });
@@ -315,7 +326,8 @@ export type LiveDevSession = { stack: string; label: string; since: number };
  * - while dev functions are in the network: they keep its subnets in use, and the deletion would fail.
  *
  * The stack state is read again right before the deletion, so an update a session started meanwhile is not cut off.
- * A deletion that runs already is waited for.
+ * A deletion that runs already is waited for. A session that starts during the deletion creates a new network under
+ * the same name once the old one is gone; the deletion then ends without removing the leases the new one may use.
  */
 export const deleteDevNetwork = async ({
   aws,
@@ -338,7 +350,7 @@ export const deleteDevNetwork = async ({
     if (isBeingChanged(stack?.StackStatus)) throw devNetworkBusyError(network.stackName, stack?.StackStatus);
     return stack;
   };
-  const stack = await assertNotBeingChanged();
+  let stack = await assertNotBeingChanged();
   if (stack && stack.StackStatus !== 'DELETE_IN_PROGRESS') {
     const box = await aws.describeBox(network.boxInstanceId);
     if (!force && (box?.state === 'running' || box?.state === 'pending')) {
@@ -386,13 +398,14 @@ export const deleteDevNetwork = async ({
       });
     }
     // A session may have started creating or updating the network while the checks above ran.
-    await assertNotBeingChanged();
+    stack = await assertNotBeingChanged();
     await aws.stacks.delete(network.stackName);
   }
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const current = await aws.stacks.get(network.stackName);
     if (!current || current.StackStatus === 'DELETE_COMPLETE') break;
+    if (stack && current.StackId !== stack.StackId) return { deletedLeases: 0, recreated: true };
     if (Date.now() > deadline) {
       throw new CliError({
         category: 'CLOUDFORMATION',
@@ -414,5 +427,5 @@ export const deleteDevNetwork = async ({
   const prefix = getDevNetworkLeaseParameterPrefix(network.stackName);
   const leases = await aws.leases.list(prefix);
   if (leases.length) await aws.leases.delete(leases.map(({ name }) => name));
-  return { deletedLeases: leases.length };
+  return { deletedLeases: leases.length, recreated: false };
 };

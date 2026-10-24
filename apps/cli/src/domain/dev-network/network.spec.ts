@@ -28,7 +28,8 @@ const outputs = {
   BoxPrivateIp: network.boxPrivateIp,
   KeeperFunctionName: network.keeperFunctionName
 };
-const stackIn = (StackStatus: string): SharedStackDetails => ({
+const stackIn = (StackStatus: string, StackId = 'stack-1'): SharedStackDetails => ({
+  StackId,
   StackName: stackName,
   StackStatus,
   Parameters: [{ ParameterKey: 'ImageId', ParameterValue: 'ami-1' }],
@@ -40,7 +41,10 @@ const fakeAws = ({
   boxState = 'stopped',
   functions = [network.keeperFunctionName]
 }: {
-  /** The stack status of each read; the last one repeats. `undefined` is a stack that does not exist. */
+  /**
+   * The stack status of each read; the last one repeats. `undefined` is a stack that does not exist, and `new:<status>`
+   * a stack another session created under the same name.
+   */
   statuses: Array<string | undefined>;
   boxState?: string;
   functions?: string[];
@@ -53,8 +57,9 @@ const fakeAws = ({
   const aws: DevNetworkAws = {
     stacks: {
       get: async () => {
-        if (created) return stackIn('CREATE_COMPLETE');
+        if (created) return stackIn('CREATE_COMPLETE', 'stack-2');
         const status = statuses[Math.min(read++, statuses.length - 1)];
+        if (status?.startsWith('new:')) return stackIn(status.slice('new:'.length), 'stack-2');
         return status ? stackIn(status) : undefined;
       },
       create: async () => {
@@ -131,7 +136,8 @@ describe('dev network delete', () => {
     };
     const stopped = fakeAws({ statuses: ['CREATE_COMPLETE', 'CREATE_COMPLETE', undefined] });
     expect(await deleteDevNetwork({ aws: stopped.aws, network, findLiveSessions: ask, pollIntervalMs: 1 })).toEqual({
-      deletedLeases: 1
+      deletedLeases: 1,
+      recreated: false
     });
     expect(asked).toBe(false);
 
@@ -150,6 +156,17 @@ describe('dev network delete', () => {
     expect(calls.deletes).toBe(0);
   });
 
+  test('ends when a session creates a new network under the same name, and keeps the leases it may use', async () => {
+    const { aws, calls, leases } = fakeAws({
+      statuses: ['CREATE_COMPLETE', 'CREATE_COMPLETE', 'DELETE_IN_PROGRESS', 'new:CREATE_IN_PROGRESS']
+    });
+    expect(await deleteDevNetwork({ aws, network, findLiveSessions: noSessions, pollIntervalMs: 1 })).toEqual({
+      deletedLeases: 0,
+      recreated: true
+    });
+    expect({ deletes: calls.deletes, leases: leases.size }).toEqual({ deletes: 1, leases: 1 });
+  });
+
   test('a deletion that runs already is waited for, not started again', async () => {
     const { aws, calls, leases } = fakeAws({ statuses: ['DELETE_IN_PROGRESS', 'DELETE_IN_PROGRESS', undefined] });
     await deleteDevNetwork({ aws, network, findLiveSessions: noSessions, pollIntervalMs: 1 });
@@ -159,6 +176,12 @@ describe('dev network delete', () => {
 });
 
 describe('dev network creation during a deletion', () => {
+  test('a network another session created meanwhile ends the wait', async () => {
+    const { aws, calls } = fakeAws({ statuses: ['DELETE_IN_PROGRESS', 'new:CREATE_COMPLETE'] });
+    const { action } = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    expect({ action, creates: calls.creates }).toEqual({ action: 'reuse', creates: 0 });
+  });
+
   test('waits for the deletion to end, then creates the network again', async () => {
     const { aws, calls } = fakeAws({ statuses: ['DELETE_IN_PROGRESS', 'DELETE_IN_PROGRESS', undefined] });
     let waited = 0;
