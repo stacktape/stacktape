@@ -18,19 +18,22 @@ const canonicalJson = (value: unknown) =>
  * Tells whether the configuration file now describes something else than the session started with. A rebuild deploys
  * code only: the dev stack, the functions' settings and the local resources keep the configuration of the start.
  */
-export const createConfigChangeDetector = async ({
+export const createConfigChangeDetector = ({
   configPath,
+  sessionConfig,
   loadConfig
 }: {
   configPath: string;
-  /** Loads the configuration file again, executing a TypeScript configuration again. */
+  /** The configuration the session loaded when it started. */
+  sessionConfig: unknown;
+  /** Loads the configuration file again, executing a TypeScript or JavaScript configuration again. */
   loadConfig: () => Promise<unknown>;
-}): Promise<() => Promise<ConfigChange>> => {
-  const sessionConfig = canonicalJson(await loadConfig());
+}): (() => Promise<ConfigChange>) => {
+  const reference = canonicalJson(sessionConfig);
   const file = basename(configPath);
   return async () => {
     try {
-      if (canonicalJson(await loadConfig()) === sessionConfig) return { changed: false };
+      if (canonicalJson(await loadConfig()) === reference) return { changed: false };
       return {
         changed: true,
         reason: `${file} changed after dev mode started. A rebuild deploys code only; restart dev mode to apply the configuration.`

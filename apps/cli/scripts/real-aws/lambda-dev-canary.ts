@@ -921,7 +921,13 @@ const checkTrustworthyResults = async ({
     await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName(state, 'queryArm') }))
   ).Timeout;
   check(timeoutAfter === timeoutBefore, 'The refused rebuild changed the function configuration.');
+  check(
+    (await agentStatus(agent)).failedWorkloads.some(({ name }) => name === 'queryArm'),
+    'The refused workload does not report that it was not rebuilt.'
+  );
 
+  // Reverting the configuration rebuilds the refused workload; the session is ready only after that.
+  const restoredAt = Date.now();
   await writeFile(configFile, config);
   await waitUntil(
     'the session to be ready after the configuration was restored',
@@ -929,8 +935,9 @@ const checkTrustworthyResults = async ({
       const status = await agentStatus(agent);
       check(status.ready && !status.restartRequired, 'still waiting for a restart');
     },
-    60_000
+    120_000
   );
+  results.refusedRebuildDeployedAfterRestoreSeconds = (Date.now() - restoredAt) / 1000;
   const rebuilt = await callAgent(agent, 'POST', '/rebuild/queryArm');
   check(rebuilt.ok, `A rebuild after the restore answered ${JSON.stringify(rebuilt)}.`);
   check((await invoke()).value === 'edited', 'The rebuilt function does not read the database.');

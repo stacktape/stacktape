@@ -45,7 +45,7 @@ import {
 } from '../utils';
 import { updateAgentWorkloadStatus, type RebuildResult } from '../agent-server';
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
-import { checkConfigUnchanged, rebuildWorkloads } from '../workload-rebuild';
+import { createWorkloadRebuilder } from '../workload-rebuild';
 import { startSourceWatcher } from '../source-watcher';
 import { getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
@@ -259,7 +259,6 @@ export const runParallelWorkloads = async (
   await Promise.all(startPromises);
   await devNetworkConnected;
 
-  state.detectConfigChange = await startConfigChangeDetection();
   // `dev` always runs the dev TUI, so `--watch` must not depend on it; the TUI replaces only the stdin `rs` commands.
   // The watcher is ready before dev mode reports ready, so an edit made right after the start is not missed.
   if (watch) {
@@ -1197,19 +1196,24 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   });
 };
 
-/** The configuration the session started with, read again, so a rebuild can tell when it no longer applies. */
-const startConfigChangeDetection = async () => {
+/**
+ * Records the configuration this session loaded, before anything starts, so a rebuild can tell when the file no longer
+ * matches it. An edit made while the session starts counts as a change too.
+ */
+export const captureSessionConfig = () => {
   const configPath = globalStateManager.configPath;
-  if (!configPath) return undefined;
-  try {
-    return await createConfigChangeDetector({
-      configPath,
-      loadConfig: () => configManager.configResolver.reloadRawConfig()
-    });
-  } catch {
-    return undefined;
-  }
+  if (!configPath || !configManager.rawConfig) return;
+  state.detectConfigChange = createConfigChangeDetector({
+    configPath,
+    sessionConfig: configManager.rawConfig,
+    loadConfig: () => configManager.configResolver.reloadRawConfig()
+  });
 };
+
+const rebuilder = createWorkloadRebuilder({
+  rebuild: (name) => state.workloads.get(name)!.rebuild(),
+  detectConfigChange: () => state.detectConfigChange?.() ?? Promise.resolve({ changed: false })
+});
 
 const setupFileWatching = async () => {
   state.sourceWatcher = await startSourceWatcher({
@@ -1218,12 +1222,9 @@ const setupFileWatching = async () => {
     onWorkloadChange: async ({ workloads, changedFile }) => {
       tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} -> rebuilding ${workloads.join(', ')}`);
       // The same path as a rebuild key or agent request, so the TUI and agent status follow the rebuild.
-      await rebuildRegisteredWorkloads(workloads.filter((name) => state.workloads.has(name)));
+      await rebuilder.rebuildWorkloads(workloads.filter((name) => state.workloads.has(name)));
     },
-    onConfigChange: async () => {
-      const change = await checkConfigUnchanged(state.detectConfigChange);
-      if (change.changed) devTuiManager.systemLog(change.reason, 'warn');
-    },
+    onConfigChange: rebuilder.onConfigFileChange,
     onUnmatchedChange: (changedFile) =>
       tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} (no matching workload)`)
   });
@@ -1328,17 +1329,10 @@ applicationManager.registerCleanUpHook(async () => {
 
 /** Rebuilds one workload; `undefined` when dev mode runs no workload of that name. */
 export const rebuildWorkload = async (name: string): Promise<RebuildResult | undefined> =>
-  state.workloads.has(name) ? rebuildRegisteredWorkloads([name]) : undefined;
+  state.workloads.has(name) ? rebuilder.rebuildWorkloads([name]) : undefined;
 
 export const rebuildAllWorkloads = (): Promise<RebuildResult> =>
-  rebuildRegisteredWorkloads([...state.workloads.keys()]);
-
-const rebuildRegisteredWorkloads = (names: string[]) =>
-  rebuildWorkloads({
-    names,
-    rebuild: (name) => state.workloads.get(name)!.rebuild(),
-    detectConfigChange: state.detectConfigChange
-  });
+  rebuilder.rebuildWorkloads([...state.workloads.keys()]);
 
 /**
  * Get environment variables for a specific workload

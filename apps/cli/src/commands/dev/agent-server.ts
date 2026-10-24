@@ -391,13 +391,8 @@ export const toRebuildResponse = (result: RebuildResult, logFile = getAgentLogFi
 addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
   const workloadName = pathParams.workload;
 
-  if (workloadName === 'all') {
-    const rebuilding = agentState.workloads.filter((w) => w.status === 'starting');
-    if (rebuilding.length > 0) {
-      return { ok: false, error: `Some workloads are already rebuilding: ${rebuilding.map((w) => w.name).join(', ')}` };
-    }
-    return toRebuildResponse(await rebuildAllWorkloads());
-  }
+  // A workload that is rebuilding finishes first; the request then builds the current files.
+  if (workloadName === 'all') return toRebuildResponse(await rebuildAllWorkloads());
 
   const workload = agentState.workloads.find((w) => w.name === workloadName);
   if (!workload) {
@@ -407,10 +402,6 @@ addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
       available: agentState.workloads.map((w) => w.name),
       hint: 'Use /rebuild/all to rebuild all workloads'
     };
-  }
-
-  if (workload.status === 'starting') {
-    return { ok: false, error: `Workload "${workloadName}" is already rebuilding` };
   }
 
   const result = await rebuildWorkload(workloadName);

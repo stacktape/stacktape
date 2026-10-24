@@ -248,11 +248,13 @@ The request answers after the workload has been rebuilt and, for a Lambda functi
 
 The workload then has the status `error` and `/status` reports `ready: false` until a rebuild of it succeeds. Its previous code may still answer requests, so a test that passes while the workload is in `error` does not test your change.
 
-A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change.
+A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads have the status `error` until they are rebuilt; if you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
 
 With `--watch`, dev mode rebuilds a workload when one of its source files changes, through the same path, so a failed build sets the same `error` status and writes the error to the log file. It also watches the configuration file and sets `restartRequired` when it changes. `stacktape dev --agent --watch` reports the session started only after the watcher is running, so an edit made right after the start is rebuilt.
 
-If a workload is currently in the `starting` state (mid-rebuild), the server rejects the request with an error message. The rebuild-all endpoint also rejects if any workload is mid-rebuild, listing the names of the workloads that are still starting.
+A workload builds one rebuild at a time. A request for a workload that is rebuilding waits for that build and then builds the current files, and further requests made meanwhile join it. Only the last build sets the workload's status, so the status always reflects the newest files.
+
+Running `stacktape dev --agent` again while the session runs reports the same workloads, URLs and database ports as the start did, with `ready`. When the session waits for a restart, the command fails with `CLI_DEV_RESTART_REQUIRED`.
 
 ### Liveness check
 

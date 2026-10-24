@@ -12,12 +12,14 @@ type SourceWatcherOptions = {
   onUnmatchedChange?: (changedFile: string) => void;
 };
 
+const CHANGE_QUIET_MS = 100;
+
 const absolute = (filePath: string) => (isAbsolute(filePath) ? filePath : resolve(filePath));
 
 /**
  * Watches workload sources and the configuration file for `dev --watch`. It resolves once every file is watched, so dev
- * mode reports ready only when an edit can no longer be missed. An edit that arrives while its workload rebuilds
- * queues one more rebuild instead of being lost.
+ * mode reports ready only when an edit can no longer be missed. Each change is handed on at once: the rebuilder queues
+ * a change that arrives while its workload builds, so the last build always reads the latest files.
  */
 export const startSourceWatcher = async ({
   getSourceFiles,
@@ -40,7 +42,8 @@ export const startSourceWatcher = async ({
   const configFile = configPath ? absolute(configPath) : undefined;
   let watchedFiles = new Set([...mapFiles(), ...(configFile ? [configFile] : [])]);
   const watcher = chokidar.watch([...watchedFiles], { persistent: true, ignoreInitial: true });
-  await new Promise<void>((ready) => watcher.once('ready', () => ready()));
+  // chokidar emits `ready` only once it scanned at least one path.
+  if (watchedFiles.size) await new Promise<void>((ready) => watcher.once('ready', () => ready()));
 
   // A rebuild can add or drop source files: watch the new set without unwatching the files that stay.
   const syncWatchedFiles = () => {
@@ -52,28 +55,28 @@ export const startSourceWatcher = async ({
     watchedFiles = next;
   };
 
-  const running = new Map<string, Promise<void>>();
-  const queued = new Map<string, string>();
-  const run = (key: string, changedFile: string, task: (changedFile: string) => Promise<void>) => {
-    if (running.has(key)) {
-      queued.set(key, changedFile);
-      return;
-    }
-    const loop = (async () => {
-      let file: string | undefined = changedFile;
-      while (file !== undefined) {
-        queued.delete(key);
-        await task(file).catch(() => {});
-        file = queued.get(key);
-      }
-    })().finally(() => running.delete(key));
-    running.set(key, loop);
+  const inFlight = new Set<Promise<void>>();
+  const quietTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // chokidar reports writes to one file that follow within about 50 ms as one change, sometimes at the first write. A
+  // change is handed on after a short quiet period, so the build it starts reads the last write of a burst.
+  const handOn = (key: string, task: () => Promise<void>) => {
+    clearTimeout(quietTimers.get(key));
+    quietTimers.set(
+      key,
+      setTimeout(() => {
+        quietTimers.delete(key);
+        const tracked: Promise<void> = task()
+          .catch(() => {})
+          .finally(() => inFlight.delete(tracked));
+        inFlight.add(tracked);
+      }, CHANGE_QUIET_MS)
+    );
   };
 
   watcher.on('change', (changedPath: string) => {
     const changedFile = absolute(changedPath);
     if (changedFile === configFile) {
-      run('\0config', changedFile, () => onConfigChange());
+      handOn('\0config', onConfigChange);
       return;
     }
     const workloads = fileToWorkloads.get(changedFile);
@@ -81,17 +84,20 @@ export const startSourceWatcher = async ({
       onUnmatchedChange?.(changedFile);
       return;
     }
-    run(workloads.join('\0'), changedFile, async (file) => {
-      await onWorkloadChange({ workloads, changedFile: file });
-      syncWatchedFiles();
-    });
+    handOn(workloads.join('\0'), () => onWorkloadChange({ workloads, changedFile }).then(syncWatchedFiles));
   });
 
   return {
-    /** Resolves once every rebuild that a change started, including queued ones, has finished. */
+    /** Resolves once the handling of every change so far has finished. */
     settled: async () => {
-      while (running.size) await Promise.all(running.values());
+      while (inFlight.size || quietTimers.size) {
+        await Promise.all(inFlight);
+        if (quietTimers.size) await new Promise((resolve) => setTimeout(resolve, CHANGE_QUIET_MS));
+      }
     },
-    close: () => watcher.close()
+    close: async () => {
+      for (const timer of quietTimers.values()) clearTimeout(timer);
+      await watcher.close();
+    }
   };
 };
