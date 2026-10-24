@@ -2,7 +2,7 @@ import type { StacktapeCommand } from './commands';
 import { z } from 'zod';
 import { cliCommands, commandDefinitions } from './commands';
 import { allCliArgsSchema, argAliases } from './options';
-import { globalArgs, publicCommandName, publicFlag, shortFlags, commandPositionals, hiddenArgs } from './public-names';
+import { globalArgs, publicCommandName, publicFlag, shortFlags, commandPositionals, isHiddenArg } from './public-names';
 
 type ArgSchema = z.ZodType;
 type ArgsShape = Record<string, ArgSchema>;
@@ -153,7 +153,7 @@ export const generateCommandSchemaInfo = () => {
       positionals: commandPositionals[cmd] ?? [],
       args: Object.fromEntries(
         Object.entries(info.args)
-          .filter(([name]) => !hiddenArgs.has(name))
+          .filter(([name]) => !isHiddenArg(cmd, name))
           .map(([name, arg]) => [
             name,
             {

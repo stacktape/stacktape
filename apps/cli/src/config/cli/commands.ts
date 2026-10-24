@@ -4,7 +4,9 @@ import {
   aiProvider,
   codingAgents,
   agentChild,
-  agentPort,
+  devAgent,
+  devAgentPort,
+  devStopAgentPort,
   awsAccount,
   cleanupContainers,
   freshDb,
@@ -158,8 +160,8 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       remoteResources: remoteResources.optional(),
       resources: resources.optional(),
       skipResources: skipResources.optional(),
-      agent: agent.optional(),
-      agentPort: agentPort.optional(),
+      agent: devAgent.optional(),
+      agentPort: devAgentPort.optional(),
       agentChild: agentChild.optional(),
       freshDb: freshDb.optional()
     },
@@ -178,7 +180,7 @@ Use \`--cleanup-containers\` to remove orphaned Docker containers left behind by
       ...universalArgs,
       ...configDependentArgs,
       stage: stage.optional(),
-      agentPort: agentPort.optional(),
+      agentPort: devStopAgentPort.optional(),
       cleanupContainers: cleanupContainers.optional()
     },
     requiredArgs: [] as const
