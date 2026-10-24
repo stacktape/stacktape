@@ -395,13 +395,18 @@ const runAgent = (
   options: Options,
   state: State,
   agentPort: number,
-  { stage = STAGE, directory, extraArgs = [] }: { stage?: string; directory?: string; extraArgs?: string[] } = {}
+  {
+    stage = STAGE,
+    directory,
+    extraArgs = [],
+    resources = ['all']
+  }: { stage?: string; directory?: string; extraArgs?: string[]; resources?: string[] } = {}
 ) =>
   runCli(options, state, [
     'dev',
     ...stackArgs(options, state, stage, directory),
     '--resources',
-    'all',
+    ...resources,
     '--agent',
     '--agentPort',
     String(agentPort),
@@ -413,10 +418,10 @@ const startAgent = async (
   state: State,
   agentPort: number,
   stage = STAGE,
-  { directory, extraArgs }: { directory?: string; extraArgs?: string[] } = {}
+  { directory, extraArgs, resources }: { directory?: string; extraArgs?: string[]; resources?: string[] } = {}
 ) => {
   const started = Date.now();
-  const run = await runAgent(options, state, agentPort, { stage, directory, extraArgs });
+  const run = await runAgent(options, state, agentPort, { stage, directory, extraArgs, resources });
   check(run.exitCode === 0 && run.result?.ok === true, `dev --agent failed (${run.exitCode}):\n${tail(run.output)}`);
   const tokenFile = (run.result?.data?.result as { tokenFile?: string } | undefined)?.tokenFile;
   return { seconds: (Date.now() - started) / 1000, output: run.output, tokenFile };
@@ -857,9 +862,12 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       const pooledBefore = await invoke(state, 'queryArm', { op: 'pooled' });
       check(pooledBefore.value === 'edited', `The pooled connection read ${JSON.stringify(pooledBefore)}.`);
       const takeOverSince = Math.floor(Date.now() / 1000) - 120;
+      // Only the databases run there, so the take-over deploys no function code and Lambda keeps the warm environment
+      // whose pooled connection must be closed: the case of two checkouts that build identical code.
       const takeOver = await startAgent(options, state, secondMachinePort, STAGE, {
         directory: secondMachine,
-        extraArgs: ['--takeOver']
+        extraArgs: ['--takeOver'],
+        resources: ['db', 'cache']
       });
       report.takeOverStartSeconds = takeOver.seconds;
       const secondDatabasePort = await waitUntil(
