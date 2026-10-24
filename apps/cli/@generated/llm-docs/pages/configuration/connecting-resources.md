@@ -272,9 +272,14 @@ Assuming a resource named `cache`:
 
 | Parameter | Example env var | Description |
 |---|---|---|
-| `host` | `STP_CACHE_HOST` | Primary host endpoint |
-| `readerHost` | `STP_CACHE_READER_HOST` | Reader endpoint |
+| `host` | `STP_CACHE_HOST` | Primary host endpoint (the configuration endpoint of a sharded cluster) |
 | `port` | `STP_CACHE_PORT` | Port number |
+| `connectionString` | `STP_CACHE_CONNECTION_STRING` | Full URL with the `default` user's password |
+| `readerHost` | `STP_CACHE_READER_HOST` | Reader endpoint (clusters without sharding) |
+| `readerPort` | `STP_CACHE_READER_PORT` | Reader port (clusters without sharding) |
+| `readerConnectionString` | `STP_CACHE_READER_CONNECTION_STRING` | Full URL of the reader endpoint (clusters without sharding) |
+
+The deployed cluster uses TLS, so its connection string starts with `rediss://`. In [dev mode](/local-development/dev-mode-overview) the local Redis has no TLS, and the connection string starts with `redis://`. Code that connects with `STP_CACHE_CONNECTION_STRING` therefore works in both, while code that builds its own URL from the host and port has to switch TLS itself. The local Redis has no reader endpoint.
 
 ### Event bus
 

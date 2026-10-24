@@ -3,6 +3,7 @@ import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
 import { getMountsForEfsFilesystem } from '@domain-services/config-manager/utils/efs-filesystems';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -44,19 +45,24 @@ export const getEfsSecurityGroup = ({ efsConfig }: { efsConfig: StpEfsFilesystem
   });
 };
 
+/**
+ * The subnets of a filesystem's mount targets: one in every availability zone its functions and containers run in.
+ * Lambda rejects a function with a subnet in a zone without a mount target, and a task in such a zone cannot mount
+ * the filesystem by its DNS name. Mount targets cost nothing; index `i` keeps its subnet, so adding a zone only adds
+ * a mount target.
+ */
+export const getEfsMountTargetSubnetIds = () =>
+  vpcManager.getSubnetIdPerAvailabilityZone({
+    includePrivateSubnets: configManager.allResourcesRequiringPrivateSubnets.length > 0
+  });
+
 export const getEfsMountTargets = ({ efsConfig }: { efsConfig: StpEfsFilesystem }) => {
   const { name } = efsConfig;
-  // Create mount targets in both subnets of the default VPC
-  return [
+  return getEfsMountTargetSubnetIds().map((subnetId) =>
     cfnResource('AWS::EFS::MountTarget', {
       FileSystemId: ref(cfLogicalNames.efsFilesystem(name)),
-      SubnetId: vpcManager.getPublicSubnetIds()[0],
-      SecurityGroups: [ref(cfLogicalNames.efsSecurityGroup(name))]
-    }),
-    cfnResource('AWS::EFS::MountTarget', {
-      FileSystemId: ref(cfLogicalNames.efsFilesystem(name)),
-      SubnetId: vpcManager.getPublicSubnetIds()[1],
+      SubnetId: subnetId,
       SecurityGroups: [ref(cfLogicalNames.efsSecurityGroup(name))]
     })
-  ];
+  );
 };

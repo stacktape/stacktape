@@ -41,6 +41,23 @@ const ingressSources = (template: CloudFormationTemplate, securityGroup: string)
     source: SourceSecurityGroupId?.Ref,
     port: FromPort
   }));
+const functionSubnets = (template: CloudFormationTemplate, functionLogicalName: string) =>
+  (
+    template.Resources[functionLogicalName] as { Properties: { VpcConfig: { SubnetIds: { Ref: string }[] } } }
+  ).Properties.VpcConfig.SubnetIds.map(({ Ref }) => Ref);
+const mountTargetSubnet = (template: CloudFormationTemplate, mountTargetLogicalName: string) =>
+  (template.Resources[mountTargetLogicalName] as { Properties: { SubnetId: { Ref: string } } }).Properties.SubnetId.Ref;
+/** The availability zones of the stack's own subnets, as the `Fn::Select` index each subnet uses. */
+const zonesOf = (template: CloudFormationTemplate, subnets: string[]) =>
+  [
+    ...new Set(
+      subnets.map(
+        (subnet) =>
+          (template.Resources[subnet] as { Properties: { AvailabilityZone: { 'Fn::Select': [number, unknown] } } })
+            .Properties.AvailabilityZone['Fn::Select'][0]
+      )
+    )
+  ].sort();
 type Statement = { Effect: string; Action: string | string[]; Resource: unknown };
 const statements = (template: CloudFormationTemplate, role: string): Statement[] => {
   const resource = template.Resources[role] as {
@@ -136,7 +153,19 @@ test('a stream consumer mounts its filesystem and gets only its connected data a
         (resource.Properties as { FileSystemId: { Ref: string } }).FileSystemId.Ref === 'FilesFileSystem'
     )
     .map(([id]) => id);
-  expect(mountTargets).toHaveLength(2);
+  // Lambda rejects a function with a subnet in a zone where the filesystem has no mount target.
+  expect(mountTargets).toHaveLength(3);
+  expect(
+    zonesOf(
+      template,
+      mountTargets.map((id) => mountTargetSubnet(template, id))
+    )
+  ).toEqual(zonesOf(template, functionSubnets(template, 'ConsumerFunction')));
+  expect(mountTargets.sort()).toEqual([
+    'FilesSubnet0MountTarget',
+    'FilesSubnet1MountTarget',
+    'FilesSubnet2MountTarget'
+  ]);
   expect(fn.DependsOn).toEqual(expect.arrayContaining(mountTargets));
   expect(ingressSources(template, 'FilesSecurityGroup')).toEqual([
     { source: functionSecurityGroup(template, 'ConsumerFunction'), port: 2049 }
@@ -185,6 +214,63 @@ test('a stream consumer mounts its filesystem and gets only its connected data a
       .flatMap(({ Action }) => Action)
       .some((action) => /^(kinesis|elasticfilesystem):/.test(action))
   ).toBe(false);
+});
+
+test('with NAT, a function and a container in the private subnets reach a mount target in every zone', async () => {
+  const template = await synthesize(`resources:
+  files:
+    type: efs-filesystem
+  uploader:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+      volumeMounts:
+        - type: efs
+          properties:
+            efsFilesystemName: files
+            mountPath: /mnt/files
+  worker:
+    type: multi-container-workload
+    properties:
+      resources: { cpu: 0.25, memory: 512 }
+      usePrivateSubnetsWithNAT: true
+      containers:
+        - name: app
+          packaging:
+            type: prebuilt-image
+            properties:
+              image: example.invalid/image:tag
+          volumeMounts:
+            - type: efs
+              properties:
+                efsFilesystemName: files
+                mountPath: /mnt/files
+stackConfig:
+  nat: ec2
+`);
+  const mountTargets = Object.entries(template.Resources)
+    .filter(([, { Type }]) => Type === 'AWS::EFS::MountTarget')
+    .map(([id]) => id);
+  const serviceSubnets = (
+    Object.values(template.Resources).find(({ Type }) => Type === 'AWS::ECS::Service') as {
+      Properties: { NetworkConfiguration: { AwsvpcConfiguration: { Subnets: { Ref: string }[] } } };
+    }
+  ).Properties.NetworkConfiguration.AwsvpcConfiguration.Subnets.map(({ Ref }) => Ref);
+  expect(functionSubnets(template, 'UploaderFunction').every((subnet) => subnet.startsWith('StpPrivateSubnet'))).toBe(
+    true
+  );
+  expect(serviceSubnets.every((subnet) => subnet.startsWith('StpPrivateSubnet'))).toBe(true);
+  const mountTargetZones = zonesOf(
+    template,
+    mountTargets.map((id) => mountTargetSubnet(template, id))
+  );
+  expect(mountTargetZones).toEqual([0, 1, 2]);
+  expect(zonesOf(template, functionSubnets(template, 'UploaderFunction'))).toEqual(mountTargetZones);
+  expect(zonesOf(template, serviceSubnets)).toEqual(mountTargetZones);
 });
 
 test('DSQL defaults and advanced settings reach the cluster and its connection metadata', async () => {

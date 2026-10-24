@@ -46,6 +46,21 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--fresh-db` to wipe it for a clean slate.
 
+### Startup progress
+
+A first start creates the account's dev network and the stage's dev stack and takes several minutes; a warm start takes seconds. While the agent starts, the command prints one JSONL `event` line per step with `"phase": "DEV_STARTUP"`, so an assistant can tell a long start from a hung one:
+
+| `eventType`    | Reports                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `DEV_SESSION`  | The agent's port and token file first (`detail.kind: "dev-agent"`), a heartbeat every 20 s, and "Dev session ready" |
+| `DEV_NETWORK`  | Creating, updating or reusing the dev network                                                   |
+| `DEV_BOX`      | Starting the dev box and connecting to it                                                       |
+| `DEV_STACK`    | Creating or updating the dev stack; CloudFormation `UPDATE_STACK` events carry resource counts  |
+| `DEV_WORKLOAD` | Each workload starting and running, or its error (`instanceId` is the workload name)            |
+| `DEV_DATABASE` | Each local database starting and running, or its error                                          |
+
+If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. A first start that fails or is interrupted leaves the dev stack rolled back; the next start updates it again.
+
 ## Authentication
 
 The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `~/.stacktape/dev-agent-tokens/{port}.token` in your home directory (`%USERPROFILE%\.stacktape\dev-agent-tokens\{port}.token` on Windows). Because the file is named after the agent's port, any of your tools can find it from any directory. Only your user can read the file. Stacktape deletes it when the agent stops, and an agent that starts later removes the files of agents that were killed. The startup message and the `AGENT_READY` result print the file path, never the token.
@@ -69,7 +84,7 @@ The agent refuses requests that a web page or another machine could send:
 | Any request with an `Origin` header (sent by browsers)               | `403 FORBIDDEN`              |
 | A POST without `content-type: application/json`                      | `415 UNSUPPORTED_MEDIA_TYPE` |
 
-The 401 response names the token file, so a coding assistant that forgot the header can recover on its own. [`stacktape dev:stop`](/cli/dev-stop) and the [MCP server](/using-with-ai/mcp-server-setup) read the token file themselves. Run `dev:stop` from the project directory dev mode was started in.
+The 401 response names the token file, so a coding assistant that forgot the header can recover on its own. [`stacktape dev stop`](/cli/dev-stop) and the [MCP server](/using-with-ai/mcp-server-setup) read the token file themselves. `dev stop` stops the agent of the project in the current directory; pass `--cwd <directory>` for another project directory and `--stage <stage>` when several stages run.
 
 <Tip>
 
@@ -126,10 +141,17 @@ curl -H "$AUTH" $AGENT/status
       "api": "http://localhost:3000",
       "worker": "running"
     },
+    "sessionId": "0b6c…",
+    "projectDirectory": "/home/me/my-app",
+    "projectName": "my-app",
+    "stage": "dev",
+    "region": "eu-west-1",
     "pid": 12345
   }
 }
 ```
+
+`sessionId`, `projectDirectory`, `projectName`, `stage` and `region` identify the session; `dev stop` and the MCP server use them to find the agent of a project.
 
 The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready`, every workload is `running`, and the configuration file still matches the one the session started with. A workload that failed, crashed or failed to rebuild makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down or runs outdated code. When the configuration file changed, `ready` is false and `restartRequired` explains that dev mode has to restart (see [Rebuild](#rebuild)).
 
@@ -168,10 +190,20 @@ Each line in the log file is a JSON object with these fields:
 
 | Field    | Example                      | Description                           |
 | -------- | ---------------------------- | ------------------------------------- |
-| `ts`     | `"2025-03-15T14:30:15Z"`    | ISO timestamp                         |
-| `source` | `"api"`                      | Workload name that produced the log   |
+| `ts`     | `"2025-03-15T14:30:15Z"`    | When the line was produced. For a deployed function, the CloudWatch event time, not the time it was fetched |
+| `source` | `"api"`, `"dev"`             | Workload or database that produced the line, or `dev` for dev mode itself |
 | `level`  | `"info"`, `"warn"`, `"error"` | Severity level                      |
-| `msg`    | `"Server started on :3000"`  | Log message content                   |
+| `msg`    | `"Server started on :3000"`  | Log message content, without terminal colors |
+
+Lines with `"source":"dev"` record dev mode's own lifecycle: startup steps, file changes, rebuilds started, finished or failed with the error, dev stack updates and dev box state. Grep them to see what dev mode did, for example whether a rebuild failed:
+
+```bash
+grep '"source":"dev"' .stacktape/dev-agent/9900-logs.txt
+```
+
+A restart keeps the previous session's lines. Each session appends to the file and starts with a `"msg":"Dev session started"` line whose `session` field names its session ID, project directory and stage. A file over 10 MB moves to `<file>.1` when the next session starts.
+
+Deployed dev functions keep their source maps and run with `--enable-source-maps`, so stack traces in the log point at your source files rather than the bundle.
 
 View the last 50 lines:
 
@@ -219,7 +251,9 @@ curl -H "$AUTH" $AGENT/env/api
 }
 ```
 
-Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, ports, database names and plain settings stay readable. Your workloads still receive the real values.
+Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, private IP addresses, ports, database names and plain settings stay readable. A deployed dev function reaches a local database at the private address of the dev box, such as `10.230.4.17`, so its `/env` shows that address. Public IP addresses are masked as `[redacted:ip]`. Your workloads still receive the real values.
+
+Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db.password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
 
 This endpoint is useful for debugging [`connectTo`](/configuration/connecting-resources) wiring. If an expected `STP_*` variable is missing, the workload's `connectTo` array likely doesn't reference the target resource. The response also includes the `source` field — `"aws"` for Lambda functions (fetched from the deployed function configuration) or `"local"` for other tracked workload types (currently container, hosting-bucket, and nextjs-web workloads, read from the local runner state).
 
@@ -560,7 +594,7 @@ The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `con
 
 ### What happens if a workload fails?
 
-If a workload fails while `stacktape dev --agent` starts, the command stops the session and exits with the error. After the start, a workload that crashes or fails to rebuild does not stop the session: `/status` reports it with the status `error` and its error, and `ready` stays false. AI agents can read the error, fix the code, and call `POST /rebuild/{name}` to retry without restarting the entire dev session.
+If a workload fails while `stacktape dev --agent` starts, the command stops the session and exits with an error that names the workload and its error. Fix the code and start again. After the start, a workload that crashes or fails to rebuild does not stop the session: `/status` reports it in `failedWorkloads` with its error, and `ready` stays false. Fix the code and call `POST /rebuild/{name}` to retry without restarting the session.
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 

@@ -784,7 +784,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; network is only for the fixture images.'
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; network is only for the fixture images.'
   },
   {
     id: 'local-dev-next',
@@ -795,7 +795,7 @@ export const lanes: readonly Lane[] = [
     requires: ['network'],
     release: 'every-candidate',
     proves:
-      'A pinned real Next dev server receives local parameters, serves edits through its stable URL and cleans up; network is only for fixture installation.'
+      'A pinned real Next dev server receives the local parameters of its connectTo targets and no others, keeps the lines a developer wrote in .env.local, serves edits through its stable URL and cleans up; network is only for fixture installation.'
   },
   {
     id: 'local-dev-ministack',
@@ -3714,6 +3714,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/workload-environment.spec.ts',
       'apps/cli/src/domain/config-manager/utils/resource-references.spec.ts',
       'apps/cli/src/domain/config-manager/project-settings.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/stack-tags.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/environment.test.ts',
       'apps/cli/tests/characterization/config-derived-metadata.spec.ts',
@@ -4041,6 +4042,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/tests/data-connections/connections.spec.ts',
+      'apps/cli/src/domain/vpc-manager/index.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
     lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
@@ -4264,6 +4266,13 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/dev-network-session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
+      'apps/cli/src/commands/dev/__tests__/config-change.test.ts',
+      'apps/cli/src/commands/dev/__tests__/rebuild-results.test.ts',
+      'apps/cli/src/commands/dev/__tests__/source-watcher.test.ts',
+      'apps/cli/src/commands/dev/agent-logger.spec.ts',
+      'apps/cli/src/commands/dev/frontend-env.spec.ts',
+      'apps/cli/src/domain/config-manager/dev-mode.spec.ts',
+      'apps/cli/src/domain/debug-services/db-client.spec.ts',
       'apps/cli/src/utils/ports.test.ts',
       'apps/cli/tests/characterization/dev-support-template.spec.ts',
       'apps/cli/tests/local-development/next-dev.spec.ts',

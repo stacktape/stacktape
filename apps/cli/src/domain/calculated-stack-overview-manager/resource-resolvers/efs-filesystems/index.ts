@@ -24,7 +24,7 @@ export const resolveEfsFilesystems = async () => {
       resource: getEfsSecurityGroup({ efsConfig })
     });
 
-    // Create mount targets in both subnets
+    // One mount target per availability zone that workloads run in
     getEfsMountTargets({ efsConfig }).forEach((mountTarget, index) => {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.efsMountTarget(name, index),

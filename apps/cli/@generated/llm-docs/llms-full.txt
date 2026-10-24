@@ -3474,17 +3474,27 @@ The `dev stop` command gracefully stops a running dev agent that was started wit
 stacktape dev stop
 ```
 
-Running `stacktape dev stop` without flags stops the running dev agent. If only one agent is running, it stops automatically. If no agents are found via lock files, Stacktape tries the default agent port (7331) as a fallback.
+Running `stacktape dev stop` without flags stops the dev agent of the project in the current directory. It finds the agent through the lock files in the project directory, or, when they are gone, by asking each of your running agents for its project directory. It never stops an agent of another directory: when no agent of this project runs, it stops nothing and lists the agents of other directories.
 
-The agent accepts only requests that carry its session token. `dev stop --agent-port` reads it from `~/.stacktape/dev-agent-tokens/{port}.token`, so it works from any directory. Without `--agent-port`, `dev stop` finds agents through the lock files in the current project directory.
+When several stages of the project run, `dev stop` stops none of them and fails (`ok: false`, code `CLI_DEV_STOP_AMBIGUOUS`) with the list. Choose one with `--stage`.
+
+The agent accepts only requests that carry its session token. `dev stop` reads it from `~/.stacktape/dev-agent-tokens/{port}.token`, so `--agent-port` works from any directory.
 
 ## Important flags
 
-The `dev stop` command accepts two flags that control which agent to stop and whether to clean up leftover containers.
+The `dev stop` command accepts flags that control which agent to stop and whether to clean up leftover containers.
+
+### --stage and --cwd
+
+`--stage` stops the agent of that stage. `--cwd` stops the agent of another project directory, for example a second Git worktree.
+
+```bash
+stacktape dev stop --cwd ../my-app-worktree --stage dev
+```
 
 ### --agent-port
 
-When multiple dev agents are running, `dev stop` lists their project, stage, and port, then tells you to re-run the command with `--agent-port <port>`. Pass `--agent-port` with the port number to target a specific agent.
+Pass `--agent-port` with the port number to stop the agent on that port, wherever it was started.
 
 ```bash
 stacktape dev stop --agent-port 7332
@@ -3492,7 +3502,7 @@ stacktape dev stop --agent-port 7332
 
 ### --cleanup-containers
 
-Crashed or improperly terminated dev sessions can leave orphaned Docker containers running. The `--cleanup-containers` flag finds and removes any Stacktape dev containers whose agent process is no longer running. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (auto-stopping a single agent, or listing agents and asking you to re-run with `--agent-port` when multiple are running).
+Crashed or improperly terminated dev sessions can leave orphaned Docker containers running. The `--cleanup-containers` flag finds and removes any Stacktape dev containers whose agent process is no longer running. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (stopping the project's agent, or failing with the list when several stages run).
 
 ```bash
 stacktape dev stop --cleanup-containers
@@ -3513,12 +3523,16 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
+| `--agent-port` | no | `number` | Agent Port — Stops the dev agent on this port, wherever it was started. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--cleanup-containers` | no | `boolean` | Cleanup Containers — Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
 
 
 ## Related commands
@@ -3548,6 +3562,8 @@ stacktape dev --stage dev-john --region eu-west-1
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
+| `--agent-port` | no | `number` | Agent Port — The port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
@@ -3565,7 +3581,7 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
 | `--skip-resources` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
 | `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
-| `--watch` | no | `boolean` | Watch — If `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected. | - |
+| `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
 
 ## What it does
@@ -8990,9 +9006,14 @@ Assuming a resource named `cache`:
 
 | Parameter | Example env var | Description |
 |---|---|---|
-| `host` | `STP_CACHE_HOST` | Primary host endpoint |
-| `readerHost` | `STP_CACHE_READER_HOST` | Reader endpoint |
+| `host` | `STP_CACHE_HOST` | Primary host endpoint (the configuration endpoint of a sharded cluster) |
 | `port` | `STP_CACHE_PORT` | Port number |
+| `connectionString` | `STP_CACHE_CONNECTION_STRING` | Full URL with the `default` user's password |
+| `readerHost` | `STP_CACHE_READER_HOST` | Reader endpoint (clusters without sharding) |
+| `readerPort` | `STP_CACHE_READER_PORT` | Reader port (clusters without sharding) |
+| `readerConnectionString` | `STP_CACHE_READER_CONNECTION_STRING` | Full URL of the reader endpoint (clusters without sharding) |
+
+The deployed cluster uses TLS, so its connection string starts with `rediss://`. In [dev mode](/local-development/dev-mode-overview) the local Redis has no TLS, and the connection string starts with `redis://`. Code that connects with `STP_CACHE_CONNECTION_STRING` therefore works in both, while code that builds its own URL from the host and port has to switch TLS itself. The local Redis has no reader endpoint.
 
 ### Event bus
 
@@ -11483,7 +11504,7 @@ Each Stacktape resource produces one or more CloudFormation resources. When you 
 You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape status`](/cli/info-stack) to see deployed resource details.
 
 
-> **Info:** Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer.
+> **Info:** Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer. Tag names starting with `stp:` are reserved for Stacktape's own tags, and a config that uses one fails validation.
 
 
 ## Overrides
@@ -18581,7 +18602,9 @@ See the network with [`stacktape dev network`](/cli/dev-network) and delete it w
 
 ### Several developers
 
-Each developer runs dev mode against their own stage, and every stage gets its own relay ports. When two sessions run dev mode for the **same** stage, they share its deployed functions, so the functions can reach only one session's databases. This applies to two developers, and to one developer on two machines or in two worktrees. The session that started first keeps the stage: the second one stops before it deploys anything and names the session that runs it. To move the stage to the second session, for example from the office desktop to your laptop, start it with [`--take-over`](/cli/dev#--take-over); the functions' open database connections to the first session are closed, and the first session stops itself with a message that names the new one.
+Each developer runs dev mode against their own stage, and every stage gets its own relay ports. A stage's deployed functions can reach only one session's databases, so one dev session at a time holds a stage. This also applies to one developer running the same stage in two worktrees or on two machines.
+
+A second `stacktape dev` for a stage that another session holds is refused before it deploys anything. The error names the holder: the user, the host and the project directory. Run it again with [`--take-over`](/cli/dev#--take-over) to move all of the stage's ports to the new session at once. The first session's open database connections, such as a warm function's connection pool, are closed. The first session stops itself with a message that names the new one, so it cannot redeploy functions over the new session's. The deployed functions then reach only the new session's databases.
 
 ### AWS permissions
 
@@ -18896,9 +18919,9 @@ Dev mode registers configured `beforeDev` script hooks and displays them in the 
 Dev mode creates a dedicated dev stack and refuses to reuse a healthy stack created by a full deployment. Use a separate stage name such as `dev`, `dev-local`, or `dev-jane`. To connect selected databases or Redis resources to deployed AWS resources, keep the dedicated dev stage and pass `--remote-resources`.
 
 
-> **Warning:** If you run dev mode against a stage that already has a fully-deployed non-dev stack, Stacktape refuses to overwrite it and asks you to use a different stage name.
+> **Warning:** Dev mode only updates a stack that `stacktape dev` created. It marks every dev stack with the stack tag `stp:dev-stack`, and refuses any other stack on the stage, whatever its name or status: use a different stage name, or delete that stack with `stacktape delete --stage <stage>` yourself. Dev mode never deletes a stack.
 
-Stacktape auto-recovers (deletes and redeploys a fresh dev stack) when the existing stack is in a failed or in-progress state **and** either the stage name suggests a dev context (contains "dev" or "local") **or** the stack's outputs lack the expected stack-info map. This means auto-deletion can occur on stacks whose names don't include "dev" or "local" if their outputs are missing the stack-info map.
+If the first start of a stage fails or is interrupted, CloudFormation rolls the dev stack back. The next `stacktape dev` recognizes the stack by its tag and updates it again. Only a dev stack whose very first create failed (status `ROLLBACK_COMPLETE`) can't be updated; dev mode then asks you to delete it with `stacktape delete --stage <stage>`.
 
 
 ## Agent mode
@@ -18913,10 +18936,12 @@ stacktape dev --stage dev --region us-east-1 --resources all --agent
 
 When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
 
-Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
+While the agent starts, the command prints its progress as JSONL `event` lines: the agent's port first, then the dev network, the dev box, the dev stack deployment with CloudFormation resource counts, and each workload and database. A first start that creates the dev network and the dev stack takes several minutes, and a heartbeat line every 20 seconds names the step it waits for.
+
+Stop the agent of the current project with [`stacktape dev stop`](/cli/dev-stop) (`--stage` chooses between several stages, `--cwd` names another project directory):
 
 ```bash
-stacktape dev stop --agent-port 7331
+stacktape dev stop --stage dev
 ```
 
 ## Command reference
@@ -18994,7 +19019,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. If `credentials.masterUserPassword` is not set, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Your workloads receive it through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
 Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
@@ -19253,11 +19278,11 @@ Yes. Each stage gets its own container name and its own non-conflicting port ass
 
 ### Why does dev mode warn that my database keeps the password `localdevpassword`?
 
-Earlier Stacktape versions gave every local database the fixed password `localdevpassword`. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
+Earlier Stacktape versions gave every local database without a configured password the fixed password `localdevpassword`, and a database with a `$Secret` password got the directive text itself as its password. A database stores its password in its data, so a data directory created then keeps working with that password, and dev mode warns about it. To switch to a generated password, start dev mode once with `--fresh-db`. This deletes the database's local data.
 
 ### How do I connect to the local database with a GUI tool?
 
-Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
+Use the host `localhost` and the port from the injected connection string or referenceable parameters. For PostgreSQL, the local username defaults to `postgres`; for MySQL/MariaDB it defaults to `root`. If your config sets no literal password, read the generated one from `.stacktape/dev-data/<stage>/<resourceName>/password`. For Redis, use the injected connection string. DynamoDB Local and OpenSearch use HTTP endpoints.
 
 ### Does local DynamoDB support Streams and Global Tables?
 
@@ -36579,6 +36604,10 @@ export default defineConfig(() => {
 
 Use `injectEnvironment` for values that the browser reads at runtime from HTML. Use `writeDotenvFilesTo` when you want Stacktape to write deploy-time values to a `.env` file in the specified directory; existing `.env` content is merged if present.
 
+In dev mode, `stacktape dev` resolves `injectEnvironment` and passes the values to the `dev.command` server as environment variables. A `$ResourceParam` of a function or container resolves to the URL that dev mode runs it at. The values are also written to `.env.local` in the dev `workingDirectory` (the project root by default), inside a block between `# >>> stacktape dev` and `# <<< stacktape dev <<<` marker lines. Each start rewrites only that block, so your own lines in the file stay. Nothing else is written there: a hosting bucket has no `connectTo`, so database connection details and passwords never reach the frontend.
+
+Bundlers expose only prefixed variables to browser code, for example `VITE_` in Vite. Name the variables accordingly, such as `VITE_API_URL: $ResourceParam('api', 'url')`, and read them with `import.meta.env.VITE_API_URL`.
+
 ## Routing
 
 `routeRewrites` routes specific URL patterns to different origins, for example `/api/*` to a Lambda function. Rewrites are evaluated in order; unmatched requests go to the bucket. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields.
@@ -48067,6 +48096,21 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--fresh-db` to wipe it for a clean slate.
 
+### Startup progress
+
+A first start creates the account's dev network and the stage's dev stack and takes several minutes; a warm start takes seconds. While the agent starts, the command prints one JSONL `event` line per step with `"phase": "DEV_STARTUP"`, so an assistant can tell a long start from a hung one:
+
+| `eventType`    | Reports                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `DEV_SESSION`  | The agent's port and token file first (`detail.kind: "dev-agent"`), a heartbeat every 20 s, and "Dev session ready" |
+| `DEV_NETWORK`  | Creating, updating or reusing the dev network                                                   |
+| `DEV_BOX`      | Starting the dev box and connecting to it                                                       |
+| `DEV_STACK`    | Creating or updating the dev stack; CloudFormation `UPDATE_STACK` events carry resource counts  |
+| `DEV_WORKLOAD` | Each workload starting and running, or its error (`instanceId` is the workload name)            |
+| `DEV_DATABASE` | Each local database starting and running, or its error                                          |
+
+If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. A first start that fails or is interrupted leaves the dev stack rolled back; the next start updates it again.
+
 ## Authentication
 
 The agent listens on `127.0.0.1` only and accepts a request only when it carries the session's token. Each `stacktape dev --agent` run creates a new random token and stores it in `~/.stacktape/dev-agent-tokens/{port}.token` in your home directory (`%USERPROFILE%\.stacktape\dev-agent-tokens\{port}.token` on Windows). Because the file is named after the agent's port, any of your tools can find it from any directory. Only your user can read the file. Stacktape deletes it when the agent stops, and an agent that starts later removes the files of agents that were killed. The startup message and the `AGENT_READY` result print the file path, never the token.
@@ -48090,7 +48134,7 @@ The agent refuses requests that a web page or another machine could send:
 | Any request with an `Origin` header (sent by browsers)               | `403 FORBIDDEN`              |
 | A POST without `content-type: application/json`                      | `415 UNSUPPORTED_MEDIA_TYPE` |
 
-The 401 response names the token file, so a coding assistant that forgot the header can recover on its own. [`stacktape dev:stop`](/cli/dev-stop) and the [MCP server](/using-with-ai/mcp-server-setup) read the token file themselves. Run `dev:stop` from the project directory dev mode was started in.
+The 401 response names the token file, so a coding assistant that forgot the header can recover on its own. [`stacktape dev stop`](/cli/dev-stop) and the [MCP server](/using-with-ai/mcp-server-setup) read the token file themselves. `dev stop` stops the agent of the project in the current directory; pass `--cwd <directory>` for another project directory and `--stage <stage>` when several stages run.
 
 
 > **Tip:** AI coding assistants can call `GET /` on the agent server to receive a full endpoint listing dynamically. Use `GET /?compact=true` for a shorter LLM-oriented response — it includes the current phase, workload names, available local resources with their primary query/schema endpoints, core action templates (rebuild, logs, env, aws, stop), and a pointer to `GET /` for full docs.
@@ -48145,10 +48189,17 @@ curl -H "$AUTH" $AGENT/status
       "api": "http://localhost:3000",
       "worker": "running"
     },
+    "sessionId": "0b6c…",
+    "projectDirectory": "/home/me/my-app",
+    "projectName": "my-app",
+    "stage": "dev",
+    "region": "eu-west-1",
     "pid": 12345
   }
 }
 ```
+
+`sessionId`, `projectDirectory`, `projectName`, `stage` and `region` identify the session; `dev stop` and the MCP server use them to find the agent of a project.
 
 The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready`, every workload is `running`, and the configuration file still matches the one the session started with. A workload that failed, crashed or failed to rebuild makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down or runs outdated code. When the configuration file changed, `ready` is false and `restartRequired` explains that dev mode has to restart (see [Rebuild](#rebuild)).
 
@@ -48187,10 +48238,20 @@ Each line in the log file is a JSON object with these fields:
 
 | Field    | Example                      | Description                           |
 | -------- | ---------------------------- | ------------------------------------- |
-| `ts`     | `"2025-03-15T14:30:15Z"`    | ISO timestamp                         |
-| `source` | `"api"`                      | Workload name that produced the log   |
+| `ts`     | `"2025-03-15T14:30:15Z"`    | When the line was produced. For a deployed function, the CloudWatch event time, not the time it was fetched |
+| `source` | `"api"`, `"dev"`             | Workload or database that produced the line, or `dev` for dev mode itself |
 | `level`  | `"info"`, `"warn"`, `"error"` | Severity level                      |
-| `msg`    | `"Server started on :3000"`  | Log message content                   |
+| `msg`    | `"Server started on :3000"`  | Log message content, without terminal colors |
+
+Lines with `"source":"dev"` record dev mode's own lifecycle: startup steps, file changes, rebuilds started, finished or failed with the error, dev stack updates and dev box state. Grep them to see what dev mode did, for example whether a rebuild failed:
+
+```bash
+grep '"source":"dev"' .stacktape/dev-agent/9900-logs.txt
+```
+
+A restart keeps the previous session's lines. Each session appends to the file and starts with a `"msg":"Dev session started"` line whose `session` field names its session ID, project directory and stage. A file over 10 MB moves to `<file>.1` when the next session starts.
+
+Deployed dev functions keep their source maps and run with `--enable-source-maps`, so stack traces in the log point at your source files rather than the bundle.
 
 View the last 50 lines:
 
@@ -48238,7 +48299,9 @@ curl -H "$AUTH" $AGENT/env/api
 }
 ```
 
-Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, ports, database names and plain settings stay readable. Your workloads still receive the real values.
+Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, private IP addresses, ports, database names and plain settings stay readable. A deployed dev function reaches a local database at the private address of the dev box, such as `10.230.4.17`, so its `/env` shows that address. Public IP addresses are masked as `[redacted:ip]`. Your workloads still receive the real values.
+
+Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db.password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
 
 This endpoint is useful for debugging [`connectTo`](/configuration/connecting-resources) wiring. If an expected `STP_*` variable is missing, the workload's `connectTo` array likely doesn't reference the target resource. The response also includes the `source` field — `"aws"` for Lambda functions (fetched from the deployed function configuration) or `"local"` for other tracked workload types (currently container, hosting-bucket, and nextjs-web workloads, read from the local runner state).
 
@@ -48569,7 +48632,7 @@ The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `con
 
 ### What happens if a workload fails?
 
-If a workload fails while `stacktape dev --agent` starts, the command stops the session and exits with the error. After the start, a workload that crashes or fails to rebuild does not stop the session: `/status` reports it with the status `error` and its error, and `ready` stays false. AI agents can read the error, fix the code, and call `POST /rebuild/{name}` to retry without restarting the entire dev session.
+If a workload fails while `stacktape dev --agent` starts, the command stops the session and exits with an error that names the workload and its error. Fix the code and start again. After the start, a workload that crashes or fails to rebuild does not stop the session: `/status` reports it in `failedWorkloads` with its error, and `ready` stays false. Fix the code and call `POST /rebuild/{name}` to retry without restarting the session.
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
@@ -48884,13 +48947,15 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 `stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a loopback HTTP port (default `7331`) for control commands. The tool reads the agent's session token from the token file the agent reports at start and sends it with each request; the token never appears in tool output.
 
 - **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
-- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. A successful start returns an opaque `data.session.devSessionId`.
-- **`status`** returns the current state of the running session.
-- **`logs`** paginates structured log entries. Accepts `cursor`, `limit`, and `workload` for filtering.
+- **`start`** launches dev mode as a subprocess. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. It returns `data.session.devSessionId` at once and sends a progress notification for each startup step: the dev network, the dev box, the dev stack deployment with resource counts, and each workload and database. It waits up to `waitSeconds` (default 50) for the start to finish. A first start that creates the dev network and the dev stack takes several minutes; `start` then returns `DEV_STARTING` with the latest progress while the start continues, so an MCP client's per-call timeout does not end it.
+- **`status`** returns the current state of the running session. While the session starts, it waits up to `waitSeconds` (default 50) for the start to finish, then returns the ready status, the start's error, or `DEV_STARTING` with the latest progress. A start that fails in the background keeps its error, code and hints for the next call about that session.
+- **`logs`** returns the newest structured log entries (`limit`, default 100). Pass the returned `nextCursor` as `cursor` to read only lines written since, `level` (`info`, `warn`, `error`) for a minimum level (without `since` or `cursor`, only the current session's lines), `since` (an ISO time or a duration such as `10m`) and `workload` to filter. Entries with `source: "dev"` are dev mode's own lifecycle: rebuilds, file changes, dev stack updates and dev box state.
 - **`rebuild`** triggers a rebuild of a single workload (pass `workload` name). **`rebuild_all`** triggers a rebuild of every workload.
 - **`stop`** terminates the active session.
 
-Multiple dev sessions can be active for different projects or ports. Pass the `devSessionId` returned by `start` as `args.devSessionId` to `rebuild`, `rebuild_all`, and `stop`; these mutating actions never guess which session you intended. `status` and `logs` may omit the handle only when exactly one session is active. With multiple sessions, omission returns `AMBIGUOUS_DEV_SESSION`; an unknown or unreachable handle returns `NOT_FOUND`.
+Multiple dev sessions can be active for different projects or ports. Pass the `devSessionId` returned by `start` as `args.devSessionId` to `rebuild`, `rebuild_all`, and `stop`; these mutating actions never guess which session you intended. `status` and `logs` may omit the handle only when exactly one session is active; `cwd` narrows that to one project directory. With multiple sessions, omission returns `AMBIGUOUS_DEV_SESSION`; an unknown or unreachable handle returns `NOT_FOUND`.
+
+Sessions survive a restart of the MCP server. Every agent reports its `devSessionId` and project directory, and the tool finds running agents through their token files, so a new MCP server process answers `status`, `logs` and `stop` for sessions an earlier one started.
 
 ## Safety model
 
@@ -48972,7 +49037,7 @@ Docs search, project scanning, and CLI metadata actions (`list`, `describe`, `pl
 
 ### Dev session not found
 
-If `stacktape_dev` returns `NOT_FOUND` for `status`, `logs`, `rebuild`, `rebuild_all`, or `stop`, either no dev session has been started in the current MCP server process, or the session's local agent port is no longer responding. Call `start` to create a new session.
+If `stacktape_dev` returns `NOT_FOUND` for `status`, `logs`, `rebuild`, `rebuild_all`, or `stop`, no dev agent of yours is running, or the session's local agent port is no longer responding. Call `start` to create a new session.
 
 ### Concurrent deployment conflicts
 

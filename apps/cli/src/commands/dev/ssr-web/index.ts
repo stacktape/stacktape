@@ -9,60 +9,15 @@ import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { writeFile } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
+import { prepareFrontendEnvironment } from '../frontend-env';
 import {
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
-import type { EnvironmentVar } from '@stacktape/config/shared';
 
 type SsrWebResource = StpAstroWeb | StpNuxtWeb | StpSvelteKitWeb | StpSolidStartWeb | StpTanStackWeb | StpRemixWeb;
-
-const writeDevEnvFile = async ({
-  name,
-  workingDirectory,
-  environment,
-  localWorkloadEnvVars
-}: {
-  name: string;
-  workingDirectory: string;
-  environment?: EnvironmentVar[];
-  localWorkloadEnvVars?: Record<string, string>;
-}): Promise<void> => {
-  const envVars: Record<string, string> = {};
-
-  // Resolve environment directives
-  if (environment && environment.length > 0) {
-    const resolved = await configManager.resolveDirectives<EnvironmentVar[]>({
-      itemToResolve: environment,
-      resolveRuntime: true,
-      useLocalResolve: true
-    });
-    resolved.forEach(({ name: varName, value }) => {
-      envVars[varName] = String(value);
-    });
-  }
-
-  // Add local workload env vars (URLs of other local services)
-  if (localWorkloadEnvVars) {
-    Object.assign(envVars, localWorkloadEnvVars);
-  }
-
-  if (Object.keys(envVars).length === 0) {
-    return;
-  }
-
-  // Write .env.local file
-  const envContent = Object.entries(envVars)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
-
-  const envFilePath = join(workingDirectory, '.env.local');
-  await writeFile(envFilePath, envContent);
-  tuiManager.info(`[${name}] Wrote ${Object.keys(envVars).length} env vars to .env.local`);
-};
 
 const getWorkingDirectory = (appDirectory?: string): string => {
   const dir = appDirectory || '.';
@@ -91,11 +46,15 @@ const getSsrWebResource = (name: string, resourceType: SsrWebResourceType): SsrW
 export const startSsrWebDevServer = async ({
   name,
   resourceType,
-  localWorkloadEnvVars
+  connectedEnvVars,
+  withheldEnvNames
 }: {
   name: string;
   resourceType: SsrWebResourceType;
-  localWorkloadEnvVars?: Record<string, string>;
+  /** Local variables of the resources this app lists in `connectTo`, as its deployed server gets them. */
+  connectedEnvVars: Record<string, string>;
+  /** Local variables of resources this app does not connect to, which its dev server must not inherit. */
+  withheldEnvNames: string[];
 }): Promise<DevServerState> => {
   const ssrWeb = getSsrWebResource(name, resourceType);
   const frameworkConfig = SSR_WEB_FRAMEWORK_CONFIGS[resourceType];
@@ -106,17 +65,18 @@ export const startSsrWebDevServer = async ({
 
   const workingDirectory = getWorkingDirectory(ssrWeb.appDirectory);
 
-  // Write .env.local with environment values and local workload addresses
-  await writeDevEnvFile({
+  const injectedEnvironment = await prepareFrontendEnvironment({
     name,
     workingDirectory,
     environment: ssrWeb.environment,
-    localWorkloadEnvVars
+    connectedEnvVars
   });
 
   const devConfig = {
     command: ssrWeb.dev?.command || frameworkConfig.defaultDevCommand,
-    workingDirectory: ssrWeb.appDirectory || '.'
+    workingDirectory: ssrWeb.appDirectory || '.',
+    environment: injectedEnvironment,
+    withheldEnvNames
   };
 
   const useDevTui = devTuiManager.running;

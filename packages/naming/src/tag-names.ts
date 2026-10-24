@@ -11,6 +11,13 @@ export const tagNames = {
   globallyUniqueStackHash() {
     return 'stp:globally-unique-stack-hash';
   },
+  /**
+   * Set by `stacktape dev` on every stack it creates or updates, from the first create on. Unlike the dev-stack output
+   * of the full template, a stack tag survives a rollback to the bootstrap template.
+   */
+  devStack() {
+    return 'stp:dev-stack';
+  },
   codeDigest() {
     return 'stp:code-digest';
   },

@@ -18,6 +18,7 @@ import { setSpinnerDevTuiActive } from '../spinner';
 import { formatDuration, normalizeLogLines, resetWorkloadColors } from './utils';
 import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
+import { reportDevStartup } from 'src/commands/dev/startup-progress';
 
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
 type ReadyHandler = () => void;
@@ -331,6 +332,7 @@ class DevTuiManager {
   startRebuild(workloadNames: string[]) {
     if (this.phase === 'rebuilding') return;
     this.phase = 'rebuilding';
+    agentLog('dev', `Rebuild started: ${workloadNames.join(', ')}`);
 
     if (this._agentMode) {
       console.info(`[i] Rebuilding workloads: ${workloadNames.join(', ')}`);
@@ -361,6 +363,7 @@ class DevTuiManager {
 
   setRebuildDone(name: string, size?: string) {
     if (this.phase !== 'rebuilding') return;
+    agentLog('dev', `Rebuild finished: ${name}${size ? ` [${size}]` : ''}`);
 
     if (this._agentMode) {
       const sizeStr = size ? ` [${size}]` : '';
@@ -377,6 +380,7 @@ class DevTuiManager {
 
   setRebuildError(name: string, error: string) {
     if (this.phase !== 'rebuilding') return;
+    agentLog('dev', `Rebuild failed: ${name}: ${error}`, 'error');
 
     if (this._agentMode) {
       console.info(`[x] ${name}: rebuild failed - ${error}`);
@@ -423,6 +427,10 @@ class DevTuiManager {
 
     const resource = devTuiState.getState().localResources.find((r) => r.name === name);
     const type = resource?.type || 'resource';
+    this.reportResourceStatus('DEV_DATABASE', `Local ${type} ${name}`, name, status, {
+      ...extras,
+      url: extras?.port ? `localhost:${extras.port}` : undefined
+    });
     if (status === 'running') {
       const port = extras?.port ? ` on localhost:${extras.port}` : '';
       this.pushStatus('success', `Local ${type} "${name}" running${port}`);
@@ -438,11 +446,19 @@ class DevTuiManager {
   setSetupStepStatus(id: string, status: SetupStepStatus, detail?: string) {
     const signature = JSON.stringify({ status, detail: detail || null });
     if (this.setupStepStatusSignatures.get(id) === signature) return;
+    const firstReport = !this.setupStepStatusSignatures.has(id);
     this.setupStepStatusSignatures.set(id, signature);
     devTuiState.setSetupStepStatus(id, status, detail);
 
     const step = devTuiState.getState().setupSteps.find((s) => s.id === id);
     const label = step?.label || id;
+    if (status !== 'pending') {
+      reportDevStartup({
+        step: id === 'dev-box' ? 'DEV_BOX' : 'DEV_SESSION',
+        status: status === 'running' ? (firstReport ? 'started' : 'running') : 'completed',
+        message: `${label}: ${status === 'running' ? detail || 'running' : status}${status !== 'running' && detail ? ` (${detail})` : ''}`
+      });
+    }
     if (status === 'done') {
       this.pushStatus('success', `${label}${detail ? ` — ${detail}` : ''}`);
     } else if (status === 'skipped') {
@@ -464,6 +480,7 @@ class DevTuiManager {
     if (this.workloadStatusSignatures.get(name) === signature) return;
     this.workloadStatusSignatures.set(name, signature);
     devTuiState.setWorkloadStatus(name, status, extras);
+    this.reportResourceStatus('DEV_WORKLOAD', `Workload ${name}`, name, status, extras);
 
     if (status === 'running') {
       const url = extras?.url ? ` at ${extras.url}` : '';
@@ -492,16 +509,17 @@ class DevTuiManager {
     }
   }
 
-  log(source: string, message: string, level: LogEntry['level'] = 'info') {
+  /** `timestamp` is when the line was produced, when that is not now: a deployed function's CloudWatch event time. */
+  log(source: string, message: string, level: LogEntry['level'] = 'info', timestamp?: number) {
     if (this._agentMode) {
-      agentLog(source, message, level === 'debug' ? 'info' : level);
-      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+      agentLog(source, message, level === 'debug' ? 'info' : level, timestamp);
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
       const levelPrefix = level === 'error' ? '[ERROR] ' : level === 'warn' ? '[WARN] ' : '';
-      console.info(`${timestamp} [${source}] ${levelPrefix}${message}`);
+      console.info(`${time} [${source}] ${levelPrefix}${message}`);
       return;
     }
 
-    this.pushLogLines(source, 'workload', message, level);
+    this.pushLogLines(source, 'workload', message, level, timestamp);
   }
 
   systemLog(message: string, level: LogEntry['level'] = 'info') {
@@ -523,11 +541,42 @@ class DevTuiManager {
     }
   }
 
-  private pushLogLines(source: string, sourceType: 'workload' | 'system', message: string, level: LogEntry['level']) {
+  private pushLogLines(
+    source: string,
+    sourceType: 'workload' | 'system',
+    message: string,
+    level: LogEntry['level'],
+    timestamp?: number
+  ) {
     for (const line of normalizeLogLines(message)) {
       devTuiState.addLog({ source, sourceType, level, message: line, timestamp: Date.now() });
       // Mirror to the agent JSONL log file (no-op when the agent logger is not initialized)
-      agentLog(source, line, level === 'debug' ? 'info' : level);
+      agentLog(source, line, level === 'debug' ? 'info' : level, timestamp);
+    }
+  }
+
+  /** Records a workload's or local database's state change in the session log and the startup progress. */
+  private reportResourceStatus(
+    step: 'DEV_WORKLOAD' | 'DEV_DATABASE',
+    label: string,
+    name: string,
+    status: ResourceStatus,
+    extras?: { url?: string; statusMessage?: string; error?: string }
+  ) {
+    if (status === 'starting') {
+      const detail = extras?.statusMessage ? `: ${extras.statusMessage}` : '';
+      reportDevStartup({ step, status: 'started', resource: name, message: `${label} starting${detail}` });
+    } else if (status === 'running') {
+      const at = extras?.url ? ` at ${extras.url}` : '';
+      reportDevStartup({ step, status: 'completed', resource: name, message: `${label} running${at}` });
+    } else if (status === 'error') {
+      reportDevStartup({
+        step,
+        status: 'completed',
+        resource: name,
+        level: 'error',
+        message: `${label} failed: ${extras?.error || 'unknown error'}`
+      });
     }
   }
 

@@ -15,25 +15,63 @@ const IMAGE = 'postgres:15.14';
 const docker = (args: string[]) => spawnSync('docker', args, { encoding: 'utf8', timeout: 120_000 });
 
 type Instance = {
+  name: string;
   containerName: string;
   actualPort: number;
   dataDir: string;
-  credentials: { username: string; password: string };
+  credentials?: { username: string; password: string };
+  referencableParams: Record<string, string>;
 };
 
-const startDatabase = async (directory: string, workingDirectory: string, projectName: string, freshDb = false) => {
+const POSTGRES_DB = {
+  type: 'relational-database',
+  properties: {
+    engine: { type: 'postgres', properties: { version: '15.14', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+    credentials: { masterUserName: 'postgres' }
+  }
+};
+
+type DriverResult = {
+  instances: Instance[];
+  warnings: string[];
+  /** What deployed dev functions get for each database through a relay at 10.20.0.5:40001. */
+  relayed: Record<string, { params: Record<string, string> } | null>;
+  /** The variables local workloads get. */
+  envVars: Record<string, string>;
+};
+
+/**
+ * Starts local databases with the production local-resource code in a separate CLI process, as `stacktape dev` does
+ * for the working directory and stage `test`, and reports what every consumer of them gets.
+ */
+const startDatabases = async ({
+  directory,
+  workingDirectory,
+  projectName,
+  freshDb = false,
+  resources = { db: POSTGRES_DB }
+}: {
+  directory: string;
+  workingDirectory: string;
+  projectName: string;
+  freshDb?: boolean;
+  resources?: Record<string, unknown>;
+}): Promise<DriverResult> => {
   const driver = join(directory, 'driver.ts');
+  const inputFile = join(directory, 'input.json');
   const resultFile = join(directory, 'result.json');
+  await writeFile(inputFile, JSON.stringify({ workingDirectory, projectName, freshDb, resources }));
   await writeFile(
     driver,
     `
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { globalStateManager } from ${JSON.stringify(resolve(import.meta.dir, '../../src/app/global-state-manager/index.ts'))};
 import { applicationManager } from ${JSON.stringify(resolve(import.meta.dir, '../../src/app/application-manager/index.ts'))};
 import { tuiManager } from ${JSON.stringify(resolve(import.meta.dir, '../../src/app/tui-manager/index.ts'))};
 import { configManager } from ${JSON.stringify(resolve(import.meta.dir, '../../src/domain/config-manager/index.ts'))};
-import { startLocalResources } from ${JSON.stringify(resolve(import.meta.dir, '../../src/commands/dev/local-resources/index.ts'))};
-const [workingDirectory, projectName, freshDb, resultFile] = process.argv.slice(2);
+import { getLocalResourceEnvVars, getRelayedLocalResource, startLocalResources } from ${JSON.stringify(resolve(import.meta.dir, '../../src/commands/dev/local-resources/index.ts'))};
+const [inputFile, resultFile] = process.argv.slice(2);
+const { workingDirectory, projectName, freshDb, resources } = JSON.parse(readFileSync(inputFile, 'utf8'));
 await applicationManager.init();
 const warnings = [];
 const warn = tuiManager.warn.bind(tuiManager);
@@ -41,23 +79,16 @@ tuiManager.warn = (message, ...rest) => {
   warnings.push(String(message));
   return warn(message, ...rest);
 };
-globalStateManager.rawArgs = { stage: 'test', region: 'eu-west-1', currentWorkingDirectory: workingDirectory, freshDb: freshDb === 'fresh' };
+globalStateManager.rawArgs = { stage: 'test', region: 'eu-west-1', currentWorkingDirectory: workingDirectory, freshDb };
 globalStateManager.targetStack = { stackName: projectName + '-test', stage: 'test', projectName, globallyUniqueStackHash: 'test' };
-configManager.config = {
-  resources: {
-    db: {
-      type: 'relational-database',
-      properties: {
-        engine: { type: 'postgres', properties: { version: '15.14', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
-        credentials: { masterUserName: 'postgres' }
-      }
-    }
-  }
-};
+configManager.config = { resources };
 // The CLI's own handlers turn an unhandled failure into a clean exit, so the result file reports the outcome.
 try {
-  const [db] = await startLocalResources(['db']);
-  writeFileSync(resultFile, JSON.stringify({ instance: db, warnings }));
+  const names = Object.keys(resources);
+  const instances = await startLocalResources(names);
+  const relayed = {};
+  for (const name of names) relayed[name] = await getRelayedLocalResource(name, { host: '10.20.0.5', port: 40001 });
+  writeFileSync(resultFile, JSON.stringify({ instances, warnings, relayed, envVars: getLocalResourceEnvVars(instances) }));
 } catch (error) {
   writeFileSync(resultFile, JSON.stringify({ error: String(error?.message ?? error) }));
 }
@@ -71,22 +102,25 @@ process.exit(0);
       '--preload',
       resolve(import.meta.dir, '../../scripts/test-preload.ts'),
       driver,
-      workingDirectory,
-      projectName,
-      freshDb ? 'fresh' : '',
+      inputFile,
       resultFile
     ],
     cwd: resolve(import.meta.dir, '../..'),
     env: { PATH: process.env.PATH!, HOME: directory, SKIP_LOADING_ENV: '1', STP_DISABLE_TELEMETRY: '1' },
-    timeoutMs: 120_000
+    timeoutMs: 180_000
   });
   const output = await readFile(resultFile, 'utf8').catch(() => undefined);
-  const parsed = output ? (JSON.parse(output) as { instance?: Instance; warnings?: string[]; error?: string }) : {};
-  if (!parsed.instance) {
+  const parsed = output ? (JSON.parse(output) as Partial<DriverResult> & { error?: string }) : {};
+  if (!parsed.instances) {
     throw new Error(`The database driver failed: ${parsed.error ?? `exit ${result.exitCode}\n${result.stderr}`}`);
   }
   await rm(resultFile);
-  return { instance: parsed.instance, warnings: parsed.warnings ?? [] };
+  return parsed as DriverResult;
+};
+
+const startDatabase = async (directory: string, workingDirectory: string, projectName: string, freshDb = false) => {
+  const { instances, warnings } = await startDatabases({ directory, workingDirectory, projectName, freshDb });
+  return { instance: instances[0] as Instance & { credentials: { username: string; password: string } }, warnings };
 };
 
 const query = async (port: number, password: string) => {
@@ -215,6 +249,141 @@ test('worktrees of one project on one stage get separate loopback databases with
     for (const name of owned) docker(['rm', '-f', name]);
     for (const name of owned) expect(docker(['inspect', name]).status, `${name} must be removed`).not.toBe(0);
     // The database containers own their data files; remove them as the same user.
+    docker(['run', '--rm', '-v', `${root}:/work`, '--entrypoint', 'sh', IMAGE, '-c', 'rm -rf /work/*']);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 300_000);
+
+// `stacktape init` sets database passwords to `$Secret(...)`. Dev mode never fetches the deployed secret for a local
+// database: each one gets a generated local password, and the container, the deployed dev functions (through the relay)
+// and local workloads all get that same password, never the directive text. Data an older CLI initialized with the
+// directive text as its password keeps it, with a warning.
+test('a database password read from $Secret is replaced by one local password that every consumer gets', async () => {
+  const images = ['postgres:15.14', 'mysql:8.0', 'redis:7.2'];
+  for (const image of images) {
+    expect(docker(['image', 'inspect', image]).status === 0 || docker(['pull', image]).status === 0).toBeTrue();
+  }
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-secret-databases-'));
+  const projectName = `sp${randomBytes(4).toString('hex')}`;
+  const owned = new Set<string>();
+  const directive = (name: string) => `$Secret('${projectName}-${name}.password')`;
+  try {
+    const { instances, relayed, envVars } = await startDatabases({
+      directory: root,
+      workingDirectory: join(root, 'app'),
+      projectName,
+      resources: {
+        db: {
+          ...POSTGRES_DB,
+          properties: {
+            ...POSTGRES_DB.properties,
+            credentials: { masterUserName: 'postgres', masterUserPassword: directive('db') }
+          }
+        },
+        mysqldb: {
+          type: 'relational-database',
+          properties: {
+            engine: {
+              type: 'mysql',
+              properties: { version: '8.0', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+            },
+            credentials: {
+              masterUserName: `$Secret('${projectName}-mysqldb.username')`,
+              masterUserPassword: directive('mysqldb')
+            }
+          }
+        },
+        cache: {
+          type: 'redis-cluster',
+          properties: { instanceSize: 'cache.t4g.micro', engineVersion: '7.2', defaultUserPassword: directive('cache') }
+        }
+      }
+    });
+    for (const instance of instances) owned.add(instance.containerName);
+    expect(instances.map(({ name }) => name).sort()).toEqual(['cache', 'db', 'mysqldb']);
+    const byName = Object.fromEntries(instances.map((instance) => [instance.name, instance]));
+    const everything = JSON.stringify({ instances, relayed, envVars });
+    expect(everything).not.toContain('$Secret');
+
+    for (const instance of instances) {
+      const password = instance.credentials!.password;
+      expect(password).toMatch(/^[0-9a-f]{36}$/);
+      expect(await readFile(join(instance.dataDir, '..', 'password'), 'utf8')).toBe(password);
+      // Deployed dev functions reach the database through the relay with the same password.
+      expect(relayed[instance.name]!.params.connectionString).toContain(`:${password}@10.20.0.5:40001`);
+      // Local workloads get it in their STP_* connection strings.
+      expect(envVars[`STP_${instance.name.toUpperCase()}_CONNECTION_STRING`]).toContain(`:${password}@localhost:`);
+    }
+    expect(new Set(instances.map((instance) => instance.credentials!.password)).size).toBe(3);
+
+    expect(await query(byName.db.actualPort, byName.db.credentials!.password)).toBe('/var/lib/postgresql/data');
+    // A username read from a secret falls back to the engine's default user.
+    expect(byName.mysqldb.credentials!.username).toBe('root');
+    const mysql = docker([
+      'exec',
+      byName.mysqldb.containerName,
+      'mysql',
+      '-h127.0.0.1',
+      '-uroot',
+      `-p${byName.mysqldb.credentials!.password}`,
+      '-N',
+      '-e',
+      'select 1'
+    ]);
+    expect(mysql.stdout.trim(), mysql.stderr).toBe('1');
+    const redis = (...auth: string[]) =>
+      docker(['exec', byName.cache.containerName, 'redis-cli', ...auth, '--no-auth-warning', 'ping']).stdout.trim();
+    expect(redis('-a', byName.cache.credentials!.password)).toBe('PONG');
+    expect(redis()).toContain('NOAUTH');
+
+    // A checkout whose data an older CLI initialized with the directive text as the password keeps working with it.
+    const upgraded = join(root, 'upgraded');
+    const legacyData = join(upgraded, '.stacktape', 'dev-data', 'test', 'db', 'data');
+    await mkdir(legacyData, { recursive: true });
+    const legacyContainer = `stp-${projectName}-init`;
+    owned.add(legacyContainer);
+    const legacy = docker([
+      'run',
+      '-d',
+      '--name',
+      legacyContainer,
+      '-e',
+      `POSTGRES_PASSWORD=${directive('db')}`,
+      '-v',
+      `${legacyData}:/var/lib/postgresql/data`,
+      IMAGE
+    ]);
+    expect(legacy.status, legacy.stderr).toBe(0);
+    const deadline = Date.now() + 60_000;
+    while (docker(['exec', legacyContainer, 'pg_isready', '-U', 'postgres', '-h', '127.0.0.1']).status !== 0) {
+      expect(Date.now() < deadline, 'legacy database did not become ready').toBeTrue();
+      await new Promise((done) => setTimeout(done, 500));
+    }
+    expect(docker(['rm', '-f', legacyContainer]).status).toBe(0);
+    const upgradedRun = await startDatabases({
+      directory: await mkdtemp(join(root, 'driver-')),
+      workingDirectory: upgraded,
+      projectName,
+      resources: {
+        db: {
+          ...POSTGRES_DB,
+          properties: {
+            ...POSTGRES_DB.properties,
+            credentials: { masterUserName: 'postgres', masterUserPassword: directive('db') }
+          }
+        }
+      }
+    });
+    const [upgradedDb] = upgradedRun.instances;
+    owned.add(upgradedDb.containerName);
+    expect(upgradedDb.credentials!.password).toBe(directive('db'));
+    expect(upgradedRun.warnings.join('\n')).toContain('--fresh-db');
+    expect(await query(upgradedDb.actualPort, directive('db'))).toBe('/var/lib/postgresql/data');
+  } finally {
+    const named = docker(['ps', '-a', '--filter', `name=^stp-${projectName}-`, '--format', '{{.Names}}']);
+    for (const name of named.stdout.split('\n').filter(Boolean)) owned.add(name);
+    for (const name of owned) docker(['rm', '-f', name]);
+    for (const name of owned) expect(docker(['inspect', name]).status, `${name} must be removed`).not.toBe(0);
     docker(['run', '--rm', '-v', `${root}:/work`, '--entrypoint', 'sh', IMAGE, '-c', 'rm -rf /work/*']);
     await rm(root, { recursive: true, force: true });
   }

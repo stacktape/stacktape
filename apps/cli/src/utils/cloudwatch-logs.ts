@@ -6,7 +6,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorFromString } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
 
-type LogCallback = (message: string, level: 'info' | 'warn' | 'error') => void;
+/** `timestamp` is the CloudWatch event time in milliseconds, when the line comes from one event. */
+type LogCallback = (message: string, level: 'info' | 'warn' | 'error', timestamp?: number) => void;
 
 export class LambdaCloudwatchLogPrinter {
   logGroupName: string;
@@ -17,6 +18,7 @@ export class LambdaCloudwatchLogPrinter {
   #colorSequence: SupportedConsoleColor[] = ['blue', 'yellow', 'magenta', 'green', 'gray'];
   #lastColor: SupportedConsoleColor;
   #onLog: LogCallback | null = null;
+  #currentEventTimestamp: number | undefined;
 
   constructor({
     fetchSince,
@@ -34,7 +36,7 @@ export class LambdaCloudwatchLogPrinter {
 
   #output(message: string, level: 'info' | 'warn' | 'error' = 'info') {
     if (this.#onLog) {
-      this.#onLog(message, level);
+      this.#onLog(message, level, this.#currentEventTimestamp);
     } else if (level === 'error') {
       console.error(message);
     } else {
@@ -57,6 +59,7 @@ export class LambdaCloudwatchLogPrinter {
         this.fetchSince = events[events.length - 1].timestamp;
         const unhandledEvents = events.filter((e) => !this.#handledEvents.has(e.eventId));
         this.#printLambdaLogEvents(unhandledEvents);
+        this.#currentEventTimestamp = undefined;
         for (const e of events) {
           this.#handledEvents.add(e.eventId);
         }
@@ -149,6 +152,7 @@ export class LambdaCloudwatchLogPrinter {
     const endLogs: { [requestId: string]: (reportData: string) => any } = {};
 
     events.forEach((event) => {
+      this.#currentEventTimestamp = event.timestamp;
       try {
         const message = event.message.trim();
         // Skip internal Lambda runtime messages

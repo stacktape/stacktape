@@ -135,9 +135,11 @@ export const startLocalMysql = async (
       resourceType: isMaria ? 'MariaDB' : 'MySQL',
       timeoutMs: 60000,
       pollIntervalMs: 1000,
+      // Over TCP: during first initialization the image runs a temporary server on the socket only, which answers a
+      // socket ping before clients can connect.
       checkFn: async () => {
         const { exitCode } = await execDocker(
-          ['exec', containerName, 'mysqladmin', 'ping', '-h', 'localhost', '--silent'],
+          ['exec', containerName, 'mysqladmin', 'ping', '-h', '127.0.0.1', '--silent'],
           { skipHandleError: true }
         );
         return exitCode === 0;

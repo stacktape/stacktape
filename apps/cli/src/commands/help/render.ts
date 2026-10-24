@@ -2,7 +2,7 @@ import { cliCommands, type StacktapeCommand } from '../../config/cli/commands';
 import {
   commandPositionals,
   globalArgs,
-  hiddenArgs,
+  isHiddenArg,
   publicCommandName,
   publicFlag,
   resolveCommandName,
@@ -101,7 +101,7 @@ export const renderHelp = (path?: string): string[] => {
     lines.push('Options:');
     const fromConfig = command ? projectSettingsForCommand(command) : [];
     for (const [arg, metadata] of Object.entries(info.args)) {
-      if (hiddenArgs.has(arg) || globalArgs.has(arg)) continue;
+      if (isHiddenArg(command, arg) || globalArgs.has(arg)) continue;
       const label = `${shortFlags[arg] ? `-${shortFlags[arg]}, ` : '    '}--${publicFlag(arg)}${metadata.allowedTypes.includes('boolean') ? '' : ` <${arg === 'stage' ? 'name' : metadata.allowedTypes.includes('number') ? 'number' : 'value'}>`}`;
       const desc = summary(argDescription(metadata.description));
       // Inside a project, the config's `projectName` and `region` settings supply these.

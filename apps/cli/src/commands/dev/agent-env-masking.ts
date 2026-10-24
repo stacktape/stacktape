@@ -44,10 +44,26 @@ export const getSecretSourcedEnvNames = (resource: unknown): Set<string> => {
   return names;
 };
 
+/** A private IPv4 address (10/8, 172.16/12, 192.168/16), such as the dev box that relays local databases. */
+const PRIVATE_IPV4 = /\b(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b/g;
+const HELD = /\uE000(\d+)\uE000/g;
+
+/**
+ * The shared scrubber masks every IP address that is not loopback, because its output can leave the developer's
+ * machine. `/env` answers only the developer's own agent, and a private address identifies no one outside its network
+ * while it is the host a deployed dev function connects to, so private addresses stay readable here.
+ */
+const scrubKeepingPrivateAddresses = (value: string): string => {
+  const held: string[] = [];
+  const scrubbed = scrubSensitiveText(value.replace(PRIVATE_IPV4, (ip) => `\uE000${held.push(ip) - 1}\uE000`));
+  return scrubbed.replace(HELD, (_match, index: string) => held[Number(index)]);
+};
+
 /**
  * The environment the dev agent's `/env` route returns. Values under secret names or read from secrets are replaced,
  * and the rest go through the shared scrubber, which masks the password in connection strings and known token formats.
- * Hosts, ports, database names and plain settings stay readable, because those are what a developer checks.
+ * Hosts, private addresses, ports, database names and plain settings stay readable, because those are what a developer
+ * checks.
  */
 export const maskAgentEnvironment = (
   environment: Record<string, string>,
@@ -58,6 +74,6 @@ export const maskAgentEnvironment = (
       name,
       secretNames.has(name) || SENSITIVE_NAME.test(name) || CAMEL_CASE_KEY.test(name)
         ? REDACTED
-        : scrubSensitiveText(String(value))
+        : scrubKeepingPrivateAddresses(String(value))
     ])
   );

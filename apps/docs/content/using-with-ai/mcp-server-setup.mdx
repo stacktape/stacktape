@@ -298,13 +298,15 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 `stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a loopback HTTP port (default `7331`) for control commands. The tool reads the agent's session token from the token file the agent reports at start and sends it with each request; the token never appears in tool output.
 
 - **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
-- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. A successful start returns an opaque `data.session.devSessionId`.
-- **`status`** returns the current state of the running session.
-- **`logs`** paginates structured log entries. Accepts `cursor`, `limit`, and `workload` for filtering.
+- **`start`** launches dev mode as a subprocess. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. It returns `data.session.devSessionId` at once and sends a progress notification for each startup step: the dev network, the dev box, the dev stack deployment with resource counts, and each workload and database. It waits up to `waitSeconds` (default 50) for the start to finish. A first start that creates the dev network and the dev stack takes several minutes; `start` then returns `DEV_STARTING` with the latest progress while the start continues, so an MCP client's per-call timeout does not end it.
+- **`status`** returns the current state of the running session. While the session starts, it waits up to `waitSeconds` (default 50) for the start to finish, then returns the ready status, the start's error, or `DEV_STARTING` with the latest progress. A start that fails in the background keeps its error, code and hints for the next call about that session.
+- **`logs`** returns the newest structured log entries (`limit`, default 100). Pass the returned `nextCursor` as `cursor` to read only lines written since, `level` (`info`, `warn`, `error`) for a minimum level (without `since` or `cursor`, only the current session's lines), `since` (an ISO time or a duration such as `10m`) and `workload` to filter. Entries with `source: "dev"` are dev mode's own lifecycle: rebuilds, file changes, dev stack updates and dev box state.
 - **`rebuild`** triggers a rebuild of a single workload (pass `workload` name). **`rebuild_all`** triggers a rebuild of every workload.
 - **`stop`** terminates the active session.
 
-Multiple dev sessions can be active for different projects or ports. Pass the `devSessionId` returned by `start` as `args.devSessionId` to `rebuild`, `rebuild_all`, and `stop`; these mutating actions never guess which session you intended. `status` and `logs` may omit the handle only when exactly one session is active. With multiple sessions, omission returns `AMBIGUOUS_DEV_SESSION`; an unknown or unreachable handle returns `NOT_FOUND`.
+Multiple dev sessions can be active for different projects or ports. Pass the `devSessionId` returned by `start` as `args.devSessionId` to `rebuild`, `rebuild_all`, and `stop`; these mutating actions never guess which session you intended. `status` and `logs` may omit the handle only when exactly one session is active; `cwd` narrows that to one project directory. With multiple sessions, omission returns `AMBIGUOUS_DEV_SESSION`; an unknown or unreachable handle returns `NOT_FOUND`.
+
+Sessions survive a restart of the MCP server. Every agent reports its `devSessionId` and project directory, and the tool finds running agents through their token files, so a new MCP server process answers `status`, `logs` and `stop` for sessions an earlier one started.
 
 ## Safety model
 
@@ -384,7 +386,7 @@ Docs search, project scanning, and CLI metadata actions (`list`, `describe`, `pl
 
 ### Dev session not found
 
-If `stacktape_dev` returns `NOT_FOUND` for `status`, `logs`, `rebuild`, `rebuild_all`, or `stop`, either no dev session has been started in the current MCP server process, or the session's local agent port is no longer responding. Call `start` to create a new session.
+If `stacktape_dev` returns `NOT_FOUND` for `status`, `logs`, `rebuild`, `rebuild_all`, or `stop`, no dev agent of yours is running, or the session's local agent port is no longer responding. Call `start` to create a new session.
 
 ### Concurrent deployment conflicts
 

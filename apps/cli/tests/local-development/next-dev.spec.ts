@@ -15,12 +15,13 @@ import { startNextjsWebDevServer } from '../../src/commands/dev/nextjs-web';
 const listening = (port: number, timeout = 500) =>
   fetch(`http://127.0.0.1:${port}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(timeout) });
 
-test('a real Next dev server uses injected local parameters, serves edits at its stable URL and releases its ports', async () => {
+test('a real Next dev server uses its connected local parameters, serves edits at its stable URL and releases its ports', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-next-dev-'));
   const foreign = createServer((_request, response) => response.end('foreign'));
   await new Promise<void>((resolve) => foreign.listen(0, '127.0.0.1', resolve));
   const port = (foreign.address() as AddressInfo).port;
   const originalEnv = {
+    STP_CACHE_CONNECTION_STRING: process.env.STP_CACHE_CONNECTION_STRING,
     NODE_ENV: process.env.NODE_ENV,
     NODE_OPTIONS: process.env.NODE_OPTIONS,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED
@@ -37,6 +38,10 @@ test('a real Next dev server uses injected local parameters, serves edits at its
     });
     expect(install.exitCode, install.stderr.slice(-2000)).toBe(0);
     await writeFile(join(directory, '.env.development.local'), 'STP_DB_CONNECTION_STRING=foreign-file-value\n');
+    await writeFile(join(directory, '.env.local'), '# my settings\nMY_FLAG=kept\n');
+    // Dev mode sets every local database's variables on its own process; a frontend without `connectTo` to the cache
+    // must not inherit them.
+    process.env.STP_CACHE_CONNECTION_STRING = 'redis://default:cache-password@localhost:6379';
     process.env.NODE_OPTIONS = `--import=${resolve(import.meta.dir, '../../scripts/network-guard-preload.ts')}`;
     process.env.NEXT_TELEMETRY_DISABLED = '1';
     process.env.NODE_ENV = 'development';
@@ -66,13 +71,16 @@ test('a real Next dev server uses injected local parameters, serves edits at its
     registerDevServerCleanupHook();
     const state = await startNextjsWebDevServer({
       name: 'web',
-      localWorkloadEnvVars: { STP_DB_CONNECTION_STRING: 'local-database-value' }
+      connectedEnvVars: { STP_DB_CONNECTION_STRING: 'local-database-value' },
+      withheldEnvNames: ['STP_CACHE_CONNECTION_STRING']
     });
     expect(state.status).toBe('ready');
     expect(state.url).toBeDefined();
     expect(state.port).toBeGreaterThan(port);
     const backendPort = state.port!;
-    expect(await (await listening(backendPort, 15_000)).text()).toContain('first-render: <!-- -->local-database-value');
+    expect(await (await listening(backendPort, 15_000)).text()).toContain(
+      'first-render: <!-- -->local-database-value<!-- --> cache: <!-- -->not-connected'
+    );
     const url = new URL(state.url!);
     proxyPort = Number(url.port);
     const request = () =>
@@ -80,9 +88,10 @@ test('a real Next dev server uses injected local parameters, serves edits at its
     const first = await request();
     expect(first.status).toBe(200);
     expect(await first.text()).toContain('first-render: <!-- -->local-database-value');
-    expect(await readFile(join(directory, '.env.local'), 'utf8')).toContain(
-      'STP_DB_CONNECTION_STRING=local-database-value'
-    );
+    const envFile = await readFile(join(directory, '.env.local'), 'utf8');
+    expect(envFile).toStartWith('# my settings\nMY_FLAG=kept\n');
+    expect(envFile).toContain('STP_DB_CONNECTION_STRING=local-database-value');
+    expect(envFile).not.toContain('cache-password');
     const page = join(directory, 'pages/index.js');
     await writeFile(page, (await readFile(page, 'utf8')).replace('first-render', 'edited-render'));
     let rendered = '';

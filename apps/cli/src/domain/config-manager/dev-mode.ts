@@ -75,3 +75,15 @@ export const filterResourcesForDevMode = <T extends { name: string; type: StpRes
   context.command === 'dev'
     ? resources.filter((resource) => !shouldExcludeResourceInDevMode(resource.name, resource.type, context))
     : resources;
+
+/**
+ * A dev stack keeps each JS function's source maps in its package, so `--enable-source-maps` applies and stack traces
+ * in dev logs point at the source instead of the bundle. The cold-start cost of reading the maps does not matter in a
+ * dev stack. An explicit `keepSourceMapsInPackage` or `disableSourceMaps` still wins.
+ */
+export const withSourceMapsInPackage = <T extends { type: string; properties?: unknown }>(packaging: T): T => {
+  if (packaging?.type !== 'js-bundle') return packaging;
+  const properties = (packaging.properties ?? {}) as { disableSourceMaps?: boolean; keepSourceMapsInPackage?: boolean };
+  if (properties.disableSourceMaps || properties.keepSourceMapsInPackage !== undefined) return packaging;
+  return { ...packaging, properties: { ...properties, keepSourceMapsInPackage: true } };
+};

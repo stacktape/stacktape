@@ -58,7 +58,14 @@ export const shortFlags: Readonly<Record<string, string>> = {
   outFile: 'o',
   version: 'v'
 };
-export const hiddenArgs = new Set(['agent', 'agentPort', 'agentChild', 'ui', 'outputFormat', 'recoverOperation']);
+const hiddenArgs = new Set(['agent', 'agentPort', 'agentChild', 'ui', 'outputFormat', 'recoverOperation']);
+/** Hidden options that a command documents because they are part of what it does. */
+const argsShownFor: Readonly<Record<string, readonly string[]>> = {
+  dev: ['agent', 'agentPort'],
+  'dev:stop': ['agentPort']
+};
+export const isHiddenArg = (command: string | undefined, arg: string): boolean =>
+  hiddenArgs.has(arg) && !(command && argsShownFor[command]?.includes(arg));
 export const globalArgs = new Set(['help', 'logLevel', 'outputFormat', 'quiet']);
 
 export const commandPositionals: Readonly<Record<string, readonly string[]>> = {

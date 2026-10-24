@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import killProcessTree from 'tree-kill';
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs-extra';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs-extra';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -16,6 +16,8 @@ export type AgentLockFile = {
   workloads: string[];
   databases: string[];
   logFile?: string;
+  /** The agent's session ID, the same one its `/status` reports and MCP uses as `devSessionId`. */
+  sessionId?: string;
   /** The session's SSM session to the dev box, so a later start can end it if this process was killed. */
   devBoxSessionId?: string;
 };
@@ -222,6 +224,72 @@ export const getAllRunningAgents = async (): Promise<AgentLockFile[]> => {
   return runningAgents;
 };
 
+/** A running dev agent found through its token file, with the project and stage its `/status` reports. */
+export type DiscoveredDevAgent = {
+  port: number;
+  pid: number;
+  phase?: string;
+  sessionId?: string;
+  projectDirectory?: string;
+  projectName?: string;
+  stage?: string;
+  region?: string;
+};
+
+/**
+ * Every dev agent this user runs, in any directory. Each agent writes its session token under its port in the user's
+ * state directory, and its `/status` names its project directory and stage, so a client that has no lock file (`dev
+ * stop` from another directory, a restarted MCP server) can still find the right one. Agents of CLI versions that do
+ * not report a project directory are returned without one.
+ */
+export const discoverDevAgents = async (): Promise<DiscoveredDevAgent[]> => {
+  let ports: number[];
+  try {
+    ports = readdirSync(localStatePaths.devAgentTokenDirectory())
+      .map((file) => /^(\d+)\.token$/.exec(file)?.[1])
+      .filter((port): port is string => port !== undefined)
+      .map(Number);
+  } catch {
+    return [];
+  }
+  const agents = await Promise.all(
+    ports.map(async (port): Promise<DiscoveredDevAgent | undefined> => {
+      try {
+        const response = await requestDevAgent({ port }, '/status', { timeoutMs: 2000 });
+        if (!response.ok) return undefined;
+        // The agent wraps every response in its `{ v, ok, code, data }` envelope.
+        const { data = {} } = (await response.json()) as { data?: Record<string, unknown> };
+        const text = (key: string) => (typeof data[key] === 'string' ? (data[key] as string) : undefined);
+        return {
+          port,
+          pid: typeof data.pid === 'number' ? data.pid : 0,
+          phase: text('phase'),
+          sessionId: text('sessionId'),
+          projectDirectory: text('projectDirectory'),
+          projectName: text('projectName'),
+          stage: text('stage'),
+          region: text('region')
+        };
+      } catch {
+        return undefined;
+      }
+    })
+  );
+  return agents.filter((agent): agent is DiscoveredDevAgent => agent !== undefined);
+};
+
+/** Whether two directory paths name the same directory, following symbolic links where the paths exist. */
+export const isSameDirectory = (a: string, b: string): boolean => {
+  const canonical = (path: string) => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return resolvePath(path);
+    }
+  };
+  return canonical(a) === canonical(b);
+};
+
 /**
  * Stop a running agent by sending POST /stop and waiting for exit.
  */
@@ -295,6 +363,8 @@ export type DaemonSpawnResult = {
   port?: number;
   pid?: number;
   error?: string;
+  /** The daemon's own result when it failed: its error code and hints, which the parent reports unchanged. */
+  childResult?: ChildResult;
   readyPayload?: AgentReadyPayload;
 };
 
@@ -307,6 +377,7 @@ type AgentReadyPayload = {
   databases?: { name: string; type: string; port?: number }[];
   logFile?: string;
   tokenFile?: string;
+  sessionId?: string;
   /** Workloads that failed while dev mode started; a non-empty list means the start failed. */
   failedWorkloads?: { name: string; error: string }[];
 };
@@ -339,20 +410,55 @@ const parseAgentReady = (line: string): AgentReadyPayload | null => {
   return null;
 };
 
-const parseJsonlResult = (line: string): { ok: boolean; code: string; message: string } | null => {
+type ChildResult = { ok: boolean; code: string; message: string; hints?: string[] };
+
+const parseJsonlResult = (record: Record<string, unknown> | null): ChildResult | null => {
+  if (record?.type !== 'result') return null;
+  const data = record.data as { hints?: unknown } | undefined;
+  const hints = Array.isArray(data?.hints) ? data.hints.filter((hint): hint is string => typeof hint === 'string') : [];
+  return {
+    ok: !!record.ok,
+    code: typeof record.code === 'string' && record.code ? record.code : 'UNKNOWN_ERROR',
+    message: typeof record.message === 'string' && record.message ? record.message : 'Child process failed',
+    ...(hints.length ? { hints } : {})
+  };
+};
+
+const parseJsonRecord = (line: string): Record<string, unknown> | null => {
   try {
     const parsed = JSON.parse(line);
-    if (parsed?.type === 'result') {
-      return {
-        ok: !!parsed.ok,
-        code: parsed.code || 'UNKNOWN_ERROR',
-        message: parsed.message || 'Child process failed'
-      };
-    }
-    return null;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
+};
+
+/** A record of the daemon's JSONL output that its parent passes on while the daemon starts. */
+export type ForwardedChildRecord =
+  | { type: 'event'; line: string; record: Record<string, unknown> }
+  | { type: 'log'; line: string; record: Record<string, unknown> };
+
+/**
+ * The startup progress worth passing on: every tracked event (dev network, dev box, dev stack deploy with resource
+ * counts, workloads and databases) and Stacktape's own messages. Raw stdout lines repeat what the events say, build
+ * output stays in the session's log file, and the error display (the only log record with data) repeats the failed
+ * result the parent reports itself.
+ */
+export const selectForwardedChildRecord = (line: string): ForwardedChildRecord | null => {
+  const record = parseJsonRecord(line);
+  if (!record) return null;
+  if (record.type === 'event') return { type: 'event', line, record };
+  if (
+    record.type === 'log' &&
+    typeof record.message === 'string' &&
+    record.message.trim() &&
+    record.source !== 'stdout-raw' &&
+    record.source !== 'console' &&
+    record.data === undefined
+  ) {
+    return { type: 'log', line, record };
+  }
+  return null;
 };
 
 /**
@@ -428,8 +534,10 @@ export const spawnAgentDaemon = async (args: {
   customArgs: readonly string[];
   agentPort: number;
   timeoutMs?: number;
+  /** Receives the daemon's startup progress until it is ready or fails. */
+  onChildRecord?: (record: ForwardedChildRecord) => void;
 }): Promise<DaemonSpawnResult> => {
-  const { explicitArgs, customArgs, agentPort, timeoutMs = 180000 } = args;
+  const { explicitArgs, customArgs, agentPort, timeoutMs = 180000, onChildRecord } = args;
   const workingDir = globalStateManager.workingDir;
 
   // The development wrapper (`bun run scripts/dev.ts`) rebuilds the CLI from its process cwd, so a
@@ -478,7 +586,7 @@ export const spawnAgentDaemon = async (args: {
     };
 
     // An inactivity limit rather than a total deadline: a first run legitimately spends a long
-    // time deploying the dev stack, and the daemon emits AGENT_STARTING heartbeats while it works.
+    // time deploying the dev stack, and the daemon emits a progress heartbeat while it works.
     // Only a child that has gone completely silent for `timeoutMs` is treated as hung and reaped.
     const onTimeout = () => {
       if (!resolved) {
@@ -523,7 +631,7 @@ export const spawnAgentDaemon = async (args: {
       resetInactivityTimeout();
       stdoutBuffer += data.toString();
 
-      // Check each line for AGENT_READY and print progress
+      // Check each line for AGENT_READY or a failed result, and pass the startup progress on
       const lines = stdoutBuffer.split('\n');
       for (let i = 0; i < lines.length - 1; i++) {
         const line = lines[i];
@@ -544,14 +652,22 @@ export const spawnAgentDaemon = async (args: {
           return;
         }
 
-        if (trimmedLine && !trimmedLine.startsWith('AGENT_READY ')) {
-          const childResult = parseJsonlResult(trimmedLine);
-          if (childResult && !childResult.ok && !resolved) {
+        if (trimmedLine && !trimmedLine.startsWith('AGENT_READY ') && !resolved) {
+          const childResult = parseJsonlResult(parseJsonRecord(trimmedLine));
+          if (childResult && !childResult.ok) {
             resolved = true;
             clearTimeout(timeout);
             cleanup();
-            resolve({ success: false, error: `${childResult.code}: ${childResult.message}` });
+            resolve({ success: false, error: `${childResult.code}: ${childResult.message}`, childResult });
             return;
+          }
+          const forwarded = onChildRecord && selectForwardedChildRecord(trimmedLine);
+          if (forwarded) {
+            try {
+              onChildRecord(forwarded);
+            } catch {
+              // Progress output must never change the outcome of the start.
+            }
           }
         }
       }
@@ -586,6 +702,7 @@ export const buildAgentReadyPayload = (data: {
   workloads: { name: string; type: string; url?: string }[];
   databases: { name: string; type: string; port?: number }[];
   logFile: string;
+  sessionId?: string;
   failedWorkloads?: { name: string; error: string }[];
 }): AgentReadyPayload => ({
   port: data.port,
@@ -596,6 +713,7 @@ export const buildAgentReadyPayload = (data: {
   databases: data.databases.map((d) => ({ name: d.name, type: d.type, port: d.port })),
   logFile: data.logFile,
   tokenFile: localStatePaths.devAgentTokenFile({ port: data.port }),
+  ...(data.sessionId ? { sessionId: data.sessionId } : {}),
   failedWorkloads: data.failedWorkloads ?? []
 });
 
