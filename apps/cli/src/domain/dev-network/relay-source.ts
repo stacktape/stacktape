@@ -9,10 +9,12 @@
  *
  * Messages a client sends first:
  * - `{"Lease": {"port", "key", "owner", "label", "session", "takeOver"}}` opens the tunnel port of one (stack, resource)
- *   lease. A port held by a live tunnel of another `stacktape dev` process is refused with `{"Refused": {...}}`, naming
- *   the holder, so two sessions of one stage never take the port from each other in turn. The same process takes its
- *   port over, because a laptop that lost its SSM session comes back before the old session's sockets close. With
- *   `takeOver`, any holder is replaced; it is told `{"TakenOver": {"label"}}` first and must not ask for the port again.
+ *   lease. The stage belongs to one `stacktape dev` process: while another process holds any tunnel of the same stack,
+ *   or this port, the lease is refused with `{"Refused": {...}}`, naming the holder, so two sessions of one stage never
+ *   split its databases or take a port from each other in turn. The same process takes its port over, because a laptop
+ *   that lost its SSM session comes back before the old session's sockets close. With `takeOver`, every tunnel of the
+ *   stack that another process holds is closed at once; each is told `{"TakenOver": {"label"}}` first, and its session
+ *   must not ask for the port again.
  * - `{"Presence": {"owner", "label", "session", "stack"}}` keeps the box awake while a dev session runs.
  * - `{"Sessions": {"stack"}}` answers the live sessions of one stack (all stacks when it is empty) and closes.
  * - `{"Ping": null}` answers `{"Pong": {"version"}}` and closes: the readiness probe.
@@ -106,20 +108,31 @@ async def close_tunnel(tunnel):
     await tunnel['server'].wait_closed()
 
 
+def stack_of(key):
+    return key.split('/')[0] if key else ''
+
+
 async def run_tunnel(reader, writer, port, key, owner, label, session, take_over):
+    stack = stack_of(key)
+    others = sorted(
+        [(held_port, held) for held_port, held in tunnels.items()
+         if (held_port == port or (stack and stack_of(held['key']) == stack))
+         and not (held['owner'] == owner and held['session'] == session)],
+        key=lambda entry: entry[1]['since'])
+    if others and not take_over:
+        holder = others[0][1]
+        writer.write(frame({'Refused': {'port': port, 'key': holder['key'], 'label': holder['label'],
+                                        'since': holder['since']}}))
+        writer.close()
+        return
+    for held_port, held in others:
+        log('port %d taken over by %s' % (held_port, label or '-'))
+        held['writer'].write(frame({'TakenOver': {'label': label}}))
+        del tunnels[held_port]
+        await close_tunnel(held)
     holder = tunnels.get(port) if port else None
     if holder:
-        same_session = holder['owner'] == owner and holder['session'] == session
-        if not same_session and not take_over:
-            writer.write(frame({'Refused': {'port': port, 'key': holder['key'], 'label': holder['label'],
-                                            'since': holder['since']}}))
-            writer.close()
-            return
-        if same_session:
-            log('port %d taken over by a new connection of the same session' % port)
-        else:
-            log('port %d taken over by %s' % (port, label or '-'))
-            holder['writer'].write(frame({'TakenOver': {'label': label}}))
+        log('port %d taken over by a new connection of the same session' % port)
         del tunnels[port]
         await close_tunnel(holder)
 
@@ -172,7 +185,7 @@ async def run_presence(reader, writer, owner, label, session, stack):
 def live_sessions(stack):
     """One entry per (stack, session) that holds a tunnel or a presence connection, the earliest first."""
     found = {}
-    entries = [dict(tunnel, stack=tunnel['key'].split('/')[0]) for tunnel in tunnels.values()]
+    entries = [dict(tunnel, stack=stack_of(tunnel['key'])) for tunnel in tunnels.values()]
     for entry in entries + list(presences.values()):
         if not entry['stack'] or (stack and entry['stack'] != stack):
             continue

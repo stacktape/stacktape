@@ -2,7 +2,8 @@ import type { DevNetwork, DevNetworkAws } from '@domain-services/dev-network';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { RelayEndpoint, RelayOwner, RelaySessionInfo } from './tunnel-manager';
 import { randomUUID } from 'node:crypto';
-import { hostname } from 'node:os';
+import { homedir, hostname } from 'node:os';
+import { sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -70,11 +71,18 @@ export const getDevNetworkDemand = ({ noTunnel }: { noTunnel: boolean }) => {
   return { functions, unreachable };
 };
 
+/**
+ * This session as other sessions see it. Every `stacktape dev` process is its own session: two worktrees of one project
+ * on one machine are told apart too, and the label names the machine and the project directory of the holder.
+ */
 const getOwner = (): RelayOwner => {
   const user = globalStateManager.userData;
+  const home = homedir();
+  const directory = globalStateManager.workingDir;
+  const shownDirectory = directory.startsWith(`${home}${sep}`) ? `~${directory.slice(home.length)}` : directory;
   return {
     id: user?.id || `${process.env.USER || 'developer'}@${hostname()}`,
-    label: `${user?.name || user?.email || process.env.USER || 'another developer'} (${hostname()})`,
+    label: `${user?.name || user?.email || process.env.USER || 'another developer'} (${hostname()}, ${shownDirectory})`,
     session: randomUUID()
   };
 };

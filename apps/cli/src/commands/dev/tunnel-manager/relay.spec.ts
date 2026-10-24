@@ -145,50 +145,74 @@ test('a leased tunnel carries binary database traffic, refuses another developer
   await stopRelay();
 }, 30_000);
 
-test('a second session of the same developer is refused instead of taking the port in turn, and --take-over moves it once', async () => {
-  // The same Stacktape user on a laptop and on a desktop: one owner, two `stacktape dev` processes.
+test('a second session of the stage is refused for every port, and --take-over moves all of them at once', async () => {
+  // The same Stacktape user in two worktrees, or on a laptop and a desktop: one owner, two `stacktape dev` processes.
   const laptop = alice;
-  const desktop = { ...alice, label: 'Alice (alice-desktop)', session: 'alice-desktop-session' };
+  const desktop = { ...alice, label: 'Alice (alice-laptop, ~/shop-wt2)', session: 'alice-worktree-2' };
   await startRelay({ idleSeconds: 3600 });
   relayOutput = '';
-  const leasePort = await freePort();
+  const [dbPort, cachePort, searchPort] = [await freePort(), await freePort(), await freePort()];
   const localPort = (database.address() as AddressInfo).port;
-  const lease = { port: leasePort, key: 'shop-dev/db' };
+  const lease = (port: number, resource: string) => ({ port, key: `shop-dev/${resource}` });
   const presence = new AbortController();
   const held = holdRelayPresence({ relay: relay(), owner: laptop, stack: 'shop-dev', signal: presence.signal });
-  expect('tunnel' in (await startTunnel({ resourceName: 'db', localPort, lease, owner: laptop, relay: relay() }))).toBe(
-    true
-  );
+  for (const [port, resource] of [
+    [dbPort, 'db'],
+    [cachePort, 'cache']
+  ] as const) {
+    const opened = await startTunnel({
+      resourceName: resource,
+      localPort,
+      lease: lease(port, resource),
+      owner: laptop,
+      relay: relay()
+    });
+    expect('tunnel' in opened).toBe(true);
+  }
 
-  // The stage check of `stacktape dev` finds the laptop's session, once, from its tunnel and its presence.
+  // The stage check of `stacktape dev` finds the laptop's session, once, from its tunnels and its presence.
   await waitFor('the presence to register', async () => (await listRelaySessions(relay(), 'shop-dev')).length > 0);
   expect(await listRelaySessions(relay(), 'shop-dev')).toEqual([
     { stack: 'shop-dev', session: laptop.session, owner: laptop.id, label: laptop.label, since: expect.any(Number) }
   ]);
   expect(await listRelaySessions(relay(), 'other-dev')).toEqual([]);
 
-  const refused = await startTunnel({ resourceName: 'db', localPort, lease, owner: desktop, relay: relay() });
-  expect(refused).toMatchObject({ refused: { label: laptop.label } });
+  // Refused for a held port, and for a port of the stage nobody holds yet: the stage's databases are never split.
+  for (const [port, resource] of [
+    [dbPort, 'db'],
+    [searchPort, 'search']
+  ] as const) {
+    const refused = await startTunnel({
+      resourceName: resource,
+      localPort,
+      lease: lease(port, resource),
+      owner: desktop,
+      relay: relay()
+    });
+    expect(refused).toMatchObject({ refused: { label: laptop.label } });
+  }
   await new Promise((resolve) => setTimeout(resolve, 1500));
   expect(relayOutput).not.toContain('taken over');
-  expect(getActiveTunnels()).toHaveLength(1);
+  expect(getActiveTunnels()).toHaveLength(2);
 
-  // An explicit take-over replaces the laptop's tunnel; the laptop is told and does not ask for the port again.
-  const [laptopTunnel] = getActiveTunnels();
+  // One take-over lease replaces every tunnel of the stage; the laptop is told and does not ask for the ports again.
+  const laptopTunnels = getActiveTunnels();
   const tookOver = await startTunnel({
     resourceName: 'db',
     localPort,
-    lease,
+    lease: lease(dbPort, 'db'),
     owner: desktop,
     relay: relay(),
     takeOver: true
   });
   expect('tunnel' in tookOver).toBe(true);
-  await waitFor('the laptop to learn about the take-over', () => laptopTunnel.process.takenOverBy === desktop.label);
+  await waitFor('the laptop to learn about the take-over', () =>
+    laptopTunnels.every(({ process }) => process.takenOverBy === desktop.label)
+  );
   await new Promise((resolve) => setTimeout(resolve, 1500));
-  expect(relayOutput.match(/taken over/g)).toHaveLength(1);
+  expect(relayOutput.match(/taken over by/g)).toHaveLength(2);
   expect(getActiveTunnels()).toEqual([('tunnel' in tookOver && tookOver.tunnel) as never]);
-  expect(String(await query(leasePort, Buffer.from('select 2')))).toBe('db:select 2');
+  expect(String(await query(dbPort, Buffer.from('select 2')))).toBe('db:select 2');
 
   presence.abort();
   await held;
