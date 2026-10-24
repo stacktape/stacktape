@@ -32,7 +32,16 @@ describe('dev agent environment masking', () => {
     ['STP_API_URL', 'http://host.docker.internal:3001', 'http://host.docker.internal:3001'],
     ['AWS_REGION', 'eu-west-1', 'eu-west-1'],
     ['KEYCLOAK_URL', 'http://localhost:8080', 'http://localhost:8080'],
-    ['MONKEY_COUNT', '3', '3']
+    ['MONKEY_COUNT', '3', '3'],
+    // Private addresses, such as the dev box relaying a local database, stay readable; public ones are masked.
+    ['STP_DB_HOST', '10.42.0.17', '10.42.0.17'],
+    [
+      'STP_DB_JDBC_CONNECTION_STRING',
+      'jdbc:postgresql://10.42.0.17:40001/app?user=postgres&password=2f9c1d',
+      'jdbc:postgresql://10.42.0.17:40001/app?user=postgres&password=[redacted]'
+    ],
+    ['UPSTREAM_HOSTS', '192.168.1.5,172.20.3.4,172.32.0.1', '192.168.1.5,172.20.3.4,[redacted:ip]'],
+    ['PUBLIC_HOST', '52.31.4.200', '[redacted:ip]']
   ])('%s=%s is returned as %s', (name, value, expected) => {
     expect(maskAgentEnvironment({ [name]: value })[name]).toBe(expected);
   });
