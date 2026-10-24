@@ -505,6 +505,28 @@ export const cacheContainerName = (
   state: Pick<State, 'workDirectory'>
 ) => `${containerPrefix(options, state)}-cache`;
 
+/**
+ * The host port a running container serves `containerPort` on. Docker Desktop publishes it through a port mapping. Native
+ * Linux Docker runs dev containers on the host network, which has no mapping: there the workload listens on the host
+ * port dev mode gave it as `PORT`. Only that variable is read, never the rest of the environment.
+ */
+export const containerHostPort = (name: string, containerPort: number, run: DockerRunner = docker) => {
+  const inspected = run([
+    'inspect',
+    '--format',
+    '{{.State.Running}} {{.HostConfig.NetworkMode}} {{range .Config.Env}}{{if eq (index (split . "=") 0) "PORT"}}{{index (split . "=") 1}}{{end}}{{end}}',
+    name
+  ]);
+  if (inspected.exitCode !== 0) return undefined;
+  const [running, networkMode, port] = inspected.stdout.split(' ');
+  if (running !== 'true') return undefined;
+  if (networkMode === 'host') return port ? Number(port) : undefined;
+  const published = run(['port', name, `${containerPort}/tcp`]);
+  return published.exitCode === 0 && published.stdout
+    ? Number(published.stdout.split('\n')[0].split(':').at(-1))
+    : undefined;
+};
+
 const containerState = (name: string): string | undefined => {
   const { exitCode, stdout } = docker(['inspect', '--format', '{{.State.Status}}', name]);
   return exitCode === 0 ? stdout : undefined;
@@ -725,15 +747,14 @@ const interactiveWatchCtrlC = async (context: ScenarioContext) => {
   );
   startedProcesses.add(terminal);
   const apiHostPort = async () => {
-    // A session that already ended will never publish the port; say why instead of waiting out the deadline.
+    // A session that already ended will never start the container; say why instead of waiting out the deadline.
     if (terminal.exitCode !== null) {
       throw new WaitAborted(`The session exited (${terminal.exitCode}):\n${stripAnsi(screen).slice(-1500)}`);
     }
-    const { exitCode, stdout } = docker(['port', apiContainerName(options, state), '3000/tcp']);
-    return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
+    return containerHostPort(apiContainerName(options, state), 3000);
   };
   try {
-    const port = await waitFor('the API container to publish its port', apiHostPort, READY_TIMEOUT_MS);
+    const port = await waitFor('the API container to serve on a host port', apiHostPort, READY_TIMEOUT_MS);
     const apiUrl = `http://localhost:${port}/`;
     await check('a warm start in a terminal serves the API without updating the dev stack', async () => {
       await waitForApiRelease(apiUrl, 'first');
@@ -784,13 +805,12 @@ const terminalSigterm = async (context: ScenarioContext) => {
   startedProcesses.add(terminal);
   try {
     const port = await waitFor(
-      'the API container to publish its port',
+      'the API container to serve on a host port',
       async () => {
         if (terminal.exitCode !== null) {
           throw new WaitAborted(`The session exited (${terminal.exitCode}):\n${stripAnsi(screen).slice(-1500)}`);
         }
-        const { exitCode, stdout } = docker(['port', apiContainerName(options, state), '3000/tcp']);
-        return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
+        return containerHostPort(apiContainerName(options, state), 3000);
       },
       READY_TIMEOUT_MS
     );

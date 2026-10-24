@@ -123,6 +123,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/scripts/code-swap/smoke.ts',
       'apps/cli/scripts/code-swap/supervisor/archive_test.go',
+      'apps/cli/scripts/code-swap/supervisor/longlived_test.go',
       'apps/cli/scripts/code-swap/supervisor/process_test.go'
     ],
     requires: ['docker'],

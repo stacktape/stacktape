@@ -1,6 +1,13 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createServer, type AddressInfo } from 'node:net';
-import { clearPortCache, extractPortFromCommand, findAvailablePort, releasePorts, reservePorts } from '../port-utils';
+import {
+  clearPortCache,
+  extractPortFromCommand,
+  findAvailablePort,
+  getContainerListenPort,
+  releasePorts,
+  reservePorts
+} from '../port-utils';
 
 afterEach(() => clearPortCache());
 
@@ -41,3 +48,15 @@ test.each([
   ['', null],
   ['bun run dev -- --port 8080 --host 0.0.0.0', 8080]
 ])('parses an explicit command port in %s', (input, port) => expect(extractPortFromCommand(input)).toBe(port));
+
+// Docker Desktop publishes the allocated host port onto the configured container port; the host network of native Linux
+// Docker cannot, so there the container itself must listen on the allocated host port.
+test.each([
+  ['a published default port', { containerPort: 3000, hostPort: 3000, hostNetwork: false }, 3000],
+  ['a published moved port', { containerPort: 3000, hostPort: 3001, hostNetwork: false }, 3000],
+  ['the host network on the default port', { containerPort: 3000, hostPort: 3000, hostNetwork: true }, 3000],
+  ['the host network on a moved port', { containerPort: 3000, hostPort: 3001, hostNetwork: true }, 3001],
+  ['no configured port', { hostNetwork: true }, undefined]
+])('a container on %s listens on the right port', (_name, ports, expected) => {
+  expect(getContainerListenPort(ports)).toBe(expected);
+});

@@ -105,6 +105,14 @@ if (process.env.QUAL_WORKER) {
       setTimeout(() => res.end(config.revision), 1500);
       return;
     }
+    if (req.url === '/hold') {
+      // An endless ordinary stream: unlike an event stream, it delays a swap's completion until the drain deadline.
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.write(`${config.revision}\n`);
+      const timer = setInterval(() => res.write('tick\n'), 100);
+      req.on('close', () => clearInterval(timer));
+      return;
+    }
     if (req.url === '/sse') {
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       res.write(`data: ${config.revision}\n\n`);
