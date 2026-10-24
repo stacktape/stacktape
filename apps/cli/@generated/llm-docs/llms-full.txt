@@ -17569,55 +17569,56 @@ pnpm add stacktape
 ```
 
 
-    Or install the standalone binary, which needs no Node.js. The tab for your system is selected for you.
+    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The tab
+    for your system is selected for you. Leave out `init` to only install.
 
 
 Example (macOS (Apple silicon)):
 
 ```bash
-curl -L https://installs.stacktape.com/macos-arm.sh | sh
+curl -fsSL https://installs.stacktape.com/macos-arm.sh | sh -s -- init
 ```
 
 
 Example (macOS (Intel)):
 
 ```bash
-curl -L https://installs.stacktape.com/macos.sh | sh
+curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init
 ```
 
 
 Example (Linux (x64)):
 
 ```bash
-curl -L https://installs.stacktape.com/linux.sh | sh
+curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init
 ```
 
 
 Example (Linux (ARM64)):
 
 ```bash
-curl -L https://installs.stacktape.com/linux-arm.sh | sh
+curl -fsSL https://installs.stacktape.com/linux-arm.sh | sh -s -- init
 ```
 
 
 Example (Alpine Linux):
 
 ```bash
-curl -L https://installs.stacktape.com/alpine.sh | sh
+curl -fsSL https://installs.stacktape.com/alpine.sh | sh -s -- init
 ```
 
 
 Example (Windows (x64)):
 
-```bash
-iwr https://installs.stacktape.com/windows.ps1 -useb | iex
+```powershell
+iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ```
 
 
 Example (Windows (ARM64)):
 
-```bash
-iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex
+```powershell
+iex "& { $(irm https://installs.stacktape.com/windows-arm.ps1) } init"
 ```
 
 

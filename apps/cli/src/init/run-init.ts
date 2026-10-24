@@ -194,8 +194,8 @@ export const canOpenBrowser = (env: NodeJS.ProcessEnv = process.env): boolean =>
 export const findWizardBundle = (): string | undefined => {
   const candidates = [
     process.env.STACKTAPE_WIZARD_BUNDLE,
-    // Alongside a released binary.
-    process.argv[1] ? join(dirname(resolve(process.argv[1])), 'init-ui') : undefined,
+    // Alongside a released binary. Its argv[1] is a virtual /$bunfs path, so only execPath points at the install.
+    join(dirname(process.execPath), 'init-ui'),
     // A development checkout: apps/cli/... up to the repository root, then across.
     join(__dirname, '..', '..', '..', 'init-ui', 'dist'),
     join(process.cwd(), '..', 'init-ui', 'dist'),
