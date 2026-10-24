@@ -238,16 +238,17 @@ The workflow uses no long-lived publishing secret. Its one long-lived credential
   environment.
 - `release-installers` grants a separate job GitHub OIDC access to the AWS role
   `arn:aws:iam::977946299200:role/stacktape-github-release-installers`.
-- The AWS role may upload only the known installer paths (`PUBLISHED_INSTALL_ASSET_FILES` in
+- The AWS role may upload only the known installer paths (`PUBLISHED_INSTALL_ASSETS` in
   `apps/cli/scripts/publish-install-scripts.ts`) in the production and preview buckets, read them back for checksum
   verification, and create/read invalidations for the two corresponding CloudFront distributions. It cannot list
   buckets, write another object path, invalidate another distribution, or deploy infrastructure. The role's inline
   policy `PublishStacktapeInstallers` is maintained by hand: add a path to it in both buckets before a release first
   publishes a new installer, or that release fails after npm publication.
 
-`publish-install-scripts.ts` replaces the release version in the eight canonical sources, uploads exact bytes with
-SHA-256 checksums and preserved cache/content headers, checks S3's stored checksums, invalidates only those eight CDN
-paths, waits for completion, and verifies every public response byte-for-byte.
+`publish-install-scripts.ts` replaces the release version in the installer sources (`install.sh` for the five `.sh`
+paths, `install.ps1` for the two `.ps1` paths, and `_data.json`), uploads exact bytes with SHA-256 checksums and
+preserved cache/content headers, checks S3's stored checksums, invalidates only those eight CDN paths, waits for
+completion, and verifies every public response byte-for-byte.
 
 ## Configuration
 

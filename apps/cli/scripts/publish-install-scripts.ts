@@ -11,16 +11,21 @@ import { join } from 'node:path';
 import { INSTALL_SCRIPTS_PATH } from 'src/config/project-paths';
 import yargsParser from 'yargs-parser';
 
-export const PUBLISHED_INSTALL_ASSET_FILES = [
-  '_data.json',
-  'alpine.sh',
-  'linux-arm.sh',
-  'linux.sh',
-  'macos-arm.sh',
-  'macos.sh',
-  'windows-arm.ps1',
-  'windows.ps1'
-] as const;
+/**
+ * Each published installer path and the source it serves. Every .sh path serves `install.sh` and every .ps1 path
+ * serves `install.ps1`, and each installs the build for the machine it runs on. The paths stay because documentation,
+ * the Console and older CLIs link to them, and the release role may upload only these paths.
+ */
+export const PUBLISHED_INSTALL_ASSETS = {
+  '_data.json': '_data.json',
+  'alpine.sh': 'install.sh',
+  'linux-arm.sh': 'install.sh',
+  'linux.sh': 'install.sh',
+  'macos-arm.sh': 'install.sh',
+  'macos.sh': 'install.sh',
+  'windows-arm.ps1': 'install.ps1',
+  'windows.ps1': 'install.ps1'
+} as const;
 
 const CACHE_CONTROL = 'public, max-age=0, s-maxage=31536000, must-revalidate';
 
@@ -28,7 +33,7 @@ type InstallAsset = {
   body: Buffer;
   checksumSha256: string;
   contentType: string;
-  key: (typeof PUBLISHED_INSTALL_ASSET_FILES)[number];
+  key: keyof typeof PUBLISHED_INSTALL_ASSETS;
 };
 
 type PublishInstallScriptsOptions = {
@@ -47,10 +52,11 @@ const contentTypeFor = (fileName: InstallAsset['key']) => {
 
 export const prepareInstallAssets = async ({ version }: { version: string }): Promise<InstallAsset[]> =>
   Promise.all(
-    PUBLISHED_INSTALL_ASSET_FILES.map(async (key) => {
-      const source = await readFile(join(INSTALL_SCRIPTS_PATH, key), 'utf8');
+    (Object.keys(PUBLISHED_INSTALL_ASSETS) as InstallAsset['key'][]).map(async (key) => {
+      const sourceFile = PUBLISHED_INSTALL_ASSETS[key];
+      const source = await readFile(join(INSTALL_SCRIPTS_PATH, sourceFile), 'utf8');
       if (!source.includes('<<DEFAULT_VERSION>>')) {
-        throw new Error(`Installer source ${key} does not contain the release-version placeholder.`);
+        throw new Error(`Installer source ${sourceFile} does not contain the release-version placeholder.`);
       }
       const body = Buffer.from(source.replaceAll('<<DEFAULT_VERSION>>', version));
       return {
