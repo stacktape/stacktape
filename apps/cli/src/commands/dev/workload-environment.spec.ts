@@ -79,3 +79,46 @@ test('a dev workload sees local workloads at their local address and deployed re
     expect.arrayContaining(['--enable-source-maps', '--experimental-require-module'])
   );
 }, 20_000);
+
+// A local container's unchanged AWS SDK code called real DynamoDB (AccessDenied) because only deployed dev functions
+// got the SDK's endpoint variable. Every local consumer connected to local tables gets it; all local tables share one
+// DynamoDB Local, so one endpoint serves several. With a deployed table in `connectTo` too, one endpoint cannot serve
+// both, so the variable is left out.
+test('local workloads and scripts connected to local DynamoDB tables get AWS_ENDPOINT_URL_DYNAMODB', async () => {
+  const resources = deployedStackOverviewManager.stackInfoMap!.resources as Record<string, unknown>;
+  resources.archive = { resourceType: 'dynamo-db-table', referencableParams: { name: { value: 'deployed-archive' } } };
+  deployedStackOverviewManager.injectLocalResourceInfo(
+    ['events', 'sessions'].map((name) => ({
+      name,
+      resourceType: 'dynamodb',
+      referencableParams: { name, endpoint: 'http://localhost:12200' }
+    }))
+  );
+  const endpointFor = (connectTo: string[]) =>
+    deployedStackOverviewManager.getLocalDynamoDbEndpointEnvVars(connectTo).AWS_ENDPOINT_URL_DYNAMODB;
+
+  expect(endpointFor(['events'])).toBe('http://localhost:12200');
+  expect(endpointFor(['db', 'events', 'sessions'])).toBe('http://localhost:12200');
+  expect(endpointFor(['events', 'archive'])).toBeUndefined();
+  expect(endpointFor(['archive'])).toBeUndefined();
+  expect(endpointFor(['db'])).toBeUndefined();
+
+  // Local scripts (hooks, seeds) resolve their `connectTo` here.
+  expect(deployedStackOverviewManager.locallyResolveEnvVariablesFromConnectTo(['events'])).toMatchObject({
+    STP_EVENTS_ENDPOINT: 'http://localhost:12200',
+    AWS_ENDPOINT_URL_DYNAMODB: 'http://localhost:12200'
+  });
+
+  // A container gets it with its other local variables, at the address it reaches the host by.
+  const environment = await getWorkloadEnvironmentVars({
+    workloadType: 'multi-container-workload',
+    jobName: 'api',
+    workloadName: 'api',
+    jobEnvironment: [],
+    connectTo: [],
+    skipAwsCredentials: true,
+    localResourceEnvVars: deployedStackOverviewManager.getLocalDynamoDbEndpointEnvVars(['events'])
+  });
+  expect(environment.AWS_ENDPOINT_URL_DYNAMODB).toMatch(/^http:\/\/[^/]+:12200$/);
+  expect(environment.AWS_ENDPOINT_URL_DYNAMODB).not.toContain('localhost');
+}, 20_000);

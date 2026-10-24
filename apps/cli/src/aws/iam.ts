@@ -106,6 +106,29 @@ export class AwsIam {
       });
   };
 
+  /**
+   * Adds a statement to a role's trust policy unless an equal one is there, and tells whether it changed the policy.
+   * AWS accepts a changed trust only after a while.
+   */
+  addAssumeRolePolicyStatement = async ({
+    roleName,
+    statement
+  }: {
+    roleName: string;
+    statement: DeveloperTrustStatement;
+  }): Promise<boolean> => {
+    const errorHandler = this.#getErrorHandler(`Failed to update the trust policy of role ${roleName}.`);
+    const role = await this.getRole({ roleName, throwErrorWhenRoleNotExists: true }).catch(errorHandler);
+    const policy = JSON.parse(decodeURIComponent(role.AssumeRolePolicyDocument));
+    const statements: unknown[] = [policy.Statement ?? []].flat();
+    if (statements.some((existing) => isSameDeveloperTrustStatement(existing, statement))) return false;
+    policy.Statement = [...statements, statement];
+    await this.#createClient()
+      .send(new UpdateAssumeRolePolicyCommand({ PolicyDocument: JSON.stringify(policy), RoleName: roleName }))
+      .catch(errorHandler);
+    return true;
+  };
+
   createRole = async ({
     roleName,
     assumeRolePolicyDocument,
@@ -223,3 +246,43 @@ export const getAssumeRolePolicyDocumentForFunctionRole = () => ({
   ],
   Version: '2012-10-17'
 });
+
+export type DeveloperTrustStatement = {
+  Effect: 'Allow';
+  Principal: { AWS: string };
+  Action: 'sts:AssumeRole';
+  Condition: { ArnLike: { 'aws:PrincipalArn': string[] } };
+};
+
+/**
+ * A trust policy statement that lets one developer assume a role: the account root as principal, limited by
+ * `aws:PrincipalArn` to the developer's IAM user or to the role of their session, under any path (role names are unique
+ * in an account). For credentials of a Stacktape-connected account, AWS accepted this statement within 21 s, and one
+ * that names the role as principal only after 95 to 300 s. Undefined for identities that a trust policy cannot name
+ * this way, such as federated users and the root user.
+ */
+export const getDeveloperTrustStatement = (identityArn: string): DeveloperTrustStatement | undefined => {
+  const user = identityArn.match(/^arn:([\w-]+):iam::(\d+):user\//);
+  const role = identityArn.match(/^arn:([\w-]+):sts::(\d+):assumed-role\/([^/]+)\//);
+  const [, partition, accountId] = user ?? role ?? [];
+  if (!partition || !accountId) return undefined;
+  const roleArn = (path: string) => `arn:${partition}:iam::${accountId}:role/${path}${role![3]}`;
+  return {
+    Effect: 'Allow',
+    Principal: { AWS: `arn:${partition}:iam::${accountId}:root` },
+    Action: 'sts:AssumeRole',
+    Condition: { ArnLike: { 'aws:PrincipalArn': user ? [identityArn] : [roleArn(''), roleArn('*/')] } }
+  };
+};
+
+/** IAM may return a one-element list as a string, so the comparison ignores that and the order of the ARNs. */
+const isSameDeveloperTrustStatement = (existing: unknown, statement: DeveloperTrustStatement): boolean => {
+  const canonical = (value: any) =>
+    JSON.stringify({
+      effect: value?.Effect,
+      principal: [value?.Principal?.AWS].flat(),
+      action: [value?.Action].flat(),
+      principalArns: [value?.Condition?.ArnLike?.['aws:PrincipalArn']].flat().sort()
+    });
+  return canonical(existing) === canonical(statement);
+};

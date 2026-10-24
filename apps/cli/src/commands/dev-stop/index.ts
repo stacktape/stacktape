@@ -1,3 +1,4 @@
+import { dirname } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
@@ -8,11 +9,12 @@ import {
   deleteAgentLockFile,
   discoverDevAgents,
   getAllRunningAgents,
+  getLockFilePath,
   isSameDirectory,
   requestDevAgent,
   stopRunningAgent
 } from '../dev/agent-daemon';
-import { cleanupOrphanedContainers } from '../dev/cleanup-utils';
+import { cleanupOrphanedContainers, isDevContainerOfProject } from '../dev/cleanup-utils';
 
 type StoppedAgent = { port: number; projectName: string; stage: string };
 
@@ -27,28 +29,38 @@ const describeAgent = ({ projectName, stage, port }: { projectName?: string; sta
  * An agent of another directory is never stopped by a guess: when several agents match, nothing is stopped and the
  * command fails with the list.
  */
-export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[] }> => {
-  const { agentPort: agentPortArg, cleanupContainers: shouldCleanupContainers } = globalStateManager.args;
+export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[]; removedContainers?: string[] }> => {
+  const { agentPort: agentPortArg, cleanupContainers: shouldCleanupContainers, all } = globalStateManager.args;
   // Only a stage given on this command line narrows the choice; a saved default stage must not hide other stages.
   const { stage } = globalStateManager.explicitArgs;
 
-  // Handle --cleanupContainers flag
+  // Removes this project directory's left-behind containers (only the stage's with --stage); --all removes those of
+  // every project on the machine. Containers of other projects belong to their own sessions or worktrees.
+  let removedContainers: string[] | undefined;
   if (shouldCleanupContainers) {
-    tuiManager.info('Cleaning up orphaned Stacktape dev containers...');
-    const cleaned = await cleanupOrphanedContainers();
-    if (cleaned.length > 0) {
-      tuiManager.success(`Removed ${cleaned.length} container(s): ${cleaned.join(', ')}`);
+    const scope = { lockDirectory: dirname(getLockFilePath()), stage };
+    tuiManager.info(
+      all
+        ? 'Removing the Stacktape dev containers that dev sessions on this machine left behind...'
+        : `Removing the dev containers that sessions of ${globalStateManager.workingDir}${stage ? ` (stage ${stage})` : ''} left behind...`
+    );
+    removedContainers = await cleanupOrphanedContainers({
+      isInScope: all ? undefined : (container) => isDevContainerOfProject(container, scope, isSameDirectory)
+    });
+    if (removedContainers.length > 0) {
+      tuiManager.success(`Removed ${removedContainers.length} container(s): ${removedContainers.join(', ')}`);
     } else {
-      tuiManager.info('No orphaned containers found.');
+      tuiManager.info('No left-behind containers found.');
     }
     // If only cleanup was requested (no agent stop), we're done
     if (!agentPortArg && !stage) {
       const allAgents = await getAllRunningAgents();
       if (allAgents.length === 0) {
-        return { stopped: [] };
+        return { stopped: [], removedContainers };
       }
     }
   }
+  const withRemoved = (stopped: StoppedAgent[]) => ({ stopped, ...(removedContainers ? { removedContainers } : {}) });
 
   const stop = async (agent: AgentLockFile): Promise<StoppedAgent> => {
     tuiManager.info(`Stopping dev agent ${describeAgent(agent)}...`);
@@ -66,7 +78,7 @@ export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[] }> => 
 
   // If --agentPort specified, stop that specific agent
   if (agentPortArg) {
-    return { stopped: [await stop(await findAgentOnPort(agentPortArg))] };
+    return withRemoved([await stop(await findAgentOnPort(agentPortArg))]);
   }
 
   const projectDirectory = globalStateManager.workingDir;
@@ -123,7 +135,7 @@ export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[] }> => 
   }
 
   if (candidates.length === 1) {
-    return { stopped: [await stop(candidates[0])] };
+    return withRemoved([await stop(candidates[0])]);
   }
 
   const elsewhere = discovered.filter(
@@ -137,7 +149,7 @@ export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[] }> => 
     }
     tuiManager.info('Stop one with `dev stop --cwd <directory>` or `dev stop --agent-port <port>`.');
   }
-  return { stopped: [] };
+  return withRemoved([]);
 };
 
 /**

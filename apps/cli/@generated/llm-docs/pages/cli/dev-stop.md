@@ -36,10 +36,11 @@ stacktape dev stop --agent-port 7332
 
 ### --cleanup-containers
 
-Crashed or improperly terminated dev sessions can leave orphaned Docker containers running. The `--cleanup-containers` flag finds and removes any Stacktape dev containers whose agent process is no longer running. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (stopping the project's agent, or failing with the list when several stages run).
+A dev session removes its database containers when it stops; their data stays in `.stacktape/dev-data/{stage}/`. A session that crashed or was killed leaves its containers behind. The `--cleanup-containers` flag removes the containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With `--stage`, it removes only that stage's. Containers of other projects and Git worktrees stay; add `--all` to remove those of every project on the machine. The result lists the removed containers in `removedContainers`. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (stopping the project's agent, or failing with the list when several stages run).
 
 ```bash
 stacktape dev stop --cleanup-containers
+stacktape dev stop --cleanup-containers --all
 ```
 
 You can combine `--cleanup-containers` with `--agent-port` to both clean up containers and stop a specific agent in one command.
@@ -58,8 +59,9 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
 | `--agent-port` | no | `number` | Agent Port — Stops the dev agent on this port, wherever it was started. | - |
+| `--all` | no | `boolean` | All — With `--cleanup-containers`, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--cleanup-containers` | no | `boolean` | Cleanup Containers — Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown. | - |
+| `--cleanup-containers` | no | `boolean` | Cleanup Containers — Removes the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With `--stage`, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add `--all`. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
