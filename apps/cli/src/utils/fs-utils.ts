@@ -1,4 +1,5 @@
 import type { SupportedFileExt } from '@utils/file-types';
+import { readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, extname, isAbsolute, join, sep as pathSeparator, relative } from 'node:path';
 import fsExtra, { outputFile, remove } from 'fs-extra';
@@ -58,6 +59,55 @@ export const dynamicRequire = ({ cache = true, filePath }: { filePath: string; c
     delete requireFromFile.cache[requireFromFile.resolve(interpolableFilePath)];
   }
   return requireFromFile(interpolableFilePath);
+};
+
+const SCANNABLE_MODULE_LOADERS: Record<string, 'ts' | 'tsx' | 'js' | 'jsx'> = {
+  ts: 'ts',
+  mts: 'ts',
+  cts: 'ts',
+  tsx: 'tsx',
+  js: 'js',
+  mjs: 'js',
+  cjs: 'js',
+  jsx: 'jsx'
+};
+
+/**
+ * Drops a user module and every local file it imports, at any depth and wherever it lives, from the require cache, so
+ * the next require executes them again. Package imports stay cached. Bun keys the cache by real path, so symlinks are
+ * resolved first.
+ */
+export const forgetModuleGraph = (entryFile: string) => {
+  const { cache } = createRequire(entryFile);
+  const visited = new Set<string>();
+  const pending = [entryFile];
+  while (pending.length) {
+    let file: string;
+    try {
+      file = realpathSync(pending.pop()!);
+    } catch {
+      continue;
+    }
+    if (visited.has(file) || file.includes(`${pathSeparator}node_modules${pathSeparator}`)) continue;
+    visited.add(file);
+    delete cache[file];
+    const loader = SCANNABLE_MODULE_LOADERS[extname(file).slice(1)];
+    if (!loader) continue;
+    let imports: { path: string }[];
+    try {
+      imports = new Bun.Transpiler({ loader }).scanImports(readFileSync(file, 'utf8'));
+    } catch {
+      continue;
+    }
+    for (const { path } of imports) {
+      if (!path.startsWith('.') && !isAbsolute(path)) continue;
+      try {
+        pending.push(Bun.resolveSync(path, dirname(file)));
+      } catch {
+        // An import that does not resolve fails the configuration load itself, with a clearer error.
+      }
+    }
+  }
 };
 
 export const dynamicRequireLibraryFromUserNodeModules = ({

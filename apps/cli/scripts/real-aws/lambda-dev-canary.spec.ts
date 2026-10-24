@@ -18,7 +18,9 @@ test.skipIf(process.platform !== 'linux')(
       profile: 'stacktape-e2e',
       region: 'eu-west-1'
     });
+    expect(resolveLambdaDevOptions({ ...valid, STP_AWS_LAMBDA_DEV_REGION: 'eu-north-1' }).region).toBe('eu-north-1');
     for (const override of [
+      { STP_AWS_LAMBDA_DEV_REGION: 'eu-north-1; rm -rf /' },
       { STP_AWS_LAMBDA_DEV_DEPLOY: undefined },
       { STP_AWS_LAMBDA_DEV_CONFIRM_DISPOSABLE: undefined },
       { STP_AWS_LAMBDA_DEV_PROFILE: 'stacktape-dev' },

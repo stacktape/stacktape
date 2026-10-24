@@ -24,10 +24,36 @@ export type SqlQueryResponse =
   | SuccessResponse<{
       rows: Record<string, unknown>[];
       fields: string[];
+      /** Rows returned, or the rows a write changed when it returns none. */
       rowCount: number;
+      /** Rows that INSERT, UPDATE, DELETE, MERGE or COPY changed, as the driver reports them. */
+      affectedRows?: number;
       truncated: boolean;
     }>
   | ErrorResponse;
+
+const POSTGRES_WRITE_COMMANDS = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'COPY']);
+
+/**
+ * Reads what a `pg` query returned: the last statement's rows, and the rows every write changed. A query of several
+ * statements returns one result per statement.
+ */
+export const readPostgresResult = (
+  result:
+    | { command?: string; rowCount?: number | null; rows?: unknown[]; fields?: { name: string }[] }
+    | { command?: string; rowCount?: number | null; rows?: unknown[]; fields?: { name: string }[] }[]
+) => {
+  const results = Array.isArray(result) ? result : [result];
+  const writes = results.filter(
+    ({ command, rowCount }) => POSTGRES_WRITE_COMMANDS.has(command ?? '') && typeof rowCount === 'number'
+  );
+  const last = results.at(-1);
+  return {
+    rows: (last?.rows ?? []) as Record<string, unknown>[],
+    fields: last?.fields?.map(({ name }) => name) ?? [],
+    affectedRows: writes.length ? writes.reduce((sum, { rowCount }) => sum + (rowCount ?? 0), 0) : undefined
+  };
+};
 
 type TableSchema = {
   columns: Array<{ name: string; type: string; nullable: boolean; default: string | null }>;
@@ -285,14 +311,16 @@ export const postgresQuery = async (conn: PostgresConnectionOpts, opts: SqlQuery
     } finally {
       if (opts.readOnly) await client.query('ROLLBACK').catch(() => {});
     }
-    const truncated = isSelect && !hasLimit && result.rows.length > limit;
-    const rows = truncated ? result.rows.slice(0, limit) : result.rows;
+    const { rows: resultRows, fields, affectedRows } = readPostgresResult(result);
+    const truncated = isSelect && !hasLimit && resultRows.length > limit;
+    const rows = truncated ? resultRows.slice(0, limit) : resultRows;
 
     return {
       ok: true,
       rows,
-      fields: result.fields?.map((f) => f.name) || [],
-      rowCount: rows.length,
+      fields,
+      rowCount: rows.length || (affectedRows ?? 0),
+      ...(affectedRows !== undefined && { affectedRows }),
       truncated,
       ...(truncated && { hint: `Results limited to ${limit} rows. Use LIMIT/OFFSET or increase limit param.` })
     };
@@ -703,6 +731,7 @@ export const mysqlQuery = async (conn: MysqlConnectionOpts, opts: SqlQueryOpts):
       rows: [],
       fields: [],
       rowCount: resultHeader.affectedRows || 0,
+      affectedRows: resultHeader.affectedRows || 0,
       truncated: false
     };
   } catch (err: unknown) {

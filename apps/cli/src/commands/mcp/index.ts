@@ -560,7 +560,7 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
     {
       description: `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, and stop.
 
-Use this instead of running stacktape dev or stacktape dev stop through Bash. Use action=plan to prepare dev mode without starting it. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to rebuild, rebuild_all, and stop; status and logs may omit it only when exactly one session is active.`,
+Use this instead of running stacktape dev or stacktape dev stop through Bash. Use action=plan to prepare dev mode without starting it. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to stop; status, logs, rebuild and rebuild_all may omit it only when exactly one session is active. rebuild and rebuild_all answer after the build and deployment finish: ok=false with code REBUILD_FAILED carries the build error and the log file, and CONFIG_CHANGED_RESTART_REQUIRED means the configuration file changed and dev mode must restart.`,
       inputSchema: z.object({
         action: z.enum(['plan', 'start', 'status', 'logs', 'rebuild', 'rebuild_all', 'stop']),
         args: z.record(z.string(), z.unknown()).optional()

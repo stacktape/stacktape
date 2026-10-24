@@ -9,6 +9,7 @@ import { formatCommandHeaderLine } from '@application-services/tui-manager/forma
 import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { localStatePaths } from 'src/config/local-state-paths';
+import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,
@@ -95,7 +96,14 @@ export type AgentStatus = {
   workloads: WorkloadStatus[];
   localResources: LocalResourceStatus[];
   logFile: string | null;
+  /** Why the session no longer matches the configuration file and has to restart before it is ready again. */
+  restartRequired?: string;
 };
+
+export type RebuildResult =
+  | { ok: true; rebuilt: string[] }
+  | { ok: false; code: 'CONFIG_CHANGED_RESTART_REQUIRED'; message: string }
+  | { ok: false; code: 'REBUILD_FAILED'; message: string; failedWorkloads: FailedWorkload[] };
 
 // State management for agent mode
 let agentState: AgentStatus = {
@@ -112,12 +120,12 @@ let agentToken: string | null = null;
 let agentTokenFile: string | null = null;
 
 // Import rebuild functions lazily to avoid circular deps
-let rebuildWorkload: (name: string) => Promise<boolean>;
-let rebuildAllWorkloads: () => Promise<void>;
+let rebuildWorkload: (name: string) => Promise<RebuildResult | undefined>;
+let rebuildAllWorkloads: () => Promise<RebuildResult>;
 
 export const setRebuildFunctions = (
-  rebuildOne: (name: string) => Promise<boolean>,
-  rebuildAll: () => Promise<void>
+  rebuildOne: (name: string) => Promise<RebuildResult | undefined>,
+  rebuildAll: () => Promise<RebuildResult>
 ) => {
   rebuildWorkload = rebuildOne;
   rebuildAllWorkloads = rebuildAll;
@@ -125,6 +133,29 @@ export const setRebuildFunctions = (
 
 export const updateAgentState = (updates: Partial<AgentStatus>) => {
   agentState = { ...agentState, ...updates };
+};
+
+/** The agent reports what the dev TUI state holds; the dev command calls this on every change of that state. */
+export const mirrorDevTuiState = (state: DevTuiState) => {
+  updateAgentState({
+    phase: state.phase === 'running' ? 'ready' : 'starting',
+    workloads: state.workloads.map((workload) => ({
+      name: workload.name,
+      type: workload.type,
+      status: workload.status,
+      url: workload.url,
+      port: workload.port,
+      error: workload.error,
+      size: workload.size
+    })),
+    localResources: state.localResources.map((resource) => ({
+      name: resource.name,
+      type: resource.type,
+      status: resource.status,
+      port: resource.port,
+      error: resource.error
+    }))
+  });
 };
 
 export const updateAgentWorkloadStatus = (name: string, updates: Partial<Omit<WorkloadStatus, 'name'>>) => {
@@ -152,11 +183,14 @@ export const getFailedWorkloads = (workloads: WorkloadStatus[] = agentState.work
     .map(({ name, error }) => ({ name, error: error || 'unknown error' }));
 
 /**
- * Ready means dev mode finished starting and every selected workload is running. A failed workload makes the session
- * not ready: an assistant that waits for readiness must not start testing against a workload that is down.
+ * Ready means dev mode finished starting, every selected workload is running and the configuration file still matches
+ * the session. A failed workload or a pending restart makes the session not ready: an assistant that waits for
+ * readiness must not start testing against a workload that is down or runs outdated code or configuration.
  */
 const areAllWorkloadsReady = (): boolean =>
-  agentState.phase === 'ready' && agentState.workloads.every((workload) => workload.status === 'running');
+  agentState.phase === 'ready' &&
+  !agentState.restartRequired &&
+  agentState.workloads.every((workload) => workload.status === 'running');
 
 const safeJsonParse = (str: string): unknown => {
   try {
@@ -299,6 +333,7 @@ addRoute('GET', '/status', async ({ query }) => {
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
       localResources: agentState.localResources,
+      ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...getDevBoxStatus(),
       logFile: getAgentLogFilePath()
     };
@@ -315,6 +350,7 @@ addRoute('GET', '/status', async ({ query }) => {
     phase: agentState.phase,
     ready,
     failedWorkloads,
+    ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     workloads: workloadMap,
     ...getDevBoxStatus(),
     pid: process.pid
@@ -330,17 +366,33 @@ addRoute('GET', '/logs', async () => {
   };
 });
 
+/** What a rebuild returns: the outcome, and where a failed build's output and the workloads' logs are. */
+export const toRebuildResponse = (result: RebuildResult, logFile = getAgentLogFilePath()) => {
+  if ('rebuilt' in result)
+    return { ok: true, message: `Rebuilt ${result.rebuilt.join(', ')}.`, rebuilt: result.rebuilt };
+  if (!('failedWorkloads' in result)) {
+    return {
+      ok: false,
+      code: result.code,
+      error: result.message,
+      hint: 'Stop dev mode and start it again; the start updates the dev stack.'
+    };
+  }
+  return {
+    ok: false,
+    code: result.code,
+    error: `Rebuild failed. ${result.message}`,
+    failedWorkloads: result.failedWorkloads,
+    logFile,
+    hint: 'The failed workloads keep the status error, and their previous code may still serve requests. Fix the error and rebuild again.'
+  };
+};
+
 addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
   const workloadName = pathParams.workload;
 
-  if (workloadName === 'all') {
-    const rebuilding = agentState.workloads.filter((w) => w.status === 'starting');
-    if (rebuilding.length > 0) {
-      return { ok: false, error: `Some workloads are already rebuilding: ${rebuilding.map((w) => w.name).join(', ')}` };
-    }
-    await rebuildAllWorkloads();
-    return { ok: true };
-  }
+  // A workload that is rebuilding finishes first; the request then builds the current files.
+  if (workloadName === 'all') return toRebuildResponse(await rebuildAllWorkloads());
 
   const workload = agentState.workloads.find((w) => w.name === workloadName);
   if (!workload) {
@@ -352,12 +404,9 @@ addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
     };
   }
 
-  if (workload.status === 'starting') {
-    return { ok: false, error: `Workload "${workloadName}" is already rebuilding` };
-  }
-
-  const found = await rebuildWorkload(workloadName);
-  return { ok: found };
+  const result = await rebuildWorkload(workloadName);
+  if (!result) return { ok: false, error: `Workload "${workloadName}" not found` };
+  return toRebuildResponse(result);
 });
 
 addRoute('POST', '/stop', async () => {

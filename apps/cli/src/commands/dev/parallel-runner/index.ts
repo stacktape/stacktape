@@ -29,6 +29,7 @@ import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResour
 import { startHealthMonitoring } from '../local-resources/health-monitor';
 import { startNextjsWebDevServer } from '../nextjs-web';
 import { startSsrWebDevServer } from '../ssr-web';
+import type { DevServerState } from '../dev-server';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
 import { getDevNetworkSession, type DevNetworkSession } from '../dev-network-session';
@@ -36,15 +37,16 @@ import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
 import { getContainerListenPort, isPortAvailable, reservePorts } from '../port-utils';
 import {
-  clearCredentialExpiryTimer,
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
   getWorkloadEnvironmentVars,
   gracefullyStopContainer,
-  resolveRunningContainersWithSamePort,
-  SourceCodeWatcher
+  resolveRunningContainersWithSamePort
 } from '../utils';
-import { updateAgentWorkloadStatus } from '../agent-server';
+import { updateAgentWorkloadStatus, type RebuildResult } from '../agent-server';
+import { createConfigChangeDetector, type ConfigChange } from '../config-change';
+import { createWorkloadRebuilder } from '../workload-rebuild';
+import { startSourceWatcher } from '../source-watcher';
 import { getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
@@ -69,7 +71,9 @@ type ContainerPortBinding = {
 
 type ParallelRunnerState = {
   workloads: Map<string, WorkloadInfo>;
-  sourceCodeWatcher: SourceCodeWatcher;
+  sourceWatcher?: Awaited<ReturnType<typeof startSourceWatcher>>;
+  /** Whether the configuration file differs from the one the session started with; unset when it cannot be read. */
+  detectConfigChange?: () => Promise<ConfigChange>;
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
   relayTunnels: TunnelInfo[];
@@ -78,7 +82,6 @@ type ParallelRunnerState = {
 
 const state: ParallelRunnerState = {
   workloads: new Map(),
-  sourceCodeWatcher: new SourceCodeWatcher(),
   localResources: [],
   tunnels: [],
   relayTunnels: [],
@@ -256,6 +259,12 @@ export const runParallelWorkloads = async (
   await Promise.all(startPromises);
   await devNetworkConnected;
 
+  // `dev` always runs the dev TUI, so `--watch` must not depend on it; the TUI replaces only the stdin `rs` commands.
+  // The watcher is ready before dev mode reports ready, so an edit made right after the start is not missed.
+  if (watch) {
+    await setupFileWatching();
+  }
+
   // Transition to running phase in DevTui
   if (useDevTui) {
     // Small delay to ensure final state updates are rendered
@@ -263,10 +272,6 @@ export const runParallelWorkloads = async (
     devTuiManager.transitionToRunning();
   }
 
-  // `dev` always runs the dev TUI, so `--watch` must not depend on it; the TUI replaces only the stdin `rs` commands.
-  if (watch) {
-    setupFileWatching();
-  }
   if (!useDevTui) {
     if (!watch) {
       setupStdinRestart();
@@ -659,11 +664,14 @@ const startContainerWorkload = async (
   // a rebuild advances it before stopping the old container, so only the latest run's exit that dev mode did not cause
   // (rebuild or shutdown) is a crash. Without this, a container that crashed stayed "running" in the dashboard and agent.
   let containerRun = 0;
-  const reportUnexpectedExit = (run: number, stderr: string) => {
-    if (run !== containerRun || applicationManager.isInterrupted) return;
+  const describeExit = (stderr: string) => {
     const lines = stderr.trim().split('\n').filter(Boolean);
     const reason = lines.findLast((line) => /error/i.test(line)) ?? lines.at(-1);
-    const error = `Container stopped unexpectedly${reason ? `: ${reason.trim()}` : '.'}`;
+    return reason ? `: ${reason.trim()}` : '.';
+  };
+  const reportUnexpectedExit = (run: number, stderr: string) => {
+    if (run !== containerRun || applicationManager.isInterrupted) return;
+    const error = `Container stopped unexpectedly${describeExit(stderr)}`;
     if (useDevTui) {
       devTuiManager.setWorkloadStatus(resourceName, 'error', { error });
       devTuiManager.log(resourceName, error, 'error');
@@ -788,7 +796,8 @@ const startContainerWorkload = async (
 
     const run = ++containerRun;
     let stderrBuffer = '';
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      let started = false;
       dockerRun({
         name: localContainerName,
         image: newImage.imageName,
@@ -799,6 +808,7 @@ const startContainerWorkload = async (
           ? [{ hostPath: newImage.distFolderPath, containerPath: '/app/dist' }]
           : [],
         onStart: () => {
+          started = true;
           if (!inRebuildPhase) {
             if (useDevTui) {
               devTuiManager.setWorkloadStatus(resourceName, 'running', {
@@ -828,7 +838,16 @@ const startContainerWorkload = async (
       })
         .catch(() => {})
         .then(() => {
-          resolve();
+          // A container that exits before it starts fails the rebuild, so the workload reports an error, not running.
+          if (!started) {
+            reject(
+              new ExpectedError(
+                'DOCKER',
+                `Container "${resourceName}" exited before starting${describeExit(stderrBuffer)}`
+              )
+            );
+            return;
+          }
           reportUnexpectedExit(run, stderrBuffer);
         });
     });
@@ -897,9 +916,7 @@ const startHostingBucketWorkload = async (
         localWorkloadEnvVars: localEnvVars
       });
 
-      if (!inRebuildPhase && useDevTui && restartResult.status === 'ready') {
-        devTuiManager.setWorkloadStatus(resourceName, 'running', { url: restartResult.url });
-      }
+      assertDevServerRestarted(resourceName, restartResult);
     }
   });
 };
@@ -945,9 +962,7 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
         localWorkloadEnvVars: localEnvVars
       });
 
-      if (!inRebuildPhase && useDevTui && restartResult.status === 'ready') {
-        devTuiManager.setWorkloadStatus(resourceName, 'running', { url: restartResult.url });
-      }
+      assertDevServerRestarted(resourceName, restartResult);
     }
   });
 };
@@ -996,11 +1011,15 @@ const startSsrWebWorkload = async (
         localWorkloadEnvVars: localEnvVars
       });
 
-      if (!inRebuildPhase && useDevTui && restartResult.status === 'ready') {
-        devTuiManager.setWorkloadStatus(resourceName, 'running', { url: restartResult.url });
-      }
+      assertDevServerRestarted(resourceName, restartResult);
     }
   });
+};
+
+/** A frontend's rebuild restarts its dev server, so a server that fails to start fails the rebuild. */
+const assertDevServerRestarted = (resourceName: string, result: DevServerState) => {
+  if (result.status === 'error') throw new Error(result.error || 'The dev server failed to start.');
+  if (result.url) devTuiManager.setWorkloadStatus(resourceName, 'running', { url: result.url });
 };
 
 /**
@@ -1177,50 +1196,40 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   });
 };
 
-const setupFileWatching = () => {
-  const allSourceFiles: string[] = [];
-  const fileToWorkload = new Map<string, string>();
+/**
+ * Records the configuration this session loaded, before anything starts, so a rebuild can tell when the file no longer
+ * matches it. An edit made while the session starts counts as a change too.
+ */
+export const captureSessionConfig = () => {
+  const configPath = globalStateManager.configPath;
+  if (!configPath || !configManager.rawConfig) return;
+  state.detectConfigChange = createConfigChangeDetector({
+    configPath,
+    sessionConfig: configManager.rawConfig,
+    loadConfig: () => configManager.configResolver.reloadRawConfig()
+  });
+};
 
-  for (const [name, workload] of state.workloads) {
-    for (const file of workload.sourceFiles) {
-      allSourceFiles.push(file);
-      fileToWorkload.set(file, name);
-    }
-  }
+const rebuilder = createWorkloadRebuilder({
+  rebuild: (name) => state.workloads.get(name)!.rebuild(),
+  detectConfigChange: () => state.detectConfigChange?.() ?? Promise.resolve({ changed: false })
+});
 
-  state.sourceCodeWatcher.watch({
-    filesToWatch: allSourceFiles,
-    onChangeFn: async ({ changedFile }) => {
-      const workloadName = fileToWorkload.get(changedFile);
-      if (!workloadName) {
-        tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} (no matching workload)`);
-        return;
-      }
-
-      const workload = state.workloads.get(workloadName);
-      if (!workload) return;
-
-      tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} -> rebuilding ${workloadName}`);
-
-      state.sourceCodeWatcher.unwatchAllFiles();
+const setupFileWatching = async () => {
+  state.sourceWatcher = await startSourceWatcher({
+    getSourceFiles: () => new Map([...state.workloads].map(([name, workload]) => [name, workload.sourceFiles])),
+    configPath: globalStateManager.configPath || undefined,
+    onWorkloadChange: async ({ workloads, changedFile }) => {
+      tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} -> rebuilding ${workloads.join(', ')}`);
       // The same path as a rebuild key or agent request, so the TUI and agent status follow the rebuild.
-      await rebuildWorkload(workloadName);
-
-      // Re-setup watching with updated source files
-      const newAllSourceFiles: string[] = [];
-      const newFileToWorkload = new Map<string, string>();
-      for (const [name, w] of state.workloads) {
-        for (const file of w.sourceFiles) {
-          newAllSourceFiles.push(file);
-          newFileToWorkload.set(file, name);
-        }
-      }
-      fileToWorkload.clear();
-      for (const [k, v] of newFileToWorkload) {
-        fileToWorkload.set(k, v);
-      }
-      state.sourceCodeWatcher.addFilesToWatch(newAllSourceFiles);
-    }
+      await rebuilder.rebuildWorkloads(workloads.filter((name) => state.workloads.has(name)));
+    },
+    onConfigChange: rebuilder.onConfigFileChange,
+    onUnmatchedChange: (changedFile) =>
+      tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} (no matching workload)`)
+  });
+  applicationManager.registerCleanUpHook(async () => {
+    await state.sourceWatcher?.close();
   });
 };
 
@@ -1245,18 +1254,12 @@ const setupStdinRestart = () => {
 
     if (str === 'rs') {
       tuiManager.info('Rebuilding all workloads...');
-      for (const workload of state.workloads.values()) {
-        await workload.rebuild();
-      }
+      await rebuildAllWorkloads();
       return;
     }
 
     // Check if input matches a workload name (for targeted restart)
-    const workloadName = str.replace('rs ', '');
-    const workload = state.workloads.get(workloadName);
-    if (workload) {
-      await workload.rebuild();
-    }
+    await rebuildWorkload(str.replace('rs ', ''));
   });
 
   tuiManager.info("Type 'rs' to rebuild all, or 'rs <workload-name>' to rebuild specific workload");
@@ -1324,70 +1327,12 @@ applicationManager.registerCleanUpHook(async () => {
   state.workloads.clear();
 });
 
-/**
- * Rebuild a specific workload by name (with new UI)
- */
-export const rebuildWorkload = async (name: string): Promise<boolean> => {
-  const workload = state.workloads.get(name);
-  if (!workload) {
-    return false;
-  }
+/** Rebuilds one workload; `undefined` when dev mode runs no workload of that name. */
+export const rebuildWorkload = async (name: string): Promise<RebuildResult | undefined> =>
+  state.workloads.has(name) ? rebuilder.rebuildWorkloads([name]) : undefined;
 
-  // Clear old credential expiry timer before rebuild (will be re-registered with fresh credentials)
-  clearCredentialExpiryTimer(name);
-
-  // Update agent state to show rebuilding
-  updateAgentWorkloadStatus(name, { status: 'starting' });
-
-  // Start rebuild UI for single workload
-  devTuiManager.startRebuild([name]);
-
-  try {
-    await workload.rebuild();
-    devTuiManager.setRebuildDone(name);
-    updateAgentWorkloadStatus(name, { status: 'running', error: undefined });
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    devTuiManager.setRebuildError(name, errorMsg);
-    updateAgentWorkloadStatus(name, { status: 'error', error: errorMsg });
-  }
-
-  await devTuiManager.finishRebuild();
-  return true;
-};
-
-/**
- * Rebuild all workloads (with new UI, parallel execution)
- */
-export const rebuildAllWorkloads = async (): Promise<void> => {
-  const workloadNames = Array.from(state.workloads.keys());
-  if (workloadNames.length === 0) return;
-
-  // Clear old credential expiry timers before rebuild
-  for (const name of workloadNames) {
-    clearCredentialExpiryTimer(name);
-    updateAgentWorkloadStatus(name, { status: 'starting' });
-  }
-
-  // Start rebuild UI for all workloads
-  devTuiManager.startRebuild(workloadNames);
-
-  // Run all rebuilds in parallel
-  const rebuildPromises = Array.from(state.workloads.values()).map(async (workload) => {
-    try {
-      await workload.rebuild();
-      devTuiManager.setRebuildDone(workload.name);
-      updateAgentWorkloadStatus(workload.name, { status: 'running', error: undefined });
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      devTuiManager.setRebuildError(workload.name, errorMsg);
-      updateAgentWorkloadStatus(workload.name, { status: 'error', error: errorMsg });
-    }
-  });
-
-  await Promise.all(rebuildPromises);
-  await devTuiManager.finishRebuild();
-};
+export const rebuildAllWorkloads = (): Promise<RebuildResult> =>
+  rebuilder.rebuildWorkloads([...state.workloads.keys()]);
 
 /**
  * Get environment variables for a specific workload

@@ -83,6 +83,8 @@ stacktape dev --stage dev --region us-east-1 --resources all --watch
 
 Without `--watch`, you trigger rebuilds manually from the dev mode terminal using the `rs` command (see [Rebuilding workloads](#rebuilding-workloads)).
 
+Watch mode also watches the Stacktape configuration file. A rebuild cannot apply a configuration change, so dev mode tells you to restart it instead.
+
 ### Disabling tunnels
 
 Pass `--no-tunnel` to keep deployed Lambda functions away from your local databases for one session:
@@ -151,6 +153,8 @@ The dev mode terminal accepts commands while running. Type a command and press E
 | `q` or `quit` | Stop dev mode and exit |
 
 When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, use `rs` after editing code to see changes. Use `rs <name>` to rebuild a single workload without restarting others — useful when iterating on one service in a multi-resource config.
+
+A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
 
 ## Lifecycle hooks
 
