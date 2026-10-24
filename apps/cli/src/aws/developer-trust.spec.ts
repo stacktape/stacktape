@@ -39,7 +39,7 @@ test.each([
     Effect: 'Allow',
     Principal: { AWS: root },
     Action: 'sts:AssumeRole',
-    Condition: { ArnLike: { 'aws:PrincipalArn': principalArns } }
+    Condition: { ArnLike: { 'aws:PrincipalArn': [...principalArns] } }
   });
 });
 
