@@ -754,13 +754,14 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/src/commands/dev',
       'apps/cli/src/commands/dev-stop',
+      'apps/cli/src/domain/dev-network',
       'apps/cli/src/utils/ports.test.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
     proves:
-      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
+      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. Dev network leases stay stable per stage and resolve concurrent creation.'
   },
   {
     id: 'local-dev-containers',
@@ -4247,6 +4248,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/local-resources/container-helpers.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
       'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
+      'apps/cli/src/domain/dev-network/leases.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/utils/ports.test.ts',
@@ -4750,6 +4752,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/s3-upload-options.ts'
     ],
     tests: [
+      'apps/cli/src/domain/packaging-manager/dependency-installer.spec.ts',
       'apps/cli/tests/static-sites/build.spec.ts',
       'apps/cli/tests/static-sites/input.spec.ts',
       'apps/cli/tests/static-sites/content-sync.spec.ts'

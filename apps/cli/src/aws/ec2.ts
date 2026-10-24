@@ -1,6 +1,8 @@
 import type { _InstanceType, EC2Client, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import {
+  DescribeInstancesCommand,
   DescribeInstanceTypesCommand,
+  StartInstancesCommand,
   DescribeRouteTablesCommand,
   DescribeSubnetsCommand,
   DescribeVpcsCommand
@@ -62,5 +64,20 @@ export class AwsEc2 {
       .send(new DescribeVpcsCommand({ VpcIds: vpcIds }))
       .catch(errorHandler);
     return result.Vpcs || [];
+  };
+
+  describeInstance = async (instanceId: string) => {
+    const errorHandler = this.#getErrorHandler(`Could not describe instance ${instanceId}.`);
+    const result = await this.#createClient()
+      .send(new DescribeInstancesCommand({ InstanceIds: [instanceId] }))
+      .catch(errorHandler);
+    return result.Reservations?.[0]?.Instances?.[0];
+  };
+
+  startInstance = async (instanceId: string) => {
+    const errorHandler = this.#getErrorHandler(`Could not start instance ${instanceId}.`);
+    await this.#createClient()
+      .send(new StartInstancesCommand({ InstanceIds: [instanceId] }))
+      .catch(errorHandler);
   };
 }

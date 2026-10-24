@@ -2433,6 +2433,236 @@
       }
     ]
   },
+  "dev:network": {
+    "publicName": "dev network",
+    "positionals": [],
+    "args": [
+      {
+        "name": "region",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "required": true,
+        "alias": "r",
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "us-east-2",
+          "us-east-1",
+          "us-west-1",
+          "us-west-2",
+          "ap-east-1",
+          "ap-south-1",
+          "ap-northeast-3",
+          "ap-northeast-2",
+          "ap-southeast-1",
+          "ap-southeast-2",
+          "ap-northeast-1",
+          "ca-central-1",
+          "eu-central-1",
+          "eu-west-1",
+          "eu-west-2",
+          "eu-west-3",
+          "eu-north-1",
+          "me-south-1",
+          "sa-east-1",
+          "af-south-1",
+          "eu-south-1"
+        ],
+        "flag": "region"
+      },
+      {
+        "name": "awsAccount",
+        "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "aws-account"
+      },
+      {
+        "name": "help",
+        "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
+        "required": false,
+        "alias": "h",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "help"
+      },
+      {
+        "name": "logLevel",
+        "description": "#### Log Level\n---\nThe level of logs to print to the console.\n- `info`: Basic information about the operation.\n- `error`: Only errors.\n- `debug`: Detailed information for debugging.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "info",
+          "debug",
+          "error"
+        ],
+        "flag": "log-level"
+      },
+      {
+        "name": "profile",
+        "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected.",
+        "required": false,
+        "alias": "p",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "profile"
+      },
+      {
+        "name": "projectName",
+        "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.\n\nCommands that target a stack take it from `projectName` in the project's config when the flag is absent.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
+        "name": "stage",
+        "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters.",
+        "required": false,
+        "alias": "s",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "stage"
+      }
+    ]
+  },
+  "dev:network:delete": {
+    "publicName": "dev network delete",
+    "positionals": [],
+    "args": [
+      {
+        "name": "region",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "required": true,
+        "alias": "r",
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "us-east-2",
+          "us-east-1",
+          "us-west-1",
+          "us-west-2",
+          "ap-east-1",
+          "ap-south-1",
+          "ap-northeast-3",
+          "ap-northeast-2",
+          "ap-southeast-1",
+          "ap-southeast-2",
+          "ap-northeast-1",
+          "ca-central-1",
+          "eu-central-1",
+          "eu-west-1",
+          "eu-west-2",
+          "eu-west-3",
+          "eu-north-1",
+          "me-south-1",
+          "sa-east-1",
+          "af-south-1",
+          "eu-south-1"
+        ],
+        "flag": "region"
+      },
+      {
+        "name": "autoConfirmOperation",
+        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "required": false,
+        "alias": "y",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "yes"
+      },
+      {
+        "name": "awsAccount",
+        "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "aws-account"
+      },
+      {
+        "name": "help",
+        "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
+        "required": false,
+        "alias": "h",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "help"
+      },
+      {
+        "name": "logLevel",
+        "description": "#### Log Level\n---\nThe level of logs to print to the console.\n- `info`: Basic information about the operation.\n- `error`: Only errors.\n- `debug`: Detailed information for debugging.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "info",
+          "debug",
+          "error"
+        ],
+        "flag": "log-level"
+      },
+      {
+        "name": "profile",
+        "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected.",
+        "required": false,
+        "alias": "p",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "profile"
+      },
+      {
+        "name": "projectName",
+        "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.\n\nCommands that target a stack take it from `projectName` in the project's config when the flag is absent.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "project"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      },
+      {
+        "name": "stage",
+        "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters.",
+        "required": false,
+        "alias": "s",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "stage"
+      }
+    ]
+  },
   "dev:stop": {
     "publicName": "dev stop",
     "positionals": [],

@@ -144,6 +144,8 @@ const commandPolicies: Record<StacktapeCommand, Omit<CliCommandPolicy, 'requires
     safety: 'interactive',
     unsupportedReason: 'Use the stacktape_dev MCP tool for dev-mode lifecycle operations.'
   },
+  'dev:network': { category: 'dev', safety: 'readOnly' },
+  'dev:network:delete': { category: 'dev', safety: 'destructive' },
 
   'secret:set': { category: 'secrets', safety: 'mutating', sensitiveOutput: true },
   'secret:get': { category: 'secrets', safety: 'readOnly', sensitiveOutput: true },

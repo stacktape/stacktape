@@ -1,4 +1,6 @@
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { createDevNetworkAws, getDevNetworkName } from '@domain-services/dev-network';
+import { releaseStackLeases } from '@domain-services/dev-network/leases';
 import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -95,6 +97,14 @@ export const commandDelete = async () => {
     stackName,
     tui
   });
+  // A dev stage leased relay ports in the account's dev network; they are free for other stages again.
+  if (deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack())) {
+    try {
+      await releaseStackLeases({ store: createDevNetworkAws().leases, networkName: getDevNetworkName(), stackName });
+    } catch (err) {
+      tui.info(`Could not release the dev network relay ports of ${stackName}: ${err}`);
+    }
+  }
   // CloudFormation deleted the layer versions it published. Those fast deployments published under the stack's layer
   // names are not CloudFormation's, so they go here, now that no function runs them.
   await deleteSupersededSharedLayerVersions({

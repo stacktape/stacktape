@@ -1,5 +1,6 @@
 import type { SSMClient, StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
 import {
+  DescribeInstanceInformationCommand,
   ListCommandInvocationsCommand,
   SendCommandCommand,
   StartSessionCommand,
@@ -29,6 +30,15 @@ export class AwsSystemsManager {
       .send(new StartSessionCommand(startSessionInput))
       .catch(errorHandler);
     return { SessionId, StreamUrl, TokenValue } as StartSessionResponse;
+  };
+
+  /** Whether the instance's SSM agent is connected, so a session to it can start. */
+  isInstanceOnline = async ({ instanceId }: { instanceId: string }) => {
+    const errorHandler = this.#getErrorHandler(`Unable to read the SSM status of instance ${instanceId}`);
+    const { InstanceInformationList } = await this.#createClient()
+      .send(new DescribeInstanceInformationCommand({ Filters: [{ Key: 'InstanceIds', Values: [instanceId] }] }))
+      .catch(errorHandler);
+    return InstanceInformationList?.[0]?.PingStatus === 'Online';
   };
 
   terminateSession = async ({ sessionId }: { sessionId: string }) => {
