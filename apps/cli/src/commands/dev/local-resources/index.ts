@@ -9,6 +9,7 @@ import { basename, dirname } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { createCleanupHook, getDevContainerName } from '../cleanup-utils';
+import { DEV_CONFIG } from '../dev-config';
 import {
   clearReservedPorts,
   getImageTag,
@@ -110,6 +111,15 @@ const removeLegacyContainerUsingDataDir = async (resourceName: string, dataDir: 
 };
 
 const RELATIONAL_TYPES: ReadonlySet<LocalResourceType> = new Set(['postgres', 'mysql', 'mariadb']);
+
+const DIRECTIVE = /\$[A-Z][A-Za-z]*\(/;
+
+/**
+ * A configured credential that a local database uses as it is. A directive such as `$Secret('db.password')` reads the
+ * deployed database's secret, which dev mode never fetches for a local database, so the local one gets its own value.
+ */
+const getLocalCredential = (value: string | undefined): string | undefined =>
+  value && !DIRECTIVE.test(value) ? value : undefined;
 
 const getLocalImage = ({ type, version }: LocalResourceConfig): string => {
   if (type === 'redis') return getLocalRedisImageTag(version);
@@ -263,10 +273,10 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
       version,
       port,
       dataDir: getDataDir(resourceName),
-      // Without a configured password, one is generated once the data directory is known to be fresh or not.
+      // Without a literal password, one is generated once the data directory is known to be fresh or not.
       credentials: {
-        username: db.credentials?.masterUserName || defaultUsername,
-        password: db.credentials?.masterUserPassword || ''
+        username: getLocalCredential(db.credentials?.masterUserName) || defaultUsername,
+        password: getLocalCredential(db.credentials?.masterUserPassword) || ''
       },
       dbName
     };
@@ -280,7 +290,10 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
       version: redis.engineVersion || '7.2',
       port: redis.port || 6379,
       dataDir: getDataDir(resourceName),
-      credentials: redis.defaultUserPassword ? { username: 'default', password: redis.defaultUserPassword } : undefined
+      // Redis without a configured password runs without authentication, like the deployed cluster.
+      credentials: redis.defaultUserPassword
+        ? { username: 'default', password: getLocalCredential(redis.defaultUserPassword) || '' }
+        : undefined
     };
   }
 
@@ -310,9 +323,21 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
 };
 
 /**
+ * The password that data created before generated passwords was initialized with: the fixed default, or the directive
+ * text itself when the configured password was a directive. Redis reads its password at every start and has none.
+ */
+const getLegacyLocalPassword = (config: LocalResourceConfig): string | undefined => {
+  if (!RELATIONAL_TYPES.has(config.type)) return undefined;
+  const configured = configManager.databases?.find((db) => db.name === config.name)?.credentials?.masterUserPassword;
+  return configured || DEV_CONFIG.localResources.legacyPassword;
+};
+
+/**
  * Builds a local database's config and settles its data directory and password: `--fresh-db` deletes the data once,
- * and a database without a configured password gets its generated one. Runs once per resource and session, before the
- * dev stack is deployed when deployed functions reach the database, because their environment carries the password.
+ * and a database without a literal password gets its generated one. Every consumer reads the password from this
+ * config: the container, the deployed dev functions through the relay, local workloads, frontends and the agent's
+ * `/env`. Runs once per resource and session, before the dev stack is deployed when deployed functions reach the
+ * database, because their environment carries the password.
  */
 export const prepareLocalResource = async (resourceName: string): Promise<LocalResourceConfig | null> => {
   const prepared = preparedConfigs.get(resourceName);
@@ -326,10 +351,11 @@ export const prepareLocalResource = async (resourceName: string): Promise<LocalR
     await remove(getPasswordFile(resourceName));
   }
   await ensureDir(config.dataDir);
-  if (RELATIONAL_TYPES.has(config.type) && config.credentials && !config.credentials.password) {
+  if (config.credentials && !config.credentials.password) {
     const { password, legacy } = resolveLocalDatabasePassword({
       passwordFile: getPasswordFile(resourceName),
-      dataDir: config.dataDir
+      dataDir: config.dataDir,
+      legacyPassword: getLegacyLocalPassword(config)
     });
     config.credentials.password = password;
     if (legacy) {

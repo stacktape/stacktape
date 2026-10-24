@@ -38,25 +38,28 @@ const hasExistingData = (dataDir: string): boolean => {
 };
 
 /**
- * The password of a local database whose configuration sets none. Each database gets a random password the first time
- * its data directory is created, stored next to that directory and reused while the data exists (`--freshDb` deletes
- * both).
- * A data directory created before passwords were generated was initialized with the old fixed password, which the
- * database keeps in its data; that password is kept and reported as legacy so existing data keeps working.
+ * The password of a local database whose configuration sets none or reads it with a directive such as `$Secret`. Each
+ * database gets a random password the first time its data directory is created, stored next to that directory and
+ * reused while the data exists (`--freshDb` deletes both).
+ * A data directory created before passwords were generated was initialized with `legacyPassword`, which the database
+ * keeps in its data; that password is kept and reported as legacy so existing data keeps working. Redis reads its
+ * password at every start, so it passes none.
  */
 export const resolveLocalDatabasePassword = ({
   passwordFile,
-  dataDir
+  dataDir,
+  legacyPassword
 }: {
   passwordFile: string;
   dataDir: string;
+  legacyPassword?: string;
 }): { password: string; legacy: boolean } => {
   if (existsSync(passwordFile)) {
     const stored = readFileSync(passwordFile, 'utf-8').trim();
     if (stored) return { password: stored, legacy: false };
   }
-  const legacy = hasExistingData(dataDir);
-  const password = legacy ? DEV_CONFIG.localResources.legacyPassword : randomBytes(18).toString('hex');
+  const legacy = legacyPassword !== undefined && hasExistingData(dataDir);
+  const password = legacy ? legacyPassword : randomBytes(18).toString('hex');
   writeFileSync(passwordFile, password, { mode: 0o600 });
   chmodSync(passwordFile, 0o600);
   return { password, legacy };

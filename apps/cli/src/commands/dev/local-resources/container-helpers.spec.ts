@@ -9,8 +9,12 @@ import { resolveLocalDatabasePassword } from './container-helpers';
 test('a local database gets a stored random password, and data created before keeps the old fixed one', () => {
   const root = mkdtempSync(join(tmpdir(), 'stacktape-local-password-'));
   try {
-    const resolve = (name: string) =>
-      resolveLocalDatabasePassword({ passwordFile: join(root, name, 'password'), dataDir: join(root, name, 'data') });
+    const resolve = (name: string, { legacy = true } = {}) =>
+      resolveLocalDatabasePassword({
+        passwordFile: join(root, name, 'password'),
+        dataDir: join(root, name, 'data'),
+        legacyPassword: legacy ? 'localdevpassword' : undefined
+      });
 
     // A fresh database: random, private to the user, and the same on every later start.
     mkdirSync(join(root, 'fresh', 'data'), { recursive: true });
@@ -34,6 +38,14 @@ test('a local database gets a stored random password, and data created before ke
     rmSync(join(root, 'existing'), { recursive: true });
     mkdirSync(join(root, 'existing', 'data'), { recursive: true });
     expect(resolve('existing')).toMatchObject({ legacy: false, password: expect.stringMatching(/^[0-9a-f]{36}$/) });
+
+    // Redis reads its password at every start, so existing data never pins an old one.
+    mkdirSync(join(root, 'cache', 'data'), { recursive: true });
+    writeFileSync(join(root, 'cache', 'data', 'dump.rdb'), '');
+    expect(resolve('cache', { legacy: false })).toMatchObject({
+      legacy: false,
+      password: expect.stringMatching(/^[0-9a-f]{36}$/)
+    });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
