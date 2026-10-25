@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { citationSchema } from './citation';
 import { dependencyFactSchema } from './dependency';
 import { existingDeploymentSchema } from './existing-deployment';
-import { serviceFactSchema } from './service';
+import { environmentVariableUseSchema, repositoryPathSchema, serviceFactSchema } from './service';
 import { uncertaintySchema } from './uncertainty';
 
 export const packageManagerSchema = z.enum([
@@ -54,6 +54,24 @@ export const migrationFactSchema = z.object({
 
 export type MigrationFact = z.infer<typeof migrationFactSchema>;
 
+/**
+ * A command developers run by hand against the project's databases, read from a manifest (`npm run seed`).
+ *
+ * Distinct from a migration: nothing runs it on deploy. It becomes a config script so `stacktape dev` can seed the
+ * local databases with it.
+ */
+export const localScriptFactSchema = z.object({
+  name: z.enum(['seed', 'migrate']),
+  /** The command as the developer runs it, from `directory`. */
+  command: z.string().min(1),
+  directory: repositoryPathSchema,
+  /** What the script's own source reads; empty when the command runs a tool whose source is not in the repository. */
+  environmentVariables: z.array(environmentVariableUseSchema).default([]),
+  evidence: z.array(citationSchema).default([])
+});
+
+export type LocalScriptFact = z.infer<typeof localScriptFactSchema>;
+
 export const PROJECT_FACTS_SCHEMA_VERSION = 1;
 
 export const projectFactsSchema = z.object({
@@ -71,6 +89,7 @@ export const projectFactsSchema = z.object({
    */
   existingDeployments: z.array(existingDeploymentSchema).default([]),
   migrations: z.array(migrationFactSchema).default([]),
+  localScripts: z.array(localScriptFactSchema).default([]),
   uncertainties: z.array(uncertaintySchema).default([]),
   /**
    * Advisory observations with nowhere else to go.

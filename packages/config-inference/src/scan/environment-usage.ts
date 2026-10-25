@@ -55,7 +55,8 @@ const JS_PATTERNS: readonly ReadPattern[] = [
 ];
 
 const PATTERNS_BY_EXTENSION: ReadonlyArray<{ extensions: RegExp; patterns: readonly ReadPattern[] }> = [
-  { extensions: /\.(?:[cm]?[jt]s|[jt]sx)$/, patterns: JS_PATTERNS },
+  // Single-file components read their environment in their script block.
+  { extensions: /\.(?:[cm]?[jt]s|[jt]sx|svelte|vue|astro)$/, patterns: JS_PATTERNS },
   {
     extensions: /\.py$/,
     patterns: [
@@ -196,6 +197,18 @@ const importClosure = async (
   return [...seen];
 };
 
+/** A presigned upload URL, which the client then uses itself. A presigned GET is a download and needs no CORS. */
+const PRESIGNED_UPLOAD: ReadonlyArray<readonly RegExp[]> = [
+  [/\bgetSignedUrl\b/, /\bPutObjectCommand\b/],
+  [/\bcreatePresignedPost\b/],
+  [/\bgetSignedUrl(?:Promise)?\(\s*['"]putObject['"]/],
+  [/\bgenerate_presigned_url\(\s*(?:ClientMethod\s*=\s*)?['"]put_object['"]/],
+  [/\bgenerate_presigned_post\(/]
+];
+
+const issuesPresignedUploads = (contents: string): boolean =>
+  PRESIGNED_UPLOAD.some((patterns) => patterns.every((pattern) => pattern.test(contents)));
+
 const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
   'build-time': 0,
   'infra-dependency': 1,
@@ -218,13 +231,38 @@ const hasFallback = (line: string, matchEnd: number, kind: ReadPattern['fallback
   return false;
 };
 
+/**
+ * SvelteKit's own modules: `import { env } from '$env/dynamic/public'` read as `env.PUBLIC_API_URL`, and
+ * `import { PUBLIC_API_URL } from '$env/static/public'`. Only a file importing the module gets these patterns, because
+ * `env.NAME` alone is any object's property.
+ */
+const SVELTEKIT_DYNAMIC_ENV = /import\s*\{[^}]*\benv\b[^}]*\}\s*from\s*['"]\$env\/dynamic\/(?:public|private)['"]/;
+const SVELTEKIT_STATIC_ENV = /import\s*\{([^}]*)\}\s*from\s*['"]\$env\/static\/(?:public|private)['"]/g;
+
+const svelteKitPatterns = (contents: string): ReadPattern[] => {
+  const patterns: ReadPattern[] = [];
+  if (SVELTEKIT_DYNAMIC_ENV.test(contents)) patterns.push({ pattern: new RegExp(`\\benv\\.${NAME}`, 'g') });
+  const staticNames = [...contents.matchAll(SVELTEKIT_STATIC_ENV)].flatMap((match) =>
+    match[1]!
+      .split(',')
+      .map((specifier) => specifier.trim().split(/\s+as\s+/)[0]!)
+      .filter((name) => /^[A-Z][A-Z0-9_]{2,}$/.test(name))
+  );
+  // The import statement is the read: the build inlines the value wherever the name is used.
+  if (staticNames.length > 0) {
+    patterns.push({ pattern: new RegExp(`import\\s*\\{[^}]*\\b(${staticNames.join('|')})\\b`, 'g') });
+  }
+  return patterns;
+};
+
 const collectFromFile = (path: string, contents: string, occurrences: Map<string, Occurrence>): void => {
   const group = PATTERNS_BY_EXTENSION.find((entry) => entry.extensions.test(path));
   if (group === undefined) return;
+  const patterns = group.patterns === JS_PATTERNS ? [...JS_PATTERNS, ...svelteKitPatterns(contents)] : group.patterns;
 
   const lines = contents.split(/\r?\n/);
   for (const [index, line] of lines.entries()) {
-    for (const { pattern, buildTime, fallback } of group.patterns) {
+    for (const { pattern, buildTime, fallback } of patterns) {
       pattern.lastIndex = 0;
       for (const match of line.matchAll(pattern)) {
         const name = match[1];
@@ -244,6 +282,13 @@ const collectFromFile = (path: string, contents: string, occurrences: Map<string
 };
 
 const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
+
+const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
+  { pattern: /(?:^|_)BUCKET(?:_NAME|_ARN)?$/, kind: 'object-storage' },
+  { pattern: /(?:^|_)TOPIC(?:_NAME|_ARN)?$/, kind: 'topic' },
+  { pattern: /(?:^|_)QUEUE(?:_NAME|_URL|_ARN)?$/, kind: 'queue' },
+  { pattern: /(?:^|_)TABLE(?:_NAME|_ARN)?$/, kind: 'dynamodb' }
+];
 
 /**
  * Name the dependency a variable belongs to, only when exactly one candidate exists.
@@ -269,6 +314,14 @@ const resolveDependency = (name: string, dependencies: readonly DependencyFact[]
   if (AMBIGUOUS_DATABASE_NAMES.test(name)) {
     const databases = dependencies.filter((dependency) => DATABASE_KINDS.has(dependency.kind));
     return databases.length === 1 ? databases[0] : undefined;
+  }
+
+  // An application names its own bucket or topic (`UPLOAD_BUCKET`, `ORDER_EVENTS_TOPIC_ARN`). The suffix says which
+  // kind; with exactly one of that kind it can only be that one. The name alone never creates a dependency.
+  const suffixKind = RESOURCE_NAME_SUFFIXES.find((entry) => entry.pattern.test(name))?.kind;
+  if (suffixKind !== undefined) {
+    const ofKind = dependencies.filter((dependency) => dependency.kind === suffixKind);
+    return ofKind.length === 1 ? ofKind[0] : undefined;
   }
   return undefined;
 };
@@ -366,6 +419,7 @@ export const enrichEnvironmentUsage = async ({
 
   for (const unit of units) {
     const occurrences = new Map<string, Occurrence>();
+    let presigns = false;
     // Sequential on purpose: bounded work, and a deterministic file order keeps citation choice
     // reproducible run to run.
     for (const file of unit.files) {
@@ -373,7 +427,10 @@ export const enrichEnvironmentUsage = async ({
       const contents = await readContents(file);
       if (contents === undefined) continue;
       collectFromFile(file, contents, occurrences);
+      presigns ||= issuesPresignedUploads(contents);
     }
+    // The same source files, read for the other thing the composer needs from them.
+    if (presigns) for (const service of unit.services) service.issuesPresignedUploads = true;
     if (occurrences.size === 0) continue;
 
     const classified: EnvironmentVariableUse[] = [];
@@ -410,4 +467,40 @@ export const enrichEnvironmentUsage = async ({
       }
     }
   }
+};
+
+/**
+ * The variables one script reads: its entry file and, for JavaScript, what that file imports. Unlike the service scan
+ * this reads files under `scripts/`, because the script is the subject here.
+ */
+export const scriptEnvironmentUsage = async ({
+  entry,
+  dependencies,
+  files,
+  read
+}: {
+  entry: string;
+  dependencies: readonly DependencyFact[];
+  files: readonly string[];
+  read: (repoRelativePath: string) => Promise<SourceRead>;
+}): Promise<EnvironmentVariableUse[]> => {
+  const readContents = async (file: string): Promise<string | undefined> => {
+    const result = await read(file);
+    return result.kind === 'contents' ? result.contents : undefined;
+  };
+  const closure = JS_SOURCE.test(entry)
+    ? ((await importClosure(entry, new Set(files), readContents)) ?? [entry])
+    : [entry];
+  const occurrences = new Map<string, Occurrence>();
+  for (const file of closure) {
+    // oxlint-disable-next-line no-await-in-loop -- a script's import graph is small, and the order keeps citations stable.
+    const contents = await readContents(file);
+    if (contents !== undefined) collectFromFile(file, contents, occurrences);
+  }
+  const uses: EnvironmentVariableUse[] = [];
+  for (const [name, occurrence] of occurrences) {
+    const { role, dependencyName } = classify(name, occurrence, dependencies);
+    uses.push({ name, role, dependencyName, required: !occurrence.alwaysHasFallback, evidence: occurrence.citations });
+  }
+  return uses;
 };

@@ -1,36 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '../facts/project-facts';
-import { defaultDeploymentPreferences, isDeploymentPreferenceChange, profileForPreferences } from './preferences';
-
-const factsForExecutionModel = (executionModel: 'long-running' | 'per-request') =>
-  projectFactsSchema.parse({
-    schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
-    services: [
-      {
-        name: 'app',
-        path: '.',
-        language: 'javascript',
-        exposesHttp: executionModel === 'long-running',
-        executionModel,
-        ...(executionModel === 'long-running'
-          ? { port: 3000, startCommand: 'npm start' }
-          : { functionEntrypoint: 'src/handler.ts' }),
-        environmentVariables: [],
-        evidence: [],
-        source: 'probe'
-      }
-    ],
-    dependencies: [
-      {
-        name: 'database',
-        kind: 'postgres',
-        extensions: [],
-        consumedBy: ['app'],
-        evidence: [],
-        source: 'probe'
-      }
-    ]
-  });
+import { isDeploymentPreferenceChange, profileForPreferences } from './preferences';
 
 describe('deployment preferences', () => {
   it('accepts only a matching key and value from the closed public vocabulary', () => {
@@ -69,49 +38,5 @@ describe('deployment preferences', () => {
       database: { multiAz: true, deletionProtection: true, backupRetentionDays: 7 },
       bucket: { versioning: true }
     });
-  });
-
-  it('recommends public database access for a Lambda consumer and private access for a container', () => {
-    expect(defaultDeploymentPreferences(factsForExecutionModel('long-running')).databaseAccess).toBe('private');
-    expect(defaultDeploymentPreferences(factsForExecutionModel('per-request')).databaseAccess).toBe('public');
-  });
-
-  it('recommends a private SQL database when a Lambda already needs the VPC for Redis', () => {
-    const facts = projectFactsSchema.parse({
-      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
-      services: [
-        {
-          name: 'app',
-          path: '.',
-          language: 'javascript',
-          exposesHttp: false,
-          executionModel: 'per-request',
-          functionEntrypoint: 'src/handler.ts',
-          environmentVariables: [],
-          evidence: [],
-          source: 'probe'
-        }
-      ],
-      dependencies: [
-        {
-          name: 'database',
-          kind: 'postgres',
-          extensions: [],
-          consumedBy: ['app'],
-          evidence: [],
-          source: 'probe'
-        },
-        {
-          name: 'cache',
-          kind: 'redis',
-          extensions: [],
-          consumedBy: ['app'],
-          evidence: [],
-          source: 'probe'
-        }
-      ]
-    });
-
-    expect(defaultDeploymentPreferences(facts).databaseAccess).toBe('private');
   });
 });

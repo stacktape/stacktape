@@ -528,4 +528,56 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       })
     );
   });
+
+  it('a private database with NAT for a function that publishes, browser uploads and a seed script', () => {
+    const config = composeFrom({
+      services: [
+        service({
+          name: 'api',
+          path: 'api',
+          language: 'python',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          startCommand: undefined,
+          functionEntrypoint: 'api/main.py',
+          functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+          issuesPresignedUploads: true,
+          environmentVariables: [
+            { name: 'DATABASE_URL', role: 'infra-dependency', dependencyName: 'mainDatabase', required: true },
+            { name: 'UPLOAD_BUCKET', role: 'infra-dependency', dependencyName: 'storageBucket', required: true },
+            { name: 'EVENTS_TOPIC', role: 'infra-dependency', dependencyName: 'notificationsTopic', required: true }
+          ]
+        }),
+        service({
+          name: 'web',
+          path: 'web',
+          framework: 'sveltekit',
+          exposesHttp: false,
+          executionModel: 'long-running',
+          startCommand: undefined,
+          devCommand: 'npm run dev'
+        })
+      ],
+      dependencies: [
+        { name: 'mainDatabase', kind: 'postgres', consumedBy: ['api'], evidence: [], source: 'probe' },
+        { name: 'storageBucket', kind: 'object-storage', consumedBy: ['api'], evidence: [], source: 'probe' },
+        { name: 'notificationsTopic', kind: 'topic', consumedBy: ['api'], evidence: [], source: 'probe' }
+      ],
+      localScripts: [
+        {
+          name: 'seed',
+          command: 'npm run seed',
+          directory: '.',
+          environmentVariables: [
+            { name: 'DATABASE_URL', role: 'infra-dependency', dependencyName: 'mainDatabase', required: true }
+          ]
+        }
+      ]
+    });
+
+    expect(config.stackConfig).toEqual({ nat: 'ec2' });
+    expect(config.resources.storageBucket?.properties.cors).toEqual({ enabled: true });
+    expect(config.scripts?.seed?.type).toBe('local-script');
+    expectValid(config);
+  });
 });

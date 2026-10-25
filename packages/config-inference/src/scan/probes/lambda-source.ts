@@ -122,8 +122,10 @@ const SCHEDULE_LITERAL = /['"`]((?:rate|cron)\([^'"`)]+\))['"`]/;
 /** Source files that are part of the application rather than its tests, tooling or build output. */
 const NON_APPLICATION_PATH =
   /(?:^|\/)(?:node_modules|dist|build|out|lib|\.next|\.output|\.stacktape|\.sst|cdk\.out|\.aws-sam|coverage|tests?|__tests__|__mocks__|spec|e2e|cypress|fixtures|examples?|scripts|docs?)(?:\/|$)/i;
-const NON_APPLICATION_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$|(?:^|\/)[^/]*\.config\.[cm]?[jt]s$/i;
+const NON_APPLICATION_FILE =
+  /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$|(?:^|\/)[^/]*\.config\.[cm]?[jt]s$|(?:^|\/)(?:test_[^/]*|[^/]*_test|conftest)\.py$/i;
 const MAX_TYPED_CANDIDATES = 400;
+const HANDLER_DIRECTORY = /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i;
 
 type TypedHandler = { family: EventFamily; citation: Citation | undefined };
 
@@ -143,20 +145,108 @@ const typedHandler = (path: string, raw: string): TypedHandler | undefined => {
   return undefined;
 };
 
+/**
+ * A handler export without an event type, with its parameters: `export const handler = async (event, context) =>`,
+ * `export default async function (event)`, `exports.handler = async event =>` or Python's `def handler(event, context):`.
+ * Group 1 is the Python handler's name, group 2 (or 4) the first parameter, group 3 (or 5) the second.
+ */
+const UNTYPED_JS_EXPORT =
+  /(?:export\s+(?:const\s+handler\s*=\s*|default\s+)|(?:module\.)?exports\.handler\s*=\s*)(?:async\s+)?(?:function\s*[\w$]*\s*)?\(?\s*([\w$]*)\s*(?::[^,)]*)?(?:,\s*([\w$]+))?|export\s+(?:async\s+)?function\s+handler\s*\(\s*([\w$]*)\s*(?::[^,)]*)?(?:,\s*([\w$]+))?/;
+const PYTHON_HANDLER = /^def\s+(lambda_handler|handler)\s*\(\s*(\w*)\s*(?::[^,)]*)?(?:,\s*(\w+))?/m;
+const EVENT_PARAMETER = /^_?(?:event|evt)$/;
+const CONTEXT_PARAMETER = /^_?(?:context|ctx)$/;
+
+type UntypedExport = { eventParameter: boolean; contextParameter: boolean; pythonHandler?: string };
+
+const untypedExport = (path: string, raw: string): UntypedExport | undefined => {
+  if (path.endsWith('.py')) {
+    const match = PYTHON_HANDLER.exec(raw);
+    if (match === null) return undefined;
+    return {
+      eventParameter: EVENT_PARAMETER.test(match[2] ?? ''),
+      contextParameter: CONTEXT_PARAMETER.test(match[3] ?? ''),
+      pythonHandler: match[1]!
+    };
+  }
+  const match = UNTYPED_JS_EXPORT.exec(raw);
+  if (match === null) return undefined;
+  const first = match[1] ?? match[3] ?? '';
+  const second = match[2] ?? match[4] ?? '';
+  return { eventParameter: EVENT_PARAMETER.test(first), contextParameter: CONTEXT_PARAMETER.test(second) };
+};
+
+/** A field read in JavaScript (`.http`, `?.http`, `['http']`) or Python (`['http']`, `.get('http'`). */
+const field = (name: string) => `(?:\\??\\.${name}\\b|\\[\\s*['"]${name}['"]\\s*\\]|\\.get\\(\\s*['"]${name}['"])`;
+
+/**
+ * The event an untyped handler is written for, read off the fields it touches. Every Python handler is untyped, and so
+ * is a lot of JavaScript; without this they deploy with no trigger at all.
+ *
+ * Each shape is specific to one event source. Where a file reads several, the envelope that invokes the function wins:
+ * an SQS handler that parses an S3 or SNS notification out of `record.body` is still invoked by the queue.
+ */
+const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; patterns: readonly RegExp[] }> = [
+  {
+    family: { trigger: 'http', payloadFormat: '2.0' },
+    patterns: [new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`), new RegExp(field('rawPath'))]
+  },
+  {
+    family: { trigger: 'http', payloadFormat: '1.0' },
+    patterns: [
+      new RegExp(field('httpMethod')),
+      new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('resourcePath')}`)
+    ]
+  },
+  {
+    family: { trigger: 'queue' },
+    patterns: [
+      new RegExp(`${field('Records')}[\\s\\S]*${field('body')}`),
+      /['"]aws:sqs['"]/,
+      new RegExp(field('receiptHandle')),
+      /\bbatchItemFailures\b/
+    ]
+  },
+  { family: { trigger: 'topic' }, patterns: [new RegExp(field('Sns')), /['"]aws:sns['"]/] },
+  {
+    family: { trigger: 'object-storage' },
+    patterns: [new RegExp(`${field('s3')}${field('(?:bucket|object)')}`), /['"]aws:s3['"]/]
+  },
+  // A schedule rule's event, or a literal rate beside the handler (`export const schedule = 'rate(2 minutes)'`).
+  { family: { trigger: 'schedule' }, patterns: [/['"]Scheduled Event['"]/, /['"]aws\.events['"]/, SCHEDULE_LITERAL] }
+];
+
+const inferEventFamily = (raw: string): { family: EventFamily; pattern: RegExp } | undefined => {
+  for (const { family, patterns } of EVENT_SHAPES) {
+    const pattern = patterns.find((candidate) => candidate.test(raw));
+    if (pattern !== undefined) return { family, pattern };
+  }
+  return undefined;
+};
+
+/** The line that showed the event shape. A pattern spanning lines (`Records` … `body`) cites its first part. */
+const citeInferred = (path: string, raw: string, pattern: RegExp | undefined): Citation | undefined =>
+  pattern === undefined
+    ? undefined
+    : (citeFirstMatchOnly(path, raw, pattern, 'functionTriggers') ??
+      citeFirstMatchOnly(path, raw, new RegExp(pattern.source.split('[\\s\\S]*')[0]!), 'functionTriggers'));
+
 const languageFor = (path: string): string =>
   path.endsWith('.py') ? 'python' : path.endsWith('.ts') || path.endsWith('.tsx') ? 'typescript' : 'javascript';
+
+/** File names that say nothing about the function: `api/main.py` is the `api` function. */
+const GENERIC_STEMS = new Set(['handler', 'index', 'main', 'app', 'lambda', 'lambda_function']);
 
 const nameFor = (path: string): string => {
   const segments = path.split('/');
   const stem = posix.basename(path).replace(/\.[^.]+$/, '');
-  if (!['handler', 'index'].includes(stem.toLowerCase())) return stem;
+  if (!GENERIC_STEMS.has(stem.toLowerCase())) return stem;
   for (let index = segments.length - 2; index >= 0; index -= 1) {
     const segment = segments[index]!;
     if (!['src', 'handlers', 'handler', 'functions', 'function', 'lambdas', 'lambda'].includes(segment.toLowerCase())) {
       return segment;
     }
   }
-  return 'handler';
+  return ['handler', 'index'].includes(stem.toLowerCase()) ? 'handler' : stem;
 };
 
 const GENERIC_DIRECTORIES = new Set([
@@ -212,73 +302,108 @@ export const lambdaSourceProbe: Probe = {
     // And to Terraform, whose `aws_lambda_function` resources name their handlers.
     if (context.files.some((path) => /(?:^|\/)[^/]+\.tf$/.test(path))) return {};
 
-    const candidates = context.files.filter(
-      (path) =>
-        /\.(?:[cm]?js|tsx?|py)$/.test(path) &&
-        (/(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(path) || ENTRY_FILE.test(path))
-    );
     const services: ServiceFactInput[] = [];
     const dependencies: DependencyFact[] = [];
     const uncertainties: Uncertainty[] = [];
+    const handlers: Array<{
+      path: string;
+      raw: string;
+      family: EventFamily | undefined;
+      triggerEvidence: Citation | undefined;
+      entryEvidence: Citation | undefined;
+      pythonHandler: string | undefined;
+    }> = [];
     const claimed = new Set<string>();
-    for (const path of candidates) {
+
+    // Files under a handlers directory, and top-level entry files that name Lambda, are functions by their `handler`
+    // export alone.
+    const conventional = context.files.filter(
+      (path) => /\.(?:[cm]?js|tsx?|py)$/.test(path) && (HANDLER_DIRECTORY.test(path) || ENTRY_FILE.test(path))
+    );
+    for (const path of conventional) {
       // oxlint-disable-next-line no-await-in-loop -- each candidate is small and reads are policy controlled.
-      const raw = await readText(context, path);
+      const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined || !HANDLER_PATTERN.test(raw)) continue;
       // An entry file outside a handlers directory counts only when it names Lambda itself: a Hono or Express app
       // wrapped for Lambda exports `handler` from `src/index.ts`, and so does plenty of code that is not a function.
-      if (!/(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
-      const citation = citeFirstMatch(path, raw, HANDLER_PATTERN, 'functionEntrypoint');
+      if (!HANDLER_DIRECTORY.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
       claimed.add(path);
-      services.push({
-        name: nameFor(path),
-        path: posix.dirname(path) === '.' ? '.' : posix.dirname(path),
-        processType: path,
-        language: languageFor(path),
-        exposesHttp: false,
-        executionModel: 'per-request',
-        functionEntrypoint: path,
-        functionTriggers: [],
-        environmentVariables: [],
-        evidence: citation === undefined ? [] : [citation],
-        source: 'probe'
+      const typed = typedHandler(path, raw);
+      const inferred = typed === undefined ? inferEventFamily(raw) : undefined;
+      handlers.push({
+        path,
+        raw,
+        family: typed?.family ?? inferred?.family,
+        triggerEvidence: typed?.citation ?? citeInferred(path, raw, inferred?.pattern),
+        entryEvidence: citeFirstMatch(path, raw, HANDLER_PATTERN, 'functionEntrypoint'),
+        pythonHandler: untypedExport(path, raw)?.pythonHandler
       });
     }
 
-    // A handler typed with an AWS Lambda event can live anywhere: `src/api.ts` exporting
-    // `default async (event: APIGatewayProxyEventV2)` is a function however its directory is named, and its type says
-    // which event invokes it.
-    const typedCandidates = context.files
+    // Elsewhere a handler has to say what it is. A handler typed with an AWS Lambda event can live anywhere:
+    // `src/api.ts` exporting `default async (event: APIGatewayProxyEventV2)` is a function however its directory is
+    // named, and its type says which event invokes it. An untyped one (every Python handler) qualifies when it takes
+    // `(event, context)` or reads the fields of one event source, and those fields say which.
+    const elsewhere = context.files
       .filter(
         (path) =>
-          /\.(?:[cm]?[jt]s|tsx)$/.test(path) && !NON_APPLICATION_PATH.test(path) && !NON_APPLICATION_FILE.test(path)
+          /\.(?:[cm]?[jt]s|tsx|py)$/.test(path) &&
+          !claimed.has(path) &&
+          !NON_APPLICATION_PATH.test(path) &&
+          !NON_APPLICATION_FILE.test(path)
       )
       .slice(0, MAX_TYPED_CANDIDATES);
-    const typedHandlers: Array<{ path: string; raw: string; typed: TypedHandler }> = [];
-    for (const path of typedCandidates) {
+    for (const path of elsewhere) {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
       const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined) continue;
       const typed = typedHandler(path, raw);
-      if (typed !== undefined) typedHandlers.push({ path, raw, typed });
+      if (typed !== undefined) {
+        handlers.push({
+          path,
+          raw,
+          family: typed.family,
+          triggerEvidence: typed.citation,
+          entryEvidence: citeFirstMatch(path, raw, TYPED_EXPORT, 'functionEntrypoint'),
+          pythonHandler: undefined
+        });
+        continue;
+      }
+      const exported = untypedExport(path, raw);
+      if (exported === undefined || !exported.eventParameter) continue;
+      const inferred = inferEventFamily(raw);
+      // `(event, context)` is the Lambda signature itself; a schedule literal alone proves nothing about the export.
+      if (!exported.contextParameter && (inferred === undefined || inferred.pattern === SCHEDULE_LITERAL)) continue;
+      handlers.push({
+        path,
+        raw,
+        family: inferred?.family,
+        triggerEvidence: citeInferred(path, raw, inferred?.pattern),
+        entryEvidence: citeFirstMatch(
+          path,
+          raw,
+          path.endsWith('.py') ? PYTHON_HANDLER : UNTYPED_JS_EXPORT,
+          'functionEntrypoint'
+        ),
+        pythonHandler: exported.pythonHandler
+      });
     }
-    // Every HTTP-typed handler would otherwise get the catch-all route on the one HTTP API, and CloudFormation rejects
-    // two `* /{proxy+}` routes. Only a lone HTTP handler is the API; several have to be given their routes.
-    const httpHandlerCount = typedHandlers.filter(({ typed }) => typed.family.trigger === 'http').length;
 
-    for (const { path, raw, typed } of typedHandlers) {
-      const evidence = typed.citation === undefined ? [] : [typed.citation];
-      const name = nameFor(path);
+    // Every HTTP handler would otherwise get the catch-all route on the one HTTP API, and CloudFormation rejects two
+    // `* /{proxy+}` routes. Only a lone HTTP handler is the API; several have to be given their routes.
+    const httpHandlerCount = handlers.filter(({ family }) => family?.trigger === 'http').length;
+
+    for (const { path, raw, family, triggerEvidence, entryEvidence, pythonHandler } of handlers) {
+      const evidence = triggerEvidence === undefined ? [] : [triggerEvidence];
       const triggers: FunctionTrigger[] = [];
-      const { family } = typed;
-      if (family.trigger === 'http') {
+      if (family?.trigger === 'http') {
         triggers.push(
           httpHandlerCount === 1
             ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it.
               { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: family.payloadFormat }
             : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
         );
-      } else if (family.trigger === 'schedule') {
+      } else if (family?.trigger === 'schedule') {
         const rate = SCHEDULE_LITERAL.exec(raw)?.[1];
         if (rate === undefined) {
           uncertainties.push({
@@ -288,15 +413,15 @@ export const lambdaSourceProbe: Probe = {
             blocksDeploy: false,
             evidence,
             source: 'probe',
-            serviceName: name,
+            serviceName: nameFor(path),
             suggestions: []
           });
         } else {
           triggers.push({ type: 'schedule', rate });
         }
-      } else if (family.trigger === 'unmapped') {
+      } else if (family?.trigger === 'unmapped') {
         triggers.push({ type: 'unmapped', sourceType: family.sourceType });
-      } else {
+      } else if (family !== undefined) {
         // Which queue, topic or bucket the code does not say; the default name is the one every other probe uses
         // for the same kind, so it folds into theirs, and Stacktape-named reads later rename it.
         const kind = family.trigger === 'queue' ? 'queue' : family.trigger === 'topic' ? 'topic' : 'object-storage';
@@ -315,26 +440,21 @@ export const lambdaSourceProbe: Probe = {
         }
       }
 
-      const existing = services.find((service) => service.functionEntrypoint === path);
-      if (existing !== undefined) {
-        existing.functionTriggers = [...(existing.functionTriggers ?? []), ...triggers];
-        existing.evidence = [...(existing.evidence ?? []), ...evidence];
-        continue;
-      }
-      if (claimed.has(path)) continue;
-      claimed.add(path);
-      const exportCitation = citeFirstMatch(path, raw, TYPED_EXPORT, 'functionEntrypoint');
       services.push({
-        name,
+        name: nameFor(path),
         path: posix.dirname(path) === '.' ? '.' : posix.dirname(path),
         processType: path,
         language: languageFor(path),
         exposesHttp: false,
         executionModel: 'per-request',
         functionEntrypoint: path,
+        // Stacktape calls a Python module's `handler`; AWS's own examples name it `lambda_handler`.
+        ...(pythonHandler === 'lambda_handler' && !/^def\s+handler\s*\(/m.test(raw)
+          ? { functionHandler: pythonHandler }
+          : {}),
         functionTriggers: triggers,
         environmentVariables: [],
-        evidence: [...(exportCitation === undefined ? [] : [exportCitation]), ...evidence],
+        evidence: [...(entryEvidence === undefined ? [] : [entryEvidence]), ...evidence],
         source: 'probe'
       });
     }

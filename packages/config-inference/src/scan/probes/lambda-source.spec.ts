@@ -234,4 +234,96 @@ describe('the lambda-source probe', () => {
 
     expect(await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files))).toEqual({});
   });
+
+  // Untyped handlers, which include every Python handler, have only the fields they read to say what invokes them.
+  it.each([
+    [
+      'api/main.py',
+      "def handler(event, context):\n    method = event['requestContext']['http']['method']\n",
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+    ],
+    [
+      'api/main.py',
+      "def handler(event, context):\n    http = event.get('requestContext', {}).get('http', {})\n",
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+    ],
+    [
+      'src/api.js',
+      'export const handler = async (event) => ({ statusCode: 200, body: event.rawPath });\n',
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+    ],
+    [
+      'legacy/app.py',
+      "def lambda_handler(event, context):\n    if event['httpMethod'] == 'GET':\n        return {}\n",
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '1.0' }
+    ],
+    [
+      'notify/main.py',
+      "def handler(event, context):\n    for record in event['Records']:\n        print(record['Sns']['Message'])\n",
+      { type: 'topic', dependencyName: 'notificationsTopic' }
+    ],
+    [
+      'resize/main.py',
+      "def handler(event, context):\n    key = event['Records'][0]['s3']['object']['key']\n",
+      { type: 'object-storage', dependencyName: 'storageBucket' }
+    ],
+    [
+      'jobs/main.py',
+      "import json\n\ndef handler(event, context):\n    for record in event['Records']:\n        job = json.loads(record['body'])\n",
+      { type: 'queue', dependencyName: 'jobQueue' }
+    ],
+    // An S3 notification delivered through a queue: the queue invokes the function.
+    [
+      'src/ingest.ts',
+      'export const handler = async (event: any) => {\n  for (const record of event.Records) {\n    const { Records } = JSON.parse(record.body);\n    console.log(Records[0].s3.object.key);\n  }\n};\n',
+      { type: 'queue', dependencyName: 'jobQueue' }
+    ],
+    [
+      'cleanup/main.py',
+      "SCHEDULE = 'rate(5 minutes)'\n\ndef handler(event, context):\n    pass\n",
+      { type: 'schedule', rate: 'rate(5 minutes)' }
+    ]
+  ] as const)('infers the trigger of an untyped %s', async (path, contents, trigger) => {
+    const repo = await makeRepo({ [path]: contents });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.map((service) => [service.functionEntrypoint, service.functionTriggers])).toEqual([
+      [path, [trigger]]
+    ]);
+  });
+
+  it('names a Python function after its directory and keeps an AWS-style handler name', async () => {
+    const repo = await makeRepo({
+      'api/main.py': "def lambda_handler(event, context):\n    return event['rawPath']\n"
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.[0]).toMatchObject({ name: 'api', language: 'python', functionHandler: 'lambda_handler' });
+  });
+
+  it('takes an untyped export outside a handlers directory only with an event signature or event fields', async () => {
+    const repo = await makeRepo({
+      // `(event, context)` is the Lambda signature even when the code reads no event field.
+      'worker/run.py': 'def handler(event, context):\n    return None\n',
+      // Not functions: a request handler, an export reading nothing an event source sends, a schedule literal on a
+      // plain module, and a wrapper.
+      'src/routes.ts': 'export const handler = (req: any, res: any) => res.json(req.httpMethod);\n',
+      'src/format.ts': 'export const handler = async (event: { id: string }) => event.id;\n',
+      'src/jobs.ts': "export const schedule = 'rate(1 day)';\nexport default async (event: unknown) => event;\n",
+      'src/with-logging.ts':
+        'export default (handler: any) => async (event: any, context: any) => handler(event, context);\n',
+      'web/server.py': 'def handler(request):\n    return request\n'
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.map((service) => [service.functionEntrypoint, service.functionTriggers])).toEqual([
+      ['worker/run.py', []]
+    ]);
+  });
 });

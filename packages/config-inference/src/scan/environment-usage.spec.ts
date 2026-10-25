@@ -218,4 +218,76 @@ describe('environment-usage enrichment', () => {
       report: ['STP_DB_CONNECTION_STRING', 'STP_JOBS_URL']
     });
   });
+
+  it('binds an application-named bucket, topic or queue to the one dependency of its kind, and sees presigned uploads', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'files',
+        dependencies: {
+          '@aws-sdk/client-s3': '^3.0.0',
+          '@aws-sdk/client-sns': '^3.0.0',
+          '@aws-sdk/client-sqs': '^3.0.0'
+        }
+      }),
+      'functions/upload.ts': [
+        "import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';",
+        "import { getSignedUrl } from '@aws-sdk/s3-request-presigner';",
+        'const command = new PutObjectCommand({ Bucket: process.env.UPLOAD_BUCKET, Key: "k" });',
+        'export const handler = async () => getSignedUrl(new S3Client({}), command);',
+        ''
+      ].join('\n'),
+      'functions/notify.ts': [
+        'const topic = process.env.UPLOAD_EVENTS_TOPIC_ARN;',
+        'const queue = process.env.RESIZE_QUEUE_URL;',
+        // A suffix that names no kind stays configuration.
+        'const region = process.env.UPLOAD_BUCKET_REGION;',
+        'export const handler = async () => [topic, queue, region];',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe, lambdaSourceProbe] });
+    const byName = Object.fromEntries(facts.services.map((service) => [service.name, service]));
+    const roles = (name: string) =>
+      Object.fromEntries(
+        byName[name]!.environmentVariables.map((variable) => [variable.name, variable.dependencyName ?? variable.role])
+      );
+
+    expect(roles('upload')).toEqual({ UPLOAD_BUCKET: 'storageBucket' });
+    expect(roles('notify')).toEqual({
+      UPLOAD_EVENTS_TOPIC_ARN: 'notificationsTopic',
+      RESIZE_QUEUE_URL: 'jobQueue',
+      UPLOAD_BUCKET_REGION: 'runtime-config'
+    });
+    expect(byName.upload!.issuesPresignedUploads).toBe(true);
+    expect(byName.notify!.issuesPresignedUploads).toBeUndefined();
+  });
+
+  it("reads SvelteKit's $env modules in components", async () => {
+    root = await makeRepo({
+      'web/package.json': JSON.stringify({
+        name: 'web',
+        scripts: { dev: 'vite dev', build: 'vite build' },
+        devDependencies: { '@sveltejs/kit': '^2.0.0', vite: '^6.0.0' }
+      }),
+      'web/src/routes/+page.svelte': [
+        '<script>',
+        "  import { env } from '$env/dynamic/public';",
+        "  import { PUBLIC_SITE_NAME } from '$env/static/public';",
+        '  const api = env.PUBLIC_API_URL;',
+        '</script>',
+        '<h1>{PUBLIC_SITE_NAME}</h1>',
+        ''
+      ].join('\n'),
+      // Without the import, `env.X` is any object's property.
+      'web/src/lib/config.js': 'export const read = (env) => env.PUBLIC_UNRELATED;\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe] });
+
+    expect(facts.services[0]?.environmentVariables.map((variable) => [variable.name, variable.role])).toEqual([
+      ['PUBLIC_API_URL', 'build-time'],
+      ['PUBLIC_SITE_NAME', 'build-time']
+    ]);
+  });
 });

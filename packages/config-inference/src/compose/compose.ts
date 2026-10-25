@@ -23,12 +23,13 @@ import { classifyService, type ServiceResourceType } from './classify';
 import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-versions';
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
 import { NO_SCHEDULE } from '../facts/apply-answer';
+import { composeLocalScripts } from './local-scripts';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
 import { normalizeScheduleExpression } from './schedule';
 import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
 import {
-  defaultDeploymentPreferences,
+  DEFAULT_DEPLOYMENT_PREFERENCES,
   profileForPreferences,
   type DeploymentPreferences,
   type InfrastructureProfile
@@ -49,9 +50,11 @@ export type ComposedResource = {
 export type ComposedConfig = {
   projectName?: string;
   resources: Record<string, ComposedResource>;
-  /** Deploy-time scripts, referenced from `hooks`. Emitted for detected database migrations. */
+  /** Deploy-time migration scripts referenced from `hooks`, and the project's own seed and migrate commands. */
   scripts?: Record<string, ComposedResource>;
   hooks?: { afterDeploy: Array<{ scriptName: string }> };
+  /** Stack-wide settings. Set only when functions in the VPC need NAT to reach other services. */
+  stackConfig?: { nat: 'ec2' | 'ha-ec2' };
 };
 
 export type Provenance = {
@@ -503,7 +506,8 @@ const composeDependency = (
   profile: InfrastructureProfile,
   projectName: string | undefined,
   engineVersions: EngineVersionCatalogue | undefined,
-  privateDatabase: boolean
+  privateDatabase: boolean,
+  browserUploads: boolean
 ): { resource: ComposedResource; reason: string } | { unsupported: string } => {
   const rdsEngine = RDS_ENGINE_TYPES[dependency.kind];
   if (rdsEngine !== undefined) {
@@ -562,6 +566,10 @@ const composeDependency = (
         }
       },
       reason: `Your code connects to a ${dependencyLabel(dependency.kind)} database.${
+        privateDatabase
+          ? ' It has no public address: your functions and services reach it inside the VPC, and stacktape dev runs it on your machine.'
+          : ''
+      }${
         resolved.movedOffPin
           ? ` Version ${dependency.engineVersion} is no longer offered on RDS, so ${resolved.version} is used instead.`
           : ''
@@ -587,9 +595,15 @@ const composeDependency = (
       return {
         resource: {
           type: 'bucket',
-          properties: profile.bucket.versioning ? { versioning: true } : {}
+          properties: {
+            ...(profile.bucket.versioning ? { versioning: true } : {}),
+            // The browser sends the presigned request to S3 itself, which S3 refuses cross-origin without CORS.
+            ...(browserUploads ? { cors: { enabled: true } } : {})
+          }
         },
-        reason: 'Your code reads and writes object storage.'
+        reason: `Your code reads and writes object storage.${
+          browserUploads ? ' Browsers upload to it with presigned URLs, so it accepts cross-origin requests.' : ''
+        }`
       };
     case 'dynamodb':
       return {
@@ -652,6 +666,17 @@ const composeDependency = (
   }
 };
 
+/** What a function in the VPC reaches without NAT: VPC resources, and S3 and DynamoDB through gateway endpoints. */
+const REACHABLE_FROM_VPC: ReadonlySet<DependencyFact['kind']> = new Set([
+  'postgres',
+  'mysql',
+  'mssql',
+  'redis',
+  'object-storage',
+  'dynamodb',
+  'sqlite'
+]);
+
 /** Resource names must read well in a config file and be unique within it. */
 const uniqueName = (preferred: string, taken: Set<string>): string => {
   const base = preferred
@@ -701,7 +726,7 @@ export const composeConfig = ({
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
   const { facts, assumptions } = resolveAssumptions(input, decisions);
-  const recommendedPreferences = defaultDeploymentPreferences(facts);
+  const recommendedPreferences = DEFAULT_DEPLOYMENT_PREFERENCES;
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
     ...requestedPreferences
@@ -771,6 +796,12 @@ export const composeConfig = ({
   ];
   const unresolvedPulumiCompute =
     facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');
+  const hasFrontend = facts.services.some((service) => {
+    const { resourceType } = classifyService(service);
+    return resourceType === 'hosting-bucket' || resourceType.endsWith('-web');
+  });
+  /** A function or SSR server in the VPC that also calls something outside it, so the stack needs NAT. */
+  let natRequiredBy: string | undefined;
   for (const dependency of dependencies) {
     // SDK clients in a Pulumi program can identify S3/SQS/etc. without identifying the functions
     // that use them. Creating those weak, unconsumed findings alone leaves orphaned infrastructure
@@ -915,7 +946,20 @@ export const composeConfig = ({
     }
 
     const privateDatabase = preferences.databaseAccess === 'private' && RDS_ENGINE_TYPES[dependency.kind] !== undefined;
-    const composed = composeDependency(dependency, profile, projectName, engineVersions, privateDatabase);
+    const browserUploads =
+      dependency.kind === 'object-storage' &&
+      hasFrontend &&
+      facts.services.some(
+        (service) => service.issuesPresignedUploads === true && dependency.consumedBy.includes(service.name)
+      );
+    const composed = composeDependency(
+      dependency,
+      profile,
+      projectName,
+      engineVersions,
+      privateDatabase,
+      browserUploads
+    );
     if ('unsupported' in composed) {
       gaps.push({ subject: dependency.name, message: composed.unsupported });
       continue;
@@ -1231,15 +1275,20 @@ export const composeConfig = ({
         message: `We found the ${service.name} handler but no event that invokes it. Add its HTTP, queue, topic, bucket or schedule trigger.`
       });
     }
+    // A function in the VPC reaches the database, Redis, and S3 or DynamoDB through gateway endpoints, and nothing else:
+    // publishing to SNS, sending to SQS or calling a third-party API times out. NAT gives it the way out.
     if (
       requiresVpc &&
       (classification.resourceType === 'function' || classification.resourceType.endsWith('-web')) &&
-      service.environmentVariables.some((variable) => variable.role === 'third-party-secret')
+      natRequiredBy === undefined &&
+      (facts.dependencies.some(
+        (dependency) => dependency.consumedBy.includes(service.name) && !REACHABLE_FROM_VPC.has(dependency.kind)
+      ) ||
+        service.environmentVariables.some(
+          (variable) => variable.role === 'third-party-secret' || variable.role === 'cross-service-reference'
+        ))
     ) {
-      gaps.push({
-        subject: `${service.name}.vpc-internet-access`,
-        message: `${service.name} joins the VPC to reach a private dependency. AWS functions in a VPC cannot call public APIs directly; choose internet-reachable database access or add outbound networking if this code calls a third-party service.`
-      });
+      natRequiredBy = name;
     }
     for (const trigger of service.functionTriggers) {
       if (trigger.type !== 'unmapped') continue;
@@ -1257,6 +1306,11 @@ export const composeConfig = ({
         message: `${service.name} and another function both declare the HTTP route ${route}, which one API cannot hold twice. We left it off ${service.name}; give it its own route before deploying.`
       });
     }
+  }
+
+  if (natRequiredBy !== undefined && provenance[natRequiredBy] !== undefined) {
+    provenance[natRequiredBy]!.reason +=
+      ' It joins the VPC to reach a private resource and also calls services outside it, so the stack gets a NAT instance (about $7 a month) for its outbound traffic.';
   }
 
   for (const assumption of assumptions) {
@@ -1303,6 +1357,17 @@ export const composeConfig = ({
     });
   }
 
+  const scripts: Record<string, ComposedResource> = {
+    ...migrationHooks.scripts,
+    ...composeLocalScripts({
+      localScripts: facts.localScripts,
+      services: facts.services,
+      composedDependencies,
+      projectName,
+      takenNames: new Set(Object.keys(migrationHooks.scripts))
+    })
+  };
+
   // Several probes can establish the same missing user action for two views of one codebase. The
   // subject remains useful internally, but repeating identical prose makes the review look more
   // dangerous and more laborious than it is. The first occurrence has the strongest provenance
@@ -1312,13 +1377,13 @@ export const composeConfig = ({
   return {
     config: {
       ...(projectName === undefined ? {} : { projectName }),
-      resources,
-      ...(Object.keys(migrationHooks.scripts).length === 0
+      // One NAT instance (about $7 a month) by default; two with automatic failover when the user chose redundancy.
+      ...(natRequiredBy === undefined
         ? {}
-        : {
-            scripts: migrationHooks.scripts,
-            hooks: { afterDeploy: migrationHooks.afterDeploy }
-          })
+        : { stackConfig: { nat: preferences.availability === 'redundant' ? 'ha-ec2' : 'ec2' } }),
+      resources,
+      ...(Object.keys(scripts).length === 0 ? {} : { scripts }),
+      ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } })
     },
     provenance,
     gaps: uniqueGaps,

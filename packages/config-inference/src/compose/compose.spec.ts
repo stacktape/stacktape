@@ -342,7 +342,9 @@ describe('composeConfig', () => {
     });
   });
 
-  it('defaults a Lambda database to public access, but honors an explicit private-network choice', () => {
+  // The validate command flags a database reachable from the internet as HIGH. A Lambda reaches the private one from
+  // the VPC, and NAT keeps its calls to a third-party API working.
+  it('defaults a Lambda database to private access with NAT, but honors an explicit public choice', () => {
     const input = facts({
       services: [
         service({
@@ -382,18 +384,24 @@ describe('composeConfig', () => {
     });
 
     const recommended = composeConfig({ facts: input });
-    expect(recommended.recommendedPreferences.databaseAccess).toBe('public');
-    expect(recommended.config.resources.databaseBastion).toBeUndefined();
-    expect(recommended.config.resources.handler?.properties.joinDefaultVpc).toBeUndefined();
-
-    const privateChoice = composeConfig({
-      facts: input,
-      preferences: { databaseAccess: 'private' }
+    expect(recommended.recommendedPreferences.databaseAccess).toBe('private');
+    expect(recommended.config.resources.mainDatabase?.properties.accessibility).toEqual({
+      accessibilityMode: 'vpc',
+      forceDisablePublicIp: true
     });
-    expect(privateChoice.preferences.databaseAccess).toBe('private');
-    expect(privateChoice.config.resources.databaseBastion?.type).toBe('bastion');
-    expect(privateChoice.config.resources.handler?.properties.joinDefaultVpc).toBe(true);
-    expect(privateChoice.gaps.some((gap) => gap.subject === 'handler.vpc-internet-access')).toBe(true);
+    expect(recommended.config.resources.databaseBastion?.type).toBe('bastion');
+    expect(recommended.config.resources.handler?.properties.joinDefaultVpc).toBe(true);
+    expect(recommended.config.stackConfig).toEqual({ nat: 'ec2' });
+    expect(recommended.provenance.handler?.reason).toContain('NAT instance');
+
+    const publicChoice = composeConfig({
+      facts: input,
+      preferences: { databaseAccess: 'public' }
+    });
+    expect(publicChoice.preferences.databaseAccess).toBe('public');
+    expect(publicChoice.config.resources.databaseBastion).toBeUndefined();
+    expect(publicChoice.config.resources.handler?.properties.joinDefaultVpc).toBeUndefined();
+    expect(publicChoice.config.stackConfig).toBeUndefined();
   });
 
   it('joins a Lambda to the VPC for a composed Redis cache without adding a database bastion', () => {

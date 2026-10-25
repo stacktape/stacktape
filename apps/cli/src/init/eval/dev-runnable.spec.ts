@@ -12,8 +12,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'bun:test';
 import type { StacktapeConfig } from '@stacktape/config';
+import { ConfigManager } from '@domain-services/config-manager';
+import { assessSecurityPosture } from '@domain-services/config-manager/utils/security-posture';
 import { validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
+import type { StackContext } from '@domain-services/stack-context';
 import { runGreenfieldMission, type GreenfieldResult } from '../missions/greenfield';
+import { projectNameFor } from '../project-name';
 import { DEV_RUNNABLE_FIXTURES } from './dev-runnable-fixtures';
 
 const roots: string[] = [];
@@ -22,24 +26,44 @@ afterAll(async () => {
   await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
 });
 
-const initFixture = async (name: keyof typeof DEV_RUNNABLE_FIXTURES): Promise<GreenfieldResult> => {
+const writeFixture = async (name: keyof typeof DEV_RUNNABLE_FIXTURES): Promise<string> => {
   const root = await mkdtemp(join(tmpdir(), `stacktape-dev-runnable-${name}-`));
   roots.push(root);
   for (const [path, contents] of Object.entries(DEV_RUNNABLE_FIXTURES[name])) {
     await mkdir(join(root, path, '..'), { recursive: true });
     await writeFile(join(root, path), contents, 'utf8');
   }
-  return runGreenfieldMission({ repositoryRoot: root, projectName: name });
+  return root;
 };
+
+const initFixture = async (name: keyof typeof DEV_RUNNABLE_FIXTURES): Promise<GreenfieldResult> =>
+  runGreenfieldMission({ repositoryRoot: await writeFixture(name), projectName: name });
 
 type Resource = { type: string; properties: Record<string, unknown> };
 
+/** The checks `stacktape validate` runs without AWS: the config schema, then the security posture rules. */
 const resourcesOf = (result: GreenfieldResult): Record<string, Resource> => {
   const config = { ...result.composition.config, region: 'eu-west-2' } as unknown as StacktapeConfig;
   const validation = validateConfigWithZod({ config, configPath: 'stacktape.yml' });
   if (!validation.valid) {
     throw new Error(`Generated config was rejected: ${'errorMessage' in validation ? validation.errorMessage : ''}`);
   }
+  const stackContext: StackContext = {
+    accountId: '123456789012',
+    command: 'deploy',
+    globallyUniqueStackHash: 'dev-runnable',
+    invocationId: 'invocation',
+    projectName: config.projectName ?? 'app',
+    region: 'eu-west-2',
+    stackName: `${config.projectName ?? 'app'}-dev`,
+    stage: 'dev',
+    workingDir: '/project'
+  };
+  const configManager = new ConfigManager();
+  configManager.setStackContext(stackContext);
+  configManager.config = config;
+  const { findings } = assessSecurityPosture({ configManager, rawConfig: config, stackContext });
+  expect(findings.filter(({ severity }) => severity === 'HIGH' || severity === 'CRITICAL')).toEqual([]);
   return result.composition.config.resources as Record<string, Resource>;
 };
 
@@ -156,4 +180,126 @@ describe('init writes a config stacktape dev can run', () => {
       }
     }
   );
+
+  // The r2p dogfood run needed eight hand edits to this app's init output before its Playwright test passed. Every one
+  // except the Python runtime is init's job and is asserted here; the runtime belongs to packaging.
+  it('r2p: untyped Python API, SNS worker, scheduled job, presigned uploads and SvelteKit', async () => {
+    const root = await writeFixture('r2p-files');
+    // H1: the manifest names the project.
+    const projectName = await projectNameFor(root);
+    expect(projectName).toBe('r2p-files');
+    const result = await runGreenfieldMission({ repositoryRoot: root, projectName });
+    const resources = resourcesOf(result);
+
+    expect(typesOf(resources)).toEqual({
+      mainDatabase: 'relational-database',
+      storageBucket: 'bucket',
+      notificationsTopic: 'sns-topic',
+      databaseBastion: 'bastion',
+      httpApiGateway: 'http-api-gateway',
+      r2pFilesWeb: 'sveltekit-web',
+      expireUploads: 'function',
+      processUpload: 'function',
+      api: 'function'
+    });
+    // H2 + H8: `event['requestContext']['http']` makes the Python handler the HTTP API with payload format 2.0, and
+    // publishing to the topic it reads from `UPLOAD_EVENTS_TOPIC_ARN` connects it.
+    expect(resources.api!.properties).toMatchObject({
+      packaging: { type: 'buildpack', properties: { entryfilePath: 'api/main.py' } },
+      events: [
+        {
+          type: 'http-api-gateway',
+          properties: { httpApiGatewayName: 'httpApiGateway', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+        }
+      ],
+      environment: [
+        { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { name: 'UPLOAD_BUCKET', value: "$ResourceParam('storageBucket', 'name')" },
+        { name: 'UPLOAD_EVENTS_TOPIC_ARN', value: "$ResourceParam('notificationsTopic', 'arn')" }
+      ],
+      connectTo: ['mainDatabase', 'storageBucket', 'notificationsTopic']
+    });
+    expect(resources.api!.properties.runtime).toBeUndefined();
+    // H3: the schedule the code declares.
+    expect(resources.expireUploads!.properties.events).toEqual([
+      { type: 'schedule', properties: { scheduleRate: 'rate(2 minutes)' } }
+    ]);
+    // H4: the worker reads `UPLOAD_BUCKET` too.
+    expect(resources.processUpload!.properties).toMatchObject({
+      events: [{ type: 'sns', properties: { snsTopicName: 'notificationsTopic' } }],
+      environment: [
+        { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { name: 'UPLOAD_BUCKET', value: "$ResourceParam('storageBucket', 'name')" }
+      ],
+      connectTo: ['mainDatabase', 'storageBucket']
+    });
+    // H5: SvelteKit's `$env/dynamic/public` read of the API address.
+    expect(resources.r2pFilesWeb!.properties).toMatchObject({
+      appDirectory: 'web',
+      environment: [{ name: 'PUBLIC_API_URL', value: "$ResourceParam('httpApiGateway', 'url')" }],
+      dev: { command: 'npm run dev' }
+    });
+    // H6: the browser PUTs to the presigned URL the API returns.
+    expect(resources.storageBucket!.properties.cors).toEqual({ enabled: true });
+    // H9: `npm run seed`, against the database its source reads.
+    expect(result.composition.config.scripts).toEqual({
+      seed: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'npm run seed',
+          connectTo: ['mainDatabase'],
+          environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]
+        }
+      }
+    });
+    // The database has no public address; the functions reach it from the VPC, and the API's SNS publish goes out
+    // through NAT. `stacktape dev` runs the database locally and leaves the bastion and NAT out of the dev stack.
+    expect(resources.mainDatabase!.properties.accessibility).toEqual({
+      accessibilityMode: 'vpc',
+      forceDisablePublicIp: true
+    });
+    for (const name of ['api', 'processUpload', 'expireUploads']) {
+      expect(resources[name]!.properties.joinDefaultVpc).toBe(true);
+    }
+    expect(result.composition.config.stackConfig).toEqual({ nat: 'ec2' });
+    expect(result.composition.gaps).toEqual([]);
+    expect(result.composition.unsetSettings).toEqual([]);
+  });
+
+  it('untyped handlers: the event fields each one reads name its trigger', async () => {
+    const result = await initFixture('untyped-handlers');
+    const resources = resourcesOf(result);
+
+    expect(resources.api!.properties).toMatchObject({
+      packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.js' } },
+      // `event.httpMethod` is the 1.0 payload, Stacktape's default, so no payloadFormat is written.
+      events: [{ type: 'http-api-gateway', properties: { method: '*', path: '/{proxy+}' } }]
+    });
+    expect(
+      (resources.api!.properties.events as Array<{ properties: Record<string, unknown> }>)[0]!.properties.payloadFormat
+    ).toBeUndefined();
+    expect(resources.worker!.properties.events).toEqual([{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }]);
+    expect(resources.thumbnails!.properties.events).toEqual([
+      {
+        type: 's3',
+        properties: { bucketArn: "$ResourceParam('storageBucket', 'arn')", s3EventType: 's3:ObjectCreated:*' }
+      }
+    ]);
+    expect(resources.nightlyReport!.properties.events).toEqual([
+      { type: 'schedule', properties: { scheduleRate: 'cron(0 3 * * ? *)' } }
+    ]);
+    // `ORDER_JOBS_QUEUE_URL` and `ORDERS_TABLE` name the one queue and the one table.
+    const tableName = Object.entries(resources).find(([, resource]) => resource.type === 'dynamo-db-table')![0];
+    expect(resources.api!.properties).toMatchObject({
+      environment: [
+        { name: 'ORDER_JOBS_QUEUE_URL', value: "$ResourceParam('jobQueue', 'url')" },
+        { name: 'ORDERS_TABLE', value: `$ResourceParam('${tableName}', 'name')` }
+      ]
+    });
+    expect(resources.api!.properties.connectTo).toEqual(expect.arrayContaining(['jobQueue', tableName]));
+    expect(resources.worker!.properties.connectTo).toEqual(expect.arrayContaining([tableName]));
+    // No VPC resource, so nothing joins the VPC and no NAT is added.
+    expect(result.composition.config.stackConfig).toBeUndefined();
+    expect(result.composition.gaps).toEqual([]);
+  });
 });
