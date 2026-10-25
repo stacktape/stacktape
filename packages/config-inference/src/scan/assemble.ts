@@ -15,6 +15,7 @@ import type { ExistingDeploymentFact } from '../facts/existing-deployment';
 import {
   PROJECT_FACTS_SCHEMA_VERSION,
   projectFactsSchema,
+  SELF_PACKAGING_FRAMEWORKS,
   type MigrationFact,
   type PackageManager,
   type ProjectFacts
@@ -29,6 +30,7 @@ import { listRepositoryFiles } from './file-tree';
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
+import { applyStacktapeReferences } from './stacktape-references';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -215,6 +217,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
   buildCommand: existing.buildCommand ?? incoming.buildCommand,
   startCommand: existing.startCommand ?? incoming.startCommand,
+  devCommand: existing.devCommand ?? incoming.devCommand,
   buildRoot: existing.buildRoot ?? incoming.buildRoot,
   containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
   functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
@@ -618,6 +621,44 @@ const resolvedByOtherProbes = (
   );
 };
 
+/** A frontend's build-time variable that holds the address of the project's API. */
+const API_ADDRESS_VARIABLE = /(?:^|_)(?:API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
+
+/**
+ * Point a frontend's `VITE_API_URL` (or `NEXT_PUBLIC_API_URL`, …) at the project's one HTTP backend.
+ *
+ * Without it the frontend builds, deploys and starts in `stacktape dev` with an empty API address. Only one backend
+ * qualifies: every HTTP-triggered function shares one API gateway, so they count as one, and a project with both such
+ * functions and an HTTP container, or several containers, is left for the user to wire.
+ */
+const isFrontend = (service: ServiceFactInput): boolean =>
+  (service.servesStaticAssets !== undefined && !service.exposesHttp) ||
+  SELF_PACKAGING_FRAMEWORKS.has(service.framework ?? '');
+
+const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): void => {
+  const httpFunctions = services.filter((service) =>
+    (service.functionTriggers ?? []).some((trigger) => trigger.type === 'http')
+  );
+  const httpServices = services.filter(
+    (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
+  );
+  const backends = [...(httpFunctions.length > 0 ? [httpFunctions[0]!] : []), ...httpServices];
+  if (backends.length !== 1) return;
+  const [backend] = backends;
+  for (const service of services) {
+    if (!isFrontend(service) || service === backend) continue;
+    for (const variable of service.environmentVariables ?? []) {
+      if (
+        variable.role === 'build-time' &&
+        variable.targetServiceName === undefined &&
+        API_ADDRESS_VARIABLE.test(variable.name)
+      ) {
+        variable.targetServiceName = backend!.name;
+      }
+    }
+  }
+};
+
 export type CandidateFactsResult = {
   facts: ProjectFacts;
   /** Files the walk found, reused by the agent tooling so it never walks the tree twice. */
@@ -826,6 +867,9 @@ export const assembleCandidateFacts = async ({
         })
     });
   }
+
+  applyStacktapeReferences({ services, dependencies });
+  linkFrontendApiAddresses(services);
 
   const uncertainties = new Map<string, Uncertainty>();
   for (const output of outputs) {

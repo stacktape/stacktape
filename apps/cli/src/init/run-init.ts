@@ -65,6 +65,8 @@ export type InitOptions = {
    * (`stacktape defaults`), then the AWS profile's region. The new config declares it unless the user picks another.
    */
   machineRegion?: string;
+  /** Where `machineRegion` came from, so the terminal can say why the file names that region. */
+  machineRegionSource?: MachineRegionSource;
   /** Forced by `--headless`; otherwise decided by whether a browser can plausibly be opened. */
   presentation?: InitPresentation;
   /**
@@ -233,6 +235,28 @@ export type InitOutcome = {
  * The region a new config declares unless the user picks one: the region the CLI would deploy to on this machine when
  * Stacktape deploys there, otherwise the one prices use. An unsupported `AWS_REGION` is never written into the file.
  */
+export type MachineRegionSource =
+  | { kind: 'environment'; variable: string }
+  | { kind: 'stacktape-defaults' }
+  | { kind: 'aws-profile'; profile: string };
+
+/** Why the new config declares this region, as the end of a sentence. */
+export const describeRegionChoice = (
+  region: string,
+  machineRegion: string | undefined,
+  source: MachineRegionSource | undefined
+): string => {
+  if (machineRegion === undefined || source === undefined) {
+    return `${region}, Stacktape's default, because no AWS region is configured on this machine`;
+  }
+  if (machineRegion !== region) {
+    return `${region}, Stacktape's default, because Stacktape does not deploy to ${machineRegion}`;
+  }
+  if (source.kind === 'aws-profile') return `${region}, the region of your AWS profile "${source.profile}"`;
+  if (source.kind === 'environment') return `${region}, from ${source.variable}`;
+  return `${region}, your default region from \`stacktape defaults\``;
+};
+
 export const regionForNewConfig = (machineRegion: string | undefined): string =>
   machineRegion !== undefined && (SUPPORTED_AWS_REGIONS as readonly string[]).includes(machineRegion)
     ? machineRegion
@@ -339,7 +363,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         : `\n${configFile.existingPath} was already here and has not been touched.\nWrote ${configFile.path} beside it — deploy it with \`--config ${configFile.filename}\`, or merge it in yourself.`
     );
     say(
-      `It deploys project ${projectName} to ${region}. Change \`region\` in ${configFile.filename} to deploy elsewhere.`
+      `It deploys project ${projectName} to ${describeRegionChoice(region, options.machineRegion, options.machineRegionSource)}. Change \`region\` in ${configFile.filename} to deploy elsewhere.`
     );
     for (const line of describeDevDependency(configFile)) say(line);
 

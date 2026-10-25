@@ -284,3 +284,95 @@ describe('anchors only ever see bytes read back off disk', () => {
     expect(result.facts.uncertainties.some((uncertainty) => uncertainty.kind === 'unconfirmed-claim')).toBe(true);
   });
 });
+
+/** A function the scan found in `src/`, with its triggers and the `STP_*` variables it reads. */
+const scannedFunction = (name: string, triggers: object[] = [], reads: string[] = []) => ({
+  name,
+  path: 'src',
+  processType: `src/${name}.ts`,
+  language: 'typescript',
+  exposesHttp: false,
+  executionModel: 'per-request',
+  functionEntrypoint: `src/${name}.ts`,
+  functionTriggers: triggers,
+  environmentVariables: reads.map((variable) => ({
+    name: variable,
+    role: 'infra-dependency',
+    dependencyName: variable === 'STP_JOBS_URL' ? 'jobs' : 'db',
+    evidence: []
+  })),
+  evidence: [],
+  source: 'probe'
+});
+
+describe('an agent review never leaves less than the scan found', () => {
+  it('keeps every scanned function, trigger and connection when the agent describes them worse', () => {
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        scannedFunction(
+          'api',
+          [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+          ['STP_DB_CONNECTION_STRING', 'STP_JOBS_URL']
+        ),
+        scannedFunction('worker', [{ type: 'queue', dependencyName: 'jobs' }], ['STP_DB_CONNECTION_STRING'])
+      ],
+      dependencies: [
+        { name: 'db', kind: 'postgres', consumedBy: ['api', 'worker'], evidence: [], source: 'probe' },
+        { name: 'jobs', kind: 'queue', consumedBy: ['api'], evidence: [], source: 'probe' }
+      ]
+    });
+    // The agent reports the worker in the same directory as the API, without its trigger or reads.
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          name: 'worker',
+          path: 'src',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          functionEntrypoint: 'src/worker.ts',
+          port: undefined
+        }
+      ]
+    });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+    const before = composeConfig({ facts: baseline, projectName: 'demo' }).config.resources;
+    const after = composeConfig({ facts: merged, projectName: 'demo' }).config.resources;
+
+    expect(merged.services.map((service) => [service.name, service.functionTriggers])).toEqual(
+      baseline.services.map((service) => [service.name, service.functionTriggers])
+    );
+    expect(after).toEqual(before);
+  });
+
+  it('adds what the agent found to the function it describes, not to its neighbour in the same directory', () => {
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [scannedFunction('api'), scannedFunction('worker')]
+    });
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          path: 'src',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          startCommand: undefined,
+          functionEntrypoint: 'src/api.ts',
+          functionTriggers: [{ type: 'http', method: 'GET', path: '/health' }]
+        }
+      ]
+    });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+
+    expect(merged.services.map((service) => [service.name, service.functionTriggers.length])).toEqual([
+      ['api', 1],
+      ['worker', 0]
+    ]);
+  });
+});

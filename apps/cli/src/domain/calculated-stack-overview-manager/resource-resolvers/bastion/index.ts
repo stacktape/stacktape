@@ -2,6 +2,7 @@ import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
@@ -22,7 +23,9 @@ import {
 } from './utils';
 
 export const resolveBastions = async () => {
-  configManager.bastions.forEach((bastion) => resolveBastion({ bastion }));
+  filterResourcesForDevMode(configManager.bastions, configManager.deploymentContext).forEach((bastion) =>
+    resolveBastion({ bastion })
+  );
 };
 
 const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {

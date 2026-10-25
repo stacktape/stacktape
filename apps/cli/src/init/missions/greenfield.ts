@@ -106,7 +106,9 @@ Getting build-time wrong is invisible until production: the value bakes into the
 
 Static files do not expose HTTP by themselves. A plain HTML site or a Vite, React, Vue, Angular, or Gatsby build should use exposesHttp: false and servesStaticAssets.path for the directory that is uploaded. A development server such as vite, ng serve, or gatsby develop is not a production start command. Do not invent a no-op build or a server for static files.
 
-An exported Lambda handler is not a worker or an HTTP server. Report its source file as functionEntrypoint, keep exposesHttp false, use executionModel: per-request, and put repository-declared invocations in functionTriggers. Trigger shapes are {type: "http", method, path}, {type: "queue"|"topic"|"object-storage", dependencyName}, and {type: "schedule", rate}. Do not invent a route or trigger when the repository names none.
+An exported Lambda handler is not a worker or an HTTP server. Report its source file as functionEntrypoint, keep exposesHttp false, use executionModel: per-request, and put repository-declared invocations in functionTriggers. Trigger shapes are {type: "http", method, path, payloadFormat}, {type: "queue"|"topic"|"object-storage", dependencyName}, and {type: "schedule", rate}. Use payloadFormat "2.0" when the handler reads the HTTP API v2 event (APIGatewayProxyEventV2, event.requestContext.http, event.rawPath). Do not invent a route or trigger when the repository names none. The draft already lists every handler typed with an aws-lambda event (APIGatewayProxyEventV2, SQSEvent, ScheduledEvent, S3Event, ...) with its trigger; keep them.
+
+Variables named STP_<NAME>_<PARAM> (STP_DB_CONNECTION_STRING, STP_JOBS_URL) are Stacktape's own connectTo variables: the code expects a resource called <name> in camelCase (db, jobs, mainDatabase for STP_MAIN_DATABASE_*). Report them as infra-dependency with that dependency name; the draft has already named dependencies this way where it could.
 
 When source code itself proves the executable entrypoint, report it as containerEntrypoint instead of inventing a shell command. Examples are src/server.ts containing a real listen call, main.py:app for an ASGI/WSGI application object, or public/index.php for a PHP front controller. Keep Dockerfiles as dockerfile. A dependency alone is not enough: an Express, FastAPI, Nest, or Spring package can exist in code that has no runnable server.
 
@@ -146,8 +148,14 @@ const materialGaps = (facts: ProjectFacts): string[] => {
       gaps.push(`Find how often the "${uncertainty.serviceName}" job runs.`);
     }
   }
+  const triggerSources = new Set(
+    facts.services.flatMap((service) =>
+      service.functionTriggers.flatMap((trigger) => ('dependencyName' in trigger ? [trigger.dependencyName] : []))
+    )
+  );
   for (const dependency of facts.dependencies) {
-    if (dependency.consumedBy.length === 0) {
+    // A queue that only invokes a function is used by that function's trigger; nothing is left to find.
+    if (dependency.consumedBy.length === 0 && !triggerSources.has(dependency.name)) {
       gaps.push(
         `Find which service actually uses the ${dependency.kind} dependency "${dependency.name}" — or report it unused.`
       );

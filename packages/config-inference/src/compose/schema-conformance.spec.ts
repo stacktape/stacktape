@@ -180,6 +180,72 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
+  it('typed Lambda handlers, a scheduled function and frontends that stacktape dev runs', () => {
+    const fn = (name: string, overrides: Partial<ServiceFactInput>) =>
+      service({
+        name,
+        path: 'src',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `src/${name}.ts`,
+        ...overrides
+      });
+    const config = composeFrom({
+      services: [
+        fn('api', {
+          functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+          environmentVariables: [
+            {
+              name: 'STP_DB_CONNECTION_STRING',
+              role: 'infra-dependency',
+              dependencyName: 'db',
+              required: true,
+              evidence: []
+            }
+          ]
+        }),
+        fn('worker', { functionTriggers: [{ type: 'queue', dependencyName: 'jobs' }] }),
+        fn('prune', { schedule: '0 3 * * *' }),
+        service({
+          name: 'site',
+          path: 'web',
+          exposesHttp: false,
+          startCommand: undefined,
+          framework: 'vite',
+          buildCommand: 'npm run build',
+          devCommand: 'npm run dev',
+          servesStaticAssets: { path: 'web/dist' },
+          environmentVariables: [
+            { name: 'VITE_API_URL', role: 'build-time', targetServiceName: 'api', required: true, evidence: [] }
+          ]
+        }),
+        service({
+          name: 'dashboard',
+          path: 'dashboard',
+          framework: 'nextjs',
+          devCommand: 'npm run dev',
+          environmentVariables: [
+            { name: 'NEXT_PUBLIC_API_URL', role: 'build-time', targetServiceName: 'api', required: true, evidence: [] }
+          ]
+        })
+      ],
+      dependencies: [
+        { name: 'db', kind: 'postgres', extensions: [], consumedBy: ['api'], evidence: [], source: 'probe' },
+        { name: 'jobs', kind: 'queue', extensions: [], consumedBy: [], evidence: [], source: 'probe' }
+      ]
+    });
+    expectValid(config);
+    expect(config.resources.site?.properties).toMatchObject({
+      dev: { command: 'npm run dev', workingDirectory: 'web' },
+      injectEnvironment: [{ name: 'VITE_API_URL', value: "$ResourceParam('httpApiGateway', 'url')" }]
+    });
+    expect(config.resources.prune?.properties.events).toEqual([
+      { type: 'schedule', properties: { scheduleRate: 'cron(0 3 * * ? *)' } }
+    ]);
+  });
+
   it('a static site', () => {
     expectValid(
       composeFrom({

@@ -251,7 +251,8 @@ Options:
       --cwd <value>                The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.
   -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters.
       --agent-port <number>        Stops the dev agent on this port, wherever it was started.
-      --cleanup-containers         Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.
+      --cleanup-containers         Removes the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With --stage, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add --all.
+      --all                        With --cleanup-containers, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory.
 
 Global options:
   -h, --help               Show help for a command or group

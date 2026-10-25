@@ -17,7 +17,14 @@ import {
 } from './container-helpers';
 import { getLocalDbParameters, postgresParamsToDockerArgs } from './db-parameters';
 
-const POSTGRES_DATA_PATH = '/var/lib/postgresql/data';
+/**
+ * Where the data volume mounts. The official images from Postgres 18 keep data in a version-named directory under
+ * `/var/lib/postgresql` and refuse to start with a volume at the older `/var/lib/postgresql/data`.
+ */
+export const postgresDataPath = (version: string): string => {
+  const major = Number.parseInt(version, 10);
+  return version === 'latest' || major >= 18 ? '/var/lib/postgresql' : '/var/lib/postgresql/data';
+};
 
 export const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
   const connectionString = `postgresql://${user}:${pass}@${host}:${port}/${database}`;
@@ -79,7 +86,7 @@ export const startLocalPostgres = async (
         POSTGRES_DB: database
       },
       portMapping: { host: actualPort, container: DEFAULT_PORTS.postgres },
-      volumeMapping: { host: dataDir, container: POSTGRES_DATA_PATH },
+      volumeMapping: { host: dataDir, container: postgresDataPath(version) },
       imageTag,
       additionalArgs: postgresConfigArgs
     });

@@ -457,6 +457,7 @@ export const manifestProbe: Probe = {
           executionModel: 'long-running',
           ...(hasBuild ? { buildCommand: runCommand(packageManager, 'build') } : {}),
           ...(staticSite === undefined && hasStart ? { startCommand: runCommand(packageManager, 'start') } : {}),
+          ...(typeof manifest.scripts.dev === 'string' ? { devCommand: runCommand(packageManager, 'dev') } : {}),
           ...(staticSite === undefined
             ? {}
             : {

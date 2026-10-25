@@ -9,8 +9,12 @@ const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'open-search-domain'
 ];
 
-/** Costly cloud-only resources excluded from dev stacks unless explicitly marked `dev.remote: true`. */
-const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster'];
+/**
+ * Cloud-only resources excluded from dev stacks unless explicitly marked `dev.remote: true` or named in
+ * `--remote-resources`. A bastion reaches deployed private databases, which a dev stack runs locally; deploying it
+ * would also keep the stage's own VPC, where VPC functions cannot reach the local databases.
+ */
+const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster', 'bastion'];
 
 /** Resource types that run locally (containers, frontends) - entirely skipped in dev stack */
 export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [

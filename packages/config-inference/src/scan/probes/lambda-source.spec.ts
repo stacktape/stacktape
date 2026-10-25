@@ -91,4 +91,99 @@ describe('the lambda-source probe', () => {
 
     expect(output.services ?? []).toEqual([]);
   });
+
+  it('reads the trigger from the aws-lambda event type of a handler anywhere in the source tree', async () => {
+    const repo = await makeRepo({
+      'src/api.ts': [
+        "import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';",
+        'export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => ({ statusCode: 200 });',
+        ''
+      ].join('\n'),
+      'src/legacy.ts': [
+        "import type { APIGatewayProxyEvent } from 'aws-lambda';",
+        'export async function handler(event: APIGatewayProxyEvent) { return { statusCode: 200 }; }',
+        ''
+      ].join('\n'),
+      'src/worker.ts': [
+        "import type { SQSEvent } from 'aws-lambda';",
+        'export default async ({ Records }: SQSEvent) => { void Records; };',
+        ''
+      ].join('\n'),
+      'src/thumbnails.ts': [
+        "import type { S3Handler } from 'aws-lambda';",
+        'export const handler: S3Handler = async () => {};',
+        ''
+      ].join('\n'),
+      'src/report.ts': [
+        "import type { Handler, ScheduledEvent } from 'aws-lambda';",
+        "// Deployed with schedule 'rate(2 hours)'.",
+        'export const handler: Handler<ScheduledEvent> = async () => {};',
+        ''
+      ].join('\n'),
+      'src/stream.ts': [
+        "import type { DynamoDBStreamHandler } from 'aws-lambda';",
+        'export const handler: DynamoDBStreamHandler = async () => {};',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+    const triggers = Object.fromEntries(
+      (output.services ?? []).map((service) => [service.functionEntrypoint, service.functionTriggers])
+    );
+
+    expect(triggers).toEqual({
+      'src/api.ts': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+      'src/legacy.ts': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '1.0' }],
+      'src/worker.ts': [{ type: 'queue', dependencyName: 'jobQueue' }],
+      'src/thumbnails.ts': [{ type: 'object-storage', dependencyName: 'storageBucket' }],
+      'src/report.ts': [{ type: 'schedule', rate: 'rate(2 hours)' }],
+      'src/stream.ts': [{ type: 'unmapped', sourceType: 'a DynamoDB stream' }]
+    });
+    // A trigger names a queue and a bucket, so both exist for the merge to fold into.
+    expect((output.dependencies ?? []).map((dependency) => dependency.kind).toSorted()).toEqual([
+      'object-storage',
+      'queue'
+    ]);
+  });
+
+  it('asks how often a scheduled handler runs when the code states no rate', async () => {
+    const repo = await makeRepo({
+      'src/prune.ts': [
+        "import type { ScheduledHandler } from 'aws-lambda';",
+        'export const handler: ScheduledHandler = async () => {};',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.[0]?.functionTriggers).toEqual([]);
+    expect(output.uncertainties?.map((uncertainty) => uncertainty.kind)).toEqual(['schedule-unknown']);
+  });
+
+  it('ignores aws-lambda types outside a handler export, and tests', async () => {
+    const repo = await makeRepo({
+      // An adapter that only mentions the type is not a function.
+      'src/server.ts': [
+        "import express from 'express';",
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';",
+        'export const toRequest = (event: APIGatewayProxyEventV2) => event.rawPath;',
+        'export default express();',
+        ''
+      ].join('\n'),
+      'src/api.test.ts': [
+        "import type { SQSEvent } from 'aws-lambda';",
+        'export default async (event: SQSEvent) => event;',
+        ''
+      ].join('\n'),
+      // Same type name, but not the aws-lambda one.
+      'src/events.ts': 'type SQSEvent = { id: string };\nexport default (event: SQSEvent) => event.id;\n'
+    });
+    root = repo.root;
+
+    expect(await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files))).toEqual({});
+  });
 });
