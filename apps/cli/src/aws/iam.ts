@@ -110,7 +110,8 @@ export class AwsIam {
   /**
    * Whether the IAM policies of `principalArn` (a user or role) allow `action` on `resourceArn`, as the policy simulator
    * evaluates them: identity policies, permissions boundaries and organization policies, not the resource's own policy.
-   * Throws when the caller may not use the simulator.
+   * The simulator gets no request context, so it also lists the condition keys it had no value for; with any, its
+   * decision may differ from the real request's. Throws when the caller may not use the simulator.
    */
   simulatePrincipalPolicy = async ({
     principalArn,
@@ -120,7 +121,9 @@ export class AwsIam {
     principalArn: string;
     action: string;
     resourceArn: string;
-  }): Promise<'allowed' | 'explicitDeny' | 'implicitDeny' | undefined> => {
+  }): Promise<
+    { decision: 'allowed' | 'explicitDeny' | 'implicitDeny'; missingContextValues: string[] } | undefined
+  > => {
     const { EvaluationResults } = await this.#createClient().send(
       new SimulatePrincipalPolicyCommand({
         PolicySourceArn: principalArn,
@@ -128,8 +131,14 @@ export class AwsIam {
         ResourceArns: [resourceArn]
       })
     );
-    const decision = EvaluationResults?.[0]?.EvalDecision;
-    return decision === 'allowed' || decision === 'explicitDeny' || decision === 'implicitDeny' ? decision : undefined;
+    const result = EvaluationResults?.[0];
+    const decision = result?.EvalDecision;
+    if (decision !== 'allowed' && decision !== 'explicitDeny' && decision !== 'implicitDeny') return undefined;
+    const missingContextValues = [
+      ...(result?.MissingContextValues ?? []),
+      ...(result?.ResourceSpecificResults ?? []).flatMap(({ MissingContextValues }) => MissingContextValues ?? [])
+    ];
+    return { decision, missingContextValues: [...new Set(missingContextValues)] };
   };
 
   /**

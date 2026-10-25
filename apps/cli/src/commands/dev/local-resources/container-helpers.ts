@@ -76,16 +76,31 @@ export const resolveLocalDatabasePassword = ({
   return { password, legacy: false };
 };
 
-/** Two worktrees may start the stage at once; the first to create the file decides the password for both. */
+/** How long to wait for another process that created the stage's password file to write the password into it. */
+const STAGE_PASSWORD_WRITE_WAIT_MS = 2000;
+
+/**
+ * Two worktrees may start the stage at once; the first to create the file decides the password for both. The other
+ * waits briefly for the password if the file is still empty, and takes the file over only from a process that
+ * created it and never wrote it.
+ */
 const createStagePassword = (file: string): string => {
   const password = randomBytes(18).toString('hex');
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
   try {
     writeFileSync(file, password, { mode: 0o600, flag: 'wx' });
+    return password;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    return readPasswordFile(file) ?? password;
   }
+  const deadline = Date.now() + STAGE_PASSWORD_WRITE_WAIT_MS;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  while (Date.now() < deadline) {
+    const written = readPasswordFile(file);
+    if (written) return written;
+    Atomics.wait(pause, 0, 0, 25);
+  }
+  writePasswordFile(file, password);
   return password;
 };
 

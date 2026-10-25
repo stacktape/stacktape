@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -84,6 +85,27 @@ test('worktrees of a project give new local data the password of the stage', () 
     const first = resolve('main');
     expect(first.password).toMatch(/^[0-9a-f]{36}$/);
     expect(resolve('feature').password).toBe(first.password);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// The first worktree to start a stage creates the password file and writes it a moment later; the second, starting at
+// the same time, must wait for that password instead of creating data with another one.
+test('a worktree waits for the stage password that another one is still writing', () => {
+  const root = mkdtempSync(join(tmpdir(), 'stacktape-stage-password-race-'));
+  try {
+    const stagePasswordFile = join(root, 'stage', 'db');
+    mkdirSync(join(root, 'stage'));
+    writeFileSync(stagePasswordFile, '');
+    spawn('sh', ['-c', `sleep 0.3; printf other-worktree-password > '${stagePasswordFile}'`], { stdio: 'ignore' });
+    const result = resolveLocalDatabasePassword({
+      passwordFile: join(root, 'feature', 'password'),
+      stagePasswordFile,
+      dataDir: join(root, 'feature', 'data'),
+      legacyPassword: 'localdevpassword'
+    });
+    expect(result).toEqual({ password: 'other-worktree-password', legacy: false });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

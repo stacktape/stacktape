@@ -40,42 +40,59 @@ const isAssumeRoleAccessDenied = (error: unknown, roleArn: string) => {
   return message.includes('AccessDenied') && message.includes('sts:AssumeRole') && message.includes(roleArn);
 };
 
+/** The policy simulator's decision on the caller's own policies, and the condition keys it had no value for. */
+export type AssumeRoleSimulation = {
+  decision: 'allowed' | 'explicitDeny' | 'implicitDeny';
+  missingContextValues: string[];
+};
+
 /**
  * What to do after AWS denied assuming a workload's role. STS gives the same message while a changed trust policy
- * propagates and when the caller's own IAM permissions lack `sts:AssumeRole`: a dev stack's roles trust the account
- * and name the developer in a condition, and with such a trust the developer's identity policy must allow the call too.
- * The latter never passes, so it is recognized by the reason in the message, by the policy simulator when the caller
- * may use it, or by a denial that lasts after the trust has settled.
+ * propagates and when the caller's own IAM permissions lack `sts:AssumeRole`. Only the latter never passes, and only
+ * with an account trust: a dev stack's roles trust the account and name the developer in a condition, so the
+ * developer's identity policy must allow the call too. A trust that names the caller directly allows it on its own.
+ * A permanent denial is recognized by the reason in the message, or, with an account trust that has settled, by the
+ * policy simulator or by a denial that lasts. The simulator evaluates no trust policy and knows none of the request's
+ * context (MFA, tags, session name), so its denial counts only after the trust has settled and with no missing value.
+ * It does not list keys of `...IfExists` conditions as missing (an MFA rule denied a simulated call with an empty list,
+ * 25 Oct 2026), so the settled trust is the guard there: a caller whose real request passes such a rule is never
+ * denied, and the simulator runs only after a real denial.
  */
 export const judgeAssumeRoleDenial = ({
   message,
+  trust,
   simulation,
   trustSettled,
   waitedMs
 }: {
   message: string;
-  /** The policy simulator's decision on the caller's own policies, when it ran. */
-  simulation?: 'allowed' | 'explicitDeny' | 'implicitDeny';
+  /** `account`: the dev stack's trust in the account with a principal condition. `principal`: the caller by ARN. */
+  trust: 'account' | 'principal';
+  simulation?: AssumeRoleSimulation;
   /** The role trusted the caller long before this call, so AWS has accepted that trust. */
   trustSettled: boolean;
   waitedMs: number;
 }): { verdict: 'wait' | 'timeout' } | { verdict: 'permissions'; reason: string } => {
-  if (PERMISSIONS_DENIAL_REASON.test(message))
+  if (PERMISSIONS_DENIAL_REASON.test(message)) {
     return { verdict: 'permissions', reason: 'AWS says your policies deny it' };
-  if (simulation === 'implicitDeny' || simulation === 'explicitDeny') {
-    return {
-      verdict: 'permissions',
-      reason:
-        simulation === 'explicitDeny'
-          ? 'the IAM policy simulator finds a statement in your policies that denies it'
-          : 'the IAM policy simulator finds no statement in your policies that allows it'
-    };
   }
-  if (trustSettled && simulation !== 'allowed' && waitedMs >= SETTLED_TRUST_DENIAL_MS) {
-    return {
-      verdict: 'permissions',
-      reason: `AWS still denies it ${Math.round(waitedMs / 1000)} s after the role's trust policy, unchanged for minutes, allowed you`
-    };
+  if (trust === 'account' && trustSettled) {
+    const decisive = simulation && !simulation.missingContextValues.length;
+    if (decisive && simulation.decision !== 'allowed') {
+      return {
+        verdict: 'permissions',
+        reason:
+          simulation.decision === 'explicitDeny'
+            ? 'the IAM policy simulator finds a statement in your policies that denies it'
+            : 'the IAM policy simulator finds no statement in your policies that allows it'
+      };
+    }
+    if (!(decisive && simulation.decision === 'allowed') && waitedMs >= SETTLED_TRUST_DENIAL_MS) {
+      return {
+        verdict: 'permissions',
+        reason: `AWS still denies it ${Math.round(waitedMs / 1000)} s after the role's trust policy, unchanged for minutes, allowed you`
+      };
+    }
   }
   return { verdict: waitedMs > TRUST_PROPAGATION_TIMEOUT_MS ? 'timeout' : 'wait' };
 };
@@ -137,7 +154,7 @@ export const getLocalInvokeAwsCredentials = async ({
   const startedAt = Date.now();
   let reportedWaiting = false;
   let simulated = false;
-  let simulation: 'allowed' | 'explicitDeny' | 'implicitDeny' | undefined;
+  let simulation: AssumeRoleSimulation | undefined;
   let credentials: Awaited<ReturnType<typeof awsSdkManager.sts.assumeRoleCredentials>> | undefined;
   while (!credentials) {
     try {
@@ -149,8 +166,9 @@ export const getLocalInvokeAwsCredentials = async ({
     } catch (error) {
       if (!isAssumeRoleAccessDenied(error, roleArn)) throw error;
       const principalArn = getCallerPolicySourceArn(globalStateManager.credentials.identity.arn);
-      // Developers often may not use the simulator; then the denial is judged without it.
-      if (!simulated && principalArn) {
+      // Only a settled account trust can make the simulator's answer decisive. Developers often may not use the
+      // simulator; then the denial is judged without it.
+      if (!simulated && devTrustStatement && trustSettled && principalArn) {
         simulated = true;
         simulation = await awsSdkManager.iam
           .simulatePrincipalPolicy({ principalArn, action: 'sts:AssumeRole', resourceArn: roleArn })
@@ -159,6 +177,7 @@ export const getLocalInvokeAwsCredentials = async ({
       const waitedMs = Date.now() - startedAt;
       const judgement = judgeAssumeRoleDenial({
         message: error instanceof Error ? error.message : String(error),
+        trust: devTrustStatement ? 'account' : 'principal',
         simulation,
         trustSettled,
         waitedMs
