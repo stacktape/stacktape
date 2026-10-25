@@ -132,7 +132,7 @@ export const FAILED_DEV_NETWORK_RECOVERY = [
 export type FailedDevNetwork = { stackName: string; stackId?: string; status: string; reason?: string };
 
 const describeFailure = ({ status, reason }: { status?: string; reason?: string }) =>
-  `${status ?? 'unknown state'}${reason ? `: ${reason}` : ''}`;
+  `${status ?? 'unknown state'}${reason?.trim() ? `: ${reason.trim()}` : ''}`;
 
 const failedDevNetworkError = (failed: FailedDevNetwork, cause?: unknown) =>
   new CliError({
@@ -185,7 +185,7 @@ const toFailedDevNetwork = (stackName: string, stack: SharedStackDetails | undef
   const status = stack?.StackStatus;
   if (!stack || !status || stack.Outputs?.length || status === 'DELETE_COMPLETE' || status.endsWith('_IN_PROGRESS'))
     return undefined;
-  return { stackName, stackId: stack.StackId, status, reason: stack.StackStatusReason };
+  return { stackName, stackId: stack.StackId, status, reason: stack.StackStatusReason?.trim() || undefined };
 };
 
 /**
@@ -246,7 +246,7 @@ const waitForDeletion = async ({
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_DELETE_FAILED',
-        message: `The dev network stack \`${stackName}\` is ${stack.StackStatus === 'DELETE_IN_PROGRESS' ? 'still being deleted' : `in state ${describeFailure({ status: stack.StackStatus, reason: stack.StackStatusReason })} after a deletion`}.`,
+        message: `The dev network stack \`${stackName}\` ${stack.StackStatus === 'DELETE_IN_PROGRESS' ? 'is still being deleted' : `could not be deleted (${describeFailure({ status: stack.StackStatus, reason: stack.StackStatusReason })})`}.`,
         hints: FAILED_DEV_NETWORK_RECOVERY
       });
     }
@@ -332,12 +332,15 @@ export const ensureDevNetwork = async ({
   aws,
   onCreate,
   onDeletionWait,
+  onJoinCreation,
   pollIntervalMs
 }: {
   aws: DevNetworkAws;
   onCreate: () => void;
   /** Called when a deletion of the network runs, before this waits for it to end and creates the network again. */
   onDeletionWait?: () => void;
+  /** Called when another session creates the network, before this waits for that creation. */
+  onJoinCreation?: () => void;
   pollIntervalMs?: number;
 }): Promise<{ network: DevNetwork; action: 'create' | 'upgrade' | 'reuse'; ready: Promise<void> }> => {
   const stackName = getDevNetworkName();
@@ -399,53 +402,70 @@ export const ensureDevNetwork = async ({
   );
   const isSettled = () => settled;
   const pollMs = pollIntervalMs ?? 3000;
+  // CloudFormation's rollback of a failed creation can take far longer than the creation, for example while network
+  // interfaces of dev functions block it, so a failure is reported as soon as the stack leaves the creation.
+  const watchesCreation = !existing || existing.StackStatus === 'CREATE_IN_PROGRESS';
+  const creationFailed = watchesCreation
+    ? (async (): Promise<never> => {
+        while (!isSettled()) {
+          await delay(pollMs);
+          const stack = await aws.stacks.get(stackName).catch(() => undefined);
+          const status = stack?.StackStatus;
+          if (status && status !== 'CREATE_IN_PROGRESS' && status !== 'CREATE_COMPLETE' && !isSettled()) {
+            throw new Error(`CloudFormation reports ${describeFailure({ status, reason: stack?.StackStatusReason })}.`);
+          }
+        }
+        return new Promise<never>(() => {});
+      })()
+    : new Promise<never>(() => {});
+  creationFailed.catch(() => {});
+  const creationFailedError = (error: Error, deployedMeanwhile: boolean) =>
+    new CliError({
+      category: 'CLOUDFORMATION',
+      code: 'DEV_NETWORK_CREATE_FAILED',
+      cause: error,
+      message: `Creating the dev network \`${stackName}\` failed. ${error.message}`,
+      hints: [
+        deployedMeanwhile
+          ? 'This session deployed its dev stage into the network meanwhile, so CloudFormation cannot delete the failed network until the stage is gone.'
+          : 'Another `stacktape dev` session created it and may have deployed its dev stage into it; CloudFormation cannot delete the failed network until such stages are gone.',
+        ...FAILED_DEV_NETWORK_RECOVERY
+      ]
+    });
+  if (existing?.StackStatus === 'CREATE_IN_PROGRESS') onJoinCreation?.();
   const early = !existing
-    ? await waitForBoxOfCreatedNetwork({
-        aws,
-        stackName,
-        isSettled,
-        isCreatedHere: () => createdHere,
-        pollIntervalMs: pollMs
+    ? await Promise.race([
+        waitForBoxOfCreatedNetwork({
+          aws,
+          stackName,
+          isSettled,
+          isCreatedHere: () => createdHere,
+          pollIntervalMs: pollMs
+        }),
+        creationFailed
+      ]).catch((error: Error) => {
+        throw creationFailedError(error, false);
       })
     : undefined;
   if (early) {
-    // CloudFormation's rollback of a failed creation can take far longer than the creation, so the failure is reported
-    // as soon as the stack leaves the creation, not when the rollback ends.
-    const creationFailed = (async (): Promise<never> => {
-      while (!isSettled()) {
-        await delay(pollMs);
-        const stack = await aws.stacks.get(stackName).catch(() => undefined);
-        const status = stack?.StackStatus;
-        if (status && status !== 'CREATE_IN_PROGRESS' && status !== 'CREATE_COMPLETE' && !isSettled()) {
-          throw new Error(`CloudFormation reports ${describeFailure({ status, reason: stack?.StackStatusReason })}`);
-        }
-      }
-      return new Promise<never>(() => {});
-    })();
     const ready = Promise.race([ensured.then(({ profileAttached }) => profileAttached), creationFailed]).catch(
       (error: Error) => {
-        throw new CliError({
-          category: 'CLOUDFORMATION',
-          code: 'DEV_NETWORK_CREATE_FAILED',
-          cause: error,
-          message: `Creating the dev network \`${stackName}\` failed after its dev box was created. ${error.message}`,
-          hints: [
-            'The dev stage was deployed into the network meanwhile, so CloudFormation cannot delete the failed network until the stage is gone.',
-            ...FAILED_DEV_NETWORK_RECOVERY
-          ]
-        });
+        throw error instanceof CliError ? error : creationFailedError(error, true);
       }
     );
     // Awaited later; until then a failed creation must not crash the process.
     ready.catch(() => {});
     return { network: early, action: 'create', ready };
   }
-  const { action, network, profileAttached } = await ensured.catch(async (error: unknown) => {
-    // A creation that failed and could not be deleted again, by this session or another, needs the recovery steps.
-    const failed = toFailedDevNetwork(stackName, await aws.stacks.get(stackName).catch(() => undefined));
-    if (failed) throw failedDevNetworkError(failed, error);
-    throw error;
-  });
+  const { action, network, profileAttached } = await Promise.race([ensured, creationFailed]).catch(
+    async (error: unknown) => {
+      if (!(error instanceof CliError) && watchesCreation) throw creationFailedError(error as Error, false);
+      // A creation that failed and could not be deleted again, by this session or another, needs the recovery steps.
+      const failed = toFailedDevNetwork(stackName, await aws.stacks.get(stackName).catch(() => undefined));
+      if (failed) throw failedDevNetworkError(failed, error);
+      throw error;
+    }
+  );
   profileAttached.catch(() => {});
   return { network, action, ready: profileAttached };
 };

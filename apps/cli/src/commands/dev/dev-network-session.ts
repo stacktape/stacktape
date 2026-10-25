@@ -250,7 +250,11 @@ export const startDevNetworkSession = async ({
     aws,
     onCreate: () => tuiManager.info(COST_EXPLANATION.join(' ')),
     onDeletionWait: () =>
-      tuiManager.info('The dev network is being deleted. Waiting for the deletion to finish, then creating it again.')
+      tuiManager.info('The dev network is being deleted. Waiting for the deletion to finish, then creating it again.'),
+    onJoinCreation: () =>
+      tuiManager.info(
+        'Another `stacktape dev` session is creating the dev network for this AWS account and region. Waiting for it to finish (about 4 minutes).'
+      )
   });
   const owner = getOwner();
   registerSessionCleanupHook();

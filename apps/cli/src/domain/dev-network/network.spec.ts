@@ -373,7 +373,7 @@ const failedAws = ({
 };
 
 describe('a network whose creation failed', () => {
-  test("a session that waited for another one's creation gets the recovery steps when it fails", async () => {
+  test("a session that waited for another one's creation gets the recovery steps as soon as it fails", async () => {
     let reads = 0;
     const { aws: base } = failedAws();
     const states = ['CREATE_IN_PROGRESS', 'CREATE_IN_PROGRESS', 'DELETE_IN_PROGRESS', 'DELETE_FAILED'];
@@ -387,10 +387,14 @@ describe('a network whose creation failed', () => {
         })
       }
     };
-    const error = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 }).catch(
+    const error = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 }).then(
+      () => undefined,
       (caught: { code?: string; hints?: string[] }) => caught
     );
-    expect(error).toMatchObject({ code: 'DEV_NETWORK_CREATION_FAILED', hints: FAILED_DEV_NETWORK_RECOVERY });
+    // The rollback (DELETE_IN_PROGRESS) is not waited for.
+    expect(error).toMatchObject({ code: 'DEV_NETWORK_CREATE_FAILED' });
+    expect(error?.hints?.[0]).toContain('Another `stacktape dev` session created it');
+    expect(error?.hints?.slice(1)).toEqual(FAILED_DEV_NETWORK_RECOVERY);
   });
 
   test('every command that meets it gives the order that works, instead of pointing at another dead end', async () => {
