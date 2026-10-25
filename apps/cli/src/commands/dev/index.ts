@@ -7,10 +7,12 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { createSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinner';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
+import { isResourceTypeExcludedInDevMode } from '@domain-services/config-manager/dev-mode';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { assertExistingDevStack } from './dev-stack-safety';
 import { CliError } from '@utils/errors';
+import { getDeveloperTrustStatement } from 'src/aws/iam';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
@@ -575,7 +577,11 @@ export const commandDev = async () => {
     databases: [],
     sessionId: getAgentSessionId()
   });
-  setDevSessionOwner({ lockFile: getLockFilePath(stackContext.projectName, stackContext.stage), pid: process.pid });
+  setDevSessionOwner({
+    lockFile: getLockFilePath(stackContext.projectName, stackContext.stage),
+    pid: process.pid,
+    stage: stackContext.stage
+  });
   applicationManager.registerCleanUpHook(async () => {
     deleteAgentLockFile(stackContext.projectName, stackContext.stage);
   });
@@ -737,9 +743,18 @@ export const commandDev = async () => {
     });
   }
 
+  // Locally running containers assume their roles with the developer's credentials, and the dev stack trusts the
+  // developer in those roles, so IAM accepts the trust while the stack deploys.
+  const devTrustStatement = configManager.allContainerWorkloads.some(({ configParentResourceType }) =>
+    isResourceTypeExcludedInDevMode(configParentResourceType)
+  )
+    ? getDeveloperTrustStatement(globalStateManager.credentials.identity.arn)
+    : undefined;
+  configManager.setDevTrustStatement(devTrustStatement);
   const desiredDevStackConfigFingerprint = getDevStackConfigFingerprint({
     config: configManager.config,
-    devNetwork: devNetworkSession?.placement
+    devNetwork: devNetworkSession?.placement,
+    devTrustStatement
   });
   const devStackConfigChanged = devStackConfigNeedsUpdate({
     deployedFingerprint: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.devStackConfigFingerprint()),

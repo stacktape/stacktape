@@ -4,7 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 
 // Track registered hooks by name to prevent duplicates
@@ -56,15 +56,17 @@ export const getDevContainerName = ({
 };
 
 /**
- * Every dev session, terminal or agent, writes a lock file and labels the containers it starts with that lock file and
- * its process id. Cleanup reads the labels to tell a live session's containers from abandoned ones.
+ * Every dev session, terminal or agent, writes a lock file and labels the containers it starts with that lock file, its
+ * process id and its stage. Cleanup reads the labels to tell a live session's containers from abandoned ones, and the
+ * containers of this project directory and stage from those of others: the lock file lives in the project directory.
  */
 const OWNER_LOCK_LABEL = 'stacktape.dev.lock';
 const OWNER_PID_LABEL = 'stacktape.dev.pid';
+const OWNER_STAGE_LABEL = 'stacktape.dev.stage';
 
-let devSessionOwner: { lockFile: string; pid: number } | undefined;
+let devSessionOwner: { lockFile: string; pid: number; stage: string } | undefined;
 
-export const setDevSessionOwner = (owner: { lockFile: string; pid: number }) => {
+export const setDevSessionOwner = (owner: { lockFile: string; pid: number; stage: string }) => {
   devSessionOwner = owner;
 };
 
@@ -75,29 +77,50 @@ export const getDevContainerOwnerArgs = (): string[] =>
         '--label',
         `${OWNER_LOCK_LABEL}=${devSessionOwner.lockFile}`,
         '--label',
-        `${OWNER_PID_LABEL}=${devSessionOwner.pid}`
+        `${OWNER_PID_LABEL}=${devSessionOwner.pid}`,
+        '--label',
+        `${OWNER_STAGE_LABEL}=${devSessionOwner.stage}`
       ]
     : [];
 
 /** The same labels in the `--name value` form that `dockerRun`'s extra `dockerArgs` expect. */
 export const getDevContainerOwnerDockerArgs = (): string[] => {
   const args = getDevContainerOwnerArgs();
-  return args.length ? [`${args[0]} ${args[1]}`, `${args[2]} ${args[3]}`] : [];
+  const pairs: string[] = [];
+  for (let index = 0; index < args.length; index += 2) pairs.push(`${args[index]} ${args[index + 1]}`);
+  return pairs;
 };
 
-type DevContainer = { name: string; state: string; lockFile?: string; pid?: number };
+export type DevContainer = { name: string; state: string; lockFile?: string; pid?: number; stage?: string };
 
 /**
- * The dev containers `dev:stop --cleanupContainers` may remove: every stopped container, and a running one only when
+ * Whether a dev container was started in a project directory, and on a stage when one is given. Its lock-file label
+ * names the directory. A container without labels comes from an older CLI and belongs to no known project.
+ */
+export const isDevContainerOfProject = (
+  { lockFile, stage }: Pick<DevContainer, 'lockFile' | 'stage'>,
+  scope: { lockDirectory: string; stage?: string },
+  isSameDirectory: (a: string, b: string) => boolean
+): boolean => {
+  if (!lockFile || !isSameDirectory(dirname(lockFile), scope.lockDirectory)) return false;
+  return !scope.stage || stage === scope.stage;
+};
+
+/**
+ * The dev containers `dev stop --cleanup-containers` may remove: every stopped container, and a running one only when
  * its session is known to be gone (its lock file is missing or no longer names its process, or that process exited).
  * A running container without owner labels comes from an older CLI; its session cannot be checked, so it stays.
+ * `isInScope` limits the choice to one project's containers.
  */
 export const selectRemovableDevContainers = (
   containers: DevContainer[],
-  sessionIsAlive: (owner: { lockFile: string; pid: number }) => boolean
+  sessionIsAlive: (owner: { lockFile: string; pid: number }) => boolean,
+  isInScope: (container: DevContainer) => boolean = () => true
 ): string[] =>
   containers
-    .filter(({ state, lockFile, pid }) => {
+    .filter((container) => {
+      if (!isInScope(container)) return false;
+      const { state, lockFile, pid } = container;
       if (state !== 'running' && state !== 'restarting' && state !== 'paused') return true;
       if (!lockFile || !pid) return false;
       return !sessionIsAlive({ lockFile, pid });
@@ -115,8 +138,10 @@ const isDevSessionAlive = ({ lockFile, pid }: { lockFile: string; pid: number })
   }
 };
 
-/** Stop and remove the dev containers no live session owns. */
-export const cleanupOrphanedContainers = async (): Promise<string[]> => {
+/** Stop and remove the dev containers in scope that no live session owns, and return their names. */
+export const cleanupOrphanedContainers = async ({
+  isInScope
+}: { isInScope?: (container: DevContainer) => boolean } = {}): Promise<string[]> => {
   const { execDocker } = await import('@utils/docker');
 
   try {
@@ -128,7 +153,7 @@ export const cleanupOrphanedContainers = async (): Promise<string[]> => {
         '--filter',
         'name=^stp-',
         '--format',
-        `{{.Names}}\t{{.State}}\t{{.Label "${OWNER_LOCK_LABEL}"}}\t{{.Label "${OWNER_PID_LABEL}"}}`
+        `{{.Names}}\t{{.State}}\t{{.Label "${OWNER_LOCK_LABEL}"}}\t{{.Label "${OWNER_PID_LABEL}"}}\t{{.Label "${OWNER_STAGE_LABEL}"}}`
       ],
       { skipHandleError: true }
     );
@@ -138,28 +163,27 @@ export const cleanupOrphanedContainers = async (): Promise<string[]> => {
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line): DevContainer => {
-        const [name, state, lockFile, pid] = line.split('\t');
-        return { name, state, lockFile: lockFile || undefined, pid: Number(pid) || undefined };
+        const [name, state, lockFile, pid, stage] = line.split('\t');
+        return {
+          name,
+          state,
+          lockFile: lockFile || undefined,
+          pid: Number(pid) || undefined,
+          stage: stage || undefined
+        };
       });
 
-    const orphanedContainers = selectRemovableDevContainers(containers, isDevSessionAlive);
-
-    if (orphanedContainers.length === 0) {
-      return [];
-    }
+    const orphanedContainers = selectRemovableDevContainers(containers, isDevSessionAlive, isInScope);
 
     const removedContainers: string[] = [];
-
     for (const name of orphanedContainers) {
       try {
-        // Stop the container (if running)
+        // Stop a running database gracefully, so its data stays consistent.
         await execDocker(['stop', name], { skipHandleError: true });
       } catch {
         // Container might already be stopped
       }
-
       try {
-        // Remove the container
         await execDocker(['rm', '-f', name], { skipHandleError: true });
         removedContainers.push(name);
       } catch {

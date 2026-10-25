@@ -1,3 +1,4 @@
+import type { DeveloperTrustStatement } from 'src/aws/iam';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { GlobalConfigResponse } from '@stacktape-api/api-key-protected';
@@ -167,6 +168,7 @@ export class ConfigManager {
   #discoveredConfig: DiscoveredConfig | undefined;
   #cliRemoteResourceNames: readonly string[] = [];
   #devNetworkPlacement: DevNetworkPlacement | undefined;
+  #devTrustStatement: DeveloperTrustStatement | undefined;
 
   private get stackContext(): StackContext {
     if (!this.#stackContext) {
@@ -319,12 +321,21 @@ export class ConfigManager {
     this.#securityScanning = {};
     this.#cliRemoteResourceNames = [];
     this.#devNetworkPlacement = undefined;
+    this.#devTrustStatement = undefined;
     this.#discoveredConfig = undefined;
   };
 
   /** Set by `stacktape dev` before it synthesizes the dev stack; see `DevNetworkPlacement`. */
   setDevNetworkPlacement = (placement: DevNetworkPlacement | undefined) => {
     this.#devNetworkPlacement = placement;
+  };
+
+  /**
+   * Set by `stacktape dev` before it synthesizes the dev stack: the trust in the developer that the roles of locally
+   * running containers get, so that AWS accepts it while the stack deploys.
+   */
+  setDevTrustStatement = (statement: DeveloperTrustStatement | undefined) => {
+    this.#devTrustStatement = statement;
   };
 
   validateGuardrails = ({ hasConfig }: { hasConfig: boolean }) =>
@@ -942,6 +953,7 @@ export class ConfigManager {
     command: StackContext['command'];
     remoteResourceNames: Set<string>;
     devNetwork?: DevNetworkPlacement;
+    devTrustStatement?: DeveloperTrustStatement;
   } {
     const remoteResourceNames = new Set(this.#cliRemoteResourceNames);
     for (const resource of [
@@ -956,7 +968,8 @@ export class ConfigManager {
     return {
       command: this.stackContext.command,
       remoteResourceNames,
-      devNetwork: this.stackContext.command === 'dev' ? this.#devNetworkPlacement : undefined
+      devNetwork: this.stackContext.command === 'dev' ? this.#devNetworkPlacement : undefined,
+      devTrustStatement: this.stackContext.command === 'dev' ? this.#devTrustStatement : undefined
     };
   }
 

@@ -3508,10 +3508,11 @@ stacktape dev stop --agent-port 7332
 
 ### --cleanup-containers
 
-Crashed or improperly terminated dev sessions can leave orphaned Docker containers running. The `--cleanup-containers` flag finds and removes any Stacktape dev containers whose agent process is no longer running. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (stopping the project's agent, or failing with the list when several stages run).
+A dev session removes its database containers when it stops; their data stays in `.stacktape/dev-data/{stage}/`. A session that crashed or was killed leaves its containers behind. The `--cleanup-containers` flag removes the containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With `--stage`, it removes only that stage's. Containers of other projects and Git worktrees stay; add `--all` to remove those of every project on the machine. The result lists the removed containers in `removedContainers`. After cleanup, the command checks for running agents via lock files — if none are found, it exits; if agents are found, normal agent-stop behavior continues (stopping the project's agent, or failing with the list when several stages run).
 
 ```bash
 stacktape dev stop --cleanup-containers
+stacktape dev stop --cleanup-containers --all
 ```
 
 You can combine `--cleanup-containers` with `--agent-port` to both clean up containers and stop a specific agent in one command.
@@ -3530,8 +3531,9 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
 | `--agent-port` | no | `number` | Agent Port — Stops the dev agent on this port, wherever it was started. | - |
+| `--all` | no | `boolean` | All — With `--cleanup-containers`, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--cleanup-containers` | no | `boolean` | Cleanup Containers — Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown. | - |
+| `--cleanup-containers` | no | `boolean` | Cleanup Containers — Removes the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With `--stage`, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add `--all`. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -8986,6 +8988,9 @@ Assuming a resource named `usersTable`:
 | `name` | `STP_USERS_TABLE_NAME` | Table name |
 | `arn` | `STP_USERS_TABLE_ARN` | Table ARN |
 | `streamArn` | `STP_USERS_TABLE_STREAM_ARN` | DynamoDB Streams ARN |
+| `endpoint` | `STP_USERS_TABLE_ENDPOINT` | Dev mode only: address of the local DynamoDB Local |
+
+In [dev mode](/getting-started/use-the-dev-mode), local tables run in DynamoDB Local. A workload, local script or frontend connected to them also gets `AWS_ENDPOINT_URL_DYNAMODB`, which the AWS SDK reads, so `new DynamoDBClient({})` reaches the local tables without code changes. A workload connected to both a local and a deployed table does not get it, because one endpoint cannot serve both; pass `STP_<TABLE>_ENDPOINT` as the `endpoint` of the client for the local table instead.
 
 ### SQS queue
 
@@ -16327,7 +16332,7 @@ To run only specific resources:
 stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
 ```
 
-Dev mode reads your `stacktape.ts` once at startup. If you add resources, change environment variables, or modify connections, restart dev mode for changes to take effect.
+Dev mode watches your `stacktape.ts`. Code changes are rebuilt, but a configuration change (new resources, environment variables, connections) needs a restart: dev mode tells you so and refuses rebuilds until you restart it. The restart updates the dev stack with the new configuration.
 
 
 > **Tip:** When multiple developers work on the same project, use a unique stage name per developer (e.g., `--stage dev-alice`, `--stage dev-bob`). Each stage gets its own dev stack and local data directory.
@@ -16345,7 +16350,9 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
 | Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
 
-Lambda functions have their code built and pushed to AWS, where they run. They cannot reach the databases running on your machine, so connect them to the deployed databases with `--remote-resources`. Logs from Lambda invocations stream directly to your terminal.
+Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to connect them to deployed databases instead. Logs from Lambda invocations stream directly to your terminal.
+
+A container workload counts as running once its port accepts connections, so a test started when dev mode reports it ready reaches the app. All local DynamoDB tables run in one DynamoDB Local, and workloads, local scripts and frontends connected to them get `AWS_ENDPOINT_URL_DYNAMODB`, so unchanged AWS SDK code uses the local tables.
 
 ## The edit-save-see loop
 
@@ -18615,6 +18622,8 @@ A second `stacktape dev` for a stage that another session holds is refused befor
 ### AWS permissions
 
 The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParametersByPath`, `ssm:PutParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases are kept.
+
+Container workloads that run on your machine use the AWS permissions of their role in the dev stack: dev mode assumes the role with your credentials, so they need `sts:AssumeRole` on it. The container roles of the dev stack trust your AWS account only for your own IAM user, or the IAM role of your session (an `aws:PrincipalArn` condition), and no other principal. Credentials of a federated user cannot be named this way; for them, dev mode adds the trust after the deploy, and a container's first start on a new stage can then wait several minutes until AWS accepts it.
 
 The first session in an account and region creates the dev network with CloudFormation, using the credentials of whoever runs it. That identity also needs `ssm:GetParameter` on the public Amazon Linux parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64`, `cloudformation:ListStackResources` on the dev network stack, and the rights to create the network's VPC, subnets, route tables, internet gateway, security groups, launch template, EC2 instance, IAM role and instance profile (with `iam:PassRole`), and the keeper Lambda function. The box starts before CloudFormation has finished its instance profile, which takes about 2 minutes, and the session attaches the profile once it exists, with `ec2:AssociateIamInstanceProfile`. A later session attaches it when the first one ended before it could. `stacktape dev network` and `stacktape dev network delete` also need `lambda:ListFunctions`, and the deletion needs the rights to delete those resources. While the box runs, the deletion asks it for live sessions over Systems Manager, with the same `ssm:DescribeInstanceInformation`, `ssm:StartSession` and `ssm:TerminateSession` rights as a session.
 
@@ -48207,7 +48216,7 @@ curl -H "$AUTH" $AGENT/status
 
 `sessionId`, `projectDirectory`, `projectName`, `stage` and `region` identify the session; `dev stop` and the MCP server use them to find the agent of a project.
 
-The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready`, every workload is `running`, and the configuration file still matches the one the session started with. A workload that failed, crashed or failed to rebuild makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down or runs outdated code. When the configuration file changed, `ready` is false and `restartRequired` explains that dev mode has to restart (see [Rebuild](#rebuild)).
+The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready`, every workload is `running`, and the configuration file still matches the one the session started with. A container workload with a port is `running` once that port accepts connections, after a start and after a rebuild; one that does not within 120 seconds gets the status `error`. A workload that failed, crashed or failed to rebuild makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down or runs outdated code. When the configuration file changed, `ready` is false and `restartRequired` explains that dev mode has to restart (see [Rebuild](#rebuild)).
 
 If a workload fails while `stacktape dev --agent` is starting, the command stops the session, prints each failed workload with its error and the log file path, and exits with a non-zero code.
 

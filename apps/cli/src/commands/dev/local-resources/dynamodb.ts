@@ -150,35 +150,30 @@ const createTableIfNotExists = async (
   }
 };
 
-export const startLocalDynamoDb = async (
-  config: LocalResourceConfig & { containerName: string }
-): Promise<LocalResourceInstance> => {
-  const { name, port, dataDir, containerName } = config;
+/** Starts of the shared DynamoDB Local container in progress, so the tables that start together run one container. */
+const containerStarts = new Map<string, Promise<number>>();
+
+/**
+ * Starts the session's DynamoDB Local container, or reuses it when it runs, and returns its host port. Every local table
+ * of the session lives in this one container; see `SHARED_DYNAMODB_LOCAL_NAME`.
+ */
+const ensureDynamoDbLocalContainer = (config: LocalResourceConfig & { containerName: string }): Promise<number> => {
+  const { containerName } = config;
+  const running = containerStarts.get(containerName);
+  if (running) return running;
+  const start = startDynamoDbLocalContainer(config).finally(() => containerStarts.delete(containerName));
+  containerStarts.set(containerName, start);
+  return start;
+};
+
+const startDynamoDbLocalContainer = async ({
+  port,
+  dataDir,
+  containerName
+}: LocalResourceConfig & { containerName: string }): Promise<number> => {
   const defaultPort = DEFAULT_PORTS.dynamodb;
-
-  // Get table config for creating the table
-  const tableConfig = configManager.dynamoDbTables?.find((t) => t.name === name);
-
-  // Return existing instance if container is already running
   if (await isContainerRunning(containerName)) {
-    const actualPort = await getContainerPort(containerName, defaultPort, port);
-    const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, name);
-
-    // Ensure table exists (may have been deleted or container restarted with empty data)
-    if (tableConfig) {
-      try {
-        await createTableIfNotExists(actualPort, name, tableConfig);
-      } catch (err) {
-        tuiManager.warn(`Failed to ensure DynamoDB table exists: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    return buildLocalResourceInstance({
-      config,
-      host: DEFAULT_LOCAL_HOST,
-      actualPort,
-      ...connInfo
-    });
+    return getContainerPort(containerName, defaultPort, port);
   }
 
   // Remove stopped container with same name if it exists
@@ -229,8 +224,18 @@ export const startLocalDynamoDb = async (
       return result.success;
     }
   });
+  return actualPort;
+};
 
-  // Create the table
+/** Starts one local table: the shared DynamoDB Local container, then the table in it unless it exists. */
+export const startLocalDynamoDb = async (
+  config: LocalResourceConfig & { containerName: string }
+): Promise<LocalResourceInstance> => {
+  const { name } = config;
+  const tableConfig = configManager.dynamoDbTables?.find((t) => t.name === name);
+  const actualPort = await ensureDynamoDbLocalContainer(config);
+
+  // The table may be missing although the container runs: it was deleted, or the data directory is new.
   if (tableConfig) {
     try {
       await createTableIfNotExists(actualPort, name, tableConfig);

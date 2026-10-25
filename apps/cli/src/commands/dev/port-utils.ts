@@ -2,7 +2,7 @@
  * Port management utilities for dev servers.
  * Handles port conflicts, process cleanup, and port allocation.
  */
-import { createServer } from 'node:net';
+import { connect, createServer } from 'node:net';
 import { DEV_CONFIG } from './dev-config';
 
 /** Cache for port availability checks to avoid repeated socket operations */
@@ -88,6 +88,63 @@ const checkPortAvailability = (port: number): Promise<boolean> => {
 
     server.listen(port, '127.0.0.1');
   });
+};
+
+/**
+ * Whether a program accepts TCP connections on a local port. Docker's port proxy accepts a connection on a published
+ * port before the program in the container listens, then closes it at once, so a connection that is closed within
+ * `holdMs` without data does not count.
+ */
+export const acceptsTcpConnection = ({
+  port,
+  holdMs = 150,
+  connectTimeoutMs = 1000
+}: {
+  port: number;
+  holdMs?: number;
+  connectTimeoutMs?: number;
+}): Promise<boolean> =>
+  new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port });
+    const finish = (accepted: boolean) => {
+      clearTimeout(timer);
+      socket.removeAllListeners();
+      socket.on('error', () => {});
+      socket.destroy();
+      resolve(accepted);
+    };
+    let timer = setTimeout(() => finish(false), connectTimeoutMs);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => finish(true), holdMs);
+    });
+    socket.once('data', () => finish(true));
+    socket.once('close', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+
+/**
+ * Waits until a local port accepts TCP connections (see `acceptsTcpConnection`). Gives up after `timeoutMs`, or when
+ * `shouldStop` says the program it waits for is gone.
+ */
+export const waitForTcpPort = async ({
+  port,
+  timeoutMs,
+  shouldStop = () => false,
+  pollIntervalMs = 200
+}: {
+  port: number;
+  timeoutMs: number;
+  shouldStop?: () => boolean;
+  pollIntervalMs?: number;
+}): Promise<'ready' | 'timeout' | 'stopped'> => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (shouldStop()) return 'stopped';
+    if (await acceptsTcpConnection({ port })) return shouldStop() ? 'stopped' : 'ready';
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+  return shouldStop() ? 'stopped' : 'timeout';
 };
 
 /**

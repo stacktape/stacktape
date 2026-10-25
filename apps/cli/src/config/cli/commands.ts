@@ -8,6 +8,7 @@ import {
   devAgentPort,
   devStopAgentPort,
   awsAccount,
+  allDevContainers,
   cleanupContainers,
   freshDb,
   takeOver,
@@ -178,13 +179,14 @@ Use this command to gracefully stop a dev agent that was started with \`dev --ag
 
 It stops the agent of the project in the current directory, or in \`--cwd\`. When several stages of the project run, choose one with \`--stage\`; the command stops none and fails with the list instead of guessing. \`--agent-port\` stops the agent on that port, wherever it was started. Agents of other directories are never stopped by a guess.
 
-Use \`--cleanup-containers\` to remove orphaned Docker containers left behind by crashed dev sessions.`,
+Use \`--cleanup-containers\` to remove the Docker containers that crashed dev sessions of this project left behind; add \`--all\` for every project on this machine.`,
     args: {
       ...universalArgs,
       ...configDependentArgs,
       stage: stage.optional(),
       agentPort: devStopAgentPort.optional(),
-      cleanupContainers: cleanupContainers.optional()
+      cleanupContainers: cleanupContainers.optional(),
+      all: allDevContainers.optional()
     },
     requiredArgs: [] as const
   },

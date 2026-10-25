@@ -246,6 +246,9 @@ Assuming a resource named `usersTable`:
 | `name` | `STP_USERS_TABLE_NAME` | Table name |
 | `arn` | `STP_USERS_TABLE_ARN` | Table ARN |
 | `streamArn` | `STP_USERS_TABLE_STREAM_ARN` | DynamoDB Streams ARN |
+| `endpoint` | `STP_USERS_TABLE_ENDPOINT` | Dev mode only: address of the local DynamoDB Local |
+
+In [dev mode](/getting-started/use-the-dev-mode), local tables run in DynamoDB Local. A workload, local script or frontend connected to them also gets `AWS_ENDPOINT_URL_DYNAMODB`, which the AWS SDK reads, so `new DynamoDBClient({})` reaches the local tables without code changes. A workload connected to both a local and a deployed table does not get it, because one endpoint cannot serve both; pass `STP_<TABLE>_ENDPOINT` as the `endpoint` of the client for the local table instead.
 
 ### SQS queue
 

@@ -57,7 +57,10 @@ const resolveDevContainerWorkloadRole = ({ definition }: { definition: StpContai
       accessToResourcesRequiringRoleChanges,
       accessToAwsServices,
       enableRemoteSessions: definition.enableRemoteSessions,
-      mountedEfsFilesystems
+      mountedEfsFilesystems,
+      // The local container assumes the role with the developer's credentials. Trusting the developer in the template
+      // lets AWS accept the trust while the stack deploys; added after the deploy, it took 95 to 300 s.
+      devTrustStatement: configManager.deploymentContext.devTrustStatement
     }),
     nameChain
   });

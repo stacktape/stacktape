@@ -136,6 +136,8 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   port?: number;
   /** Local workload addresses for substituting $ResourceParam directives */
   localWorkloadAddresses?: Record<string, string>;
+  /** Called when AWS does not let the developer assume the workload's role yet and the call waits for it. */
+  onWaitingForAwsRole?: () => void;
 }): Promise<Record<string, any>> => {
   // Augment environment with source maps and experimental flags for JS/TS workloads
   const augmentedEnv = getAugmentedEnvironment({
@@ -162,7 +164,8 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     const isDevStack = globalStateManager.command === 'dev';
     awsCredentialsEnvVars = await getLocalInvokeAwsCredentials({
       assumeRoleOfWorkload: jobDetails.workloadName,
-      isDevStack
+      isDevStack,
+      onWaitingForTrust: jobDetails.onWaitingForAwsRole
     });
     const sessionDuration = isDevStack ? DEV_SESSION_DURATION_SECONDS : SESSION_DURATION_SECONDS;
     const workloadName = jobDetails.workloadName;
