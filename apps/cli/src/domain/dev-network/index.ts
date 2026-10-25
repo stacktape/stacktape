@@ -207,6 +207,17 @@ export const readDevNetwork = async (aws: DevNetworkAws): Promise<DevNetwork | u
     throw devNetworkBusyError(stackName, stack.StackStatus);
   const failed = toFailedDevNetwork(stackName, stack);
   if (failed) throw failedDevNetworkError(failed);
+  if (stack.StackStatus === 'DELETE_IN_PROGRESS' && !stack.Outputs?.length) {
+    throw new CliError({
+      category: 'CLOUDFORMATION',
+      code: 'DEV_NETWORK_BEING_DELETED',
+      message: `CloudFormation is deleting the dev network stack \`${stackName}\` after its creation failed (${describeFailure({ status: stack.StackStatus, reason: stack.StackStatusReason })}).`,
+      hints: [
+        'Dev stages deployed into the network keep it from being deleted; then the deletion fails after a while.',
+        ...FAILED_DEV_NETWORK_RECOVERY
+      ]
+    });
+  }
   return readOutputs(stackName, stack);
 };
 

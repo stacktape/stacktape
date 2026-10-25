@@ -15876,6 +15876,7 @@
         "page:/cli/dev-network#usage",
         "page:/cli/dev-network#who-can-reach-the-tunnels",
         "page:/cli/dev-network#deleting-the-dev-network",
+        "page:/cli/dev-network#when-creating-the-network-failed",
         "page:/cli/dev-network#flags-reference",
         "page:/cli/dev-network#cli-options-stacktape-dev-network",
         "page:/cli/dev-network#cli-options-stacktape-dev-network-delete",

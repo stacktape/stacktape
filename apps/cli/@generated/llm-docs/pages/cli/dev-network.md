@@ -44,6 +44,15 @@ The command also refuses while someone else depends on the network:
 
 A `stacktape dev` that starts while the network is being deleted waits for the deletion to finish and then creates a new network.
 
+### When creating the network failed
+
+The first `stacktape dev` deploys its dev stage into the network while CloudFormation still creates the network's last parts. When one of them fails, CloudFormation cannot delete the network again while the stage's functions use its subnets, and the network stays behind in `DELETE_FAILED`. `stacktape dev` and `stacktape dev network` then report the failure and the steps that remove it:
+
+1. Delete the dev stages that use the network, with [`stacktape delete --stage <stage>`](/cli/delete).
+2. Wait a few minutes: Lambda releases the network interfaces of deleted functions only after a while.
+3. Run `stacktape dev network delete`. It deletes the failed network by its stack name and refuses while dev functions still use it.
+4. Run `stacktape dev` again; it creates a new network.
+
 Pass `--yes` to skip the confirmation prompt, for example in a script.
 
 ## Flags reference
