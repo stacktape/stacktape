@@ -297,7 +297,19 @@ export const mergeAgentSubmission = ({
   const CHALLENGEABLE = ['port', 'framework'] as const;
 
   for (const submitted of submission.services) {
-    const existingIndex = servicesByPath.get(submitted.path);
+    // Several functions often share one directory, so a function is matched by its entry file first; matching by
+    // directory alone folded the worker's submission into the API function.
+    const byEntrypoint =
+      submitted.functionEntrypoint === undefined
+        ? -1
+        : services.findIndex((service) => service.functionEntrypoint === submitted.functionEntrypoint);
+    const existingIndex =
+      byEntrypoint !== -1
+        ? byEntrypoint
+        : submitted.functionEntrypoint !== undefined &&
+            services.some((service) => service.path === submitted.path && service.functionEntrypoint !== undefined)
+          ? undefined
+          : servicesByPath.get(submitted.path);
     if (existingIndex === undefined) {
       services.push({ ...submitted, source: 'agent' });
       servicesByPath.set(submitted.path, services.length - 1);
@@ -339,6 +351,7 @@ export const mergeAgentSubmission = ({
       port: existing.port ?? submitted.port,
       buildCommand: existing.buildCommand ?? submitted.buildCommand,
       startCommand: existing.startCommand ?? submitted.startCommand,
+      devCommand: existing.devCommand ?? submitted.devCommand,
       containerEntrypoint: existing.containerEntrypoint ?? submitted.containerEntrypoint,
       functionEntrypoint: existing.functionEntrypoint ?? submitted.functionEntrypoint,
       functionTriggers: existing.functionTriggers.length > 0 ? existing.functionTriggers : submitted.functionTriggers,

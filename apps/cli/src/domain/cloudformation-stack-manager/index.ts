@@ -329,16 +329,21 @@ class StackManager {
   };
 
   getStatementsForDatabaseDeleteProtection = () => {
+    // CloudFormation rejects a policy naming a resource the template does not contain. A dev stack leaves its
+    // databases out because they run on the developer's machine, so their protection has nothing to apply to.
+    const templateResources = templateManager.template.Resources ?? {};
     return (
-      configManager.cfLogicalNamesToBeProtected?.map(
-        (cfLogicalName) =>
-          ({
-            Effect: 'Deny',
-            Action: ['Update:Replace', 'Update:Delete'],
-            Principal: '*',
-            Resource: [`LogicalResourceId/${cfLogicalName}`]
-          }) as IamRoleStatement
-      ) || []
+      configManager.cfLogicalNamesToBeProtected
+        ?.filter((cfLogicalName) => cfLogicalName in templateResources)
+        .map(
+          (cfLogicalName) =>
+            ({
+              Effect: 'Deny',
+              Action: ['Update:Replace', 'Update:Delete'],
+              Principal: '*',
+              Resource: [`LogicalResourceId/${cfLogicalName}`]
+            }) as IamRoleStatement
+        ) || []
     );
   };
 

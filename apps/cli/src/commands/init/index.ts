@@ -2,7 +2,7 @@ import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { resolveRegionValue } from '@application-services/global-state-manager/invocation-target';
-import { runInit } from 'src/init/run-init';
+import { runInit, type MachineRegionSource } from 'src/init/run-init';
 import { openBrowser } from '../_utils/browser';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initUsingStarterProject } from './using-starter-project';
@@ -28,11 +28,20 @@ export const commandInit = async () => {
 
   // The region later commands would use on this machine, in the CLI's order. `AWS_REGION`, which the AWS SDKs read,
   // counts too: init used it before Stacktape deploys looked at the config.
-  const machineRegion = resolveRegionValue({
+  const resolvedRegion = resolveRegionValue({
     envRegion: process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION,
     defaultRegion: globalStateManager.persistedState?.cliArgsDefaults?.region,
     profileRegion: globalStateManager.profileRegion
-  })?.value;
+  });
+  const machineRegion = resolvedRegion?.value;
+  const machineRegionSource: MachineRegionSource | undefined =
+    resolvedRegion?.source === 'env'
+      ? { kind: 'environment', variable: process.env.AWS_DEFAULT_REGION ? 'AWS_DEFAULT_REGION' : 'AWS_REGION' }
+      : resolvedRegion?.source === 'default'
+        ? { kind: 'stacktape-defaults' }
+        : resolvedRegion?.source === 'profile'
+          ? { kind: 'aws-profile', profile: globalStateManager.awsProfileName }
+          : undefined;
 
   const outcome = await runInit({
     repositoryRoot,
@@ -42,6 +51,7 @@ export const commandInit = async () => {
     ...(args.infrastructureType === undefined ? {} : { mode: args.infrastructureType }),
     ...(args.awsAccount === undefined ? {} : { awsAccount: args.awsAccount }),
     ...(machineRegion === undefined ? {} : { machineRegion }),
+    ...(machineRegionSource === undefined ? {} : { machineRegionSource }),
     // `--noBrowser` still starts the wizard and still prints its address; it only stops us from
     // deciding which browser sees it. That matters over a forwarded port, and for anyone whose
     // default browser is not the one they work in.

@@ -9,8 +9,13 @@ const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'open-search-domain'
 ];
 
-/** Costly cloud-only resources excluded from dev stacks unless explicitly marked `dev.remote: true`. */
-const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster'];
+/**
+ * Cloud-only resources excluded from dev stacks unless they are remote: Kafka when marked `dev.remote: true` or named
+ * in `--remote-resources`, a bastion also whenever a remote database, Redis or OpenSearch domain needs it (see
+ * `withBastionsForRemoteResources`). With everything local, a bastion has nothing to reach, and deploying it would
+ * keep the stage's own VPC, where VPC functions cannot reach the local databases.
+ */
+const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster', 'bastion'];
 
 /** Resource types that run locally (containers, frontends) - entirely skipped in dev stack */
 export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [
@@ -27,6 +32,28 @@ export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [
   'tanstack-web',
   'remix-web'
 ];
+
+/**
+ * The remote resources of a dev stack plus its bastions when a remote resource sits in the VPC. Local workloads reach
+ * a deployed private database only through a deployed bastion, so naming the database in `--remote-resources` keeps
+ * the bastion too.
+ */
+export const withBastionsForRemoteResources = ({
+  remoteResourceNames,
+  vpcResourceNames,
+  bastionNames
+}: {
+  remoteResourceNames: ReadonlySet<string>;
+  /** Databases, Redis clusters and OpenSearch domains: what a local workload reaches through a bastion. */
+  vpcResourceNames: readonly string[];
+  bastionNames: readonly string[];
+}): Set<string> => {
+  const names = new Set(remoteResourceNames);
+  if (vpcResourceNames.some((name) => remoteResourceNames.has(name))) {
+    for (const name of bastionNames) names.add(name);
+  }
+  return names;
+};
 
 /** Check if a resource type should be completely excluded from the dev stack template */
 export const isResourceTypeExcludedInDevMode = (resourceType: StpResourceType): boolean => {

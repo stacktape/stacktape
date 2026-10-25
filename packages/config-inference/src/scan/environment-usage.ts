@@ -24,6 +24,7 @@
 import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Citation } from '../facts/citation';
+import { posix } from 'node:path';
 import type { SourceRead } from './read-source';
 import { AMBIGUOUS_DATABASE_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
 import { isPlatformEnvironmentVariable } from './platform-environment';
@@ -138,6 +139,62 @@ const EXCLUDED_PATH = new RegExp(
 );
 
 const EXCLUDED_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$/i;
+
+const JS_SOURCE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+const IMPORT_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)['"`]([^'"`]+)['"`]/gm;
+const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
+
+/** A repository file an import specifier names, `external` for a package, or undefined when it cannot be resolved. */
+const resolveImport = (
+  fromFile: string,
+  specifier: string,
+  files: ReadonlySet<string>
+): string | 'external' | undefined => {
+  // Path aliases (`@/lib/db`, `~/db`, `#db`) point into the project, but resolving them needs the tsconfig.
+  if (/^(?:@\/|~\/|#)/.test(specifier)) return undefined;
+  if (!specifier.startsWith('.')) return 'external';
+  const base = posix.normalize(posix.join(posix.dirname(fromFile), specifier));
+  const withoutJsExtension = base.replace(/\.[cm]?jsx?$/, '');
+  const candidates = [
+    base,
+    ...RESOLVABLE_EXTENSIONS.map((extension) => `${withoutJsExtension}${extension}`),
+    ...RESOLVABLE_EXTENSIONS.map((extension) => `${base}/index${extension}`)
+  ];
+  return candidates.find((candidate) => files.has(candidate));
+};
+
+/**
+ * The source files a JavaScript function's entry file reaches through relative imports, or undefined when an import
+ * into the project cannot be followed.
+ *
+ * Two functions in one directory usually share a database module but not everything else: the API publishes to the
+ * queue, the worker only consumes it. Following the imports gives each function the variables its own code reads, so
+ * each gets its own `connectTo`. When an alias or a missing file hides part of the graph, the caller falls back to the
+ * whole directory, because a missing connection breaks the function and an extra one only grants access.
+ */
+const importClosure = async (
+  entry: string,
+  files: ReadonlySet<string>,
+  read: (path: string) => Promise<string | undefined>
+): Promise<string[] | undefined> => {
+  const seen = new Set<string>([entry]);
+  const queue = [entry];
+  while (queue.length > 0) {
+    const file = queue.shift()!;
+    // oxlint-disable-next-line no-await-in-loop -- breadth-first over a bounded graph, in a reproducible order.
+    const contents = await read(file);
+    if (contents === undefined) return undefined;
+    for (const match of contents.matchAll(IMPORT_SPECIFIER)) {
+      const resolved = resolveImport(file, match[1]!, files);
+      if (resolved === undefined) return undefined;
+      if (resolved === 'external' || seen.has(resolved) || !JS_SOURCE.test(resolved)) continue;
+      if (seen.size >= MAX_FILES_PER_SERVICE) return undefined;
+      seen.add(resolved);
+      queue.push(resolved);
+    }
+  }
+  return [...seen];
+};
 
 const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
   'build-time': 0,
@@ -275,15 +332,47 @@ export const enrichEnvironmentUsage = async ({
     totalAssigned += 1;
   }
 
-  for (const [path, ownedFiles] of filesByPath) {
+  const contentsCache = new Map<string, string | undefined>();
+  const readContents = async (file: string): Promise<string | undefined> => {
+    if (!contentsCache.has(file)) {
+      const result = await read(file);
+      contentsCache.set(file, result.kind === 'contents' ? result.contents : undefined);
+    }
+    return contentsCache.get(file);
+  };
+
+  // Each scan unit is a set of services that share one set of source files: a directory, or one JavaScript
+  // function's import graph.
+  const fileSet = new Set(files);
+  const units: Array<{ services: ServiceFactInput[]; files: string[] }> = [];
+  for (const [path, pathServices] of byPath) {
+    const directoryServices: ServiceFactInput[] = [];
+    for (const service of pathServices) {
+      const entry = service.functionEntrypoint;
+      if (entry === undefined || !JS_SOURCE.test(entry)) {
+        directoryServices.push(service);
+        continue;
+      }
+      // oxlint-disable-next-line no-await-in-loop -- bounded per service, and the order keeps results reproducible.
+      const closure = await importClosure(entry, fileSet, readContents);
+      if (closure === undefined) directoryServices.push(service);
+      else units.push({ services: [service], files: closure });
+    }
+    const ownedFiles = filesByPath.get(path);
+    if (directoryServices.length > 0 && ownedFiles !== undefined) {
+      units.push({ services: directoryServices, files: ownedFiles });
+    }
+  }
+
+  for (const unit of units) {
     const occurrences = new Map<string, Occurrence>();
     // Sequential on purpose: bounded work, and a deterministic file order keeps citation choice
     // reproducible run to run.
-    for (const file of ownedFiles) {
+    for (const file of unit.files) {
       // oxlint-disable-next-line no-await-in-loop -- bounded by MAX_FILES_SCANNED, order matters.
-      const result = await read(file);
-      if (result.kind !== 'contents') continue;
-      collectFromFile(file, result.contents, occurrences);
+      const contents = await readContents(file);
+      if (contents === undefined) continue;
+      collectFromFile(file, contents, occurrences);
     }
     if (occurrences.size === 0) continue;
 
@@ -302,7 +391,7 @@ export const enrichEnvironmentUsage = async ({
       .toSorted((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name))
       .slice(0, MAX_VARIABLES_PER_SERVICE);
 
-    for (const service of byPath.get(path) ?? []) {
+    for (const service of unit.services) {
       const existing = new Set((service.environmentVariables ?? []).map((variable) => variable.name));
       service.environmentVariables = [
         ...(service.environmentVariables ?? []),

@@ -106,9 +106,9 @@ describe('nothing is left for the user to answer', () => {
     });
 
     const byKind = Object.fromEntries(result.assumptions.map((entry) => [entry.kind, entry.notable]));
-    // "We kept your live database" is worth a glance; "we guessed daily" is not.
+    // "We kept your live database" is worth a glance, and so is a job that has no schedule and will not run on its own.
     expect(byKind['external-database-disposition']).toBe(true);
-    expect(byKind['schedule-unknown']).toBe(false);
+    expect(byKind['schedule-unknown']).toBe(true);
   });
 
   it('honours a changed decision without touching the facts', () => {

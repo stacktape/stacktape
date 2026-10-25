@@ -16,12 +16,13 @@ import type { DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
-import type { ServiceFact } from '../facts/service';
+import { UNROUTED_HTTP_SOURCE, type ServiceFact } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import { resolveAssumptions, type Assumption } from './assumptions';
 import { classifyService, type ServiceResourceType } from './classify';
 import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-versions';
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
+import { NO_SCHEDULE } from '../facts/apply-answer';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
 import { normalizeScheduleExpression } from './schedule';
@@ -412,6 +413,9 @@ const environmentFor = (
         }
         continue;
       }
+      // Code that already reads `connectTo`'s own `STP_<RESOURCE>_<PARAM>` name gets it from `connectTo`; the scan
+      // named the resource after it.
+      if (variable.name.startsWith('STP_')) continue;
       // `connectTo` grants the access, but it injects `STP_*`-prefixed values — the application
       // reads the name it was written with, so that name gets the parameter explicitly.
       const wiring = wiringFor(composed.kind, variable.name);
@@ -964,6 +968,21 @@ export const composeConfig = ({
     service.functionTriggers.some((trigger) => trigger.type === 'http')
   );
   const httpApiGatewayName = httpTriggeredServices.length === 0 ? undefined : uniqueName('httpApiGateway', taken);
+  // One HTTP API holds each method and path once; CloudFormation rejects a second. The first function keeps a
+  // route, later ones lose it and get a gap.
+  const claimedRoutes = new Set<string>();
+  const duplicateRoutes = new Map<string, string[]>();
+  for (const service of httpTriggeredServices) {
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'http') continue;
+      const route = `${httpRouteMethod(trigger.method)} ${trigger.path}`;
+      if (!claimedRoutes.has(route)) {
+        claimedRoutes.add(route);
+        continue;
+      }
+      duplicateRoutes.set(service.name, [...(duplicateRoutes.get(service.name) ?? []), route]);
+    }
+  }
   if (httpApiGatewayName !== undefined) {
     resources[httpApiGatewayName] = {
       type: 'http-api-gateway',
@@ -1031,6 +1050,19 @@ export const composeConfig = ({
       sqliteFiles,
       projectName
     });
+    // A frontend's build-time API address: the HTTP API in front of the functions, or the backend service's URL.
+    const buildAddresses: Array<{ name: string; value: string }> = [];
+    for (const variable of service.environmentVariables) {
+      if (variable.role !== 'build-time' || variable.targetServiceName === undefined) continue;
+      const target = facts.services.find((candidate) => candidate.name === variable.targetServiceName);
+      const targetResource =
+        target !== undefined && target.functionTriggers.some((trigger) => trigger.type === 'http')
+          ? httpApiGatewayName
+          : serviceResourceNames.get(variable.targetServiceName);
+      if (targetResource !== undefined) {
+        buildAddresses.push({ name: variable.name, value: `$ResourceParam('${targetResource}', 'url')` });
+      }
+    }
     // The agent path may already have written the same variable from the service's own facts, so the
     // first entry for a name wins rather than the file carrying it twice.
     for (const extra of externalVariables.get(service.name) ?? []) {
@@ -1079,7 +1111,7 @@ export const composeConfig = ({
           });
         }
       }
-      if (variable.role === 'build-time') {
+      if (variable.role === 'build-time' && !buildAddresses.some((address) => address.name === variable.name)) {
         gaps.push({
           subject: `${service.name}.${variable.name}`,
           message: `${variable.name} is needed while your app builds, not while it runs. Set it as a build argument.`
@@ -1124,6 +1156,8 @@ export const composeConfig = ({
       resourceType: classification.resourceType,
       service,
       environment,
+      buildAddresses,
+      skippedRoutes: duplicateRoutes.get(service.name) ?? [],
       connectTo,
       dependencyResourceNames,
       ...(httpApiGatewayName === undefined ? {} : { httpApiGatewayName }),
@@ -1182,7 +1216,16 @@ export const composeConfig = ({
         message: `We could not work out how to start ${service.name}. Set the start command in the configuration.`
       });
     }
-    if (classification.resourceType === 'function' && service.functionTriggers.length === 0) {
+    if (
+      classification.resourceType === 'function' &&
+      service.functionTriggers.length === 0 &&
+      service.schedule === undefined &&
+      !assumptions.some(
+        (assumption) =>
+          assumption.kind === 'schedule-unknown' &&
+          (assumption.parameters as { serviceName?: string }).serviceName === service.name
+      )
+    ) {
       gaps.push({
         subject: service.name,
         message: `We found the ${service.name} handler but no event that invokes it. Add its HTTP, queue, topic, bucket or schedule trigger.`
@@ -1202,9 +1245,27 @@ export const composeConfig = ({
       if (trigger.type !== 'unmapped') continue;
       gaps.push({
         subject: service.name,
-        message: `${service.name} is invoked by ${trigger.sourceType} in the existing deployment files. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
+        message:
+          trigger.sourceType === UNROUTED_HTTP_SOURCE
+            ? `${service.name} handles HTTP requests, and so do other handlers, but the code does not say which route each one serves. Add an http-api-gateway event with its method and path to each of them before deploying; only one handler can take the catch-all route.`
+            : `${service.name} is invoked by ${trigger.sourceType}. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
       });
     }
+    for (const route of duplicateRoutes.get(service.name) ?? []) {
+      gaps.push({
+        subject: `${service.name}.route`,
+        message: `${service.name} and another function both declare the HTTP route ${route}, which one API cannot hold twice. We left it off ${service.name}; give it its own route before deploying.`
+      });
+    }
+  }
+
+  for (const assumption of assumptions) {
+    if (assumption.kind !== 'schedule-unknown' || assumption.chosen !== NO_SCHEDULE) continue;
+    const { serviceName } = assumption.parameters as { serviceName?: string };
+    gaps.push({
+      subject: `${serviceName}.schedule`,
+      message: `${serviceName} looks like a scheduled job, but nothing in the code says how often it runs. We wrote no schedule, so it deploys and runs in stacktape dev but never on its own. Add a schedule event, for example rate(1 day), when you know.`
+    });
   }
 
   for (const dependency of facts.dependencies) {
@@ -1276,6 +1337,9 @@ export const composeConfig = ({
   };
 };
 
+/** SAM and Serverless spell the catch-all method `ANY`; the HTTP API gateway event takes `*`. */
+const httpRouteMethod = (method: string): string => (/^(?:any|\*)$/i.test(method) ? '*' : method.toUpperCase());
+
 /** The port Stacktape routes a web or private service's traffic to when its config sets none. */
 const DEFAULT_SERVICE_PORT = 3000;
 
@@ -1283,6 +1347,8 @@ const buildServiceResource = ({
   resourceType,
   service,
   environment,
+  buildAddresses,
+  skippedRoutes,
   connectTo,
   dependencyResourceNames,
   httpApiGatewayName,
@@ -1294,6 +1360,10 @@ const buildServiceResource = ({
   resourceType: ServiceResourceType;
   service: ServiceFact;
   environment: Array<{ name: string; value: unknown }>;
+  /** Build-time variables holding another resource's address, for frontends. */
+  buildAddresses: Array<{ name: string; value: string }>;
+  /** `METHOD /path` routes another function already holds on the shared HTTP API. */
+  skippedRoutes: readonly string[];
   connectTo: readonly string[];
   dependencyResourceNames: ReadonlyMap<string, string>;
   httpApiGatewayName?: string;
@@ -1334,7 +1404,17 @@ const buildServiceResource = ({
                 command: service.buildCommand,
                 ...(buildRoot === '.' ? {} : { workingDirectory: buildRoot })
               }
-            })
+            }),
+        // `stacktape dev` runs this command for the frontend and skips a bucket that has none.
+        ...(service.devCommand === undefined
+          ? {}
+          : {
+              dev: {
+                command: service.devCommand,
+                ...(service.path === '.' ? {} : { workingDirectory: service.path })
+              }
+            }),
+        ...(buildAddresses.length === 0 ? {} : { injectEnvironment: buildAddresses })
       }
     };
   }
@@ -1344,14 +1424,17 @@ const buildServiceResource = ({
     for (const trigger of service.functionTriggers) {
       if (trigger.type === 'unmapped') continue;
       if (trigger.type === 'http') {
-        if (httpApiGatewayName !== undefined) {
+        if (
+          httpApiGatewayName !== undefined &&
+          !skippedRoutes.includes(`${httpRouteMethod(trigger.method)} ${trigger.path}`)
+        ) {
           events.push({
             type: 'http-api-gateway',
             properties: {
               httpApiGatewayName,
-              // SAM and Serverless spell the catch-all `ANY`; the HTTP API gateway event takes `*`.
-              method: /^(?:any|\*)$/i.test(trigger.method) ? '*' : trigger.method.toUpperCase(),
-              path: trigger.path
+              method: httpRouteMethod(trigger.method),
+              path: trigger.path,
+              ...(trigger.payloadFormat === '2.0' ? { payloadFormat: '2.0' } : {})
             }
           });
         }
@@ -1391,6 +1474,10 @@ const buildServiceResource = ({
         }
       });
     }
+    // A handler typed for a scheduled event whose rate the code does not state: the decided schedule.
+    if (service.schedule !== undefined && !events.some((event) => event.type === 'schedule')) {
+      events.push({ type: 'schedule', properties: { scheduleRate: normalizeScheduleExpression(service.schedule) } });
+    }
     return {
       type: 'function',
       properties: {
@@ -1425,12 +1512,19 @@ const buildServiceResource = ({
 
   if (resourceType.endsWith('-web')) {
     // The framework resources take the application directory and handle their own build.
+    // The framework resources pass `environment` to their build as well as their server.
+    const webEnvironment = [
+      ...environment,
+      ...buildAddresses.filter((address) => !environment.some((entry) => entry.name === address.name))
+    ];
     return {
       type: resourceType,
       properties: {
         appDirectory: service.path,
         ...(requiresVpc ? { serverLambda: { joinDefaultVpc: true } } : {}),
-        ...shared
+        ...shared,
+        ...(webEnvironment.length === 0 ? {} : { environment: webEnvironment }),
+        ...(service.devCommand === undefined ? {} : { dev: { command: service.devCommand } })
       }
     };
   }

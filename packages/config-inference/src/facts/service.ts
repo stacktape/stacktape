@@ -45,7 +45,10 @@ export const environmentVariableUseSchema = z.object({
   role: environmentVariableRoleSchema,
   /** Which dependency supplies it, when the role is `infra-dependency`. */
   dependencyName: z.string().min(1).optional(),
-  /** Which service it addresses, when the role is `cross-service-reference`. */
+  /**
+   * Which service it addresses, when the role is `cross-service-reference`, or when a `build-time` value is another
+   * service's address (a frontend's `VITE_API_URL`).
+   */
   targetServiceName: z.string().min(1).optional(),
   /**
    * Which part of that service's address the source manifest requests.
@@ -173,7 +176,12 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('http'),
     method: z.string().min(1),
-    path: z.string().min(1)
+    path: z.string().min(1),
+    /**
+     * The API Gateway event shape the handler is written for. `2.0` when it reads `APIGatewayProxyEventV2`
+     * (`event.requestContext.http.method`, `event.rawPath`); Stacktape's HTTP API defaults to `1.0`.
+     */
+    payloadFormat: z.enum(['1.0', '2.0']).optional()
   }),
   z.object({
     type: z.literal('queue'),
@@ -195,6 +203,12 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
 ]);
 
 export type FunctionTrigger = z.infer<typeof functionTriggerSchema>;
+
+/**
+ * The `unmapped` source of an HTTP handler whose route the code does not state, when several handlers serve HTTP and
+ * none of them can take the catch-all route alone.
+ */
+export const UNROUTED_HTTP_SOURCE = 'HTTP requests on a route the code does not name';
 
 const containerEntrypointSchema = z
   .string()
@@ -271,6 +285,8 @@ export const serviceShape = {
   // ── How it is built and started ──────────────────────────────────────────────────────────────
   buildCommand: z.string().min(1).optional(),
   startCommand: z.string().min(1).optional(),
+  /** The package's own local development server command (its `dev` script), which `stacktape dev` runs. */
+  devCommand: z.string().min(1).optional(),
   /**
    * Repository directory from which packaging/build commands run when it differs from the source
    * directory that owns the service. Deployment manifests commonly build a child app from the

@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts } from './assemble';
 import { environmentProbe } from './probes/environment';
 import { languageManifestProbe } from './probes/language-manifests';
+import { lambdaSourceProbe } from './probes/lambda-source';
 import { manifestProbe } from './probes/manifest';
 
 const PROBES = [manifestProbe, environmentProbe];
@@ -35,6 +36,12 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
   );
   return directory;
 };
+
+/** A source file exporting a handler typed with an aws-lambda event. */
+const typedHandler = (event: string, body: string) =>
+  [`import type { ${event} } from 'aws-lambda';`, body, `export default async (event: ${event}) => event;`, ''].join(
+    '\n'
+  );
 
 describe('environment-usage enrichment', () => {
   it('turns source-level reads into classified, cited variable needs', async () => {
@@ -183,5 +190,32 @@ describe('environment-usage enrichment', () => {
     expect(facts.services[0]?.environmentVariables).toContainEqual(
       expect.objectContaining({ name: 'REDIS_URL', role: 'infra-dependency', required: false })
     );
+  });
+
+  it("gives each function the reads of its own import graph, or its directory's when an alias hides part of it", async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'app', dependencies: { '@aws-sdk/client-sqs': '^3.0.0' } }),
+      'src/db.ts': 'export const url = process.env.STP_DB_CONNECTION_STRING;\n',
+      'src/api.ts': typedHandler(
+        'APIGatewayProxyEventV2',
+        "import { url } from './db.js';\nconst queue = process.env.STP_JOBS_URL;"
+      ),
+      'src/worker.ts': typedHandler('SQSEvent', "import { url } from './db';"),
+      'src/report.ts': typedHandler('SQSEvent', "import { url } from '@/db';")
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe, lambdaSourceProbe] });
+    const reads = Object.fromEntries(
+      facts.services.map((service) => [
+        service.name,
+        service.environmentVariables.map((variable) => variable.name).toSorted()
+      ])
+    );
+
+    expect(reads).toEqual({
+      api: ['STP_DB_CONNECTION_STRING', 'STP_JOBS_URL'],
+      worker: ['STP_DB_CONNECTION_STRING'],
+      report: ['STP_DB_CONNECTION_STRING', 'STP_JOBS_URL']
+    });
   });
 });

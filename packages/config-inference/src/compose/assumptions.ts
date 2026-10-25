@@ -18,7 +18,7 @@
 import type { Citation } from '../facts/citation';
 import type { ProjectFacts } from '../facts/project-facts';
 import type { Uncertainty } from '../facts/uncertainty';
-import { applyAnswer, recommendationFor } from '../facts/apply-answer';
+import { applyAnswer, NO_SCHEDULE, recommendationFor } from '../facts/apply-answer';
 
 export type Assumption = {
   /** Stable across recompositions, so the interface can keep a control bound to it. */
@@ -49,7 +49,9 @@ const NOTABLE_KINDS: ReadonlySet<Uncertainty['kind']> = new Set([
   'local-filesystem-writes',
   'environment-variable-timing',
   'unconfirmed-claim',
-  'migration-timing-unknown'
+  'migration-timing-unknown',
+  // A job with no schedule never runs on its own; the user has to see that.
+  'schedule-unknown'
 ]);
 
 /** Every value this kind of decision could have taken, for the control that lets it be changed. */
@@ -78,9 +80,11 @@ const alternativesFor = (uncertainty: Uncertainty): string[] => {
     case 'cross-service-target-unknown':
       return uncertainty.candidateServiceNames;
     case 'command-unknown':
-    case 'schedule-unknown':
       // Free text. The suggestions are a convenience, not the full set.
       return uncertainty.suggestions;
+    case 'schedule-unknown':
+      // Free text too; no schedule comes first because it is the default.
+      return [NO_SCHEDULE, ...uncertainty.suggestions.filter((suggestion) => suggestion !== NO_SCHEDULE)];
     default:
       return [];
   }
