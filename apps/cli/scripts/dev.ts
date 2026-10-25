@@ -1,3 +1,5 @@
+// First: the source CLI's paths must not depend on the current directory.
+import { CLI_SOURCE_ROOT } from './support/cli-source-root';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -130,7 +132,8 @@ if (isMachineMode || isMcpMode) {
 }
 
 if (!skipLoadingEnv) {
-  config({ path: '.env.local' });
+  // Quiet: dotenv's banner on standard output broke the MCP server's protocol stream.
+  config({ path: join(CLI_SOURCE_ROOT, '.env.local'), quiet: true });
 }
 
 const buildSource = async () => {

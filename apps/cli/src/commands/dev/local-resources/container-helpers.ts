@@ -1,6 +1,7 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { execDocker, inspectDockerContainer } from '@utils/docker';
 import { isPortInUse } from '@utils/ports';
@@ -38,31 +39,78 @@ const hasExistingData = (dataDir: string): boolean => {
 };
 
 /**
- * The password of a local database whose configuration sets none or reads it with a directive such as `$Secret`. Each
- * database gets a random password the first time its data directory is created, stored next to that directory and
- * reused while the data exists (`--freshDb` deletes both).
+ * The password of a local database whose configuration sets none or reads it with a directive such as `$Secret`. A data
+ * directory keeps the password it was initialized with, recorded in `passwordFile` next to it and reused while the data
+ * exists (`--freshDb` deletes both).
+ * New data gets the password of the project's stage on this machine (`stagePasswordFile`, outside the project
+ * directory), so two worktrees of one project use the same password. Deployed dev functions carry it in their
+ * environment, so moving the stage between worktrees then needs no dev stack update. The first database of a stage
+ * creates it at random, or adopts the password of data that existed before.
  * A data directory created before passwords were generated was initialized with `legacyPassword`, which the database
  * keeps in its data; that password is kept and reported as legacy so existing data keeps working. Redis reads its
  * password at every start, so it passes none.
  */
 export const resolveLocalDatabasePassword = ({
   passwordFile,
+  stagePasswordFile,
   dataDir,
   legacyPassword
 }: {
   passwordFile: string;
+  stagePasswordFile: string;
   dataDir: string;
   legacyPassword?: string;
 }): { password: string; legacy: boolean } => {
-  if (existsSync(passwordFile)) {
-    const stored = readFileSync(passwordFile, 'utf-8').trim();
-    if (stored) return { password: stored, legacy: false };
+  const stored = readPasswordFile(passwordFile);
+  if (stored) {
+    // The fixed password of old data is not one that new data should get.
+    if (stored !== legacyPassword && !readPasswordFile(stagePasswordFile)) writePasswordFile(stagePasswordFile, stored);
+    return { password: stored, legacy: false };
   }
-  const legacy = legacyPassword !== undefined && hasExistingData(dataDir);
-  const password = legacy ? legacyPassword : randomBytes(18).toString('hex');
-  writeFileSync(passwordFile, password, { mode: 0o600 });
-  chmodSync(passwordFile, 0o600);
-  return { password, legacy };
+  if (legacyPassword !== undefined && hasExistingData(dataDir)) {
+    writePasswordFile(passwordFile, legacyPassword);
+    return { password: legacyPassword, legacy: true };
+  }
+  const password = readPasswordFile(stagePasswordFile) ?? createStagePassword(stagePasswordFile);
+  writePasswordFile(passwordFile, password);
+  return { password, legacy: false };
+};
+
+/** How long to wait for another process that created the stage's password file to write the password into it. */
+const STAGE_PASSWORD_WRITE_WAIT_MS = 2000;
+
+/**
+ * Two worktrees may start the stage at once; the first to create the file decides the password for both. The other
+ * waits briefly for the password if the file is still empty, and takes the file over only from a process that
+ * created it and never wrote it.
+ */
+const createStagePassword = (file: string): string => {
+  const password = randomBytes(18).toString('hex');
+  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  try {
+    writeFileSync(file, password, { mode: 0o600, flag: 'wx' });
+    return password;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+  const deadline = Date.now() + STAGE_PASSWORD_WRITE_WAIT_MS;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  while (Date.now() < deadline) {
+    const written = readPasswordFile(file);
+    if (written) return written;
+    Atomics.wait(pause, 0, 0, 25);
+  }
+  writePasswordFile(file, password);
+  return password;
+};
+
+const readPasswordFile = (file: string): string | undefined =>
+  existsSync(file) ? readFileSync(file, 'utf-8').trim() || undefined : undefined;
+
+const writePasswordFile = (file: string, password: string) => {
+  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  writeFileSync(file, password, { mode: 0o600 });
+  chmodSync(file, 0o600);
 };
 
 /**

@@ -5,6 +5,7 @@ import { IS_DEV } from '@config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorFromString } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { formatIsoLocalTime } from '@utils/formatting';
 
 /** `timestamp` is the CloudWatch event time in milliseconds, when the line comes from one event. */
 type LogCallback = (message: string, level: 'info' | 'warn' | 'error', timestamp?: number) => void;
@@ -116,7 +117,7 @@ export class LambdaCloudwatchLogPrinter {
   };
 
   #getFormattedTimeStamp = (event: FilteredLogEvent) => {
-    return `${tuiManager.colorize('yellow', new Date(event.timestamp).toLocaleString())}`;
+    return `${tuiManager.colorize('yellow', formatIsoLocalTime(new Date(event.timestamp)))}`;
   };
 
   #getFormattedRequestId = (requestId: string) => {

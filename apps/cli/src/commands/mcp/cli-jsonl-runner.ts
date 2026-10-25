@@ -2,7 +2,7 @@ import { publicCommandName, publicFlag } from '../../config/cli/public-names';
 import { cliCommands, type StacktapeCommand } from '../../config/cli/commands';
 import { getArgInfo } from '../../config/cli/utils';
 import { spawn } from 'node:child_process';
-import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { basename, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { existsSync, realpathSync } from 'node:fs';
 import { getMcpOperationInvocationEnv } from '@application-services/operation-invocation-context';
@@ -128,7 +128,7 @@ const inferFailureFromTail = (rawTail?: string): { code: string; message: string
   };
 };
 
-const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[]; cwd?: string } => {
+const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[] } => {
   const commandFromEnv = process.env.STACKTAPE_MCP_CLI_COMMAND;
   if (commandFromEnv) {
     return { command: normalizeSpawnCommandPath(commandFromEnv), prefixArgs: [] };
@@ -138,11 +138,8 @@ const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[]; cwd?:
   const looksLikeScriptPath = scriptArg ? /\.(mjs|cjs|js|ts)$/.test(scriptArg) : false;
 
   if (looksLikeScriptPath) {
-    return {
-      command: normalizeSpawnCommandPath(process.execPath),
-      prefixArgs: [scriptArg!],
-      cwd: resolve(dirname(scriptArg!), '..')
-    };
+    // The source CLI (`scripts/dev.ts`) runs from any directory, so the command runs in the project like the installed CLI.
+    return { command: normalizeSpawnCommandPath(process.execPath), prefixArgs: [scriptArg!] };
   }
 
   const localDevEntrypoint = resolve(process.cwd(), 'scripts', 'dev.ts');
@@ -281,7 +278,7 @@ export const runStacktapeCommandJsonl = async ({
   /** Extra environment for the CLI process. */
   env?: Record<string, string>;
 }): Promise<RunStacktapeResult> => {
-  const { command: spawnCommand, prefixArgs, cwd: spawnCwd } = getStacktapeSpawnBase();
+  const { command: spawnCommand, prefixArgs } = getStacktapeSpawnBase();
   // macOS exposes /tmp through /private/tmp. Use the filesystem's canonical path so the
   // context reported to callers is exactly the directory observed by the child process.
   const resolvedCwd = realpathSync(resolve(cwd || process.cwd()));
@@ -306,7 +303,7 @@ export const runStacktapeCommandJsonl = async ({
     tool
   });
   const resolvedContext = {
-    cwd: spawnCwd || resolvedCwd,
+    cwd: resolvedCwd,
     ...(resolvedProjectArgs.currentWorkingDirectory
       ? { currentWorkingDirectory: resolvedProjectArgs.currentWorkingDirectory }
       : {})

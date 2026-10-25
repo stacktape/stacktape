@@ -16,6 +16,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 import { queryDevBoxRelay } from '../dev/dev-box';
 import { listRelaySessions } from '../dev/tunnel-manager';
+import { formatTimeWithZone } from '@utils/formatting';
 
 const describeBoxState = (state: string | undefined) => {
   if (state === 'running') return 'running (about $0.01 per hour; it stops itself 30 minutes after the last session)';
@@ -79,7 +80,7 @@ export const formatStageHolders = (
     '  Dev sessions (stage: who runs it, since when):',
     ...result.holders.map(
       ({ stack, holder, since }) =>
-        `    ${stack}: ${holder}, since ${new Date(since).toLocaleString()} (${formatDuration(now - Date.parse(since))})`
+        `    ${stack}: ${holder}, since ${formatTimeWithZone(new Date(since), new Date(now))} (${formatDuration(now - Date.parse(since))})`
     )
   ];
 };

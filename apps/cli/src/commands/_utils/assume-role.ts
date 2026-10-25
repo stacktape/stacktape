@@ -1,5 +1,6 @@
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { arns, getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -15,6 +16,13 @@ export const DEV_SESSION_DURATION_SECONDS = 3600; // 1 hour (matches default IAM
  */
 const TRUST_PROPAGATION_TIMEOUT_MS = 300_000;
 const ASSUME_ROLE_RETRY_DELAY_MS = 5000;
+/** A trust policy that nobody changed for this long has propagated; AWS took up to about 3 minutes in tests. */
+const TRUST_SETTLED_AFTER_MS = 5 * 60_000;
+/** How long a denial may last, once the trust has settled, before it counts as the developer's own permissions. */
+const SETTLED_TRUST_DENIAL_MS = 30_000;
+/** Reasons AWS names when the caller's own policies deny a call; waiting for the trust policy does not help. */
+const PERMISSIONS_DENIAL_REASON =
+  /identity-based policy|permissions boundary|service control policy|resource control policy|session policy|explicit deny/i;
 
 const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: string }) => {
   const callerIdentityArn = globalStateManager.credentials.identity.arn.includes(':assumed-role')
@@ -30,6 +38,71 @@ const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: string }) =
 const isAssumeRoleAccessDenied = (error: unknown, roleArn: string) => {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes('AccessDenied') && message.includes('sts:AssumeRole') && message.includes(roleArn);
+};
+
+/** The policy simulator's decision on the caller's own policies, and the condition keys it had no value for. */
+export type AssumeRoleSimulation = {
+  decision: 'allowed' | 'explicitDeny' | 'implicitDeny';
+  missingContextValues: string[];
+};
+
+/**
+ * What to do after AWS denied assuming a workload's role. STS gives the same message while a changed trust policy
+ * propagates and when the caller's own IAM permissions lack `sts:AssumeRole`. Only the latter never passes, and only
+ * with an account trust: a dev stack's roles trust the account and name the developer in a condition, so the
+ * developer's identity policy must allow the call too. A trust that names the caller directly allows it on its own.
+ * A permanent denial is recognized by the reason in the message, or, with an account trust that has settled, by the
+ * policy simulator or by a denial that lasts. The simulator evaluates no trust policy and knows none of the request's
+ * context (MFA, tags, session name), so its denial counts only after the trust has settled and with no missing value.
+ * It does not list keys of `...IfExists` conditions as missing (an MFA rule denied a simulated call with an empty list,
+ * 25 Oct 2026), so the settled trust is the guard there: a caller whose real request passes such a rule is never
+ * denied, and the simulator runs only after a real denial.
+ */
+export const judgeAssumeRoleDenial = ({
+  message,
+  trust,
+  simulation,
+  trustSettled,
+  waitedMs
+}: {
+  message: string;
+  /** `account`: the dev stack's trust in the account with a principal condition. `principal`: the caller by ARN. */
+  trust: 'account' | 'principal';
+  simulation?: AssumeRoleSimulation;
+  /** The role trusted the caller long before this call, so AWS has accepted that trust. */
+  trustSettled: boolean;
+  waitedMs: number;
+}): { verdict: 'wait' | 'timeout' } | { verdict: 'permissions'; reason: string } => {
+  if (PERMISSIONS_DENIAL_REASON.test(message)) {
+    return { verdict: 'permissions', reason: 'AWS says your policies deny it' };
+  }
+  if (trust === 'account' && trustSettled) {
+    const decisive = simulation && !simulation.missingContextValues.length;
+    if (decisive && simulation.decision !== 'allowed') {
+      return {
+        verdict: 'permissions',
+        reason:
+          simulation.decision === 'explicitDeny'
+            ? 'the IAM policy simulator finds a statement in your policies that denies it'
+            : 'the IAM policy simulator finds no statement in your policies that allows it'
+      };
+    }
+    if (!(decisive && simulation.decision === 'allowed') && waitedMs >= SETTLED_TRUST_DENIAL_MS) {
+      return {
+        verdict: 'permissions',
+        reason: `AWS still denies it ${Math.round(waitedMs / 1000)} s after the role's trust policy, unchanged for minutes, allowed you`
+      };
+    }
+  }
+  return { verdict: waitedMs > TRUST_PROPAGATION_TIMEOUT_MS ? 'timeout' : 'wait' };
+};
+
+/** The IAM user or role whose policies decide the caller's permissions, or `undefined` for other principals. */
+const getCallerPolicySourceArn = (identityArn: string) => {
+  if (/^arn:[\w-]+:iam::\d+:user\//.test(identityArn)) return identityArn;
+  // The session ARN has no role path; the simulator then fails, and the denial is judged without it.
+  if (identityArn.includes(':assumed-role/')) return getRoleArnFromSessionArn(identityArn);
+  return undefined;
 };
 
 export const getLocalInvokeAwsCredentials = async ({
@@ -53,8 +126,20 @@ export const getLocalInvokeAwsCredentials = async ({
   const devTrustStatement = isDevStack
     ? getDeveloperTrustStatement(globalStateManager.credentials.identity.arn)
     : undefined;
+  let trustSettled = false;
   if (devTrustStatement) {
-    await awsSdkManager.iam.addAssumeRolePolicyStatement({ roleName: workloadRoleName, statement: devTrustStatement });
+    const trustChanged = await awsSdkManager.iam.addAssumeRolePolicyStatement({
+      roleName: workloadRoleName,
+      statement: devTrustStatement
+    });
+    // The dev stack's template holds the trust. CloudFormation last changed the role at this time.
+    const roleUpdatedAt = stackManager.existingStackResources
+      .find(
+        ({ ResourceType, PhysicalResourceId }) =>
+          ResourceType === 'AWS::IAM::Role' && PhysicalResourceId === workloadRoleName
+      )
+      ?.LastUpdatedTimestamp?.getTime();
+    trustSettled = !trustChanged && roleUpdatedAt !== undefined && Date.now() - roleUpdatedAt > TRUST_SETTLED_AFTER_MS;
   } else {
     await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });
   }
@@ -68,6 +153,8 @@ export const getLocalInvokeAwsCredentials = async ({
   // AWS accepts a new trust after a while. A short, fixed retry interval uses the role as soon as it does.
   const startedAt = Date.now();
   let reportedWaiting = false;
+  let simulated = false;
+  let simulation: AssumeRoleSimulation | undefined;
   let credentials: Awaited<ReturnType<typeof awsSdkManager.sts.assumeRoleCredentials>> | undefined;
   while (!credentials) {
     try {
@@ -78,8 +165,36 @@ export const getLocalInvokeAwsCredentials = async ({
       });
     } catch (error) {
       if (!isAssumeRoleAccessDenied(error, roleArn)) throw error;
+      const principalArn = getCallerPolicySourceArn(globalStateManager.credentials.identity.arn);
+      // Only a settled account trust can make the simulator's answer decisive. Developers often may not use the
+      // simulator; then the denial is judged without it.
+      if (!simulated && devTrustStatement && trustSettled && principalArn) {
+        simulated = true;
+        simulation = await awsSdkManager.iam
+          .simulatePrincipalPolicy({ principalArn, action: 'sts:AssumeRole', resourceArn: roleArn })
+          .catch(() => undefined);
+      }
       const waitedMs = Date.now() - startedAt;
-      if (waitedMs > TRUST_PROPAGATION_TIMEOUT_MS) {
+      const judgement = judgeAssumeRoleDenial({
+        message: error instanceof Error ? error.message : String(error),
+        trust: devTrustStatement ? 'account' : 'principal',
+        simulation,
+        trustSettled,
+        waitedMs
+      });
+      if (judgement.verdict === 'permissions') {
+        const statement = JSON.stringify({ Effect: 'Allow', Action: 'sts:AssumeRole', Resource: roleArn });
+        throw new CliError({
+          category: 'AWS',
+          code: 'AWS_ASSUME_ROLE_NOT_PERMITTED',
+          message: `Your AWS credentials may not assume the role of ${assumeRoleOfWorkload} (${workloadRoleName}), which its local container runs with: ${judgement.reason}. The role trusts you; your own IAM permissions must allow sts:AssumeRole on it too.`,
+          hints: [
+            `Add this statement to the IAM policy of ${principalArn ?? 'your AWS identity'}, or ask your AWS administrator to: ${statement}`,
+            'Local containers of other workloads need the same permission on their roles.'
+          ]
+        });
+      }
+      if (judgement.verdict === 'timeout') {
         throw new CliError({
           category: 'AWS',
           code: 'AWS_ASSUME_ROLE_TRUST_TIMEOUT',

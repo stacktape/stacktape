@@ -345,7 +345,7 @@ export const getTimeSinceProcessStart = () => {
   return Math.round(process.uptime() * 1000);
 };
 
-export const localBuildTsConfigPath = join(process.cwd(), 'tsconfig.build.json');
+export const localBuildTsConfigPath = join(process.env.STP_CLI_SOURCE_ROOT || process.cwd(), 'tsconfig.build.json');
 
 export const applyAll = (functionsArray: ((...args: any) => any)[], value: any) => {
   let res = value;

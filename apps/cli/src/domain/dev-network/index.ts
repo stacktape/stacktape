@@ -16,6 +16,7 @@ import {
   DEV_NETWORK_CONTRACT_VERSION,
   DEV_NETWORK_KIND
 } from './template';
+import { formatTimeWithZone } from '@utils/formatting';
 
 export type DevNetwork = {
   stackName: string;
@@ -618,7 +619,7 @@ export const deleteDevNetwork = async ({
         const listed = sessions
           .map(
             ({ stack: stackName, label, since }) =>
-              `${stackName} (${label}, since ${new Date(since * 1000).toLocaleTimeString()})`
+              `${stackName} (${label}, since ${formatTimeWithZone(new Date(since * 1000))})`
           )
           .join(', ');
         throw new CliError({

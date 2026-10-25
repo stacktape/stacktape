@@ -45,6 +45,8 @@ import {
   resolveRunningContainersWithSamePort
 } from '../utils';
 import { updateAgentWorkloadStatus, type RebuildResult } from '../agent-server';
+import type { LogLevel } from '../agent-logger';
+import { createLogLineGrouper } from '../log-grouping';
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
 import { startSourceWatcher } from '../source-watcher';
@@ -736,24 +738,67 @@ const startContainerWorkload = async (
     updateAgentWorkloadStatus(resourceName, { status: 'error', error });
   };
 
+  // The container's output of one run. With the dev TUI, lines of one message (a stack trace, a printed object) become
+  // one log entry with the level its text shows; without it, they go to the terminal as they are. Standard error is
+  // also kept, to explain an exit.
+  const captureContainerOutput = () => {
+    let stderr = '';
+    const log = (message: string, level: LogLevel) => devTuiManager.log(resourceName, message, level);
+    const stdoutGrouper = createLogLineGrouper({ stream: 'stdout', onEntry: log });
+    const stderrGrouper = createLogLineGrouper({ stream: 'stderr', onEntry: log });
+    return {
+      transformStdoutLine: useDevTui
+        ? (line: string) => {
+            stdoutGrouper.push(line);
+            return null; // Suppress console output when DevTui is active
+          }
+        : undefined,
+      transformStderrLine: (line: string) => {
+        stderr += `${line}\n`;
+        if (!useDevTui) return line;
+        stderrGrouper.push(line);
+        return null;
+      },
+      flush: () => {
+        stdoutGrouper.flush();
+        stderrGrouper.flush();
+      },
+      stderr: () => stderr
+    };
+  };
+
   // `docker run` starts the container long before the app in it listens: a test sent on `ready` got 502 from the dev
   // proxy. A container with a port counts as running once that port accepts connections; one without (a worker) at once.
-  const waitUntilServing = (run: number, hasExited: () => boolean) =>
+  const waitUntilServing = (run: number, hasExited: () => boolean, timeoutMs = CONTAINER_READY_TIMEOUT_MS) =>
     primaryHostPort
       ? waitForTcpPort({
           port: primaryHostPort,
-          timeoutMs: CONTAINER_READY_TIMEOUT_MS,
+          timeoutMs,
           shouldStop: () => hasExited() || run !== containerRun || applicationManager.isInterrupted
         })
       : Promise.resolve('ready' as const);
   const notServingError = `The container runs, but nothing accepted connections on port ${primaryHostPort} within ${
     CONTAINER_READY_TIMEOUT_MS / 1000
-  } s. Make the app listen on the port in the PORT variable (${listenPort}).`;
+  } s. Make the app listen on the port in the PORT variable (${listenPort}). Dev mode keeps checking and marks it running once it serves.`;
+  // An app that needs longer than the timeout to listen is reported as an error, then becomes running once it serves.
+  const watchForLateServing = (run: number, hasExited: () => boolean) =>
+    void waitUntilServing(run, hasExited, Number.POSITIVE_INFINITY).then((result) => {
+      if (result !== 'ready') return;
+      const url = proxyRoute?.url || `http://localhost:${primaryHostPort}`;
+      const message = `Container now accepts connections on port ${primaryHostPort}`;
+      if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', { port: primaryHostPort, url, error: undefined });
+        devTuiManager.log(resourceName, message);
+      } else {
+        tuiManager.info(`[${resourceName}] ${message}`);
+      }
+      updateAgentWorkloadStatus(resourceName, { status: 'running', url, error: undefined });
+    });
 
   // Start the container and wait until it serves. A container that exits or never serves reports the workload's error,
   // and the session keeps running so that a rebuild can fix it.
   await new Promise<void>((resolve) => {
-    let stderrBuffer = '';
+    const output = captureContainerOutput();
     let exited = false;
     const run = ++containerRun;
 
@@ -768,28 +813,15 @@ const startContainerWorkload = async (
       volumeMounts: imageResult.distFolderPath
         ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app/dist' }]
         : [],
-      transformStdoutLine: useDevTui
-        ? (line: string) => {
-            devTuiManager.log(resourceName, line);
-            return null; // Suppress console output when DevTui is active
-          }
-        : undefined,
-      transformStderrLine: useDevTui
-        ? (line: string) => {
-            stderrBuffer += `${line}\n`;
-            devTuiManager.log(resourceName, line, 'warn');
-            return null; // Suppress console output when DevTui is active
-          }
-        : (line: string) => {
-            stderrBuffer += `${line}\n`;
-            return line;
-          },
+      transformStdoutLine: output.transformStdoutLine,
+      transformStderrLine: output.transformStderrLine,
       args: containerArgs
     })
       .catch(() => {})
       .then(() => {
         exited = true;
-        reportUnexpectedExit(run, stderrBuffer);
+        output.flush();
+        reportUnexpectedExit(run, output.stderr());
       });
 
     void waitUntilServing(run, () => exited).then((result) => {
@@ -808,6 +840,7 @@ const startContainerWorkload = async (
         }
       } else if (result === 'timeout') {
         reportWorkloadError(notServingError);
+        watchForLateServing(run, () => exited);
       }
       // 'stopped': the container exited, which `reportUnexpectedExit` reported.
       resolve();
@@ -851,7 +884,7 @@ const startContainerWorkload = async (
     const rebuiltEnvironment = await getFreshEnvironment();
 
     const run = ++containerRun;
-    let stderrBuffer = '';
+    const output = captureContainerOutput();
     let exited = false;
     dockerRun({
       name: localContainerName,
@@ -860,33 +893,27 @@ const startContainerWorkload = async (
       environment: rebuiltEnvironment,
       portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
       volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app/dist' }] : [],
-      transformStdoutLine: useDevTui
-        ? (line: string) => {
-            devTuiManager.log(resourceName, line);
-            return null;
-          }
-        : undefined,
-      transformStderrLine: (line: string) => {
-        stderrBuffer += `${line}\n`;
-        if (!useDevTui) return line;
-        devTuiManager.log(resourceName, line, 'warn');
-        return null;
-      },
+      transformStdoutLine: output.transformStdoutLine,
+      transformStderrLine: output.transformStderrLine,
       args: containerArgs
     })
       .catch(() => {})
       .then(() => {
         exited = true;
-        reportUnexpectedExit(run, stderrBuffer);
+        output.flush();
+        reportUnexpectedExit(run, output.stderr());
       });
 
     // The rebuild succeeds once the new container serves; one that exits or never serves fails it.
     const result = await waitUntilServing(run, () => exited);
-    if (result === 'timeout') throw new ExpectedError('DOCKER', notServingError);
+    if (result === 'timeout') {
+      watchForLateServing(run, () => exited);
+      throw new ExpectedError('DOCKER', notServingError);
+    }
     if (result === 'stopped' && run === containerRun && !applicationManager.isInterrupted) {
       throw new ExpectedError(
         'DOCKER',
-        `Container "${resourceName}" exited before it served${describeExit(stderrBuffer)}`
+        `Container "${resourceName}" exited before it served${describeExit(output.stderr())}`
       );
     }
     if (!inRebuildPhase) {

@@ -26,6 +26,7 @@ import { getLocalEmulateableResources, getRelayedLocalResource } from './local-r
 import { getResourceParamReferences } from './resource-references';
 import { reportDevStartup } from './startup-progress';
 import { holdRelayPresence, listRelaySessions, pingRelay, setStageLostHandler } from './tunnel-manager';
+import { formatTimeWithZone } from '@utils/formatting';
 
 export type DevNetworkSession = {
   network: DevNetwork;
@@ -142,7 +143,7 @@ export const assertStageNotRunningElsewhere = async ({
   );
   if (!others.length) return;
   const holders = others
-    .map(({ label, since }) => `${label}, since ${new Date(since * 1000).toLocaleTimeString()}`)
+    .map(({ label, since }) => `${label}, since ${formatTimeWithZone(new Date(since * 1000))}`)
     .join('; ');
   if (takeOver) {
     tuiManager.info(`Taking over dev mode for ${stackName} from ${holders}.`);

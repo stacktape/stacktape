@@ -307,6 +307,12 @@ export const initializeStackOperationLifecycle = async ({
       permissions: globalStateManager.permissions,
       projects: globalStateManager.projects
     });
+  } else if (globalStateManager.args.awsAccount) {
+    // `--aws-account` names an account connected in the Console, which supplies its credentials. The stack is still
+    // resolved locally: a command without the Console must not create a Console project.
+    if (!globalStateManager.apiKey) throw stpErrors.e501({ operation: `${globalStateManager.command} --aws-account` });
+    await loadUserCredentials();
+    await loadLocalTargetStackContext();
   } else {
     await loadLocalAwsContext({ lookUpAccount: true });
   }
@@ -687,12 +693,12 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
     })
   ]);
   const deployedStack = stackManager.existingStackDetails;
+  // The deployed template is what a dev stack update is compared with; without it, every resource counted as added.
+  await templateManager.loadOldTemplate({ stackDetails: deployedStack });
   await domainManager.loadDefaultDomainsInfo({
     stackName: stackContext.stackName,
     deployedTemplate:
-      deployedStack && deployedStack.StackStatus !== 'DELETE_COMPLETE'
-        ? await awsSdkManager.cloudFormation.getTemplate(deployedStack.StackName)
-        : undefined,
+      deployedStack && deployedStack.StackStatus !== 'DELETE_COMPLETE' ? templateManager.oldTemplate : undefined,
     fromControlPlane: true
   });
 

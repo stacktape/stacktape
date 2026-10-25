@@ -6,6 +6,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { createCleanupHook } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
+import { formatTimeWithZone } from '@utils/formatting';
 
 const { startupTimeoutMs: TUNNEL_STARTUP_TIMEOUT_MS, maxReconnectDelayMs: MAX_RECONNECT_DELAY_MS } = DEV_CONFIG.tunnels;
 
@@ -575,7 +576,7 @@ const startTunnelAttempt = async (request: TunnelRequest, signal: AbortSignal): 
 };
 
 const refusalMessage = (resourceName: string, { label, since }: LeaseRefusedError['holder']) =>
-  `${label} has been running dev mode for this stage since ${new Date(since * 1000).toLocaleTimeString()}, so deployed ` +
+  `${label} has been running dev mode for this stage since ${formatTimeWithZone(new Date(since * 1000))}, so deployed ` +
   `functions reach their local ${resourceName}, not yours. Yours takes over when that session stops; to take over now, ` +
   'run `stacktape dev` again with `--take-over`.';
 
