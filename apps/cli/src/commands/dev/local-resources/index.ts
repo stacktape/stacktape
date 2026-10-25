@@ -89,6 +89,13 @@ const getPasswordFile = (resourceName: string) =>
     resourceName
   });
 
+const getStagePasswordFile = (resourceName: string) =>
+  localStatePaths.devStagePasswordFile({
+    projectName: globalStateManager.targetStack.projectName,
+    stage: globalStateManager.stage,
+    resourceName
+  });
+
 /**
  * All local DynamoDB tables of a session live in one DynamoDB Local container with one data directory, so the one
  * `AWS_ENDPOINT_URL_DYNAMODB` that the AWS SDK reads reaches every table. Resource names are alphanumeric, so this
@@ -352,7 +359,7 @@ export const prepareLocalResource = async (resourceName: string): Promise<LocalR
   const config = buildLocalResourceConfig(resourceName);
   if (!config) return null;
   await removeLegacyContainerUsingDataDir(resourceName, config.dataDir);
-  // With --fresh-db, remove the existing data directory and its password; the new data gets a new password.
+  // With --fresh-db, remove the existing data directory and its password; the new data gets the stage's password.
   if (globalStateManager.args.freshDb) {
     await removeLocalData(config);
     await remove(getPasswordFile(resourceName));
@@ -361,6 +368,7 @@ export const prepareLocalResource = async (resourceName: string): Promise<LocalR
   if (config.credentials && !config.credentials.password) {
     const { password, legacy } = resolveLocalDatabasePassword({
       passwordFile: getPasswordFile(resourceName),
+      stagePasswordFile: getStagePasswordFile(resourceName),
       dataDir: config.dataDir,
       legacyPassword: getLegacyLocalPassword(config)
     });

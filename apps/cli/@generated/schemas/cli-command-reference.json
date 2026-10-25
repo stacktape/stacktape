@@ -6956,6 +6956,15 @@
         "flag": "stage"
       },
       {
+        "name": "awsAccount",
+        "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "aws-account"
+      },
+      {
         "name": "configPath",
         "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
         "required": false,

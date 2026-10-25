@@ -19,6 +19,7 @@ import { formatDuration, normalizeLogLines, resetWorkloadColors } from './utils'
 import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
 import { reportDevStartup } from 'src/commands/dev/startup-progress';
+import { formatIsoLocalTime } from '@utils/formatting';
 
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
 type ReadyHandler = () => void;
@@ -514,7 +515,7 @@ class DevTuiManager {
   log(source: string, message: string, level: LogEntry['level'] = 'info', timestamp?: number) {
     if (this._agentMode) {
       agentLog(source, message, level === 'debug' ? 'info' : level, timestamp);
-      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      const time = formatIsoLocalTime(new Date());
       const levelPrefix = level === 'error' ? '[ERROR] ' : level === 'warn' ? '[WARN] ' : '';
       console.info(`${time} [${source}] ${levelPrefix}${message}`);
       return;
@@ -526,8 +527,7 @@ class DevTuiManager {
   systemLog(message: string, level: LogEntry['level'] = 'info') {
     if (this._agentMode) {
       agentLog('system', message, level === 'debug' ? 'info' : level);
-      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
-      console.info(`${timestamp} [system] ${message}`);
+      console.info(`${formatIsoLocalTime(new Date())} [system] ${message}`);
       return;
     }
 
@@ -549,11 +549,12 @@ class DevTuiManager {
     level: LogEntry['level'],
     timestamp?: number
   ) {
-    for (const line of normalizeLogLines(message)) {
+    const lines = normalizeLogLines(message);
+    for (const line of lines) {
       devTuiState.addLog({ source, sourceType, level, message: line, timestamp: Date.now() });
-      // Mirror to the agent JSONL log file (no-op when the agent logger is not initialized)
-      agentLog(source, line, level === 'debug' ? 'info' : level, timestamp);
     }
+    // Mirror to the agent JSONL log file as one entry, so a multi-line error stays one (no-op without the agent logger).
+    if (lines.length) agentLog(source, lines.join('\n'), level === 'debug' ? 'info' : level, timestamp);
   }
 
   /** Records a workload's or local database's state change in the session log and the startup progress. */

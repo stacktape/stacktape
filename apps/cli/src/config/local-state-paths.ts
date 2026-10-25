@@ -20,7 +20,10 @@ import { getHomeDir } from '@utils/misc';
  *   agent ended itself, in `devAgentStopReasonFile` by port, so a client finds the reason after the agent is gone; the
  *   next agent that ends itself on that port replaces it, and it is safe to delete at any time.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`),
- *   and the generated password of each such database in `devResourcePasswordFile`.
+ *   and the password each such data directory was initialized with in `devResourcePasswordFile`.
+ * - User-persistent per project stage: the generated password that new local databases of a project's stage get, in
+ *   `devStagePasswordFile`, shared by every worktree of the project on this machine. Deleting it only gives the next
+ *   new data directory a new password.
  * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
  *   while `package` deliberately leaves its artifacts for the caller.
@@ -83,7 +86,7 @@ export const localStatePaths = {
   }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-data', stage, resourceName, 'data');
   },
-  /** Generated password of a local database whose configuration sets none; `--freshDb` replaces it with its data. */
+  /** The password a local database's data directory was initialized with; `--freshDb` removes it with its data. */
   devResourcePasswordFile({
     workingDirectory,
     stage,
@@ -100,6 +103,18 @@ export const localStatePaths = {
       resourceName,
       'password'
     );
+  },
+  /** The generated password new local databases of a project's stage get, shared by the project's worktrees. */
+  devStagePasswordFile({
+    projectName,
+    stage,
+    resourceName
+  }: {
+    projectName: string;
+    stage: string;
+    resourceName: string;
+  }) {
+    return join(localStatePaths.userDataDirectory(), 'dev-passwords', projectName, stage, resourceName);
   },
   devAgentDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agent');

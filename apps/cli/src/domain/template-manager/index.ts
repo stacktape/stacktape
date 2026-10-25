@@ -26,6 +26,14 @@ export class TemplateManager {
 
   init = async ({ stackDetails, stackName }: { stackDetails: StackDetails; stackName: string }) => {
     this.#stackName = stackName;
+    await this.loadOldTemplate({ stackDetails });
+  };
+
+  /**
+   * Loads the deployed template that changes are compared with. `dev` initializes before it knows the stack and loads
+   * it afterwards; `init` runs only once.
+   */
+  loadOldTemplate = async ({ stackDetails }: { stackDetails: StackDetails | undefined }) => {
     // if stack is deleted we do not bother with getting the template (CF stores it for 90 days)
     if (stackDetails && stackDetails.StackStatus !== StackStatus.DELETE_COMPLETE) {
       this.oldTemplate = await awsSdkManager.cloudFormation.getTemplate(stackDetails.StackName);

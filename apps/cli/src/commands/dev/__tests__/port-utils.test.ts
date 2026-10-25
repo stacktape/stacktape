@@ -95,3 +95,18 @@ test('a port counts as serving only when a program keeps the connection, not whe
     for (const { server } of [proxyWithoutApp, app, greetingApp]) server.close();
   }
 });
+
+// With Linux host networking an app that listens on `localhost` may bind only ::1; it serves, and dev mode must see it.
+test('a port counts as serving when the app listens only on the IPv6 loopback', async () => {
+  const app = createServer(() => {});
+  const listening = await new Promise<boolean>((resolve) => {
+    app.once('error', () => resolve(false));
+    app.listen(0, '::1', () => resolve(true));
+  });
+  if (!listening) return; // This machine has no IPv6 loopback.
+  try {
+    expect(await waitForTcpPort({ port: (app.address() as AddressInfo).port, timeoutMs: 800 })).toBe('ready');
+  } finally {
+    app.close();
+  }
+});

@@ -10,6 +10,7 @@ import {
   MalformedPolicyDocumentException,
   NoSuchEntityException,
   PutRolePolicyCommand,
+  SimulatePrincipalPolicyCommand,
   UpdateAssumeRolePolicyCommand,
   waitUntilPolicyExists,
   waitUntilRoleExists
@@ -104,6 +105,31 @@ export class AwsIam {
         }
         errorHandler(error as Error);
       });
+  };
+
+  /**
+   * Whether the IAM policies of `principalArn` (a user or role) allow `action` on `resourceArn`, as the policy simulator
+   * evaluates them: identity policies, permissions boundaries and organization policies, not the resource's own policy.
+   * Throws when the caller may not use the simulator.
+   */
+  simulatePrincipalPolicy = async ({
+    principalArn,
+    action,
+    resourceArn
+  }: {
+    principalArn: string;
+    action: string;
+    resourceArn: string;
+  }): Promise<'allowed' | 'explicitDeny' | 'implicitDeny' | undefined> => {
+    const { EvaluationResults } = await this.#createClient().send(
+      new SimulatePrincipalPolicyCommand({
+        PolicySourceArn: principalArn,
+        ActionNames: [action],
+        ResourceArns: [resourceArn]
+      })
+    );
+    const decision = EvaluationResults?.[0]?.EvalDecision;
+    return decision === 'allowed' || decision === 'explicitDeny' || decision === 'implicitDeny' ? decision : undefined;
   };
 
   /**

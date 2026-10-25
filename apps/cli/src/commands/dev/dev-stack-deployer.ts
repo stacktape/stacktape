@@ -104,7 +104,8 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
 
   await deploymentArtifactManager.deleteAllObsoleteArtifacts();
 
-  // Refresh stack details
+  // Refresh stack details. The template just deployed is the deployed one for the rest of the session.
+  templateManager.oldTemplate = templateManager.getTemplate();
   await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
   await deployedStackOverviewManager.refreshStackInfoMap({
     stackDetails: stackManager.existingStackDetails,

@@ -97,15 +97,17 @@ const checkPortAvailability = (port: number): Promise<boolean> => {
  */
 export const acceptsTcpConnection = ({
   port,
+  host = '127.0.0.1',
   holdMs = 150,
   connectTimeoutMs = 1000
 }: {
   port: number;
+  host?: string;
   holdMs?: number;
   connectTimeoutMs?: number;
 }): Promise<boolean> =>
   new Promise((resolve) => {
-    const socket = connect({ host: '127.0.0.1', port });
+    const socket = connect({ host, port });
     const finish = (accepted: boolean) => {
       clearTimeout(timer);
       socket.removeAllListeners();
@@ -124,8 +126,14 @@ export const acceptsTcpConnection = ({
   });
 
 /**
- * Waits until a local port accepts TCP connections (see `acceptsTcpConnection`). Gives up after `timeoutMs`, or when
- * `shouldStop` says the program it waits for is gone.
+ * The loopback addresses a local app may listen on. With Linux host networking a container's app binds the host's
+ * loopback itself, and an app that listens on `localhost` may bind only `::1`.
+ */
+const LOOPBACK_HOSTS = ['127.0.0.1', '::1'];
+
+/**
+ * Waits until a local port accepts TCP connections on either loopback address (see `acceptsTcpConnection`). Gives up
+ * after `timeoutMs`, or when `shouldStop` says the program it waits for is gone.
  */
 export const waitForTcpPort = async ({
   port,
@@ -141,7 +149,8 @@ export const waitForTcpPort = async ({
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (shouldStop()) return 'stopped';
-    if (await acceptsTcpConnection({ port })) return shouldStop() ? 'stopped' : 'ready';
+    const accepted = await Promise.all(LOOPBACK_HOSTS.map((host) => acceptsTcpConnection({ port, host })));
+    if (accepted.includes(true)) return shouldStop() ? 'stopped' : 'ready';
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
   return shouldStop() ? 'stopped' : 'timeout';

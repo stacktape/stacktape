@@ -9,8 +9,10 @@ import { Client } from 'pg';
 import { runProcess } from '../../scripts/qualification/process';
 
 // Two checkouts (Git worktrees) of one project run dev mode on the same stage. Each must get its own database
-// container, port and generated password, published on loopback only, and a data directory an older CLI initialized
-// with the old fixed password must keep working. The production local-resource code starts real PostgreSQL containers.
+// container, port and data, published on loopback only. Both get the stage's generated password: deployed dev functions
+// carry it, so moving the stage between the worktrees needs no dev stack update. A data directory an older CLI
+// initialized with the old fixed password must keep working. The production local-resource code starts real PostgreSQL
+// containers.
 const IMAGE = 'postgres:15.14';
 const docker = (args: string[]) => spawnSync('docker', args, { encoding: 'utf8', timeout: 120_000 });
 
@@ -46,12 +48,15 @@ type DriverResult = {
  */
 const startDatabases = async ({
   directory,
+  home = directory,
   workingDirectory,
   projectName,
   freshDb = false,
   resources = { db: POSTGRES_DB }
 }: {
   directory: string;
+  /** The user's home directory, which holds the stage's generated passwords. */
+  home?: string;
   workingDirectory: string;
   projectName: string;
   freshDb?: boolean;
@@ -106,7 +111,7 @@ process.exit(0);
       resultFile
     ],
     cwd: resolve(import.meta.dir, '../..'),
-    env: { PATH: process.env.PATH!, HOME: directory, SKIP_LOADING_ENV: '1', STP_DISABLE_TELEMETRY: '1' },
+    env: { PATH: process.env.PATH!, HOME: home, SKIP_LOADING_ENV: '1', STP_DISABLE_TELEMETRY: '1' },
     timeoutMs: 180_000
   });
   const output = await readFile(resultFile, 'utf8').catch(() => undefined);
@@ -118,8 +123,13 @@ process.exit(0);
   return parsed as DriverResult;
 };
 
-const startDatabase = async (directory: string, workingDirectory: string, projectName: string, freshDb = false) => {
-  const { instances, warnings } = await startDatabases({ directory, workingDirectory, projectName, freshDb });
+const startDatabase = async (
+  directory: string,
+  workingDirectory: string,
+  projectName: string,
+  { freshDb = false, home }: { freshDb?: boolean; home?: string } = {}
+) => {
+  const { instances, warnings } = await startDatabases({ directory, home, workingDirectory, projectName, freshDb });
   return { instance: instances[0] as Instance & { credentials: { username: string; password: string } }, warnings };
 };
 
@@ -147,7 +157,7 @@ const reachable = (host: string, port: number) =>
     socket.once('error', () => done(false));
   });
 
-test('worktrees of one project on one stage get separate loopback databases with their own passwords', async () => {
+test('worktrees of one project on one stage get separate loopback databases with the stage password', async () => {
   expect(docker(['image', 'inspect', IMAGE]).status === 0 || docker(['pull', IMAGE]).status === 0).toBeTrue();
   const root = await mkdtemp(join(tmpdir(), 'stacktape-worktree-databases-'));
   const projectName = `wt${randomBytes(4).toString('hex')}`;
@@ -179,7 +189,7 @@ test('worktrees of one project on one stage get separate loopback databases with
 
     const [first, second] = await Promise.all([
       startDatabase(root, main, projectName),
-      startDatabase(await mkdtemp(join(root, 'driver-')), feature, projectName)
+      startDatabase(await mkdtemp(join(root, 'driver-')), feature, projectName, { home: root })
     ]);
     const a = first.instance;
     const b = second.instance;
@@ -198,10 +208,11 @@ test('worktrees of one project on one stage get separate loopback databases with
       expect(instance.credentials.password).toMatch(/^[0-9a-f]{36}$/);
       expect(await readFile(join(instance.dataDir, '..', 'password'), 'utf8')).toBe(instance.credentials.password);
     }
-    expect(a.credentials.password).not.toBe(b.credentials.password);
+    // Both started at once; the first to create the stage's password decided it for both.
+    expect(a.credentials.password).toBe(b.credentials.password);
+    expect(a.dataDir).not.toBe(b.dataDir);
     expect(await query(a.actualPort, a.credentials.password)).toBe('/var/lib/postgresql/data');
     expect(await query(b.actualPort, b.credentials.password)).toBe('/var/lib/postgresql/data');
-    await expect(query(a.actualPort, b.credentials.password)).rejects.toThrow(/password authentication failed/);
     await expect(query(a.actualPort, 'localdevpassword')).rejects.toThrow(/password authentication failed/);
 
     const lanAddress = Object.values(networkInterfaces())
@@ -234,10 +245,10 @@ test('worktrees of one project on one stage get separate loopback databases with
     expect(upgradedRun.warnings.join('\n')).toContain('--fresh-db');
     expect(await query(upgradedRun.instance.actualPort, 'localdevpassword')).toBe('/var/lib/postgresql/data');
 
-    // As the warning says, one run with --freshDb recreates the data with a generated password.
+    // As the warning says, one run with --freshDb recreates the data with the stage's generated password.
     expect(docker(['stop', upgradedRun.instance.containerName]).status).toBe(0);
-    const recreated = await startDatabase(root, upgraded, projectName, true);
-    expect(recreated.instance.credentials.password).toMatch(/^[0-9a-f]{36}$/);
+    const recreated = await startDatabase(root, upgraded, projectName, { freshDb: true });
+    expect(recreated.instance.credentials.password).toBe(a.credentials.password);
     expect(await query(recreated.instance.actualPort, recreated.instance.credentials.password)).toBe(
       '/var/lib/postgresql/data'
     );

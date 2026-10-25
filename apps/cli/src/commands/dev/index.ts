@@ -52,7 +52,11 @@ import {
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
-import { devStackConfigNeedsUpdate, getDevStackConfigFingerprint } from './dev-stack-config-fingerprint';
+import {
+  describeDevStackUpdateCause,
+  getDevStackConfigFingerprint,
+  getDevStackUpdateCause
+} from './dev-stack-config-fingerprint';
 import { getLocalEmulateableResources, registerLocalResourceCleanupHook } from './local-resources';
 import { registerHealthMonitorCleanupHook } from './local-resources/health-monitor';
 import {
@@ -756,14 +760,20 @@ export const commandDev = async () => {
     devNetwork: devNetworkSession?.placement,
     devTrustStatement
   });
-  const devStackConfigChanged = devStackConfigNeedsUpdate({
+  const devStackUpdateCause = getDevStackUpdateCause({
     deployedFingerprint: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.devStackConfigFingerprint()),
     desiredFingerprint: desiredDevStackConfigFingerprint
   });
+  const devStackConfigChanged = devStackUpdateCause !== undefined;
 
   // A resolved-config fingerprint keeps warm starts fast while still refreshing IAM roles and other support
   // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
   if (!stackManager.existingStackDetails || devStackConfigChanged) {
+    const devStackDeployMessage = !stackManager.existingStackDetails
+      ? `Creating dev stack ${stackContext.stackName}`
+      : `Updating dev stack ${stackContext.stackName}: ${describeDevStackUpdateCause(devStackUpdateCause!, {
+          takeOver: Boolean(args.takeOver)
+        })}`;
     try {
       if (agentEnabled) {
         // Agent mode reports the deployment as JSONL events, CloudFormation resource counts included: the parent passes
@@ -771,9 +781,7 @@ export const commandDev = async () => {
         reportDevStartup({
           step: 'DEV_STACK',
           status: 'started',
-          message: !stackManager.existingStackDetails
-            ? `Creating dev stack ${stackContext.stackName}`
-            : `Updating dev stack ${stackContext.stackName}: its configuration changed`
+          message: devStackDeployMessage
         });
         operationReporter.setSilentMode(false);
         try {
@@ -793,6 +801,7 @@ export const commandDev = async () => {
       } else {
         // Interactive mode: use TUI to show deployment progress.
         // Set a header that explains this is an automatic dev-stack setup step.
+        tuiManager.info(`${devStackDeployMessage}.`);
         operationReporter.setSilentMode(false);
         tuiManager.showCommandHeader({
           action: 'DEPLOYING DEV STACK',
