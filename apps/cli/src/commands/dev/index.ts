@@ -64,7 +64,7 @@ import {
   runParallelWorkloads
 } from './parallel-runner';
 import { findAvailablePort } from './port-utils';
-import { startDevNetworkSession } from './dev-network-session';
+import { startDevNetworkSession, waitForDevNetwork } from './dev-network-session';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
 import { setDevSessionOwner } from './cleanup-utils';
@@ -638,13 +638,49 @@ export const commandDev = async () => {
     tuiManager.info(`[~] Selected resources: ${allNames.join(', ')}`);
   }
 
-  // Phase 2: Load AWS metadata (stack info, etc.)
-  const metadataSpinner = createSpinner('Loading metadata from AWS', tuiManager.colorize.bind(tuiManager));
-  await initializeStackServicesForDevPhase2(stackContext);
-  metadataSpinner.success();
+  // Phase 2 reads the dev stack and its metadata from AWS. The secret and parameter checks and the dev network need
+  // nothing of it, so it runs in the background meanwhile; it is awaited before the dev stack is checked.
+  reportDevStartup({
+    step: 'DEV_SESSION',
+    key: 'aws-metadata',
+    status: 'started',
+    message: 'Loading the dev stack and its metadata from AWS'
+  });
+  const metadataState: { loaded: boolean; error?: unknown } = { loaded: false };
+  const metadata = initializeStackServicesForDevPhase2(stackContext).then(
+    () => {
+      metadataState.loaded = true;
+      reportDevStartup({
+        step: 'DEV_SESSION',
+        key: 'aws-metadata',
+        status: 'completed',
+        message: 'Loaded the dev stack and its metadata from AWS'
+      });
+    },
+    (error) => {
+      metadataState.error = error;
+      throw error;
+    }
+  );
+  metadata.catch(() => {});
 
+  // They may prompt for missing values in a terminal, so they run before the dev network shows its progress.
+  reportDevStartup({
+    step: 'DEV_SESSION',
+    key: 'config-references',
+    status: 'started',
+    message: 'Checking the secrets and SSM parameters the configuration references'
+  });
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
+  reportDevStartup({
+    step: 'DEV_SESSION',
+    key: 'config-references',
+    status: 'completed',
+    message: 'Checked the secrets and SSM parameters the configuration references'
+  });
+  // A stack that cannot be read must not cost a dev network creation first.
+  if (metadataState.error) throw metadataState.error;
 
   // VPC functions and functions that use a local database run in the account's shared dev network. Preparing it
   // starts the dev box in the background, and decides where the dev stack's functions run and which relay address
@@ -653,7 +689,7 @@ export const commandDev = async () => {
   reportDevStartup({
     step: 'DEV_NETWORK',
     status: 'started',
-    message: 'Preparing the dev network (creating it the first time takes about 4 minutes)'
+    message: 'Preparing the dev network (the first time, it creates the dev box in about 1 minute)'
   });
   let devNetworkSession: Awaited<ReturnType<typeof startDevNetworkSession>>;
   try {
@@ -668,9 +704,11 @@ export const commandDev = async () => {
     reportDevStartup({
       step: 'DEV_NETWORK',
       status: 'completed',
-      message: devNetworkSession
-        ? `Dev network ${devNetworkSession.network.stackName} is ready`
-        : 'No function needs the dev network'
+      message: !devNetworkSession
+        ? 'No function needs the dev network'
+        : devNetworkSession.readyState().settled
+          ? `Dev network ${devNetworkSession.network.stackName} is ready`
+          : `Dev network ${devNetworkSession.network.stackName}: dev box created; CloudFormation finishes the network while the dev stack deploys`
     });
   } catch (error) {
     devNetworkSpinner.error();
@@ -681,6 +719,17 @@ export const commandDev = async () => {
       message: `Preparing the dev network failed: ${(error as Error).message}`
     });
     throw error;
+  }
+
+  if (!metadataState.loaded) {
+    const metadataSpinner = createSpinner('Loading metadata from AWS', tuiManager.colorize.bind(tuiManager));
+    try {
+      await metadata;
+    } catch (error) {
+      metadataSpinner.error();
+      throw error;
+    }
+    metadataSpinner.success();
   }
 
   // Check for a dev stack or deploy one.
@@ -715,48 +764,54 @@ export const commandDev = async () => {
   // A resolved-config fingerprint keeps warm starts fast while still refreshing IAM roles and other support
   // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
   if (!stackManager.existingStackDetails || devStackConfigChanged) {
-    if (agentEnabled) {
-      // Agent mode reports the deployment as JSONL events, CloudFormation resource counts included: the parent passes
-      // them on, and the session's log file records the start and the outcome.
-      reportDevStartup({
-        step: 'DEV_STACK',
-        status: 'started',
-        message: !stackManager.existingStackDetails
-          ? `Creating dev stack ${stackContext.stackName}`
-          : `Updating dev stack ${stackContext.stackName}: its configuration changed`
-      });
-      operationReporter.setSilentMode(false);
-      try {
-        await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
-        reportDevStartup({ step: 'DEV_STACK', status: 'completed', message: 'Dev stack deployed' });
-      } catch (err) {
+    try {
+      if (agentEnabled) {
+        // Agent mode reports the deployment as JSONL events, CloudFormation resource counts included: the parent passes
+        // them on, and the session's log file records the start and the outcome.
         reportDevStartup({
           step: 'DEV_STACK',
-          status: 'completed',
-          level: 'error',
-          message: `Dev stack deployment failed: ${(err as Error).message}`
+          status: 'started',
+          message: !stackManager.existingStackDetails
+            ? `Creating dev stack ${stackContext.stackName}`
+            : `Updating dev stack ${stackContext.stackName}: its configuration changed`
         });
-        throw err;
-      } finally {
-        operationReporter.setSilentMode(true);
+        operationReporter.setSilentMode(false);
+        try {
+          await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
+          reportDevStartup({ step: 'DEV_STACK', status: 'completed', message: 'Dev stack deployed' });
+        } catch (err) {
+          reportDevStartup({
+            step: 'DEV_STACK',
+            status: 'completed',
+            level: 'error',
+            message: `Dev stack deployment failed: ${(err as Error).message}`
+          });
+          throw err;
+        } finally {
+          operationReporter.setSilentMode(true);
+        }
+      } else {
+        // Interactive mode: use TUI to show deployment progress.
+        // Set a header that explains this is an automatic dev-stack setup step.
+        operationReporter.setSilentMode(false);
+        tuiManager.showCommandHeader({
+          action: 'DEPLOYING DEV STACK',
+          projectName: stackContext.projectName,
+          stageName: stackContext.stage,
+          region: stackContext.region
+        });
+        tuiManager.start();
+        try {
+          await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
+        } finally {
+          await tuiManager.stop();
+          operationReporter.setSilentMode(true);
+        }
       }
-    } else {
-      // Interactive mode: use TUI to show deployment progress.
-      // Set a header that explains this is an automatic dev-stack setup step.
-      operationReporter.setSilentMode(false);
-      tuiManager.showCommandHeader({
-        action: 'DEPLOYING DEV STACK',
-        projectName: stackContext.projectName,
-        stageName: stackContext.stage,
-        region: stackContext.region
-      });
-      tuiManager.start();
-      try {
-        await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
-      } finally {
-        await tuiManager.stop();
-        operationReporter.setSilentMode(true);
-      }
+    } catch (error) {
+      // A dev stack deployed into a network that is still being created fails when the network does; the network's
+      // error explains the dev stack's.
+      throw devNetworkSession?.readyState().error ?? error;
     }
 
     // Refresh stack details after deployment
@@ -766,6 +821,7 @@ export const commandDev = async () => {
       stackResources: stackManager.existingStackResources
     });
   }
+  if (devNetworkSession) await waitForDevNetwork(devNetworkSession);
 
   // Now start the Dev TUI
   const projectName = stackContext.projectName;

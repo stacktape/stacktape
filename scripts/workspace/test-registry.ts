@@ -763,6 +763,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/src/commands/dev',
       'apps/cli/src/commands/dev-stop',
+      'apps/cli/src/commands/dev-network',
       'apps/cli/src/domain/dev-network',
       'apps/cli/src/utils/ports.test.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
@@ -770,7 +771,7 @@ export const lanes: readonly Lane[] = [
     requires: ['python3'],
     release: 'every-candidate',
     proves:
-      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another session of the stage, of the same developer on another machine too, and names it, lets the same session take its port back, moves the stage once on take-over without the sessions taking the port in turn, closes the connections the replaced session carried (also for a client that ignores the take-over), ends the replaced session and never takes the stage back on a later reconnect, refuses one of two concurrent leases of a stage, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation; a running stage refuses a second session before it deploys unless it takes over; dev network delete refuses during live sessions and CloudFormation operations, and a session started during a deletion waits for it and creates the network again.'
+      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another session of the stage, of the same developer on another machine too, and names it, lets the same session take its port back, moves the stage once on take-over without the sessions taking the port in turn, closes the connections the replaced session carried (also for a client that ignores the take-over), ends the replaced session and never takes the stage back on a later reconnect, refuses one of two concurrent leases of a stage, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation; a running stage refuses a second session before it deploys unless it takes over; dev network delete refuses during live sessions and CloudFormation operations, and a session started during a deletion waits for it and creates the network again; a network being created is used once its box exists, is ready only once complete with the instance profile of the box attached, and a creation that fails later says to delete the dev stage; dev network lists who runs each stage from a running box only; a network whose creation failed is deleted by its stack name once no dev function uses it, and every command that meets it names the recovery order; a session that finds another creation running waits for it and checks the stage; the profile watcher of the box restarts the SSM agent only when credentials appear, never after a failed metadata request.'
   },
   {
     id: 'local-dev-containers',
@@ -818,7 +819,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network', 'docker'],
     release: 'affected-external-contract',
     proves:
-      'Through the real `stacktape dev`, a first run creates the dev network and dev stack; arm64 and x86_64 functions read initial and edited local PostgreSQL rows and ping local Redis through the dev box; a VPC function reaches the database and the internet through the box; a killed SSM plugin recovers on its own; a stopped box is started by the next session; a box stopped while a session starts is started again and the tunnels open; a session of the running stage on a second machine is refused before it deploys, network delete is refused during the session, and take-over moves the stage once, closes the pooled connection a warm function holds to the first machine and stops the first session with a recorded reason; deleting the stage and the network leaves no stack, instance, interface, lease, function, log group, SSM session or container.'
+      'Through the real `stacktape dev`, a first run creates the dev network and deploys the dev stack while CloudFormation finishes the network; arm64 and x86_64 functions read initial and edited local PostgreSQL rows and ping local Redis through the dev box; a VPC function reaches the database and the internet through the box; a killed SSM plugin recovers on its own; with two stages running, dev network names the session that runs each; a stopped box is started by the next session; a box stopped while a session starts is started again and the tunnels open; a session of the running stage on a second machine is refused before it deploys, network delete is refused during the session, and take-over moves the stage once, closes the pooled connection a warm function holds to the first machine and stops the first session with a recorded reason; deleting the stage and the network leaves no stack, instance, interface, lease, function, log group, SSM session or container.'
   },
   {
     id: 'nat-instances',
@@ -4242,7 +4243,9 @@ export const slices: readonly Slice[] = [
     journeys: ['J4'],
     paths: [
       'apps/cli/src/commands/dev/**',
+      'apps/cli/src/commands/dev-network/**',
       'apps/cli/src/commands/dev-stop/**',
+      'apps/cli/src/domain/dev-network/**',
       'apps/cli/src/domain/debug-services/**',
       'apps/cli/src/utils/ports.ts'
     ],
@@ -4267,7 +4270,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/dev-box/connection.spec.ts',
       'apps/cli/src/domain/dev-network/leases.spec.ts',
       'apps/cli/src/domain/dev-network/network.spec.ts',
+      'apps/cli/src/domain/dev-network/boot-script.spec.ts',
+      'apps/cli/src/commands/dev-network/index.spec.ts',
       'apps/cli/src/commands/dev/dev-network-session.spec.ts',
+      'apps/cli/src/commands/dev/startup-progress.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/__tests__/config-change.test.ts',

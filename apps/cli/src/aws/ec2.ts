@@ -1,5 +1,6 @@
 import type { _InstanceType, EC2Client, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import {
+  AssociateIamInstanceProfileCommand,
   DescribeInstancesCommand,
   DescribeInstanceTypesCommand,
   StartInstancesCommand,
@@ -72,6 +73,29 @@ export class AwsEc2 {
       .send(new DescribeInstancesCommand({ InstanceIds: [instanceId] }))
       .catch(errorHandler);
     return result.Reservations?.[0]?.Instances?.[0];
+  };
+
+  /** Attaches an instance profile to an instance that has none. An instance that has one already is left as it is. */
+  associateInstanceProfile = async ({
+    instanceId,
+    instanceProfileName
+  }: {
+    instanceId: string;
+    instanceProfileName: string;
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Could not attach instance profile ${instanceProfileName}.`);
+    await this.#createClient()
+      .send(
+        new AssociateIamInstanceProfileCommand({
+          InstanceId: instanceId,
+          IamInstanceProfile: { Name: instanceProfileName }
+        })
+      )
+      .catch((error: Error) => {
+        // Another session attached it meanwhile.
+        if (error.name === 'IncorrectState' && /existing association/i.test(error.message)) return;
+        return errorHandler(error);
+      });
   };
 
   startInstance = async (instanceId: string) => {

@@ -5,6 +5,7 @@ export type SharedStackDetails = {
   StackId?: string;
   StackName?: string;
   StackStatus?: string;
+  StackStatusReason?: string;
   Parameters?: Array<{ ParameterKey?: string; ParameterValue?: string }>;
   Outputs?: Array<{ OutputKey?: string; OutputValue?: string }>;
   RoleARN?: string;
@@ -60,6 +61,11 @@ const sharedStackError = ({
 const IN_PROGRESS_SUFFIXES = ['_IN_PROGRESS', '_CLEANUP_IN_PROGRESS'];
 const isInProgress = (status?: string) => IN_PROGRESS_SUFFIXES.some((suffix) => status?.endsWith(suffix));
 const isReady = (status?: string) => status === 'CREATE_COMPLETE' || status === 'UPDATE_COMPLETE';
+/** A failed operation that CloudFormation undoes: it can run much longer than the operation, for example while network interfaces block a deletion. */
+const isRollingBack = (status?: string) =>
+  Boolean(status && isInProgress(status) && (status.includes('ROLLBACK') || status.startsWith('DELETE')));
+const describeState = (stack: SharedStackDetails | undefined) =>
+  `${stack?.StackStatus ?? 'unknown'}${stack?.StackStatusReason ? `: ${stack.StackStatusReason}` : ''}`;
 const isAlreadyExists = (error: unknown) =>
   (error as { name?: string }).name === 'AlreadyExistsException' ||
   /already exists/i.test((error as { message?: string }).message ?? '');
@@ -106,21 +112,26 @@ export class SharedResourceStackManager {
   readonly #adapter: SharedResourceStackAdapter;
   readonly #pollIntervalMs: number;
   readonly #maxWaitMs: number;
+  readonly #rollbackMaxWaitMs: number;
   readonly #wait: (milliseconds: number) => Promise<void>;
 
   constructor({
     adapter,
     maxWaitMs = 10 * 60_000,
+    rollbackMaxWaitMs = 60 * 60_000,
     pollIntervalMs = 4_000,
     wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
   }: {
     adapter: SharedResourceStackAdapter;
     maxWaitMs?: number;
+    /** How long a rollback or deletion that follows a failure is waited for, counted from the start of the wait. */
+    rollbackMaxWaitMs?: number;
     pollIntervalMs?: number;
     wait?: (milliseconds: number) => Promise<void>;
   }) {
     this.#adapter = adapter;
     this.#maxWaitMs = maxWaitMs;
+    this.#rollbackMaxWaitMs = rollbackMaxWaitMs;
     this.#pollIntervalMs = pollIntervalMs;
     this.#wait = wait;
   }
@@ -331,7 +342,7 @@ export class SharedResourceStackManager {
     if (!isReady(stack.StackStatus)) {
       throw sharedStackError({
         code: 'SHARED_STACK_FAILED_STATE',
-        message: `Shared stack \`${requirement.stackName}\` is in failed or unsupported state \`${stack.StackStatus ?? 'unknown'}\`.`,
+        message: `Shared stack \`${requirement.stackName}\` is in failed or unsupported state ${describeState(stack)}.`,
         hints: 'Resolve the stack failure in CloudFormation before deploying again.'
       });
     }
@@ -349,30 +360,33 @@ export class SharedResourceStackManager {
 
   #waitUntilStable = async (stackName: string, initial?: SharedStackDetails): Promise<SharedStackDetails> => {
     let stack = initial ?? (await this.#adapter.get(stackName));
+    let lastSeen = stack;
     let elapsed = 0;
-    while (stack && isInProgress(stack.StackStatus) && elapsed < this.#maxWaitMs) {
+    const limit = () => (isRollingBack(stack?.StackStatus) ? this.#rollbackMaxWaitMs : this.#maxWaitMs);
+    while (stack && isInProgress(stack.StackStatus) && elapsed < limit()) {
       await this.#wait(this.#pollIntervalMs);
       elapsed += this.#pollIntervalMs;
       stack = await this.#adapter.get(stackName);
+      if (stack) lastSeen = stack;
     }
     if (!stack) {
       throw sharedStackError({
         code: 'SHARED_STACK_DISAPPEARED',
-        message: `Shared stack \`${stackName}\` disappeared while waiting for CloudFormation.`,
+        message: `Shared stack \`${stackName}\` disappeared while waiting for CloudFormation (last state ${describeState(lastSeen)}).`,
         hints: 'Check CloudFormation for an out-of-band deletion, then retry.'
       });
     }
     if (isInProgress(stack.StackStatus)) {
       throw sharedStackError({
         code: 'SHARED_STACK_WAIT_TIMEOUT',
-        message: `Timed out waiting for shared stack \`${stackName}\` (current state: \`${stack.StackStatus}\`).`,
+        message: `Timed out waiting for shared stack \`${stackName}\` (current state: ${describeState(stack)}).`,
         hints: 'Wait for the CloudFormation operation to finish, then retry.'
       });
     }
     if (!isReady(stack.StackStatus)) {
       throw sharedStackError({
         code: 'SHARED_STACK_FAILED_STATE',
-        message: `Shared stack \`${stackName}\` is in failed state \`${stack.StackStatus ?? 'unknown'}\`.`,
+        message: `Shared stack \`${stackName}\` is in failed state ${describeState(stack)}.`,
         hints: 'Resolve the stack failure in CloudFormation before deploying again.'
       });
     }

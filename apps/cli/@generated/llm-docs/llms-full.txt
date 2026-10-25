@@ -3391,14 +3391,20 @@ The first [`stacktape dev`](/cli/dev) that needs it creates one dev network per 
 stacktape dev network --region eu-west-1
 ```
 
-The output names the dev box and whether it runs, the dev functions that run in the network, and the stages that hold relay ports:
+The output names the dev box and whether it runs, the `stacktape dev` session that runs each stage, the dev functions that run in the network, and the stages that hold relay ports:
 
 ```
 Dev network stacktape-dev-network in eu-west-1 (VPC vpc-0a1b2c3d4e5f60718)
-  Dev box: i-0123456789abcdef0, stopped (about $0.70 per month for its disk; the next `stacktape dev` starts it)
+  Dev box: i-0123456789abcdef0, running (about $0.01 per hour; it stops itself 30 minutes after the last session)
+  Dev sessions (stage: who runs it, since when):
+    shop-dev-jane: Jane Doe (jane-laptop, ~/projects/shop), since 10/24/2026, 9:12:40 AM (1 h 5 min)
   Dev functions in the network: shop-dev-jane-api, shop-dev-jane-worker
   Stacks with relay ports: shop-dev-jane
 ```
+
+The sessions come from the running dev box, which knows every session connected to it: the user, the host and the project directory of each, and when it started. A session keeps the box running, so a stopped box has none and is not started to ask. A box that has just started may not answer for about a minute; the sessions are then shown as unknown, with the reason.
+
+With `--agent`, the command prints the same as JSON. `sessions` lists `{ stack, holder, since }` entries, `since` as an ISO timestamp, and is `null` with a `sessionsUnknownReason` when the box did not answer.
 
 ## Who can reach the tunnels
 
@@ -3418,6 +3424,15 @@ The command also refuses while someone else depends on the network:
 - While a `stacktape dev` session creates or updates the network. Run the command again when CloudFormation has finished.
 
 A `stacktape dev` that starts while the network is being deleted waits for the deletion to finish and then creates a new network.
+
+### When creating the network failed
+
+The first `stacktape dev` deploys its dev stage into the network while CloudFormation still creates the network's last parts. When one of them fails, CloudFormation cannot delete the network again while the stage's functions use its subnets, and the network stays behind in `DELETE_FAILED`. `stacktape dev` and `stacktape dev network` then report the failure and the steps that remove it:
+
+1. Delete the dev stages that use the network, with [`stacktape delete --stage <stage>`](/cli/delete).
+2. Wait a few minutes: Lambda releases the network interfaces of deleted functions only after a while.
+3. Run `stacktape dev network delete`. It deletes the failed network by its stack name and refuses while dev functions still use it.
+4. Run `stacktape dev` again; it creates a new network.
 
 Pass `--yes` to skip the confirmation prompt, for example in a script.
 
@@ -18596,7 +18611,7 @@ A query takes your machine's round trip to the region plus a few milliseconds; a
 
 ### The dev network
 
-The first `stacktape dev` that needs it creates the **dev network** of the AWS account and region. It takes about 4 minutes, once, and every later session and stage reuses it:
+The first `stacktape dev` that needs it creates the **dev network** of the AWS account and region, once; every later session and stage reuses it. Creating it takes about 4 minutes, most of it Lambda creating the network interfaces of dev functions. The dev stack deploys meanwhile, so a first start that creates both takes about 5 minutes. The network has:
 
 - a VPC with private subnets, where dev functions that use a local database run, and every dev function with `joinDefaultVpc: true`. All of them share one security group, so new dev stages create their functions in seconds;
 - the dev box, a `t4g.nano` EC2 instance. It runs the relay for local databases and gives VPC functions internet access (it is their NAT).
@@ -18619,7 +18634,7 @@ The AWS identity that runs `stacktape dev` needs, besides the usual deployment p
 
 Container workloads that run on your machine use the AWS permissions of their role in the dev stack: dev mode assumes the role with your credentials, so they need `sts:AssumeRole` on it. The container roles of the dev stack trust your AWS account only for your own IAM user, or the IAM role of your session (an `aws:PrincipalArn` condition), and no other principal. Credentials of a federated user cannot be named this way; for them, dev mode adds the trust after the deploy, and a container's first start on a new stage can then wait several minutes until AWS accepts it.
 
-The first session in an account and region creates the dev network with CloudFormation, using the credentials of whoever runs it. That identity also needs `ssm:GetParameter` on the public Amazon Linux parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64`, and the rights to create the network's VPC, subnets, route tables, internet gateway, security groups, launch template, EC2 instance, IAM role and instance profile (with `iam:PassRole`), and the keeper Lambda function. `stacktape dev network` and `stacktape dev network delete` also need `lambda:ListFunctions`, and the deletion needs the rights to delete those resources. While the box runs, the deletion asks it for live sessions over Systems Manager, with the same `ssm:DescribeInstanceInformation`, `ssm:StartSession` and `ssm:TerminateSession` rights as a session.
+The first session in an account and region creates the dev network with CloudFormation, using the credentials of whoever runs it. That identity also needs `ssm:GetParameter` on the public Amazon Linux parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64`, `cloudformation:ListStackResources` on the dev network stack, and the rights to create the network's VPC, subnets, route tables, internet gateway, security groups, launch template, EC2 instance, IAM role and instance profile (with `iam:PassRole`), and the keeper Lambda function. The box starts before CloudFormation has finished its instance profile, which takes about 2 minutes, and the session attaches the profile once it exists. That needs `ec2:AssociateIamInstanceProfile` on the box and `iam:PassRole` on its role (`stacktape-dev-network-…-BoxRole-…`). When the first session is interrupted before it attaches the profile, the next session in the account and region attaches it, so every developer whose session may come next needs these two rights too. `stacktape dev network` and `stacktape dev network delete` also need `lambda:ListFunctions`, and the deletion needs the rights to delete those resources. While the box runs, the deletion asks it for live sessions over Systems Manager, with the same `ssm:DescribeInstanceInformation`, `ssm:StartSession` and `ssm:TerminateSession` rights as a session.
 
 ### Skipping the tunnels
 
@@ -18790,7 +18805,7 @@ When you run `stacktape dev`, the following steps execute in order:
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
 3. **Load AWS metadata** — Stacktape fetches stack information from AWS.
 4. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config.
-5. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use (about 4 minutes, once per account and region) and starts its dev box in the background.
+5. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A first start that creates the network and the dev stack takes about 5 minutes.
 6. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
 7. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
 

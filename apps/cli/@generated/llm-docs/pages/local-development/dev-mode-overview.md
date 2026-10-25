@@ -27,7 +27,7 @@ When you run `stacktape dev`, the following steps execute in order:
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
 3. **Load AWS metadata** — Stacktape fetches stack information from AWS.
 4. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config.
-5. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use (about 4 minutes, once per account and region) and starts its dev box in the background.
+5. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A first start that creates the network and the dev stack takes about 5 minutes.
 6. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
 7. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
 

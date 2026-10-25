@@ -194,7 +194,7 @@ Use \`--cleanup-containers\` to remove the Docker containers that crashed dev se
   'dev:network': {
     description: `Shows the dev network of an AWS account and region.
 
-The first \`stacktape dev\` that needs it creates one dev network per account and region: a VPC with a small EC2 instance, the dev box. Deployed dev functions reach the databases on your machine through the box, and VPC functions get internet access through it. The command shows whether the box runs, which dev functions use the network, and which stages hold relay ports.`,
+The first \`stacktape dev\` that needs it creates one dev network per account and region: a VPC with a small EC2 instance, the dev box. Deployed dev functions reach the databases on your machine through the box, and VPC functions get internet access through it. The command shows whether the box runs, which \`stacktape dev\` session runs each stage (its user, host and project directory, and since when), which dev functions use the network, and which stages hold relay ports.`,
     args: {
       ...universalArgs,
       ...stackArgs

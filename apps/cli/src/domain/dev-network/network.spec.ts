@@ -1,7 +1,18 @@
 import { describe, expect, test } from 'bun:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { SharedStackDetails } from '@domain-services/shared-resource-stack-manager';
 import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
-import { deleteDevNetwork, ensureDevNetwork, type DevNetwork, type DevNetworkAws, type LiveDevSession } from './index';
+import {
+  deleteDevNetwork,
+  deleteFailedDevNetwork,
+  ensureDevNetwork,
+  FAILED_DEV_NETWORK_RECOVERY,
+  readDevNetwork,
+  readFailedDevNetwork,
+  type DevNetwork,
+  type DevNetworkAws,
+  type LiveDevSession
+} from './index';
 import { DEV_NETWORK_CONTRACT_VERSION, DEV_NETWORK_KIND } from './template';
 
 // CloudFormation, EC2 and SSM as the network commands see them: a stack whose status moves on each read, a box state,
@@ -26,7 +37,8 @@ const outputs = {
   LambdaSecurityGroupId: network.lambdaSecurityGroupId,
   BoxInstanceId: network.boxInstanceId,
   BoxPrivateIp: network.boxPrivateIp,
-  KeeperFunctionName: network.keeperFunctionName
+  KeeperFunctionName: network.keeperFunctionName,
+  BoxInstanceProfileName: 'stacktape-dev-network-box-profile'
 };
 const stackIn = (StackStatus: string, StackId = 'stack-1'): SharedStackDetails => ({
   StackId,
@@ -71,11 +83,13 @@ const fakeAws = ({
       },
       delete: async () => {
         calls.deletes++;
-      }
+      },
+      listResources: async () => []
     },
     resolveBoxImageId: async () => 'ami-1',
-    describeBox: async () => ({ state: boxState }),
+    describeBox: async () => ({ state: boxState, hasInstanceProfile: true }),
     startBox: async () => {},
+    attachBoxProfile: async () => {},
     isBoxOnline: async () => true,
     listFunctionsInSecurityGroup: async () => functions,
     leases: {
@@ -201,5 +215,237 @@ describe('dev network creation during a deletion', () => {
       code: 'DEV_NETWORK_DELETE_FAILED'
     });
     expect(calls.creates).toBe(0);
+  });
+});
+
+const KEEPER_FAILED = 'The following resource(s) failed to create: [Keeper].';
+
+/**
+ * A creation as CloudFormation runs it: the stack is in progress without outputs, its box exists minutes before the
+ * keeper, and it ends complete or is deleted again after a failure. The test moves it from phase to phase.
+ */
+const creatingAws = () => {
+  let phase: 'absent' | 'creating' | 'box' | 'complete' | 'rolling-back' | 'deleted' = 'absent';
+  const attached: string[] = [];
+  const counts = { resourceReads: 0 };
+  const { aws: base } = fakeAws({ statuses: [undefined] });
+  const created = (LogicalResourceId: string, PhysicalResourceId: string) => ({
+    LogicalResourceId,
+    PhysicalResourceId,
+    ResourceStatus: 'CREATE_COMPLETE'
+  });
+  const aws: DevNetworkAws = {
+    ...base,
+    stacks: {
+      ...base.stacks,
+      get: async () => {
+        if (phase === 'absent' || phase === 'deleted') return undefined;
+        if (phase === 'complete') return stackIn('CREATE_COMPLETE');
+        if (phase === 'rolling-back') {
+          return { ...stackIn('DELETE_IN_PROGRESS'), Outputs: [], StackStatusReason: KEEPER_FAILED };
+        }
+        return { ...stackIn('CREATE_IN_PROGRESS'), Outputs: [] };
+      },
+      create: async () => void (phase = 'creating'),
+      listResources: async () => {
+        counts.resourceReads++;
+        const resources = [
+          created('Vpc', network.vpcId),
+          created('PrivateSubnet0', network.privateSubnetIds[0]),
+          created('PrivateSubnet1', network.privateSubnetIds[1]),
+          created('LambdaSecurityGroup', network.lambdaSecurityGroupId),
+          { LogicalResourceId: 'Keeper', ResourceStatus: 'CREATE_IN_PROGRESS' }
+        ];
+        if (phase === 'box') resources.push(created('Box', network.boxInstanceId));
+        else resources.push({ LogicalResourceId: 'Box', PhysicalResourceId: '', ResourceStatus: 'CREATE_IN_PROGRESS' });
+        return resources;
+      }
+    },
+    describeBox: async () => ({
+      state: 'running',
+      privateIp: network.boxPrivateIp,
+      hasInstanceProfile: attached.length > 0
+    }),
+    attachBoxProfile: async (instanceId, name) => void attached.push(`${instanceId}:${name}`)
+  };
+  return { aws, attached, counts, setPhase: (next: typeof phase) => (phase = next) };
+};
+
+describe('dev network creation', () => {
+  test('returns the network once its box exists, and is ready once CloudFormation finished and the profile is attached', async () => {
+    const { aws, attached, setPhase } = creatingAws();
+    const pending = ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    await delay(20);
+    setPhase('box');
+    const { network: early, action, ready } = await pending;
+    expect({ action, early }).toEqual({ action: 'create', early: network });
+    let readyNow = false;
+    void ready.then(() => (readyNow = true));
+    await delay(20);
+    expect({ readyNow, attached }).toEqual({ readyNow: false, attached: [] });
+    setPhase('complete');
+    await ready;
+    expect(attached).toEqual([`${network.boxInstanceId}:stacktape-dev-network-box-profile`]);
+  });
+
+  test('a creation that fails after the box exists rejects `ready` at once, not when the rollback ends', async () => {
+    const { aws, setPhase } = creatingAws();
+    const pending = ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    await delay(20);
+    setPhase('box');
+    const { ready } = await pending;
+    // The rollback never ends here, like one that network interfaces of dev functions block for an hour.
+    setPhase('rolling-back');
+    const error = await ready.then(
+      () => undefined,
+      (caught: { code?: string; message?: string; hints?: string[] }) => caught
+    );
+    expect(error?.code).toBe('DEV_NETWORK_CREATE_FAILED');
+    expect(error?.message).toContain(`DELETE_IN_PROGRESS: ${KEEPER_FAILED}`);
+    expect(error?.hints?.slice(1)).toEqual(FAILED_DEV_NETWORK_RECOVERY);
+  });
+
+  test('a session that finds another one creating the network waits for all of it, and does not count as its creator', async () => {
+    const { aws, counts, setPhase } = creatingAws();
+    setPhase('box');
+    let done = false;
+    const pending = ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 }).finally(() => (done = true));
+    await delay(30);
+    expect({ done, resourceReads: counts.resourceReads }).toEqual({ done: false, resourceReads: 0 });
+    setPhase('complete');
+    const { action, network: complete } = await pending;
+    expect({ action, complete }).toEqual({
+      action: 'reuse',
+      complete: { ...network, boxInstanceProfileName: 'stacktape-dev-network-box-profile' }
+    });
+  });
+
+  test('an existing network is not waited for resource by resource, and gets a missing profile attached', async () => {
+    const { aws, attached, counts, setPhase } = creatingAws();
+    setPhase('complete');
+    const { action, ready } = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    await ready;
+    expect({ action, resourceReads: counts.resourceReads, attached: attached.length }).toEqual({
+      action: 'reuse',
+      resourceReads: 0,
+      attached: 1
+    });
+  });
+});
+
+/**
+ * A network whose creation failed after dev functions used its subnets: CloudFormation could not delete it again, so
+ * it is in DELETE_FAILED with no outputs. After a deletion call the stack reads `afterDelete`, one status per read.
+ */
+const failedAws = ({
+  functions = [] as string[],
+  tagged = true,
+  afterDelete = ['DELETE_FAILED', 'DELETE_IN_PROGRESS', undefined] as Array<string | undefined>
+} = {}) => {
+  const { aws: base, leases } = fakeAws({ statuses: [undefined] });
+  const calls = { deletes: 0 };
+  let read = 0;
+  const failedStack = (StackStatus: string): SharedStackDetails => ({
+    StackId: 'stack-1',
+    StackName: stackName,
+    StackStatus,
+    StackStatusReason: 'The following resource(s) failed to delete: [PrivateSubnet0, LambdaSecurityGroup].',
+    Outputs: [],
+    Tags: tagged ? [{ Key: 'stacktape:shared-resource-kind', Value: 'dev-network' }] : []
+  });
+  const aws: DevNetworkAws = {
+    ...base,
+    stacks: {
+      ...base.stacks,
+      get: async () => {
+        if (!calls.deletes) return failedStack('DELETE_FAILED');
+        const status = afterDelete[Math.min(read++, afterDelete.length - 1)];
+        return status ? failedStack(status) : undefined;
+      },
+      delete: async () => void calls.deletes++,
+      listResources: async () => [
+        { LogicalResourceId: 'LambdaSecurityGroup', PhysicalResourceId: 'sg-failed', ResourceStatus: 'CREATE_COMPLETE' }
+      ]
+    },
+    listFunctionsInSecurityGroup: async (groupId) => (groupId === 'sg-failed' ? functions : [])
+  };
+  return { aws, calls, leases };
+};
+
+describe('a network whose creation failed', () => {
+  test("a session that waited for another one's creation gets the recovery steps as soon as it fails", async () => {
+    let reads = 0;
+    const { aws: base } = failedAws();
+    const states = ['CREATE_IN_PROGRESS', 'CREATE_IN_PROGRESS', 'DELETE_IN_PROGRESS', 'DELETE_FAILED'];
+    const aws: DevNetworkAws = {
+      ...base,
+      stacks: {
+        ...base.stacks,
+        get: async () => ({
+          ...(await base.stacks.get(stackName))!,
+          StackStatus: states[Math.min(reads++, states.length - 1)]
+        })
+      }
+    };
+    const error = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 }).then(
+      () => undefined,
+      (caught: { code?: string; hints?: string[] }) => caught
+    );
+    // The rollback (DELETE_IN_PROGRESS) is not waited for.
+    expect(error).toMatchObject({ code: 'DEV_NETWORK_CREATE_FAILED' });
+    expect(error?.hints?.[0]).toContain('Another `stacktape dev` session created it');
+    expect(error?.hints?.slice(1)).toEqual(FAILED_DEV_NETWORK_RECOVERY);
+  });
+
+  test('every command that meets it gives the order that works, instead of pointing at another dead end', async () => {
+    const { aws } = failedAws();
+    expect(await readFailedDevNetwork(aws)).toMatchObject({ stackName, status: 'DELETE_FAILED' });
+    for (const attempt of [readDevNetwork(aws), ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 })]) {
+      const error = (await failure(attempt)) as { code?: string } | undefined;
+      expect(error?.code).toMatch(/^DEV_NETWORK_(CREATION|DELETE)_FAILED$/);
+      const hints = await attempt.catch((caught: { hints?: string[] }) => caught.hints);
+      expect(hints).toEqual(FAILED_DEV_NETWORK_RECOVERY);
+    }
+  });
+
+  test('is deleted by its stack name once no dev function uses it, and its leases go too', async () => {
+    const used = failedAws({ functions: ['shop-dev-api', `${stackName}-keeper`] });
+    const refused = await deleteFailedDevNetwork({
+      aws: used.aws,
+      failed: (await readFailedDevNetwork(used.aws))!
+    }).then(
+      () => undefined,
+      (caught: { code?: string; message?: string; hints?: string[] }) => caught
+    );
+    expect(refused).toMatchObject({ code: 'DEV_NETWORK_IN_USE', hints: FAILED_DEV_NETWORK_RECOVERY });
+    expect(refused?.message).toContain('shop-dev-api');
+    expect(refused?.message).not.toContain('keeper');
+    expect(used.calls.deletes).toBe(0);
+
+    // The first read after the deletion call still shows DELETE_FAILED; that is not the deletion failing again.
+    const free = failedAws();
+    const failed = (await readFailedDevNetwork(free.aws))!;
+    expect(await deleteFailedDevNetwork({ aws: free.aws, failed, pollIntervalMs: 1 })).toEqual({
+      deletedLeases: 1,
+      recreated: false
+    });
+    expect({ deletes: free.calls.deletes, leases: free.leases.size }).toEqual({ deletes: 1, leases: 0 });
+  });
+
+  test('a deletion that fails again says to wait for Lambda, and a stack Stacktape does not own is left alone', async () => {
+    const again = failedAws({ afterDelete: ['DELETE_IN_PROGRESS', 'DELETE_FAILED'] });
+    const error = await deleteFailedDevNetwork({
+      aws: again.aws,
+      failed: (await readFailedDevNetwork(again.aws))!,
+      pollIntervalMs: 1
+    }).catch((caught: { code?: string; hints?: string[] }) => caught);
+    expect(error).toMatchObject({ code: 'DEV_NETWORK_DELETE_FAILED' });
+    expect(String((error as { hints?: string[] }).hints)).toContain('Lambda releases the network interfaces');
+
+    const foreign = failedAws({ tagged: false });
+    expect(
+      await failure(deleteFailedDevNetwork({ aws: foreign.aws, failed: (await readFailedDevNetwork(foreign.aws))! }))
+    ).toMatchObject({ code: 'DEV_NETWORK_FOREIGN' });
+    expect(foreign.calls.deletes).toBe(0);
   });
 });

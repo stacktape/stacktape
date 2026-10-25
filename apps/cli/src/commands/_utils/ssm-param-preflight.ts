@@ -20,14 +20,15 @@ export const ensureMissingSsmParamsCreated = async () => {
     return;
   }
 
-  const missingParams: string[] = [];
-  for (const paramName of paramRefs) {
-    try {
-      await awsSdkManager.parameterStore.get({ name: paramName });
-    } catch {
-      missingParams.push(paramName);
-    }
-  }
+  const found = await Promise.all(
+    [...paramRefs].map((paramName) =>
+      awsSdkManager.parameterStore.get({ name: paramName }).then(
+        () => true,
+        () => false
+      )
+    )
+  );
+  const missingParams = [...paramRefs].filter((_, index) => !found[index]);
 
   if (!missingParams.length) {
     return;

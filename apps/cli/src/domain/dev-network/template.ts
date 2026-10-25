@@ -3,7 +3,7 @@ import { cfnResource, type CloudFormationTemplate } from '@stacktape/cloudformat
 import { getDevBoxUserData } from './boot-script';
 
 /** Increment when the template changes: an older network is updated on the next `stacktape dev` that uses it. */
-export const DEV_NETWORK_CONTRACT_VERSION = 2;
+export const DEV_NETWORK_CONTRACT_VERSION = 3;
 export const DEV_NETWORK_KIND = 'dev-network';
 export const DEV_BOX_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64';
 export const DEV_BOX_INSTANCE_TYPE = 't4g.nano';
@@ -24,7 +24,9 @@ const tags = (networkName: string, name: string) => [
  * - the dev box, one t4g.nano instance in the first public subnet. It is the private subnets' NAT (their default route
  *   points at it) and runs the relay through which deployed dev functions reach databases on a developer's machine.
  *   It has one network interface: a stopped instance with one interface gets a new public IP when it starts, which it
- *   needs for SSM and NAT. Its private IP never changes, so dev stacks are deployed with it;
+ *   needs for SSM and NAT. Its private IP never changes, so dev stacks are deployed with it. It starts without its
+ *   instance profile: CloudFormation waits about 2 minutes after creating a profile, and an instance that refers to it
+ *   would wait too. `stacktape dev` attaches the profile once it exists, and the box connects to SSM then;
  * - `LambdaSecurityGroup`, which every dev function in the network uses, and `BoxSecurityGroup`, which admits only it;
  * - the keeper function. Lambda creates the network interfaces of a subnet and security-group combination with the
  *   first function that uses it (about 4 minutes) and removes them after the last one is deleted (1 to 2 minutes, which a
@@ -114,7 +116,6 @@ export const buildDevNetworkTemplate = ({ networkName }: { networkName: string }
     Box: cfnResource('AWS::EC2::Instance', {
       ImageId: ref('ImageId'),
       InstanceType: DEV_BOX_INSTANCE_TYPE,
-      IamInstanceProfile: ref('BoxInstanceProfile'),
       LaunchTemplate: {
         LaunchTemplateId: ref('BoxLaunchTemplate'),
         Version: getAtt('BoxLaunchTemplate', 'LatestVersionNumber')
@@ -203,6 +204,7 @@ export const buildDevNetworkTemplate = ({ networkName }: { networkName: string }
       LambdaSecurityGroupId: { Value: ref('LambdaSecurityGroup') },
       BoxInstanceId: { Value: ref('Box') },
       BoxPrivateIp: { Value: getAtt('Box', 'PrivateIp') },
+      BoxInstanceProfileName: { Value: ref('BoxInstanceProfile') },
       KeeperFunctionName: { Value: ref('Keeper') }
     }
   };
