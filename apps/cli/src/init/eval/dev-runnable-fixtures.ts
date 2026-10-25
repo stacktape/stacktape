@@ -106,6 +106,9 @@ export default async (event: SQSEvent) => {
 </html>
 `,
   'web/src/main.ts': `const api = (import.meta.env.VITE_API_URL as string).replace(/\\/$/, '');
+// Someone else's API: not this project's backend.
+const stripeApi = import.meta.env.VITE_STRIPE_API_URL as string | undefined;
+void stripeApi;
 const list = document.querySelector<HTMLUListElement>('#list')!;
 
 const render = async () => {
@@ -225,8 +228,50 @@ export const handler: ScheduledHandler = async () => {
 `
 };
 
+/** Two HTTP handlers in one directory: neither may take the catch-all route, and neither states its own. */
+const twoHttpHandlers: Record<string, string> = {
+  'package.json': JSON.stringify(
+    { name: 'users', private: true, type: 'module', devDependencies: { '@types/aws-lambda': '^8.10.145' } },
+    null,
+    2
+  ),
+  'src/getUser.ts': `import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+
+export const handler: APIGatewayProxyHandlerV2 = async (event) => ({
+  statusCode: 200,
+  body: JSON.stringify({ id: event.pathParameters?.id })
+});
+`,
+  'src/createUser.ts': `import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+
+export const handler: APIGatewayProxyHandlerV2 = async (event) => ({ statusCode: 201, body: event.body ?? '' });
+`
+};
+
+/** Two apps of a monorepo, each with an HTTP handler in a file of the same name. */
+const monorepoApis: Record<string, string> = {
+  'package.json': JSON.stringify({ name: 'shop', private: true, workspaces: ['apps/*'] }, null, 2),
+  ...Object.fromEntries(
+    ['users', 'orders'].flatMap((app) => [
+      [
+        `apps/${app}/package.json`,
+        JSON.stringify({ name: app, private: true, devDependencies: { '@types/aws-lambda': '^8.10.145' } }, null, 2)
+      ],
+      [
+        `apps/${app}/src/api.ts`,
+        `import type { APIGatewayProxyEventV2 } from 'aws-lambda';
+
+export default async (event: APIGatewayProxyEventV2) => ({ statusCode: 200, body: '${app} ' + event.rawPath });
+`
+      ]
+    ])
+  )
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
-  'scheduled-dynamodb': scheduledDynamodb
+  'scheduled-dynamodb': scheduledDynamodb,
+  'two-http-handlers': twoHttpHandlers,
+  'monorepo-apis': monorepoApis
 } as const;

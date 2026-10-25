@@ -160,9 +160,15 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'schedule-unknown': {
-    summary: (parameters, chosen) => `Running ${text(parameters, 'serviceName', 'this job')} on a schedule (${chosen})`,
-    detail: () => 'It looks like a scheduled job, but nothing in the code says how often. Daily is the safe guess.',
-    option: (value) => value
+    summary: (parameters, chosen) =>
+      chosen === 'none'
+        ? `No schedule for ${text(parameters, 'serviceName', 'this job')} yet`
+        : `Running ${text(parameters, 'serviceName', 'this job')} on a schedule (${chosen})`,
+    detail: (_parameters, chosen) =>
+      chosen === 'none'
+        ? 'It looks like a scheduled job, but nothing in the code says how often. It deploys without a schedule and does not run on its own until you set one, so a guess never runs it against real data.'
+        : 'It runs on this schedule after the first deploy.',
+    option: (value) => (value === 'none' ? 'No schedule yet' : value)
   },
 
   'environment-variable-timing': {

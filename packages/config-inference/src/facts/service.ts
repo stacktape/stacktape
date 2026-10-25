@@ -204,6 +204,12 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
 
 export type FunctionTrigger = z.infer<typeof functionTriggerSchema>;
 
+/**
+ * The `unmapped` source of an HTTP handler whose route the code does not state, when several handlers serve HTTP and
+ * none of them can take the catch-all route alone.
+ */
+export const UNROUTED_HTTP_SOURCE = 'HTTP requests on a route the code does not name';
+
 const containerEntrypointSchema = z
   .string()
   .min(1)

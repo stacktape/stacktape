@@ -16,12 +16,13 @@ import type { DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
-import type { ServiceFact } from '../facts/service';
+import { UNROUTED_HTTP_SOURCE, type ServiceFact } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import { resolveAssumptions, type Assumption } from './assumptions';
 import { classifyService, type ServiceResourceType } from './classify';
 import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-versions';
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
+import { NO_SCHEDULE } from '../facts/apply-answer';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
 import { normalizeScheduleExpression } from './schedule';
@@ -967,6 +968,21 @@ export const composeConfig = ({
     service.functionTriggers.some((trigger) => trigger.type === 'http')
   );
   const httpApiGatewayName = httpTriggeredServices.length === 0 ? undefined : uniqueName('httpApiGateway', taken);
+  // One HTTP API holds each method and path once; CloudFormation rejects a second. The first function keeps a
+  // route, later ones lose it and get a gap.
+  const claimedRoutes = new Set<string>();
+  const duplicateRoutes = new Map<string, string[]>();
+  for (const service of httpTriggeredServices) {
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'http') continue;
+      const route = `${httpRouteMethod(trigger.method)} ${trigger.path}`;
+      if (!claimedRoutes.has(route)) {
+        claimedRoutes.add(route);
+        continue;
+      }
+      duplicateRoutes.set(service.name, [...(duplicateRoutes.get(service.name) ?? []), route]);
+    }
+  }
   if (httpApiGatewayName !== undefined) {
     resources[httpApiGatewayName] = {
       type: 'http-api-gateway',
@@ -1141,6 +1157,7 @@ export const composeConfig = ({
       service,
       environment,
       buildAddresses,
+      skippedRoutes: duplicateRoutes.get(service.name) ?? [],
       connectTo,
       dependencyResourceNames,
       ...(httpApiGatewayName === undefined ? {} : { httpApiGatewayName }),
@@ -1202,7 +1219,12 @@ export const composeConfig = ({
     if (
       classification.resourceType === 'function' &&
       service.functionTriggers.length === 0 &&
-      service.schedule === undefined
+      service.schedule === undefined &&
+      !assumptions.some(
+        (assumption) =>
+          assumption.kind === 'schedule-unknown' &&
+          (assumption.parameters as { serviceName?: string }).serviceName === service.name
+      )
     ) {
       gaps.push({
         subject: service.name,
@@ -1223,9 +1245,27 @@ export const composeConfig = ({
       if (trigger.type !== 'unmapped') continue;
       gaps.push({
         subject: service.name,
-        message: `${service.name} is invoked by ${trigger.sourceType} in the existing deployment files. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
+        message:
+          trigger.sourceType === UNROUTED_HTTP_SOURCE
+            ? `${service.name} handles HTTP requests, and so do other handlers, but the code does not say which route each one serves. Add an http-api-gateway event with its method and path to each of them before deploying; only one handler can take the catch-all route.`
+            : `${service.name} is invoked by ${trigger.sourceType}. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
       });
     }
+    for (const route of duplicateRoutes.get(service.name) ?? []) {
+      gaps.push({
+        subject: `${service.name}.route`,
+        message: `${service.name} and another function both declare the HTTP route ${route}, which one API cannot hold twice. We left it off ${service.name}; give it its own route before deploying.`
+      });
+    }
+  }
+
+  for (const assumption of assumptions) {
+    if (assumption.kind !== 'schedule-unknown' || assumption.chosen !== NO_SCHEDULE) continue;
+    const { serviceName } = assumption.parameters as { serviceName?: string };
+    gaps.push({
+      subject: `${serviceName}.schedule`,
+      message: `${serviceName} looks like a scheduled job, but nothing in the code says how often it runs. We wrote no schedule, so it deploys and runs in stacktape dev but never on its own. Add a schedule event, for example rate(1 day), when you know.`
+    });
   }
 
   for (const dependency of facts.dependencies) {
@@ -1297,6 +1337,9 @@ export const composeConfig = ({
   };
 };
 
+/** SAM and Serverless spell the catch-all method `ANY`; the HTTP API gateway event takes `*`. */
+const httpRouteMethod = (method: string): string => (/^(?:any|\*)$/i.test(method) ? '*' : method.toUpperCase());
+
 /** The port Stacktape routes a web or private service's traffic to when its config sets none. */
 const DEFAULT_SERVICE_PORT = 3000;
 
@@ -1305,6 +1348,7 @@ const buildServiceResource = ({
   service,
   environment,
   buildAddresses,
+  skippedRoutes,
   connectTo,
   dependencyResourceNames,
   httpApiGatewayName,
@@ -1318,6 +1362,8 @@ const buildServiceResource = ({
   environment: Array<{ name: string; value: unknown }>;
   /** Build-time variables holding another resource's address, for frontends. */
   buildAddresses: Array<{ name: string; value: string }>;
+  /** `METHOD /path` routes another function already holds on the shared HTTP API. */
+  skippedRoutes: readonly string[];
   connectTo: readonly string[];
   dependencyResourceNames: ReadonlyMap<string, string>;
   httpApiGatewayName?: string;
@@ -1378,13 +1424,15 @@ const buildServiceResource = ({
     for (const trigger of service.functionTriggers) {
       if (trigger.type === 'unmapped') continue;
       if (trigger.type === 'http') {
-        if (httpApiGatewayName !== undefined) {
+        if (
+          httpApiGatewayName !== undefined &&
+          !skippedRoutes.includes(`${httpRouteMethod(trigger.method)} ${trigger.path}`)
+        ) {
           events.push({
             type: 'http-api-gateway',
             properties: {
               httpApiGatewayName,
-              // SAM and Serverless spell the catch-all `ANY`; the HTTP API gateway event takes `*`.
-              method: /^(?:any|\*)$/i.test(trigger.method) ? '*' : trigger.method.toUpperCase(),
+              method: httpRouteMethod(trigger.method),
               path: trigger.path,
               ...(trigger.payloadFormat === '2.0' ? { payloadFormat: '2.0' } : {})
             }

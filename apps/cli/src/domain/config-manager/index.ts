@@ -99,6 +99,7 @@ import { runInitialValidations, validateConfigStructure, validateGuardrails } fr
 import {
   isResourceTypeExcludedInDevMode,
   selectWorkloadsDeployedInDevMode,
+  withBastionsForRemoteResources,
   withSourceMapsInPackage
 } from '@domain-services/config-manager/dev-mode';
 import type { StacktapeConfig } from '@stacktape/config';
@@ -967,7 +968,11 @@ export class ConfigManager {
     }
     return {
       command: this.stackContext.command,
-      remoteResourceNames,
+      remoteResourceNames: withBastionsForRemoteResources({
+        remoteResourceNames,
+        vpcResourceNames: [...this.databases, ...this.redisClusters, ...this.openSearchDomains].map(({ name }) => name),
+        bastionNames: this.bastions.map(({ name }) => name)
+      }),
       devNetwork: this.stackContext.command === 'dev' ? this.#devNetworkPlacement : undefined,
       devTrustStatement: this.stackContext.command === 'dev' ? this.#devTrustStatement : undefined
     };

@@ -246,6 +246,29 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     ]);
   });
 
+  it('two functions declaring one route keep it once and report the second', () => {
+    const fn = (name: string) =>
+      service({
+        name,
+        path: 'src',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `src/${name}.ts`,
+        functionTriggers: [{ type: 'http', method: 'ANY', path: '/{proxy+}' }]
+      });
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [fn('a'), fn('b')]
+    });
+    const result = composeConfig({ facts, projectName: 'demo' });
+
+    expectValid(result.config);
+    expect(result.config.resources.a?.properties.events).toHaveLength(1);
+    expect(result.config.resources.b?.properties.events).toBeUndefined();
+    expect(result.gaps.map((gap) => gap.subject)).toContain('b.route');
+  });
+
   it('a static site', () => {
     expectValid(
       composeFrom({

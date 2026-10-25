@@ -3,7 +3,7 @@
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact } from '../../facts/dependency';
-import type { FunctionTrigger, ServiceFactInput } from '../../facts/service';
+import { UNROUTED_HTTP_SOURCE, type FunctionTrigger, type ServiceFactInput } from '../../facts/service';
 import type { Uncertainty } from '../../facts/uncertainty';
 import {
   citeFirstMatch,
@@ -91,20 +91,25 @@ const EVENT_TYPES: ReadonlyArray<{ names: readonly string[]; family: EventFamily
 ];
 
 const EVENT_TYPE_NAMES = EVENT_TYPES.flatMap((entry) => entry.names).toSorted((a, b) => b.length - a.length);
-const TYPE = `(${EVENT_TYPE_NAMES.join('|')})\\b`;
+/** `SQSHandler`, `APIGatewayProxyHandlerV2WithJWTAuthorizer`: the type of a handler, not of the event it receives. */
+const isHandlerType = (name: string) => /Handler(?:V2)?(?:With\w+)?$/.test(name);
+const ANY_TYPE = `(${EVENT_TYPE_NAMES.join('|')})\\b`;
+const EVENT_TYPE = `(${EVENT_TYPE_NAMES.filter((name) => !isHandlerType(name)).join('|')})\\b`;
 
 /**
  * The type a handler export is declared with: the first parameter's annotation, or a `Handler` type on the export.
  *
  * `export default async (event: SQSEvent) =>`, `export async function handler(event: APIGatewayProxyEventV2)`,
- * `export const handler: SQSHandler = ...` and `export const handler: Handler<ScheduledEvent> = ...` all qualify.
+ * `export const handler: SQSHandler = ...` and `export const handler: Handler<ScheduledEvent> = ...` all qualify. A
+ * parameter typed with a handler type (`export default (handler: APIGatewayProxyHandlerV2) => ...`) is a wrapper that
+ * builds a handler, not one.
  */
 const TYPED_EXPORT_PATTERNS: readonly RegExp[] = [
-  new RegExp(`export\\s+default\\s+(?:async\\s+)?(?:function\\s*[\\w$]*\\s*)?\\(\\s*[^)]*?:\\s*${TYPE}`),
+  new RegExp(`export\\s+default\\s+(?:async\\s+)?(?:function\\s*[\\w$]*\\s*)?\\(\\s*[^)]*?:\\s*${EVENT_TYPE}`),
   new RegExp(
-    `export\\s+(?:const\\s+handler\\s*=\\s*(?:async\\s+)?(?:function\\s*[\\w$]*\\s*)?|(?:async\\s+)?function\\s+handler\\s*)\\(\\s*[^)]*?:\\s*${TYPE}`
+    `export\\s+(?:const\\s+handler\\s*=\\s*(?:async\\s+)?(?:function\\s*[\\w$]*\\s*)?|(?:async\\s+)?function\\s+handler\\s*)\\(\\s*[^)]*?:\\s*${EVENT_TYPE}`
   ),
-  new RegExp(`export\\s+const\\s+handler\\s*:\\s*(?:Handler\\s*<\\s*)?${TYPE}`)
+  new RegExp(`export\\s+const\\s+handler\\s*:\\s*(?:Handler\\s*<\\s*)?${ANY_TYPE}`)
 ];
 
 const TYPED_EXPORT = /export\s+(?:default\b|const\s+handler\b|(?:async\s+)?function\s+handler\b)/;
@@ -116,7 +121,7 @@ const SCHEDULE_LITERAL = /['"`]((?:rate|cron)\([^'"`)]+\))['"`]/;
 
 /** Source files that are part of the application rather than its tests, tooling or build output. */
 const NON_APPLICATION_PATH =
-  /(?:^|\/)(?:node_modules|dist|build|out|\.next|\.output|\.stacktape|coverage|tests?|__tests__|__mocks__|spec|e2e|cypress|fixtures|examples?|scripts|docs?)(?:\/|$)/i;
+  /(?:^|\/)(?:node_modules|dist|build|out|lib|\.next|\.output|\.stacktape|\.sst|cdk\.out|\.aws-sam|coverage|tests?|__tests__|__mocks__|spec|e2e|cypress|fixtures|examples?|scripts|docs?)(?:\/|$)/i;
 const NON_APPLICATION_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$|(?:^|\/)[^/]*\.config\.[cm]?[jt]s$/i;
 const MAX_TYPED_CANDIDATES = 400;
 
@@ -152,6 +157,39 @@ const nameFor = (path: string): string => {
     }
   }
   return 'handler';
+};
+
+const GENERIC_DIRECTORIES = new Set([
+  'src',
+  'handlers',
+  'handler',
+  'functions',
+  'function',
+  'lambdas',
+  'lambda',
+  'apps',
+  'packages',
+  'services'
+]);
+
+/**
+ * Names that stay unique when two handlers have the same file name: `apps/users/src/api.ts` and
+ * `apps/orders/src/api.ts` become `users-api` and `orders-api`, not two services called `api`.
+ */
+const uniqueHandlerNames = (paths: readonly string[]): Map<string, string> => {
+  const names = new Map(paths.map((path) => [path, nameFor(path)]));
+  const counts = new Map<string, number>();
+  for (const name of names.values()) counts.set(name, (counts.get(name) ?? 0) + 1);
+  for (const [path, name] of names) {
+    if ((counts.get(name) ?? 0) < 2) continue;
+    const directory = path
+      .split('/')
+      .slice(0, -1)
+      .toReversed()
+      .find((segment) => !GENERIC_DIRECTORIES.has(segment.toLowerCase()) && segment !== name);
+    if (directory !== undefined) names.set(path, `${directory}-${name}`);
+  }
+  return names;
 };
 
 export const lambdaSourceProbe: Probe = {
@@ -216,25 +254,37 @@ export const lambdaSourceProbe: Probe = {
           /\.(?:[cm]?[jt]s|tsx)$/.test(path) && !NON_APPLICATION_PATH.test(path) && !NON_APPLICATION_FILE.test(path)
       )
       .slice(0, MAX_TYPED_CANDIDATES);
+    const typedHandlers: Array<{ path: string; raw: string; typed: TypedHandler }> = [];
     for (const path of typedCandidates) {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
       const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined) continue;
       const typed = typedHandler(path, raw);
-      if (typed === undefined) continue;
+      if (typed !== undefined) typedHandlers.push({ path, raw, typed });
+    }
+    // Every HTTP-typed handler would otherwise get the catch-all route on the one HTTP API, and CloudFormation rejects
+    // two `* /{proxy+}` routes. Only a lone HTTP handler is the API; several have to be given their routes.
+    const httpHandlerCount = typedHandlers.filter(({ typed }) => typed.family.trigger === 'http').length;
+
+    for (const { path, raw, typed } of typedHandlers) {
       const evidence = typed.citation === undefined ? [] : [typed.citation];
       const name = nameFor(path);
       const triggers: FunctionTrigger[] = [];
       const { family } = typed;
       if (family.trigger === 'http') {
-        // The handler routes on its own (`event.rawPath`), so every method and path reaches it.
-        triggers.push({ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: family.payloadFormat });
+        triggers.push(
+          httpHandlerCount === 1
+            ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it.
+              { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: family.payloadFormat }
+            : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
+        );
       } else if (family.trigger === 'schedule') {
         const rate = SCHEDULE_LITERAL.exec(raw)?.[1];
         if (rate === undefined) {
           uncertainties.push({
             kind: 'schedule-unknown',
-            id: `schedule-unknown:${name}`,
+            // Keyed by file until the names are final below.
+            id: `schedule-unknown:${path}`,
             blocksDeploy: false,
             evidence,
             source: 'probe',
@@ -287,6 +337,21 @@ export const lambdaSourceProbe: Probe = {
         evidence: [...(exportCitation === undefined ? [] : [exportCitation]), ...evidence],
         source: 'probe'
       });
+    }
+
+    const finalNames = uniqueHandlerNames(services.map((service) => service.functionEntrypoint!));
+    for (const service of services) {
+      const name = finalNames.get(service.functionEntrypoint!)!;
+      for (const uncertainty of uncertainties) {
+        if (
+          uncertainty.kind === 'schedule-unknown' &&
+          uncertainty.id === `schedule-unknown:${service.functionEntrypoint}`
+        ) {
+          uncertainty.serviceName = name;
+          uncertainty.id = `schedule-unknown:${name}`;
+        }
+      }
+      service.name = name;
     }
 
     return services.length === 0

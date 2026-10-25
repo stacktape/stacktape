@@ -13,7 +13,6 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'bun:test';
 import type { StacktapeConfig } from '@stacktape/config';
 import { validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
-import { validateScheduleSyntax } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/functions/events/utils';
 import { runGreenfieldMission, type GreenfieldResult } from '../missions/greenfield';
 import { DEV_RUNNABLE_FIXTURES } from './dev-runnable-fixtures';
 
@@ -79,11 +78,12 @@ describe('init writes a config stacktape dev can run', () => {
     });
     // `connectTo` already injects every `STP_*` value; restating them would drift.
     expect(resources.api!.properties.environment).toBeUndefined();
+    // Only the project's own API address is wired; `VITE_STRIPE_API_URL` stays the user's to set.
     expect(resources.todosWeb!.properties).toMatchObject({
       dev: { command: 'npm run dev', workingDirectory: 'web' },
       injectEnvironment: [{ name: 'VITE_API_URL', value: "$ResourceParam('httpApiGateway', 'url')" }]
     });
-    expect(result.composition.gaps).toEqual([]);
+    expect(result.composition.gaps.map((gap) => gap.subject)).toEqual(['todos-web.VITE_STRIPE_API_URL']);
     expect(result.composition.unsetSettings).toEqual([]);
   });
 
@@ -113,13 +113,47 @@ describe('init writes a config stacktape dev can run', () => {
     const resources = resourcesOf(result);
 
     expect(typesOf(resources)).toEqual({ items: 'dynamo-db-table', prune: 'function' });
-    const events = resources.prune!.properties.events as Array<{ type: string; properties: { scheduleRate: string } }>;
-    expect(events).toHaveLength(1);
-    expect(events[0]!.type).toBe('schedule');
-    // The code states no rate, so the default is an assumption the user sees, written in a form Stacktape accepts.
-    expect(validateScheduleSyntax(events[0]!.properties.scheduleRate)).toBeNull();
-    expect(result.composition.assumptions.map((assumption) => assumption.kind)).toEqual(['schedule-unknown']);
+    // The code states no rate. A guessed one would run the prune against real data after the first deploy, so no
+    // schedule is written: the function deploys and runs in dev, and the user is told to add one.
+    expect(resources.prune!.properties.events).toBeUndefined();
+    expect(result.composition.assumptions.map(({ kind, chosen }) => [kind, chosen])).toEqual([
+      ['schedule-unknown', 'none']
+    ]);
+    expect(result.composition.gaps.map((gap) => gap.subject)).toEqual(['prune.schedule']);
     expect(resources.prune!.properties.connectTo).toEqual(['items']);
-    expect(result.composition.gaps).toEqual([]);
   });
+
+  // CloudFormation rejects two `* /{proxy+}` routes on one HTTP API, in deploy and in dev alike.
+  it.each([
+    [
+      'two-http-handlers',
+      [
+        ['getUser', 'getUser'],
+        ['createUser', 'createUser']
+      ]
+    ],
+    [
+      'monorepo-apis',
+      [
+        ['users-api', 'usersApi'],
+        ['orders-api', 'ordersApi']
+      ]
+    ]
+  ] as const)(
+    '%s: several HTTP handlers are asked for their routes instead of sharing the catch-all',
+    async (fixture, names) => {
+      const result = await initFixture(fixture);
+      const resources = resourcesOf(result);
+
+      expect(Object.values(resources).some((resource) => resource.type === 'http-api-gateway')).toBe(false);
+      // Service names stay unique (`users-api`, not two `api`), and each resource is its camelCase form.
+      for (const [service, resource] of names) {
+        expect(resources[resource]?.type).toBe('function');
+        expect(resources[resource]?.properties.events).toBeUndefined();
+        expect(
+          result.composition.gaps.some((gap) => gap.subject === service && gap.message.includes('which route'))
+        ).toBe(true);
+      }
+    }
+  );
 });

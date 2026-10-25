@@ -621,8 +621,12 @@ const resolvedByOtherProbes = (
   );
 };
 
-/** A frontend's build-time variable that holds the address of the project's API. */
-const API_ADDRESS_VARIABLE = /(?:^|_)(?:API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
+/**
+ * A frontend's build-time variable that holds the address of the project's own API: the framework prefix directly
+ * followed by the API word. `VITE_STRIPE_API_URL` or `NEXT_PUBLIC_STRAPI_API_URL` address someone else's API.
+ */
+const API_ADDRESS_VARIABLE =
+  /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?(?:API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
 
 /**
  * Point a frontend's `VITE_API_URL` (or `NEXT_PUBLIC_API_URL`, …) at the project's one HTTP backend.

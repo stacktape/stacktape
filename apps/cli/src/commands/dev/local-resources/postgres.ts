@@ -1,4 +1,5 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
+import { readdir } from 'node:fs/promises';
 import { execDocker } from '@utils/docker';
 import {
   buildDockerRunArgs,
@@ -21,10 +22,67 @@ import { getLocalDbParameters, postgresParamsToDockerArgs } from './db-parameter
  * Where the data volume mounts. The official images from Postgres 18 keep data in a version-named directory under
  * `/var/lib/postgresql` and refuse to start with a volume at the older `/var/lib/postgresql/data`.
  */
+const POSTGRES_LEGACY_DATA_PATH = '/var/lib/postgresql/data';
+
 export const postgresDataPath = (version: string): string => {
   const major = Number.parseInt(version, 10);
-  return version === 'latest' || major >= 18 ? '/var/lib/postgresql' : '/var/lib/postgresql/data';
+  return version === 'latest' || major >= 18 ? '/var/lib/postgresql' : POSTGRES_LEGACY_DATA_PATH;
 };
+
+/**
+ * Whether a data directory holds a cluster written at the pre-18 path: `PG_VERSION` directly in it. Mounted at
+ * `/var/lib/postgresql`, a Postgres 18+ image would ignore those files and initialize an empty database next to them.
+ * On Linux the old container owns the directory, so the check runs from a container of the image when the developer
+ * cannot read it.
+ */
+export const hasPreVersion18Data = async ({
+  dataDir,
+  imageTag,
+  readDirectory = readdir,
+  runCheck = async (directory: string) => {
+    try {
+      await execDocker(
+        [
+          'run',
+          '--rm',
+          '--user',
+          '0',
+          '--entrypoint',
+          'test',
+          '-v',
+          `${directory}:/check`,
+          imageTag,
+          '-f',
+          '/check/PG_VERSION'
+        ],
+        { skipHandleError: true }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}: {
+  dataDir: string;
+  imageTag: string;
+  readDirectory?: (directory: string) => Promise<string[]>;
+  runCheck?: (directory: string) => Promise<boolean>;
+}): Promise<boolean> => {
+  try {
+    return (await readDirectory(dataDir)).includes('PG_VERSION');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return false;
+    if (code !== 'EACCES' && code !== 'EPERM') throw error;
+    return runCheck(dataDir);
+  }
+};
+
+export const preVersion18DataError = (name: string, version: string) =>
+  new Error(
+    `The local data of "${name}" was written by Postgres 17 or older, and the Postgres ${version} image keeps its data in a different directory, so it would start with an empty database next to your data. ` +
+      'Restart with --fresh-db to start over with an empty database. To keep the data, set the old version in the config, run stacktape dev and pg_dump it, then switch to the new version with --fresh-db and restore the dump.'
+  );
 
 export const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
   const connectionString = `postgresql://${user}:${pass}@${host}:${port}/${database}`;
@@ -67,6 +125,9 @@ export const startLocalPostgres = async (
 
   let actualPort = await findAvailablePort(port);
   const imageTag = getImageTag(version, 'postgres');
+  if (postgresDataPath(version) !== POSTGRES_LEGACY_DATA_PATH && (await hasPreVersion18Data({ dataDir, imageTag }))) {
+    throw preVersion18DataError(name, version);
+  }
 
   // Fetch and merge database parameters (skip AWS defaults for faster dev startup)
   const dbParams = await getLocalDbParameters({

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createProbeContext } from '../assemble';
+import { UNROUTED_HTTP_SOURCE } from '../../facts/service';
 import { lambdaSourceProbe } from './lambda-source';
 
 let root: string;
@@ -133,9 +134,10 @@ describe('the lambda-source probe', () => {
       (output.services ?? []).map((service) => [service.functionEntrypoint, service.functionTriggers])
     );
 
+    // Two HTTP handlers cannot both take the catch-all route on one API, so neither gets it.
     expect(triggers).toEqual({
-      'src/api.ts': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
-      'src/legacy.ts': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '1.0' }],
+      'src/api.ts': [{ type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }],
+      'src/legacy.ts': [{ type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }],
       'src/worker.ts': [{ type: 'queue', dependencyName: 'jobQueue' }],
       'src/thumbnails.ts': [{ type: 'object-storage', dependencyName: 'storageBucket' }],
       'src/report.ts': [{ type: 'schedule', rate: 'rate(2 hours)' }],
@@ -181,6 +183,52 @@ describe('the lambda-source probe', () => {
       ].join('\n'),
       // Same type name, but not the aws-lambda one.
       'src/events.ts': 'type SQSEvent = { id: string };\nexport default (event: SQSEvent) => event.id;\n'
+    });
+    root = repo.root;
+
+    expect(await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files))).toEqual({});
+  });
+
+  it.each([
+    ['APIGatewayProxyEventV2', '2.0'],
+    ['APIGatewayProxyEvent', '1.0']
+  ] as const)(
+    'gives a lone %s handler the catch-all route with payload format %s',
+    async (eventType, payloadFormat) => {
+      const repo = await makeRepo({
+        'src/api.ts': [
+          `import type { ${eventType} } from 'aws-lambda';`,
+          `export default async (event: ${eventType}) => ({ statusCode: 200 });`,
+          ''
+        ].join('\n')
+      });
+      root = repo.root;
+
+      const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+      expect(output.services?.[0]?.functionTriggers).toEqual([
+        { type: 'http', method: '*', path: '/{proxy+}', payloadFormat }
+      ]);
+    }
+  );
+
+  it('ignores handler wrappers and generated or library directories', async () => {
+    const typed = [
+      "import type { SQSEvent } from 'aws-lambda';",
+      'export default async (event: SQSEvent) => event;',
+      ''
+    ].join('\n');
+    const repo = await makeRepo({
+      // Takes a handler and returns one: middleware, not a function.
+      'src/with-auth.ts': [
+        "import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';",
+        'export default (handler: APIGatewayProxyHandlerV2): APIGatewayProxyHandlerV2 => async (event, context) => handler(event, context);',
+        ''
+      ].join('\n'),
+      'lib/worker.ts': typed,
+      '.sst/artifacts/worker.ts': typed,
+      'cdk.out/asset/worker.ts': typed,
+      '.aws-sam/build/worker.ts': typed
     });
     root = repo.root;
 

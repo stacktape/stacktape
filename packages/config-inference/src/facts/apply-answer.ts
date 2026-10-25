@@ -18,6 +18,9 @@
 import type { ProjectFacts } from './project-facts';
 import type { Uncertainty } from './uncertainty';
 
+/** The answer to a `schedule-unknown` question that writes no schedule: the job deploys but does not run on its own. */
+export const NO_SCHEDULE = 'none';
+
 export const applyAnswer = ({
   facts,
   uncertainty,
@@ -90,6 +93,7 @@ export const applyAnswer = ({
       break;
     }
     case 'schedule-unknown': {
+      if (value === NO_SCHEDULE) break;
       services = services.map((service) =>
         service.name === uncertainty.serviceName ? { ...service, schedule: value } : service
       );
@@ -172,9 +176,10 @@ export const recommendationFor = (uncertainty: Uncertainty): string | undefined 
       // The first thing found nearby, or the near-universal convention for the command in question.
       return uncertainty.suggestions[0] ?? (uncertainty.command === 'build' ? 'npm run build' : 'npm start');
     case 'schedule-unknown':
-      // Daily, at an hour nothing else is running. Frequent enough to be useful, cheap enough that
-      // a wrong guess costs nothing while they change it.
-      return uncertainty.suggestions[0] ?? '0 3 * * *';
+      // No schedule. A guessed one would run the job (a cleanup, a billing run) against real data after the first
+      // deploy; written without one, it deploys and runs in `stacktape dev` but never on its own. Suggestions stay
+      // choices, because nothing in the repository stated them.
+      return NO_SCHEDULE;
     case 'cross-service-target-unknown':
       // Only when there is exactly one candidate. Picking one of three would be a coin toss with
       // the user's traffic.
