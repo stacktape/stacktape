@@ -107,3 +107,48 @@ describe('shared resource stack manager', () => {
     await expect(manager.ensure(requirement())).rejects.toMatchObject({ code: 'SHARED_STACK_WAIT_TIMEOUT' });
   });
 });
+
+describe('waiting for a failed creation', () => {
+  const failing = (statuses: Array<SharedStackDetails | undefined>) => {
+    let reads = 0;
+    let created = false;
+    const adapter: SharedResourceStackAdapter = {
+      get: async () => (created ? statuses[Math.min(reads++, statuses.length - 1)] : undefined),
+      create: async () => void (created = true),
+      update: async () => {}
+    };
+    return adapter;
+  };
+  const reason = 'The following resource(s) failed to create: [Keeper].';
+  const inState = (StackStatus: string): SharedStackDetails => ({ StackStatus, StackStatusReason: reason });
+
+  test('waits longer for a rollback than for the creation, and names the real state when it gives up', async () => {
+    // 3 polls of creation, then the rollback: 10 more polls fit only into the rollback limit.
+    const statuses = [
+      ...Array.from({ length: 3 }, () => inState('CREATE_IN_PROGRESS')),
+      ...Array.from({ length: 10 }, () => inState('DELETE_IN_PROGRESS')),
+      undefined
+    ];
+    const manager = new SharedResourceStackManager({
+      adapter: failing(statuses),
+      pollIntervalMs: 1,
+      maxWaitMs: 5,
+      rollbackMaxWaitMs: 50,
+      wait: async () => {}
+    });
+    const error = await manager.ensure(requirement()).catch((caught: { code?: string; message?: string }) => caught);
+    expect(error).toMatchObject({ code: 'SHARED_STACK_DISAPPEARED' });
+    expect((error as { message: string }).message).toContain(`last state DELETE_IN_PROGRESS: ${reason}`);
+
+    const stuck = new SharedResourceStackManager({
+      adapter: failing([inState('DELETE_IN_PROGRESS')]),
+      pollIntervalMs: 1,
+      maxWaitMs: 5,
+      rollbackMaxWaitMs: 20,
+      wait: async () => {}
+    });
+    const timeout = await stuck.ensure(requirement()).catch((caught: { code?: string; message?: string }) => caught);
+    expect(timeout).toMatchObject({ code: 'SHARED_STACK_WAIT_TIMEOUT' });
+    expect((timeout as { message: string }).message).toContain(`current state: DELETE_IN_PROGRESS: ${reason}`);
+  });
+});

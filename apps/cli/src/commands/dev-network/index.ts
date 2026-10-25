@@ -1,7 +1,15 @@
 import type { RelaySessionInfo } from '../dev/tunnel-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { createDevNetworkAws, deleteDevNetwork, getDevNetworkName, readDevNetwork } from '@domain-services/dev-network';
+import {
+  createDevNetworkAws,
+  deleteDevNetwork,
+  deleteFailedDevNetwork,
+  FAILED_DEV_NETWORK_RECOVERY,
+  getDevNetworkName,
+  readDevNetwork,
+  readFailedDevNetwork
+} from '@domain-services/dev-network';
 import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
 import { CliError } from '@utils/errors';
 import { loadUserCredentials } from '../_utils/initialization';
@@ -83,8 +91,25 @@ export const formatStageHolders = (
 export const commandDevNetwork = async () => {
   const { args } = await loadUserCredentials();
   const aws = createDevNetworkAws();
-  const network = await readDevNetwork(aws);
   const region = globalStateManager.region;
+  const failed = await readFailedDevNetwork(aws);
+  if (failed) {
+    const result = {
+      region,
+      exists: true,
+      stackName: failed.stackName,
+      failed: { status: failed.status, reason: failed.reason }
+    };
+    if (isAgentMode(args)) tuiManager.info(JSON.stringify(result, null, 2));
+    else {
+      tuiManager.printLines([
+        `Dev network ${failed.stackName} in ${region} failed to be created and was not deleted again (${failed.status}${failed.reason ? `: ${failed.reason}` : ''}).`,
+        ...FAILED_DEV_NETWORK_RECOVERY.map((step, index) => `  ${index + 1}. ${step}`)
+      ]);
+    }
+    return result;
+  }
+  const network = await readDevNetwork(aws);
   if (!network) {
     const result = { region, exists: false };
     if (isAgentMode(args)) tuiManager.info(JSON.stringify(result, null, 2));
@@ -142,28 +167,39 @@ export const commandDevNetwork = async () => {
 export const commandDevNetworkDelete = async () => {
   const { args } = await loadUserCredentials();
   const aws = createDevNetworkAws();
+  const confirm = async (stackName: string) => {
+    if (args.autoConfirmOperation) return true;
+    if (!process.stdout.isTTY) {
+      throw new CliError({
+        category: 'CLI',
+        code: 'DEV_NETWORK_DELETE_NOT_CONFIRMED',
+        message: `Deleting the dev network ${stackName} needs confirmation.`,
+        hints: 'Run it in a terminal, or add `--yes`.'
+      });
+    }
+    const proceed = await tuiManager.promptConfirm({
+      message: `Delete the dev network ${stackName}, its dev box and its relay ports?`
+    });
+    if (!proceed) tuiManager.info('Operation canceled.');
+    return proceed;
+  };
+  // A network whose creation failed has no box or relay to ask; it is deleted by its stack name.
+  const failed = await readFailedDevNetwork(aws);
+  if (failed) {
+    if (!(await confirm(failed.stackName))) return { deleted: false };
+    tuiManager.info(`Deleting the dev network ${failed.stackName}, whose creation failed (${failed.status}).`);
+    const { deletedLeases, recreated } = await deleteFailedDevNetwork({ aws, failed });
+    tuiManager.success(
+      `Deleted the dev network ${failed.stackName} and ${deletedLeases} relay port lease${deletedLeases === 1 ? '' : 's'}. The next \`stacktape dev\` creates a new one.`
+    );
+    return { deleted: true, recreated };
+  }
   const network = await readDevNetwork(aws);
   if (!network) {
     tuiManager.info(`There is no dev network (${getDevNetworkName()}) in ${globalStateManager.region}.`);
     return { deleted: false };
   }
-  if (!args.autoConfirmOperation) {
-    if (!process.stdout.isTTY) {
-      throw new CliError({
-        category: 'CLI',
-        code: 'DEV_NETWORK_DELETE_NOT_CONFIRMED',
-        message: `Deleting the dev network ${network.stackName} needs confirmation.`,
-        hints: 'Run it in a terminal, or add `--yes`.'
-      });
-    }
-    const proceed = await tuiManager.promptConfirm({
-      message: `Delete the dev network ${network.stackName}, its dev box and its relay ports?`
-    });
-    if (!proceed) {
-      tuiManager.info('Operation canceled.');
-      return { deleted: false };
-    }
-  }
+  if (!(await confirm(network.stackName))) return { deleted: false };
   tuiManager.info(`Deleting the dev network ${network.stackName}. This takes about 2 minutes.`);
   const { deletedLeases, recreated } = await deleteDevNetwork({
     aws,

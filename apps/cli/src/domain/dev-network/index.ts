@@ -118,6 +118,31 @@ export const createDevNetworkAws = (): DevNetworkAws => ({
   }
 });
 
+/**
+ * How to remove a network whose creation failed after dev stages were deployed into it, in the order that works: the
+ * stages' functions keep network interfaces in its subnets, so CloudFormation cannot delete it before they are gone.
+ */
+export const FAILED_DEV_NETWORK_RECOVERY = [
+  'Delete the dev stages that use the network, with `stacktape delete --stage <stage>`.',
+  'Wait a few minutes: Lambda releases the network interfaces of deleted functions only after a while.',
+  'Run `stacktape dev network delete`, then `stacktape dev`; it creates a new network.'
+];
+
+/** A network stack whose creation failed and that CloudFormation could not delete again: it has no outputs. */
+export type FailedDevNetwork = { stackName: string; stackId?: string; status: string; reason?: string };
+
+const describeFailure = ({ status, reason }: { status?: string; reason?: string }) =>
+  `${status ?? 'unknown state'}${reason ? `: ${reason}` : ''}`;
+
+const failedDevNetworkError = (failed: FailedDevNetwork, cause?: unknown) =>
+  new CliError({
+    category: 'CLOUDFORMATION',
+    code: 'DEV_NETWORK_CREATION_FAILED',
+    cause,
+    message: `The dev network stack \`${failed.stackName}\` failed to be created and was not deleted again (${describeFailure(failed)}).`,
+    hints: FAILED_DEV_NETWORK_RECOVERY
+  });
+
 const readOutputs = (stackName: string, stack: SharedStackDetails): DevNetwork => {
   const output = (key: string) => {
     const value = stack.Outputs?.find(({ OutputKey }) => OutputKey === key)?.OutputValue;
@@ -125,8 +150,8 @@ const readOutputs = (stackName: string, stack: SharedStackDetails): DevNetwork =
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_OUTPUT_MISSING',
-        message: `The dev network stack \`${stackName}\` has no \`${key}\` output.`,
-        hints: `Delete it with \`stacktape dev network delete\`; the next \`stacktape dev\` creates it again.`
+        message: `The dev network stack \`${stackName}\` has no \`${key}\` output (${describeFailure({ status: stack.StackStatus, reason: stack.StackStatusReason })}).`,
+        hints: FAILED_DEV_NETWORK_RECOVERY
       });
     }
     return value;
@@ -156,6 +181,22 @@ const devNetworkBusyError = (stackName: string, status: string | undefined) =>
     hints: 'Run the command again once CloudFormation has finished, in a few minutes.'
   });
 
+const toFailedDevNetwork = (stackName: string, stack: SharedStackDetails | undefined): FailedDevNetwork | undefined => {
+  const status = stack?.StackStatus;
+  if (!stack || !status || stack.Outputs?.length || status === 'DELETE_COMPLETE' || status.endsWith('_IN_PROGRESS'))
+    return undefined;
+  return { stackName, stackId: stack.StackId, status, reason: stack.StackStatusReason };
+};
+
+/**
+ * The network's stack when its creation failed and CloudFormation could not delete it again, usually because dev
+ * functions deployed while it was created keep its subnets in use. Such a stack has no outputs.
+ */
+export const readFailedDevNetwork = async (aws: DevNetworkAws): Promise<FailedDevNetwork | undefined> => {
+  const stackName = getDevNetworkName();
+  return toFailedDevNetwork(stackName, await aws.stacks.get(stackName));
+};
+
 /** The network as deployed, or `undefined` when this account and region has none. */
 export const readDevNetwork = async (aws: DevNetworkAws): Promise<DevNetwork | undefined> => {
   const stackName = getDevNetworkName();
@@ -164,6 +205,8 @@ export const readDevNetwork = async (aws: DevNetworkAws): Promise<DevNetwork | u
   // A network being created has no outputs yet.
   if (isBeingChanged(stack.StackStatus) && !stack.Outputs?.length)
     throw devNetworkBusyError(stackName, stack.StackStatus);
+  const failed = toFailedDevNetwork(stackName, stack);
+  if (failed) throw failedDevNetworkError(failed);
   return readOutputs(stackName, stack);
 };
 
@@ -192,9 +235,8 @@ const waitForDeletion = async ({
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_DELETE_FAILED',
-        message: `The dev network stack \`${stackName}\` is ${stack.StackStatus === 'DELETE_IN_PROGRESS' ? 'still being deleted' : `in state ${stack.StackStatus} after a deletion`}.`,
-        hints:
-          'Run `stacktape dev network delete` to finish the deletion, then run `stacktape dev` again; it creates a new network.'
+        message: `The dev network stack \`${stackName}\` is ${stack.StackStatus === 'DELETE_IN_PROGRESS' ? 'still being deleted' : `in state ${describeFailure({ status: stack.StackStatus, reason: stack.StackStatusReason })} after a deletion`}.`,
+        hints: FAILED_DEV_NETWORK_RECOVERY
       });
     }
     await delay(pollIntervalMs);
@@ -213,18 +255,21 @@ const waitForBoxOfCreatedNetwork = async ({
   aws,
   stackName,
   isSettled,
+  isCreatedHere,
   pollIntervalMs
 }: {
   aws: DevNetworkAws;
   stackName: string;
   isSettled: () => boolean;
+  /** Whether this session's creation call returned; a stack another session creates is not used early. */
+  isCreatedHere: () => boolean;
   pollIntervalMs: number;
 }): Promise<DevNetwork | undefined> => {
   while (!isSettled()) {
     const stack = await aws.stacks.get(stackName);
     // Before the creation call returns the stack may not exist yet; any other state is a finished creation.
     if (stack && stack.StackStatus !== 'CREATE_IN_PROGRESS') return undefined;
-    if (stack) {
+    if (stack && isCreatedHere()) {
       const resources = new Map(
         (await aws.stacks.listResources(stackName)).map((resource) => [resource.LogicalResourceId, resource])
       );
@@ -266,10 +311,11 @@ const attachMissingBoxProfile = async (aws: DevNetworkAws, network: DevNetwork) 
  * Returns the account and region's dev network, creating it on first use or updating one created by an older Stacktape
  * version. `onCreate` runs once, before a creation starts.
  *
- * A network that is being created is returned as soon as its box exists, about 1 minute after the creation starts, so
- * the dev stack deploys while CloudFormation finishes the network: the keeper function and the box's instance profile
- * take about 3 more minutes. `ready` resolves once the network is complete and the box has its instance profile, and
- * rejects when the creation fails. A session must wait for it before it reports itself ready.
+ * A network this call creates is returned as soon as its box exists, about 1 minute after the creation starts, so the
+ * dev stack deploys while CloudFormation finishes the network: the keeper function and the box's instance profile take
+ * about 3 more minutes. `ready` resolves once the network is complete and the box has its instance profile, and rejects
+ * as soon as the creation fails. A session must wait for it before it reports itself ready. A creation another session
+ * started is waited for in full, so that this session checks the box for a session of its stage before it deploys.
  */
 export const ensureDevNetwork = async ({
   aws,
@@ -296,7 +342,20 @@ export const ensureDevNetwork = async ({
     });
     existing = undefined;
   }
-  const manager = new SharedResourceStackManager({ adapter: aws.stacks, pollIntervalMs });
+  const failedBefore = toFailedDevNetwork(stackName, existing);
+  if (failedBefore) throw failedDevNetworkError(failedBefore);
+  // Only the session that created the network uses it before it is complete. A session that finds another one's
+  // creation running waits for the whole network, then checks for a session of its stage like on any running box.
+  let createdHere = false;
+  const adapter: SharedResourceStackAdapter = {
+    ...aws.stacks,
+    create: async (input) => {
+      const created = await aws.stacks.create(input);
+      createdHere = true;
+      return created;
+    }
+  };
+  const manager = new SharedResourceStackManager({ adapter, pollIntervalMs });
   const ensured = manager
     .ensure({
       kind: DEV_NETWORK_KIND,
@@ -327,28 +386,41 @@ export const ensureDevNetwork = async ({
     () => (settled = true),
     () => (settled = true)
   );
-  // A network that exists already is used once it is ready, as before.
-  const early =
-    !existing || existing.StackStatus === 'CREATE_IN_PROGRESS'
-      ? await waitForBoxOfCreatedNetwork({
-          aws,
-          stackName,
-          isSettled: () => settled,
-          pollIntervalMs: pollIntervalMs ?? 3000
-        })
-      : undefined;
+  const isSettled = () => settled;
+  const pollMs = pollIntervalMs ?? 3000;
+  const early = !existing
+    ? await waitForBoxOfCreatedNetwork({
+        aws,
+        stackName,
+        isSettled,
+        isCreatedHere: () => createdHere,
+        pollIntervalMs: pollMs
+      })
+    : undefined;
   if (early) {
-    const ready = ensured.then(
-      ({ profileAttached }) => profileAttached,
+    // CloudFormation's rollback of a failed creation can take far longer than the creation, so the failure is reported
+    // as soon as the stack leaves the creation, not when the rollback ends.
+    const creationFailed = (async (): Promise<never> => {
+      while (!isSettled()) {
+        await delay(pollMs);
+        const stack = await aws.stacks.get(stackName).catch(() => undefined);
+        const status = stack?.StackStatus;
+        if (status && status !== 'CREATE_IN_PROGRESS' && status !== 'CREATE_COMPLETE' && !isSettled()) {
+          throw new Error(`CloudFormation reports ${describeFailure({ status, reason: stack?.StackStatusReason })}`);
+        }
+      }
+      return new Promise<never>(() => {});
+    })();
+    const ready = Promise.race([ensured.then(({ profileAttached }) => profileAttached), creationFailed]).catch(
       (error: Error) => {
         throw new CliError({
           category: 'CLOUDFORMATION',
           code: 'DEV_NETWORK_CREATE_FAILED',
           cause: error,
-          message: `Creating the dev network \`${stackName}\` failed after its dev box was created: ${error.message}`,
+          message: `Creating the dev network \`${stackName}\` failed after its dev box was created. ${error.message}`,
           hints: [
-            'Its CloudFormation events say which resource failed; a failed creation is deleted again.',
-            'The dev stage was deployed into the network meanwhile. Delete it with `stacktape delete --stage <stage>`, then run `stacktape dev` again.'
+            'The dev stage was deployed into the network meanwhile, so CloudFormation cannot delete the failed network until the stage is gone.',
+            ...FAILED_DEV_NETWORK_RECOVERY
           ]
         });
       }
@@ -357,7 +429,12 @@ export const ensureDevNetwork = async ({
     ready.catch(() => {});
     return { network: early, action: 'create', ready };
   }
-  const { action, network, profileAttached } = await ensured;
+  const { action, network, profileAttached } = await ensured.catch(async (error: unknown) => {
+    // A creation that failed and could not be deleted again, by this session or another, needs the recovery steps.
+    const failed = toFailedDevNetwork(stackName, await aws.stacks.get(stackName).catch(() => undefined));
+    if (failed) throw failedDevNetworkError(failed, error);
+    throw error;
+  });
   profileAttached.catch(() => {});
   return { network, action, ready: profileAttached };
 };
@@ -539,31 +616,126 @@ export const deleteDevNetwork = async ({
     stack = await assertNotBeingChanged();
     await aws.stacks.delete(network.stackName);
   }
+  return waitForNetworkDeletion({
+    aws,
+    stackName: network.stackName,
+    stackId: stack?.StackId,
+    deleteStartedFrom: stack?.StackStatus,
+    pollIntervalMs,
+    timeoutMs
+  });
+};
+
+/**
+ * Waits for a deletion of the network's stack, then removes its leases. A stack with another id under the same name is a
+ * network a session created after the deletion; its leases are kept. A deletion started on a stack in `DELETE_FAILED`
+ * reads that state until CloudFormation has started it, so the state counts only after the deletion was seen running.
+ */
+const waitForNetworkDeletion = async ({
+  aws,
+  stackName,
+  stackId,
+  deleteStartedFrom,
+  pollIntervalMs,
+  timeoutMs
+}: {
+  aws: DevNetworkAws;
+  stackName: string;
+  stackId: string | undefined;
+  deleteStartedFrom: string | undefined;
+  pollIntervalMs: number;
+  timeoutMs: number;
+}) => {
   const deadline = Date.now() + timeoutMs;
+  let seenRunning = deleteStartedFrom !== 'DELETE_FAILED';
   for (;;) {
-    const current = await aws.stacks.get(network.stackName);
+    const current = await aws.stacks.get(stackName);
     if (!current || current.StackStatus === 'DELETE_COMPLETE') break;
-    if (stack && current.StackId !== stack.StackId) return { deletedLeases: 0, recreated: true };
+    if (stackId && current.StackId !== stackId) return { deletedLeases: 0, recreated: true };
+    if (current.StackStatus === 'DELETE_IN_PROGRESS') seenRunning = true;
     if (Date.now() > deadline) {
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_DELETE_TIMEOUT',
-        message: `The dev network stack \`${network.stackName}\` is still being deleted (${current.StackStatus}).`,
+        message: `The dev network stack \`${stackName}\` is still being deleted (${current.StackStatus}).`,
         hints: 'Run the command again later; it continues the deletion.'
       });
     }
-    if (current.StackStatus === 'DELETE_FAILED') {
+    if (current.StackStatus === 'DELETE_FAILED' && seenRunning) {
       throw new CliError({
         category: 'CLOUDFORMATION',
         code: 'DEV_NETWORK_DELETE_FAILED',
-        message: `CloudFormation could not delete the dev network stack \`${network.stackName}\`.`,
-        hints: 'Open the stack in the CloudFormation console to see which resource failed, then run the command again.'
+        message: `CloudFormation could not delete the dev network stack \`${stackName}\` (${describeFailure({ status: current.StackStatus, reason: current.StackStatusReason })}).`,
+        hints: [
+          'Lambda releases the network interfaces of deleted dev functions only after a few minutes; run the command again then.',
+          'If it fails again, the CloudFormation console shows which resource is still in use.'
+        ]
       });
     }
     await delay(pollIntervalMs);
   }
-  const prefix = getDevNetworkLeaseParameterPrefix(network.stackName);
+  const prefix = getDevNetworkLeaseParameterPrefix(stackName);
   const leases = await aws.leases.list(prefix);
   if (leases.length) await aws.leases.delete(leases.map(({ name }) => name));
   return { deletedLeases: leases.length, recreated: false };
+};
+
+/**
+ * Deletes a network whose creation failed (see `readFailedDevNetwork`) by its stack name alone: it has no box or relay
+ * to ask, and no outputs. It refuses a stack Stacktape does not own, and while dev functions still use the network's
+ * security group, whose network interfaces would make the deletion fail again.
+ */
+export const deleteFailedDevNetwork = async ({
+  aws,
+  failed,
+  pollIntervalMs = 5000,
+  timeoutMs = 20 * 60_000
+}: {
+  aws: DevNetworkAws;
+  failed: FailedDevNetwork;
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+}) => {
+  const stack = await aws.stacks.get(failed.stackName);
+  if (!stack || stack.StackStatus === 'DELETE_COMPLETE') return { deletedLeases: 0, recreated: false };
+  if (stack.StackId !== failed.stackId || isBeingChanged(stack.StackStatus))
+    throw devNetworkBusyError(failed.stackName, stack.StackStatus);
+  const kind = stack.Tags?.find(({ Key }) => Key === 'stacktape:shared-resource-kind')?.Value;
+  if (kind !== DEV_NETWORK_KIND) {
+    throw new CliError({
+      category: 'CLOUDFORMATION',
+      code: 'DEV_NETWORK_FOREIGN',
+      message: `The CloudFormation stack \`${failed.stackName}\` is not a Stacktape dev network; Stacktape does not delete it.`,
+      hints: 'Check who created the stack, and delete it in the CloudFormation console if it is safe to.'
+    });
+  }
+  if (stack.StackStatus !== 'DELETE_IN_PROGRESS') {
+    const resources = await aws.stacks.listResources(failed.stackName);
+    const securityGroupId = resources.find(
+      ({ LogicalResourceId, ResourceStatus }) =>
+        LogicalResourceId === 'LambdaSecurityGroup' && ResourceStatus !== 'DELETE_COMPLETE'
+    )?.PhysicalResourceId;
+    const users = securityGroupId
+      ? (await aws.listFunctionsInSecurityGroup(securityGroupId)).filter(
+          (name) => name !== `${failed.stackName}-keeper`
+        )
+      : [];
+    if (users.length) {
+      throw new CliError({
+        category: 'CLI',
+        code: 'DEV_NETWORK_IN_USE',
+        message: `The failed dev network is still used by ${users.length} dev function${users.length === 1 ? '' : 's'}: ${users.join(', ')}.`,
+        hints: FAILED_DEV_NETWORK_RECOVERY
+      });
+    }
+    await aws.stacks.delete(failed.stackName);
+  }
+  return waitForNetworkDeletion({
+    aws,
+    stackName: failed.stackName,
+    stackId: stack.StackId,
+    deleteStartedFrom: stack.StackStatus,
+    pollIntervalMs,
+    timeoutMs
+  });
 };

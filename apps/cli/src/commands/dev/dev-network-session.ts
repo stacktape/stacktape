@@ -274,8 +274,9 @@ export const startDevNetworkSession = async ({
     }
   });
   // Read before the connection starts a stopped box: only a box that already runs can have a session of this stage. A
-  // network that is being created has no sessions, and its new box would make the check wait for a relay that cannot
-  // answer before the network is complete.
+  // network this session creates has no sessions, and its new box would make the check wait for a relay that cannot
+  // answer before the network is complete. A session that found another one's creation running waited for the whole
+  // network (see `ensureDevNetwork`) and checks.
   const boxState = action === 'create' ? undefined : (await aws.describeBox(network.boxInstanceId))?.state;
   // The connection starts the box and connects while the dev stack deploys and the local databases start. Its presence
   // connection keeps a box that has been idle for almost 30 minutes from stopping itself meanwhile.
