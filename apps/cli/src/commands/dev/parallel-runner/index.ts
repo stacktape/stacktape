@@ -7,7 +7,6 @@ import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -16,6 +15,7 @@ import { stpErrors } from '@errors';
 import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { dockerRun, dockerRunUsesHostNetwork, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
+import { createLogPollScheduler } from '@utils/cloudwatch-log-poller';
 import { getResourceParamReferences } from '../resource-references';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -45,7 +45,7 @@ import {
   resolveRunningContainersWithSamePort
 } from '../utils';
 import { updateAgentWorkloadStatus, type RebuildResult } from '../agent-server';
-import type { LogLevel } from '../agent-logger';
+import { agentLog, type LogLevel } from '../agent-logger';
 import { createLogLineGrouper } from '../log-grouping';
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
@@ -86,7 +86,7 @@ type ParallelRunnerState = {
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
   relayTunnels: TunnelInfo[];
-  logIntervals: NodeJS.Timeout[];
+  logPolls: Array<{ unregister: () => void }>;
 };
 
 const state: ParallelRunnerState = {
@@ -94,8 +94,31 @@ const state: ParallelRunnerState = {
   localResources: [],
   tunnels: [],
   relayTunnels: [],
-  logIntervals: []
+  logPolls: []
 };
+
+const logReadNotices = new Set<string>();
+/** Reports a problem reading Lambda logs once per session, not once per request, and never among the app's errors. */
+const reportLogReadProblem = (key: string, message: string) => {
+  if (logReadNotices.has(key)) return;
+  logReadNotices.add(key);
+  if (devTuiManager.agentMode) agentLog('dev', message, 'warn');
+  else if (devTuiManager.running) devTuiManager.systemLog(message, 'warn');
+  else tuiManager.warn(message);
+};
+
+/** One request budget for the Lambda logs of every function in this session (see `createLogPollScheduler`). */
+const logPollScheduler = createLogPollScheduler({
+  onThrottled: () =>
+    reportLogReadProblem(
+      'throttled',
+      'CloudWatch is throttling log reads in this AWS account and region, so Lambda logs arrive late. Dev mode reads them less often until the throttling stops. Other dev sessions and tools that read logs in this account share the limit.'
+    ),
+  onError: (name, error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    reportLogReadProblem(`${name}\0${message}`, `Reading the CloudWatch logs of ${name} failed: ${message}`);
+  }
+});
 
 export const runParallelWorkloads = async (
   resources: { name: string; type: string; category: WorkloadType }[],
@@ -1197,18 +1220,8 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
       : undefined
   });
 
-  const logInterval = setInterval(async () => {
-    try {
-      await cloudwatchLogPrinter.printLogs();
-    } catch (err) {
-      if (IS_DEV) {
-        const errMessage = err instanceof Error ? err.message : String(err);
-        tuiManager.error(`[${resourceName}] Log fetch error: ${errMessage}`);
-      }
-    }
-  }, PRINT_LOGS_INTERVAL);
-
-  state.logIntervals.push(logInterval);
+  const logPoll = logPollScheduler.register(resourceName, () => cloudwatchLogPrinter.printLogs());
+  state.logPolls.push(logPoll);
 
   // Register workload
   state.workloads.set(resourceName, {
@@ -1252,7 +1265,8 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
         }
       }
 
-      await cloudwatchLogPrinter.startUsingNewLogStream();
+      await cloudwatchLogPrinter.skipEarlierEvents();
+      logPoll.boost();
       const workload = state.workloads.get(resourceName);
       if (workload) {
         workload.sourceFiles = result.packagingOutput.sourceFiles.map((f: any) => f.path);
@@ -1385,10 +1399,9 @@ const runBeforeDevHooks = async () => {
 
 // Cleanup on exit
 applicationManager.registerCleanUpHook(async () => {
-  for (const interval of state.logIntervals) {
-    clearInterval(interval);
-  }
-  state.logIntervals = [];
+  for (const logPoll of state.logPolls) logPoll.unregister();
+  state.logPolls = [];
+  logPollScheduler.stop();
   state.workloads.clear();
 });
 

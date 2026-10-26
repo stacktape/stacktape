@@ -181,6 +181,33 @@ describe('dev network delete', () => {
     expect({ deletes: calls.deletes, leases: leases.size }).toEqual({ deletes: 1, leases: 1 });
   });
 
+  test('a long deletion reports what it waits for, Lambda network interfaces included', async () => {
+    const { aws } = fakeAws({
+      statuses: ['CREATE_COMPLETE', 'CREATE_COMPLETE', 'DELETE_IN_PROGRESS', 'DELETE_IN_PROGRESS', undefined]
+    });
+    const listings = [
+      [{ LogicalResourceId: 'Box', ResourceStatus: 'DELETE_IN_PROGRESS' }],
+      [
+        { LogicalResourceId: 'PrivateSubnet0', ResourceStatus: 'DELETE_IN_PROGRESS' },
+        { LogicalResourceId: 'Vpc', ResourceStatus: 'CREATE_COMPLETE' }
+      ]
+    ];
+    aws.stacks.listResources = async () => listings.shift() ?? [];
+    const progress: Array<{ deleting: string[]; waitingForLambdaNetworkInterfaces: boolean }> = [];
+    await deleteDevNetwork({
+      aws,
+      network,
+      findLiveSessions: noSessions,
+      pollIntervalMs: 1,
+      onWaiting: ({ deleting, waitingForLambdaNetworkInterfaces }) =>
+        progress.push({ deleting, waitingForLambdaNetworkInterfaces })
+    });
+    expect(progress).toEqual([
+      { deleting: ['Box'], waitingForLambdaNetworkInterfaces: false },
+      { deleting: ['PrivateSubnet0'], waitingForLambdaNetworkInterfaces: true }
+    ]);
+  });
+
   test('a deletion that runs already is waited for, not started again', async () => {
     const { aws, calls, leases } = fakeAws({ statuses: ['DELETE_IN_PROGRESS', 'DELETE_IN_PROGRESS', undefined] });
     await deleteDevNetwork({ aws, network, findLiveSessions: noSessions, pollIntervalMs: 1 });

@@ -51,6 +51,8 @@ type DevToolDependencies = {
   discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
   createId?: () => string;
   now?: () => Date;
+  /** How long `stop` waits for the agent to exit. */
+  stopWaitMs?: number;
 };
 
 type StartupProgressEntry = { ts: string; eventType: string; status: string; message: string; instanceId?: string };
@@ -75,6 +77,8 @@ const FAILED_START_RETENTION_MS = 60 * 60 * 1000;
  * the background instead of failing with the client's timeout.
  */
 const DEFAULT_WAIT_SECONDS = 50;
+/** An agent's cleanup stops containers and closes its tunnels; it usually exits within a few seconds. */
+const STOP_WAIT_MS = 30_000;
 /** The CLI process gets this long in total; the daemon parent itself stops a daemon that stays silent for 10 minutes. */
 const START_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -501,6 +505,7 @@ const createSessionRegistry = ({
   const select = async ({
     devSessionId,
     cwd,
+    stage,
     mutating,
     requireExplicit,
     getProjectRoots
@@ -508,6 +513,8 @@ const createSessionRegistry = ({
     devSessionId?: string;
     /** Narrows the sessions an omitted `devSessionId` is inferred from to one project directory. */
     cwd?: string;
+    /** Narrows them to one stage, for a directory that runs several. */
+    stage?: string;
     /** The call changes code, data or state, so it never picks a session outside this server's projects. */
     mutating: boolean;
     requireExplicit: boolean;
@@ -548,6 +555,7 @@ const createSessionRegistry = ({
       const result: Array<{ session: DevSession; inScope: boolean }> = [];
       for (const session of sessions()) {
         if (cwd && !isSameDirectory(session.cwd, cwd)) continue;
+        if (stage && session.stage !== stage) continue;
         result.push({ session, inScope: await isInScope(session) });
       }
       return result;
@@ -565,9 +573,23 @@ const createSessionRegistry = ({
     }
 
     // After a take-over the replaced session keeps answering; the next call must not reach the session that replaced it.
-    for (const { session, output } of new Set(ended.values())) {
+    // A session this server started in the same directory after the replaced one is the one the agent works with now.
+    // The replaced session's agent may be found ended only after that start, so a start alone cannot clear its answer.
+    for (const entry of new Set(ended.values())) {
+      const { session, output } = entry;
       if (cwd && !isSameDirectory(session.cwd, cwd)) continue;
+      if (stage && session.stage !== stage) continue;
       if (!(await isInScope(session))) continue;
+      const newer = candidates.some(
+        (candidate) =>
+          candidate.origin === 'started' &&
+          isSameDirectory(candidate.cwd, session.cwd) &&
+          candidate.knownSince > session.knownSince
+      );
+      if (newer) {
+        for (const [id, value] of ended) if (value === entry) ended.delete(id);
+        continue;
+      }
       return {
         ok: false,
         output: {
@@ -575,7 +597,7 @@ const createSessionRegistry = ({
           data: { ...output.data, ...describeCandidates(candidates) },
           nextActions: [
             ...(output.nextActions ?? []),
-            'To act on another running session, pass its devSessionId. Calls without one keep returning this until a start succeeds.'
+            'To act on another running session, pass its devSessionId. Calls without one keep returning this until a dev session starts in this directory.'
           ]
         }
       };
@@ -871,6 +893,20 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     statusCheckTimeoutMs: dependencies.statusCheckTimeoutMs ?? STATUS_CHECK_TIMEOUT_MS
   });
   const activeDevSessions = registry.active;
+  const stopWaitMs = dependencies.stopWaitMs ?? STOP_WAIT_MS;
+
+  /** Whether the agent on `port` stopped answering within `stopWaitMs`, which it does once it has exited. */
+  const waitForAgentExit = async (port: number) => {
+    const deadline = Date.now() + stopWaitMs;
+    for (;;) {
+      const status = await requestDevApi({ port, method: 'GET', path: '/status', timeoutMs: 1000 }).catch(
+        () => undefined
+      );
+      if (!status || status.ok === false) return true;
+      if (Date.now() >= deadline) return false;
+      await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+    }
+  };
 
   /** What a session's start reports while it still runs: the latest steps and, once known, the agent's port. */
   const describeStartup = (session: DevSession, startup: DevStartup): ToolOutput => {
@@ -949,6 +985,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         agentSessionId: devSessionId,
         startedAt,
         cwd: typeof requestedCwd === 'string' ? requestedCwd : process.cwd(),
+        ...(typeof devCliArgs.stage === 'string' ? { stage: devCliArgs.stage } : {}),
         origin: 'started',
         knownSince: startedAt
       };
@@ -1089,6 +1126,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     const sessionResult = await registry.select({
       devSessionId,
       cwd: typeof toolArgs.cwd === 'string' ? toolArgs.cwd : undefined,
+      stage: typeof toolArgs.stage === 'string' ? toolArgs.stage : undefined,
       mutating: isMutatingAction(action, toolArgs),
       requireExplicit: action === 'stop',
       getProjectRoots
@@ -1417,13 +1455,24 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         body: {}
       });
       const ok = (response.ok as boolean | undefined) ?? false;
-      if (ok) {
-        registry.forget(sessionResult.session);
+      if (!ok) {
+        return toToolText({
+          ok,
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to stop dev session.',
+          data: { session: publicSession(sessionResult.session), response }
+        });
       }
+      registry.forget(sessionResult.session);
+      // The agent answers before its cleanup runs. Until it has exited, its containers may still run and the dev box
+      // may still list it as the stage's holder, so a start right after this call would be refused.
+      const exited = await waitForAgentExit(port);
       return toToolText({
         ok,
-        code: ok ? 'OK' : 'INTERNAL_ERROR',
-        message: ok ? 'Dev session stop requested.' : 'Failed to stop dev session.',
+        code: 'OK',
+        message: exited
+          ? 'Dev session stopped.'
+          : `Dev session stop requested; the agent on port ${port} is still stopping after ${stopWaitMs / 1000} s.`,
         data: {
           session: publicSession(sessionResult.session),
           response

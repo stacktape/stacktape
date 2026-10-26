@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatStageHolders, readStageHolders } from './index';
+import { createDeletionProgressReporter, formatStageHolders, readStageHolders } from './index';
 
 const alice = {
   stack: 'shop-dev',
@@ -53,4 +53,28 @@ describe('dev network stage holders', () => {
       '  Dev sessions: unknown (the dev box relay did not answer)'
     ]);
   });
+});
+
+// r2p dogfood: the deletion announced "about 2 minutes", took 1,207 s waiting for Lambda's network interfaces, and said
+// nothing meanwhile.
+test('a long network deletion is reported when it starts waiting for Lambda and once a minute after that', () => {
+  const lines: string[] = [];
+  const report = createDeletionProgressReporter({ report: (line) => lines.push(line) });
+  const waiting = (elapsedMs: number, lambda: boolean) =>
+    report({
+      elapsedMs,
+      deleting: lambda ? ['LambdaSecurityGroup'] : ['Box'],
+      waitingForLambdaNetworkInterfaces: lambda
+    });
+  waiting(5_000, false);
+  waiting(40_000, false);
+  waiting(45_000, true);
+  waiting(80_000, true);
+  waiting(106_000, true);
+  waiting(1_207_000, true);
+  expect(lines).toEqual([
+    'Still deleting the dev network (45 s): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.',
+    'Still deleting the dev network (1 min): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.',
+    'Still deleting the dev network (20 min): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.'
+  ]);
 });

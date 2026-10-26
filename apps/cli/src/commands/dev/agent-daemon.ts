@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs-extra';
+import { closeSync, openSync, readSync } from 'node:fs';
+import { StringDecoder } from 'node:string_decoder';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -522,10 +524,62 @@ export const getCustomArgsSuffix = (argv: readonly string[] = process.argv.slice
 };
 
 /**
+ * Reads what is appended to `filePath` and hands it to `onData` until the returned function is called. A daemon writes
+ * its output to files rather than pipes: a pipe whose reader has exited makes every later write fail with `EPIPE`, also
+ * the writes of the build tools the daemon starts with its own output.
+ */
+export const followFile = (
+  filePath: string,
+  onData: (text: string) => void,
+  { intervalMs = 100 }: { intervalMs?: number } = {}
+): (() => void) => {
+  let fd: number | undefined;
+  let position = 0;
+  const buffer = Buffer.alloc(64 * 1024);
+  const decoder = new StringDecoder('utf8');
+  const read = () => {
+    try {
+      fd ??= openSync(filePath, 'r');
+      for (;;) {
+        const bytesRead = readSync(fd, buffer, 0, buffer.length, position);
+        if (bytesRead <= 0) return;
+        position += bytesRead;
+        const text = decoder.write(buffer.subarray(0, bytesRead));
+        if (text) onData(text);
+      }
+    } catch {
+      // The file appears with the daemon; the next read tries again.
+    }
+  };
+  const timer = setInterval(read, intervalMs);
+  return () => {
+    clearInterval(timer);
+    read();
+    if (fd !== undefined) closeSync(fd);
+  };
+};
+
+/**
+ * After the daemon reported ready, its own console output goes nowhere: the process that read it has exited, and the
+ * agent log already records everything the daemon reports. The output files stay small, and processes the daemon
+ * starts still write their output to the files (see `followFile`).
+ */
+export const muteDaemonConsole = () => {
+  if (process.env.STACKTAPE_AGENT_DAEMON !== '1') return;
+  const drop = ((_chunk: unknown, encoding?: unknown, callback?: unknown) => {
+    const done = typeof encoding === 'function' ? encoding : callback;
+    if (typeof done === 'function') queueMicrotask(() => done());
+    return true;
+  }) as typeof process.stdout.write;
+  process.stdout.write = drop;
+  process.stderr.write = drop;
+};
+
+/**
  * Spawn the dev agent as a background daemon process.
  *
- * Uses detached spawn with piped stdout. Waits for AGENT_READY message,
- * then detaches and lets parent exit while child keeps running.
+ * The daemon's stdout and stderr are files (see `followFile`). This process reads them until the AGENT_READY message,
+ * then lets go of the daemon and exits while the daemon keeps running.
  *
  * Works on both Windows and Unix.
  */
@@ -536,8 +590,10 @@ export const spawnAgentDaemon = async (args: {
   timeoutMs?: number;
   /** Receives the daemon's startup progress until it is ready or fails. */
   onChildRecord?: (record: ForwardedChildRecord) => void;
+  /** The process to start instead of this CLI's `dev` command; tests start a stand-in daemon. */
+  command?: { executable: string; args: string[]; cwd: string };
 }): Promise<DaemonSpawnResult> => {
-  const { explicitArgs, customArgs, agentPort, timeoutMs = 180000, onChildRecord } = args;
+  const { explicitArgs, customArgs, agentPort, timeoutMs = 180000, onChildRecord, command } = args;
   const workingDir = globalStateManager.workingDir;
 
   // The development wrapper (`bun run scripts/dev.ts`) rebuilds the CLI from its process cwd, so a
@@ -557,13 +613,28 @@ export const spawnAgentDaemon = async (args: {
   // Note: process.execPath is the actual executable path (not argv[0] which is "bun" for compiled binaries)
   const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
 
+  const outputFiles = {
+    stdout: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, stream: 'stdout' }),
+    stderr: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, stream: 'stderr' })
+  };
+  mkdirSync(dirname(outputFiles.stdout), { recursive: true, mode: 0o700 });
+  const stdoutFd = openSync(outputFiles.stdout, 'w', 0o600);
+  const stderrFd = openSync(outputFiles.stderr, 'w', 0o600);
+
   return new Promise((resolve) => {
-    const child: ChildProcess = spawn(process.execPath, spawnArgs, {
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1', STP_DISABLE_CONSOLE_INTERCEPT: 'true' },
-      cwd: childCwd
-    });
+    let child: ChildProcess;
+    try {
+      child = spawn(command?.executable ?? process.execPath, command?.args ?? spawnArgs, {
+        detached: true,
+        stdio: ['ignore', stdoutFd, stderrFd],
+        env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1', STP_DISABLE_CONSOLE_INTERCEPT: 'true' },
+        cwd: command?.cwd ?? childCwd
+      });
+    } finally {
+      // The daemon has its own copies of the descriptors.
+      closeSync(stdoutFd);
+      closeSync(stderrFd);
+    }
 
     if (!child.pid) {
       resolve({ success: false, error: 'Failed to spawn daemon process' });
@@ -574,14 +645,11 @@ export const spawnAgentDaemon = async (args: {
     let resolved = false;
     let stdoutBuffer = '';
     let stderrBuffer = '';
+    const stopFollowing: Array<() => void> = [];
 
     const cleanup = () => {
-      child.stdout?.removeAllListeners();
-      child.stderr?.removeAllListeners();
+      for (const stop of stopFollowing.splice(0)) stop();
       child.removeAllListeners();
-      // Destroy streams and unref to allow parent to exit
-      child.stdout?.destroy();
-      child.stderr?.destroy();
       child.unref();
     };
 
@@ -619,6 +687,9 @@ export const spawnAgentDaemon = async (args: {
 
     child.on('exit', (code) => {
       if (!resolved) {
+        // What the daemon wrote right before it exited may not have been read yet.
+        for (const stop of stopFollowing.splice(0)) stop();
+        if (resolved) return;
         resolved = true;
         clearTimeout(timeout);
         cleanup();
@@ -627,9 +698,10 @@ export const spawnAgentDaemon = async (args: {
       }
     });
 
-    child.stdout?.on('data', (data: Buffer) => {
+    const onStdout = (text: string) => {
+      if (resolved) return;
       resetInactivityTimeout();
-      stdoutBuffer += data.toString();
+      stdoutBuffer += text;
 
       // Check each line for AGENT_READY or a failed result, and pass the startup progress on
       const lines = stdoutBuffer.split('\n');
@@ -674,18 +746,20 @@ export const spawnAgentDaemon = async (args: {
 
       // Keep only the last incomplete line in buffer
       stdoutBuffer = lines[lines.length - 1];
-    });
+    };
 
-    child.stderr?.on('data', (data: Buffer) => {
+    const onStderr = (text: string) => {
+      if (resolved) return;
       resetInactivityTimeout();
-      const text = data.toString();
       stderrBuffer += text;
       for (const line of text.split(/\r?\n/)) {
         if (line.trim()) {
           console.error(line);
         }
       }
-    });
+    };
+
+    stopFollowing.push(followFile(outputFiles.stdout, onStdout), followFile(outputFiles.stderr, onStderr));
   });
 };
 
