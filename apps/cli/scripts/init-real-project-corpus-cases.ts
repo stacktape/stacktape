@@ -364,7 +364,8 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-starter',
     exercises: ['vercel', 'nextjs', 'postgres', 'env-example'],
     expect: {
-      resourceTypes: { 'nextjs-web': 1, 'relational-database': 1 },
+      // The database has no public address, so a bastion is the operator path to it.
+      resourceTypes: { bastion: 1, 'nextjs-web': 1, 'relational-database': 1 },
       dependencyKinds: { postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
@@ -859,11 +860,12 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'real-application',
     exercises: ['saas-starter', 'nextjs', 'postgres', 'prisma', 'authentication', 'multi-tenant'],
     expect: {
-      resourceTypes: { 'nextjs-web': 1, 'relational-database': 1 },
+      resourceTypes: { bastion: 1, 'nextjs-web': 1, 'relational-database': 1 },
       dependencyKinds: { email: 1, postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
-      requiredConfig: ['name: DATABASE_URL', 'name: APP_URL', "$ResourceParam('saasStarterKit', 'url')"],
+      // The server joins the VPC for the private database and calls third-party APIs, so the stack gets NAT.
+      requiredConfig: ['name: DATABASE_URL', 'name: APP_URL', "$ResourceParam('saasStarterKit', 'url')", 'nat: ec2'],
       forbiddenConfig: ["$Secret('app_url')"],
       forbiddenGapPatterns: ['APP_URL is set in a deployment file|does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true

@@ -99,7 +99,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['nextjs', 'opennext', 'mdx', 'postgres', 'self-contained-build'],
     expect: {
-      resourceTypes: { 'relational-database': 1, 'nextjs-web': 1 },
+      resourceTypes: { bastion: 1, 'relational-database': 1, 'nextjs-web': 1 },
       dependencyKinds: { postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
