@@ -13,7 +13,6 @@ import objectHash from 'object-hash';
 
 import { getBundleDigest, getDotnetAssemblyName, getSourceFiles, resolveDotnetProjectFile } from './utils';
 import type { DotnetBuildpackConfig, SupportedDotnetVersion } from '@stacktape/config/deployment-artifacts';
-import { DEFAULT_DOTNET_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
   assertRequiredArtifactFile,
@@ -30,7 +29,7 @@ type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
 export const buildDotnetArtifact = async ({
   sourcePath,
   distFolderPath,
-  dotnetVersion = DEFAULT_DOTNET_VERSION,
+  dotnetVersion,
   rawEntryfilePath,
   cwd,
   additionalDigestInput,
@@ -47,7 +46,7 @@ export const buildDotnetArtifact = async ({
   runDocker
 }: StpBuildpackInput & {
   sourcePath: string;
-  dotnetVersion?: SupportedDotnetVersion | undefined;
+  dotnetVersion: SupportedDotnetVersion;
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;

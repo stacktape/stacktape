@@ -28,9 +28,50 @@ import {
 } from '@domain-services/deployment-artifact-manager/shared-layers';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
-export const buildAndUpdateFunctionCode = async (stpResourceName: string, options: { devMode?: boolean } = {}) => {
-  const { devMode } = options;
+/** The code a deployed function runs, by the digest and shared layers its tags record. */
+const getDeployedLambdaCode = (lambdaProps: StpLambdaFunction) => {
+  const deployedResource = stackManager.existingStackResources.find(
+    ({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName
+  );
+  const deployedLayers = getDeployedSharedLayers({
+    tags: deployedResource?.tags,
+    deployedTemplate: templateManager.oldTemplate,
+    functionLogicalName: lambdaProps.cfLogicalName
+  });
+  const artifactDigest = getTagValue(deployedResource?.tags, tagNames.artifactDigest());
+  const codeDigest = getTagValue(deployedResource?.tags, tagNames.codeDigest());
+  const deployedLambdaDigest = getDeployedArtifactDigest(
+    artifactDigest,
+    codeDigest,
+    [...deployedLayers].map(([layerNumber, identity]) => ({ layerNumber, identity }))
+  );
+  return { deployedLayers, deployedLambdaDigest };
+};
+
+/**
+ * The digest of the artifact the function runs, by its tags; none while an update has not finished (`updating`). A
+ * digest identifies an artifact's content, so a build with the same digest has nothing new to deploy, whether the
+ * function got the artifact from CloudFormation or from an earlier `dev` update.
+ */
+const getDeployedLambdaDigest = (lambdaProps: StpLambdaFunction): string | undefined => {
+  const { deployedLambdaDigest } = getDeployedLambdaCode(lambdaProps);
+  return deployedLambdaDigest && deployedLambdaDigest !== 'updating' ? deployedLambdaDigest : undefined;
+};
+
+export const buildAndUpdateFunctionCode = async (
+  stpResourceName: string,
+  options: {
+    devMode?: boolean;
+    /**
+     * Leave the function alone when its code is already deployed: the build's digest matches the one the function is
+     * tagged with. The build then stops after computing the digest, and nothing is uploaded or updated.
+     */
+    skipUnchangedCode?: boolean;
+  } = {}
+) => {
+  const { devMode, skipUnchangedCode } = options;
   const lambdaProps = configManager.allLambdasEligibleForHotswap.find(({ name }) => name === stpResourceName);
+  const deployedDigest = skipUnchangedCode ? getDeployedLambdaDigest(lambdaProps) : undefined;
 
   // Dev mode: use spinners for progress feedback
   const spinner = devMode ? tuiManager.createSpinner({ text: 'Packaging function' }) : null;
@@ -46,16 +87,34 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
     jobName: lambdaProps.name,
     packaging: lambdaProps.packaging,
     workloadName: lambdaProps.name,
+    runtime: lambdaProps.runtime,
     commandCanUseCache: false,
+    ...(deployedDigest && { reusableDigests: [deployedDigest] }),
     target: 'lambda',
     dockerBuildOutputArchitecture: lambdaProps.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
     ...(devMode && { customProgressLogger: tuiManager.createSpinnerProgressLogger(spinner, lambdaProps.name) })
   })) as PackagingOutput;
+  const codeUnchanged = packagingOutput.outcome === 'skipped';
 
   if (!devMode) {
-    await operationReporter.finishEvent({ eventType: 'PACKAGE_ARTIFACTS', finalMessage: 'Function packaged' });
+    await operationReporter.finishEvent({
+      eventType: 'PACKAGE_ARTIFACTS',
+      finalMessage: codeUnchanged ? 'Function code unchanged' : 'Function packaged'
+    });
   } else {
-    spinner.success({ details: `${packagingOutput.size} MB` });
+    spinner.success({ details: codeUnchanged ? 'unchanged, already deployed' : `${packagingOutput.size} MB` });
+  }
+
+  if (codeUnchanged) {
+    return {
+      packagingOutput,
+      lambdaArn: arns.lambdaFromFullName({
+        accountId: globalStateManager.targetAwsAccount.awsAccountId,
+        region: globalStateManager.region,
+        lambdaAwsName: lambdaProps.resourceName
+      }),
+      codeUnchanged
+    };
   }
 
   const { artifactInfo, lambdaResourceName, aliasName } = getLambdaFunctionHotswapInformation({
@@ -108,7 +167,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
     updateSpinner.success();
   }
 
-  return { packagingOutput, lambdaArn: FunctionArn };
+  return { packagingOutput, lambdaArn: FunctionArn, codeUnchanged };
 };
 
 export type SharedLayerHotswapInformation = {
@@ -176,21 +235,7 @@ export const getLambdaFunctionHotswapInformation = ({
     packaging: lambdaProps.packaging
   });
 
-  const deployedResource = stackManager.existingStackResources.find(
-    ({ LogicalResourceId }) => LogicalResourceId === lambdaProps.cfLogicalName
-  );
-  const deployedLayers = getDeployedSharedLayers({
-    tags: deployedResource?.tags,
-    deployedTemplate: templateManager.oldTemplate,
-    functionLogicalName: lambdaProps.cfLogicalName
-  });
-  const artifactDigest = getTagValue(deployedResource?.tags, tagNames.artifactDigest());
-  const codeDigest = getTagValue(deployedResource?.tags, tagNames.codeDigest());
-  const deployedLambdaDigest = getDeployedArtifactDigest(
-    artifactDigest,
-    codeDigest,
-    [...deployedLayers].map(([layerNumber, identity]) => ({ layerNumber, identity }))
-  );
+  const { deployedLayers, deployedLambdaDigest } = getDeployedLambdaCode(lambdaProps);
   const layers = packagingManager
     .getLayerNumbersForLambda(lambdaProps.name)
     .flatMap((layerNumber) => sharedLayers.filter((layer) => layer.layerNumber === layerNumber));

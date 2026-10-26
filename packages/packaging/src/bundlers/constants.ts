@@ -1,18 +1,7 @@
-import type {
-  SupportedDotnetVersion,
-  SupportedJavaVersion,
-  SupportedPythonVersion,
-  SupportedRubyVersion
-} from '@stacktape/config/deployment-artifacts';
+// Python, Java, Ruby and .NET Lambda builds have no default version here. They build for the function's Lambda runtime,
+// which the CLI resolves once (an unpinned function gets the first runtime its language lists) for both the template
+// and the build.
 
-/**
- * Language runtime defaults applied when a user does not pin a version. Changing one changes what
- * every unpinned workload is built and deployed with, so they are compatibility-sensitive.
- */
-export const DEFAULT_PYTHON_VERSION: SupportedPythonVersion = 3.12;
-export const DEFAULT_RUBY_VERSION: SupportedRubyVersion = 3.3;
-export const DEFAULT_DOTNET_VERSION: SupportedDotnetVersion = 8;
-export const DEFAULT_JAVA_VERSION: SupportedJavaVersion = 11;
 export const DEFAULT_GRADLE_VERSION = '8.5';
 
 /** Node.js defaults for workloads that do not pin `nodeVersion`. */

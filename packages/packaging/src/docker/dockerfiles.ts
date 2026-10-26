@@ -346,15 +346,32 @@ CMD ["node", "--max-old-space-size=16384", "index.js"]`;
 
 // https://hub.docker.com/r/mhart/alpine-node/
 
+/** The image a Python artifact builds on: the Lambda build image of the version, or the official Python image. */
+export const getPythonArtifactBaseImage = ({
+  pythonVersion,
+  alpine,
+  target = 'lambda'
+}: {
+  pythonVersion: number | string;
+  alpine?: boolean | undefined;
+  target?: 'container' | 'lambda' | undefined;
+}) => {
+  if (target === 'lambda') return `public.ecr.aws/sam/build-python${pythonVersion}:latest`;
+  return `public.ecr.aws/docker/library/python:${pythonVersion}${alpine ? '-alpine' : ''}`;
+};
+
 export const buildPythonArtifactDockerfile = ({
   pythonVersion,
   alpine,
   target = 'lambda',
+  baseImage = getPythonArtifactBaseImage({ pythonVersion, alpine, target }),
   requirementsWithoutSource
 }: {
   pythonVersion: number | string;
   alpine?: boolean | undefined;
   target?: 'container' | 'lambda' | undefined;
+  /** `getPythonArtifactBaseImage`'s image, possibly pinned to its local digest. */
+  baseImage?: string | undefined;
   /**
    * The dependency file is a root `requirements.txt` whose install reads nothing else from the source. The tools and
    * the requirements install then run before the source is copied, so a source-only change reuses them. The install
@@ -363,13 +380,6 @@ export const buildPythonArtifactDockerfile = ({
    */
   requirementsWithoutSource?: boolean | undefined;
 }) => {
-  let baseImage =
-    target === 'lambda'
-      ? `public.ecr.aws/sam/build-python${pythonVersion}:latest`
-      : `public.ecr.aws/docker/library/python:${pythonVersion}`;
-  if (target === 'container' && alpine) {
-    baseImage += '-alpine';
-  }
   const systemDepsCommand =
     target === 'lambda'
       ? ''
@@ -415,6 +425,11 @@ if [ -n "$STP_PY_DEP_FILE" ]; then \
     uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
   fi; \
 fi`;
+  // Compiling the project's own sources reports a syntax error with its file and line while building, instead of when
+  // Lambda or the container imports the module. The bytecode goes to a throwaway directory, so the artifact keeps only
+  // the sources. It runs before dependencies are installed into the same directory; virtual environments and installed
+  // packages are not the project's code and are not compiled.
+  const compileSourcesCommand = `RUN PYTHONPYCACHEPREFIX=/tmp/stp-pycache python -m compileall -q -x '/(\\.?venv|env|site-packages|dist-packages)/' .`;
   const buildArgs = `ARG STP_PY_DEP_FILE
 ARG STP_PY_DEP_TYPE
 ARG STP_PY_UV_OPTIONAL_DEPENDENCIES
@@ -442,6 +457,7 @@ ${buildArgs}
 RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
+${compileSourcesCommand}
 
 COPY --from=deps /dist/ /dist/
 
@@ -463,6 +479,7 @@ ${buildArgs}
 RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
+${compileSourcesCommand}
 
 ${installDepsCommand}
 

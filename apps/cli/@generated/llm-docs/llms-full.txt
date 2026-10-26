@@ -16034,6 +16034,8 @@ resources:
             packageManagerFile: ./pyproject.toml
 ```
 
+v3 ignored the runtime when it built a function: without a version field, it built for Python 3.12, Java 11, Ruby 3.3 or .NET 8. v4 builds for the function's runtime. A function without `runtime` keeps `python3.13` or `dotnet10`, as in v3. Java moves from `java21` to `java25` and Ruby from `ruby3.3` to `ruby4.0`; set `runtime` to keep the v3 one.
+
 See [Buildpack for Lambda](/packaging/function/buildpack).
 
 ### Rust Lambda functions
@@ -23835,7 +23837,9 @@ Stacktape uses the dependency file nearest to the entry file. The build runs in 
 
 ## Runtime and language versions
 
-The function's `runtime` property decides the language version. The build uses the Lambda build image of that runtime, so the artifact matches the environment it runs in. When `runtime` is not set, Stacktape selects a default runtime from the entry file's extension. Set `runtime` explicitly to pin a version.
+The function's `runtime` property decides the language version. The build uses the Lambda build image of that runtime, so the artifact matches the environment it runs in. When `runtime` is not set, Stacktape selects a default runtime from the entry file's extension: `python3.13`, `java25`, `ruby4.0`, `dotnet10`, or `provided.al2023` for Go and Rust. Python defaults to 3.13 rather than 3.14 because many pinned packages with native code, such as `psycopg-binary` 3.2.3 or `pydantic-core` 2.27, have no wheels for 3.14. Set `runtime` explicitly to pin a version.
+
+A Python build also compiles every `.py` file it packages, except those in virtual environments. A syntax error stops the build with the file and line, instead of failing every request after the deployment.
 
 
 Example (TypeScript):

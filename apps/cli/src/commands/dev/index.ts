@@ -448,7 +448,12 @@ export const commandDev = async () => {
       });
     }
 
-    const failedWorkloads = result.readyPayload?.failedWorkloads ?? [];
+    // A function that failed to build or deploy keeps running its previous code in the dev stack, and a rebuild after
+    // the fix deploys it, so the session stays. Any other failed workload stops the session.
+    const isFunction = (name: string) =>
+      result.readyPayload?.workloads.some((workload) => workload.name === name && workload.type === 'function');
+    const failedWorkloads = (result.readyPayload?.failedWorkloads ?? []).filter(({ name }) => !isFunction(name));
+    const failedFunctions = (result.readyPayload?.failedWorkloads ?? []).filter(({ name }) => isFunction(name));
     if (failedWorkloads.length > 0) {
       // A session with a failed workload is not usable, and leaving it running would hold its port, containers and
       // Lambda environment changes. Stop it through its stop route so its cleanup runs, then report the failure.
@@ -492,6 +497,13 @@ export const commandDev = async () => {
         `  stacktape dev stop --agent-port ${port}`,
         '─'.repeat(60)
       ]);
+    }
+
+    if (failedFunctions.length > 0) {
+      tuiManager.warn(
+        `Dev mode runs, but ${failedFunctions.length === 1 ? 'a function was' : 'functions were'} not deployed and ${failedFunctions.length === 1 ? 'runs its' : 'run their'} previous code:\n${failedFunctions.map(({ name, error }) => `  ${name}: ${error}`).join('\n')}\nFix the error and rebuild ${failedFunctions.length === 1 ? 'it' : 'them'}.`
+      );
+      return { ...result.readyPayload!, ready: false };
     }
 
     // Daemon started successfully - parent can exit

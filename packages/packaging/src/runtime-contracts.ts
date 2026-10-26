@@ -204,6 +204,8 @@ export type LoadModuleExport = <T>(input: { filePath: string; exportName: string
 export type LanguageBuildActions = {
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
+  /** Keeps a generated Dockerfile's base image local and pins it, so a build need not ask the registry about the tag. */
+  pinLocalBaseImage?: PinLocalBaseImage | undefined;
 };
 
 export type LambdaArtifactActions = LanguageBuildActions & {

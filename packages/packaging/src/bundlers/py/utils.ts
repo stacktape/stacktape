@@ -163,3 +163,49 @@ export const getPythonUvDependencySelectorBuildArgs = (
     onlyGroups: selectors.uvOnlyGroups.join(' ')
   };
 };
+
+/** One source file `compileall` could not compile, as its output names it. */
+export type PythonCompileError = { file: string; line?: number; error: string; code?: string };
+
+/**
+ * The files the build's `compileall` step rejected, read from the Docker build output. Each starts with
+ * `*** Error compiling './x.py'...`, followed by Python's report: a syntax error as `File "./x.py", line 6`, the code
+ * and `SyntaxError: ...`; an indentation or tab error as `Sorry: TabError: ... (x.py, line 3)`. BuildKit prefixes each
+ * line with its step and time and prints the step's output twice; each file is reported once. Paths are relative to
+ * the build root.
+ */
+export const parsePythonCompileErrors = (dockerOutput: string): PythonCompileError[] => {
+  const lines = dockerOutput.split(/\r?\n/).map((line) => line.replace(/^(#\d+ )?\d+\.\d+ /, ''));
+  const errors = new Map<string, PythonCompileError>();
+  for (let index = 0; index < lines.length; index++) {
+    const file = /^\*\*\* Error compiling '(?:\.\/)?(.+)'\.\.\.$/.exec(lines[index]!.trim())?.[1];
+    if (!file || errors.has(file)) continue;
+    let line: number | undefined;
+    let code: string | undefined;
+    let error = 'could not be compiled';
+    for (let next = index + 1; next < Math.min(lines.length, index + 12); next++) {
+      const text = lines[next]!.trim();
+      if (text.startsWith('*** Error compiling')) break;
+      const sorry = /^Sorry: (\w+): (.+) \(.+, line (\d+)\)$/.exec(text);
+      if (sorry) {
+        error = `${sorry[1]}: ${sorry[2]}`;
+        line = Number(sorry[3]);
+        break;
+      }
+      const location = /^File ".+", line (\d+)/.exec(text);
+      if (location) {
+        line = Number(location[1]);
+        const codeLine = lines[next + 1]?.trim();
+        if (codeLine && !/^\^+$/.test(codeLine)) code = codeLine;
+        continue;
+      }
+      const reported = /^(\w+(?:Error|Exception|Warning)): (.+)$/.exec(text);
+      if (reported) {
+        error = `${reported[1]}: ${reported[2]}`;
+        break;
+      }
+    }
+    errors.set(file, { file, ...(line !== undefined && { line }), error, ...(code && { code }) });
+  }
+  return [...errors.values()];
+};

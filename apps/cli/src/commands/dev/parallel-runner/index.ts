@@ -3,6 +3,7 @@ import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
 import type { RelayEndpoint, TunnelInfo } from '../tunnel-manager';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -54,6 +55,7 @@ import { getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 
 type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
 
@@ -1144,6 +1146,16 @@ const getFunctionIntegrationInfo = (resourceName: string): { url?: string; statu
   return { statusMessage: eventTypeLabels[eventType] || `${eventType} trigger` };
 };
 
+/** The function's entry file, which a file watcher follows when no build traced the function's files. */
+const getFunctionEntryFiles = (resourceName: string): string[] => {
+  const entryfilePath = (
+    configManager.functions.find(({ name }) => name === resourceName)?.packaging?.properties as
+      | { entryfilePath?: string }
+      | undefined
+  )?.entryfilePath;
+  return entryfilePath ? [join(globalStateManager.workingDir, entryfilePath)] : [];
+};
+
 const startFunctionWorkload = async (resourceName: string, stackContext: StackContext): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
@@ -1160,9 +1172,23 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
     });
   }
 
-  // Build and deploy
-  const { packagingOutput } = await buildAndUpdateFunctionCode(resourceName, { devMode: true });
-  packagingManager.clearPackagedJobs();
+  // Build and deploy. A function whose code the dev stack already runs (the stack update just deployed it, or the
+  // previous session's last rebuild did) is left alone. A function that fails to build keeps its previous code and is
+  // reported as `error`; the session goes on, and a rebuild after the fix deploys it.
+  let packagingOutput: PackagingOutput | undefined;
+  let codeUnchanged = false;
+  let startError: string | undefined;
+  try {
+    ({ packagingOutput, codeUnchanged } = await buildAndUpdateFunctionCode(resourceName, {
+      devMode: true,
+      skipUnchangedCode: true
+    }));
+  } catch (error) {
+    if (applicationManager.isInterrupted) throw error;
+    startError = error instanceof Error ? error.message : String(error);
+  } finally {
+    packagingManager.clearPackagedJobs();
+  }
 
   // Get integration info (URL or status message)
   const integrationInfo = getFunctionIntegrationInfo(resourceName);
@@ -1170,11 +1196,22 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   // Get package size (use zipped size for Lambda - already in MB)
   const packageSize = packagingOutput?.zippedSize ? `${packagingOutput.zippedSize} MB zipped` : undefined;
 
-  if (useDevTui) {
+  if (startError !== undefined) {
+    const message = `Not deployed, the function runs its previous code: ${startError}`;
+    if (useDevTui) {
+      devTuiManager.setWorkloadStatus(resourceName, 'error', { ...integrationInfo, error: startError });
+      devTuiManager.log(resourceName, message, 'error');
+    } else {
+      tuiManager.error(`[${resourceName}] ${message}`);
+    }
+    updateAgentWorkloadStatus(resourceName, { status: 'error', error: startError });
+  } else if (useDevTui) {
     devTuiManager.setWorkloadStatus(resourceName, 'running', { ...integrationInfo, size: packageSize });
-    devTuiManager.log(resourceName, 'Function deployed');
+    devTuiManager.log(resourceName, codeUnchanged ? 'Function code unchanged, already deployed' : 'Function deployed');
   } else {
-    tuiManager.info(`[${resourceName}] Function deployed`);
+    tuiManager.info(
+      `[${resourceName}] ${codeUnchanged ? 'Function code unchanged, already deployed' : 'Function deployed'}`
+    );
   }
 
   // Setup log streaming
@@ -1215,7 +1252,8 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
     name: resourceName,
     type: 'function',
     resourceType: 'function',
-    sourceFiles: packagingOutput.sourceFiles.map((f: any) => f.path),
+    // Without a build there is no traced file list; the entry file still rebuilds the function when it changes.
+    sourceFiles: packagingOutput?.sourceFiles.map((f: any) => f.path) ?? getFunctionEntryFiles(resourceName),
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 

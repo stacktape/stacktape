@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { buildPythonLambda, getPythonLambdaHandlerModule } from '../../src/buildpacks/py-lambda-buildpack';
 import { invokeInLambdaImage } from '../e2e-helpers';
 import { actions, ensureRuntimeImage, extractArtifact, withProject } from './harness';
@@ -77,8 +77,13 @@ test('a Python handler below its pyproject.toml runs in Lambda under the handler
       distFolderPath: join(root, 'dist'),
       pythonVersion: 3.12
     });
+    const functionDirectory = await extractArtifact(output, root);
+    // The build compiles the sources to check them, but its bytecode stays out of the artifact.
+    expect(
+      (await readdir(functionDirectory, { recursive: true })).filter((path) => /__pycache__|\.pyc$/.test(path))
+    ).toEqual([]);
     const response = await invokeInLambdaImage({
-      functionDirectory: await extractArtifact(output, root),
+      functionDirectory,
       runtimeImage,
       handler,
       user: '993:990',
@@ -86,5 +91,33 @@ test('a Python handler below its pyproject.toml runs in Lambda under the handler
       event: { domain: 'münich' }
     });
     expect(response).toEqual({ module: 'src.handler', domain: 'xn--mnich-kva' });
+  });
+}, 480_000);
+
+// Packaging used to succeed for code Lambda could not import: the function then failed every request with
+// `Runtime.UserCodeSyntaxError`. Python 3.14's own compiler checks the sources, and the error names the file and line
+// relative to the project, as an editor shows them.
+test('a syntax error in a Python Lambda module stops packaging with the file and line', async () => {
+  await withProject('python-src-layout', async (root, project) => {
+    await writeFile(join(project, 'src', 'helpers.py'), 'def ok():\n    return 1\n\n\ndef broken(:\n    pass\n');
+    await writeFile(join(project, 'src', 'tabs.py'), 'def f():\n\tif True:\n        return 1\n');
+    const failure = await buildPythonLambda({
+      ...actions,
+      cwd: project,
+      name: 'python-syntax-error',
+      entryfilePath: 'src/handler.py',
+      distFolderPath: join(root, 'dist'),
+      pythonVersion: 3.14
+    }).then(
+      () => undefined,
+      (error: Error) => error
+    );
+    expect(failure?.message).toBe(
+      [
+        'src/helpers.py, line 5: SyntaxError: invalid syntax',
+        '    def broken(:',
+        'src/tabs.py, line 3: TabError: inconsistent use of tabs and spaces in indentation'
+      ].join('\n')
+    );
   });
 }, 480_000);

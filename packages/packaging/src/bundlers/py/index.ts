@@ -1,8 +1,8 @@
 import { packagingMessages } from '../../runtime-contracts';
-import type { CreatePackagingError, RunDocker, StpBuildpackInput } from '../../runtime-contracts';
+import type { CreatePackagingError, PinLocalBaseImage, RunDocker, StpBuildpackInput } from '../../runtime-contracts';
 import type { CreateBundleOutput } from '../../runtime-contracts';
-import { relative } from 'node:path';
-import { buildPythonArtifactDockerfile } from '../../docker/dockerfiles';
+import { join, relative } from 'node:path';
+import { buildPythonArtifactDockerfile, getPythonArtifactBaseImage } from '../../docker/dockerfiles';
 import { transformToUnixPath } from '../../fs/files';
 import objectHash from 'object-hash';
 import {
@@ -12,6 +12,7 @@ import {
   getPythonDependencyRootPath,
   getPythonUvDependencySelectorBuildArgs,
   getSourceFiles,
+  parsePythonCompileErrors,
   resolvePythonDependencyFile
 } from './utils';
 import type { PythonBuildpackConfig, SupportedPythonVersion } from '@stacktape/config/deployment-artifacts';
@@ -44,7 +45,8 @@ export const buildPythonArtifact = async ({
   excludeFiles,
   target = 'lambda',
   createPackagingError,
-  runDocker
+  runDocker,
+  pinLocalBaseImage
 }: StpBuildpackInput & {
   sourcePath: string;
   pythonVersion: SupportedPythonVersion;
@@ -54,6 +56,7 @@ export const buildPythonArtifact = async ({
   target?: 'container' | 'lambda' | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
+  pinLocalBaseImage?: PinLocalBaseImage | undefined;
 }): Promise<LanguageBundleOutput> => {
   await progressLogger.startEvent({
     eventType: 'CALCULATE_CHECKSUM',
@@ -133,10 +136,15 @@ export const buildPythonArtifact = async ({
   await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
+  const alpine = !requiresGlibcBinaries;
+  const baseImage = getPythonArtifactBaseImage({ pythonVersion, alpine, target });
   const dockerfileContents = buildPythonArtifactDockerfile({
     pythonVersion,
-    alpine: !requiresGlibcBinaries,
+    alpine,
     target,
+    baseImage: pinLocalBaseImage
+      ? await pinLocalBaseImage({ reference: baseImage, platform: dockerBuildOutputArchitecture })
+      : baseImage,
     requirementsWithoutSource: await canInstallRequirementsWithoutSource(dependencyFilePath)
   });
 
@@ -145,6 +153,21 @@ export const buildPythonArtifact = async ({
     sourcePath: dependencyRootPath,
     distFolderPath,
     dockerBuildOutputArchitecture,
+    describeFailure: (error) => {
+      const compileErrors = parsePythonCompileErrors(error instanceof Error ? error.message : String(error));
+      if (!compileErrors.length) return undefined;
+      return createPackagingError({
+        type: 'BUILD_CODE',
+        message: compileErrors
+          .map(
+            ({ file, line, error: description, code }) =>
+              `${transformToUnixPath(relative(cwd, join(dependencyRootPath, file)))}${line === undefined ? '' : `, line ${line}`}: ${description}${code ? `\n    ${code}` : ''}`
+          )
+          .join('\n'),
+        hint: 'Python could not compile these files of the function. Fix them and build again.',
+        cause: error
+      });
+    },
     buildArgs: [
       '--build-arg',
       `STP_PY_DEP_FILE=${dependencyFilePathRelative || ''}`,

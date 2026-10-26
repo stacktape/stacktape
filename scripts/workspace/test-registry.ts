@@ -626,6 +626,18 @@ export const lanes: readonly Lane[] = [
     selections: ['cli-packaged-lambda']
   },
   {
+    id: 'cli-packaged-python-lambda',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:python-lambda'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/packaging-archives/python-lambda-acceptance.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'CLI-packaged Python functions load native wheels in the runtime their template deploys, and syntax errors stop packaging.',
+    selections: ['cli-packaged-python-lambda']
+  },
+  {
     id: 'cli-packaged-web',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ssr-web'],
     level: 'process',
@@ -655,6 +667,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/scripts/packaging-archives/helper-lambda-runtime-acceptance.ts',
       'apps/cli/scripts/packaging-archives/node-lambda-acceptance.ts',
+      'apps/cli/scripts/packaging-archives/python-lambda-acceptance.ts',
       'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'
     ],
     requires: ['docker', 'network'],
@@ -4556,6 +4569,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/image/railpack-python.ts'
     ],
     tests: [
+      'apps/cli/scripts/packaging-archives/python-lambda-acceptance.ts',
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
@@ -4566,6 +4580,7 @@ export const slices: readonly Slice[] = [
     lanes: [
       'packaging-test',
       'language-lambdas',
+      'cli-packaged-python-lambda',
       'synthesis-families',
       'packaging-images',
       'packaging-images-2',

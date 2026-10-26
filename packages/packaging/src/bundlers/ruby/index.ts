@@ -12,7 +12,6 @@ import { relative } from 'node:path';
 
 import { getBundleDigest, getSourceFiles } from './utils';
 import type { SupportedRubyVersion } from '@stacktape/config/deployment-artifacts';
-import { DEFAULT_RUBY_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
   assertRequiredArtifactFile,
@@ -27,7 +26,7 @@ type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
 export const buildRubyArtifact = async ({
   sourcePath,
   distFolderPath,
-  rubyVersion = DEFAULT_RUBY_VERSION,
+  rubyVersion,
   rawEntryfilePath,
   cwd: _cwd,
   additionalDigestInput,
@@ -44,7 +43,7 @@ export const buildRubyArtifact = async ({
   runDocker
 }: StpBuildpackInput & {
   sourcePath: string;
-  rubyVersion?: SupportedRubyVersion | undefined;
+  rubyVersion: SupportedRubyVersion;
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;

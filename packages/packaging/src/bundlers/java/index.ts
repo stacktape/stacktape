@@ -12,7 +12,6 @@ import { createTemporaryBuildFile } from '../../fs/temporary-file';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
 import type { JavaBuildpackConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
-import { DEFAULT_JAVA_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
   assertRequiredArtifactFile,
@@ -30,7 +29,7 @@ type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
 export const buildJavaArtifact = async ({
   sourcePath,
   distFolderPath,
-  javaVersion = DEFAULT_JAVA_VERSION,
+  javaVersion,
   useMaven = false,
   rawEntryfilePath,
   cwd: _cwd,
@@ -49,7 +48,7 @@ export const buildJavaArtifact = async ({
   runDocker
 }: StpBuildpackInput & {
   sourcePath: string;
-  javaVersion?: SupportedJavaVersion | undefined;
+  javaVersion: SupportedJavaVersion;
   useMaven?: boolean | undefined;
   target?: 'container' | 'lambda' | undefined;
   rawEntryfilePath: string;

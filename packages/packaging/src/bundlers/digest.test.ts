@@ -182,6 +182,7 @@ describe('source-set bundle digest', () => {
           name: 'handler',
           cwd: root,
           entryfilePath: join(sourcePath, 'handler.rb'),
+          rubyVersion: 3.4,
           distFolderPath: join(root, 'dist', 'handler'),
           invocationId: 'test',
           existingDigests,
