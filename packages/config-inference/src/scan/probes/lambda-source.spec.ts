@@ -305,7 +305,7 @@ describe('the lambda-source probe', () => {
     expect(output.services?.[0]).toMatchObject({ name: 'api', language: 'python', functionHandler: 'lambda_handler' });
   });
 
-  it('takes an untyped export outside a handlers directory only with an event signature or event fields', async () => {
+  it('takes an untyped export outside a handlers directory only with an event signature or event fields, and no rate it creates', async () => {
     const repo = await makeRepo({
       // `(event, context)` is the Lambda signature even when the code reads no event field.
       'worker/run.py': 'def handler(event, context):\n    return None\n',
@@ -316,13 +316,21 @@ describe('the lambda-source probe', () => {
       'src/jobs.ts': "export const schedule = 'rate(1 day)';\nexport default async (event: unknown) => event;\n",
       'src/with-logging.ts':
         'export default (handler: any) => async (event: any, context: any) => handler(event, context);\n',
-      'web/server.py': 'def handler(request):\n    return request\n'
+      'web/server.py': 'def handler(request):\n    return request\n',
+      // The rate belongs to the schedules this function creates, not to the function.
+      'functions/remind.ts': [
+        "import { CreateScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler';",
+        'export const handler = async () =>',
+        "  new SchedulerClient({}).send(new CreateScheduleCommand({ Name: 'r', ScheduleExpression: 'rate(1 day)' } as never));",
+        ''
+      ].join('\n')
     });
     root = repo.root;
 
     const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
 
     expect(output.services?.map((service) => [service.functionEntrypoint, service.functionTriggers])).toEqual([
+      ['functions/remind.ts', []],
       ['worker/run.py', []]
     ]);
   });

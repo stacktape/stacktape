@@ -146,9 +146,10 @@ const typedHandler = (path: string, raw: string): TypedHandler | undefined => {
 };
 
 /**
- * A handler export without an event type, with its parameters: `export const handler = async (event, context) =>`,
- * `export default async function (event)`, `exports.handler = async event =>` or Python's `def handler(event, context):`.
- * Group 1 is the Python handler's name, group 2 (or 4) the first parameter, group 3 (or 5) the second.
+ * A handler export without an event type, with its first two parameters: `export const handler = async (event, context)
+ * =>`, `export default async function (event)` or `exports.handler = async event =>` (groups 1 and 2), and
+ * `export async function handler(event)` (groups 3 and 4). Python's `def handler(event, context):` has the function
+ * name in group 1 and the parameters in groups 2 and 3.
  */
 const UNTYPED_JS_EXPORT =
   /(?:export\s+(?:const\s+handler\s*=\s*|default\s+)|(?:module\.)?exports\.handler\s*=\s*)(?:async\s+)?(?:function\s*[\w$]*\s*)?\(?\s*([\w$]*)\s*(?::[^,)]*)?(?:,\s*([\w$]+))?|export\s+(?:async\s+)?function\s+handler\s*\(\s*([\w$]*)\s*(?::[^,)]*)?(?:,\s*([\w$]+))?/;
@@ -215,9 +216,15 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; patterns: readonly RegE
   { family: { trigger: 'schedule' }, patterns: [/['"]Scheduled Event['"]/, /['"]aws\.events['"]/, SCHEDULE_LITERAL] }
 ];
 
+/** Code that creates schedules (EventBridge rules, EventBridge Scheduler) holds rates that are not its own. */
+const CREATES_SCHEDULES =
+  /\bScheduleExpression\b|\b(?:PutRule|CreateSchedule)Command\b|\b(?:put_rule|create_schedule)\(/;
+
 const inferEventFamily = (raw: string): { family: EventFamily; pattern: RegExp } | undefined => {
   for (const { family, patterns } of EVENT_SHAPES) {
-    const pattern = patterns.find((candidate) => candidate.test(raw));
+    const pattern = patterns.find(
+      (candidate) => candidate.test(raw) && !(candidate === SCHEDULE_LITERAL && CREATES_SCHEDULES.test(raw))
+    );
     if (pattern !== undefined) return { family, pattern };
   }
   return undefined;
