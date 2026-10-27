@@ -4869,6 +4869,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/database-deletion-protection.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/force-delete-asg.test.ts',
       'apps/cli/scripts/packaging-archives/asset-replacer-acceptance.ts',
       'packages/packaging/scripts/archive-build-e2e.ts',
