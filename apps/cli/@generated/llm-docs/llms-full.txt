@@ -8274,6 +8274,16 @@ Also fix before production (not reported for this stage):
 
 With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType`, `stacktape-console` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
 
+## Missing secrets
+
+A `$Secret` whose secret does not exist yet in the region is a finding, not a failure: `validate` reports it and checks the rest of the configuration, with a placeholder reference in the template. This is the normal state after [`init`](/cli/init), which keeps a generated database or Redis password in a secret it does not create.
+
+```text
+[!] Secret my-app-cache does not exist in eu-west-1 yet. It holds a generated database password: stacktape dev creates it when it starts, and stacktape deploy creates it before it deploys (in a terminal it asks first). To create it yourself, run stacktape secret set my-app-cache with a JSON value that has a `password` key.
+```
+
+Any other missing secret, such as an API key, has to be created with [`secret set`](/cli/secret-set) before `deploy` or `dev` can run; both stop until it exists. With `--agent`, the result lists them in `missingSecrets`, each with its `name`, the `jsonKeys` the configuration reads and whether Stacktape `generated` its value.
+
 ## When to use validate
 
 The `validate` command is a fast pre-deploy check that confirms your configuration synthesizes correctly. Use it when you want a validation gate instead of a written template file.

@@ -320,6 +320,89 @@ describe('init writes a config stacktape dev can run', () => {
     expect(result.composition.gaps).toEqual([]);
   });
 
+  // The r2w dogfood run needed ten hand edits to this app's init output (round2/r2w/report.md, "Hand edits"). H1–H6 are
+  // init's job and asserted here. H7 was never needed, and H8–H10 work around WebSocket and dev-mode product bugs.
+  it('r2w: WebSocket, DynamoDB stream and EventBridge handlers, a Go API and Next.js', async () => {
+    const result = await initFixture('r2w-shop');
+    const resources = resourcesOf(result);
+
+    expect(typesOf(resources)).toEqual({
+      cache: 'redis-cluster',
+      mainTable: 'dynamo-db-table',
+      eventBus: 'event-bus',
+      websocketApi: 'websocket-api-gateway',
+      r2wShopWeb: 'nextjs-web',
+      orderNotify: 'function',
+      orderStream: 'function',
+      ws: 'function',
+      ordersApi: 'web-service'
+    });
+    // H1: the key from `Key: { id: orderId }`, and the stream carries the `NewImage` the consumer reads.
+    expect(resources.mainTable!.properties).toEqual({
+      primaryKey: { partitionKey: { name: 'id', type: 'string' } },
+      streamType: 'NEW_IMAGE'
+    });
+    // H2: the stream trigger, and the bus `PutEvents` names through `EVENT_BUS_NAME`.
+    expect(resources.orderStream!.properties).toMatchObject({
+      events: [
+        {
+          type: 'dynamo-db-stream',
+          properties: { streamArn: "$ResourceParam('mainTable', 'streamArn')", startingPosition: 'LATEST' }
+        }
+      ],
+      environment: [{ name: 'EVENT_BUS_NAME', value: "$ResourceParam('eventBus', 'arn')" }],
+      connectTo: ['eventBus']
+    });
+    // H3: a rule for the detail type and source the stream handler publishes, and the API it pushes to.
+    expect(resources.orderNotify!.properties).toMatchObject({
+      events: [
+        {
+          type: 'event-bus',
+          properties: {
+            eventBusName: 'eventBus',
+            eventPattern: { source: ['shop.orders'], 'detail-type': ['OrderCreated'] }
+          }
+        }
+      ],
+      environment: [
+        { name: 'ORDERS_TABLE', value: "$ResourceParam('mainTable', 'name')" },
+        { name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" },
+        { name: 'WS_MANAGEMENT_URL', value: "$ResourceParam('websocketApi', 'managementEndpoint')" }
+      ],
+      connectTo: ['cache', 'mainTable', 'websocketApi']
+    });
+    // H4: the WebSocket handler with the routes it compares `routeKey` against, `$default` for its `else` branch.
+    expect(resources.ws!.properties).toMatchObject({
+      packaging: { type: 'js-bundle', properties: { entryfilePath: 'functions/ws.ts' } },
+      events: ['$connect', '$disconnect', '$default'].map((routeKey) => ({
+        type: 'websocket-api-gateway',
+        properties: { websocketApiGatewayName: 'websocketApi', routeKey }
+      })),
+      joinDefaultVpc: true,
+      environment: [{ name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" }],
+      connectTo: ['cache']
+    });
+    // H5: what the Go service reads through its `env(name, fallback)` helper.
+    expect(resources.ordersApi!.properties).toMatchObject({
+      environment: [
+        { name: 'ORDERS_TABLE', value: "$ResourceParam('mainTable', 'name')" },
+        { name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" }
+      ],
+      connectTo: ['cache', 'mainTable']
+    });
+    // H6: the server components' API address and the browser's WebSocket URL.
+    expect(resources.r2wShopWeb!.properties).toMatchObject({
+      environment: [
+        { name: 'ORDERS_API_URL', value: "$ResourceParam('ordersApi', 'url')" },
+        { name: 'NEXT_PUBLIC_WS_URL', value: "$ResourceParam('websocketApi', 'url')" }
+      ],
+      dev: { command: 'npm run dev' }
+    });
+    expect(result.composition.gaps).toEqual([]);
+    // `strconv.Atoi(os.Getenv("STARTUP_DELAY_SECONDS"))` has no fallback the scan can see; it is reported, not set.
+    expect(result.composition.unsetSettings.map(({ variableName }) => variableName)).toEqual(['STARTUP_DELAY_SECONDS']);
+  });
+
   // A function's output bound to its own trigger re-invokes it with every write, forever.
   it('trigger loops: a variable naming the kind that invokes the function is left unset and reported', async () => {
     const result = await initFixture('trigger-loops');

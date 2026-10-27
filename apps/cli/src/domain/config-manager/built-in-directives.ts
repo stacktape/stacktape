@@ -26,7 +26,7 @@ import { configErrors } from './errors';
 export type BuiltInDirectiveContext = Readonly<{
   runtime: Readonly<{
     calculatedStackOverviewManager: Pick<typeof calculatedStackOverviewManager, 'getStpResource'>;
-    configManager: Pick<typeof configManager, 'findResourceInConfig' | 'deploymentContext'>;
+    configManager: Pick<typeof configManager, 'findResourceInConfig' | 'deploymentContext' | 'isSecretReportedMissing'>;
     deployedStackOverviewManager: Pick<typeof deployedStackOverviewManager, 'getStpResource'>;
     stackManager: Pick<typeof stackManager, 'getExistingResourceDetails' | 'existingStackDetails'>;
     templateManager: Pick<typeof templateManager, 'template' | 'addFinalTemplateOverrideFn' | 'addStackOutput'>;
@@ -312,6 +312,11 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       isRuntime: true,
       resolveFunction: () => async (secretReference: string) => {
         const [secretName, jsonKey] = secretReference.split('.');
+        // `validate` has already reported this secret as missing. Deploy never gets here: it creates or asks for every
+        // missing secret first, and fails when it cannot.
+        if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
+          return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::}}`;
+        }
         let secret;
         try {
           secret = await awsSdkManager.secrets.get({ secretId: secretName });
@@ -413,6 +418,9 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       isRuntime: true,
       resolveFunction: () => async (secretReference: string) => {
         const [secretName, jsonKey] = secretReference.split('.');
+        if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
+          return `arn:aws:secretsmanager:${context.region}:${context.accountId}:secret:${secretName}:${jsonKey || ''}::`;
+        }
         let secret;
         try {
           secret = await awsSdkManager.secrets.get({ secretId: secretName });

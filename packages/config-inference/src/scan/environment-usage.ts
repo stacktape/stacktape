@@ -22,10 +22,16 @@
  */
 
 import { resourceKindNamedBy, type DependencyFact, type DependencyKind } from '../facts/dependency';
-import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
+import {
+  invokingDependencyName,
+  type EnvironmentVariableRole,
+  type EnvironmentVariableUse,
+  type ServiceFactInput
+} from '../facts/service';
 import type { Citation } from '../facts/citation';
 import { posix } from 'node:path';
 import type { SourceRead } from './read-source';
+import { agreedItemKey, emptyItemKeyObservations, observeItemKeys } from './dynamodb-keys';
 import { AMBIGUOUS_DATABASE_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
 import { isPlatformEnvironmentVariable } from './platform-environment';
 
@@ -257,10 +263,39 @@ const svelteKitPatterns = (contents: string): ReadPattern[] => {
   return patterns;
 };
 
-const collectFromFile = (path: string, contents: string, occurrences: Map<string, Occurrence>): void => {
+/**
+ * Go functions that read the variable their first parameter names: `func env(name, fallback string) string { if v :=
+ * os.Getenv(name); ... }`. Go code reads most of its settings through one, so `env("ORDERS_TABLE", "orders")` is the
+ * read. A second parameter is the fallback.
+ */
+const GO_FUNCTION = /^func\s+([A-Za-z_]\w*)\s*\(\s*([A-Za-z_]\w*)\b([^)]*)\)[^{\n]*\{\n?([\s\S]*?)^\}/gm;
+
+const goHelperPatterns = (contents: readonly string[]): ReadPattern[] =>
+  contents.flatMap((source) =>
+    [...source.matchAll(GO_FUNCTION)]
+      .filter(([, , parameter, , body]) =>
+        new RegExp(`\\bos\\.(?:Getenv|LookupEnv)\\(\\s*${parameter}\\s*\\)`).test(body!)
+      )
+      .map(([, name, , rest]): ReadPattern => {
+        const pattern = new RegExp(`(?<![\\w.])${name}\\(\\s*"${NAME}"`, 'g');
+        return rest!.includes(',') ? { pattern, fallback: 'call-argument' } : { pattern };
+      })
+  );
+
+const collectFromFile = (
+  path: string,
+  contents: string,
+  occurrences: Map<string, Occurrence>,
+  extraPatterns: readonly ReadPattern[] = []
+): void => {
   const group = PATTERNS_BY_EXTENSION.find((entry) => entry.extensions.test(path));
   if (group === undefined) return;
-  const patterns = group.patterns === JS_PATTERNS ? [...JS_PATTERNS, ...svelteKitPatterns(contents)] : group.patterns;
+  const patterns =
+    group.patterns === JS_PATTERNS
+      ? [...JS_PATTERNS, ...svelteKitPatterns(contents)]
+      : path.endsWith('.go')
+        ? [...group.patterns, ...extraPatterns]
+        : group.patterns;
 
   const lines = contents.split(/\r?\n/);
   for (const [index, line] of lines.entries()) {
@@ -332,8 +367,13 @@ const classify = (
   /** Dependencies that invoke the services reading the variable. */
   triggers: ReadonlySet<string> = new Set()
 ): Pick<EnvironmentVariableUse, 'role' | 'dependencyName'> => {
-  if (occurrence.buildTimeRead || BUILD_TIME_PREFIX.test(name)) return { role: 'build-time' };
   const dependency = resolveDependency(name, dependencies, triggers);
+  if (occurrence.buildTimeRead || BUILD_TIME_PREFIX.test(name)) {
+    // The public address of something the project creates, like the URL a browser opens a WebSocket to.
+    return dependency?.kind === 'websocket-api'
+      ? { role: 'build-time', dependencyName: dependency.name }
+      : { role: 'build-time' };
+  }
   if (dependency !== undefined) return { role: 'infra-dependency', dependencyName: dependency.name };
   if (SECRET_NAME.test(name)) return { role: 'third-party-secret' };
   return { role: 'runtime-config' };
@@ -418,17 +458,29 @@ export const enrichEnvironmentUsage = async ({
     }
   }
 
+  const itemKeys = emptyItemKeyObservations();
+  const observedFiles = new Set<string>();
   for (const unit of units) {
     const occurrences = new Map<string, Occurrence>();
     const presignMethods = new Set<'PUT' | 'POST'>();
     // Sequential on purpose: bounded work, and a deterministic file order keeps citation choice
     // reproducible run to run.
+    const sources: Array<{ file: string; contents: string }> = [];
     for (const file of unit.files) {
       // oxlint-disable-next-line no-await-in-loop -- bounded by MAX_FILES_SCANNED, order matters.
       const contents = await readContents(file);
-      if (contents === undefined) continue;
-      collectFromFile(file, contents, occurrences);
+      if (contents !== undefined) sources.push({ file, contents });
+    }
+    // A Go package's helpers serve every file in it.
+    const goHelpers = goHelperPatterns(
+      sources.filter(({ file }) => file.endsWith('.go')).map(({ contents }) => contents)
+    );
+    for (const { file, contents } of sources) {
+      collectFromFile(file, contents, occurrences, goHelpers);
       for (const method of presignedUploadMethods(contents)) presignMethods.add(method);
+      // Two functions importing one data module read it once.
+      if (!observedFiles.has(file)) observeItemKeys(contents, itemKeys);
+      observedFiles.add(file);
     }
     // The same source files, read for the other thing the composer needs from them.
     if (presignMethods.size > 0) {
@@ -438,9 +490,10 @@ export const enrichEnvironmentUsage = async ({
 
     const triggers = new Set(
       unit.services.flatMap((service) =>
-        (service.functionTriggers ?? []).flatMap((trigger) =>
-          'dependencyName' in trigger ? [trigger.dependencyName] : []
-        )
+        (service.functionTriggers ?? []).flatMap((trigger) => {
+          const invoking = invokingDependencyName(trigger);
+          return invoking === undefined ? [] : [invoking];
+        })
       )
     );
     const classified: EnvironmentVariableUse[] = [];
@@ -469,7 +522,8 @@ export const enrichEnvironmentUsage = async ({
       // colocation guess the assembler otherwise falls back to, and append-only so it can only
       // ever add precision.
       for (const use of uses) {
-        if (use.dependencyName === undefined) continue;
+        // A browser connecting to a public address needs no access of its own.
+        if (use.dependencyName === undefined || use.role === 'build-time') continue;
         const dependency = dependencies.find((entry) => entry.name === use.dependencyName);
         if (dependency !== undefined && !dependency.consumedBy.includes(service.name)) {
           dependency.consumedBy.push(service.name);
@@ -477,6 +531,11 @@ export const enrichEnvironmentUsage = async ({
       }
     }
   }
+
+  // With several tables a key could belong to any of them.
+  const tables = dependencies.filter((dependency) => dependency.kind === 'dynamodb');
+  const itemKey = agreedItemKey(itemKeys);
+  if (tables.length === 1 && itemKey !== undefined) tables[0]!.itemKey ??= itemKey;
 };
 
 /**

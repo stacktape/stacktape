@@ -42,7 +42,7 @@ import type { WizardAgentOption } from './server/wizard-server';
 import type { WizardSignInDependencies } from './server/wizard-sign-in';
 import { startWizardSession, toTimelineEntry } from './server/wizard-session';
 import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
-import { DEFAULT_PRICING_REGION, estimateMonthlyCost } from './pricing';
+import { DEFAULT_PRICING_REGION, estimateMonthlyCost, PRICE_UNAVAILABLE } from './pricing';
 import { reportInitTelemetry } from './telemetry';
 import {
   findExistingConfig,
@@ -345,7 +345,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     );
     if (price !== undefined) {
       say('');
-      say(`About ${price.monthly} in ${price.region}, for what is in this file.`);
+      const unpriced = Object.entries(price.byResource)
+        .filter(([, label]) => label === PRICE_UNAVAILABLE)
+        .map(([name]) => name);
+      say(
+        price.flatMonthly === undefined
+          ? `No monthly estimate for ${price.region}: ${unpriced.length === 0 ? 'some resources' : unpriced.join(', ')} ${unpriced.length === 1 ? 'has' : 'have'} no price yet.`
+          : `About ${price.monthly} in ${price.region}, for what is in this file.`
+      );
     }
 
     // Written even when questions are outstanding. The file is the useful artifact — someone reading

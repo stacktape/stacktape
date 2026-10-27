@@ -695,6 +695,452 @@ export const handler = async (event: any) => {
 `
 };
 
+/** The r2w dogfood app: Go API on DynamoDB and Redis, a DynamoDB stream to EventBridge to WebSocket push, and Next.js. */
+const r2wShop: Record<string, string> = {
+  'package.json': `{
+  "name": "r2w-shop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "seed": "node scripts/seed.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.700.0",
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/client-eventbridge": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@aws-sdk/util-dynamodb": "^3.700.0",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
+`,
+  'functions/redis.ts': `import Redis from 'ioredis';
+
+let client: Redis | undefined;
+
+export const redis = () => {
+  client ??= new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: 2, connectTimeout: 5000 });
+  return client;
+};
+`,
+  'functions/ws.ts': `// WebSocket API handler for $connect, $disconnect and $default. Connection IDs live in a Redis set.
+import type { APIGatewayProxyWebsocketEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { redis } from './redis';
+
+export default async (event: APIGatewayProxyWebsocketEventV2): Promise<APIGatewayProxyResultV2> => {
+  const { routeKey, connectionId } = event.requestContext;
+  if (routeKey === '$connect') await redis().sadd('ws:connections', connectionId);
+  else if (routeKey === '$disconnect') await redis().srem('ws:connections', connectionId);
+  else console.log(\`message from \${connectionId}: \${event.body}\`);
+  return { statusCode: 200, body: '' };
+};
+`,
+  'functions/order-stream.ts': `// Reads new orders from the orders table stream and announces each one on the shop event bus.
+import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { unmarshall } from '@aws-sdk/util-dynamodb';
+import type { DynamoDBStreamEvent } from 'aws-lambda';
+
+const eventBridge = new EventBridgeClient({});
+
+export default async (event: DynamoDBStreamEvent) => {
+  const created = event.Records.filter((record) => record.eventName === 'INSERT' && record.dynamodb?.NewImage).map(
+    (record) => unmarshall(record.dynamodb!.NewImage as any)
+  );
+  if (created.length === 0) return;
+  await eventBridge.send(
+    new PutEventsCommand({
+      Entries: created.map((order) => ({
+        EventBusName: process.env.EVENT_BUS_NAME,
+        Source: 'shop.orders',
+        DetailType: 'OrderCreated',
+        Detail: JSON.stringify({ orderId: order.id, item: order.item, quantity: order.quantity })
+      }))
+    })
+  );
+  console.log(\`published OrderCreated for \${created.map((order) => order.id).join(', ')}\`);
+};
+`,
+  'functions/order-notify.ts': `// Handles OrderCreated events: marks the order as notified and pushes the change to every connected browser.
+import { ApiGatewayManagementApiClient, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import type { EventBridgeEvent } from 'aws-lambda';
+import { redis } from './redis';
+
+type OrderCreated = { orderId: string; item: string; quantity: number };
+
+const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const sockets = new ApiGatewayManagementApiClient({ endpoint: process.env.WS_MANAGEMENT_URL });
+
+export default async (event: EventBridgeEvent<'OrderCreated', OrderCreated>) => {
+  const { orderId, item } = event.detail;
+  await db.send(
+    new UpdateCommand({
+      TableName: process.env.ORDERS_TABLE,
+      Key: { id: orderId },
+      UpdateExpression: 'SET #status = :notified',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':notified': 'notified' }
+    })
+  );
+  await redis().incr('orders:notified');
+  const connections = await redis().smembers('ws:connections');
+  const message = JSON.stringify({ type: 'order-notified', orderId, item });
+  await Promise.all(
+    connections.map(async (connectionId) => {
+      try {
+        await sockets.send(new PostToConnectionCommand({ ConnectionId: connectionId, Data: message }));
+      } catch (error) {
+        if ((error as { name?: string }).name === 'GoneException') await redis().srem('ws:connections', connectionId);
+        else throw error;
+      }
+    })
+  );
+  console.log(\`order \${orderId} notified to \${connections.length} connections\`);
+};
+`,
+  'services/orders-api/go.mod': `module github.com/r2w/orders-api
+
+go 1.26.0
+
+require (
+	github.com/aws/aws-sdk-go-v2 v1.47.4
+	github.com/aws/aws-sdk-go-v2/config v1.33.11
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.15
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.72.1
+	github.com/google/uuid v1.6.0
+	github.com/redis/go-redis/v9 v9.23.0
+)
+`,
+  'services/orders-api/main.go': `// orders-api: HTTP API for orders. Port 8080 serves the public API, port 9090 serves health and metrics for operators.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"sort"
+	"strconv"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+)
+
+type Order struct {
+	ID        string \`json:"id" dynamodbav:"id"\`
+	Item      string \`json:"item" dynamodbav:"item"\`
+	Quantity  int    \`json:"quantity" dynamodbav:"quantity"\`
+	Status    string \`json:"status" dynamodbav:"status"\`
+	CreatedAt string \`json:"createdAt" dynamodbav:"createdAt"\`
+}
+
+type server struct {
+	db    *dynamodb.Client
+	rdb   *redis.Client
+	table string
+}
+
+func env(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+func (s *server) listOrders(w http.ResponseWriter, r *http.Request) {
+	out, err := s.db.Scan(r.Context(), &dynamodb.ScanInput{TableName: aws.String(s.table)})
+	if err != nil {
+		log.Printf("ERROR scan orders: %v", err)
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	orders := []Order{}
+	if err := attributevalue.UnmarshalListOfMaps(out.Items, &orders); err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	sort.Slice(orders, func(i, j int) bool { return orders[i].CreatedAt > orders[j].CreatedAt })
+	writeJSON(w, 200, orders)
+}
+
+func (s *server) createOrder(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Item     string \`json:"item"\`
+		Quantity int    \`json:"quantity"\`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.Item == "" {
+		writeJSON(w, 400, map[string]string{"error": "item is required"})
+		return
+	}
+	if input.Quantity <= 0 {
+		input.Quantity = 1
+	}
+	order := Order{ID: uuid.NewString(), Item: input.Item, Quantity: input.Quantity, Status: "created",
+		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	item, err := attributevalue.MarshalMap(order)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	if _, err := s.db.PutItem(r.Context(), &dynamodb.PutItemInput{TableName: aws.String(s.table), Item: item}); err != nil {
+		log.Printf("ERROR put order: %v", err)
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := s.rdb.Incr(r.Context(), "orders:created").Err(); err != nil {
+		log.Printf("WARN redis incr: %v", err)
+	}
+	log.Printf("order created id=%s item=%s", order.ID, order.Item)
+	writeJSON(w, 201, order)
+}
+
+func (s *server) stats(w http.ResponseWriter, r *http.Request) {
+	created, _ := s.rdb.Get(r.Context(), "orders:created").Int()
+	notified, _ := s.rdb.Get(r.Context(), "orders:notified").Int()
+	writeJSON(w, 200, map[string]int{"created": created, "notified": notified})
+}
+
+func main() {
+	if delay, _ := strconv.Atoi(os.Getenv("STARTUP_DELAY_SECONDS")); delay > 0 {
+		log.Printf("warming up for %d s before listening", delay)
+		time.Sleep(time.Duration(delay) * time.Second)
+	}
+	ctx := context.Background()
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Fatalf("aws config: %v", err)
+	}
+	redisOpts, err := redis.ParseURL(env("REDIS_URL", "redis://localhost:6379"))
+	if err != nil {
+		log.Fatalf("REDIS_URL: %v", err)
+	}
+	s := &server{db: dynamodb.NewFromConfig(cfg), rdb: redis.NewClient(redisOpts), table: env("ORDERS_TABLE", "orders")}
+
+	api := http.NewServeMux()
+	api.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]bool{"ok": true}) })
+	api.HandleFunc("GET /orders", s.listOrders)
+	api.HandleFunc("POST /orders", s.createOrder)
+	api.HandleFunc("GET /stats", s.stats)
+
+	admin := http.NewServeMux()
+	admin.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := s.rdb.Ping(r.Context()).Err(); err != nil {
+			writeJSON(w, 503, map[string]string{"redis": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]string{"redis": "ok"})
+	})
+	admin.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+		created, _ := s.rdb.Get(r.Context(), "orders:created").Int()
+		fmt.Fprintf(w, "orders_created_total %d\\n", created)
+	})
+
+	port, adminPort := env("PORT", "8080"), env("ADMIN_PORT", "9090")
+	go func() {
+		log.Printf("admin listening on :%s", adminPort)
+		log.Fatal(http.ListenAndServe(":"+adminPort, admin))
+	}()
+	log.Printf("orders-api listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, api))
+}
+`,
+  'web/package.json': `{
+  "name": "r2w-shop-web",
+  "private": true,
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
+  "dependencies": { "next": "16.4.3", "react": "^19.2.0", "react-dom": "^19.2.0" },
+  "devDependencies": { "@types/node": "^22.0.0", "@types/react": "^19.0.0", "typescript": "^5.6.0" }
+}
+`,
+  'web/next.config.mjs': `/** @type {import('next').NextConfig} */
+export default {};
+`,
+  'web/app/api.ts': `// Server-side client for the Go orders API. ORDERS_API_URL is only read on the server.
+export type Order = { id: string; item: string; quantity: number; status: string; createdAt: string };
+
+const base = () => {
+  const url = process.env.ORDERS_API_URL;
+  if (!url) throw new Error('ORDERS_API_URL is not set');
+  return url.replace(/\\/$/, '');
+};
+
+export const listOrders = async (): Promise<Order[]> => {
+  const res = await fetch(\`\${base()}/orders\`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(\`GET /orders failed: \${res.status} \${await res.text()}\`);
+  return res.json();
+};
+
+export const getStats = async (): Promise<{ created: number; notified: number }> => {
+  const res = await fetch(\`\${base()}/stats\`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(\`GET /stats failed: \${res.status}\`);
+  return res.json();
+};
+
+export const createOrder = async (item: string, quantity: number) => {
+  const res = await fetch(\`\${base()}/orders\`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ item, quantity })
+  });
+  if (!res.ok) throw new Error(\`POST /orders failed: \${res.status} \${await res.text()}\`);
+};
+`,
+  'web/app/actions.ts': `'use server';
+
+import { revalidatePath } from 'next/cache';
+import { createOrder } from './api';
+
+export async function placeOrder(formData: FormData) {
+  await createOrder(String(formData.get('item') ?? ''), Number(formData.get('quantity') ?? 1));
+  revalidatePath('/');
+}
+`,
+  'web/app/page.tsx': `import { placeOrder } from './actions';
+import { getStats, listOrders } from './api';
+import { LiveFeed } from './live-feed';
+
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  const [orders, stats] = await Promise.all([listOrders(), getStats()]);
+  return (
+    <main>
+      <h1>r2w shop</h1>
+      <p data-testid="stats">
+        created {stats.created}, notified {stats.notified}
+      </p>
+      <form action={placeOrder}>
+        <label>
+          Item <input name="item" required />
+        </label>{' '}
+        <input name="quantity" type="number" defaultValue={1} min={1} style={{ width: '4rem' }} />{' '}
+        <button type="submit">Place order</button>
+      </form>
+      <LiveFeed />
+      <table>
+        <tbody>
+          {orders.map((order) => (
+            <tr key={order.id} data-testid={\`order-\${order.item}\`}>
+              <td>{order.item}</td>
+              <td>{order.quantity}</td>
+              <td>{order.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </main>
+  );
+}
+`,
+  'web/app/live-feed.tsx': `'use client';
+
+import { useEffect, useState } from 'react';
+
+export function LiveFeed() {
+  const [state, setState] = useState('connecting');
+  const [messages, setMessages] = useState<string[]>([]);
+
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_WS_URL;
+    if (!url) {
+      setState('NEXT_PUBLIC_WS_URL is not set');
+      return;
+    }
+    const socket = new WebSocket(url);
+    socket.onopen = () => setState('connected');
+    socket.onclose = () => setState('closed');
+    socket.onerror = () => setState('error');
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'order-notified') setMessages((current) => [\`notified \${data.item}\`, ...current]);
+    };
+    return () => socket.close();
+  }, []);
+
+  return (
+    <section>
+      <p>
+        Live updates: <span data-testid="ws-state">{state}</span>
+      </p>
+      <ul data-testid="live-feed">
+        {messages.map((message, index) => (
+          <li key={index}>{message}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+`,
+  'web/app/layout.tsx': `export const metadata = { title: 'r2w shop' };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body style={{ fontFamily: 'system-ui', margin: '2rem' }}>{children}</body>
+    </html>
+  );
+}
+`,
+  'scripts/seed.mjs': `// Seeds two orders through the orders API so the page has something to show.
+const api = process.env.ORDERS_API_URL ?? 'http://localhost:8080';
+for (const item of ['seed-keyboard', 'seed-mouse']) {
+  const res = await fetch(\`\${api}/orders\`, { method: 'POST', body: JSON.stringify({ item, quantity: 1 }) });
+  console.log(item, res.status);
+}
+`,
+  'playwright.config.ts': `import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: 'e2e',
+  timeout: 120_000,
+  use: { baseURL: process.env.WEB_URL ?? 'http://localhost:3000', trace: 'retain-on-failure' },
+  reporter: [['list']]
+});
+`,
+  'e2e/orders.spec.ts': `import { expect, test } from '@playwright/test';
+
+test('an order placed in the browser is created, announced and pushed back over the WebSocket', async ({ page }) => {
+  const item = \`e2e-\${Date.now()}\`;
+  await page.goto('/');
+  await expect(page.getByTestId('ws-state')).toHaveText('connected', { timeout: 30_000 });
+
+  await page.getByLabel('Item').fill(item);
+  await page.getByRole('button', { name: 'Place order' }).click();
+
+  const row = page.getByTestId(\`order-\${item}\`);
+  await expect(row).toContainText('created', { timeout: 15_000 });
+
+  // DynamoDB stream -> order-stream Lambda -> EventBridge -> order-notify Lambda -> WebSocket push
+  await expect(page.getByTestId('live-feed')).toContainText(\`notified \${item}\`, { timeout: 60_000 });
+
+  await page.reload();
+  await expect(page.getByTestId(\`order-\${item}\`)).toContainText('notified');
+  await expect(page.getByTestId('stats')).toContainText(/notified \\d+/);
+});
+`
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
@@ -703,5 +1149,6 @@ export const DEV_RUNNABLE_FIXTURES = {
   'monorepo-apis': monorepoApis,
   'r2p-files': r2pFiles,
   'untyped-handlers': untypedHandlers,
-  'trigger-loops': triggerLoops
+  'trigger-loops': triggerLoops,
+  'r2w-shop': r2wShop
 } as const;

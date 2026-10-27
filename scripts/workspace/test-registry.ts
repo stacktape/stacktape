@@ -40,6 +40,7 @@ const configInferenceScanTests = [
   'packages/config-inference/src/scan/cloudformation-yaml.spec.ts',
   'packages/config-inference/src/scan/conventions.spec.ts',
   'packages/config-inference/src/scan/dockerfile-ownership.spec.ts',
+  'packages/config-inference/src/scan/dynamodb-keys.spec.ts',
   'packages/config-inference/src/scan/environment-usage.spec.ts',
   'packages/config-inference/src/scan/file-tree.spec.ts',
   'packages/config-inference/src/scan/local-scripts.spec.ts',

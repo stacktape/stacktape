@@ -16,6 +16,7 @@ import { environmentProbe } from './probes/environment';
 import { languageManifestProbe } from './probes/language-manifests';
 import { lambdaSourceProbe } from './probes/lambda-source';
 import { manifestProbe } from './probes/manifest';
+import { serverEntrypointProbe } from './probes/server-entrypoint';
 
 const PROBES = [manifestProbe, environmentProbe];
 
@@ -288,6 +289,54 @@ describe('environment-usage enrichment', () => {
     expect(facts.services[0]?.environmentVariables.map((variable) => [variable.name, variable.role])).toEqual([
       ['PUBLIC_API_URL', 'build-time'],
       ['PUBLIC_SITE_NAME', 'build-time']
+    ]);
+  });
+
+  it('reads Go settings through a helper that wraps os.Getenv, with its fallback argument', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/orders\n\ngo 1.26\n\nrequire github.com/redis/go-redis/v9 v9.23.0\n',
+      'main.go': [
+        'package main',
+        '',
+        'import (',
+        '\t"net/http"',
+        '\t"os"',
+        ')',
+        '',
+        'func env(name, fallback string) string {',
+        '\tif v := os.Getenv(name); v != "" {',
+        '\t\treturn v',
+        '\t}',
+        '\treturn fallback',
+        '}',
+        '',
+        'func main() {',
+        '\t_ = env("REDIS_URL", "redis://localhost:6379")',
+        '\t_ = mustEnv("SIGNING_SECRET")',
+        '\t_ = http.ListenAndServe(":8080", nil)',
+        '}',
+        ''
+      ].join('\n'),
+      // Another file of the package, with a helper of one parameter: no fallback.
+      'config.go': [
+        'package main',
+        '',
+        'import "os"',
+        '',
+        'func mustEnv(key string) string {',
+        '\treturn os.Getenv(key)',
+        '}',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe, serverEntrypointProbe] });
+
+    expect(
+      facts.services[0]?.environmentVariables.map((variable) => [variable.name, variable.role, variable.required])
+    ).toEqual([
+      ['REDIS_URL', 'infra-dependency', false],
+      ['SIGNING_SECRET', 'third-party-secret', true]
     ]);
   });
 });

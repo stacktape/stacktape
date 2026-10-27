@@ -16,7 +16,7 @@ import { resourceKindNamedBy, type DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
-import { UNROUTED_HTTP_SOURCE, type ServiceFact } from '../facts/service';
+import { invokingDependencyName, UNROUTED_HTTP_SOURCE, type FunctionTrigger, type ServiceFact } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import { resolveAssumptions, type Assumption } from './assumptions';
 import { classifyService, type ServiceResourceType } from './classify';
@@ -176,7 +176,24 @@ const DEPENDENCY_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
 const SELF_TRIGGER_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
   'object-storage': 'bucket',
   queue: 'queue',
-  topic: 'topic'
+  topic: 'topic',
+  dynamodb: 'table',
+  'event-bus': 'event bus'
+};
+
+type StreamType = Extract<FunctionTrigger, { type: 'dynamodb-stream' }>['streamType'];
+
+/** The stream view a table needs so every handler on its stream gets the images it reads. */
+const streamTypeFor = (dependencyName: string, services: readonly ServiceFact[]): StreamType | undefined => {
+  const types = new Set(
+    services.flatMap((service) =>
+      service.functionTriggers.flatMap((trigger) =>
+        trigger.type === 'dynamodb-stream' && trigger.dependencyName === dependencyName ? [trigger.streamType] : []
+      )
+    )
+  );
+  if (types.size === 0) return undefined;
+  return types.size === 1 ? [...types][0] : 'NEW_AND_OLD_IMAGES';
 };
 
 const dependencyLabel = (kind: DependencyFact['kind']): string => DEPENDENCY_LABELS[kind] ?? kind;
@@ -513,7 +530,9 @@ const composeDependency = (
   engineVersions: EngineVersionCatalogue | undefined,
   privateDatabase: boolean,
   /** Methods of presigned uploads a browser sends to this bucket; empty when none does. */
-  browserUploadMethods: ReadonlyArray<'PUT' | 'POST'>
+  browserUploadMethods: ReadonlyArray<'PUT' | 'POST'>,
+  /** The stream a table needs for the handlers its stream invokes. */
+  streamType: StreamType | undefined
 ): { resource: ComposedResource; reason: string } | { unsupported: string } => {
   const rdsEngine = RDS_ENGINE_TYPES[dependency.kind];
   if (rdsEngine !== undefined) {
@@ -626,10 +645,28 @@ const composeDependency = (
         resource: {
           type: 'dynamo-db-table',
           properties: {
-            primaryKey: { partitionKey: { name: 'pk', type: 'string' } }
+            primaryKey: {
+              partitionKey: { name: dependency.itemKey?.partitionKey ?? 'pk', type: 'string' },
+              ...(dependency.itemKey?.sortKey === undefined
+                ? {}
+                : { sortKey: { name: dependency.itemKey.sortKey, type: 'string' } })
+            },
+            ...(streamType === undefined ? {} : { streamType })
           }
         },
-        reason: 'Your code uses DynamoDB.'
+        reason: `Your code uses DynamoDB${dependency.itemKey === undefined ? '' : ` and addresses items by ${dependency.itemKey.partitionKey}`}.${
+          streamType === undefined ? '' : ' A function reads its stream of changes.'
+        }`
+      };
+    case 'event-bus':
+      return {
+        resource: { type: 'event-bus', properties: {} },
+        reason: 'Your code publishes events that another of your functions handles.'
+      };
+    case 'websocket-api':
+      return {
+        resource: { type: 'websocket-api-gateway', properties: {} },
+        reason: 'Your functions handle WebSocket connections and messages.'
       };
     case 'queue':
       return {
@@ -965,7 +1002,8 @@ export const composeConfig = ({
       projectName,
       engineVersions,
       privateDatabase,
-      browserUploadMethods
+      browserUploadMethods,
+      streamTypeFor(dependency.name, facts.services)
     );
     if ('unsupported' in composed) {
       gaps.push({ subject: dependency.name, message: composed.unsupported });
@@ -1032,6 +1070,22 @@ export const composeConfig = ({
         continue;
       }
       duplicateRoutes.set(service.name, [...(duplicateRoutes.get(service.name) ?? []), route]);
+    }
+  }
+  // A WebSocket API also holds each route key once.
+  const claimedWebsocketRoutes = new Set<string>();
+  const duplicateWebsocketRoutes = new Map<string, string[]>();
+  for (const service of facts.services) {
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'websocket') continue;
+      for (const routeKey of trigger.routeKeys) {
+        const route = `${trigger.dependencyName} ${routeKey}`;
+        if (!claimedWebsocketRoutes.has(route)) {
+          claimedWebsocketRoutes.add(route);
+          continue;
+        }
+        duplicateWebsocketRoutes.set(service.name, [...(duplicateWebsocketRoutes.get(service.name) ?? []), routeKey]);
+      }
     }
   }
   if (httpApiGatewayName !== undefined) {
@@ -1104,7 +1158,21 @@ export const composeConfig = ({
     // A frontend's build-time API address: the HTTP API in front of the functions, or the backend service's URL.
     const buildAddresses: Array<{ name: string; value: string }> = [];
     for (const variable of service.environmentVariables) {
-      if (variable.role !== 'build-time' || variable.targetServiceName === undefined) continue;
+      if (variable.role !== 'build-time') continue;
+      // A public address of something we create, like the URL browsers open a WebSocket to.
+      const dependency =
+        variable.dependencyName === undefined ? undefined : composedDependencies.get(variable.dependencyName);
+      if (dependency !== undefined) {
+        const wiring = wiringFor(dependency.kind, variable.name);
+        if (wiring.kind === 'param') {
+          buildAddresses.push({
+            name: variable.name,
+            value: `$ResourceParam('${dependency.resourceName}', '${wiring.param}')`
+          });
+        }
+        continue;
+      }
+      if (variable.targetServiceName === undefined) continue;
       const target = facts.services.find((candidate) => candidate.name === variable.targetServiceName);
       const targetResource =
         target !== undefined && target.functionTriggers.some((trigger) => trigger.type === 'http')
@@ -1187,12 +1255,10 @@ export const composeConfig = ({
       const kind = resourceKindNamedBy(variable.name);
       const label = kind === undefined ? undefined : SELF_TRIGGER_LABELS[kind];
       if (label === undefined) continue;
-      const invokedBy = service.functionTriggers.some(
-        (trigger) =>
-          'dependencyName' in trigger &&
-          facts.dependencies.some(
-            (dependency) => dependency.name === trigger.dependencyName && dependency.kind === kind
-          )
+      const invokedBy = service.functionTriggers.some((trigger) =>
+        facts.dependencies.some(
+          (dependency) => dependency.name === invokingDependencyName(trigger) && dependency.kind === kind
+        )
       );
       if (!invokedBy) continue;
       selfTriggerVariables.add(variable.name);
@@ -1232,6 +1298,7 @@ export const composeConfig = ({
       environment,
       buildAddresses,
       skippedRoutes: duplicateRoutes.get(service.name) ?? [],
+      skippedWebsocketRoutes: duplicateWebsocketRoutes.get(service.name) ?? [],
       connectTo,
       dependencyResourceNames,
       ...(httpApiGatewayName === undefined ? {} : { httpApiGatewayName }),
@@ -1323,6 +1390,12 @@ export const composeConfig = ({
           trigger.sourceType === UNROUTED_HTTP_SOURCE
             ? `${service.name} handles HTTP requests, and so do other handlers, but the code does not say which route each one serves. Add an http-api-gateway event with its method and path to each of them before deploying; only one handler can take the catch-all route.`
             : `${service.name} is invoked by ${trigger.sourceType}. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
+      });
+    }
+    for (const routeKey of duplicateWebsocketRoutes.get(service.name) ?? []) {
+      gaps.push({
+        subject: `${service.name}.route`,
+        message: `${service.name} and another function both handle the WebSocket route ${routeKey}, which one API cannot hold twice. We left it off ${service.name}; handle it in one function before deploying.`
       });
     }
     for (const route of duplicateRoutes.get(service.name) ?? []) {
@@ -1430,6 +1503,7 @@ const buildServiceResource = ({
   environment,
   buildAddresses,
   skippedRoutes,
+  skippedWebsocketRoutes,
   connectTo,
   dependencyResourceNames,
   httpApiGatewayName,
@@ -1445,6 +1519,8 @@ const buildServiceResource = ({
   buildAddresses: Array<{ name: string; value: string }>;
   /** `METHOD /path` routes another function already holds on the shared HTTP API. */
   skippedRoutes: readonly string[];
+  /** WebSocket route keys another function already holds. */
+  skippedWebsocketRoutes: readonly string[];
   connectTo: readonly string[];
   dependencyResourceNames: ReadonlyMap<string, string>;
   httpApiGatewayName?: string;
@@ -1530,6 +1606,37 @@ const buildServiceResource = ({
       }
       const dependencyName = dependencyResourceNames.get(trigger.dependencyName);
       if (dependencyName === undefined) continue;
+      if (trigger.type === 'websocket') {
+        for (const routeKey of trigger.routeKeys) {
+          if (skippedWebsocketRoutes.includes(routeKey)) continue;
+          events.push({
+            type: 'websocket-api-gateway',
+            properties: { websocketApiGatewayName: dependencyName, routeKey }
+          });
+        }
+        continue;
+      }
+      if (trigger.type === 'dynamodb-stream') {
+        // New records only: an existing table's stream would otherwise replay the last day of changes into the handler.
+        events.push({
+          type: 'dynamo-db-stream',
+          properties: { streamArn: `$ResourceParam('${dependencyName}', 'streamArn')`, startingPosition: 'LATEST' }
+        });
+        continue;
+      }
+      if (trigger.type === 'event-bus') {
+        events.push({
+          type: 'event-bus',
+          properties: {
+            eventBusName: dependencyName,
+            eventPattern: {
+              ...(trigger.sources === undefined ? {} : { source: [...trigger.sources] }),
+              'detail-type': [...trigger.detailTypes]
+            }
+          }
+        });
+        continue;
+      }
       if (trigger.type === 'queue') {
         events.push({
           type: 'sqs',

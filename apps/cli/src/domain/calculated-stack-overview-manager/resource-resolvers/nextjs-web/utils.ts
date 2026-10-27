@@ -9,6 +9,7 @@ import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import { join } from 'node:path';
+import { pathExists } from 'fs-extra';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -106,6 +107,10 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
+    // `validate` without `--withPackage` builds nothing, the same as the other SSR frameworks' cache behaviours.
+    if (!(await pathExists(assetsDirPath))) {
+      return;
+    }
     const newCacheBehaviours = (await getStaticAssetCachePathPatterns(assetsDirPath)).map((PathPattern) => ({
       PathPattern
     }));

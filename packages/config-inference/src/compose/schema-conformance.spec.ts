@@ -582,4 +582,114 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     expect(config.scripts?.seed?.type).toBe('local-script');
     expectValid(config);
   });
+
+  it('WebSocket routes, a table stream, an event bus rule and the addresses a frontend reads', () => {
+    const fn = (name: string, overrides: Partial<ServiceFactInput>) =>
+      service({
+        name,
+        path: 'functions',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `functions/${name}.ts`,
+        ...overrides
+      });
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          fn('ws', {
+            functionTriggers: [
+              { type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect', '$disconnect', '$default'] }
+            ]
+          }),
+          // `$default` is taken; one API holds each route once.
+          fn('chat', {
+            functionTriggers: [{ type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['send', '$default'] }]
+          }),
+          fn('stream', {
+            functionTriggers: [{ type: 'dynamodb-stream', dependencyName: 'mainTable', streamType: 'NEW_IMAGE' }],
+            environmentVariables: [
+              {
+                name: 'EVENT_BUS_NAME',
+                role: 'infra-dependency',
+                dependencyName: 'eventBus',
+                required: true,
+                evidence: []
+              }
+            ]
+          }),
+          fn('notify', {
+            functionTriggers: [
+              { type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderCreated'], sources: ['shop'] }
+            ],
+            environmentVariables: [
+              {
+                name: 'WS_MANAGEMENT_URL',
+                role: 'infra-dependency',
+                dependencyName: 'websocketApi',
+                required: true,
+                evidence: []
+              }
+            ]
+          }),
+          service({ name: 'orders-api', path: 'api', port: 8080 }),
+          service({
+            name: 'web',
+            path: 'web',
+            framework: 'nextjs',
+            devCommand: 'npm run dev',
+            environmentVariables: [
+              {
+                name: 'NEXT_PUBLIC_WS_URL',
+                role: 'build-time',
+                dependencyName: 'websocketApi',
+                required: true,
+                evidence: []
+              },
+              {
+                name: 'ORDERS_API_URL',
+                role: 'cross-service-reference',
+                targetServiceName: 'orders-api',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ],
+        dependencies: [
+          {
+            name: 'mainTable',
+            kind: 'dynamodb',
+            itemKey: { partitionKey: 'customerId', sortKey: 'orderId' },
+            consumedBy: [],
+            evidence: [],
+            source: 'probe'
+          },
+          { name: 'eventBus', kind: 'event-bus', consumedBy: ['stream'], evidence: [], source: 'probe' },
+          { name: 'websocketApi', kind: 'websocket-api', consumedBy: ['notify'], evidence: [], source: 'probe' }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.mainTable?.properties).toEqual({
+      primaryKey: {
+        partitionKey: { name: 'customerId', type: 'string' },
+        sortKey: { name: 'orderId', type: 'string' }
+      },
+      streamType: 'NEW_IMAGE'
+    });
+    expect(resources.chat?.properties.events).toEqual([
+      { type: 'websocket-api-gateway', properties: { websocketApiGatewayName: 'websocketApi', routeKey: 'send' } }
+    ]);
+    expect(result.gaps.map((gap) => gap.subject)).toEqual(['chat.route']);
+    expect(resources.web?.properties.environment).toEqual([
+      { name: 'ORDERS_API_URL', value: "$ResourceParam('ordersApi', 'url')" },
+      { name: 'NEXT_PUBLIC_WS_URL', value: "$ResourceParam('websocketApi', 'url')" }
+    ]);
+  });
 });

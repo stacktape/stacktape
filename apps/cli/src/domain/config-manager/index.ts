@@ -171,6 +171,8 @@ export class ConfigManager {
   #cliRemoteResourceNames: readonly string[] = [];
   #devAutoRemoteResourceNames: readonly string[] = [];
   #devSkippedFunctionNames: ReadonlySet<string> = new Set();
+  /** Secrets `validate` reported as missing, so their references resolve to placeholders and the other checks run. */
+  #secretsReportedMissing = new Set<string>();
   #devNetworkPlacement: DevNetworkPlacement | undefined;
   #devTrustStatement: DeveloperTrustStatement | undefined;
 
@@ -327,6 +329,7 @@ export class ConfigManager {
     this.#cliRemoteResourceNames = [];
     this.#devAutoRemoteResourceNames = [];
     this.#devSkippedFunctionNames = new Set();
+    this.#secretsReportedMissing = new Set();
     this.#devNetworkPlacement = undefined;
     this.#devTrustStatement = undefined;
     this.#discoveredConfig = undefined;
@@ -2098,6 +2101,12 @@ export class ConfigManager {
     });
     return Array.from(new Set(secretNames));
   }
+
+  reportSecretsMissing = (secretNames: Iterable<string>) => {
+    for (const secretName of secretNames) this.#secretsReportedMissing.add(secretName);
+  };
+
+  isSecretReportedMissing = (secretName: string) => this.#secretsReportedMissing.has(secretName);
 
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();

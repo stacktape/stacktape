@@ -196,6 +196,28 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('schedule'), rate: z.string().min(1) }),
   z.object({
+    type: z.literal('websocket'),
+    /** The `websocket-api` dependency whose routes invoke the handler. */
+    dependencyName: z.string().min(1),
+    /** The route keys the handler compares `requestContext.routeKey` against: `$connect`, `$disconnect`, `sendMessage`. */
+    routeKeys: z.array(z.string().min(1)).min(1)
+  }),
+  z.object({
+    type: z.literal('dynamodb-stream'),
+    /** The table whose stream invokes the handler. */
+    dependencyName: z.string().min(1),
+    /** The item images the handler reads from each record, which the table's stream has to carry. */
+    streamType: z.enum(['NEW_IMAGE', 'OLD_IMAGE', 'NEW_AND_OLD_IMAGES'])
+  }),
+  z.object({
+    type: z.literal('event-bus'),
+    dependencyName: z.string().min(1),
+    /** The `detail-type` values the handler is written for, each of which some code in the repository publishes. */
+    detailTypes: z.array(z.string().min(1)).min(1),
+    /** The `Source` values that code publishes them with. */
+    sources: z.array(z.string().min(1)).optional()
+  }),
+  z.object({
     type: z.literal('unmapped'),
     /** Human-readable event kind read from a descriptor that composition cannot represent yet. */
     sourceType: z.string().min(1)
@@ -203,6 +225,14 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
 ]);
 
 export type FunctionTrigger = z.infer<typeof functionTriggerSchema>;
+
+/**
+ * The dependency whose writes invoke the handler: a queue it sends to, a bucket it puts into, a table it updates. Its
+ * own output pointed there would invoke it again with every write. A WebSocket handler replying through the API that
+ * invokes it is the normal pattern, so a WebSocket route does not count.
+ */
+export const invokingDependencyName = (trigger: FunctionTrigger): string | undefined =>
+  'dependencyName' in trigger && trigger.type !== 'websocket' ? trigger.dependencyName : undefined;
 
 /**
  * The `unmapped` source of an HTTP handler whose route the code does not state, when several handlers serve HTTP and

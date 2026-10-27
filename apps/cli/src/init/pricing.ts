@@ -48,6 +48,9 @@ export type PriceEstimate = {
  */
 export const DEFAULT_PRICING_REGION = 'eu-west-1';
 
+/** The per-resource label for a resource the estimator has no price for. */
+export const PRICE_UNAVAILABLE = 'Price unavailable';
+
 /**
  * Price a configuration, or return nothing.
  *
@@ -69,7 +72,7 @@ export const estimateMonthlyCost = async (
       const hasUsageCosts = info.priceInfo.costBreakdown.some(({ priceModel }) => priceModel === 'pay-per-use');
       byResource[name] =
         info.priceInfo.incomplete !== false
-          ? 'Price unavailable'
+          ? PRICE_UNAVAILABLE
           : total === 0 && hasUsageCosts
             ? 'pay-per-use'
             : formatMonthly(total ?? 0);

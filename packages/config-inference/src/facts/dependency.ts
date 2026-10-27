@@ -25,7 +25,9 @@ export const dependencyKindSchema = z.enum([
   'search',
   'email',
   'kafka',
-  'nats'
+  'nats',
+  'event-bus',
+  'websocket-api'
 ]);
 
 export type DependencyKind = z.infer<typeof dependencyKindSchema>;
@@ -82,17 +84,24 @@ export const defaultDependencyName = (kind: DependencyKind): string =>
     search: 'searchIndex',
     email: 'mailer',
     kafka: 'eventStream',
-    nats: 'eventBroker'
+    nats: 'eventBroker',
+    'event-bus': 'eventBus',
+    'websocket-api': 'websocketApi'
   })[kind];
 
 const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
   { pattern: /(?:^|_)BUCKET(?:_NAME|_ARN)?$/, kind: 'object-storage' },
   { pattern: /(?:^|_)TOPIC(?:_NAME|_ARN)?$/, kind: 'topic' },
   { pattern: /(?:^|_)QUEUE(?:_NAME|_URL|_ARN)?$/, kind: 'queue' },
-  { pattern: /(?:^|_)TABLE(?:_NAME|_ARN)?$/, kind: 'dynamodb' }
+  { pattern: /(?:^|_)TABLE(?:_NAME|_ARN)?$/, kind: 'dynamodb' },
+  { pattern: /(?:^|_)EVENT_?BUS(?:_NAME|_ARN)?$/, kind: 'event-bus' },
+  { pattern: /(?:^|_)(?:WS|WEBSOCKET)(?:_[A-Z]+)?_(?:URL|ENDPOINT)$/, kind: 'websocket-api' }
 ];
 
-/** The kind of resource an application names in a variable: `UPLOAD_BUCKET`, `ORDER_EVENTS_TOPIC_ARN`, `JOBS_QUEUE_URL`. */
+/**
+ * The kind of resource an application names in a variable: `UPLOAD_BUCKET`, `ORDER_EVENTS_TOPIC_ARN`, `JOBS_QUEUE_URL`,
+ * `EVENT_BUS_NAME`, `WS_MANAGEMENT_URL`.
+ */
 export const resourceKindNamedBy = (variableName: string): DependencyKind | undefined =>
   RESOURCE_NAME_SUFFIXES.find((entry) => entry.pattern.test(variableName))?.kind;
 
@@ -153,6 +162,11 @@ export const dependencyFactSchema = z.object({
       storageGb: z.number().int().positive().optional()
     })
     .optional(),
+  /**
+   * The key a DynamoDB table's items are addressed by, read from the code's own requests (`Key: { id }`,
+   * `KeyConditionExpression: 'id = :id'`). A table created with another key rejects every one of them.
+   */
+  itemKey: z.object({ partitionKey: z.string().min(1), sortKey: z.string().min(1).optional() }).optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

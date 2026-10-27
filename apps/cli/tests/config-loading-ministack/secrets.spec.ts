@@ -31,7 +31,12 @@ afterAll(async () => {
   await ministack?.stop();
 });
 
-const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: Record<string, string> = {}) => {
+const loadConfig = async (
+  account: MiniStackAccount,
+  yaml: string,
+  stackOutput: Record<string, string> = {},
+  command: 'dev' | 'deploy' | 'validate' = 'dev'
+) => {
   const workingDir = await mkdtemp(join(tmpdir(), 'stacktape-secret-config-'));
   directories.push(workingDir);
   const configPath = join(workingDir, 'stacktape.yml');
@@ -40,7 +45,7 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
   const context: ConfigResolverContext = {
     configPath,
     workingDir,
-    authoringParams: { stage: 'test', region: 'eu-west-1', cliArgs: {}, command: 'dev', awsProfile: '' },
+    authoringParams: { stage: 'test', region: 'eu-west-1', cliArgs: {}, command, awsProfile: '' },
     builtInDirectives: {
       runtime: {
         calculatedStackOverviewManager,
@@ -56,7 +61,7 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
       additionalArgs: {},
       awsProfile: '',
       cliArgs: {},
-      command: 'dev',
+      command,
       disableEmulation: false,
       region: 'eu-west-1',
       stage: 'test',
@@ -252,4 +257,26 @@ test.each([
   } finally {
     secrets.destroy();
   }
+});
+
+test('validate checks a template around a secret it reported missing, and deploy still fails on it', async () => {
+  const account = ministack.account();
+  const yaml =
+    "resources: {}\nvariables:\n  password: $Secret('app-cache.password')\n  container: $ContainerSecret('app-cache.password')\n";
+  configManager.reportSecretsMissing(['app-cache']);
+  try {
+    expect(await (await loadConfig(account, yaml, {}, 'validate')).resolve(false)).toEqual({
+      password: '{{resolve:secretsmanager:app-cache:SecretString:password::}}',
+      container: `arn:aws:secretsmanager:eu-west-1:${account.accountId}:secret:app-cache:password::`
+    });
+    await expect((await loadConfig(account, yaml, {}, 'deploy')).resolve(false)).rejects.toMatchObject({
+      code: 'DIRECTIVE_SECRET_UNRESOLVED'
+    });
+  } finally {
+    configManager.reset();
+  }
+  // A secret validate did not report is looked up as before.
+  await expect((await loadConfig(account, yaml, {}, 'validate')).resolve(false)).rejects.toMatchObject({
+    code: 'DIRECTIVE_SECRET_UNRESOLVED'
+  });
 });
