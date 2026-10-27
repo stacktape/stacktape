@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+// The supervisor makes itself a child subreaper before it starts anything (main), and the tests run the same way.
+// Orphaned descendants then come back to the process under test. Otherwise they go to the container's PID 1, and the
+// result depends on whether PID 1 reaps them: `go test` as PID 1 never does, so a killed tree stays a zombie.
+func TestMain(m *testing.M) {
+	if _, _, errno := syscall.Syscall6(syscall.SYS_PRCTL, 36, 1, 0, 0, 0, 0); errno != 0 {
+		fmt.Fprintln(os.Stderr, "PR_SET_CHILD_SUBREAPER:", errno)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
 func TestChildExitPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name, script string
@@ -49,10 +60,6 @@ func TestChildExitPolicy(t *testing.T) {
 func TestStoppedGrandchildReaped(t *testing.T) {
 	// SIGSTOP does not make a process immune to SIGKILL. Force an adopted,
 	// stopped grandchild and prove termination reaps it, rather than faking D state.
-	_, _, errno := syscall.Syscall6(syscall.SYS_PRCTL, 36, 1, 0, 0, 0, 0)
-	if errno != 0 {
-		t.Fatal(errno)
-	}
 	dir := t.TempDir()
 	cmd := exec.Command("sh", "-c", "read x <&3; sh -c 'echo $$ > \"$1/pid\"; kill -STOP $$; sleep 30' child \"$1\" & exit 0", "leader", dir)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
