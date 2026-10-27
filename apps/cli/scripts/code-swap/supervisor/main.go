@@ -792,6 +792,12 @@ func shutdown(server *http.Server) {
 		begin = *at
 	}
 	candidateTree := candidate.Swap(nil)
+	// Behind an HTTP API, Cloud Map keeps routing requests to a stopping task for up to 35 s, so the proxy keeps serving
+	// for 30 s (or the application's drain) before it stops the application. Behind an application load balancer, ECS
+	// sends SIGTERM only after the target group's deregistration delay, so no new request arrives: the hold ends as soon
+	// as no ordinary request is in flight. The target check path is set only behind a load balancer.
+	behindLoadBalancer := targetCheckPath != ""
+	idle := func(u *generation) bool { return u == nil || u.inflight.Load() == 0 }
 	d := 30 * time.Second
 	if drain > d {
 		d = drain
@@ -815,6 +821,9 @@ func shutdown(server *http.Server) {
 	for time.Now().Before(deadline) {
 		if old := oldGeneration.Load(); old != nil && (old.inflight.Load() == 0 || !time.Now().Before(old.drainUntil)) {
 			terminateAsync(old)
+		}
+		if behindLoadBalancer && idle(current.Load()) && idle(oldGeneration.Load()) {
+			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

@@ -40,7 +40,7 @@ Stacktape uploads packaged artifacts to an S3 deployment bucket and pushes conta
 
 For new stacks, Stacktape creates the CloudFormation stack. For existing stacks, Stacktape submits the updated template and CloudFormation determines which resources need to be created, updated, or deleted. CloudFormation handles dependency ordering and parallelizes independent resource operations. When only code changed, Stacktape updates the changed Lambda functions and container workloads directly through the AWS APIs instead (see [Fast deployments](#fast-deployments)).
 
-An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished, and reports any old resource AWS could not delete, because that resource then stays in your account.
+An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished. The first of them to see an old resource AWS could not delete reports it once, because that resource then stays in your account.
 
 ### Post-deploy
 

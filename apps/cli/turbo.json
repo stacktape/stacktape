@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "build:dev-artifacts": {
-      "description": "Package the helper Lambdas and source-map bootstrap consumed by the source CLI",
+      "description": "Package the helper Lambdas, source-map bootstrap and Lambda tracing runtime consumed by the source CLI",
       "inputs": [
         "helper-lambdas/**",
         "src/**",
@@ -35,7 +35,11 @@
         "!$TURBO_ROOT$/packages/*/src/**/*.spec.ts",
         "!$TURBO_ROOT$/packages/*/src/**/*.test.ts"
       ],
-      "outputs": ["__stacktape-dist/dev/helper-lambdas/**", "__stacktape-dist/source-map-install.js"],
+      "outputs": [
+        "__stacktape-dist/dev/helper-lambdas/**",
+        "__stacktape-dist/source-map-install.js",
+        "__stacktape-dist/lambda-tracing-runtime.mjs"
+      ],
       "outputLogs": "new-only"
     },
     "generate": {

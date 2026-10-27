@@ -66,6 +66,7 @@ import { getNextVersionString, getNumericVersion } from '@utils/versioning';
 import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
+import { isFirstDeployOfStack } from './first-deploy';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
 import type { CloudformationTag } from '@stacktape/config/shared';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -181,6 +182,45 @@ export const findFailedCleanupDeletions = (events: MonitoredStackEvent[]): Monit
   return latestDeletionEvents.filter(({ ResourceStatus: status }) => status === ResourceStatus.DELETE_FAILED);
 };
 
+/** The deployment bucket object that lists the failed cleanup deletions already reported to the user. */
+export const REPORTED_CLEANUP_FAILURES_S3_KEY = 'reported-cleanup-failures.json';
+
+/**
+ * The failed cleanup deletions not reported before. Fast deploys leave no stack events, so without this record every
+ * command until the next stack update would report the same failures again. The record lives in the stack's deployment
+ * bucket, so it is shared by every machine and CI runner that deploys the stack. Best effort: when the record cannot be
+ * read, every failure is reported.
+ */
+export const takeUnreportedCleanupFailures = async ({
+  failures,
+  deploymentBucketName
+}: {
+  failures: MonitoredStackEvent[];
+  deploymentBucketName: string | undefined;
+}): Promise<MonitoredStackEvent[]> => {
+  if (!failures.length || !deploymentBucketName) return failures;
+  const location = { bucketName: deploymentBucketName, s3Key: REPORTED_CLEANUP_FAILURES_S3_KEY };
+  const reportedEventIds = await awsSdkManager.s3
+    .getObjectText(location)
+    .then((text) => {
+      const parsed: unknown = JSON.parse(text);
+      return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+    })
+    .catch(() => new Set<string>());
+  const unreported = failures.filter(({ EventId }) => !reportedEventIds.has(EventId));
+  if (unreported.length) {
+    // Only the last update's failures can be reported again, so they replace the earlier record.
+    await awsSdkManager.s3
+      .putObject({
+        ...location,
+        body: JSON.stringify(failures.map(({ EventId }) => EventId)),
+        contentType: 'application/json'
+      })
+      .catch(() => {});
+  }
+  return unreported;
+};
+
 type StackMonitoringResult = {
   warningMessages?: string[];
   /** The update finished while CloudFormation was still deleting about this many removed or replaced resources. */
@@ -289,8 +329,8 @@ class StackManager {
       this.#getDetailOfSelectedResources(this.existingStackResources),
       whileLoadingResourceDetails?.(),
       commandModifiesStack && globalStateManager.command !== 'dev'
-        ? this.#getFailedCleanupDeletionsOfLastUpdate(stackDetails)
-        : []
+        ? this.#getUnreportedFailedCleanupDeletionsOfLastUpdate(stackDetails)
+        : ([] as MonitoredStackEvent[])
     ]);
     this.existingStackResources = detailedResources;
     if (failedCleanupDeletions.length) {
@@ -368,6 +408,14 @@ class StackManager {
     if (command === 'diff') {
       return 'update';
     }
+  }
+
+  /**
+   * Whether this deploy is the stage's first. Unlike `stackActionType`, it is also true for a stack an earlier first
+   * deploy left with only its artifact resources (see {@link isFirstDeployOfStack}).
+   */
+  get isFirstDeploy() {
+    return isFirstDeployOfStack(this.existingStackDetails);
   }
 
   get isAutoRollbackEnabled() {
@@ -1735,6 +1783,16 @@ class StackManager {
       .then(findFailedCleanupDeletions)
       .catch(() => []);
   };
+
+  #getUnreportedFailedCleanupDeletionsOfLastUpdate = async (
+    stackDetails: StackDetails | undefined
+  ): Promise<MonitoredStackEvent[]> =>
+    takeUnreportedCleanupFailures({
+      failures: await this.#getFailedCleanupDeletionsOfLastUpdate(stackDetails),
+      deploymentBucketName: this.existingStackResources.find(
+        ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.deploymentBucket()
+      )?.PhysicalResourceId
+    });
 
   #withoutResourcesBeingCleanedUp = (resources: StackResourceSummary[]) => {
     const removedResources = this.#resourcesRemovedByUpdate;

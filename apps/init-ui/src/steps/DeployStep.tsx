@@ -586,7 +586,7 @@ export function DeployStep({
           </p>
           {checkedTarget?.status === 'absent' && (
             <Alert tone="info" title="This will create a new stack">
-              <span className="wizard-code">{checkedTarget.stackName}</span> does not exist in account{' '}
+              <span className="wizard-code">{checkedTarget.stackName}</span> has never been deployed to account{' '}
               <span className="wizard-code">{checkedTarget.accountId}</span>, region{' '}
               <span className="wizard-code">{checkedTarget.region}</span>.
             </Alert>

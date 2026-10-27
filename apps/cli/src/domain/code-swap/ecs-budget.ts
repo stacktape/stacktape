@@ -18,6 +18,8 @@ export const swapCompletedMessage = (service: string, statuses: { timings: Recor
 export const supervisorStopBudget = (grace = 2) => {
   if (!Number.isInteger(grace) || grace < 0) throw new Error('Invalid application shutdown grace.');
   const drain = grace;
+  // After SIGTERM the supervisor keeps routing for this long behind an HTTP API (Cloud Map). Behind a load balancer it
+  // ends the hold once no request is in flight, so the stop timeout below stays an upper bound there.
   const routingDrain = Math.max(30, drain);
   const stopTimeout = Math.max(60, routingDrain + grace + 2);
   if (stopTimeout > 120)
