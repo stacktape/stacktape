@@ -1177,13 +1177,14 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/src/commands/upgrade/upgrade.spec.ts',
       'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
     proves:
-      'Installers and launcher reject bad integrity and execute offline; release dispatch preserves inputs and source.',
+      'Installers and launcher reject bad integrity and execute offline; `upgrade` runs its channel installer as a file; release dispatch preserves inputs and source.',
     selections: ['release-installation']
   },
   {
@@ -4920,6 +4921,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/verify-release-artifact.ts',
       'apps/cli/scripts/publish-install-scripts.ts',
       'apps/cli/src/utils/bin-executable.ts',
+      'apps/cli/src/commands/upgrade/**',
+      'apps/cli/src/utils/versioning.ts',
       '.github/workflows/release.yml'
     ],
     tests: [
@@ -4935,6 +4938,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/release/validate-release-input.spec.ts',
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/src/utils/bin-executable.spec.ts',
+      'apps/cli/src/commands/upgrade/upgrade.spec.ts',
       'apps/cli/scripts/verify-release-artifact.ts'
     ],
     lanes: [

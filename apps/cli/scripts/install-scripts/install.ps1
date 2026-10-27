@@ -53,13 +53,13 @@ function Install-Stacktape {
         $PlatformName = 'Windows x64'
     }
 
-    # SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
+    # SHA256SUMS is required after 3.7.1, the last release published without it, so pinned v3 releases stay installable.
     # The installer fetches both files from GitHub Releases, so this is an integrity check, not independent authenticity.
     $CoreVersion = (($Version -replace '^[vV]', '') -split '[-+]')[0]
     $ParsedVersion = $null
     $ChecksumRequired = $true
     if ([version]::TryParse($CoreVersion, [ref]$ParsedVersion)) {
-        $ChecksumRequired = $ParsedVersion -ge [version]'3.7.1'
+        $ChecksumRequired = $ParsedVersion -ge [version]'3.7.2'
     }
 
     # Windows PowerShell 5.1 on an older Windows may not offer TLS 1.2, which GitHub requires.

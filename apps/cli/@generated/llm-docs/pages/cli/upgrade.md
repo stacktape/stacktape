@@ -14,12 +14,12 @@ The command compares your installed version against the latest published release
 
 When an upgrade is available, Stacktape detects your installation type and responds accordingly:
 
-- **Native installation**: the upgrade command runs automatically.
-- **Global package install**: the upgrade command runs automatically.
+- **Native installation**: Stacktape downloads the installer for your platform and runs it.
+- **Global package install**: Stacktape runs `npm install -g stacktape@<version>`, or the pnpm or Bun equivalent.
 - **Local project dependency**: Stacktape prints the appropriate update command for you to run yourself, since modifying project dependencies should be an explicit choice.
 - **Unknown installation method**: Stacktape prints a command to run manually.
 
-For automatically-run upgrades (native and global installs), Stacktape executes the upgrade command through PowerShell on Windows and through `sh` on macOS and Linux.
+The installer runs as a file: through PowerShell on Windows and through `sh` on macOS and Linux. A preview version upgrades to the newest preview, or to a stable release once one is newer.
 
 ## Flags
 
@@ -34,7 +34,7 @@ For automatically-run upgrades (native and global installs), Stacktape executes 
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
-When run without flags, Stacktape resolves and installs the latest published version automatically.
+Without a version argument, Stacktape installs the latest published version.
 
 ## Examples
 
@@ -42,6 +42,12 @@ Upgrade to the latest Stacktape version:
 
 ```bash
 stacktape upgrade
+```
+
+Install a specific version:
+
+```bash
+stacktape upgrade 4.0.1
 ```
 
 
@@ -70,4 +76,4 @@ Stacktape classifies your install as `native`, `package-global`, `package-local`
 
 ### Can I downgrade or pin a specific Stacktape version?
 
-The command exposes an optional version argument (`stacktape upgrade <new-version>`) for choosing the version to install; run without it, `upgrade` resolves and installs the latest published version automatically. For a reliable downgrade, use your package manager directly rather than relying on `upgrade`.
+Pass the version as an argument, for example `stacktape upgrade 4.0.1`. Stacktape installs exactly that version, including an older one. Without it, `upgrade` installs the latest published version.
