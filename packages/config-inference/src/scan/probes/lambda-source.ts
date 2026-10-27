@@ -13,6 +13,7 @@ import {
   type ProbeContext,
   type ProbeOutput
 } from '../probe';
+import { sliceBalancedBraces } from '../balanced-slice';
 
 /**
  * Only exports that are actually handler-shaped.
@@ -40,7 +41,7 @@ const LAMBDA_SIGNAL =
  */
 type EventFamily =
   | { trigger: 'http'; payloadFormat: '1.0' | '2.0' }
-  | { trigger: 'queue' | 'topic' | 'object-storage' | 'schedule' }
+  | { trigger: 'queue' | 'topic' | 'object-storage' | 'schedule' | 'websocket' | 'dynamodb-stream' | 'event-bus' }
   | { trigger: 'unmapped'; sourceType: string };
 
 const EVENT_TYPES: ReadonlyArray<{ names: readonly string[]; family: EventFamily }> = [
@@ -68,14 +69,19 @@ const EVENT_TYPES: ReadonlyArray<{ names: readonly string[]; family: EventFamily
     ],
     family: { trigger: 'http', payloadFormat: '1.0' }
   },
+  {
+    names: [
+      'APIGatewayProxyWebsocketEventV2',
+      'APIGatewayProxyWebsocketEventV2WithRequestContext',
+      'APIGatewayProxyWebsocketHandlerV2'
+    ],
+    family: { trigger: 'websocket' }
+  },
   { names: ['SQSEvent', 'SQSHandler'], family: { trigger: 'queue' } },
   { names: ['SNSEvent', 'SNSHandler'], family: { trigger: 'topic' } },
   { names: ['S3Event', 'S3Handler', 'S3CreateEvent'], family: { trigger: 'object-storage' } },
   { names: ['ScheduledEvent', 'ScheduledHandler'], family: { trigger: 'schedule' } },
-  {
-    names: ['DynamoDBStreamEvent', 'DynamoDBStreamHandler'],
-    family: { trigger: 'unmapped', sourceType: 'a DynamoDB stream' }
-  },
+  { names: ['DynamoDBStreamEvent', 'DynamoDBStreamHandler'], family: { trigger: 'dynamodb-stream' } },
   {
     names: ['KinesisStreamEvent', 'KinesisStreamHandler'],
     family: { trigger: 'unmapped', sourceType: 'a Kinesis stream' }
@@ -84,11 +90,12 @@ const EVENT_TYPES: ReadonlyArray<{ names: readonly string[]; family: EventFamily
     names: ['ALBEvent', 'ALBHandler'],
     family: { trigger: 'unmapped', sourceType: 'an Application Load Balancer' }
   },
-  {
-    names: ['EventBridgeEvent', 'EventBridgeHandler'],
-    family: { trigger: 'unmapped', sourceType: 'an EventBridge rule' }
-  }
+  // An event bus rule when some code in the repository publishes the detail type the handler is written for.
+  { names: ['EventBridgeEvent', 'EventBridgeHandler'], family: { trigger: 'event-bus' } }
 ];
+
+/** What an EventBridge handler is invoked by when nothing in the repository publishes its events. */
+const EVENTBRIDGE_RULE_SOURCE = 'an EventBridge rule';
 
 const EVENT_TYPE_NAMES = EVENT_TYPES.flatMap((entry) => entry.names).toSorted((a, b) => b.length - a.length);
 /** `SQSHandler`, `APIGatewayProxyHandlerV2WithJWTAuthorizer`: the type of a handler, not of the event it receives. */
@@ -136,7 +143,7 @@ const typedHandler = (path: string, raw: string): TypedHandler | undefined => {
     if (typeName === undefined) continue;
     const entry = EVENT_TYPES.find((candidate) => candidate.names.includes(typeName))!;
     const family: EventFamily =
-      entry.family.trigger === 'unmapped' && SCHEDULED_EVENTBRIDGE.test(raw) ? { trigger: 'schedule' } : entry.family;
+      entry.family.trigger === 'event-bus' && SCHEDULED_EVENTBRIDGE.test(raw) ? { trigger: 'schedule' } : entry.family;
     return {
       family,
       citation: citeFirstMatchOnly(path, raw, new RegExp(`\\b${typeName}\\b`), 'functionTriggers')
@@ -198,36 +205,71 @@ const RECORD_ITERATIONS: readonly RegExp[] = [
   new RegExp(`for\\s+(\\w+)\\s+in\\s+[\\w.]*${field('Records')}`, 'g')
 ];
 
+/** A field read on a record the handler iterates (`record.dynamodb`), or on an indexed record (`Records[0].dynamodb`). */
+const recordField = (raw: string, name: string): RegExp | undefined => {
+  const records = new Set(RECORD_ITERATIONS.flatMap((pattern) => [...raw.matchAll(pattern)].map((match) => match[1]!)));
+  const candidates = [
+    ...[...records].map((record) => new RegExp(`(?<![\\w$.])${record.replace(/\$/g, '\\$')}${field(name)}`)),
+    new RegExp(`${field('Records')}\\s*\\[\\s*\\d+\\s*\\]${field(name)}`)
+  ];
+  return candidates.find((candidate) => candidate.test(raw));
+};
+
 /**
  * The body of an SQS record: `.body` on a record the handler iterates, destructured from it, or on an indexed record.
  * A `.body` elsewhere (an HTTP response, a fetch result) says nothing about the event.
  */
 const sqsRecordBody = (raw: string): RegExp | undefined => {
-  const records = new Set(RECORD_ITERATIONS.flatMap((pattern) => [...raw.matchAll(pattern)].map((match) => match[1]!)));
-  const candidates = [
-    ...[...records].map((name) => new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}${field('body')}`)),
-    new RegExp(`for\\s*\\(\\s*(?:const|let|var)\\s*\\{[^}]*\\bbody\\b[^}]*\\}\\s+of\\s+[\\w$.?]*${field('Records')}`),
-    new RegExp(`${field('Records')}\\s*\\[\\s*\\d+\\s*\\]${field('body')}`)
-  ];
-  return candidates.find((candidate) => candidate.test(raw));
+  const destructured = new RegExp(
+    `for\\s*\\(\\s*(?:const|let|var)\\s*\\{[^}]*\\bbody\\b[^}]*\\}\\s+of\\s+[\\w$.?]*${field('Records')}`
+  );
+  return recordField(raw, 'body') ?? (destructured.test(raw) ? destructured : undefined);
 };
+
+/** `const { routeKey, connectionId } = event.requestContext`. */
+const requestContextDestructuring = (name: string) =>
+  new RegExp(`\\{[^}]*\\b${name}\\b[^}]*\\}\\s*=\\s*[\\w$.?]*requestContext\\b`);
+
+/** A `requestContext` field the handler reads, through a property or by destructuring. */
+const readsRequestContext = (raw: string, name: string): boolean =>
+  /requestContext/.test(raw) && (new RegExp(field(name)).test(raw) || requestContextDestructuring(name).test(raw));
+
+/** Fields only an HTTP API (payload 2.0) event has. */
+const HTTP_V2_EVENT: readonly RegExp[] = [
+  new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
+  new RegExp(field('rawPath'))
+];
+/** A WebSocket lifecycle route, or the event type a WebSocket event carries. */
+const WEBSOCKET_ROUTE = /['"`]\$(?:connect|disconnect|default)['"`]/;
+const WEBSOCKET_EVENT_TYPE = /\beventType\b[^\n]{0,12}['"`](?:CONNECT|DISCONNECT|MESSAGE)['"`]/;
 
 /**
  * The event an untyped handler is written for, read off the fields it touches. Every Python handler is untyped, and so
  * is a lot of JavaScript; without this they deploy with no trigger at all.
  *
  * Each shape is specific to one event source. Where a file reads several, the envelope that invokes the function wins.
- * SNS comes before SQS because an SQS record never carries `Sns`. SQS comes before S3 because an SQS handler that
- * parses an S3 notification out of `record.body` is still invoked by the queue.
+ * A WebSocket route comes first because only its events carry a `connectionId`. SNS comes before SQS because an SQS
+ * record never carries `Sns`. SQS comes before DynamoDB and S3 because an SQS handler that parses a forwarded record
+ * or an S3 notification out of `record.body` is still invoked by the queue.
  */
 const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) => RegExp | undefined }> = [
   {
-    family: { trigger: 'http', payloadFormat: '2.0' },
-    match: firstMatching([
-      new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
-      new RegExp(field('rawPath'))
-    ])
+    family: { trigger: 'websocket' },
+    match: (raw) => {
+      // An HTTP API event has a `routeKey` too (`'POST /broadcast'`), and a handler can post to WebSocket connections
+      // without being a WebSocket route itself.
+      if (HTTP_V2_EVENT.some((pattern) => pattern.test(raw))) return undefined;
+      if (!readsRequestContext(raw, 'connectionId')) return undefined;
+      if (!WEBSOCKET_ROUTE.test(raw) && !WEBSOCKET_EVENT_TYPE.test(raw)) return undefined;
+      return firstMatching([
+        new RegExp(field('routeKey')),
+        new RegExp(field('eventType')),
+        requestContextDestructuring('routeKey'),
+        requestContextDestructuring('eventType')
+      ])(raw);
+    }
   },
+  { family: { trigger: 'http', payloadFormat: '2.0' }, match: firstMatching(HTTP_V2_EVENT) },
   {
     family: { trigger: 'http', payloadFormat: '1.0' },
     match: firstMatching([
@@ -243,6 +285,10 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) =>
       firstMatching([/['"]aws:sqs['"]/, new RegExp(field('receiptHandle')), /\bbatchItemFailures\b/])(raw)
   },
   {
+    family: { trigger: 'dynamodb-stream' },
+    match: (raw) => recordField(raw, 'dynamodb') ?? firstMatching([/['"]aws:dynamodb['"]/])(raw)
+  },
+  {
     family: { trigger: 'object-storage' },
     match: firstMatching([new RegExp(`${field('s3')}${field('(?:bucket|object)')}`), /['"]aws:s3['"]/])
   },
@@ -255,8 +301,134 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) =>
         /['"]aws\.events['"]/,
         ...(CREATES_SCHEDULES.test(raw) ? [] : [SCHEDULE_LITERAL])
       ])(raw)
-  }
+  },
+  // An EventBridge event from a rule on a bus: its `detail-type`, when it is not a schedule's.
+  { family: { trigger: 'event-bus' }, match: firstMatching([/['"]detail-type['"]/]) }
 ];
+
+const LIFECYCLE_ROUTES = ['$connect', '$disconnect'];
+const ROUTE_KEY_READ = `(?:\\broute_?[kK]ey\\b|\\[\\s*['"]routeKey['"]\\s*\\])`;
+const QUOTED = `['"\`]([^'"\`]+)['"\`]`;
+
+/**
+ * The WebSocket routes a handler serves: the route keys it compares `requestContext.routeKey` against, `$connect`,
+ * `$disconnect` and `$default` wherever it names them, and `$default` for the branch that handles every other message.
+ * A handler that names no route takes every message on `$default`.
+ */
+const websocketRouteKeys = (raw: string): string[] => {
+  const keys = new Set<string>();
+  const comparisons = [...raw.matchAll(new RegExp(`${ROUTE_KEY_READ}\\s*(?:===?|!==?)\\s*${QUOTED}`, 'g'))];
+  for (const match of comparisons) keys.add(match[1]!);
+  for (const match of raw.matchAll(new RegExp(`${ROUTE_KEY_READ}\\s+in\\s+[([{]([^)\\]}]*)`, 'g'))) {
+    for (const literal of match[1]!.matchAll(new RegExp(QUOTED, 'g'))) keys.add(literal[1]!);
+  }
+  const switched = new RegExp(`(?:switch\\s*\\(|\\bmatch\\s+)[^)\\n:]*${ROUTE_KEY_READ}`).test(raw);
+  if (switched) {
+    for (const match of raw.matchAll(new RegExp(`\\bcase\\s+${QUOTED}\\s*:`, 'g'))) keys.add(match[1]!);
+  }
+  for (const match of raw.matchAll(/['"`]?(\$(?:connect|disconnect|default))\b/g)) keys.add(match[1]!);
+  // `eventType === 'CONNECT'` routes by the event type instead: messages arrive on `$default`.
+  for (const match of raw.matchAll(/\beventType\b[^\n]{0,12}['"`](CONNECT|DISCONNECT|MESSAGE)['"`]/g)) {
+    keys.add(({ CONNECT: '$connect', DISCONNECT: '$disconnect', MESSAGE: '$default' } as const)[match[1] as 'CONNECT']);
+  }
+  const fallback =
+    (comparisons.length > 0 && (/\belse\b(?!\s*if\b)/.test(raw) || /^\s*else\s*:/m.test(raw))) ||
+    (switched && /\bdefault\s*:|\bcase\s+_\s*:/.test(raw));
+  if (fallback || keys.size === 0) keys.add('$default');
+  const rank = (key: string) =>
+    LIFECYCLE_ROUTES.includes(key) ? LIFECYCLE_ROUTES.indexOf(key) : key === '$default' ? 3 : 2;
+  return [...keys].toSorted((left, right) => rank(left) - rank(right));
+};
+
+/** The item images a stream handler reads, which its table's stream has to carry. Reading neither keeps both. */
+const streamTypeFor = (raw: string): 'NEW_IMAGE' | 'OLD_IMAGE' | 'NEW_AND_OLD_IMAGES' => {
+  const reads = { next: /\bNewImage\b/.test(raw), previous: /\bOldImage\b/.test(raw) };
+  if (reads.next && !reads.previous) return 'NEW_IMAGE';
+  if (reads.previous && !reads.next) return 'OLD_IMAGE';
+  return 'NEW_AND_OLD_IMAGES';
+};
+
+const literalsIn = (text: string): string[] => [...text.matchAll(new RegExp(QUOTED, 'g'))].map((match) => match[1]!);
+
+/**
+ * The `detail-type` values an EventBridge handler is written for: the type argument of `EventBridgeEvent<'X', ...>`,
+ * or the values the code compares `event['detail-type']` with.
+ */
+const handledDetailTypes = (raw: string): string[] => {
+  const typed = /EventBridge(?:Event|Handler)\s*<\s*((?:['"`][^'"`]+['"`]\s*\|?\s*)+)/.exec(raw)?.[1];
+  const compared = [
+    ...raw.matchAll(
+      new RegExp(
+        `(?:\\[\\s*['"]detail-type['"]\\s*\\]|\\.get\\(\\s*['"]detail-type['"]\\s*\\)|\\bdetail_?[tT]ype\\b)\\s*(?:===?|==)\\s*${QUOTED}`,
+        'g'
+      )
+    )
+  ].map((match) => match[1]!);
+  return [...new Set([...(typed === undefined ? [] : literalsIn(typed)), ...compared])].filter(
+    (detailType) => detailType !== 'Scheduled Event'
+  );
+};
+
+const PUBLISHES_EVENTS = /\bPutEventsCommand\b|\.putEvents\s*\(|\bput_events\s*\(/;
+const ENVIRONMENT_READ =
+  /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\])|os\.(?:environ\[\s*|environ\.get\(\s*|getenv\(\s*)['"]([A-Z][A-Z0-9_]*)['"]/;
+
+/** One `PutEvents` entry: its detail type, its `Source` when the code writes it as a literal, and the variable naming its bus. */
+type PublishedEntry = { detailType: string; source: string | undefined; busVariable: string };
+
+/** Code that publishes events, entry by entry. */
+type Publisher = { path: string; entries: PublishedEntry[]; evidence: Citation | undefined };
+
+/** The innermost object literal around `index`: the `PutEvents` entry a `DetailType` belongs to. */
+const enclosingObject = (raw: string, index: number): string | undefined => {
+  for (let open = raw.lastIndexOf('{', index); open !== -1; open = raw.lastIndexOf('{', open - 1)) {
+    const slice = sliceBalancedBraces(raw, open);
+    if (slice !== undefined && slice.end > index) return slice.body;
+    if (index - open > 2000) return undefined;
+  }
+  return undefined;
+};
+
+/** The variable a value reads: `process.env.X`, `os.environ['X']`, or a name assigned from one earlier in the file. */
+const environmentVariableIn = (value: string, raw: string): string | undefined => {
+  const direct = ENVIRONMENT_READ.exec(value);
+  // `EventBusName: busName`, with `const busName = process.env.EVENT_BUS_NAME` earlier in the file.
+  const assigned = /^[\w$]+$/.test(value)
+    ? ENVIRONMENT_READ.exec(new RegExp(`\\b${value.replace(/\$/g, '\\$')}\\s*=\\s*([^;\\n]+)`).exec(raw)?.[1] ?? '')
+    : null;
+  const read = direct ?? assigned;
+  return read?.[1] ?? read?.[2] ?? read?.[3];
+};
+
+const DETAIL_TYPE = new RegExp(`['"]?\\bDetailType['"]?\\s*[:=]\\s*${QUOTED}`, 'g');
+const FIELD_VALUE = (name: string) => new RegExp(`['"]?\\b${name}['"]?\\s*[:=]\\s*([^,}\\n]+)`);
+
+/**
+ * The entries a file publishes with `PutEvents`. Only a bus the entry reads from the environment counts: a literal bus
+ * name is not the bus Stacktape creates, and an entry without one goes to the account's default bus. A `Source` read
+ * from a variable is unknown, not the literal of some other call in the file.
+ */
+const publisherIn = (path: string, raw: string): Publisher | undefined => {
+  if (!PUBLISHES_EVENTS.test(raw)) return undefined;
+  const entries: PublishedEntry[] = [];
+  for (const match of raw.matchAll(DETAIL_TYPE)) {
+    const entry = enclosingObject(raw, match.index ?? 0);
+    if (entry === undefined) continue;
+    const bus = FIELD_VALUE('EventBusName').exec(entry)?.[1]?.trim();
+    const busVariable = bus === undefined ? undefined : environmentVariableIn(bus, raw);
+    if (busVariable === undefined) continue;
+    const source = FIELD_VALUE('Source').exec(entry)?.[1]?.trim();
+    const literal = source === undefined ? undefined : new RegExp(`^${QUOTED}$`).exec(source)?.[1];
+    entries.push({ detailType: match[1]!, source: literal, busVariable });
+  }
+  return entries.length === 0
+    ? undefined
+    : { path, entries, evidence: citeFirstMatchOnly(path, raw, PUBLISHES_EVENTS, 'functionTriggers') };
+};
+
+/** The detail types code publishes, for the loop check on a handler that also publishes. */
+export const publishedDetailTypes = (raw: string): string[] =>
+  PUBLISHES_EVENTS.test(raw) ? [...raw.matchAll(DETAIL_TYPE)].map((match) => match[1]!) : [];
 
 const inferEventFamily = (raw: string): { family: EventFamily; pattern: RegExp } | undefined => {
   for (const { family, match } of EVENT_SHAPES) {
@@ -354,6 +526,11 @@ export const lambdaSourceProbe: Probe = {
       pythonHandler: string | undefined;
     }> = [];
     const claimed = new Set<string>();
+    const publishers = new Map<string, Publisher>();
+    const notePublisher = (path: string, raw: string) => {
+      const publisher = publisherIn(path, raw);
+      if (publisher !== undefined) publishers.set(path, publisher);
+    };
 
     // Files under a handlers directory, and top-level entry files that name Lambda, are functions by their `handler`
     // export alone.
@@ -363,6 +540,7 @@ export const lambdaSourceProbe: Probe = {
     for (const path of conventional) {
       // oxlint-disable-next-line no-await-in-loop -- each candidate is small and reads are policy controlled.
       const raw = await readText(context, path, { fullFile: true });
+      if (raw !== undefined) notePublisher(path, raw);
       if (raw === undefined || !HANDLER_PATTERN.test(raw)) continue;
       // An entry file outside a handlers directory counts only when it names Lambda itself: a Hono or Express app
       // wrapped for Lambda exports `handler` from `src/index.ts`, and so does plenty of code that is not a function.
@@ -397,6 +575,7 @@ export const lambdaSourceProbe: Probe = {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
       const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined) continue;
+      notePublisher(path, raw);
       const typed = typedHandler(path, raw);
       if (typed !== undefined) {
         handlers.push({
@@ -433,6 +612,31 @@ export const lambdaSourceProbe: Probe = {
     // `* /{proxy+}` routes. Only a lone HTTP handler is the API; several have to be given their routes.
     const httpHandlerCount = handlers.filter(({ family }) => family?.trigger === 'http').length;
 
+    // The resource a trigger names is the one other probes find under the same default name, so they fold together.
+    const ensureDependency = (
+      kind: 'queue' | 'topic' | 'object-storage' | 'dynamodb' | 'websocket-api' | 'event-bus',
+      evidence: Citation[],
+      addressedBy: readonly string[] = []
+    ): string => {
+      const name = defaultDependencyName(kind);
+      const existing = dependencies.find((dependency) => dependency.name === name);
+      if (existing === undefined) {
+        dependencies.push({
+          name,
+          kind,
+          extensions: [],
+          consumedBy: [],
+          addressedBy: [...new Set(addressedBy)],
+          evidence,
+          source: 'probe'
+        });
+      } else {
+        existing.addressedBy = [...new Set([...existing.addressedBy, ...addressedBy])];
+        existing.evidence = [...existing.evidence, ...evidence].slice(0, 3);
+      }
+      return name;
+    };
+
     for (const { path, raw, family, triggerEvidence, entryEvidence, pythonHandler } of handlers) {
       const evidence = triggerEvidence === undefined ? [] : [triggerEvidence];
       const triggers: FunctionTrigger[] = [];
@@ -461,23 +665,54 @@ export const lambdaSourceProbe: Probe = {
         }
       } else if (family?.trigger === 'unmapped') {
         triggers.push({ type: 'unmapped', sourceType: family.sourceType });
+      } else if (family?.trigger === 'websocket') {
+        // All WebSocket handlers share one API, the way HTTP handlers share one HTTP API.
+        triggers.push({
+          type: 'websocket',
+          dependencyName: ensureDependency('websocket-api', evidence),
+          routeKeys: websocketRouteKeys(raw)
+        });
+      } else if (family?.trigger === 'dynamodb-stream') {
+        // Which table the code does not say; with one table in the project it is that one.
+        triggers.push({
+          type: 'dynamodb-stream',
+          dependencyName: ensureDependency('dynamodb', evidence),
+          streamType: streamTypeFor(raw)
+        });
+      } else if (family?.trigger === 'event-bus') {
+        // A rule matches events someone publishes. Without code that publishes this detail type to a bus it names, the
+        // events come from elsewhere (AWS services, another project), and a rule guessed here would never fire.
+        const detailTypes = handledDetailTypes(raw);
+        const senders = [...publishers.values()].filter(
+          (publisher) =>
+            publisher.path !== path && publisher.entries.some((entry) => detailTypes.includes(entry.detailType))
+        );
+        const entries = senders.flatMap((sender) =>
+          sender.entries.filter((entry) => detailTypes.includes(entry.detailType))
+        );
+        if (entries.length === 0) {
+          triggers.push({ type: 'unmapped', sourceType: EVENTBRIDGE_RULE_SOURCE });
+        } else {
+          // Every matching entry has to say its source; otherwise the pattern matches the detail type alone.
+          const sources = entries.every((entry) => entry.source !== undefined)
+            ? [...new Set(entries.map((entry) => entry.source!))]
+            : [];
+          triggers.push({
+            type: 'event-bus',
+            dependencyName: ensureDependency(
+              'event-bus',
+              senders.flatMap((sender) => (sender.evidence === undefined ? [] : [sender.evidence])).slice(0, 3),
+              entries.map((entry) => entry.busVariable)
+            ),
+            detailTypes: detailTypes.filter((detailType) => entries.some((entry) => entry.detailType === detailType)),
+            ...(sources.length === 0 ? {} : { sources })
+          });
+        }
       } else if (family !== undefined) {
         // Which queue, topic or bucket the code does not say; the default name is the one every other probe uses
         // for the same kind, so it folds into theirs, and Stacktape-named reads later rename it.
         const kind = family.trigger === 'queue' ? 'queue' : family.trigger === 'topic' ? 'topic' : 'object-storage';
-        const dependencyName = defaultDependencyName(kind);
-        triggers.push({ type: family.trigger, dependencyName });
-        if (!dependencies.some((dependency) => dependency.name === dependencyName)) {
-          dependencies.push({
-            name: dependencyName,
-            kind,
-            extensions: [],
-            consumedBy: [],
-            addressedBy: [],
-            evidence,
-            source: 'probe'
-          });
-        }
+        triggers.push({ type: family.trigger, dependencyName: ensureDependency(kind, evidence) });
       }
 
       services.push({

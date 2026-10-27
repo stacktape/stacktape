@@ -9,6 +9,7 @@ import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import { join } from 'node:path';
+import { pathExists } from 'fs-extra';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -106,6 +107,11 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
+    // `validate` without `--withPackage` builds nothing, so there is nothing to read. Every other command has built the
+    // app by now, and a missing directory is a failed build it must not deploy past.
+    if (calculatedStackOverviewManager.context.command === 'validate' && !(await pathExists(assetsDirPath))) {
+      return;
+    }
     const newCacheBehaviours = (await getStaticAssetCachePathPatterns(assetsDirPath)).map((PathPattern) => ({
       PathPattern
     }));

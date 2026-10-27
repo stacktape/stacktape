@@ -17083,6 +17083,7 @@
         "page:/cli/validate#with-packaging-add-with-package",
         "page:/cli/validate#thorough-add-thorough",
         "page:/cli/validate#security-findings-by-stage-purpose",
+        "page:/cli/validate#missing-secrets",
         "page:/cli/validate#when-to-use-validate",
         "page:/cli/validate#inspecting-the-validated-template",
         "page:/cli/validate#important-flags",

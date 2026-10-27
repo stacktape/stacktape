@@ -2,8 +2,25 @@ import { resolveAllResources } from '@domain-services/calculated-stack-overview-
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { initializeValidateOperation } from '../_utils/initialization';
+import { findMissingSecrets, type MissingSecret } from '../_utils/secret-preflight';
 import { assessAndPrintSecurityPosture } from '../_utils/security-posture-output';
+
+/** What a missing secret means for this project, and how to create it. */
+const describeMissingSecret = (
+  { name, jsonKeys, generated }: MissingSecret,
+  { region, prettyCommand }: { region: string; prettyCommand: (command: string) => string }
+): string => {
+  const value =
+    jsonKeys.length === 0
+      ? ''
+      : ` with a JSON value that has ${jsonKeys.map((key) => `a \`${key}\` key`).join(' and ')}`;
+  const create = `${prettyCommand(`secret set ${name}`)}${value}`;
+  return generated
+    ? `Secret ${name} does not exist in ${region} yet. It holds a generated database password: ${prettyCommand('dev')} creates it when it starts, and ${prettyCommand('deploy')} creates it before it deploys (in a terminal it asks first). To create it yourself, run ${create}.`
+    : `Secret ${name} does not exist in ${region}. Create it with ${create} before you deploy or start dev mode; both stop until it exists.`;
+};
 
 /** CloudFormation's limit for a `TemplateBody` sent with the request. */
 const CLOUDFORMATION_INLINE_TEMPLATE_LIMIT_BYTES = 51_200;
@@ -22,6 +39,19 @@ export const commandValidate = async () => {
 
   config.validateGuardrails({ hasConfig: true });
   const securityAssessment = assessAndPrintSecurityPosture({ config, tui, command: 'validate' });
+
+  // A missing secret is a finding, not the end of the check: `dev` and `deploy` create or ask for it themselves, and the
+  // template is checked with a placeholder reference in its place.
+  const missingSecrets = await findMissingSecrets();
+  config.reportSecretsMissing(missingSecrets.map(({ name }) => name));
+  for (const secret of missingSecrets) {
+    tui.warn(
+      describeMissingSecret(secret, {
+        region: globalStateManager.region,
+        prettyCommand: (command) => tui.prettyCommand(command)
+      })
+    );
+  }
 
   let packagedWorkloads: PackageWorkloadOutput[] | undefined;
   if (shouldPackage) {
@@ -75,6 +105,7 @@ export const commandValidate = async () => {
       cloudformation: cloudformationChecked
     },
     ...(securityAssessment ? { security: securityAssessment } : {}),
+    ...(missingSecrets.length > 0 ? { missingSecrets } : {}),
     ...(packagedWorkloads ? { packagedWorkloads } : {})
   };
 };
