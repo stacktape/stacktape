@@ -9,12 +9,22 @@ import { z } from 'zod';
  */
 
 const COGNITO_ID_TOKEN_MAX_LENGTH = 8192;
+const SESSION_TOKEN_MAX_LENGTH = 512;
 
-export const exchangeTokenForApiKeyInputSchema = z.object({
-  idToken: z.string().max(COGNITO_ID_TOKEN_MAX_LENGTH),
-  organizationId: z.string().optional(),
-  listOrganizationsOnly: z.boolean().optional()
-});
+/**
+ * Exactly one credential: the Better Auth session a device-code login received (`sessionToken`), or the Cognito ID
+ * token that released CLIs send (`idToken`), accepted until the Cognito pool is retired.
+ */
+export const exchangeTokenForApiKeyInputSchema = z
+  .object({
+    sessionToken: z.string().min(1).max(SESSION_TOKEN_MAX_LENGTH).optional(),
+    idToken: z.string().min(1).max(COGNITO_ID_TOKEN_MAX_LENGTH).optional(),
+    organizationId: z.string().optional(),
+    listOrganizationsOnly: z.boolean().optional()
+  })
+  .refine((input) => (input.sessionToken === undefined) !== (input.idToken === undefined), {
+    message: 'Send either sessionToken or idToken.'
+  });
 
 export const stackPriceEstimationInputSchema = z.object({
   stackConfig: z.string(),
