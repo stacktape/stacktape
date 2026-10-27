@@ -10,7 +10,14 @@ const UNTIL = 1_800_000_000_000;
  * most `limit` (and `pageSize`) per request, with a token for the next page. Like CloudWatch (seen live in us-west-2 on
  * 27 Oct 2026), it returns a token after every page with events, also the last one; the page after it is empty.
  */
-const logGroup = ({ pageSize = 10_000 }: { pageSize?: number } = {}) => {
+const logGroup = ({
+  pageSize = 10_000,
+  scanPages = () => 0
+}: {
+  pageSize?: number;
+  /** How many empty pages with a token a read returns first, as CloudWatch does while it scans with a filter. */
+  scanPages?: (startTime: number, endTime: number) => number;
+} = {}) => {
   const events: FilteredLogEvent[] = [];
   const requests: {
     startTime: number;
@@ -45,8 +52,14 @@ const logGroup = ({ pageSize = 10_000 }: { pageSize?: number } = {}) => {
       filterPattern?: string;
     }) => {
       requests.push(params);
+      // A token `scan:<n>:<from>` stands for the n-th empty page of a read that is still scanning.
+      const scanning = /^scan:(\d+):(\d+)$/.exec(params.nextToken ?? '');
+      const scanned = scanning ? Number(scanning[1]) : params.nextToken ? Infinity : 0;
+      if (scanned < scanPages(params.startTime, params.endTime ?? Infinity)) {
+        return { events: [], nextToken: `scan:${scanned + 1}:${params.startTime}` };
+      }
       const end = params.endTime === undefined ? events.length : firstAtOrAfter(params.endTime + 1);
-      const from = params.nextToken ? Number(params.nextToken) : firstAtOrAfter(params.startTime);
+      const from = params.nextToken && !scanning ? Number(params.nextToken) : firstAtOrAfter(params.startTime);
       const to = Math.min(end, from + Math.min(params.limit ?? pageSize, pageSize));
       return { events: events.slice(from, to), nextToken: to > from ? String(to) : undefined };
     }
@@ -58,12 +71,17 @@ const printerFor = (
   options: { since: number; backlog?: number; filterPattern?: string }
 ) => {
   const printed: string[] = [];
+  const notices: string[] = [];
   const printer = new LambdaCloudwatchLogPrinter({
     fetchSince: options.since,
     logGroupAwsResourceName: '/aws/lambda/orders',
     fetchPage: group.fetchPage,
     filterPattern: options.filterPattern,
-    onLog: (message) => printed.push(/line \w+/.exec(message)![0]),
+    onLog: (message) => {
+      const line = /line \w+/.exec(message);
+      if (line) printed.push(line[0]);
+      else notices.push(message);
+    },
     ...(options.backlog ? { backlog: { lines: options.backlog, until: UNTIL } } : {})
   });
   /** Polls until the backlog is shown, as the scheduler does while a poll asks for more. */
@@ -71,7 +89,7 @@ const printerFor = (
     for (let poll = 0; poll < 50; poll++) if (!(await printer.printLogs()).more) return;
     throw new Error('The backlog did not finish');
   };
-  return { printer, printed, readBacklog };
+  return { printer, printed, notices, readBacklog };
 };
 
 // The #343 review: `stacktape logs` in a terminal read the whole last hour of a busy production log group, every page,
@@ -98,16 +116,17 @@ describe('the backlog `stacktape logs` shows before it follows', () => {
     const { printer, readBacklog } = printerFor(group, { since: UNTIL - HOUR, backlog: 100, filterPattern: 'ERROR' });
     await readBacklog();
     await printer.printLogs();
-    expect(group.requests.map(({ filterPattern }) => filterPattern)).toEqual(['ERROR', 'ERROR', 'ERROR']);
+    expect(group.requests.length).toBeGreaterThan(1);
+    expect(group.requests.every(({ filterPattern }) => filterPattern === 'ERROR')).toBeTrue();
   });
 
-  test('a quiet log group: every line of the hour in one page', async () => {
+  test('a quiet log group: every line of the hour in a few requests', async () => {
     const group = logGroup();
     for (let index = 0; index < 30; index++) group.add(UNTIL - HOUR + 1 + index * 100_000);
     const { printed, readBacklog } = printerFor(group, { since: UNTIL - HOUR, backlog: 100 });
     await readBacklog();
-    // And the empty page after it.
-    expect(group.requests).toHaveLength(2);
+    // The last minute, the 10 minutes before it and the rest of the hour, with an empty page after each with lines.
+    expect(group.requests.length).toBeLessThanOrEqual(6);
     expect(printed).toEqual(Array.from({ length: 30 }, (_, index) => `line ${index}`));
   });
 
@@ -117,7 +136,7 @@ describe('the backlog `stacktape logs` shows before it follows', () => {
     for (let index = 0; index < 80; index++) group.add(UNTIL - 60_000 + index * 700);
     const { printed, readBacklog } = printerFor(group, { since: UNTIL - HOUR, backlog: 100 });
     await readBacklog();
-    expect(group.requests.length).toBeLessThanOrEqual(6);
+    expect(group.requests.length).toBeLessThanOrEqual(12);
     expect(printed).toEqual(Array.from({ length: 100 }, (_, index) => `line ${index + 30}`));
   });
 
@@ -139,7 +158,63 @@ describe('the backlog `stacktape logs` shows before it follows', () => {
   });
 });
 
+// #346 review: with `--filter`, CloudWatch returns empty pages while it scans. The backlog read the whole window from
+// its oldest events, spent its requests there, and never showed the recent matches.
+describe('a filtered backlog of a large log group', () => {
+  test('shows the recent matches first, and says when it could not search further back', async () => {
+    // Reading anything older than 10 minutes takes 20 empty pages.
+    const group = logGroup({ scanPages: (startTime) => (startTime < UNTIL - 600_000 ? 20 : 0) });
+    for (let index = 0; index < 5; index++) group.add(UNTIL - 50 * 60_000 + index);
+    for (let index = 0; index < 10; index++) group.add(UNTIL - 30_000 + index * 1000);
+    const { printer, printed, notices, readBacklog } = printerFor(group, {
+      since: UNTIL - HOUR,
+      backlog: 100,
+      filterPattern: 'ERROR'
+    });
+    await readBacklog();
+    expect(group.requests.length).toBeLessThanOrEqual(12);
+    expect(printed).toEqual(Array.from({ length: 10 }, (_, index) => `line ${index + 5}`));
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toStartWith('Only the log lines since ');
+    expect(notices[0]).toContain('more than 12 requests to search further back with this filter');
+
+    printed.length = 0;
+    group.add(UNTIL + 500, 'line new');
+    while ((await printer.printLogs()).more);
+    expect(printed).toEqual(['line new']);
+  });
+
+  test('says so when even the last minute could not be searched, and follows new lines', async () => {
+    const group = logGroup({ scanPages: () => 20 });
+    group.add(UNTIL - 10_000);
+    const { printer, printed, notices, readBacklog } = printerFor(group, {
+      since: UNTIL - HOUR,
+      backlog: 100,
+      filterPattern: 'ERROR'
+    });
+    await readBacklog();
+    expect(printed).toEqual([]);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toStartWith('Earlier log lines were not read: ');
+    group.add(UNTIL + 500, 'line new');
+    for (let poll = 0; poll < 25; poll++) await printer.printLogs();
+    expect(printed).toEqual(['line new']);
+  });
+});
+
 describe('following a log group', () => {
+  // #346 review: lines with the time of the oldest backlog line, cut by the line limit, appeared later out of order.
+  test('lines of the backlog window cut by the line limit stay hidden, also those with the same time', async () => {
+    const group = logGroup();
+    for (let index = 0; index < 5; index++) group.add(UNTIL - 1000);
+    const { printer, printed, readBacklog } = printerFor(group, { since: UNTIL - HOUR, backlog: 3 });
+    await readBacklog();
+    expect(printed).toEqual(['line 2', 'line 3', 'line 4']);
+    printed.length = 0;
+    while ((await printer.printLogs()).more);
+    expect(printed).toEqual([]);
+  });
+
   // The #343 review: the dedupe set kept the last 5,000 event IDs, fewer than a busy group writes in the 10 s each read
   // reaches back, so lines printed again.
   test('a group writing 1,000 lines a second prints each line once', async () => {

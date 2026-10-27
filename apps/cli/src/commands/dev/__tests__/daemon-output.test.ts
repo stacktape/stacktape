@@ -83,7 +83,10 @@ process.stdout.write('AGENT_READY ' + JSON.stringify({ port: 7398, projectName: 
     for (let line = 0; line < 20; line++) console.log('console round ' + round + ' line ' + line + ' ' + 'x'.repeat(80));
     process.stdout.write('write round ' + round + '\\n');
     console.error('stderr round ' + round + ' ' + 'y'.repeat(2_000));
-    spawnSync('sh', ['-c', 'echo "child round ${'$'}0"', String(round)], { stdio: ['ignore', 'inherit', 'inherit'] });
+    spawnSync(process.execPath, ['-e', 'console.log("child round " + process.env.ROUND)'], {
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: { ...process.env, ROUND: String(round) }
+    });
     if (round === 40) {
       clearInterval(timer);
       setTimeout(() => {
@@ -96,7 +99,8 @@ process.stdout.write('AGENT_READY ' + JSON.stringify({ port: 7398, projectName: 
 });
 `;
 
-// #343 review: under Bun `console.*` bypassed the muted `process.stdout.write`, and nothing bounded the files.
+// #343 review: under Bun `console.*` bypassed the muted `process.stdout.write`, and nothing bounded the files. #346
+// review: on Windows a file opened for appending cannot be truncated through that handle, so the files grew anyway.
 test('all daemon output reaches its files, which stay below the cap during a long session', async () => {
   const script = join(directory, 'chatty-daemon.mjs');
   const result = join(directory, 'chatty-result.txt');

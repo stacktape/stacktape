@@ -12,7 +12,9 @@ import { getPlainLambdaLogLineLevel, parseLambdaLogLine, type LambdaLogLevel } f
 const LATE_EVENT_WINDOW_MS = 10_000;
 /** The backlog search narrows a window that holds too many events down to this, and reads a window this short whole. */
 const BACKLOG_MIN_WINDOW_MS = 1000;
-/** The backlog search gives up after this many requests and shows what it found: a few seconds within the budget. */
+/** The backlog search starts with the last minute and widens each older window up to tenfold. */
+const BACKLOG_FIRST_WINDOW_MS = 60_000;
+/** The backlog search gives up after this many requests and says so: a few seconds within the budget. */
 const BACKLOG_MAX_REQUESTS = 12;
 
 const byTime = (a: FilteredLogEvent, b: FilteredLogEvent) =>
@@ -31,9 +33,10 @@ type FetchPage = (params: {
 }) => Promise<{ events: FilteredLogEvent[]; nextToken?: string }>;
 
 /**
- * The search for the newest `lines` events between `since` and `until`. It reads one request at a time, from the newest
- * window backwards. `FilterLogEvents` returns the oldest events of a range first; a window that holds more events than
- * are needed is narrowed to its newest part instead of being read to its end.
+ * The search for the newest `lines` events between `since` and `until`. It reads one request at a time, from the last
+ * minute backwards in wider and wider windows. `FilterLogEvents` returns the oldest events of a range first, and with a
+ * filter it can return empty pages while it scans; reading the newest window first keeps the recent lines from waiting
+ * behind the whole range. A window that holds more events than are needed is narrowed to its newest part.
  */
 type BacklogSearch = {
   until: number;
@@ -98,7 +101,7 @@ export class LambdaCloudwatchLogPrinter {
         lines: backlog.lines,
         lowest: fetchSince + 1,
         cursor: backlog.until,
-        span: backlog.until - fetchSince,
+        span: Math.min(backlog.until - fetchSince, BACKLOG_FIRST_WINDOW_MS),
         found: [],
         below: [],
         requests: 0
@@ -176,12 +179,16 @@ export class LambdaCloudwatchLogPrinter {
     const events = [...(search.partial?.events ?? []), ...page.events];
     search.partial = undefined;
     const lastRequest = search.requests >= BACKLOG_MAX_REQUESTS;
+    if (page.nextToken && lastRequest) {
+      // Out of requests in the middle of a window. Only the windows read to their end are shown.
+      return this.#finishBacklog(search, search.found, { incomplete: true });
+    }
     // CloudWatch also returns a token after the last page of a range; the next page is then empty.
-    if (page.nextToken && !lastRequest && (whole || events.length < need)) {
+    if (page.nextToken && (whole || events.length < need)) {
       search.partial = { events, nextToken: page.nextToken };
       return { found: 0, more: true };
     }
-    if (page.nextToken && !whole && !lastRequest) {
+    if (page.nextToken) {
       // More events than are needed. The page holds every event of the window older than its newest one, so the
       // search goes on above that event, in a narrower window.
       const newest = Math.max(...events.map((event) => event.timestamp ?? 0));
@@ -190,32 +197,39 @@ export class LambdaCloudwatchLogPrinter {
       search.span = Math.max(BACKLOG_MIN_WINDOW_MS, Math.floor((search.cursor - search.lowest + 1) / 10));
       return { found: 0, more: true };
     }
-    if (page.nextToken) {
-      // Out of requests in the middle of a window: the events read so far are its oldest.
-      return this.#finishBacklog(search, [...events, ...search.found]);
-    }
     search.found = [...events, ...search.found];
     search.cursor = startTime - 1;
     if (search.found.length >= search.lines) return this.#finishBacklog(search, search.found);
     if (startTime <= search.lowest) return this.#finishBacklog(search, [...search.below, ...search.found]);
-    if (lastRequest) return this.#finishBacklog(search, search.found);
-    // The rest of the range, which a window that held too many events has already made smaller.
-    search.span = search.cursor - search.lowest + 1;
+    if (lastRequest) return this.#finishBacklog(search, search.found, { incomplete: true });
+    search.span = Math.min(search.cursor - search.lowest + 1, search.span * 10);
     return { found: 0, more: true };
   };
 
   /**
    * Prints the backlog. Following then shows no event older than the backlog's oldest fully read window, nor older than
-   * the oldest event it showed: a window can hold more events than were shown.
+   * the oldest event it showed: a window can hold more events than were shown. The events read but cut by the line
+   * limit count as handled, so following does not show one that has the time of the oldest line shown.
    */
-  #finishBacklog = (search: BacklogSearch, events: FilteredLogEvent[]) => {
+  #finishBacklog = (search: BacklogSearch, events: FilteredLogEvent[], { incomplete = false } = {}) => {
     this.#backlog = undefined;
     const shown = [...events].sort(byTime).slice(-search.lines);
     this.#notBefore = Math.max(search.cursor + 1, shown[0]?.timestamp ?? 0);
     this.fetchSince = search.until;
+    if (incomplete) {
+      const reason = `CloudWatch needed more than ${BACKLOG_MAX_REQUESTS} requests to search further back${this.#filterPattern ? ' with this filter' : ''}`;
+      this.#output(
+        search.cursor >= search.until
+          ? `Earlier log lines were not read: ${reason}. New lines are shown as they arrive; to search the whole window, use --query.`
+          : `Only the log lines since ${formatIsoLocalTime(new Date(search.cursor + 1))} are shown: ${reason}. To search the whole window, use --query.`,
+        'warn'
+      );
+    }
     this.#printLambdaLogEvents(shown);
     this.#currentEventTimestamp = undefined;
-    for (const event of shown) this.#handledEvents.set(event.eventId, event.timestamp ?? 0);
+    for (const event of events) {
+      if ((event.timestamp ?? 0) >= this.#notBefore) this.#handledEvents.set(event.eventId, event.timestamp ?? 0);
+    }
     return { found: shown.length, more: false };
   };
 

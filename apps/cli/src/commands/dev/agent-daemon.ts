@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs-extra';
-import { closeSync, copyFileSync, fstatSync, ftruncateSync, openSync, readSync } from 'node:fs';
+import { closeSync, copyFileSync, fstatSync, openSync, readSync, truncateSync } from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -566,13 +566,16 @@ const DAEMON_OUTPUT_FILE_MAX_BYTES = 5 * 1024 * 1024;
  * Keeps the output file open as `fd` below `maxBytes`: a larger one is copied to `<path>.1` and emptied. Every writer
  * appends (see `spawnAgentDaemon`), so after the file is emptied their writes start at its beginning again, without a
  * gap. A line written between the copy and the truncation is lost.
+ *
+ * The file is emptied through a new handle opened by its path: Windows refuses to truncate through a handle opened for
+ * appending (EPERM, in the process that opened it and in those that inherited it).
  */
 export const rotateDaemonOutputFile = ({ fd, path, maxBytes }: { fd: number; path: string; maxBytes: number }) => {
   try {
     const stats = fstatSync(fd);
     if (!stats.isFile() || stats.size <= maxBytes) return;
     copyFileSync(path, `${path}.1`);
-    ftruncateSync(fd, 0);
+    truncateSync(path, 0);
   } catch {
     // The output files only help debugging; the session must not stop for them.
   }
