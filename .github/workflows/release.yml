@@ -63,6 +63,28 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.1
+      - name: Use Docker's containerd image store
+        # Railpack builds use BuildKit's merge operation, which Docker offers only with this store. It is the default from
+        # Docker Engine 29, but GitHub's runners still use the classic store.
+        run: |
+          daemon_config=/etc/docker/daemon.json
+          current=$(sudo cat "$daemon_config" 2>/dev/null || echo '{}')
+          printf '%s' "$current" | jq '.features = ((.features // {}) + {"containerd-snapshotter": true})' |
+            sudo tee "$daemon_config" >/dev/null
+          sudo systemctl restart docker
+          docker info --format '{{json .DriverStatus}}' | grep -q io.containerd.snapshotter
+      - name: Seed official base images from Docker Hub
+        # Anonymous pulls from public.ecr.aws share a monthly data limit per IP address, which GitHub's runners exceed
+        # ("429 Data limit exceeded"). Docker Hub serves the same official images, and a build uses a local image as is.
+        run: |
+          for tag in node:24-alpine node:22-alpine alpine:3 python:3.13.16-slim python:3.11.14-slim; do
+            # A tag Docker Hub cannot serve is left to the build's own pull, as before.
+            if docker pull --quiet "$tag"; then
+              docker tag "$tag" "public.ecr.aws/docker/library/$tag"
+            else
+              echo "::warning::Could not seed $tag from Docker Hub."
+            fi
+          done
       - run: pnpm install --frozen-lockfile
       - name: Validate release input
         working-directory: apps/cli
@@ -93,16 +115,6 @@ jobs:
             exit 1
           fi
       - run: pnpm check:public
-      - name: Use Docker's containerd image store
-        # Railpack builds use BuildKit's merge operation, which Docker offers only with this store. It is the default from
-        # Docker Engine 29, but GitHub's runners still use the classic store.
-        run: |
-          daemon_config=/etc/docker/daemon.json
-          current=$(sudo cat "$daemon_config" 2>/dev/null || echo '{}')
-          printf '%s' "$current" | jq '.features = ((.features // {}) + {"containerd-snapshotter": true})' |
-            sudo tee "$daemon_config" >/dev/null
-          sudo systemctl restart docker
-          docker info --format '{{json .DriverStatus}}' | grep -q io.containerd.snapshotter
       - name: Execute packaging artifacts in real runtimes
         run: |
           # The Railpack scenarios need the pinned binary, and the E2E scripts cannot use the CLI's downloader.
