@@ -93,7 +93,8 @@ describe('release publication policy', () => {
       'cleanup-release-publication',
       'publish',
       'publish-installers',
-      'recover'
+      'recover',
+      'verify'
     ]);
     expect(isRecord(jobs.publish) && jobs.publish.permissions).toEqual({
       contents: 'write',
@@ -121,7 +122,10 @@ describe('release publication policy', () => {
     expect(
       isRecord(jobs['upload-error-tracking-source-maps']) && jobs['upload-error-tracking-source-maps'].environment
     ).toBe('error-tracking');
-    for (const jobName of ['verify', 'build-binaries', 'assemble']) {
+    // The verify job's role can only issue an ECR Public pull token.
+    expect(isRecord(jobs.verify) && jobs.verify.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+    expect(isRecord(jobs.verify) && jobs.verify.environment).toBe('release-registry');
+    for (const jobName of ['build-binaries', 'assemble']) {
       expect(isRecord(jobs[jobName]) && jobs[jobName].permissions).toBeUndefined();
     }
   });

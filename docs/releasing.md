@@ -238,6 +238,11 @@ The workflow uses no long-lived publishing secret. Its one long-lived credential
   environment.
 - `release-installers` grants a separate job GitHub OIDC access to the AWS role
   `arn:aws:iam::977946299200:role/stacktape-github-release-installers`.
+- `release-registry` grants the verify job GitHub OIDC access to the AWS role
+  `arn:aws:iam::977946299200:role/stacktape-github-release-registry`. Its inline policy `PullFromEcrPublic` allows only
+  `ecr-public:GetAuthorizationToken` and `sts:GetServiceBearerToken`, so it can only sign Docker in to pull from
+  `public.ecr.aws`. Anonymous pulls share a monthly data limit per IP address, which GitHub's runners exceed. The
+  credentials exist only inside the sign-in step.
 - The AWS role may upload only the known installer paths (`PUBLISHED_INSTALL_ASSETS` in
   `apps/cli/scripts/publish-install-scripts.ts`) in the production and preview buckets, read them back for checksum
   verification, and create/read invalidations for the two corresponding CloudFront distributions. It cannot list
@@ -252,9 +257,10 @@ completion, and verifies every public response byte-for-byte.
 
 ## Configuration
 
-AWS account `977946299200` contains GitHub's OIDC provider and the narrow installer role. GitHub environments
-`release-publish` and `release-installers` must allow only `main`; the installer environment holds the account, role,
-region, bucket, distribution and public-URL identifiers for both channels.
+AWS account `977946299200` contains GitHub's OIDC provider, the narrow installer role and the registry pull role. GitHub
+environments `release-publish`, `release-installers` and `release-registry` must allow only `main`. The installer
+environment holds the account, role, region, bucket, distribution and public-URL identifiers for both channels. The
+registry environment holds `STACKTAPE_RELEASE_REGISTRY_ROLE_ARN`.
 
 For a new setup, configure npm trusted publishing as the package owner. npm supports one trusted publisher per package,
 so both channels intentionally use the same `release-publish` environment:
