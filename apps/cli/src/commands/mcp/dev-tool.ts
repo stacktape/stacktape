@@ -924,6 +924,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   ): Promise<T> => {
     if (!onProgress) return request;
     const startedAt = Date.now();
+    let answered = false;
     const timer = setInterval(async () => {
       const status = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true', timeoutMs: 2000 }).catch(
         () => undefined
@@ -931,6 +932,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       const rebuilding = (Array.isArray(status?.workloads) ? status.workloads : [])
         .filter((workload): workload is { name: string; statusMessage?: string } => workload?.status === 'starting')
         .map(({ name, statusMessage }) => (statusMessage ? `${name}: ${statusMessage}` : name));
+      // A tick that waited for the status while the rebuild answered reports nothing.
+      if (answered) return;
       const seconds = Math.round((Date.now() - startedAt) / 1000);
       await Promise.resolve(
         onProgress({ message: `Rebuilding${rebuilding.length ? ` ${rebuilding.join('; ')}` : ''} (${seconds} s)` })
@@ -939,6 +942,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     try {
       return await request;
     } finally {
+      answered = true;
       clearInterval(timer);
     }
   };
