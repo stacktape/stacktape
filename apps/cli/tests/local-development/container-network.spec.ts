@@ -3,11 +3,13 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer, type AddressInfo } from 'node:net';
 import {
+  DOCKER_HOST_NAME,
   ensureLoopbackRelays,
   resolveDevContainerNetwork,
   stopLoopbackRelays
 } from '../../src/commands/dev/container/network';
 import { findAvailablePort } from '../../src/commands/dev/port-utils';
+import { pointLoopbackAtHost } from '../../src/commands/dev/utils';
 
 // r2w: Linux dev containers ran on the host network, so a second stage of the same app collided on its fixed admin
 // port 9090. On a bridge network every container has its own ports, and a relay keeps loopback-only services (local
@@ -72,6 +74,19 @@ test('two dev containers listen on the same fixed port and reach a loopback-only
         `nc -w 2 host.docker.internal ${databasePort} </dev/null`
       ]);
       expect(reached.stdout.trim(), reached.stderr).toBe('database');
+      // The way a client reads STP_<DB>_HOST and STP_<DB>_PORT: a bare host, which dev mode points at this machine.
+      const split = await docker([
+        'exec',
+        '-e',
+        `DB_HOST=${pointLoopbackAtHost('localhost', DOCKER_HOST_NAME)}`,
+        '-e',
+        `DB_PORT=${databasePort}`,
+        name,
+        'sh',
+        '-c',
+        'nc -w 2 "$DB_HOST" "$DB_PORT" </dev/null'
+      ]);
+      expect(split.stdout.trim(), split.stderr).toBe('database');
     }
     // One container reaches the other at its published port through this machine, as STP_*_URL variables point.
     const across = await docker([

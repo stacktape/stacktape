@@ -4,7 +4,8 @@ import { mkdirp, readFile } from 'fs-extra';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { createCleanupHook } from '../cleanup-utils';
-import { request as httpRequest } from 'node:http';
+import { request as httpRequest, type IncomingMessage } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { clearPortCache, findAvailablePort, isPortAvailable } from '../port-utils';
 import { ensureCerts, isCATrusted, trustCA, createSNICallback } from './certs';
 import { createProxyServer, PROXY_IDENTITY_HEADER } from './proxy';
@@ -117,15 +118,22 @@ const ensureTlsOptions = async (): Promise<
 /** The project and stage whose workloads a proxy serves; their URLs embed its port. */
 const getProxyIdentity = () => `${globalStateManager.targetStack?.projectName ?? ''}/${globalStateManager.stage || ''}`;
 
-/** The identity a proxy on `port` reports, or `undefined` when no Stacktape dev proxy answers there. */
-const readProxyIdentity = (port: number): Promise<string | undefined> =>
+/**
+ * The identity a proxy on `port` reports, or `undefined` when no Stacktape dev proxy answers there. A proxy of the same
+ * stage uses the same protocol: HTTPS with its local certificate when `STACKTAPE_DEV_HTTPS` is set.
+ */
+const readProxyIdentity = (port: number, tls: boolean): Promise<string | undefined> =>
   new Promise((resolve) => {
     // A new connection: a pooled one can still reach a proxy that stopped listening.
-    const request = httpRequest({ host: '127.0.0.1', port, path: '/', timeout: 1000, agent: false }, (response) => {
+    const options = { host: '127.0.0.1', port, path: '/', timeout: 1000, agent: false } as const;
+    const onResponse = (response: IncomingMessage) => {
       response.resume();
       const identity = response.headers[PROXY_IDENTITY_HEADER.toLowerCase()];
       resolve(typeof identity === 'string' ? identity : undefined);
-    });
+    };
+    const request = tls
+      ? httpsRequest({ ...options, servername: 'localhost', rejectUnauthorized: false }, onResponse)
+      : httpRequest(options, onResponse);
     request.on('timeout', () => request.destroy());
     request.on('error', () => resolve(undefined));
     request.end();
@@ -147,7 +155,7 @@ const waitForReplacedSessionProxy = async ({
 }) => {
   clearPortCache(port);
   if (await isPortAvailable(port)) return;
-  if ((await readProxyIdentity(port)) !== identity) return;
+  if ((await readProxyIdentity(port, isTlsRequested())) !== identity) return;
   tuiManager.info(`[dev-proxy] Waiting for the replaced dev session of this stage to release port ${port}...`);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

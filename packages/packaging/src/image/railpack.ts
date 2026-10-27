@@ -297,8 +297,11 @@ export const buildUsingRailpack = async ({
   aptPackages,
   buildEnvironment,
   railpackConfig,
-  imageExtension
+  imageExtension,
+  reportSourceFiles
 }: {
+  /** Receives the files of the build context before the build runs, so a caller can watch them when it fails. */
+  reportSourceFiles?: ((sourceFiles: { path: string }[]) => void) | undefined;
   imageExtension?: {
     digestInput: unknown;
     existingDigests: string[];
@@ -400,6 +403,7 @@ export const buildUsingRailpack = async ({
     // including negations. The frontend selects the context with the same list.
     ignorePatterns: plan.exclude ?? []
   });
+  reportSourceFiles?.(includedFilePaths.map((path) => ({ path })));
   const digest = mergeHashes(
     contextChecksum,
     objectHash({

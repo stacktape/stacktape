@@ -1,6 +1,12 @@
 import { afterEach, expect, test } from 'bun:test';
 import { connect, createServer, type AddressInfo, type Server } from 'node:net';
-import { isInIpv4Subnet, parseBridgeIpam, pointLoopbackAtDockerHost, startLoopbackRelay } from './network';
+import {
+  ensureLoopbackRelays,
+  isInIpv4Subnet,
+  parseBridgeIpam,
+  startLoopbackRelay,
+  stopLoopbackRelays
+} from './network';
 
 const servers: { close: () => unknown }[] = [];
 afterEach(async () => {
@@ -40,28 +46,6 @@ test('only clients in the bridge subnet count as containers', () => {
   expect(isInIpv4Subnet('::1', '172.17.0.0/16')).toBeFalse();
 });
 
-test("a container's variables reach this machine's databases, tunnels and other containers, not its own loopback", () => {
-  const environment = pointLoopbackAtDockerHost(
-    {
-      DATABASE_URL: 'postgresql://app:secret@127.0.0.1:5433/app',
-      REDIS_URL: 'redis://:pw@localhost:6380',
-      AWS_ENDPOINT_URL_DYNAMODB: 'http://127.0.0.1:12200',
-      STP_OTHER_URL: 'http://127.0.0.1:8082',
-      SELF_URL: 'http://localhost:8080',
-      PORT: '8080'
-    },
-    [5433, 6380, 12200, 8082]
-  );
-  expect(environment).toEqual({
-    DATABASE_URL: 'postgresql://app:secret@host.docker.internal:5433/app',
-    REDIS_URL: 'redis://:pw@host.docker.internal:6380',
-    AWS_ENDPOINT_URL_DYNAMODB: 'http://host.docker.internal:12200',
-    STP_OTHER_URL: 'http://host.docker.internal:8082',
-    SELF_URL: 'http://localhost:8080',
-    PORT: '8080'
-  });
-});
-
 test('a relay passes connections from allowed clients to the loopback port and refuses others', async () => {
   const port = await loopbackServer('loopback-only');
   // 127.0.0.2 stands in for the bridge gateway: an address of this machine where the database does not listen.
@@ -83,4 +67,17 @@ test('a port that already listens on every address needs no relay', async () => 
   const port = (wildcard.address() as AddressInfo).port;
   expect(await startLoopbackRelay({ bindAddress: '127.0.0.2', port })).toBeUndefined();
   expect(await read('127.0.0.2', port)).toBe('published');
+});
+
+test('a relay that failed to start is started again on the next attempt', async () => {
+  const port = await loopbackServer('second try');
+  // 192.0.2.1 (TEST-NET-1) is no address of this machine, so the relay cannot listen there.
+  const unbindable = { mode: 'bridge' as const, dockerArgs: [], gatewayAddress: '192.0.2.1' };
+  await expect(ensureLoopbackRelays(unbindable, [port])).rejects.toThrow();
+  await ensureLoopbackRelays({ mode: 'bridge', dockerArgs: [], gatewayAddress: '127.0.0.2' }, [port]);
+  try {
+    expect(await read('127.0.0.2', port)).toBe('second try');
+  } finally {
+    await stopLoopbackRelays();
+  }
 });

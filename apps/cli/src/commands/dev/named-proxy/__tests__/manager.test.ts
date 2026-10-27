@@ -1,8 +1,12 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ensureNamedProxyRoute, removeNamedProxyRoute, stopNamedProxy } from '../manager';
+import { ensureCerts } from '../certs';
 import { createProxyServer } from '../proxy';
 
 /** The identity this test's sessions report: project and stage. */
@@ -107,5 +111,41 @@ test("after a take-over, the stage's proxy port is taken over too once the repla
     }
   } finally {
     await close(app.server);
+  }
+});
+
+test('with HTTPS, a take-over also waits for the replaced proxy and keeps the port', async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), 'stacktape-dev-proxy-tls-'));
+  const original = { https: process.env.STACKTAPE_DEV_HTTPS, dir: process.env.STACKTAPE_DEV_PROXY_STATE_DIR };
+  process.env.STACKTAPE_DEV_HTTPS = '1';
+  process.env.STACKTAPE_DEV_PROXY_STATE_DIR = stateDir;
+  globalStateManager.rawArgs = { stage: 'takeovertls' };
+  try {
+    const { proxyPort } = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: 1 });
+    await stopNamedProxy();
+    const { certPath, keyPath } = ensureCerts(stateDir);
+    const replaced = createProxyServer({
+      getRoutes: () => [],
+      proxyPort,
+      identity: getIdentity(),
+      tls: { cert: readFileSync(certPath), key: readFileSync(keyPath) }
+    });
+    await new Promise<void>((resolve) => replaced.listen(proxyPort, '127.0.0.1', resolve));
+    setTimeout(() => replaced.close(), 600);
+    const startedAt = Date.now();
+    const route = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: 1 });
+    expect(route.proxyPort).toBe(proxyPort);
+    expect(route.url.startsWith('https://')).toBeTrue();
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(500);
+  } finally {
+    await stopNamedProxy();
+    for (const [name, value] of [
+      ['STACKTAPE_DEV_HTTPS', original.https],
+      ['STACKTAPE_DEV_PROXY_STATE_DIR', original.dir]
+    ] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(stateDir, { recursive: true, force: true });
   }
 });

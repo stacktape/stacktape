@@ -65,28 +65,6 @@ export const isInIpv4Subnet = (address: string, subnet: string) => {
 };
 
 /**
- * Points a container's variables at this machine: `localhost` or `127.0.0.1` followed by one of `hostPorts` (a local
- * database, an SSM tunnel, another dev container) becomes `host.docker.internal`. Other loopback addresses stay, such as
- * an app's URL of itself.
- */
-export const pointLoopbackAtDockerHost = <T extends Record<string, unknown>>(
-  environment: T,
-  hostPorts: Iterable<number>
-): T => {
-  const ports = new Set([...hostPorts].map(String));
-  return Object.fromEntries(
-    Object.entries(environment).map(([name, value]) => [
-      name,
-      typeof value === 'string'
-        ? value.replace(/\b(?:localhost|127\.0\.0\.1):(\d+)\b/g, (match, port: string) =>
-            ports.has(port) ? `${DOCKER_HOST_NAME}:${port}` : match
-          )
-        : value
-    ])
-  ) as T;
-};
-
-/**
  * Accepts connections on `bindAddress:port` from clients in `subnet` (the containers) and passes them to the same port
  * on this machine's loopback. Resolves `undefined` when the port is in use on every address already, as a published
  * container port is: containers reach that one through the gateway without a relay.
@@ -146,6 +124,8 @@ export const ensureLoopbackRelays = async (network: DevContainerNetwork, ports: 
       if (!relay) {
         relay = startLoopbackRelay({ bindAddress: gatewayAddress, port, subnet });
         relays.set(port, relay);
+        // A relay that failed to start is tried again by the next container start or rebuild.
+        relay.catch(() => relays.delete(port));
       }
       return relay;
     })

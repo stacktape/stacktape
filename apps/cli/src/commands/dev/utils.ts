@@ -15,6 +15,7 @@ import {
   stopDockerContainer
 } from '@utils/docker';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
+import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import { createCleanupHook } from './cleanup-utils';
@@ -144,7 +145,15 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   localWorkloadAddresses?: Record<string, string>;
   /** Called when AWS does not let the developer assume the workload's role yet and the call waits for it. */
   onWaitingForAwsRole?: () => void;
+  /**
+   * The name a container on its own Docker network uses for this machine (`host.docker.internal`). Values Stacktape
+   * sets for local databases, SSM tunnels and other local workloads then name it instead of loopback, as a bare host
+   * too. Values the configuration states literally, and the workload's own address, stay as they are.
+   */
+  dockerHost?: string;
 }): Promise<Record<string, any>> => {
+  const { dockerHost, workloadName } = jobDetails;
+  const toContainerHost = (value: string) => (dockerHost ? pointLoopbackAtHost(value, dockerHost) : value);
   // Augment environment with source maps and experimental flags for JS/TS workloads
   const augmentedEnv = getAugmentedEnvironment({
     environment: jobDetails.jobEnvironment || [],
@@ -160,9 +169,26 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   }, {} as any);
 
   // Pre-substitute $ResourceParam directives for local workloads before directive resolution
-  const preSubstitutedEnvVars = substituteLocalWorkloadDirectives(envVars, jobDetails.localWorkloadAddresses || {});
+  const localWorkloadAddresses = Object.fromEntries(
+    Object.entries(jobDetails.localWorkloadAddresses || {}).map(([name, address]) => [
+      name,
+      name === workloadName ? address : toContainerHost(address)
+    ])
+  );
+  const preSubstitutedEnvVars = substituteLocalWorkloadDirectives(envVars, localWorkloadAddresses);
 
   const resolvedEnvVars = await resolveEnvironmentDirectives(preSubstitutedEnvVars);
+  // A `$ResourceParam` of a local database resolves to its loopback host or URL. Other directives (`$Secret`) and
+  // literal values are the developer's and stay.
+  for (const [name, configured] of Object.entries(preSubstitutedEnvVars)) {
+    if (
+      typeof configured === 'string' &&
+      /\$(?:Cf)?ResourceParam\(/.test(configured) &&
+      typeof resolvedEnvVars[name] === 'string'
+    ) {
+      resolvedEnvVars[name] = toContainerHost(resolvedEnvVars[name]);
+    }
+  }
 
   // Get AWS credentials unless skipped (for local-only mode)
   let awsCredentialsEnvVars: Record<string, string> = {};
@@ -192,7 +218,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     jobDetails.connectTo || []
   );
 
-  const tunnelHost = await getDockerHostAddress();
+  const tunnelHost = dockerHost ?? (await getDockerHostAddress());
   const substitutedInjectedEnvVars = substituteTunneledEndpointsInEnvironmentVars({
     tunnels: jobDetails.tunnels || [],
     env: Object.entries(resolvedInjectedVars).map(([key, value]) => ({ name: key, value })),
@@ -204,10 +230,15 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     {} as Record<string, any>
   );
 
-  // Adjust local resource env vars for Docker networking
+  // Adjust local resource env vars for Docker networking; the workload's own address stays as it is.
+  const ownEnvNames = new Set(['url', 'address'].map((param) => injectedParameterEnvVarName(workloadName, param)));
   const adjustedLocalEnvVars: Record<string, string> = {};
   for (const [key, value] of Object.entries(jobDetails.localResourceEnvVars || {})) {
-    adjustedLocalEnvVars[key] = value.replace(/localhost/g, tunnelHost);
+    adjustedLocalEnvVars[key] = ownEnvNames.has(key)
+      ? value
+      : dockerHost
+        ? toContainerHost(value)
+        : value.replace(/localhost/g, tunnelHost);
   }
 
   const environment: Record<string, any> = {
@@ -225,6 +256,10 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
 
   return environment;
 };
+
+/** Replaces a loopback host (`localhost`, `127.0.0.1`) in a URL, an address or a bare host value. */
+export const pointLoopbackAtHost = (value: string, host: string) =>
+  value.replace(/(?<![\w.-])(?:localhost|127\.0\.0\.1)(?![\w-]|\.\w)/g, host);
 
 // @todo take from config
 const getContainerStopWaitTime = () => 2;

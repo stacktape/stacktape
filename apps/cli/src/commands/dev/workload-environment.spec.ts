@@ -4,7 +4,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { getWorkloadEnvironmentVars } from './utils';
+import { getWorkloadEnvironmentVars, pointLoopbackAtHost } from './utils';
 
 /**
  * In dev mode a workload's environment is built from its config: `$ResourceParam` references to workloads that run
@@ -122,3 +122,73 @@ test('local workloads and scripts connected to local DynamoDB tables get AWS_END
   expect(environment.AWS_ENDPOINT_URL_DYNAMODB).toMatch(/^http:\/\/[^/]+:12200$/);
   expect(environment.AWS_ENDPOINT_URL_DYNAMODB).not.toContain('localhost');
 }, 20_000);
+
+// r2z review: on its own Docker network, a container must reach local databases, tunnels and other local workloads
+// through host.docker.internal, also when it reads host and port separately. A URL the developer wrote, and the
+// workload's own address, stay as they are: a browser or an OAuth provider uses them.
+test('a container on its own network gets host.docker.internal only in the values Stacktape sets', async () => {
+  deployedStackOverviewManager.injectLocalResourceInfo([
+    {
+      name: 'mydb',
+      resourceType: 'postgres',
+      referencableParams: {
+        host: 'localhost',
+        port: '5433',
+        connectionString: 'postgresql://app:secret@localhost:5433/app'
+      }
+    }
+  ]);
+  const environment = await getWorkloadEnvironmentVars({
+    workloadType: 'multi-container-workload',
+    jobName: 'api',
+    workloadName: 'api',
+    jobEnvironment: [
+      { name: 'DB_HOST', value: "$ResourceParam('mydb', 'host')" },
+      { name: 'DB_PORT', value: "$ResourceParam('mydb', 'port')" },
+      { name: 'DB_URL', value: "$ResourceParam('mydb', 'connectionString')" },
+      { name: 'WORKER_URL', value: "$ResourceParam('worker', 'url')" },
+      { name: 'SELF_URL', value: "$ResourceParam('api', 'url')" },
+      { name: 'APP_URL', value: 'http://localhost:3000' },
+      { name: 'NEXTAUTH_URL', value: 'http://127.0.0.1:3000/auth' }
+    ],
+    connectTo: [],
+    skipAwsCredentials: true,
+    port: 3000,
+    dockerHost: 'host.docker.internal',
+    localWorkloadAddresses: { worker: 'http://127.0.0.1:8082', api: 'http://127.0.0.1:3000' },
+    localResourceEnvVars: {
+      STP_MYDB_HOST: 'localhost',
+      STP_MYDB_PORT: '5433',
+      STP_MYDB_CONNECTION_STRING: 'postgresql://app:secret@localhost:5433/app',
+      STP_WORKER_URL: 'http://127.0.0.1:8082',
+      STP_API_URL: 'http://127.0.0.1:3000',
+      AWS_ENDPOINT_URL_DYNAMODB: 'http://127.0.0.1:12200'
+    }
+  });
+  expect(environment).toMatchObject({
+    DB_HOST: 'host.docker.internal',
+    DB_PORT: '5433',
+    DB_URL: 'postgresql://app:secret@host.docker.internal:5433/app',
+    WORKER_URL: 'http://host.docker.internal:8082',
+    SELF_URL: 'http://127.0.0.1:3000',
+    APP_URL: 'http://localhost:3000',
+    NEXTAUTH_URL: 'http://127.0.0.1:3000/auth',
+    STP_MYDB_HOST: 'host.docker.internal',
+    STP_MYDB_PORT: '5433',
+    STP_MYDB_CONNECTION_STRING: 'postgresql://app:secret@host.docker.internal:5433/app',
+    STP_WORKER_URL: 'http://host.docker.internal:8082',
+    STP_API_URL: 'http://127.0.0.1:3000',
+    AWS_ENDPOINT_URL_DYNAMODB: 'http://host.docker.internal:12200',
+    PORT: '3000'
+  });
+}, 20_000);
+
+test('only a loopback host is replaced, not a name that contains one', () => {
+  const at = (value: string) => pointLoopbackAtHost(value, 'host.docker.internal');
+  expect(at('localhost')).toBe('host.docker.internal');
+  expect(at('127.0.0.1')).toBe('host.docker.internal');
+  expect(at('redis://:pw@localhost:6380/0')).toBe('redis://:pw@host.docker.internal:6380/0');
+  expect(at('127.0.0.10')).toBe('127.0.0.10');
+  expect(at('my-localhost:1')).toBe('my-localhost:1');
+  expect(at('localhost.example.com')).toBe('localhost.example.com');
+});

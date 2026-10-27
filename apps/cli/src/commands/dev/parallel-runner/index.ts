@@ -29,8 +29,8 @@ import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage, type PrepareImageResult } from '../container';
 import { summarizeDockerBuildError } from '../container/build-error';
 import {
+  DOCKER_HOST_NAME,
   ensureLoopbackRelays,
-  pointLoopbackAtDockerHost,
   resolveDevContainerNetwork,
   stopLoopbackRelays
 } from '../container/network';
@@ -101,8 +101,6 @@ type ParallelRunnerState = {
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
   relayTunnels: TunnelInfo[];
-  /** The host ports published for every container workload of the session. */
-  containerHostPorts: number[];
   logPolls: Array<{ unregister: () => void }>;
 };
 
@@ -111,7 +109,6 @@ const state: ParallelRunnerState = {
   localResources: [],
   tunnels: [],
   relayTunnels: [],
-  containerHostPorts: [],
   logPolls: []
 };
 
@@ -220,7 +217,6 @@ export const runParallelWorkloads = async (
   const containerPortBindings = await allocateContainerPortBindings(
     filteredResources.filter((r) => r.category === 'container')
   );
-  state.containerHostPorts = [...containerPortBindings.values()].flatMap(({ hostPorts }) => hostPorts);
 
   const {
     envVars: localWorkloadEnvVars,
@@ -729,25 +725,32 @@ const startContainerWorkload = async (
       skipAwsCredentials,
       port: listenPort,
       localWorkloadAddresses,
-      onWaitingForAwsRole
+      onWaitingForAwsRole,
+      dockerHost: network.mode === 'bridge' ? DOCKER_HOST_NAME : undefined
     });
-    if (network.mode !== 'bridge') return environment;
     // On its own network, the container reaches this machine's local databases and SSM tunnels, which listen on
     // loopback only, through relays, and other dev containers at their published ports.
-    const loopbackPorts = [
+    await ensureLoopbackRelays(network, [
       ...state.localResources.map(({ actualPort }) => actualPort),
       ...state.tunnels.map(({ localPort }) => localPort)
-    ];
-    await ensureLoopbackRelays(network, loopbackPorts);
-    return pointLoopbackAtDockerHost(environment, [...loopbackPorts, ...state.containerHostPorts]);
+    ]);
+    return environment;
   };
 
   // A failed Docker build prints several KB of BuildKit progress. The error keeps the failing step's output, and the
   // full output goes to a file next to the session's log.
+  // A failed build can read other files than the last successful one; the watcher follows them, so fixing any of them
+  // rebuilds the container, as for a function.
+  let attemptedSourceFiles: string[] | undefined;
   const buildImage = async () => {
     try {
-      return await prepareImage(containerDefinition);
+      const image = await prepareImage(containerDefinition);
+      packagingManager.takeAttemptedSourceFiles(jobName);
+      return image;
     } catch (error) {
+      attemptedSourceFiles = packagingManager.takeAttemptedSourceFiles(jobName);
+      const workload = state.workloads.get(resourceName);
+      if (attemptedSourceFiles && workload) workload.sourceFiles = attemptedSourceFiles;
       const message = error instanceof Error ? error.message : String(error);
       const summary = message.length > MAX_BUILD_ERROR_LENGTH ? summarizeDockerBuildError(message) : undefined;
       if (!summary) throw error;
@@ -982,7 +985,7 @@ const startContainerWorkload = async (
     name: resourceName,
     type: 'container',
     resourceType,
-    sourceFiles: imageResult?.sourceFiles ?? [],
+    sourceFiles: imageResult?.sourceFiles ?? attemptedSourceFiles ?? [],
     envVars: environment,
     rebuild: async () => {
       const result = await rebuild();
