@@ -2,9 +2,11 @@ import { afterEach, expect, test } from 'bun:test';
 import { connect, createServer, type AddressInfo, type Server } from 'node:net';
 import {
   ensureLoopbackRelays,
+  findSpareLoopbackPort,
   isInIpv4Subnet,
   parseBridgeIpam,
   startLoopbackRelay,
+  startPortSwitch,
   stopLoopbackRelays
 } from './network';
 
@@ -80,4 +82,21 @@ test('a relay that failed to start is started again on the next attempt', async 
   } finally {
     await stopLoopbackRelays();
   }
+});
+
+// r2cc finding 3: a rebuilt container that crashed on start left nothing serving. The stable port is a switch: the new
+// run takes it over only once it serves, and a connection to a run that does not listen is closed.
+test('a port switch passes connections to the current run and switches to the next one', async () => {
+  const previous = await loopbackServer('previous build');
+  const next = await loopbackServer('next build');
+  const stablePort = await findSpareLoopbackPort();
+  const portSwitch = await startPortSwitch({ port: stablePort, targetPort: previous });
+  servers.push(portSwitch);
+  expect(await read('127.0.0.1', stablePort)).toBe('previous build');
+  portSwitch.setTarget(next);
+  expect(await read('127.0.0.1', stablePort)).toBe('next build');
+  portSwitch.setTarget(await findSpareLoopbackPort());
+  expect(await read('127.0.0.1', stablePort)).toBe('');
+  // Loopback only: not on another address of this machine.
+  expect(await read('127.0.0.2', stablePort)).toBe('');
 });

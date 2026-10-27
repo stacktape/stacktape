@@ -117,6 +117,51 @@ require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.
   }
 }, 30_000);
 
+// r2cc finding 4: each line of a frontend's server error was its own `info` entry. The output of each stream is grouped
+// into entries with the level their text shows, as a container's is.
+test("a dev server's multi-line server error on standard error is one error entry", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  try {
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.1', () => {
+  console.log('  ready in 5 ms');
+  console.error(['stats unavailable: TypeError: fetch failed', '    at load (src/routes/+page.server.js:9:5) {', "  code: 'ECONNREFUSED'", '}'].join('\\n'));
+  console.log('7:08:55 PM [vite] page reload src/routes/+page.svelte');
+});
+`
+    );
+    globalStateManager.rawArgs = { stage: 'grouped', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const entries: { message: string; level: string }[] = [];
+    const ready = await startDevServer({
+      name: 'web',
+      config: { command: './vite dev', workingDirectory: directory, framework: 'vite' },
+      callbacks: { onOutput: (message, level) => entries.push({ message, level }) }
+    });
+    expect(ready.status).toBe('ready');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(entries).toEqual([
+      { message: '  ready in 5 ms', level: 'info' },
+      {
+        message: [
+          'stats unavailable: TypeError: fetch failed',
+          '    at load (src/routes/+page.server.js:9:5) {',
+          "  code: 'ECONNREFUSED'",
+          '}'
+        ].join('\n'),
+        level: 'error'
+      },
+      { message: '7:08:55 PM [vite] page reload src/routes/+page.svelte', level: 'info' }
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
 test('a second next dev in the directory fails with the session that runs the first, not as ready', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
   try {

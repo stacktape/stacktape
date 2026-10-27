@@ -79,16 +79,10 @@ export const startHostingBucketDevServer = async ({
           }
         }
       },
-      onOutput: (line) => {
-        const inRebuildPhase = devTuiManager.inRebuildPhase;
-        if (inRebuildPhase) {
-          // Buffer logs during rebuild
-          devTuiManager.bufferRebuildLog(name, line);
-        } else if (useDevTui) {
-          devTuiManager.log(name, line);
-        } else {
-          tuiManager.info(`[${name}] ${line}`);
-        }
+      onOutput: (message, level) => {
+        if (devTuiManager.inRebuildPhase) devTuiManager.bufferRebuildLog(name, message, level);
+        else if (useDevTui) devTuiManager.log(name, message, level);
+        else tuiManager.info(`[${name}] ${message}`);
       }
     }
   });

@@ -1,3 +1,4 @@
+import stripAnsi from 'strip-ansi';
 import type { LogLevel } from './agent-logger';
 
 /**
@@ -17,10 +18,17 @@ const PYTHON_EXCEPTION_LINE = /^[\w.]+(Error|Exception|Warning|Exit|Interrupt)\b
 const GO_LOG_PREFIX = /^\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(?:\.\d+)? (?:\S+\.go:\d+: )?/;
 /** A Go program that crashes prints `panic: ...` or `fatal error: ...` and then the stacks of its goroutines. */
 const GO_CRASH_LINE = /^(panic: |fatal error: )/;
+/** Next.js marks each message of its dev server: `✓ Ready`, `○ Compiling`, `⨯ Error: ...`, `⚠ ...`, `▲ Next.js`. */
+const NEXT_MESSAGE_LINE = /^\s?[✓○⨯⚠▲] /;
+/** An access log line of a dev server: ` GET /orders 500 in 280ms`. */
+const ACCESS_LOG_LINE = /^\s?(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) \S+ (\d{3}) in /;
+/** SvelteKit's line before a server error: `[500] GET /orders`. */
+const SVELTEKIT_ERROR_HEADER = /^\[(\d{3})\] [A-Z]+ \S+$/;
 
 /** Whether `line` continues the entry whose lines are `entry`, instead of starting a new one. */
 export const isContinuationLine = (line: string, entry: string[]): boolean => {
   if (!entry.length) return false;
+  if (NEXT_MESSAGE_LINE.test(line) || ACCESS_LOG_LINE.test(line)) return false;
   // Stack frames, object properties and traceback lines are indented; a pretty-printed object closes unindented.
   if (/^\s/.test(line) || /^[\]})]/.test(line)) return true;
   if (/^caused by\b/i.test(line)) return true;
@@ -28,6 +36,10 @@ export const isContinuationLine = (line: string, entry: string[]): boolean => {
   if (entry[0]!.startsWith('Traceback (most recent call last)') && PYTHON_EXCEPTION_LINE.test(line)) return true;
   // Node prints the failing source line with a caret under it before the error and its stack.
   if (/^\s*\^+\s*$/.test(entry.at(-1)!)) return true;
+  // Next.js and Vite quote the failing source under a stack frame and mark its line: `>  7 |   throw new Error(...)`.
+  if (/^>\s*\d*\s*\|/.test(line)) return true;
+  // SvelteKit prints the error, or only its message, under the request it failed.
+  if (entry.length === 1 && SVELTEKIT_ERROR_HEADER.test(entry[0]!)) return true;
   // Everything after a Go crash line is its goroutine dump, also the unindented `goroutine 1 [running]:` lines.
   if (entry.some((entryLine) => GO_CRASH_LINE.test(entryLine))) return true;
   // `log.Panic` logs its message and then panics with it.
@@ -53,7 +65,8 @@ const levelFromWord = (word: string): LogLevel =>
  * message, or a stack trace. Without any, standard output and Go `log` lines are `info`, and other standard error stays
  * `warn`, since a program writes both diagnostics and warnings there.
  */
-export const detectLogLevel = (text: string, stream: 'stdout' | 'stderr'): LogLevel => {
+export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr'): LogLevel => {
+  const text = stripAnsi(coloredText);
   const firstLine = text.split('\n', 1)[0]!.trim();
   if (firstLine.startsWith('{')) {
     try {
@@ -71,6 +84,11 @@ export const detectLogLevel = (text: string, stream: 'stdout' | 'stderr'): LogLe
     /^(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|crit|alert|emerg|warn|warning|info|debug|trace)\b/i
   )?.[1];
   if (levelWord) return levelFromWord(levelWord);
+  if (firstLine.startsWith('⨯')) return 'error';
+  if (firstLine.startsWith('⚠')) return 'warn';
+  const status = Number(firstLine.match(SVELTEKIT_ERROR_HEADER)?.[1] ?? firstLine.match(ACCESS_LOG_LINE)?.[1]);
+  if (status >= 500) return 'error';
+  if (status >= 400) return 'warn';
   if (/^(uncaught|unhandled)\b/i.test(firstLine) || /^Traceback \(most recent call last\)/.test(firstLine)) {
     return 'error';
   }
@@ -108,6 +126,8 @@ export const createLogLineGrouper = ({
   quietMs?: number;
 }) => {
   let entry: string[] = [];
+  /** The entry's lines without colors, which decide how lines group. */
+  let plainEntry: string[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const flush = () => {
@@ -116,14 +136,17 @@ export const createLogLineGrouper = ({
     if (!entry.length) return;
     const message = entry.join('\n');
     entry = [];
+    plainEntry = [];
     onEntry(message, detectLogLevel(message, stream));
   };
 
   const push = (line: string) => {
     // Blank lines separate the parts of one error as often as two messages, so they never decide.
-    if (!line.trim()) return;
-    if (!isContinuationLine(line, entry) || entry.length >= MAX_ENTRY_LINES) flush();
+    const plainLine = stripAnsi(line);
+    if (!plainLine.trim()) return;
+    if (!isContinuationLine(plainLine, plainEntry) || entry.length >= MAX_ENTRY_LINES) flush();
     entry.push(line);
+    plainEntry.push(plainLine);
     clearTimeout(timer);
     timer = setTimeout(flush, quietMs);
   };

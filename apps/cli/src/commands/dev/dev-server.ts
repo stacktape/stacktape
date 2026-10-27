@@ -11,6 +11,8 @@ import { createFrameworkParser, detectFramework, stripAnsi, type FrameworkType }
 import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/manager';
 import { injectFrameworkFlags } from './named-proxy/utils';
 import { findOtherDevSessions } from './agent-daemon';
+import type { LogLevel } from './agent-logger';
+import { createLogLineGrouper } from './log-grouping';
 import {
   extractPortFromCommand,
   findAvailablePort,
@@ -52,7 +54,8 @@ export type DevServerState = {
 
 type DevServerCallbacks = {
   onStateChange?: (state: DevServerState) => void;
-  onOutput?: (line: string) => void;
+  /** One log entry: the lines of one message (a stack trace, a printed object) with the level its text shows. */
+  onOutput?: (message: string, level: LogLevel) => void;
 };
 
 const runningDevServers: Map<string, ChildProcess> = new Map();
@@ -283,8 +286,15 @@ export const startDevServer = async ({
       let exited = false;
       const recentLines: string[] = [];
 
+      // A server error printed over many lines (a stack trace, a code frame) is one entry with its level, as for a
+      // container; logged line by line at `info`, an agent filtering by level never saw a frontend's server fail.
+      const onEntry = (message: string, level: LogLevel) => callbacks?.onOutput?.(message, level);
+      const outputGroupers = {
+        stdout: createLogLineGrouper({ stream: 'stdout', onEntry }),
+        stderr: createLogLineGrouper({ stream: 'stderr', onEntry })
+      };
+
       const processLine = (line: string) => {
-        callbacks?.onOutput?.(line);
         recentLines.push(stripAnsi(line).trimEnd());
         if (recentLines.length > RECENT_OUTPUT_LINES) recentLines.shift();
 
@@ -327,15 +337,14 @@ export const startDevServer = async ({
         else currentState = newState;
       };
 
-      proc.stdout?.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        lines.forEach(processLine);
-      });
-
-      proc.stderr?.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(Boolean);
-        lines.forEach(processLine);
-      });
+      for (const stream of ['stdout', 'stderr'] as const) {
+        proc[stream]?.on('data', (data) => {
+          for (const line of data.toString().split('\n').filter(Boolean)) {
+            outputGroupers[stream].push(line);
+            processLine(line);
+          }
+        });
+      }
 
       proc.on('error', (err) => {
         exited = true;
@@ -347,6 +356,8 @@ export const startDevServer = async ({
 
       proc.on('exit', (code, signal) => {
         exited = true;
+        outputGroupers.stdout.flush();
+        outputGroupers.stderr.flush();
         const stoppedByDevMode = stoppingDevServers.has(proc);
         if (runningDevServers.get(name) === proc) runningDevServers.delete(name);
         removeNamedProxyRoute(name);

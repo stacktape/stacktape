@@ -120,7 +120,58 @@ test.each([
   ['2026/10/27 13:18:28 [alert] 1#1: worker process 30 exited on signal 9', 'stderr', 'error'],
   ['2026/10/27 13:18:28 [notice] 1#1: start worker processes', 'stderr', 'info'],
   ['TypeError: cannot read properties of undefined level="debug"', 'stdout', 'error'],
-  ['Traceback (most recent call last): level=info', 'stderr', 'error']
+  ['Traceback (most recent call last): level=info', 'stderr', 'error'],
+  ['⨯ Error: orders service is down', 'stderr', 'error'],
+  ['⚠ Invalid next.config.mjs options detected', 'stderr', 'warn'],
+  [' GET /orders 500 in 280ms (next.js: 153ms, application-code: 127ms)', 'stdout', 'error'],
+  [' GET /orders 404 in 12ms', 'stdout', 'warn'],
+  [' GET /orders 200 in 12ms', 'stdout', 'info'],
+  ['\u001b[1;31m[500] GET /\u001b[0m', 'stderr', 'error']
 ] as const)('%s on %s is %s', (line, stream, level) => {
   expect(detectLogLevel(line, stream)).toBe(level);
+});
+
+// r2cc finding 4: frontend dev servers' output reached the dev log one line per entry at `info`, so `logs {level:
+// "error"}` never showed a server error. These are a SvelteKit 2 (Vite 6) and a Next.js 16 server error as their dev
+// servers print them, with the colors dev mode asks for (FORCE_COLOR).
+const esc = '\u001b';
+test('a SvelteKit server error becomes error entries with the request it failed', async () => {
+  const stderr = [
+    '',
+    `${esc}[1;31m[500] GET /${esc}[0m`,
+    'TypeError: fetch failed',
+    'stats unavailable: Error: connect ECONNREFUSED 127.0.0.1:2',
+    `${esc}[90m    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)${esc}[39m {`,
+    `  errno: ${esc}[33m-111${esc}[39m,`,
+    `  code: ${esc}[32m'ECONNREFUSED'${esc}[39m,`,
+    `  port: ${esc}[33m2${esc}[39m`,
+    '}'
+  ];
+  const entries = await collect('stderr', stderr);
+  expect(entries.map(({ level }) => level)).toEqual(['error', 'error']);
+  expect(entries[0]!.message).toBe(stderr.slice(1, 3).join('\n'));
+  expect(entries[1]!.message).toBe(stderr.slice(3).join('\n'));
+});
+
+test('a Next.js server error keeps its stack, code frame and digest in one error entry', async () => {
+  const stderr = [
+    `${esc}[31m${esc}[1m⨯${esc}[22m${esc}[39m Error: orders service is down`,
+    '    at Page (app/page.tsx:7:19)',
+    `  ${esc}[90m 6 |${esc}[0m   });`,
+    `${esc}[31m${esc}[1m>${esc}[0m ${esc}[90m 7 |${esc}[0m   if (!res) throw new Error('orders service is down');`,
+    `  ${esc}[90m   |${esc}[0m                   ${esc}[31m${esc}[1m^${esc}[0m`,
+    `  ${esc}[90m 8 |${esc}[0m   return <main>ok</main>;`,
+    `  ${esc}[90m 9 |${esc}[0m }`,
+    `  ${esc}[90m10 |${esc}[0m {`,
+    `  digest: ${esc}[32m'2333882437'${esc}[39m`,
+    '}',
+    `${esc}[33m${esc}[1m⚠${esc}[22m${esc}[39m Slow filesystem detected.`
+  ];
+  expect(await collect('stderr', stderr)).toEqual([
+    { message: stderr.slice(0, -1).join('\n'), level: 'error' },
+    { message: stderr.at(-1)!, level: 'warn' }
+  ]);
+  // Its access log lines on standard output are separate entries, also when they arrive together.
+  const stdout = [`${esc}[32m${esc}[1m✓${esc}[22m${esc}[39m Ready in 333ms`, ` GET / ${esc}[31m500${esc}[39m in 280ms`];
+  expect((await collect('stdout', stdout)).map(({ level }) => level)).toEqual(['info', 'error']);
 });
