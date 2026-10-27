@@ -13,6 +13,7 @@ import {
   type ProbeContext,
   type ProbeOutput
 } from '../probe';
+import { sliceBalancedBraces } from '../balanced-slice';
 
 /**
  * Only exports that are actually handler-shaped.
@@ -225,6 +226,23 @@ const sqsRecordBody = (raw: string): RegExp | undefined => {
   return recordField(raw, 'body') ?? (destructured.test(raw) ? destructured : undefined);
 };
 
+/** `const { routeKey, connectionId } = event.requestContext`. */
+const requestContextDestructuring = (name: string) =>
+  new RegExp(`\\{[^}]*\\b${name}\\b[^}]*\\}\\s*=\\s*[\\w$.?]*requestContext\\b`);
+
+/** A `requestContext` field the handler reads, through a property or by destructuring. */
+const readsRequestContext = (raw: string, name: string): boolean =>
+  /requestContext/.test(raw) && (new RegExp(field(name)).test(raw) || requestContextDestructuring(name).test(raw));
+
+/** Fields only an HTTP API (payload 2.0) event has. */
+const HTTP_V2_EVENT: readonly RegExp[] = [
+  new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
+  new RegExp(field('rawPath'))
+];
+/** A WebSocket lifecycle route, or the event type a WebSocket event carries. */
+const WEBSOCKET_ROUTE = /['"`]\$(?:connect|disconnect|default)['"`]/;
+const WEBSOCKET_EVENT_TYPE = /\beventType\b[^\n]{0,12}['"`](?:CONNECT|DISCONNECT|MESSAGE)['"`]/;
+
 /**
  * The event an untyped handler is written for, read off the fields it touches. Every Python handler is untyped, and so
  * is a lot of JavaScript; without this they deploy with no trigger at all.
@@ -237,18 +255,21 @@ const sqsRecordBody = (raw: string): RegExp | undefined => {
 const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) => RegExp | undefined }> = [
   {
     family: { trigger: 'websocket' },
-    match: (raw) =>
-      /requestContext/.test(raw) && new RegExp(field('connectionId')).test(raw)
-        ? firstMatching([new RegExp(field('routeKey')), new RegExp(field('eventType'))])(raw)
-        : undefined
+    match: (raw) => {
+      // An HTTP API event has a `routeKey` too (`'POST /broadcast'`), and a handler can post to WebSocket connections
+      // without being a WebSocket route itself.
+      if (HTTP_V2_EVENT.some((pattern) => pattern.test(raw))) return undefined;
+      if (!readsRequestContext(raw, 'connectionId')) return undefined;
+      if (!WEBSOCKET_ROUTE.test(raw) && !WEBSOCKET_EVENT_TYPE.test(raw)) return undefined;
+      return firstMatching([
+        new RegExp(field('routeKey')),
+        new RegExp(field('eventType')),
+        requestContextDestructuring('routeKey'),
+        requestContextDestructuring('eventType')
+      ])(raw);
+    }
   },
-  {
-    family: { trigger: 'http', payloadFormat: '2.0' },
-    match: firstMatching([
-      new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
-      new RegExp(field('rawPath'))
-    ])
-  },
+  { family: { trigger: 'http', payloadFormat: '2.0' }, match: firstMatching(HTTP_V2_EVENT) },
   {
     family: { trigger: 'http', payloadFormat: '1.0' },
     match: firstMatching([
@@ -306,6 +327,10 @@ const websocketRouteKeys = (raw: string): string[] => {
     for (const match of raw.matchAll(new RegExp(`\\bcase\\s+${QUOTED}\\s*:`, 'g'))) keys.add(match[1]!);
   }
   for (const match of raw.matchAll(/['"`]?(\$(?:connect|disconnect|default))\b/g)) keys.add(match[1]!);
+  // `eventType === 'CONNECT'` routes by the event type instead: messages arrive on `$default`.
+  for (const match of raw.matchAll(/\beventType\b[^\n]{0,12}['"`](CONNECT|DISCONNECT|MESSAGE)['"`]/g)) {
+    keys.add(({ CONNECT: '$connect', DISCONNECT: '$disconnect', MESSAGE: '$default' } as const)[match[1] as 'CONNECT']);
+  }
   const fallback =
     (comparisons.length > 0 && (/\belse\b(?!\s*if\b)/.test(raw) || /^\s*else\s*:/m.test(raw))) ||
     (switched && /\bdefault\s*:|\bcase\s+_\s*:/.test(raw));
@@ -348,49 +373,62 @@ const PUBLISHES_EVENTS = /\bPutEventsCommand\b|\.putEvents\s*\(|\bput_events\s*\
 const ENVIRONMENT_READ =
   /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\])|os\.(?:environ\[\s*|environ\.get\(\s*|getenv\(\s*)['"]([A-Z][A-Z0-9_]*)['"]/;
 
-/** Code that publishes events, with the detail types and sources it publishes and the variables naming its bus. */
-type Publisher = {
-  path: string;
-  detailTypes: string[];
-  sources: string[];
-  busVariables: string[];
-  evidence: Citation | undefined;
+/** One `PutEvents` entry: its detail type, its `Source` when the code writes it as a literal, and the variable naming its bus. */
+type PublishedEntry = { detailType: string; source: string | undefined; busVariable: string };
+
+/** Code that publishes events, entry by entry. */
+type Publisher = { path: string; entries: PublishedEntry[]; evidence: Citation | undefined };
+
+/** The innermost object literal around `index`: the `PutEvents` entry a `DetailType` belongs to. */
+const enclosingObject = (raw: string, index: number): string | undefined => {
+  for (let open = raw.lastIndexOf('{', index); open !== -1; open = raw.lastIndexOf('{', open - 1)) {
+    const slice = sliceBalancedBraces(raw, open);
+    if (slice !== undefined && slice.end > index) return slice.body;
+    if (index - open > 2000) return undefined;
+  }
+  return undefined;
 };
 
+/** The variable a value reads: `process.env.X`, `os.environ['X']`, or a name assigned from one earlier in the file. */
+const environmentVariableIn = (value: string, raw: string): string | undefined => {
+  const direct = ENVIRONMENT_READ.exec(value);
+  // `EventBusName: busName`, with `const busName = process.env.EVENT_BUS_NAME` earlier in the file.
+  const assigned = /^[\w$]+$/.test(value)
+    ? ENVIRONMENT_READ.exec(new RegExp(`\\b${value.replace(/\$/g, '\\$')}\\s*=\\s*([^;\\n]+)`).exec(raw)?.[1] ?? '')
+    : null;
+  const read = direct ?? assigned;
+  return read?.[1] ?? read?.[2] ?? read?.[3];
+};
+
+const DETAIL_TYPE = new RegExp(`['"]?\\bDetailType['"]?\\s*[:=]\\s*${QUOTED}`, 'g');
+const FIELD_VALUE = (name: string) => new RegExp(`['"]?\\b${name}['"]?\\s*[:=]\\s*([^,}\\n]+)`);
+
 /**
- * What a file publishes with `PutEvents`. Only a bus the code reads from its environment counts: a literal bus name is
- * not the bus Stacktape creates, and an entry without one goes to the account's default bus.
+ * The entries a file publishes with `PutEvents`. Only a bus the entry reads from the environment counts: a literal bus
+ * name is not the bus Stacktape creates, and an entry without one goes to the account's default bus. A `Source` read
+ * from a variable is unknown, not the literal of some other call in the file.
  */
 const publisherIn = (path: string, raw: string): Publisher | undefined => {
   if (!PUBLISHES_EVENTS.test(raw)) return undefined;
-  const detailTypes = [...raw.matchAll(new RegExp(`['"]?DetailType['"]?\\s*[:=]\\s*${QUOTED}`, 'g'))].map(
-    (match) => match[1]!
-  );
-  if (detailTypes.length === 0) return undefined;
-  const sources = [...raw.matchAll(new RegExp(`['"]?\\bSource['"]?\\s*[:=]\\s*${QUOTED}`, 'g'))].map(
-    (match) => match[1]!
-  );
-  const busVariables = new Set<string>();
-  for (const match of raw.matchAll(/['"]?EventBusName['"]?\s*[:=]\s*([^,}\n]+)/g)) {
-    const value = match[1]!.trim();
-    const direct = ENVIRONMENT_READ.exec(value);
-    // `EventBusName: busName`, with `const busName = process.env.EVENT_BUS_NAME` earlier in the file.
-    const assigned = /^[\w$]+$/.test(value)
-      ? ENVIRONMENT_READ.exec(new RegExp(`\\b${value.replace(/\$/g, '\\$')}\\s*=\\s*([^;\\n]+)`).exec(raw)?.[1] ?? '')
-      : null;
-    const read = direct ?? assigned;
-    const name = read?.[1] ?? read?.[2] ?? read?.[3];
-    if (name !== undefined) busVariables.add(name);
+  const entries: PublishedEntry[] = [];
+  for (const match of raw.matchAll(DETAIL_TYPE)) {
+    const entry = enclosingObject(raw, match.index ?? 0);
+    if (entry === undefined) continue;
+    const bus = FIELD_VALUE('EventBusName').exec(entry)?.[1]?.trim();
+    const busVariable = bus === undefined ? undefined : environmentVariableIn(bus, raw);
+    if (busVariable === undefined) continue;
+    const source = FIELD_VALUE('Source').exec(entry)?.[1]?.trim();
+    const literal = source === undefined ? undefined : new RegExp(`^${QUOTED}$`).exec(source)?.[1];
+    entries.push({ detailType: match[1]!, source: literal, busVariable });
   }
-  if (busVariables.size === 0) return undefined;
-  return {
-    path,
-    detailTypes: [...new Set(detailTypes)],
-    sources: [...new Set(sources)],
-    busVariables: [...busVariables],
-    evidence: citeFirstMatchOnly(path, raw, PUBLISHES_EVENTS, 'dependencies')
-  };
+  return entries.length === 0
+    ? undefined
+    : { path, entries, evidence: citeFirstMatchOnly(path, raw, PUBLISHES_EVENTS, 'functionTriggers') };
 };
+
+/** The detail types code publishes, for the loop check on a handler that also publishes. */
+export const publishedDetailTypes = (raw: string): string[] =>
+  PUBLISHES_EVENTS.test(raw) ? [...raw.matchAll(DETAIL_TYPE)].map((match) => match[1]!) : [];
 
 const inferEventFamily = (raw: string): { family: EventFamily; pattern: RegExp } | undefined => {
   for (const { family, match } of EVENT_SHAPES) {
@@ -588,7 +626,7 @@ export const lambdaSourceProbe: Probe = {
           kind,
           extensions: [],
           consumedBy: [],
-          addressedBy: [...addressedBy],
+          addressedBy: [...new Set(addressedBy)],
           evidence,
           source: 'probe'
         });
@@ -647,22 +685,26 @@ export const lambdaSourceProbe: Probe = {
         const detailTypes = handledDetailTypes(raw);
         const senders = [...publishers.values()].filter(
           (publisher) =>
-            publisher.path !== path && publisher.detailTypes.some((detailType) => detailTypes.includes(detailType))
+            publisher.path !== path && publisher.entries.some((entry) => detailTypes.includes(entry.detailType))
         );
-        if (senders.length === 0) {
+        const entries = senders.flatMap((sender) =>
+          sender.entries.filter((entry) => detailTypes.includes(entry.detailType))
+        );
+        if (entries.length === 0) {
           triggers.push({ type: 'unmapped', sourceType: EVENTBRIDGE_RULE_SOURCE });
         } else {
-          const sources = [...new Set(senders.flatMap((sender) => sender.sources))];
+          // Every matching entry has to say its source; otherwise the pattern matches the detail type alone.
+          const sources = entries.every((entry) => entry.source !== undefined)
+            ? [...new Set(entries.map((entry) => entry.source!))]
+            : [];
           triggers.push({
             type: 'event-bus',
             dependencyName: ensureDependency(
               'event-bus',
               senders.flatMap((sender) => (sender.evidence === undefined ? [] : [sender.evidence])).slice(0, 3),
-              senders.flatMap((sender) => sender.busVariables)
+              entries.map((entry) => entry.busVariable)
             ),
-            detailTypes: detailTypes.filter((detailType) =>
-              senders.some((sender) => sender.detailTypes.includes(detailType))
-            ),
+            detailTypes: detailTypes.filter((detailType) => entries.some((entry) => entry.detailType === detailType)),
             ...(sources.length === 0 ? {} : { sources })
           });
         }

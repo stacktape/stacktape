@@ -398,12 +398,37 @@ describe('the lambda-source probe', () => {
         '};',
         ''
       ].join('\n'),
-      // Untyped: `connectionId` is only on a WebSocket event. A handler that names no route takes every message.
+      // Untyped: `connectionId` and a lifecycle route are only on a WebSocket event.
       'functions/relay.py': [
         'def handler(event, context):',
+        "    route_key = event['requestContext']['routeKey']",
         "    connection = event['requestContext']['connectionId']",
-        "    print(event['requestContext']['routeKey'], connection)",
+        "    if route_key == '$connect':",
+        '        save(connection)',
         "    return {'statusCode': 200}",
+        ''
+      ].join('\n'),
+      'functions/presence.js': [
+        'exports.handler = async (event) => {',
+        '  const { eventType, connectionId } = event.requestContext;',
+        "  if (eventType === 'CONNECT') await join(connectionId);",
+        "  if (eventType === 'DISCONNECT') await leave(connectionId);",
+        '};',
+        ''
+      ].join('\n'),
+      // An HTTP API route that posts to WebSocket connections: `routeKey` is `POST /broadcast`, not a WebSocket route.
+      'functions/broadcast.js': [
+        'exports.handler = async (event) => {',
+        "  if (event.requestContext.http.method !== 'POST' || event.routeKey !== 'POST /broadcast') return { statusCode: 404 };",
+        '  for (const c of await connections()) await post(c.connectionId, event.body);',
+        '  return { statusCode: 200 };',
+        '};',
+        ''
+      ].join('\n'),
+      // No lifecycle route and no event type: nothing says this is a WebSocket route.
+      'functions/audit.py': [
+        'def handler(event, context):',
+        "    log(event['requestContext']['routeKey'], event['requestContext']['connectionId'])",
         ''
       ].join('\n')
     });
@@ -419,7 +444,12 @@ describe('the lambda-source probe', () => {
         { type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect', '$disconnect', '$default'] }
       ],
       'src/chat.ts': [{ type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['sendMessage', 'join'] }],
-      'functions/relay.py': [{ type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$default'] }]
+      'functions/relay.py': [{ type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect'] }],
+      'functions/presence.js': [
+        { type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect', '$disconnect'] }
+      ],
+      'functions/broadcast.js': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+      'functions/audit.py': []
     });
     expect(output.dependencies?.map((dependency) => [dependency.name, dependency.kind])).toEqual([
       ['websocketApi', 'websocket-api']
@@ -466,11 +496,27 @@ describe('the lambda-source probe', () => {
       ].join('\n'),
       'src/orders.ts': [
         "import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';",
+        "import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';",
+        // Another call's `Source` is not the events' source.
+        "export const confirm = (to: string) => new SESClient({}).send(new SendEmailCommand({ Source: 'noreply@shop.test', Destination: { ToAddresses: [to] } } as never));",
         'const busName = process.env.ORDER_EVENTS;',
         'export const announce = (id: string) =>',
         '  new EventBridgeClient({}).send(',
         "    new PutEventsCommand({ Entries: [{ EventBusName: busName, Source: 'shop.orders', DetailType: 'OrderCreated', Detail: id }] })",
         '  );',
+        ''
+      ].join('\n'),
+      // A source the code computes is unknown, so the rule matches the detail type alone.
+      'functions/refund.ts': [
+        "import type { EventBridgeEvent } from 'aws-lambda';",
+        "export default async (event: EventBridgeEvent<'OrderRefunded', { id: string }>) => event.detail.id;",
+        ''
+      ].join('\n'),
+      'src/refunds.ts': [
+        "import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';",
+        'const SOURCE = `shop.${process.env.STAGE}`;',
+        'export const refund = (id: string) =>',
+        "  new EventBridgeClient({}).send(new PutEventsCommand({ Entries: [{ EventBusName: process.env.ORDER_EVENTS, Source: SOURCE, DetailType: 'OrderRefunded', Detail: id }] }));",
         ''
       ].join('\n'),
       // Python on both sides, through `event['detail-type']`.
@@ -504,6 +550,7 @@ describe('the lambda-source probe', () => {
         { type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderCreated'], sources: ['shop.orders'] }
       ],
       'functions/invoice.ts': [{ type: 'unmapped', sourceType: 'an EventBridge rule' }],
+      'functions/refund.ts': [{ type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderRefunded'] }],
       'functions/ship.py': [
         { type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderPaid'], sources: ['shop.billing'] }
       ]

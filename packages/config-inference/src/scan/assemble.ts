@@ -559,6 +559,14 @@ const attributeDependencies = (
       // Once at least one real service is known, retain only real services for that concrete resource.
       return { ...dependency, consumedBy: [...new Set(known)] };
     }
+    // A resource only a handler's trigger proves (the table whose stream invokes it, the bus code publishes to) is used
+    // by whoever reads its address; the env scan finds them. Sharing a directory with the handler says nothing.
+    if (
+      dependency.evidence.length > 0 &&
+      dependency.evidence.every((citation) => citation.field === 'functionTriggers')
+    ) {
+      return dependency;
+    }
     if (services.length === 1) return { ...dependency, consumedBy: [services[0]!.name] };
     if (oneCodebase)
       return {

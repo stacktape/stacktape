@@ -403,6 +403,52 @@ describe('init writes a config stacktape dev can run', () => {
     expect(result.composition.unsetSettings.map(({ variableName }) => variableName)).toEqual(['STARTUP_DELAY_SECONDS']);
   });
 
+  // Each function in the directory is guarded against its own trigger only: the API and the EventBridge handler read the
+  // table whose stream invokes order_stream, and only order_stream publishes to the bus.
+  it('r2w ported to Python: sibling handlers keep their own variables', async () => {
+    const result = await initFixture('r2w-python');
+    const resources = resourcesOf(result);
+
+    expect(typesOf(resources)).toEqual({
+      mainTable: 'dynamo-db-table',
+      eventBus: 'event-bus',
+      httpApiGateway: 'http-api-gateway',
+      api: 'function',
+      orderStream: 'function',
+      orderNotify: 'function'
+    });
+    expect(resources.mainTable!.properties).toEqual({
+      primaryKey: { partitionKey: { name: 'id', type: 'string' } },
+      streamType: 'NEW_IMAGE'
+    });
+    const table = [{ name: 'ORDERS_TABLE', value: "$ResourceParam('mainTable', 'name')" }];
+    expect(resources.api!.properties).toMatchObject({
+      events: [{ type: 'http-api-gateway', properties: { method: '*', path: '/{proxy+}', payloadFormat: '2.0' } }],
+      environment: table,
+      connectTo: ['mainTable']
+    });
+    expect(resources.orderNotify!.properties).toMatchObject({
+      events: [
+        {
+          type: 'event-bus',
+          properties: {
+            eventBusName: 'eventBus',
+            eventPattern: { source: ['shop.orders'], 'detail-type': ['OrderCreated'] }
+          }
+        }
+      ],
+      environment: table,
+      connectTo: ['mainTable']
+    });
+    expect(resources.orderStream!.properties).toMatchObject({
+      events: [{ type: 'dynamo-db-stream', properties: { streamArn: "$ResourceParam('mainTable', 'streamArn')" } }],
+      environment: [{ name: 'EVENT_BUS_NAME', value: "$ResourceParam('eventBus', 'arn')" }],
+      connectTo: ['eventBus']
+    });
+    expect(result.composition.gaps).toEqual([]);
+    expect(result.composition.unsetSettings).toEqual([]);
+  });
+
   // A function's output bound to its own trigger re-invokes it with every write, forever.
   it('trigger loops: a variable naming the kind that invokes the function is left unset and reported', async () => {
     const result = await initFixture('trigger-loops');

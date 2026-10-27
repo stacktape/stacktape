@@ -1141,6 +1141,66 @@ test('an order placed in the browser is created, announced and pushed back over 
 `
 };
 
+/**
+ * The r2w app's functions ported to Python, in one directory: siblings share its modules, but the stream handler's table
+ * is not a trigger loop for the API that reads the same table (#355 review).
+ */
+const r2wPython: Record<string, string> = {
+  'requirements.txt': 'boto3==1.35.0\n',
+  'functions/api.py': `import json
+import os
+import uuid
+
+import boto3
+
+table = boto3.resource('dynamodb').Table(os.environ['ORDERS_TABLE'])
+
+
+def handler(event, context):
+    if event['requestContext']['http']['method'] == 'POST':
+        order = {'id': str(uuid.uuid4()), 'status': 'created', **json.loads(event['body'])}
+        table.put_item(Item=order)
+        return {'statusCode': 201, 'body': json.dumps(order)}
+    return {'statusCode': 200, 'body': json.dumps(table.scan()['Items'])}
+`,
+  'functions/order_stream.py': `import json
+import os
+
+import boto3
+
+events = boto3.client('events')
+
+
+def handler(event, context):
+    for record in event['Records']:
+        if record['eventName'] != 'INSERT':
+            continue
+        image = record['dynamodb']['NewImage']
+        events.put_events(Entries=[{
+            'EventBusName': os.environ['EVENT_BUS_NAME'],
+            'Source': 'shop.orders',
+            'DetailType': 'OrderCreated',
+            'Detail': json.dumps({'orderId': image['id']['S']}),
+        }])
+`,
+  'functions/order_notify.py': `import os
+
+import boto3
+
+table = boto3.resource('dynamodb').Table(os.environ['ORDERS_TABLE'])
+
+
+def handler(event, context):
+    if event['detail-type'] == 'OrderCreated':
+        table.update_item(
+            Key={'id': event['detail']['orderId']},
+            UpdateExpression='SET #s = :n',
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':n': 'notified'},
+        )
+`
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
@@ -1150,5 +1210,6 @@ export const DEV_RUNNABLE_FIXTURES = {
   'r2p-files': r2pFiles,
   'untyped-handlers': untypedHandlers,
   'trigger-loops': triggerLoops,
-  'r2w-shop': r2wShop
+  'r2w-shop': r2wShop,
+  'r2w-python': r2wPython
 } as const;

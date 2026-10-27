@@ -24,6 +24,7 @@
 import { resourceKindNamedBy, type DependencyFact, type DependencyKind } from '../facts/dependency';
 import {
   invokingDependencyName,
+  type FunctionTrigger,
   type EnvironmentVariableRole,
   type EnvironmentVariableUse,
   type ServiceFactInput
@@ -33,6 +34,7 @@ import { posix } from 'node:path';
 import type { SourceRead } from './read-source';
 import { agreedItemKey, emptyItemKeyObservations, observeItemKeys } from './dynamodb-keys';
 import { AMBIGUOUS_DATABASE_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
+import { publishedDetailTypes } from './probes/lambda-source';
 import { isPlatformEnvironmentVariable } from './platform-environment';
 
 /** Whole-repo and per-service ceilings, so one pathological repository cannot stall the scan. */
@@ -282,6 +284,24 @@ const goHelperPatterns = (contents: readonly string[]): ReadPattern[] =>
       })
   );
 
+/** Calls that write DynamoDB items, in the JavaScript SDKs, boto3 and Go. */
+const DYNAMODB_WRITE =
+  /\b(?:Put|Update|Delete|BatchWrite|TransactWrite)(?:Item)?Command\b|\.(?:put|update|delete)(?:Item)?\(\s*\{|\b(?:put_item|update_item|delete_item|batch_write_item|transact_write_items|batch_writer)\s*\(|\.(?:PutItem|UpdateItem|DeleteItem|BatchWriteItem|TransactWriteItems)\(/;
+
+/**
+ * Whether the service's own writes could invoke it again through this trigger. A stream handler that only reads its
+ * table, or publishes another detail type to its bus, can be given that table or bus; one that writes the table or
+ * publishes an event it handles cannot. Queues, topics and buckets are what a handler writes to when it names them.
+ */
+const feedsBackInto = (trigger: FunctionTrigger, source: string): boolean => {
+  if (invokingDependencyName(trigger) === undefined) return false;
+  if (trigger.type === 'dynamodb-stream') return DYNAMODB_WRITE.test(source);
+  if (trigger.type === 'event-bus') {
+    return publishedDetailTypes(source).some((detailType) => trigger.detailTypes.includes(detailType));
+  }
+  return true;
+};
+
 const collectFromFile = (
   path: string,
   contents: string,
@@ -441,10 +461,25 @@ export const enrichEnvironmentUsage = async ({
   const units: Array<{ services: ServiceFactInput[]; files: string[] }> = [];
   for (const [path, pathServices] of byPath) {
     const directoryServices: ServiceFactInput[] = [];
+    const ownedFiles = filesByPath.get(path);
+    const entries = new Set(pathServices.flatMap((service) => service.functionEntrypoint ?? []));
     for (const service of pathServices) {
       const entry = service.functionEntrypoint;
-      if (entry === undefined || !JS_SOURCE.test(entry)) {
+      if (entry === undefined) {
         directoryServices.push(service);
+        continue;
+      }
+      if (!JS_SOURCE.test(entry)) {
+        // Python handlers in one directory share its modules but not each other's entry files: `api.py` reading the
+        // table does not make `order_stream.py`, invoked by that table, a reader of it.
+        if (entries.size > 1 && ownedFiles !== undefined) {
+          units.push({
+            services: [service],
+            files: ownedFiles.filter((file) => file === entry || !entries.has(file))
+          });
+        } else {
+          directoryServices.push(service);
+        }
         continue;
       }
       // oxlint-disable-next-line no-await-in-loop -- bounded per service, and the order keeps results reproducible.
@@ -452,7 +487,6 @@ export const enrichEnvironmentUsage = async ({
       if (closure === undefined) directoryServices.push(service);
       else units.push({ services: [service], files: closure });
     }
-    const ownedFiles = filesByPath.get(path);
     if (directoryServices.length > 0 && ownedFiles !== undefined) {
       units.push({ services: directoryServices, files: ownedFiles });
     }
@@ -488,30 +522,29 @@ export const enrichEnvironmentUsage = async ({
     }
     if (occurrences.size === 0) continue;
 
-    const triggers = new Set(
-      unit.services.flatMap((service) =>
-        (service.functionTriggers ?? []).flatMap((trigger) => {
-          const invoking = invokingDependencyName(trigger);
-          return invoking === undefined ? [] : [invoking];
-        })
-      )
-    );
-    const classified: EnvironmentVariableUse[] = [];
-    for (const [name, occurrence] of occurrences) {
-      const { role, dependencyName } = classify(name, occurrence, dependencies, triggers);
-      classified.push({
-        name,
-        role,
-        ...(dependencyName === undefined ? {} : { dependencyName }),
-        required: !occurrence.alwaysHasFallback,
-        evidence: occurrence.citations
-      });
-    }
-    const uses = classified
-      .toSorted((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name))
-      .slice(0, MAX_VARIABLES_PER_SERVICE);
-
+    const unitSource = sources.map(({ contents }) => contents).join('\n');
     for (const service of unit.services) {
+      // Only this service's own triggers: a sibling's is not this service's loop.
+      const triggers = new Set(
+        (service.functionTriggers ?? []).flatMap((trigger) =>
+          feedsBackInto(trigger, unitSource) ? [invokingDependencyName(trigger)!] : []
+        )
+      );
+      const classified: EnvironmentVariableUse[] = [];
+      for (const [name, occurrence] of occurrences) {
+        const { role, dependencyName } = classify(name, occurrence, dependencies, triggers);
+        classified.push({
+          name,
+          role,
+          ...(dependencyName === undefined ? {} : { dependencyName }),
+          required: !occurrence.alwaysHasFallback,
+          evidence: occurrence.citations
+        });
+      }
+      const uses = classified
+        .toSorted((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name))
+        .slice(0, MAX_VARIABLES_PER_SERVICE);
+
       const existing = new Set((service.environmentVariables ?? []).map((variable) => variable.name));
       service.environmentVariables = [
         ...(service.environmentVariables ?? []),

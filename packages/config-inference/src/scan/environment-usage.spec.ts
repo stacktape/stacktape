@@ -339,4 +339,55 @@ describe('environment-usage enrichment', () => {
       ['SIGNING_SECRET', 'third-party-secret', true]
     ]);
   });
+
+  it('withholds a table or bus from its own handler only when the handler writes it back', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'shop',
+        dependencies: { '@aws-sdk/client-dynamodb': '^3.0.0', '@aws-sdk/client-eventbridge': '^3.0.0' }
+      }),
+      'src/place.ts': [
+        "import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';",
+        'export const place = (id: string) => new EventBridgeClient({}).send(new PutEventsCommand({',
+        "  Entries: [{ EventBusName: process.env.EVENT_BUS_NAME, Source: 'shop', DetailType: 'OrderPlaced', Detail: id }]",
+        '}));',
+        ''
+      ].join('\n'),
+      // Reads the table whose stream invokes it: nothing loops.
+      'audit/audit.ts': typedHandler(
+        'DynamoDBStreamEvent',
+        "import { GetCommand } from '@aws-sdk/lib-dynamodb';\nconst read = new GetCommand({ TableName: process.env.ORDERS_TABLE, Key: { id: 'x' } });"
+      ),
+      // Writes it: every write would invoke it again.
+      'rollup/rollup.ts': typedHandler(
+        'DynamoDBStreamEvent',
+        "import { PutCommand } from '@aws-sdk/lib-dynamodb';\nconst write = new PutCommand({ TableName: process.env.ORDERS_TABLE, Item: { id: 'x' } });"
+      ),
+      // Handles OrderPlaced and publishes OrderShipped to the same bus.
+      'ship/ship.ts': [
+        "import type { EventBridgeEvent } from 'aws-lambda';",
+        "import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';",
+        "export default async (event: EventBridgeEvent<'OrderPlaced', string>) => new EventBridgeClient({}).send(new PutEventsCommand({",
+        "  Entries: [{ EventBusName: process.env.EVENT_BUS_NAME, Source: 'shop', DetailType: 'OrderShipped', Detail: event.detail }]",
+        '}));',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe, lambdaSourceProbe] });
+    const wired = Object.fromEntries(
+      facts.services.map((service) => [
+        service.name,
+        service.environmentVariables.flatMap((variable) =>
+          variable.role === 'infra-dependency' ? [`${variable.name}=${variable.dependencyName}`] : []
+        )
+      ])
+    );
+
+    expect(wired).toMatchObject({
+      audit: ['ORDERS_TABLE=mainTable'],
+      rollup: [],
+      ship: ['EVENT_BUS_NAME=eventBus']
+    });
+  });
 });

@@ -107,8 +107,9 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
-    // `validate` without `--withPackage` builds nothing, the same as the other SSR frameworks' cache behaviours.
-    if (!(await pathExists(assetsDirPath))) {
+    // `validate` without `--withPackage` builds nothing, so there is nothing to read. Every other command has built the
+    // app by now, and a missing directory is a failed build it must not deploy past.
+    if (calculatedStackOverviewManager.context.command === 'validate' && !(await pathExists(assetsDirPath))) {
       return;
     }
     const newCacheBehaviours = (await getStaticAssetCachePathPatterns(assetsDirPath)).map((PathPattern) => ({
