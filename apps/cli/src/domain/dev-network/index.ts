@@ -267,21 +267,24 @@ const waitForBoxOfCreatedNetwork = async ({
   aws,
   stackName,
   isSettled,
-  isCreatedHere,
+  isCreationStarted,
   pollIntervalMs
 }: {
   aws: DevNetworkAws;
   stackName: string;
   isSettled: () => boolean;
-  /** Whether this session's creation call returned; a stack another session creates is not used early. */
-  isCreatedHere: () => boolean;
+  /**
+   * Whether the creation call returned, here or in another session. Before it returns, a stack under this name may be
+   * one another session created after a deletion.
+   */
+  isCreationStarted: () => boolean;
   pollIntervalMs: number;
 }): Promise<DevNetwork | undefined> => {
   while (!isSettled()) {
     const stack = await aws.stacks.get(stackName);
     // Before the creation call returns the stack may not exist yet; any other state is a finished creation.
     if (stack && stack.StackStatus !== 'CREATE_IN_PROGRESS') return undefined;
-    if (stack && isCreatedHere()) {
+    if (stack && isCreationStarted()) {
       const resources = new Map(
         (await aws.stacks.listResources(stackName)).map((resource) => [resource.LogicalResourceId, resource])
       );
@@ -323,11 +326,12 @@ const attachMissingBoxProfile = async (aws: DevNetworkAws, network: DevNetwork) 
  * Returns the account and region's dev network, creating it on first use or updating one created by an older Stacktape
  * version. `onCreate` runs once, before a creation starts.
  *
- * A network this call creates is returned as soon as its box exists, about 1 minute after the creation starts, so the
- * dev stack deploys while CloudFormation finishes the network: the keeper function and the box's instance profile take
- * about 3 more minutes. `ready` resolves once the network is complete and the box has its instance profile, and rejects
- * as soon as the creation fails. A session must wait for it before it reports itself ready. A creation another session
- * started is waited for in full, so that this session checks the box for a session of its stage before it deploys.
+ * A network that is being created is returned as soon as its box exists, about 1 minute after the creation starts, so
+ * the dev stack deploys while CloudFormation finishes the network: the keeper function and the box's instance profile
+ * take about 3 more minutes. That holds for a creation another session started too (`join`), which CloudFormation
+ * finishes whether that session still runs or not. `ready` resolves once the network is complete and the box has its
+ * instance profile, and rejects as soon as the creation fails. A session must wait for it before it reports itself
+ * ready.
  */
 export const ensureDevNetwork = async ({
   aws,
@@ -343,7 +347,7 @@ export const ensureDevNetwork = async ({
   /** Called when another session creates the network, before this waits for that creation. */
   onJoinCreation?: () => void;
   pollIntervalMs?: number;
-}): Promise<{ network: DevNetwork; action: 'create' | 'upgrade' | 'reuse'; ready: Promise<void> }> => {
+}): Promise<{ network: DevNetwork; action: 'create' | 'join' | 'upgrade' | 'reuse'; ready: Promise<void> }> => {
   const stackName = getDevNetworkName();
   let existing = await aws.stacks.get(stackName);
   if (existing?.StackStatus === 'DELETE_IN_PROGRESS' || existing?.StackStatus === 'DELETE_FAILED') {
@@ -359,8 +363,8 @@ export const ensureDevNetwork = async ({
   }
   const failedBefore = toFailedDevNetwork(stackName, existing);
   if (failedBefore) throw failedDevNetworkError(failedBefore);
-  // Only the session that created the network uses it before it is complete. A session that finds another one's
-  // creation running waits for the whole network, then checks for a session of its stage like on any running box.
+  // A session that finds another one's creation running uses the network as early as the creating session.
+  const joinsCreation = existing?.StackStatus === 'CREATE_IN_PROGRESS';
   let createdHere = false;
   const adapter: SharedResourceStackAdapter = {
     ...aws.stacks,
@@ -433,21 +437,22 @@ export const ensureDevNetwork = async ({
         ...FAILED_DEV_NETWORK_RECOVERY
       ]
     });
-  if (existing?.StackStatus === 'CREATE_IN_PROGRESS') onJoinCreation?.();
-  const early = !existing
-    ? await Promise.race([
-        waitForBoxOfCreatedNetwork({
-          aws,
-          stackName,
-          isSettled,
-          isCreatedHere: () => createdHere,
-          pollIntervalMs: pollMs
-        }),
-        creationFailed
-      ]).catch((error: Error) => {
-        throw creationFailedError(error, false);
-      })
-    : undefined;
+  if (joinsCreation) onJoinCreation?.();
+  const early =
+    !existing || joinsCreation
+      ? await Promise.race([
+          waitForBoxOfCreatedNetwork({
+            aws,
+            stackName,
+            isSettled,
+            isCreationStarted: () => createdHere || joinsCreation,
+            pollIntervalMs: pollMs
+          }),
+          creationFailed
+        ]).catch((error: Error) => {
+          throw creationFailedError(error, false);
+        })
+      : undefined;
   if (early) {
     const ready = Promise.race([ensured.then(({ profileAttached }) => profileAttached), creationFailed]).catch(
       (error: Error) => {
@@ -456,7 +461,7 @@ export const ensureDevNetwork = async ({
     );
     // Awaited later; until then a failed creation must not crash the process.
     ready.catch(() => {});
-    return { network: early, action: 'create', ready };
+    return { network: early, action: joinsCreation ? 'join' : 'create', ready };
   }
   const { action, network, profileAttached } = await Promise.race([ensured, creationFailed]).catch(
     async (error: unknown) => {

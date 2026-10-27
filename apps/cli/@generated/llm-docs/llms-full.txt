@@ -16479,7 +16479,7 @@ The `version` property sets the PostgreSQL engine version (`'16.6'` here, but an
 With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
-2. Builds and updates the Lambda function code on AWS. The function runs in AWS and cannot reach the local database, and dev mode warns about it. To give the function a database, run with `--remote-resources myDatabase`: the dev stack then includes the deployed database, and the function connects to it
+2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
 3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
 
 Now edit `./src/handler.ts`, save, and either:
@@ -18702,6 +18702,8 @@ A second `stacktape dev` for a stage that another session holds is refused befor
 
 The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParametersByPath`, `ssm:PutParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases are kept.
 
+When dev mode generates a missing database password for a `$Secret`, it tags the secret with the dev stack's name, so `stacktape delete` of that stage schedules it for deletion again, with a 7-day recovery window. Creating it needs `secretsmanager:CreateSecret` and `secretsmanager:TagResource`. A later deployment or dev session of another stage that uses the secret removes the tag (`secretsmanager:UntagResource`), and the secret then outlives the dev stage; without that right, the command warns and goes on. A deployment or dev session that uses a secret scheduled this way restores it (`secretsmanager:RestoreSecret`). The deletion needs `secretsmanager:ListSecrets` and `secretsmanager:DeleteSecret`.
+
 Container workloads that run on your machine use the AWS permissions of their role in the dev stack: dev mode assumes the role with your credentials, so they need `sts:AssumeRole` on it. When your IAM permissions don't allow that, the container's start fails with `AWS_ASSUME_ROLE_NOT_PERMITTED` and the policy statement to add, instead of waiting for AWS. The container roles of the dev stack trust your AWS account only for your own IAM user, or the IAM role of your session (an `aws:PrincipalArn` condition), and no other principal. Credentials of a federated user cannot be named this way; for them, dev mode adds the trust after the deploy, and a container's first start on a new stage can then wait several minutes until AWS accepts it.
 
 The first session in an account and region creates the dev network with CloudFormation, using the credentials of whoever runs it. That identity also needs `ssm:GetParameter` on the public Amazon Linux parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64`, `cloudformation:ListStackResources` on the dev network stack, and the rights to create the network's VPC, subnets, route tables, internet gateway, security groups, launch template, EC2 instance, IAM role and instance profile (with `iam:PassRole`), and the keeper Lambda function. The box starts before CloudFormation has finished its instance profile, which takes about 2 minutes, and the session attaches the profile once it exists. That needs `ec2:AssociateIamInstanceProfile` on the box and `iam:PassRole` on its role (`stacktape-dev-network-…-BoxRole-…`). When the first session is interrupted before it attaches the profile, the next session in the account and region attaches it, so every developer whose session may come next needs these two rights too. `stacktape dev network` and `stacktape dev network delete` also need `lambda:ListFunctions`, and the deletion needs the rights to delete those resources. While the box runs, the deletion asks it for live sessions over Systems Manager, with the same `ssm:DescribeInstanceInformation`, `ssm:StartSession` and `ssm:TerminateSession` rights as a session.
@@ -18873,11 +18875,12 @@ When you run `stacktape dev`, the following steps execute in order:
 
 1. **Load credentials and configuration** — Stacktape reads your AWS credentials and config file.
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
-3. **Load AWS metadata** — Stacktape fetches stack information from AWS.
-4. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config.
-5. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A first start that creates the network and the dev stack takes about 5 minutes.
-6. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
-7. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
+3. **Check references** — Before any AWS work, Stacktape checks every `$ResourceParam` that ends up in the dev stack, so a misspelled parameter or a [reference to a local database](#resources-the-dev-stack-needs-deployed) fails within seconds.
+4. **Load AWS metadata** — Stacktape fetches stack information from AWS.
+5. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config. A database password that dev mode generates is scheduled for deletion with the stage by `stacktape delete`, unless another stage has used it; a deployment or dev session that needs it within 7 days restores it.
+6. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A session that finds another session creating the network continues as soon as the dev box exists, too. A first start that creates the network and the dev stack takes about 5 minutes.
+7. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
+8. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
 
 
 > **Info:** After the first run, dev mode skips the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
@@ -18916,6 +18919,8 @@ Run all resources except specific ones. Use `--skip-resources` alone to run ever
 ```bash
 stacktape dev --stage dev --region us-east-1 --skip-resources myDatabase
 ```
+
+A skipped Lambda function stays in the dev stack without its triggers, so it does not run on queue messages, schedules, stream records or HTTP requests during the session.
 
 
 > **Tip:** If you misspell a resource name, Stacktape suggests the closest matches using fuzzy matching. The error message also lists all available resource names in your config.
@@ -18971,7 +18976,14 @@ When you need to test against a real AWS database — for example, to use produc
 stacktape dev --stage dev --region us-east-1 --remote-resources myDatabase
 ```
 
-Use `--remote-resources` for emulatable databases when you want dev mode to use the deployed database instead of the local Docker emulator.
+Use `--remote-resources` for emulatable databases when you want dev mode to use the deployed database instead of the local Docker emulator. To make the choice permanent, set `dev.remote: true` on the resource in your config. Functions and local containers that list a remote resource in `connectTo` get the same permissions as in a full deployment.
+
+### Resources the dev stack needs deployed
+
+The dev stack in AWS cannot use a database that runs on your machine, except through the dev box: deployed functions get a local database's address and credentials in their environment variables and through `connectTo`. Two cases need the deployed resource:
+
+- **DynamoDB stream triggers.** A [stream trigger](/resources/triggers/dynamodb-streams) reads the stream of the deployed table, which DynamoDB Local cannot provide. When a deployed function has a stream trigger on a table, dev mode deploys that table in the dev stack automatically and says so when it starts. Local containers and functions then use the deployed table too.
+- **Any other reference to a local resource in the dev stack**, for example `iamRoleStatements` with `$ResourceParam('mainTable', 'arn')` on a function or container. Dev mode stops before it starts anything and names the resource and the config path. Add the resource to `--remote-resources` or set `dev.remote: true` on it.
 
 For more details on local database setup, supported engines, and troubleshooting, see [Local databases](/local-development/local-databases).
 
@@ -44338,6 +44350,12 @@ export default defineConfig(() => {
 The `streamArn` property is required on every `DynamoDbIntegration`. In the example above, `$ResourceParam('ordersTable', 'streamArn')` resolves the stream ARN from the table defined in the same stack — the first argument (`'ordersTable'`) must match the key in the `resources` object. See the [DynamoDB resource page](/resources/databases/dynamodb) for all [referenceable parameters](/configuration/referenceable-parameters) available on a DynamoDB table.
 
 `startingPosition` is optional. Two values are documented: `LATEST` processes only new changes — appropriate for most real-time use cases, and `TRIM_HORIZON` processes all records still available in the stream, useful for initial backfills or reprocessing after a fix. The default is `TRIM_HORIZON`.
+
+## Dev mode
+
+In [dev mode](/local-development/dev-mode-overview), DynamoDB tables normally run on your machine in DynamoDB Local, which has no stream that Lambda can read. A stream trigger needs the deployed table, so when a deployed function has a stream trigger on a table, `stacktape dev` deploys that table in the dev stack automatically and says so when it starts. Your local containers and functions then read and write the deployed table, with the permissions their `connectTo` grants, and the stream trigger fires on their writes.
+
+A function left out with `--skip-resources` has no triggers in the dev stack, but the table stays deployed, so skipping the function does not delete the table and its data.
 
 ## Batching and throughput
 

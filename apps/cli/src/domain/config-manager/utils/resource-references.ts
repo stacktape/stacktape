@@ -42,6 +42,13 @@ export const getConnectToReferencesForResource = ({
     if (!connectTo?.includes(resourceReferenceableName)) {
       return;
     }
+    // A container that runs on the developer's machine has no security group in the dev stack to admit.
+    if (
+      activeConfig.deploymentContext.command === 'dev' &&
+      isResourceTypeExcludedInDevMode(scopingResource.configParentResourceType)
+    ) {
+      return;
+    }
     if (type === 'function') {
       getAdmittedLambdaSecurityGroups({ lambda: scopingResource, activeConfig, admittingCfLogicalName }).forEach(
         (scopingCfLogicalNameOfSecurityGroup) => result.push({ scopingResource, scopingCfLogicalNameOfSecurityGroup })
@@ -101,21 +108,15 @@ export const resolveConnectToList = ({
       stpResourceReference: referencedName
     });
 
-    // In dev mode, skip resources that are excluded from the CloudFormation template
-    // (locally emulated or locally run resources don't have CF resources created)
+    // A dev stack has no CloudFormation resources for what runs locally (containers, frontends) or is emulated locally
+    // (databases, Redis, DynamoDB, OpenSearch). A remote resource is deployed and gets its usual access.
     if (activeConfig.deploymentContext.command === 'dev') {
-      if (isResourceTypeExcludedInDevMode(resource.type)) {
-        // Locally run resources (containers, frontends) - skip entirely
+      if (isResourceTypeExcludedInDevMode(resource.type)) return;
+      if (
+        (isResourceTypeLocallyEmulatable(resource.type) || isResourceTypeRemoteOnlyInDevMode(resource.type)) &&
+        !activeConfig.deploymentContext.remoteResourceNames.has(resource.name)
+      ) {
         return;
-      }
-      if (isResourceTypeLocallyEmulatable(resource.type)) {
-        // Locally emulated resources (databases, redis, dynamodb) - skip unless marked as remote
-        // Note: remote check is done by the caller, we just skip creating CF references here
-        return;
-      }
-      if (isResourceTypeRemoteOnlyInDevMode(resource.type)) {
-        const isRemote = activeConfig.deploymentContext.remoteResourceNames.has(resource.name);
-        if (!isRemote) return;
       }
     }
 

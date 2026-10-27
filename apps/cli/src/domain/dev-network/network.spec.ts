@@ -332,19 +332,23 @@ describe('dev network creation', () => {
     expect(error?.hints?.slice(1)).toEqual(FAILED_DEV_NETWORK_RECOVERY);
   });
 
-  test('a session that finds another one creating the network waits for all of it, and does not count as its creator', async () => {
-    const { aws, counts, setPhase } = creatingAws();
+  test("a session that finds another one's creation continues once the box exists, whether that session still runs or not", async () => {
+    const { aws, attached, setPhase } = creatingAws();
+    setPhase('creating');
+    let joined = 0;
+    const pending = ensureDevNetwork({ aws, onCreate: () => {}, onJoinCreation: () => joined++, pollIntervalMs: 1 });
+    await delay(20);
     setPhase('box');
-    let done = false;
-    const pending = ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 }).finally(() => (done = true));
-    await delay(30);
-    expect({ done, resourceReads: counts.resourceReads }).toEqual({ done: false, resourceReads: 0 });
+    const { network: early, action, ready } = await pending;
+    expect({ action, early, joined }).toEqual({ action: 'join', early: network, joined: 1 });
+    let readyNow = false;
+    void ready.then(() => (readyNow = true));
+    await delay(20);
+    expect(readyNow).toBe(false);
+    // CloudFormation finishes the network on its own; this session attaches the box's profile.
     setPhase('complete');
-    const { action, network: complete } = await pending;
-    expect({ action, complete }).toEqual({
-      action: 'reuse',
-      complete: { ...network, boxInstanceProfileName: 'stacktape-dev-network-box-profile' }
-    });
+    await ready;
+    expect(attached).toEqual([`${network.boxInstanceId}:stacktape-dev-network-box-profile`]);
   });
 
   test('an existing network is not waited for resource by resource, and gets a missing profile attached', async () => {

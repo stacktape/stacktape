@@ -28,7 +28,7 @@ const fakeWorld = ({ boxState }: { boxState: string }) => {
     boxState,
     starts: 0,
     relayUp: false,
-    sessions: [] as Array<RelaySession & { exit: () => void; killed: boolean }>,
+    sessions: [] as Array<RelaySession & { exit: () => void; killed: boolean; ended: boolean }>,
     presences: [] as Array<{ end: () => void }>
   };
   const aws = {
@@ -55,6 +55,7 @@ const fakeWorld = ({ boxState }: { boxState: string }) => {
       const session = {
         sessionId: `session-${world.sessions.length + 1}`,
         killed: false,
+        ended: false,
         exit,
         waitForExit: () => exited,
         kill: async () => {
@@ -62,11 +63,13 @@ const fakeWorld = ({ boxState }: { boxState: string }) => {
           exit();
         }
       };
+      void exited.then(() => (session.ended = true));
       world.sessions.push(session);
       return session;
     },
+    // The relay is reached through the latest session; a session that ended carries nothing.
     pingRelay: async () => {
-      if (!world.relayUp) throw new Error('connection refused');
+      if (!world.relayUp || world.sessions.at(-1)?.ended) throw new Error('connection refused');
       return 1;
     },
     holdPresence: ({ signal }: { signal: AbortSignal }) =>
@@ -102,6 +105,34 @@ test('a lost session is ended on the server and reopened on the same local port'
   await waitFor('a second session', () => world.sessions.length === 2);
   expect(world.sessions[0].killed).toBe(true);
   expect(connection.sessionId).toBe('session-2');
+  await connection.stop();
+});
+
+// The box's profile watcher restarts the SSM agent when the instance profile appears, which ends a session opened just
+// before. The relay never answers through that session; a new one must be opened at once, not after the 5 minutes the
+// relay may take on a first boot.
+test('a session that ends before the relay answers is replaced at once', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  const connection = new DevBoxConnection({
+    deps: { ...deps, relayTimeoutMs: 60_000 },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  const statuses: string[] = [];
+  connection.onStatus = (status) => statuses.push(status.phase === 'reconnecting' ? status.reason : status.phase);
+  const ready = connection.connect();
+  await waitFor('the first session', () => world.sessions.length === 1);
+  // The agent restarts: the first session dies, and the relay answers only through a new one.
+  world.sessions[0].exit();
+  world.relayUp = true;
+  const started = Date.now();
+  await ready;
+  expect(Date.now() - started).toBeLessThan(3000);
+  expect(world.sessions.map(({ sessionId, killed }) => ({ sessionId, killed }))).toEqual([
+    { sessionId: 'session-1', killed: true },
+    { sessionId: 'session-2', killed: false }
+  ]);
+  expect(statuses).toContain('The SSM session to the dev box ended before its relay answered.');
   await connection.stop();
 });
 

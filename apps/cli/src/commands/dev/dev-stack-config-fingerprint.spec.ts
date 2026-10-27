@@ -94,3 +94,25 @@ test('the update cause names the changed input', () => {
   const cause = getDevStackUpdateCause({ deployedFingerprint: undefined, desiredFingerprint: deployed });
   expect(describeDevStackUpdateCause(cause!)).toBe('it was deployed without a record of its configuration');
 });
+
+// A table a stream trigger needs, or one named remote on a later start, must be deployed; a skipped function's triggers
+// must leave and come back. Neither shows in the configuration.
+test('the fingerprint follows the remote resources and the skipped functions, in any order', () => {
+  const config = { stage: 'dev' };
+  const original = getDevStackConfigFingerprint({ config, remoteResourceNames: ['a', 'b'] });
+  expect(getDevStackConfigFingerprint({ config, remoteResourceNames: new Set(['b', 'a']) })).toBe(original);
+  const remoteChanged = getDevStackConfigFingerprint({ config, remoteResourceNames: ['a'] });
+  const skipped = getDevStackConfigFingerprint({
+    config,
+    remoteResourceNames: ['a', 'b'],
+    skippedFunctionNames: ['f']
+  });
+  expect(getDevStackUpdateCause({ deployedFingerprint: original, desiredFingerprint: remoteChanged })).toEqual({
+    kind: 'parts',
+    parts: ['remoteResources']
+  });
+  const cause = getDevStackUpdateCause({ deployedFingerprint: original, desiredFingerprint: skipped })!;
+  expect(describeDevStackUpdateCause(cause)).toBe(
+    'other functions are left out of the session, and the dev stack keeps them without triggers'
+  );
+});

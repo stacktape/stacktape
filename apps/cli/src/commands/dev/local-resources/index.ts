@@ -385,6 +385,34 @@ export const prepareLocalResource = async (resourceName: string): Promise<LocalR
 };
 
 /**
+ * The parameters `getRelayedLocalResource` gives deployed dev functions for a local resource, known before its
+ * container or credentials exist; `undefined` when it cannot run locally.
+ */
+export const getRelayedLocalResourceParamNames = (resourceName: string): string[] | undefined => {
+  const params = (() => {
+    const db = configManager.databases?.find(({ name }) => name === resourceName);
+    if (db) {
+      const localType = mapEngineToLocalType(db.engine.type);
+      if (!localType) return undefined;
+      return (localType === 'postgres' ? postgresConnectionInfo : mysqlConnectionInfo)('', '', '', 0, '')
+        .referencableParams;
+    }
+    if (configManager.redisClusters?.some(({ name }) => name === resourceName)) {
+      // With a password, the parameters include `username`.
+      return redisConnectionInfo('', 0, 'password').referencableParams;
+    }
+    if (configManager.dynamoDbTables?.some(({ name }) => name === resourceName)) {
+      return dynamoDbConnectionInfo('', 0, '').referencableParams;
+    }
+    if (configManager.openSearchDomains?.some(({ name }) => name === resourceName)) {
+      return openSearchConnectionInfo('', 0).referencableParams;
+    }
+    return undefined;
+  })();
+  return params && Object.keys(params);
+};
+
+/**
  * A local database as deployed dev functions see it through the dev box: its referenceable parameters at the relay
  * address, and the environment its clients need besides them.
  */

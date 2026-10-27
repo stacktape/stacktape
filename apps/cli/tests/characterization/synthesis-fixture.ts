@@ -54,7 +54,8 @@ export const synthesizeFixture = async ({
   identity: identityOverride,
   deployedTemplate,
   localAws,
-  devNetwork
+  devNetwork,
+  devSkippedFunctions
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
   compiledConfig?: CompiledStacktapeConfig;
@@ -72,6 +73,8 @@ export const synthesizeFixture = async ({
   localAws?: MiniStackClientConfig;
   /** The dev network placement `stacktape dev` decides before it synthesizes a dev stack. */
   devNetwork?: DevNetworkPlacement;
+  /** The functions a dev session leaves out; the dev stack keeps them without triggers. */
+  devSkippedFunctions?: string[];
 }) => {
   if (!compiledConfig === !configPath) {
     throw new Error('synthesizeFixture needs exactly one of compiledConfig or configPath.');
@@ -161,6 +164,7 @@ export const synthesizeFixture = async ({
     };
     await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
     configManager.setDevNetworkPlacement(devNetwork);
+    configManager.setDevSkippedFunctions(devSkippedFunctions ?? []);
     if (compiledConfig) {
       configManager.transforms = compiledConfig.transforms ?? {};
       configManager.finalTransform = compiledConfig.finalTransform;

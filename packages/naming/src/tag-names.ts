@@ -18,6 +18,13 @@ export const tagNames = {
   devStack() {
     return 'stp:dev-stack';
   },
+  /**
+   * Set on a secret that `stacktape dev` generated (a database password), with the dev stack's name. Deleting that
+   * stage deletes the secret; a deployment of another stage that uses the secret removes the tag, so the secret stays.
+   */
+  devGeneratedSecret() {
+    return 'stp:dev-generated-for';
+  },
   codeDigest() {
     return 'stp:code-digest';
   },

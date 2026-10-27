@@ -309,7 +309,7 @@ export const startDevNetworkSession = async ({
       tuiManager.info('The dev network is being deleted. Waiting for the deletion to finish, then creating it again.'),
     onJoinCreation: () =>
       tuiManager.info(
-        'Another `stacktape dev` session is creating the dev network for this AWS account and region. Waiting for it to finish (about 4 minutes).'
+        'Another `stacktape dev` session is creating the dev network for this AWS account and region. This session continues as soon as its dev box exists, and the dev stack deploys while CloudFormation finishes the network.'
       )
   });
   const owner = getOwner();
@@ -335,10 +335,11 @@ export const startDevNetworkSession = async ({
     }
   });
   // Read before the connection starts a stopped box: only a box that already runs can have a session of this stage. A
-  // network this session creates has no sessions, and its new box would make the check wait for a relay that cannot
-  // answer before the network is complete. A session that found another one's creation running waited for the whole
-  // network (see `ensureDevNetwork`) and checks.
-  const boxState = action === 'create' ? undefined : (await aws.describeBox(network.boxInstanceId))?.state;
+  // network that is being created has no sessions yet, and its new box would make the check wait for a relay that
+  // cannot answer before the network is complete. The creating session may run this stage too; then the relay refuses
+  // the second session's tunnels.
+  const boxState =
+    action === 'create' || action === 'join' ? undefined : (await aws.describeBox(network.boxInstanceId))?.state;
   // The connection starts the box and connects while the dev stack deploys and the local databases start. Its presence
   // connection keeps a box that has been idle for almost 30 minutes from stopping itself meanwhile.
   void connection.connect();

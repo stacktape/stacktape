@@ -483,7 +483,10 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:config-loading:ministack'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/tests/config-loading-ministack/secrets.spec.ts'],
+    tests: [
+      'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
+      'apps/cli/tests/config-loading-ministack/dev-generated-secrets.spec.ts'
+    ],
     requires: ['docker'],
     release: 'every-candidate',
     proves:
@@ -2415,6 +2418,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/dev/agent-env-masking.spec.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
+      'apps/cli/src/commands/dev/dev-stack-references.spec.ts',
       'apps/cli/src/commands/_utils/assume-role.spec.ts',
       'apps/cli/src/commands/dev/log-grouping.spec.ts',
       'apps/cli/src/utils/formatting.spec.ts',
@@ -4275,6 +4279,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/agent-env-masking.spec.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
+      'apps/cli/src/commands/dev/dev-stack-references.spec.ts',
       'apps/cli/src/commands/_utils/assume-role.spec.ts',
       'apps/cli/src/commands/dev/log-grouping.spec.ts',
       'apps/cli/src/utils/formatting.spec.ts',
@@ -5503,6 +5508,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
+      'apps/cli/tests/config-loading-ministack/dev-generated-secrets.spec.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',

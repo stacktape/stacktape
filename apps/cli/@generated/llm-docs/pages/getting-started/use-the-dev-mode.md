@@ -104,7 +104,7 @@ The `version` property sets the PostgreSQL engine version (`'16.6'` here, but an
 With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
-2. Builds and updates the Lambda function code on AWS. The function runs in AWS and cannot reach the local database, and dev mode warns about it. To give the function a database, run with `--remote-resources myDatabase`: the dev stack then includes the deployed database, and the function connects to it
+2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
 3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
 
 Now edit `./src/handler.ts`, save, and either:
