@@ -62,6 +62,9 @@ importers:
       '@aws-sdk/client-elastic-load-balancing-v2':
         specifier: 3.1121.0
         version: 3.1121.0
+      '@aws-sdk/client-elasticache':
+        specifier: 3.1121.0
+        version: 3.1121.0
       '@aws-sdk/client-eventbridge':
         specifier: 3.1121.0
         version: 3.1121.0
@@ -651,6 +654,10 @@ packages:
 
   '@aws-sdk/client-elastic-load-balancing-v2@3.1121.0':
     resolution: {integrity: sha512-HBIjw1SfEwEAplkJRPFthxtj2g8dD0fJGFdqTjoLgUckfcNRK75ZNVnpsjGOFeiH+BicXnQqonNhuzBz5tWncQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-elasticache@3.1121.0':
+    resolution: {integrity: sha512-LW+wExVleRMip5SmmDQ+x3ijHEszLBhIPL7m+Nv5I3D9HFXmxtuAMD620F+HVXDtZXRiKnWdGcHuxEFnLAdEMg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-eventbridge@3.1121.0':
@@ -3535,6 +3542,17 @@ snapshots:
       tslib: 2.8.1
 
   '@aws-sdk/client-elastic-load-balancing-v2@3.1121.0':
+    dependencies:
+      '@aws-sdk/core': 3.977.9
+      '@aws-sdk/credential-provider-node': 3.972.81
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.33.3
+      '@smithy/fetch-http-handler': 5.7.2
+      '@smithy/node-http-handler': 4.11.3
+      '@smithy/types': 4.17.2
+      tslib: 2.8.1
+
+  '@aws-sdk/client-elasticache@3.1121.0':
     dependencies:
       '@aws-sdk/core': 3.977.9
       '@aws-sdk/credential-provider-node': 3.972.81

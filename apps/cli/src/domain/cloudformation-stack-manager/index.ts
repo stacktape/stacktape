@@ -59,6 +59,12 @@ import { outputNames } from '@stacktape/naming/stack-output-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import type { EarlyDataStoreDelete } from './early-data-store-deletes';
+import {
+  describeEarlyDataStoreDelete,
+  planEarlyDataStoreDeletes,
+  startEarlyDataStoreDeletes
+} from './early-data-store-deletes';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
@@ -833,11 +839,13 @@ class StackManager {
 
     const disabledDistributionIds: string[] = [];
     const scaledDownServiceArns: string[] = [];
+    const earlyDeletedDataStores: EarlyDataStoreDelete[] = [];
     let disabling: Promise<unknown> | undefined;
+    let deletingDataStores: Promise<unknown> | undefined;
     let deleteRequested = false;
     // When the delete never reaches CloudFormation (an error or Ctrl+C before that), the stack stays and its
     // distributions are enabled again, so the site comes back.
-    applicationManager.registerCleanUpHook(async () => {
+    applicationManager.registerCleanUpHook(async (outcome) => {
       await disabling;
       if (!deleteRequested && disabledDistributionIds.length) {
         await this.#enableDistributionsAfterAbortedDelete(disabledDistributionIds);
@@ -845,6 +853,15 @@ class StackManager {
       if (!deleteRequested && scaledDownServiceArns.length) {
         tuiManager.warn(
           `The stack delete did not start, but these ECS services were already scaled to 0 tasks: ${scaledDownServiceArns.join(', ')}. Set their desired count again in the AWS console, or run the delete again.`
+        );
+      }
+      await deletingDataStores;
+      if (!outcome?.success && earlyDeletedDataStores.length) {
+        const list = earlyDeletedDataStores.map((item) => `- ${describeEarlyDataStoreDelete(item)}`).join('\n');
+        tuiManager.warn(
+          outcome?.interrupted
+            ? `Stacktape stopped watching, but CloudFormation keeps deleting the stack in AWS. Stacktape had already started deleting these resources itself, without final snapshots:\n${list}`
+            : `The stack delete did not finish. Stacktape had already started deleting these resources itself, without final snapshots:\n${list}\nRun the delete again after fixing the error; CloudFormation skips resources that no longer exist.`
         );
       }
     });
@@ -869,6 +886,11 @@ class StackManager {
       throw err;
     }
     codeSwapIntegration.teardownAccepted(this.#stackName);
+    // Started only now: a DeleteStack request that CloudFormation refused (termination protection, a stack that is
+    // busy) leaves every data store untouched.
+    deletingDataStores = this.#startEarlyDataStoreDeletes({ earlyDeletedDataStores, roleArn }).catch((err) =>
+      tuiManager.debug(`Could not start deleting data stores early: ${err}`)
+    );
     const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
       operationReporter.updateEvent({
         eventType: 'DELETE_STACK',
@@ -876,8 +898,45 @@ class StackManager {
         detail: progress.detail
       })
     );
+    await deletingDataStores;
     await operationReporter.finishEvent({ eventType: 'DELETE_STACK', data: {} });
     return result;
+  };
+
+  /**
+   * Starts deleting the stack's databases, caches and search domains right after CloudFormation accepted the DeleteStack
+   * request, so they delete in parallel with the workloads that reference them instead of after them. See
+   * `early-data-store-deletes.ts` for which resources qualify.
+   */
+  #startEarlyDataStoreDeletes = async ({
+    earlyDeletedDataStores,
+    roleArn
+  }: {
+    earlyDeletedDataStores: EarlyDataStoreDelete[];
+    roleArn?: string;
+  }) => {
+    // A stack deleted through a CloudFormation service role is deleted with that role's permissions, which may forbid
+    // deleting data stores on purpose. The CLI's own credentials must not get around that.
+    if (roleArn || this.existingStackDetails.RoleARN) return;
+    // Plan from the template CloudFormation is deleting now, not the one loaded before the confirmation prompt: a deploy
+    // in between may have changed a DeletionPolicy.
+    let template: CloudFormationTemplate;
+    try {
+      template = await awsSdkManager.cloudFormation.getTemplate(this.existingStackDetails.StackId);
+    } catch (err) {
+      tuiManager.debug(`Leaving all data stores to CloudFormation: could not read the deployed template: ${err}`);
+      return;
+    }
+    const items = planEarlyDataStoreDeletes({ resources: this.existingStackResources || [], template });
+    // Ctrl+C while the DeleteStack request was in flight: the cleanup has already reported what was started.
+    if (!items.length || applicationManager.isInterrupted) return;
+    const started = await startEarlyDataStoreDeletes({ items, onDebug: (message) => tuiManager.debug(message) });
+    earlyDeletedDataStores.push(...started);
+    if (started.length) {
+      tuiManager.info(
+        `Deleting these data stores now, in parallel with the resources that use them:\n${started.map((item) => `- ${describeEarlyDataStoreDelete(item)}`).join('\n')}`
+      );
+    }
   };
 
   /**
