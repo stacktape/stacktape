@@ -76,20 +76,30 @@ afterEach(async () => {
 let ministack: MiniStack;
 beforeAll(async () => {
   ministack = await startMiniStack({ label: 'cli-process' });
-  // A real deployed stack owns this repository even when it has no container images.
+}, 120_000);
+
+/**
+ * A deployed stack has this repository even when it has no container images. A delete of a stack the current CLI
+ * created removes it, so every scenario makes sure it exists.
+ */
+const ensureDeploymentRepository = async () => {
   const ecr = new ECRClient(ministack.clientConfig());
   try {
-    await ecr.send(
-      new CreateRepositoryCommand({
-        repositoryName: awsResourceNames.deploymentEcrRepo(
-          getGloballyUniqueStackHash({ region, stackName, accountId: ministack.defaultAccount.accountId })
-        )
-      })
-    );
+    await ecr
+      .send(
+        new CreateRepositoryCommand({
+          repositoryName: awsResourceNames.deploymentEcrRepo(
+            getGloballyUniqueStackHash({ region, stackName, accountId: ministack.defaultAccount.accountId })
+          )
+        })
+      )
+      .catch((error: Error) => {
+        if (error.name !== 'RepositoryAlreadyExistsException') throw error;
+      });
   } finally {
     ecr.destroy();
   }
-}, 120_000);
+};
 afterAll(async () => {
   await ministack?.stop();
 });
@@ -316,6 +326,7 @@ const stackStatusInMiniStack = async () => {
 };
 
 const startFakes = async (stack?: FakeStackState, objects: Record<string, string> = {}) => {
+  await ensureDeploymentRepository();
   const controlPlane = await startControlPlaneFake({ projectName, awsAccountId: ministack.defaultAccount.accountId });
   resources.push(controlPlane);
   const healthy = stack?.status === 'UPDATE_COMPLETE';

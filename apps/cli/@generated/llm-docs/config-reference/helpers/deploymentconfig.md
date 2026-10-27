@@ -40,6 +40,13 @@ Use this when your deploy user has limited permissions and CloudFormation needs
 a more privileged role to manage resources. The role is persisted across deployments
 and reused for delete/rollback even if removed from config later.
 
+The deploy user itself still creates and deletes the stack's deployment bucket
+(`stp-deployment-bucket-*`) and ECR repository (`*-stp-multi-container-workload-repo`):
+it needs `s3:CreateBucket`, `s3:PutBucketPolicy`, `s3:PutBucketCORS`,
+`s3:PutAccelerateConfiguration`, `s3:PutBucketTagging`, `s3:DeleteBucket`,
+`ecr:CreateRepository`, `ecr:PutLifecyclePolicy`, `ecr:TagResource` and
+`ecr:DeleteRepository` on them, besides reading and writing their contents.
+
 ### Example 1 (yaml)
 
 ```yaml

@@ -4,6 +4,8 @@ import { consoleLinks } from '@stacktape/naming/console-links';
 
 export const STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS = [
   'CREATE_COMPLETE',
+  // A first deploy with automatic rollback disabled leaves a failed creation as it is; the next deploy updates it.
+  'CREATE_FAILED',
   'DELETE_COMPLETE',
   'IMPORT_ROLLBACK_COMPLETE',
   'IMPORT_COMPLETE',

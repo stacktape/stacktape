@@ -44,7 +44,7 @@ export const splitLambdaFamily: Family = {
     'second.ts':
       "import { shared } from 'fixture-shared'; export default async () => ({ marker: 'second-v1', sharedLength: shared.length });"
   }),
-  assertEffects: async ({ step, version, clients, physical, checks }) => {
+  assertEffects: async ({ step, version, clients, physical, deploymentBucket, checks }) => {
     const names = [physical('FirstFunction'), physical('SecondFunction')];
     const configurations = await Promise.all(
       names.map((FunctionName) => clients.lambda.send(new GetFunctionConfigurationCommand({ FunctionName })))
@@ -61,7 +61,7 @@ export const splitLambdaFamily: Family = {
     );
     assert.ok(layers[0]!.length > 0, 'split functions must use a shared chunk layer');
     assert.deepEqual(layers[0], layers[1], 'both functions must reference the same published layer');
-    const bucket = physical('StpDeploymentBucket');
+    const bucket = deploymentBucket;
     const keys =
       (await clients.s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents?.flatMap(({ Key }) =>
         Key && (Key.startsWith('shared-layer') || Key.startsWith('first/') || Key.startsWith('second/')) ? [Key] : []

@@ -44,7 +44,11 @@ const parseRetainedSharedResources = (serialized: string): RetainedSharedResourc
 
 type DeleteExecutionOperation = {
   config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
-  deploymentArtifacts: { deleteAllArtifacts: () => Promise<unknown> };
+  deploymentArtifacts: {
+    artifactStoreIsStackResource: boolean;
+    deleteAllArtifacts: () => Promise<unknown>;
+    deleteArtifactStore: () => Promise<unknown>;
+  };
   lifecycle: Pick<DeleteOperation['lifecycle'], 'processHooks' | 'registerHooks'>;
   notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
   progress: Pick<DeleteOperation['progress'], 'setPhase'>;
@@ -180,9 +184,13 @@ export const executeDeleteOperation = async ({
     await lifecycle.processHooks({ captureType: 'START' });
   }
   codeSwapBeginMutation();
+  // Read before the deletion, which empties the stack's resource list.
+  const artifactStoreIsStackResource = deploymentArtifacts.artifactStoreIsStackResource;
   // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
   // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
   await stack.deleteStack({ beforeDelete: deploymentArtifacts.deleteAllArtifacts });
+  // The deployment bucket and image repository of a stack `deploy` created are not stack resources.
+  if (!artifactStoreIsStackResource) await deploymentArtifacts.deleteArtifactStore();
 
   if (retainedSharedResources?.length) {
     tui.info(

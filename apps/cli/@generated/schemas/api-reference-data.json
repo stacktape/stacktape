@@ -24059,7 +24059,7 @@
         "name": "cloudformationRoleArn",
         "required": false,
         "shortDescription": "<p> IAM role for CloudFormation to assume during create/update/delete operations.</p>",
-        "longDescription": "<p>Use this when your deploy user has limited permissions and CloudFormation needs\na more privileged role to manage resources. The role is persisted across deployments\nand reused for delete/rollback even if removed from config later.</p>",
+        "longDescription": "<p>Use this when your deploy user has limited permissions and CloudFormation needs\na more privileged role to manage resources. The role is persisted across deployments\nand reused for delete/rollback even if removed from config later.</p>\n<p>The deploy user itself still creates and deletes the stack&#39;s deployment bucket\n(<code>stp-deployment-bucket-*</code>) and ECR repository (<code>*-stp-multi-container-workload-repo</code>):\nit needs <code>s3:CreateBucket</code>, <code>s3:PutBucketPolicy</code>, <code>s3:PutBucketCORS</code>,\n<code>s3:PutAccelerateConfiguration</code>, <code>s3:PutBucketTagging</code>, <code>s3:DeleteBucket</code>,\n<code>ecr:CreateRepository</code>, <code>ecr:PutLifecyclePolicy</code>, <code>ecr:TagResource</code> and\n<code>ecr:DeleteRepository</code> on them, besides reading and writing their contents.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [

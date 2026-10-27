@@ -2,10 +2,15 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { ExpectedError } from '@utils/errors';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { ECRClient, ImageIdentifier } from '@aws-sdk/client-ecr';
+import type { ECRClient, ImageIdentifier, Tag } from '@aws-sdk/client-ecr';
 import {
   BatchCheckLayerAvailabilityCommand,
   CompleteLayerUploadCommand,
+  CreateRepositoryCommand,
+  DeleteRepositoryCommand,
+  PutLifecyclePolicyCommand,
+  RepositoryAlreadyExistsException,
+  RepositoryNotFoundException,
   InitiateLayerUploadCommand,
   UploadLayerPartCommand,
   LayerAlreadyExistsException,
@@ -57,6 +62,49 @@ export class AwsEcr {
     this.#createClient = createClient;
     this.#getErrorHandler = getErrorHandler;
   }
+
+  /**
+   * Creates a repository, or takes the existing one of the name, and sets its lifecycle policy. Every call sets the
+   * policy, so a retry completes a repository an interrupted call left behind.
+   */
+  createRepository = async ({
+    repositoryName,
+    scanOnPush,
+    lifecyclePolicyText,
+    tags
+  }: {
+    repositoryName: string;
+    scanOnPush: boolean;
+    lifecyclePolicyText: string;
+    tags?: Tag[];
+  }) => {
+    const errorHandler = this.#getErrorHandler(`Failed to create ECR repository ${repositoryName}.`);
+    await this.#createClient()
+      .send(
+        new CreateRepositoryCommand({
+          repositoryName,
+          imageScanningConfiguration: { scanOnPush },
+          ...(tags?.length && { tags })
+        })
+      )
+      .catch((error: Error) => {
+        if (error instanceof RepositoryAlreadyExistsException) return;
+        return errorHandler(error);
+      });
+    await this.#createClient()
+      .send(new PutLifecyclePolicyCommand({ repositoryName, lifecyclePolicyText }))
+      .catch(errorHandler);
+  };
+
+  /** Deletes a repository with all its images. A repository that does not exist counts as deleted. */
+  deleteRepository = async (repositoryName: string) => {
+    await this.#createClient()
+      .send(new DeleteRepositoryCommand({ repositoryName, force: true }))
+      .catch((error: Error) => {
+        if (error instanceof RepositoryNotFoundException) return;
+        return this.#getErrorHandler(`Failed to delete ECR repository ${repositoryName}.`)(error);
+      });
+  };
 
   listImages = async (repositoryName: string): Promise<ImageIdentifier[]> => {
     const errorHandler = this.#getErrorHandler(`Failed to list images in ECR repository ${repositoryName}.`);
