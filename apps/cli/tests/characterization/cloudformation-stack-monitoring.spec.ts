@@ -5,7 +5,9 @@ import type { StackDetails } from '../../src/domain/cloudformation-stack-manager
 import {
   countResourcesDeletedDuringCleanup,
   findFailedCleanupDeletions,
-  stackManager
+  REPORTED_CLEANUP_FAILURES_S3_KEY,
+  stackManager,
+  takeUnreportedCleanupFailures
 } from '../../src/domain/cloudformation-stack-manager';
 import { templateManager } from '../../src/domain/template-manager';
 import { globalStateManager } from '../../src/app/global-state-manager';
@@ -259,6 +261,67 @@ describe('failed deletions of the last cleanup', () => {
         stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 40)
       ])
     ).toEqual([]);
+  });
+});
+
+describe('reporting failed cleanup deletions', () => {
+  /** A deployment bucket held in memory; `failReads` makes every read fail like a missing permission. */
+  const withBucket = async (
+    run: (bucket: { objects: Map<string, string>; puts: () => number }) => Promise<void>,
+    { failReads = false } = {}
+  ) => {
+    const objects = new Map<string, string>();
+    let putCount = 0;
+    const get = spyOn(awsSdkManager.s3, 'getObjectText').mockImplementation(async ({ bucketName, s3Key }) => {
+      const body = objects.get(`${bucketName}/${s3Key}`);
+      if (failReads || body === undefined) throw new Error('NoSuchKey');
+      return body;
+    });
+    const put = spyOn(awsSdkManager.s3, 'putObject').mockImplementation(async ({ bucketName, s3Key, body }) => {
+      putCount++;
+      objects.set(`${bucketName}/${s3Key}`, body);
+      return {} as Awaited<ReturnType<typeof awsSdkManager.s3.putObject>>;
+    });
+    try {
+      await run({ objects, puts: () => putCount });
+    } finally {
+      get.mockRestore();
+      put.mockRestore();
+    }
+  };
+  const report = (failures: MonitoredStackEvent[]) =>
+    takeUnreportedCleanupFailures({ failures, deploymentBucketName: 'deployment-bucket' }).then((events) =>
+      events.map(({ EventId }) => EventId)
+    );
+
+  test('reports each failure once, also to later commands that find no new stack events', async () => {
+    await withBucket(async ({ objects, puts }) => {
+      const oldCdn = resourceEvent('OldCdn', 'DELETE_FAILED', 99);
+      expect(await report([oldCdn])).toEqual(['OldCdn-DELETE_FAILED-99']);
+      expect(objects.get(`deployment-bucket/${REPORTED_CLEANUP_FAILURES_S3_KEY}`)).toBe(
+        JSON.stringify(['OldCdn-DELETE_FAILED-99'])
+      );
+      expect(await report([oldCdn])).toEqual([]);
+      expect(puts()).toBe(1);
+      // A later update's cleanup fails again.
+      const oldDatabase = resourceEvent('OldDatabase', 'DELETE_FAILED', 300);
+      expect(await report([oldDatabase])).toEqual(['OldDatabase-DELETE_FAILED-300']);
+      expect(await report([oldDatabase])).toEqual([]);
+    });
+  });
+
+  test('reports every failure when the record cannot be read or there is no deployment bucket', async () => {
+    await withBucket(
+      async () => {
+        const failure = resourceEvent('OldCdn', 'DELETE_FAILED', 99);
+        expect(await report([failure])).toEqual(['OldCdn-DELETE_FAILED-99']);
+        expect(await report([failure])).toEqual(['OldCdn-DELETE_FAILED-99']);
+        expect(await takeUnreportedCleanupFailures({ failures: [failure], deploymentBucketName: undefined })).toEqual([
+          failure
+        ]);
+      },
+      { failReads: true }
+    );
   });
 });
 
