@@ -18,7 +18,8 @@ import {
   DescribeServicesCommand,
   DescribeTaskDefinitionCommand,
   ListTasksCommand,
-  DescribeTasksCommand
+  DescribeTasksCommand,
+  type Task
 } from '@aws-sdk/client-ecs';
 import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import {
@@ -28,13 +29,18 @@ import {
   DiscoverInstancesCommand
 } from '@aws-sdk/client-servicediscovery';
 import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
+import {
+  ElasticLoadBalancingV2Client,
+  DescribeTargetHealthCommand,
+  type TargetHealthDescription
+} from '@aws-sdk/client-elastic-load-balancing-v2';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import type { LanguageSpecificBundleOutput } from '@stacktape/packaging/runtime-contracts';
 import type { getECSHotswapInformation } from '../../commands/_utils/cw-deployment';
 import { awsClientConfig, createAwsClientContext } from '../../aws/context';
 import { z } from 'zod';
-import { unsupportedReason } from './eligibility';
+import { codeSwapRouting, unsupportedReason } from './eligibility';
 import { codeSwapDockerfile } from './image';
 import { resolveStatusRole } from './ecs-policy';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
@@ -83,6 +89,17 @@ const statusSchema = z.object({
   reason: z.string().optional()
 });
 type Status = z.infer<typeof statusSchema>;
+// Behind an application load balancer, each task is a target at its own address and the container port. A task the
+// load balancer does not report healthy cannot receive the new code's requests.
+export const tasksAreHealthyTargets = (tasks: Task[], port: number, targets: TargetHealthDescription[]) =>
+  tasks.every((task) => {
+    const ip = task.attachments
+      ?.find(({ type }) => type === 'ElasticNetworkInterface')
+      ?.details?.find(({ name }) => name === 'privateIPv4Address')?.value;
+    return targets.some(
+      ({ Target, TargetHealth }) => ip && Target?.Id === ip && Target.Port === port && TargetHealth?.State === 'healthy'
+    );
+  });
 export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun) => {
   const releaseRecordAtStart = releaseRecordsAtStart.get(run.recordService);
   let identity: Identity | undefined;
@@ -131,6 +148,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       artifacts,
       stack,
       discovery: new ServiceDiscoveryClient(config),
+      elb: new ElasticLoadBalancingV2Client(config),
       iam: new IAMClient(config),
       ddb: new DynamoDBClient(config),
       ecs: new ECSClient(config),
@@ -281,7 +299,18 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       if (tasks.tasks.some((task) => task.healthStatus !== 'HEALTHY'))
         throw new Error('Supervisor-checked PRIMARY is not healthy.');
     }
-    if (run.phase3) {
+    const loadBalancers = response.services?.[0]?.loadBalancers ?? [];
+    if (run.phase3 && loadBalancers.length) {
+      const { elb } = await clients();
+      for (const { targetGroupArn, containerPort } of loadBalancers) {
+        if (!targetGroupArn || !containerPort) throw new Error('Load balancer target group identity is missing.');
+        const { TargetHealthDescriptions = [] } = await elb.send(
+          new DescribeTargetHealthCommand({ TargetGroupArn: targetGroupArn })
+        );
+        if (!tasksAreHealthyTargets(tasks.tasks ?? [], containerPort, TargetHealthDescriptions))
+          throw new Error('PRIMARY tasks lost load balancer routability.');
+      }
+    } else if (run.phase3) {
       const { discovery } = await clients();
       const registries = response.services?.[0]?.serviceRegistries ?? [];
       if (!registries.length) throw new Error('HTTP API discovery registry is missing.');
@@ -600,14 +629,17 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       });
     }
     const { configManager } = await import('../config-manager');
-    const port =
-      configManager.allContainerWorkloads
-        .find((item) => item.name === run.service)
-        ?.containers[0]?.environment?.findLast((entry) => entry.name === 'PORT')?.value ?? 3000;
+    const workload = configManager.allContainerWorkloads.find((item) => item.name === run.service);
+    const port = workload?.containers[0]?.environment?.findLast((entry) => entry.name === 'PORT')?.value ?? 3000;
     if (typeof port !== 'number' && (typeof port !== 'string' || !/^\d+$/.test(port)))
       throw new Error('Code swap needs a resolved numeric PORT.');
-    const authoredGrace =
-      configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0]?.stopTimeout ?? 2;
+    const authoredGrace = workload?.containers[0]?.stopTimeout ?? 2;
+    const routing = workload && codeSwapRouting(workload);
+    // Eligibility admits only plain URL paths, which an unquoted ENV value carries unchanged.
+    const targetCheck =
+      routing?.type === 'application-load-balancer'
+        ? ` STP_CODE_SWAP_TARGET_CHECK_PATH=${routing.checkPath} STP_CODE_SWAP_TARGET_CHECK_TIMEOUT_S=${routing.checkTimeout}`
+        : '';
     const bucket = await deploymentBucketName();
     const dockerfile = async () => {
       await identityLookup;
@@ -616,7 +648,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         (input.python
           ? '\nCOPY stacktape-start /stacktape-start\nENV STP_CODE_SWAP_COMMAND=/stacktape-start PYTHONDONTWRITEBYTECODE=1\n'
           : '') +
-        `\nENV STP_CODE_SWAP_SERVICE=${run.recordService} STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${bucket} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_PORT=${port} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
+        `\nENV STP_CODE_SWAP_SERVICE=${run.recordService} STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${bucket} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_PORT=${port} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${targetCheck}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
       );
     };
     if (
