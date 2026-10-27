@@ -23,12 +23,15 @@ afterAll(async () => {
 const daemon = async ({
   logFile,
   status = {},
-  hangs = false
+  hangs = false,
+  exitAfterStopMs = 20
 }: {
   logFile?: string;
   status?: Record<string, unknown>;
   /** Accepts connections and never answers, like an agent stuck in a long synchronous step. */
   hangs?: boolean;
+  /** How long the agent's cleanup takes after `/stop`; `null` keeps it answering. */
+  exitAfterStopMs?: number | null;
 } = {}) => {
   const state = {
     stopped: false,
@@ -83,8 +86,18 @@ const daemon = async ({
     if (path === '/health') data = { healthy: !state.stopped };
     else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt, ...status };
     else if (path === '/logs' && logFile) data = { logFile };
-    else if (request.method === 'POST' && path === '/stop') state.stopped = true;
-    else if (request.method === 'POST' && (path.startsWith('/reset/') || path.startsWith('/scripts/'))) data = {};
+    else if (request.method === 'POST' && path === '/stop') {
+      state.stopped = true;
+      // A real agent exits once its cleanup has run.
+      if (exitAfterStopMs !== null) {
+        response.on('finish', () =>
+          setTimeout(() => {
+            server.close();
+            server.closeAllConnections();
+          }, exitAfterStopMs)
+        );
+      }
+    } else if (request.method === 'POST' && (path.startsWith('/reset/') || path.startsWith('/scripts/'))) data = {};
     else if (request.method === 'POST' && path === '/rebuild/broken') {
       // What the agent answers when the build fails: the error, the failed workloads and the log file.
       response.setHeader('content-type', 'application/json');
@@ -596,6 +609,58 @@ describe('MCP dev session routing', () => {
   });
 });
 
+describe('MCP dev stop', () => {
+  // r2p dogfood, finding 10: stop answered at once, and a start 3 s later was refused because the stopped session still
+  // held the stage on the dev box.
+  test('stop answers once the agent has exited, and says so when it has not', async () => {
+    const slow = await daemon({ exitAfterStopMs: 400 });
+    const stuck = await daemon({ exitAfterStopMs: null });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, stopWaitMs: 1500 });
+      const start = async (port: number) =>
+        (
+          (await handler({ action: 'start', args: { agentPort: port } })).structuredContent.data?.session as {
+            devSessionId: string;
+          }
+        ).devSessionId;
+      const slowId = await start(slow.port);
+      const stuckId = await start(stuck.port);
+
+      const startedAt = Date.now();
+      const stopped = (await handler({ action: 'stop', args: { devSessionId: slowId } })).structuredContent;
+      expect(stopped).toMatchObject({ ok: true, code: 'OK', message: 'Dev session stopped.' });
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(350);
+
+      const lingering = (await handler({ action: 'stop', args: { devSessionId: stuckId } })).structuredContent;
+      expect(lingering.ok).toBe(true);
+      expect(lingering.message).toContain('still stopping after 1.5 s');
+    } finally {
+      await slow.close();
+      await stuck.close();
+    }
+  });
+
+  test('stop waits for the agent process, which still runs its cleanup after its HTTP server closed', async () => {
+    // A process that ends 600 ms from now stands in for the agent; its HTTP stand-in keeps answering.
+    const agentProcess = Bun.spawn(['sleep', '0.6']);
+    const agent = await daemon({ exitAfterStopMs: null, status: { pid: agentProcess.pid } });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, stopWaitMs: 5000 });
+      const started = (await handler({ action: 'start', args: { agentPort: agent.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const startedAt = Date.now();
+      expect((await handler({ action: 'stop', args: { devSessionId } })).structuredContent.message).toBe(
+        'Dev session stopped.'
+      );
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(300);
+      expect(agentProcess.exitCode).toBe(0);
+    } finally {
+      agentProcess.kill();
+      await agent.close();
+    }
+  });
+});
+
 describe('MCP dev tool arguments', () => {
   test('plan returns a start call that start accepts as it is, with the project directory in args', async () => {
     const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-plan-'));
@@ -906,6 +971,60 @@ describe('MCP dev session scope', () => {
     }
   });
 
+  // r2p dogfood, finding 9: the server took the stage back with a new start, but its first call afterwards found the
+  // replaced session ended and kept answering DEV_STAGE_TAKEN_OVER for it.
+  test('a session this server starts after a take-over answers instead of the replaced one; args.stage picks among a directory', async () => {
+    const project = await projectDirectory('taken-back');
+    const replaced = await daemon({ status: localDatabase });
+    const restarted = await daemon({ status: localDatabase });
+    const other = await daemon({ status: localDatabase });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => project });
+      expect(
+        (await handler({ action: 'start', args: { agentPort: replaced.port, cwd: project, stage: 'r2p' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      await writeFile(
+        localStatePaths.devAgentStopReasonFile({ port: replaced.port }),
+        JSON.stringify({
+          code: 'DEV_STAGE_TAKEN_OVER',
+          message:
+            'Bob (laptop, ~/shop-wt2) took over dev mode for shop-r2p, so deployed functions now reach the databases there. This session stopped so that it cannot redeploy functions over theirs.',
+          at: new Date().toISOString()
+        })
+      );
+      await replaced.close();
+      // No call notices the take-over before the agent takes the stage back.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const started = (
+        await handler({
+          action: 'start',
+          args: { agentPort: restarted.port, cwd: project, stage: 'r2p', takeOver: true }
+        })
+      ).structuredContent;
+      const restartedId = (started.data?.session as { devSessionId: string }).devSessionId;
+
+      for (const action of ['status', 'rebuild'] as const) {
+        const output = (await handler({ action, args: { workload: 'api' } })).structuredContent;
+        expect(output).toMatchObject({ ok: true, data: { session: { devSessionId: restartedId } } });
+      }
+      expect(restarted.state.rebuilt).toEqual(['api']);
+
+      // A second stage in the same directory: calls without an ID are ambiguous, args.stage chooses.
+      await handler({ action: 'start', args: { agentPort: other.port, cwd: project, stage: 'r2p2' } });
+      expect((await handler({ action: 'status' })).structuredContent.code).toBe('AMBIGUOUS_DEV_SESSION');
+      const byStage = (await handler({ action: 'rebuild', args: { workload: 'web', stage: 'r2p2' } }))
+        .structuredContent;
+      expect(byStage).toMatchObject({ ok: true, data: { session: { agentPort: other.port, stage: 'r2p2' } } });
+      expect(other.state.rebuilt).toEqual(['web']);
+      expect(restarted.state.rebuilt).toEqual(['api']);
+    } finally {
+      await replaced.close();
+      await restarted.close();
+      await other.close();
+    }
+  });
+
   test('sessions stopped elsewhere are dropped before an inferred session is chosen', async () => {
     const project = await projectDirectory('stopped');
     const kept = await daemon();
@@ -977,6 +1096,58 @@ describe('MCP dev start results', () => {
     await handler({ action: 'start', args: { stage: 'dev', takeOver: true } });
     await handler({ action: 'start', args: { stage: 'dev', take_over: true } });
     expect(received).toEqual([{ stage: 'dev' }, { stage: 'dev', takeOver: true }, { stage: 'dev', takeOver: true }]);
+  });
+
+  // r2p's false green: a warm start with a Python syntax error reported ok, and the assistant tested the old code.
+  test('a start whose session runs with a failed function is not a success, and the session takes the rebuild', async () => {
+    const dev = await daemon();
+    try {
+      const failedWorkloads = [{ name: 'api', error: 'api/main.py, line 103: SyntaxError: invalid syntax' }];
+      const handler = createDevToolHandler({
+        // What `dev --agent` returns for such a session (`DEV_STARTED_WITH_FAILURES` in commands/dev/index.ts).
+        runCli: async (input) => {
+          const started = await startedDaemon(input);
+          return {
+            ...started,
+            ok: false,
+            code: 'DEV_STARTED_WITH_FAILURES',
+            message: `Dev mode runs, but functions in it were not deployed and run their previous code:\n  api: ${failedWorkloads[0]!.error}`,
+            data: {
+              result: { ...(started.data!.result as Record<string, unknown>), ready: false, failedWorkloads },
+              ready: false,
+              failedWorkloads,
+              hints: ['Fix the errors, then rebuild.']
+            }
+          };
+        }
+      });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port, stage: 'dev' } }))
+        .structuredContent;
+      expect(started).toMatchObject({
+        ok: false,
+        code: 'DEV_STARTED_WITH_FAILURES',
+        data: { ready: false, failedWorkloads }
+      });
+      expect(started.message).toContain('api/main.py, line 103');
+      const session = started.data?.session as { devSessionId: string; agentPort: number };
+      expect(session.agentPort).toBe(dev.port);
+      expect(started.nextActions?.join(' ')).toContain(`action=rebuild, args.devSessionId=${session.devSessionId}`);
+      // Not a failed start: the next call reaches the running session instead of repeating the start's error.
+      expect(
+        (await handler({ action: 'rebuild', args: { devSessionId: session.devSessionId, workload: 'api' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      // The session is selected by its stage as well, like a session that started without failures.
+      expect((await handler({ action: 'rebuild', args: { stage: 'dev', workload: 'api' } })).structuredContent.ok).toBe(
+        true
+      );
+      expect(dev.state.rebuilt).toEqual(['api', 'api']);
+      expect(
+        (await handler({ action: 'stop', args: { devSessionId: session.devSessionId } })).structuredContent.ok
+      ).toBe(true);
+    } finally {
+      await dev.close();
+    }
   });
 
   test('a successful start leaves out the CLI output meant for people', async () => {

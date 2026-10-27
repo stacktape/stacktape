@@ -1,7 +1,6 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { DEFAULT_RUBY_VERSION } from '../bundlers/constants';
 import { buildRubyArtifact } from '../bundlers/ruby';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { SupportedRubyVersion } from '@stacktape/config/deployment-artifacts';
@@ -30,8 +29,11 @@ export const buildRubyLambda = async ({
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    /** From the function's runtime; the buildpack default otherwise. */
-    rubyVersion?: SupportedRubyVersion | undefined;
+    /**
+     * The version of the function's Lambda runtime, the one the template deploys. There is no default here: a default
+     * of its own let the build use another version than the runtime, and native dependencies then failed to load.
+     */
+    rubyVersion: SupportedRubyVersion;
   }): Promise<PackagingOutput> => {
   const absoluteSourcePath = resolveRubyLambdaRoot({ cwd, entryfilePath });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
@@ -41,7 +43,7 @@ export const buildRubyLambda = async ({
     distFolderPath: otherProps.distFolderPath,
     lambdaZip: true,
     sourcePath: absoluteSourcePath,
-    rubyVersion: rubyVersion ?? DEFAULT_RUBY_VERSION,
+    rubyVersion,
     entryfilePath: absoluteEntryfilePath,
     rawEntryfilePath: absoluteEntryfilePath,
     name,

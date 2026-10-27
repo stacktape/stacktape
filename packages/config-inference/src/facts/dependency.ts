@@ -85,6 +85,17 @@ export const defaultDependencyName = (kind: DependencyKind): string =>
     nats: 'eventBroker'
   })[kind];
 
+const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
+  { pattern: /(?:^|_)BUCKET(?:_NAME|_ARN)?$/, kind: 'object-storage' },
+  { pattern: /(?:^|_)TOPIC(?:_NAME|_ARN)?$/, kind: 'topic' },
+  { pattern: /(?:^|_)QUEUE(?:_NAME|_URL|_ARN)?$/, kind: 'queue' },
+  { pattern: /(?:^|_)TABLE(?:_NAME|_ARN)?$/, kind: 'dynamodb' }
+];
+
+/** The kind of resource an application names in a variable: `UPLOAD_BUCKET`, `ORDER_EVENTS_TOPIC_ARN`, `JOBS_QUEUE_URL`. */
+export const resourceKindNamedBy = (variableName: string): DependencyKind | undefined =>
+  RESOURCE_NAME_SUFFIXES.find((entry) => entry.pattern.test(variableName))?.kind;
+
 export const dependencyFactSchema = z.object({
   /**
    * Identifier for this instance within the analysis.

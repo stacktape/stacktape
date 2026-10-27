@@ -12,6 +12,7 @@ import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/a
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getEventBusRuleLambdaPermission } from '../utils';
+import { isAlarmFreeStack } from '../../../_utils/alarms';
 import type { AlarmIntegration, AlarmIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -21,6 +22,8 @@ export const resolveCloudwatchAlarmEvents = ({
   lambdaFunction: StpLambdaFunction | StpHelperLambdaFunction;
 }): StpIamRoleStatement[] => {
   const { name, cfLogicalName, aliasLogicalName, events, configParentResourceType, nameChain } = lambdaFunction;
+  // The alarms these events listen to are not in dev stacks.
+  if (isAlarmFreeStack()) return [];
   const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   (events || []).forEach((event: AlarmIntegration, index) => {
     if (event.type === 'cloudwatch-alarm') {

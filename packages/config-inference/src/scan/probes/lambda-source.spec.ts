@@ -234,4 +234,138 @@ describe('the lambda-source probe', () => {
 
     expect(await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files))).toEqual({});
   });
+
+  // Untyped handlers, which include every Python handler, have only the fields they read to say what invokes them.
+  it.each([
+    [
+      'api/main.py',
+      "def handler(event, context):\n    method = event['requestContext']['http']['method']\n",
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+    ],
+    [
+      'api/main.py',
+      "def handler(event, context):\n    http = event.get('requestContext', {}).get('http', {})\n",
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+    ],
+    [
+      'src/api.js',
+      'export const handler = async (event) => ({ statusCode: 200, body: event.rawPath });\n',
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+    ],
+    [
+      'legacy/app.py',
+      "def lambda_handler(event, context):\n    if event['httpMethod'] == 'GET':\n        return {}\n",
+      { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '1.0' }
+    ],
+    [
+      'notify/main.py',
+      "def handler(event, context):\n    for record in event['Records']:\n        print(record['Sns']['Message'])\n",
+      { type: 'topic', dependencyName: 'notificationsTopic' }
+    ],
+    [
+      'resize/main.py',
+      "def handler(event, context):\n    key = event['Records'][0]['s3']['object']['key']\n",
+      { type: 'object-storage', dependencyName: 'storageBucket' }
+    ],
+    [
+      'jobs/main.py',
+      "import json\n\ndef handler(event, context):\n    for record in event['Records']:\n        job = json.loads(record['body'])\n",
+      { type: 'queue', dependencyName: 'jobQueue' }
+    ],
+    // An S3 notification delivered through a queue: the queue invokes the function.
+    [
+      'src/ingest.ts',
+      'export const handler = async (event: any) => {\n  for (const record of event.Records) {\n    const { Records } = JSON.parse(record.body);\n    console.log(Records[0].s3.object.key);\n  }\n};\n',
+      { type: 'queue', dependencyName: 'jobQueue' }
+    ],
+    // A `.body` that is not a record's (a fetch response) does not make an SNS or S3 handler an SQS consumer.
+    [
+      'src/notify.ts',
+      "export const handler = async (event: any) => {\n  for (const record of event.Records) {\n    const res = await fetch('https://example.com', { method: 'POST', body: record.Sns.Message });\n    console.log(res.body);\n  }\n};\n",
+      { type: 'topic', dependencyName: 'notificationsTopic' }
+    ],
+    [
+      'src/resize.js',
+      'export const handler = async (event) => {\n  const res = await fetch(event.Records[0].s3.object.key);\n  return res.body;\n};\n',
+      { type: 'object-storage', dependencyName: 'storageBucket' }
+    ],
+    [
+      'src/consume.js',
+      'export const handler = async (event) => event.Records.map((message) => JSON.parse(message.body));\n',
+      { type: 'queue', dependencyName: 'jobQueue' }
+    ],
+    [
+      'cleanup/main.py',
+      "SCHEDULE = 'rate(5 minutes)'\n\ndef handler(event, context):\n    pass\n",
+      { type: 'schedule', rate: 'rate(5 minutes)' }
+    ]
+  ] as const)('infers the trigger of an untyped %s', async (path, contents, trigger) => {
+    const repo = await makeRepo({ [path]: contents });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.map((service) => [service.functionEntrypoint, service.functionTriggers])).toEqual([
+      [path, [trigger]]
+    ]);
+  });
+
+  it('names a Python function after its directory and keeps an AWS-style handler name', async () => {
+    const repo = await makeRepo({
+      'api/main.py': "def lambda_handler(event, context):\n    return event['rawPath']\n"
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.[0]).toMatchObject({ name: 'api', language: 'python', functionHandler: 'lambda_handler' });
+  });
+
+  it('takes an untyped export outside a handlers directory only with an event signature or event fields, and no rate it creates', async () => {
+    const repo = await makeRepo({
+      // `(event, context)` is the Lambda signature even when the code reads no event field.
+      'worker/run.py': 'def handler(event, context):\n    return None\n',
+      // Not functions: a request handler, an export reading nothing an event source sends, a schedule literal on a
+      // plain module, and a wrapper.
+      'src/routes.ts': 'export const handler = (req: any, res: any) => res.json(req.httpMethod);\n',
+      'src/format.ts': 'export const handler = async (event: { id: string }) => event.id;\n',
+      'src/jobs.ts': "export const schedule = 'rate(1 day)';\nexport default async (event: unknown) => event;\n",
+      'src/with-logging.ts':
+        'export default (handler: any) => async (event: any, context: any) => handler(event, context);\n',
+      'web/server.py': 'def handler(request):\n    return request\n',
+      // The rate belongs to the schedules this function creates, not to the function.
+      'functions/remind.ts': [
+        "import { CreateScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler';",
+        'export const handler = async () =>',
+        "  new SchedulerClient({}).send(new CreateScheduleCommand({ Name: 'r', ScheduleExpression: 'rate(1 day)' } as never));",
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.map((service) => [service.functionEntrypoint, service.functionTriggers])).toEqual([
+      ['functions/remind.ts', []],
+      ['worker/run.py', []]
+    ]);
+  });
+
+  it('reads typed TypeScript handlers however many Python files the repository has', async () => {
+    const files: Record<string, string> = {
+      'src/api.ts': [
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';",
+        'export default async (event: APIGatewayProxyEventV2) => ({ statusCode: 200, body: event.rawPath });',
+        ''
+      ].join('\n')
+    };
+    // Listed before `src/`, and more than the per-language bound.
+    for (let index = 0; index < 450; index += 1) files[`analysis/module_${index}.py`] = 'VALUE = 1\n';
+    const repo = await makeRepo(files);
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files.toSorted()));
+
+    expect(output.services?.map((service) => service.functionEntrypoint)).toEqual(['src/api.ts']);
+  });
 });

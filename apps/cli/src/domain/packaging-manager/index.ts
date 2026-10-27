@@ -135,8 +135,10 @@ import {
   getDotnetBuildVersionForRuntime,
   getJavaBuildVersionForRuntime,
   getPythonBuildVersionForRuntime,
-  getRubyBuildVersionForRuntime
+  getRubyBuildVersionForRuntime,
+  isManagedRuntimeLanguage
 } from './runtime-build-version';
+import { getLambdaRuntime } from '@domain-services/config-manager/utils/lambdas';
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
@@ -245,6 +247,8 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  /** The files each job's build reads, recorded before the build runs, so they are known when it fails. */
+  #attemptedSourceFiles = new Map<string, string[]>();
   // Packaging and transition preparation inspect the same deployed generation before any function mutation.
   #deployedFunctions = new Map<string, ReturnType<typeof awsSdkManager.lambda.getFunctionDeployment>>();
   #deployedFunctionZips = new Map<string, Promise<AdmZip>>();
@@ -441,6 +445,16 @@ export class PackagingManager {
     this.#nativeBinaryLayers = [];
     this.#lambdaLayerMap.clear();
     this.#nativeBinaryLayerByLambda.clear();
+  }
+
+  /**
+   * The files the last build of the job reads, when its build reported them; also after a failed build. Taking them
+   * removes them. `clearPackagedJobs` leaves them, because `dev` starts functions in parallel and each clears the jobs.
+   */
+  takeAttemptedSourceFiles(jobName: string) {
+    const sourceFiles = this.#attemptedSourceFiles.get(jobName);
+    this.#attemptedSourceFiles.delete(jobName);
+    return sourceFiles;
   }
 
   getPackagingOutputForJob(jobName: string) {
@@ -1643,7 +1657,8 @@ export class PackagingManager {
     customProgressLogger,
     workloadType,
     imageRuntimeTools = { tini: true, curl: true },
-    packageAnalysisCache
+    packageAnalysisCache,
+    reusableDigests
   }: {
     workloadName: string;
     jobName: string;
@@ -1666,9 +1681,15 @@ export class PackagingManager {
     imageRuntimeTools?: { tini: boolean; curl: boolean };
     /** The build's cache when the workload is packaged with others (`createPackageAnalysisCache`). */
     packageAnalysisCache?: PackageAnalysisCache;
+    /**
+     * Digests whose artifact the caller already has, used instead of the stored artifacts: a build with one of them
+     * stops after computing its digest and returns `skipped`.
+     */
+    reusableDigests?: string[];
   }): Promise<PackagingOutput | undefined> => {
     const shouldUseCache = this.#canUseCache(commandCanUseCache);
-    const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
+    const existingDigests =
+      reusableDigests ?? (shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : []);
     const packagingType = packaging.type;
     const progressLogger =
       customProgressLogger ||
@@ -1695,6 +1716,13 @@ export class PackagingManager {
         '_bin-install'
       ),
       runDocker: this.#dockerRunners.runDocker,
+      pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage,
+      warn: (message: string) => tuiManager.warn(`${workloadName}: ${message}`),
+      reportSourceFiles: (sourceFiles: { path: string }[]) =>
+        this.#attemptedSourceFiles.set(
+          jobName,
+          sourceFiles.map(({ path }) => path)
+        ),
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 
@@ -1718,8 +1746,7 @@ export class PackagingManager {
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
         imageExtension: devMode ? undefined : await codeSwapIntegration.pythonExtension(workloadName),
-        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare,
-        pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage
+        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
       });
       this.#recordPackagedJob(result);
       return result;
@@ -1809,22 +1836,28 @@ export class PackagingManager {
       );
     }
 
-    // The Lambda buildpack: the entry file's language, built in Docker on the runtime's build image.
+    // The Lambda buildpack: the entry file's language, built in Docker on the runtime's build image. Python, Java, Ruby
+    // and .NET build for the runtime the template deploys, the configured one or the language's default, so native
+    // dependencies and the installed package paths match the runtime that loads them. The runtime is part of the digest,
+    // so an artifact built for another version is never reused.
     const properties = packaging.properties as BuildpackLambdaPackagingProps;
+    const buildRuntime = isManagedRuntimeLanguage(extension)
+      ? getLambdaRuntime({ name: workloadName, packaging: packaging as LambdaPackaging, runtime })
+      : runtime;
     const lambdaBuild = {
       ...sharedProps,
       ...properties,
       entryfilePath,
       sizeLimit: 250,
       distFolderPath,
-      additionalDigestInput: getAdditionalDigestInput({ ...properties, entryfilePath, runtime })
+      additionalDigestInput: getAdditionalDigestInput({ ...properties, entryfilePath, runtime: buildRuntime })
     };
-    /** A managed runtime must belong to the entry file's language; `undefined` means the language's default. */
-    const managedVersion = <Version>(language: string, version: Version | undefined): Version | undefined => {
-      if (runtime !== undefined && version === undefined) {
+    /** A managed runtime must belong to the entry file's language. */
+    const managedVersion = <Version>(language: string, version: Version | undefined): Version => {
+      if (version === undefined) {
         throw createCliPackagingError({
           type: 'PACKAGING',
-          message: `Lambda runtime ${runtime} is not a ${language} runtime, but ${workloadName} has a ${language} entry file.`,
+          message: `Lambda runtime ${buildRuntime} is not a ${language} runtime, but ${workloadName} has a ${language} entry file.`,
           hint: `Choose a ${language} runtime or a matching entry file.`
         });
       }
@@ -1844,28 +1877,28 @@ export class PackagingManager {
         return record(
           await buildPythonLambda({
             ...lambdaBuild,
-            pythonVersion: managedVersion('Python', getPythonBuildVersionForRuntime(runtime))
+            pythonVersion: managedVersion('Python', getPythonBuildVersionForRuntime(buildRuntime))
           })
         );
       case 'java':
         return record(
           await buildJavaLambda({
             ...lambdaBuild,
-            javaVersion: managedVersion('Java', getJavaBuildVersionForRuntime(runtime))
+            javaVersion: managedVersion('Java', getJavaBuildVersionForRuntime(buildRuntime))
           })
         );
       case 'rb':
         return record(
           await buildRubyLambda({
             ...lambdaBuild,
-            rubyVersion: managedVersion('Ruby', getRubyBuildVersionForRuntime(runtime))
+            rubyVersion: managedVersion('Ruby', getRubyBuildVersionForRuntime(buildRuntime))
           })
         );
       case 'cs':
         return record(
           await buildDotnetLambda({
             ...lambdaBuild,
-            dotnetVersion: managedVersion('.NET', getDotnetBuildVersionForRuntime(runtime))
+            dotnetVersion: managedVersion('.NET', getDotnetBuildVersionForRuntime(buildRuntime))
           })
         );
       case 'go':

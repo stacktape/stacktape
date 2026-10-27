@@ -626,6 +626,18 @@ export const lanes: readonly Lane[] = [
     selections: ['cli-packaged-lambda']
   },
   {
+    id: 'cli-packaged-python-lambda',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:python-lambda'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/packaging-archives/python-lambda-acceptance.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'CLI-packaged Python functions load native wheels in the runtime their template deploys, and syntax errors stop packaging.',
+    selections: ['cli-packaged-python-lambda']
+  },
+  {
     id: 'cli-packaged-web',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ssr-web'],
     level: 'process',
@@ -655,6 +667,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/scripts/packaging-archives/helper-lambda-runtime-acceptance.ts',
       'apps/cli/scripts/packaging-archives/node-lambda-acceptance.ts',
+      'apps/cli/scripts/packaging-archives/python-lambda-acceptance.ts',
       'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'
     ],
     requires: ['docker', 'network'],
@@ -2452,6 +2465,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/mcp/session-server.spec.ts',
       'apps/cli/src/init/preflight/preflight.spec.ts',
       'apps/cli/src/init/pricing.spec.ts',
+      'apps/cli/src/init/project-name.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
       'apps/cli/src/init/server/repair-loop.spec.ts',
       'apps/cli/src/init/server/security.spec.ts',
@@ -2762,6 +2776,7 @@ export const lanes: readonly Lane[] = [
       'packages/config-inference/src/scan/dockerfile-ownership.spec.ts',
       'packages/config-inference/src/scan/environment-usage.spec.ts',
       'packages/config-inference/src/scan/file-tree.spec.ts',
+      'packages/config-inference/src/scan/local-scripts.spec.ts',
       'packages/config-inference/src/scan/probe.spec.ts',
       'packages/config-inference/src/scan/probes/aws-sam.spec.ts',
       'packages/config-inference/src/scan/probes/cdk.spec.ts',
@@ -3786,6 +3801,7 @@ export const slices: readonly Slice[] = [
       'packages/config-inference/src/compose/**',
       'packages/config-inference/src/verify/**',
       'apps/cli/src/init/missions/greenfield.ts',
+      'apps/cli/src/init/project-name.ts',
       'apps/cli/src/init/run-init.ts',
       'apps/cli/src/utils/git.ts'
     ],
@@ -3798,6 +3814,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/eval/dev-runnable.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
+      'apps/cli/src/init/project-name.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
       'apps/cli/src/utils/git.spec.ts',
       'packages/config-inference/src/compose/assumptions.spec.ts',
@@ -3816,6 +3833,7 @@ export const slices: readonly Slice[] = [
       'packages/config-inference/src/scan/dockerfile-ownership.spec.ts',
       'packages/config-inference/src/scan/environment-usage.spec.ts',
       'packages/config-inference/src/scan/file-tree.spec.ts',
+      'packages/config-inference/src/scan/local-scripts.spec.ts',
       'packages/config-inference/src/scan/probe.spec.ts',
       'packages/config-inference/src/scan/probes/aws-sam.spec.ts',
       'packages/config-inference/src/scan/probes/cdk.spec.ts',
@@ -4291,6 +4309,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/__tests__/config-change.test.ts',
       'apps/cli/src/commands/dev/__tests__/rebuild-results.test.ts',
+      'apps/cli/src/commands/dev/__tests__/daemon-output.test.ts',
       'apps/cli/src/commands/dev/__tests__/source-watcher.test.ts',
       'apps/cli/src/commands/dev/agent-logger.spec.ts',
       'apps/cli/src/commands/dev/frontend-env.spec.ts',
@@ -4367,6 +4386,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/fetch-handler.spec.ts',
       'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
+      'apps/cli/src/utils/lambda-log-lines.spec.ts',
+      'apps/cli/src/utils/cloudwatch-log-poller.spec.ts',
       'apps/cli/tests/characterization/aws-cost-management.spec.ts',
       'apps/cli/tests/characterization/aws-observability.spec.ts',
       'apps/cli/tests/characterization/diagnostic-command-inputs.spec.ts',
@@ -4557,6 +4578,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/image/railpack-python.ts'
     ],
     tests: [
+      'apps/cli/scripts/packaging-archives/python-lambda-acceptance.ts',
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
@@ -4567,6 +4589,7 @@ export const slices: readonly Slice[] = [
     lanes: [
       'packaging-test',
       'language-lambdas',
+      'cli-packaged-python-lambda',
       'synthesis-families',
       'packaging-images',
       'packaging-images-2',

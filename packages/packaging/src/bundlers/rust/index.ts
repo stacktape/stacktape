@@ -38,7 +38,8 @@ export const buildRustArtifact = async ({
   includeFiles,
   excludeFiles,
   createPackagingError,
-  runDocker
+  runDocker,
+  reportSourceFiles
 }: StpBuildpackInput & {
   sourcePath: string;
   packageName: string;
@@ -74,6 +75,7 @@ export const buildRustArtifact = async ({
     sourceFiles: await getSourceFiles({ rootPath: sourcePath }),
     explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
   });
+  reportSourceFiles?.(sourceFiles);
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM', finalMessage: packagingMessages.unchanged });
     return { digest, outcome: 'skipped', distFolderPath, sourceFiles, languageSpecificBundleOutput: {} };

@@ -51,6 +51,8 @@ type DevToolDependencies = {
   discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
   createId?: () => string;
   now?: () => Date;
+  /** How long `stop` waits for the agent to exit. */
+  stopWaitMs?: number;
 };
 
 type StartupProgressEntry = { ts: string; eventType: string; status: string; message: string; instanceId?: string };
@@ -75,8 +77,12 @@ const FAILED_START_RETENTION_MS = 60 * 60 * 1000;
  * the background instead of failing with the client's timeout.
  */
 const DEFAULT_WAIT_SECONDS = 50;
+/** An agent's cleanup stops containers and closes its tunnels; it usually exits within a few seconds. */
+const STOP_WAIT_MS = 30_000;
 /** The CLI process gets this long in total; the daemon parent itself stops a daemon that stays silent for 10 minutes. */
 const START_TIMEOUT_MS = 30 * 60 * 1000;
+/** Codes of a `dev --agent` result whose session runs but is not ready (`commands/dev/index.ts`). */
+const SESSION_NOT_READY_CODES = new Set(['DEV_STARTED_WITH_FAILURES', 'DEV_SESSION_NOT_READY']);
 
 const getWaitMs = (value: unknown) => {
   const seconds = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
@@ -501,6 +507,7 @@ const createSessionRegistry = ({
   const select = async ({
     devSessionId,
     cwd,
+    stage,
     mutating,
     requireExplicit,
     getProjectRoots
@@ -508,6 +515,8 @@ const createSessionRegistry = ({
     devSessionId?: string;
     /** Narrows the sessions an omitted `devSessionId` is inferred from to one project directory. */
     cwd?: string;
+    /** Narrows them to one stage, for a directory that runs several. */
+    stage?: string;
     /** The call changes code, data or state, so it never picks a session outside this server's projects. */
     mutating: boolean;
     requireExplicit: boolean;
@@ -548,6 +557,7 @@ const createSessionRegistry = ({
       const result: Array<{ session: DevSession; inScope: boolean }> = [];
       for (const session of sessions()) {
         if (cwd && !isSameDirectory(session.cwd, cwd)) continue;
+        if (stage && session.stage !== stage) continue;
         result.push({ session, inScope: await isInScope(session) });
       }
       return result;
@@ -565,9 +575,23 @@ const createSessionRegistry = ({
     }
 
     // After a take-over the replaced session keeps answering; the next call must not reach the session that replaced it.
-    for (const { session, output } of new Set(ended.values())) {
+    // A session this server started in the same directory after the replaced one is the one the agent works with now.
+    // The replaced session's agent may be found ended only after that start, so a start alone cannot clear its answer.
+    for (const entry of new Set(ended.values())) {
+      const { session, output } = entry;
       if (cwd && !isSameDirectory(session.cwd, cwd)) continue;
+      if (stage && session.stage !== stage) continue;
       if (!(await isInScope(session))) continue;
+      const newer = candidates.some(
+        (candidate) =>
+          candidate.origin === 'started' &&
+          isSameDirectory(candidate.cwd, session.cwd) &&
+          candidate.knownSince > session.knownSince
+      );
+      if (newer) {
+        for (const [id, value] of ended) if (value === entry) ended.delete(id);
+        continue;
+      }
       return {
         ok: false,
         output: {
@@ -575,7 +599,7 @@ const createSessionRegistry = ({
           data: { ...output.data, ...describeCandidates(candidates) },
           nextActions: [
             ...(output.nextActions ?? []),
-            'To act on another running session, pass its devSessionId. Calls without one keep returning this until a start succeeds.'
+            'To act on another running session, pass its devSessionId. Calls without one keep returning this until a dev session starts in this directory.'
           ]
         }
       };
@@ -635,6 +659,15 @@ const createSessionRegistry = ({
     /** A start succeeded: the agent chose where it works now, so earlier take-overs no longer answer for it. */
     clearEnded: () => ended.clear()
   };
+};
+
+const isProcessRunning = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
 };
 
 /** Why the session's agent ended itself, when it recorded a reason after this session was known to run. */
@@ -871,6 +904,27 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     statusCheckTimeoutMs: dependencies.statusCheckTimeoutMs ?? STATUS_CHECK_TIMEOUT_MS
   });
   const activeDevSessions = registry.active;
+  const stopWaitMs = dependencies.stopWaitMs ?? STOP_WAIT_MS;
+
+  /**
+   * Whether the agent exited within `stopWaitMs`. Its HTTP server closes early in its cleanup, so with the process ID
+   * from its status the process itself is awaited; without one, the agent counts as exited once it stops answering.
+   */
+  const waitForAgentExit = async (port: number, pid: number | undefined) => {
+    const deadline = Date.now() + stopWaitMs;
+    for (;;) {
+      if (pid !== undefined) {
+        if (!isProcessRunning(pid)) return true;
+      } else {
+        const status = await requestDevApi({ port, method: 'GET', path: '/status', timeoutMs: 1000 }).catch(
+          () => undefined
+        );
+        if (!status || status.ok === false) return true;
+      }
+      if (Date.now() >= deadline) return false;
+      await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+    }
+  };
 
   /** What a session's start reports while it still runs: the latest steps and, once known, the agent's port. */
   const describeStartup = (session: DevSession, startup: DevStartup): ToolOutput => {
@@ -949,6 +1003,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         agentSessionId: devSessionId,
         startedAt,
         cwd: typeof requestedCwd === 'string' ? requestedCwd : process.cwd(),
+        ...(typeof devCliArgs.stage === 'string' ? { stage: devCliArgs.stage } : {}),
         origin: 'started',
         knownSince: startedAt
       };
@@ -960,11 +1015,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         done: Promise.resolve()
       };
       const forwardCancellation = () => startup.abort.abort();
-      const finishStartup = (output: ToolOutput) => {
+      const finishStartup = (output: ToolOutput, { sessionRuns = output.ok }: { sessionRuns?: boolean } = {}) => {
         startup.output = output;
         startup.state = 'finished';
         startups.delete(devSessionId);
-        if (!output.ok) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
+        if (!sessionRuns) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
       };
       signal?.addEventListener('abort', forwardCancellation, { once: true });
 
@@ -1003,8 +1058,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             (port): port is number => typeof port === 'number'
           );
           const missingPort = result.ok && agentPort === undefined;
+          // The session runs, but a workload failed or it is still starting: it stays usable (rebuild, logs, stop), and
+          // the start is not reported as a success.
+          const runsNotReady = !result.ok && SESSION_NOT_READY_CODES.has(result.code) && agentPort !== undefined;
           session.cwd = result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd;
-          if (result.ok && agentPort !== undefined) {
+          if ((result.ok || runsNotReady) && agentPort !== undefined) {
             session.agentPort = agentPort;
             if (typeof payload?.stage === 'string') session.stage = payload.stage;
             activeDevSessions.set(devSessionId, session);
@@ -1018,6 +1076,33 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             activeDevSessions.delete(devSessionId);
           }
           const succeeded = result.ok && !missingPort;
+          if (runsNotReady) {
+            const failedWorkloads = Array.isArray(result.data?.failedWorkloads) ? result.data.failedWorkloads : [];
+            finishStartup(
+              {
+                ok: false,
+                code: result.code,
+                message: result.message,
+                data: {
+                  session: publicSession(session),
+                  ready: false,
+                  failedWorkloads,
+                  resolvedContext: result.resolvedContext,
+                  ...(result.data ? { cli: result.data } : {})
+                },
+                nextActions: failedWorkloads.length
+                  ? [
+                      'The session runs, but the failed workloads do not run your current code: requests to them reach their previous code or fail. Fix the errors in the messages above.',
+                      `Then call stacktape_dev with action=rebuild, args.devSessionId=${devSessionId} and args.workload=<name> for each failed workload, and test only after it returns ok.`
+                    ]
+                  : [
+                      `Call stacktape_dev with action=status and args.devSessionId=${devSessionId} until ready is true before testing.`
+                    ]
+              },
+              { sessionRuns: true }
+            );
+            return;
+          }
           const output: ToolOutput = {
             ok: succeeded,
             code: missingPort ? 'INTERNAL_ERROR' : result.code,
@@ -1089,6 +1174,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     const sessionResult = await registry.select({
       devSessionId,
       cwd: typeof toolArgs.cwd === 'string' ? toolArgs.cwd : undefined,
+      stage: typeof toolArgs.stage === 'string' ? toolArgs.stage : undefined,
       mutating: isMutatingAction(action, toolArgs),
       requireExplicit: action === 'stop',
       getProjectRoots
@@ -1410,6 +1496,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     if (action === 'stop') {
+      const agentStatus = await requestDevApi({
+        port,
+        method: 'GET',
+        path: '/status',
+        timeoutMs: STATUS_CHECK_TIMEOUT_MS
+      }).catch(() => ({}) as Record<string, unknown>);
       const response = await requestDevApi({
         port,
         method: 'POST',
@@ -1417,13 +1509,24 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         body: {}
       });
       const ok = (response.ok as boolean | undefined) ?? false;
-      if (ok) {
-        registry.forget(sessionResult.session);
+      if (!ok) {
+        return toToolText({
+          ok,
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to stop dev session.',
+          data: { session: publicSession(sessionResult.session), response }
+        });
       }
+      registry.forget(sessionResult.session);
+      // The agent answers before its cleanup runs. Until it has exited, its containers may still run and the dev box
+      // may still list it as the stage's holder, so a start right after this call would be refused.
+      const exited = await waitForAgentExit(port, typeof agentStatus.pid === 'number' ? agentStatus.pid : undefined);
       return toToolText({
         ok,
-        code: ok ? 'OK' : 'INTERNAL_ERROR',
-        message: ok ? 'Dev session stop requested.' : 'Failed to stop dev session.',
+        code: 'OK',
+        message: exited
+          ? 'Dev session stopped.'
+          : `Dev session stop requested; the agent on port ${port} is still stopping after ${stopWaitMs / 1000} s.`,
         data: {
           session: publicSession(sessionResult.session),
           response

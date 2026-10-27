@@ -1,5 +1,6 @@
 import { dirname } from 'node:path';
 import { transformToUnixPath } from '../fs/files';
+import { PYTHON_COMPILE_CHECK_COMMAND } from '../bundlers/py/compile-check';
 import type { SupportedEsPackageManager } from '../runtime-contracts';
 import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 
@@ -346,15 +347,32 @@ CMD ["node", "--max-old-space-size=16384", "index.js"]`;
 
 // https://hub.docker.com/r/mhart/alpine-node/
 
+/** The image a Python artifact builds on: the Lambda build image of the version, or the official Python image. */
+export const getPythonArtifactBaseImage = ({
+  pythonVersion,
+  alpine,
+  target = 'lambda'
+}: {
+  pythonVersion: number | string;
+  alpine?: boolean | undefined;
+  target?: 'container' | 'lambda' | undefined;
+}) => {
+  if (target === 'lambda') return `public.ecr.aws/sam/build-python${pythonVersion}:latest`;
+  return `public.ecr.aws/docker/library/python:${pythonVersion}${alpine ? '-alpine' : ''}`;
+};
+
 export const buildPythonArtifactDockerfile = ({
   pythonVersion,
   alpine,
   target = 'lambda',
+  baseImage = getPythonArtifactBaseImage({ pythonVersion, alpine, target }),
   requirementsWithoutSource
 }: {
   pythonVersion: number | string;
   alpine?: boolean | undefined;
   target?: 'container' | 'lambda' | undefined;
+  /** `getPythonArtifactBaseImage`'s image, possibly pinned to its local digest. */
+  baseImage?: string | undefined;
   /**
    * The dependency file is a root `requirements.txt` whose install reads nothing else from the source. The tools and
    * the requirements install then run before the source is copied, so a source-only change reuses them. The install
@@ -363,13 +381,6 @@ export const buildPythonArtifactDockerfile = ({
    */
   requirementsWithoutSource?: boolean | undefined;
 }) => {
-  let baseImage =
-    target === 'lambda'
-      ? `public.ecr.aws/sam/build-python${pythonVersion}:latest`
-      : `public.ecr.aws/docker/library/python:${pythonVersion}`;
-  if (target === 'container' && alpine) {
-    baseImage += '-alpine';
-  }
   const systemDepsCommand =
     target === 'lambda'
       ? ''
@@ -415,7 +426,8 @@ if [ -n "$STP_PY_DEP_FILE" ]; then \
     uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
   fi; \
 fi`;
-  const buildArgs = `ARG STP_PY_DEP_FILE
+  const buildArgs = `ARG STP_PY_ENTRY
+ARG STP_PY_DEP_FILE
 ARG STP_PY_DEP_TYPE
 ARG STP_PY_UV_OPTIONAL_DEPENDENCIES
 ARG STP_PY_UV_WITH_GROUPS
@@ -442,6 +454,7 @@ ${buildArgs}
 RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
+${PYTHON_COMPILE_CHECK_COMMAND}
 
 COPY --from=deps /dist/ /dist/
 
@@ -463,6 +476,7 @@ ${buildArgs}
 RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
+${PYTHON_COMPILE_CHECK_COMMAND}
 
 ${installDepsCommand}
 

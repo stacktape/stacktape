@@ -581,14 +581,16 @@ export const deleteDevNetwork = async ({
   network,
   force = false,
   findLiveSessions,
+  onWaiting,
   pollIntervalMs = 5000,
-  timeoutMs = 20 * 60_000
+  timeoutMs = DEV_NETWORK_DELETE_TIMEOUT_MS
 }: {
   aws: DevNetworkAws;
   network: DevNetwork;
   force?: boolean;
   /** Lists the sessions through the relay of a running box; rejects when it cannot. */
   findLiveSessions: (network: DevNetwork) => Promise<LiveDevSession[]>;
+  onWaiting?: (progress: DevNetworkDeletionProgress) => void;
   pollIntervalMs?: number;
   timeoutMs?: number;
 }) => {
@@ -653,10 +655,28 @@ export const deleteDevNetwork = async ({
     stackName: network.stackName,
     stackId: stack?.StackId,
     deleteStartedFrom: stack?.StackStatus,
+    onWaiting,
     pollIntervalMs,
     timeoutMs
   });
 };
+
+/**
+ * Lambda releases the network interfaces of deleted VPC functions only after a while, and CloudFormation cannot delete
+ * the network's subnets and security group until it has. A network whose dev stages were just deleted took 1,207 s in
+ * the r2p dogfood run; AWS documents up to 20 minutes, and it has been seen to take longer.
+ */
+const DEV_NETWORK_DELETE_TIMEOUT_MS = 45 * 60_000;
+
+export type DevNetworkDeletionProgress = {
+  elapsedMs: number;
+  /** The network's resources CloudFormation is deleting now. */
+  deleting: string[];
+  /** Whether it waits for Lambda to release network interfaces in the subnets or the functions' security group. */
+  waitingForLambdaNetworkInterfaces: boolean;
+};
+
+const LAMBDA_NETWORK_INTERFACE_HOLDERS = /^(PrivateSubnet\d+|LambdaSecurityGroup|Keeper)$/;
 
 /**
  * Waits for a deletion of the network's stack, then removes its leases. A stack with another id under the same name is a
@@ -668,6 +688,7 @@ const waitForNetworkDeletion = async ({
   stackName,
   stackId,
   deleteStartedFrom,
+  onWaiting,
   pollIntervalMs,
   timeoutMs
 }: {
@@ -675,10 +696,12 @@ const waitForNetworkDeletion = async ({
   stackName: string;
   stackId: string | undefined;
   deleteStartedFrom: string | undefined;
+  onWaiting?: (progress: DevNetworkDeletionProgress) => void;
   pollIntervalMs: number;
   timeoutMs: number;
 }) => {
-  const deadline = Date.now() + timeoutMs;
+  const startedAt = Date.now();
+  const deadline = startedAt + timeoutMs;
   let seenRunning = deleteStartedFrom !== 'DELETE_FAILED';
   for (;;) {
     const current = await aws.stacks.get(stackName);
@@ -691,6 +714,17 @@ const waitForNetworkDeletion = async ({
         code: 'DEV_NETWORK_DELETE_TIMEOUT',
         message: `The dev network stack \`${stackName}\` is still being deleted (${current.StackStatus}).`,
         hints: 'Run the command again later; it continues the deletion.'
+      });
+    }
+    if (onWaiting && current.StackStatus === 'DELETE_IN_PROGRESS') {
+      const deleting = (await aws.stacks.listResources(stackName).catch(() => []))
+        .filter(({ ResourceStatus }) => ResourceStatus === 'DELETE_IN_PROGRESS')
+        .map(({ LogicalResourceId }) => LogicalResourceId ?? '')
+        .filter(Boolean);
+      onWaiting({
+        elapsedMs: Date.now() - startedAt,
+        deleting,
+        waitingForLambdaNetworkInterfaces: deleting.some((name) => LAMBDA_NETWORK_INTERFACE_HOLDERS.test(name))
       });
     }
     if (current.StackStatus === 'DELETE_FAILED' && seenRunning) {
@@ -721,7 +755,7 @@ export const deleteFailedDevNetwork = async ({
   aws,
   failed,
   pollIntervalMs = 5000,
-  timeoutMs = 20 * 60_000
+  timeoutMs = DEV_NETWORK_DELETE_TIMEOUT_MS
 }: {
   aws: DevNetworkAws;
   failed: FailedDevNetwork;

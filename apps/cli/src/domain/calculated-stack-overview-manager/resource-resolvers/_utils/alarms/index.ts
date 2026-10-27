@@ -39,7 +39,14 @@ import {
 import { getSqsQueueNotEmptyAlarm, getSqsQueueReceivedMessagesCountAlarm } from './sqs-queue-alarms';
 import { getAffectedResourceInfo, getComparisonOperator, getStatFunction, measuringUnits } from './utils';
 
+/**
+ * Dev stacks get no alarms: an agent or a developer causes errors on purpose there, the alarms would notify about them,
+ * and each alarm's EventBridge notification rule adds about a minute to the deployment of a new dev stage.
+ */
+export const isAlarmFreeStack = () => calculatedStackOverviewManager.context.command === 'dev';
+
 export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabledResource }) => {
+  if (isAlarmFreeStack()) return;
   addSharedAlarmNotificationPermission();
   getAlarmsToBeAppliedToResource({ resource, globalAlarms: configManager.globalConfigAlarms }).forEach((alarm) => {
     calculatedStackOverviewManager.addCfChildResource({

@@ -96,8 +96,33 @@ const getOwner = (): RelayOwner => {
   return {
     id: user?.id || `${process.env.USER || 'developer'}@${hostname()}`,
     label: `${user?.name || user?.email || process.env.USER || 'another developer'} (${hostname()}, ${shownDirectory})`,
-    session: randomUUID()
+    // The process ID lets a later session on this machine tell that this one has exited (see `isStaleHolder`).
+    session: `${process.pid}.${randomUUID()}`
   };
+};
+
+const isProcessAlive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
+/**
+ * A holder the relay still lists although its process has exited: an earlier session of the same user in the same
+ * directory on this machine. The relay notices a session's end only once its connections close through SSM, which can
+ * take a while after a stop or a kill, and a start right after `stop` was refused because of the stopped session.
+ */
+export const isStaleHolder = (
+  holder: Pick<RelaySessionInfo, 'owner' | 'label' | 'session'>,
+  owner: RelayOwner,
+  isAlive: (pid: number) => boolean = isProcessAlive
+) => {
+  if (holder.owner !== owner.id || holder.label !== owner.label) return false;
+  const pid = /^(\d+)\./.exec(holder.session)?.[1];
+  return pid !== undefined && Number(pid) !== process.pid && !isAlive(Number(pid));
 };
 
 /** How long the stage check waits for a running box's relay; after that the tunnels' own refusal decides. */
@@ -115,7 +140,8 @@ export const assertStageNotRunningElsewhere = async ({
   stackName,
   owner,
   takeOver,
-  timeoutMs = STAGE_CHECK_TIMEOUT_MS
+  timeoutMs = STAGE_CHECK_TIMEOUT_MS,
+  isAlive
 }: {
   boxState: string | undefined;
   relay: () => Promise<Pick<RelayEndpoint, 'controlHost' | 'controlPort'>>;
@@ -127,8 +153,10 @@ export const assertStageNotRunningElsewhere = async ({
   owner: RelayOwner;
   takeOver: boolean;
   timeoutMs?: number;
-}) => {
-  if (boxState !== 'running' && boxState !== 'pending') return;
+  isAlive?: (pid: number) => boolean;
+}): Promise<{ replacesStaleSession: boolean }> => {
+  const none = { replacesStaleSession: false };
+  if (boxState !== 'running' && boxState !== 'pending') return none;
   const timeout = new AbortController();
   const endpoint = await Promise.race([
     relay(),
@@ -137,17 +165,24 @@ export const assertStageNotRunningElsewhere = async ({
       () => undefined
     )
   ]).finally(() => timeout.abort());
-  if (!endpoint) return;
-  const others = (await listSessions(endpoint, stackName).catch(() => [])).filter(
+  if (!endpoint) return none;
+  const listed = (await listSessions(endpoint, stackName).catch(() => [])).filter(
     ({ session }) => session !== owner.session
   );
-  if (!others.length) return;
+  const others = listed.filter((holder) => !isStaleHolder(holder, owner, isAlive));
+  if (!others.length) {
+    if (!listed.length) return none;
+    tuiManager.info(
+      `The previous dev session of ${stackName} in this directory has ended; this session replaces its tunnels on the dev box.`
+    );
+    return { replacesStaleSession: true };
+  }
   const holders = others
     .map(({ label, since }) => `${label}, since ${formatTimeWithZone(new Date(since * 1000))}`)
     .join('; ');
   if (takeOver) {
     tuiManager.info(`Taking over dev mode for ${stackName} from ${holders}.`);
-    return;
+    return none;
   }
   throw new CliError({
     category: 'CLI',
@@ -274,6 +309,7 @@ export const startDevNetworkSession = async ({
       onSession: (sessionId) => recordDevBoxSession(sessionId, projectName, stage),
       findFreePort: async () => (await findFreePorts(1))[0],
       pingRelay,
+      listSessions: listRelaySessions,
       holdPresence: holdRelayPresence,
       openSession: openDevBoxRelaySession
     }
@@ -288,15 +324,16 @@ export const startDevNetworkSession = async ({
   void connection.connect();
   const relayedNames = [...new Set(Object.values(functions).flat())];
   let leases: Map<string, number>;
+  let replacesStaleSession = false;
   try {
-    await assertStageNotRunningElsewhere({
+    ({ replacesStaleSession } = await assertStageNotRunningElsewhere({
       boxState,
       relay: connection.connect,
       listSessions: listRelaySessions,
       stackName,
       owner,
       takeOver
-    });
+    }));
     leases = await ensureLeases({
       store: aws.leases,
       networkName: network.stackName,
@@ -328,7 +365,17 @@ export const startDevNetworkSession = async ({
     () => (state.settled = true),
     (error) => Object.assign(state, { settled: true, error })
   );
-  session = { network, connection, placement, leases, owner, takeOver, ready, readyState: () => ({ ...state }) };
+  session = {
+    network,
+    connection,
+    placement,
+    leases,
+    owner,
+    // The tunnels of an ended session may still hold the relay ports; they are replaced like a take-over's.
+    takeOver: takeOver || replacesStaleSession,
+    ready,
+    readyState: () => ({ ...state })
+  };
   return session;
 };
 

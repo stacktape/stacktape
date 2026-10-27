@@ -1,7 +1,6 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { DEFAULT_JAVA_VERSION } from '../bundlers/constants';
 import { buildJavaArtifact } from '../bundlers/java';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { JavaBuildpackConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
@@ -19,8 +18,11 @@ export const buildJavaLambda = async ({
 }: StpBuildpackInput &
   LambdaArtifactActions & {
     java?: JavaBuildpackConfig | undefined;
-    /** From the function's runtime; the buildpack default otherwise. */
-    javaVersion?: SupportedJavaVersion | undefined;
+    /**
+     * The version of the function's Lambda runtime, the one the template deploys. There is no default here: a default
+     * of its own let the build use another version than the runtime, and native dependencies then failed to load.
+     */
+    javaVersion: SupportedJavaVersion;
   }): Promise<PackagingOutput> => {
   const useMaven =
     languageSpecificConfig?.useMaven ??
@@ -38,7 +40,7 @@ export const buildJavaLambda = async ({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
     lambdaZip: true,
-    javaVersion: javaVersion ?? DEFAULT_JAVA_VERSION,
+    javaVersion,
     useMaven,
     sourcePath: rootSourcePath,
     entryfilePath: absoluteEntryfilePath,

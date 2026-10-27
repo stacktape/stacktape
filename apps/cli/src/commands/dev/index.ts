@@ -26,6 +26,7 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
+  muteDaemonConsole,
   buildAgentReadyPayload,
   deleteAgentLockFile,
   findOrphanedDevBoxSession,
@@ -363,6 +364,65 @@ export const getRunningAgentReadyPayload = async (agent: AgentLockFile) => {
   };
 };
 
+/**
+ * The result of a `dev --agent` whose session runs but is not ready: a distinct non-OK code, so a client that reads
+ * only `ok` does not test against a workload that failed or runs its previous code. The session keeps running, and the
+ * result carries it (`data.result`, as a ready start has it) with `ready: false` and the failed workloads.
+ */
+const sessionNotReadyError = ({
+  payload,
+  message
+}: {
+  payload: { port: number; failedWorkloads?: { name: string; error: string }[] };
+  message: string;
+}) => {
+  const failedWorkloads = payload.failedWorkloads ?? [];
+  const stop = `The session keeps running. Stop it with \`stacktape dev stop --agent-port ${payload.port}\`.`;
+  return new CliError({
+    category: 'CLI',
+    code: failedWorkloads.length ? 'DEV_STARTED_WITH_FAILURES' : 'DEV_SESSION_NOT_READY',
+    message: failedWorkloads.length
+      ? `${message}:\n${failedWorkloads.map(({ name, error }) => `  ${name}: ${error}`).join('\n')}`
+      : message,
+    hints: failedWorkloads.length
+      ? [
+          `Fix the errors, then rebuild: \`POST /rebuild/{name}\` to the agent on port ${payload.port}, or stacktape_dev with action=rebuild. Until then the failed workloads do not run your current code.`,
+          stop
+        ]
+      : [`Poll \`GET /status\` on port ${payload.port} until \`ready\` is true.`, stop],
+    data: { result: { ...payload, ready: false }, ready: false, failedWorkloads }
+  });
+};
+
+/**
+ * What `dev --agent` reports for the agent of this project and stage that already runs, exactly as a new start reports
+ * it: clients such as the MCP tool take its port, token file, workload URLs and database ports from this result. A
+ * session that is not ready ends the command with a non-OK code instead.
+ */
+export const reportRunningAgent = async (agent: AgentLockFile) => {
+  const readyPayload = await getRunningAgentReadyPayload(agent);
+  // A session that waits for a restart runs outdated configuration: reporting it as started would be a false green.
+  if (readyPayload.restartRequired) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DEV_RESTART_REQUIRED',
+      message: `The dev session of this stage on port ${readyPayload.port} has to restart: ${readyPayload.restartRequired}`,
+      hints: `Stop it with \`stacktape dev stop --agent-port ${readyPayload.port}\`, then start dev mode again.`
+    });
+  }
+  // A failed workload leaves the session usable (a rebuild can fix it), but it is not ready.
+  if (!readyPayload.ready) {
+    throw sessionNotReadyError({
+      payload: readyPayload,
+      message: readyPayload.failedWorkloads?.length
+        ? `The dev session on port ${readyPayload.port} runs, but workloads in it failed`
+        : `The dev session on port ${readyPayload.port} runs, but is still starting.`
+    });
+  }
+  process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
+  return readyPayload;
+};
+
 export const commandDev = async () => {
   const initialArgs = captureCommandArgs();
   const agentPortArg = initialArgs.agentPort;
@@ -374,31 +434,7 @@ export const commandDev = async () => {
   if (agentEnabled && !isAgentChild) {
     // Check if agent is already running
     const runningAgent = await getRunningAgent();
-    if (runningAgent) {
-      // Report the running agent exactly like a new one: clients such as the MCP tool take its port, token file,
-      // workload URLs and database ports from this result.
-      const readyPayload = await getRunningAgentReadyPayload(runningAgent);
-      // A session that waits for a restart runs outdated configuration: reporting it as started would be a false green.
-      if (readyPayload.restartRequired) {
-        throw new CliError({
-          category: 'CLI',
-          code: 'CLI_DEV_RESTART_REQUIRED',
-          message: `The dev session of this stage on port ${readyPayload.port} has to restart: ${readyPayload.restartRequired}`,
-          hints: `Stop it with \`stacktape dev stop --agent-port ${readyPayload.port}\`, then start dev mode again.`
-        });
-      }
-      // A failed workload leaves the session usable (a rebuild can fix it), so it is reported with ready: false.
-      if (readyPayload.ready) process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
-      else {
-        tuiManager.warn(
-          `The dev session on port ${readyPayload.port} runs, but is not ready: ${
-            readyPayload.failedWorkloads?.map(({ name, error }) => `${name}: ${error}`).join('; ') ||
-            'it is still starting'
-          }`
-        );
-      }
-      return readyPayload;
-    }
+    if (runningAgent) return reportRunningAgent(runningAgent);
 
     // Find available port
     const defaultAgentPort = 7331;
@@ -448,7 +484,11 @@ export const commandDev = async () => {
       });
     }
 
-    const failedWorkloads = result.readyPayload?.failedWorkloads ?? [];
+    // A function that failed to build or deploy keeps running its previous code in the dev stack, and a rebuild after
+    // the fix deploys it, so the session stays. Any other failed workload stops the session.
+    const isFunction = (name: string) =>
+      result.readyPayload?.workloads.some((workload) => workload.name === name && workload.type === 'function');
+    const failedWorkloads = (result.readyPayload?.failedWorkloads ?? []).filter(({ name }) => !isFunction(name));
     if (failedWorkloads.length > 0) {
       // A session with a failed workload is not usable, and leaving it running would hold its port, containers and
       // Lambda environment changes. Stop it through its stop route so its cleanup runs, then report the failure.
@@ -469,6 +509,13 @@ export const commandDev = async () => {
         code: 'CLI_DEV_WORKLOAD_FAILED',
         message: `Dev mode stopped because ${failedWorkloads.length === 1 ? 'a workload' : 'workloads'} failed to start:\n${failedWorkloads.map(({ name, error }) => `  ${name}: ${error}`).join('\n')}`,
         hints: logFile ? `The full output is in ${logFile}.` : undefined
+      });
+    }
+
+    if (result.readyPayload?.failedWorkloads.length) {
+      throw sessionNotReadyError({
+        payload: result.readyPayload,
+        message: 'Dev mode runs, but functions in it were not deployed and run their previous code'
       });
     }
 
@@ -909,7 +956,9 @@ export const commandDev = async () => {
               failedWorkloads: state.workloads
                 .filter((w) => w.status === 'error')
                 .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))
-            })}\n`
+            })}\n`,
+            // Nobody reads the daemon's console once it reported ready (see `muteDaemonConsole`).
+            () => muteDaemonConsole()
           );
           tuiManager.printLines(['']);
 

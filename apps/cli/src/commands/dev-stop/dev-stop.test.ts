@@ -175,7 +175,8 @@ const startRealAgent = async (directory: string) => {
     `
 import { createServer } from 'node:net';
 import { applicationManager } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/app/application-manager/index.ts'))};
-import { getAgentTokenFile, registerAgentCleanupHook, startAgentServer } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
+import { existsSync } from 'node:fs';
+import { getAgentTokenFile, registerAgentCleanupHook, startAgentServer, updateAgentState } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
 await applicationManager.init();
 registerAgentCleanupHook();
 applicationManager.registerCleanUpHook(async () => {
@@ -187,6 +188,12 @@ await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
 const port = probe.address().port;
 await new Promise((resolve) => probe.close(resolve));
 await startAgentServer(port, ${JSON.stringify(directory)});
+// The session finishes starting once the test creates this file.
+const readyTimer = setInterval(() => {
+  if (!existsSync(${JSON.stringify(join(directory, 'ready'))})) return;
+  updateAgentState({ phase: 'ready' });
+  clearInterval(readyTimer);
+}, 50);
 console.log(JSON.stringify({ port, pid: process.pid, tokenFile: getAgentTokenFile() }));
 `
   );
@@ -268,29 +275,52 @@ test('dev --agent reports an agent that is already running like a new one', asyn
         logFile: join(directory, `${port}-logs.txt`)
       })
     );
-    const { exitCode, output } = await runCli(
-      [
-        'dev',
-        '--projectName',
-        'fixture',
-        '--stage',
-        'dev',
-        '--region',
-        'eu-west-1',
-        '--currentWorkingDirectory',
-        project
-      ],
-      // `dev` requires a key before it runs; this path never sends it anywhere (the network guard would refuse).
-      { home: directory, env: { STACKTAPE_API_KEY: 'test-value' } }
-    );
-    expect(exitCode).toBe(0);
-    const final = output
-      .split('\n')
-      .filter((line) => line.startsWith('{'))
-      .map((line) => JSON.parse(line) as { type?: string; ok?: boolean; data?: { result?: Record<string, unknown> } })
-      .find((event) => event.type === 'result');
-    expect(final?.ok).toBeTrue();
-    expect(final?.data?.result).toMatchObject({ port, projectName: 'fixture', stage: 'dev', tokenFile });
+    const report = async () => {
+      const { exitCode, output } = await runCli(
+        [
+          'dev',
+          '--projectName',
+          'fixture',
+          '--stage',
+          'dev',
+          '--region',
+          'eu-west-1',
+          '--currentWorkingDirectory',
+          project
+        ],
+        // `dev` requires a key before it runs; this path never sends it anywhere (the network guard would refuse).
+        { home: directory, env: { STACKTAPE_API_KEY: 'test-value' } }
+      );
+      const final = output
+        .split('\n')
+        .filter((line) => line.startsWith('{'))
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              type?: string;
+              ok?: boolean;
+              code?: string;
+              data?: { result?: Record<string, unknown>; ready?: boolean };
+            }
+        )
+        .find((event) => event.type === 'result');
+      return { exitCode, output, final };
+    };
+
+    // Still starting: the session is reported with its details, but not as started, and without AGENT_READY.
+    const starting = await report();
+    expect(starting.exitCode).toBe(1);
+    expect(starting.final).toMatchObject({ ok: false, code: 'DEV_SESSION_NOT_READY', data: { ready: false } });
+    expect(starting.final?.data?.result).toMatchObject({ port, projectName: 'fixture', stage: 'dev', tokenFile });
+    expect(starting.output).not.toContain('AGENT_READY');
+    expect(isRunning(agent.pid!)).toBeTrue();
+
+    await writeFile(join(directory, 'ready'), '');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const ready = await report();
+    expect(ready.exitCode).toBe(0);
+    expect(ready.final?.ok).toBeTrue();
+    expect(ready.final?.data?.result).toMatchObject({ port, projectName: 'fixture', stage: 'dev', tokenFile });
     expect(isRunning(agent.pid!)).toBeTrue();
   } finally {
     stopIfRunning(agent);

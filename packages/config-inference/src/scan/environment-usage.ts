@@ -21,7 +21,7 @@
  *   composer deliberately does not serialize — an honest omission rather than a guessed value.
  */
 
-import type { DependencyFact, DependencyKind } from '../facts/dependency';
+import { resourceKindNamedBy, type DependencyFact, type DependencyKind } from '../facts/dependency';
 import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Citation } from '../facts/citation';
 import { posix } from 'node:path';
@@ -55,7 +55,8 @@ const JS_PATTERNS: readonly ReadPattern[] = [
 ];
 
 const PATTERNS_BY_EXTENSION: ReadonlyArray<{ extensions: RegExp; patterns: readonly ReadPattern[] }> = [
-  { extensions: /\.(?:[cm]?[jt]s|[jt]sx)$/, patterns: JS_PATTERNS },
+  // Single-file components read their environment in their script block.
+  { extensions: /\.(?:[cm]?[jt]s|[jt]sx|svelte|vue|astro)$/, patterns: JS_PATTERNS },
   {
     extensions: /\.py$/,
     patterns: [
@@ -196,6 +197,20 @@ const importClosure = async (
   return [...seen];
 };
 
+/** A presigned upload URL, which the client then uses itself. A presigned GET is a download and needs no CORS. */
+const PRESIGNED_UPLOAD: ReadonlyArray<{ method: 'PUT' | 'POST'; patterns: readonly RegExp[] }> = [
+  { method: 'PUT', patterns: [/\bgetSignedUrl\b/, /\bPutObjectCommand\b/] },
+  { method: 'PUT', patterns: [/\bgetSignedUrl(?:Promise)?\(\s*['"]putObject['"]/] },
+  { method: 'PUT', patterns: [/\bgenerate_presigned_url\(\s*(?:ClientMethod\s*=\s*)?['"]put_object['"]/] },
+  { method: 'POST', patterns: [/\bcreatePresignedPost\b/] },
+  { method: 'POST', patterns: [/\bgenerate_presigned_post\(/] }
+];
+
+const presignedUploadMethods = (contents: string): Array<'PUT' | 'POST'> =>
+  PRESIGNED_UPLOAD.filter(({ patterns }) => patterns.every((pattern) => pattern.test(contents))).map(
+    ({ method }) => method
+  );
+
 const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
   'build-time': 0,
   'infra-dependency': 1,
@@ -218,13 +233,38 @@ const hasFallback = (line: string, matchEnd: number, kind: ReadPattern['fallback
   return false;
 };
 
+/**
+ * SvelteKit's own modules: `import { env } from '$env/dynamic/public'` read as `env.PUBLIC_API_URL`, and
+ * `import { PUBLIC_API_URL } from '$env/static/public'`. Only a file importing the module gets these patterns, because
+ * `env.NAME` alone is any object's property.
+ */
+const SVELTEKIT_DYNAMIC_ENV = /import\s*\{[^}]*\benv\b[^}]*\}\s*from\s*['"]\$env\/dynamic\/(?:public|private)['"]/;
+const SVELTEKIT_STATIC_ENV = /import\s*\{([^}]*)\}\s*from\s*['"]\$env\/static\/(?:public|private)['"]/g;
+
+const svelteKitPatterns = (contents: string): ReadPattern[] => {
+  const patterns: ReadPattern[] = [];
+  if (SVELTEKIT_DYNAMIC_ENV.test(contents)) patterns.push({ pattern: new RegExp(`\\benv\\.${NAME}`, 'g') });
+  const staticNames = [...contents.matchAll(SVELTEKIT_STATIC_ENV)].flatMap((match) =>
+    match[1]!
+      .split(',')
+      .map((specifier) => specifier.trim().split(/\s+as\s+/)[0]!)
+      .filter((name) => /^[A-Z][A-Z0-9_]{2,}$/.test(name))
+  );
+  // The import statement is the read: the build inlines the value wherever the name is used.
+  if (staticNames.length > 0) {
+    patterns.push({ pattern: new RegExp(`import\\s*\\{[^}]*\\b(${staticNames.join('|')})\\b`, 'g') });
+  }
+  return patterns;
+};
+
 const collectFromFile = (path: string, contents: string, occurrences: Map<string, Occurrence>): void => {
   const group = PATTERNS_BY_EXTENSION.find((entry) => entry.extensions.test(path));
   if (group === undefined) return;
+  const patterns = group.patterns === JS_PATTERNS ? [...JS_PATTERNS, ...svelteKitPatterns(contents)] : group.patterns;
 
   const lines = contents.split(/\r?\n/);
   for (const [index, line] of lines.entries()) {
-    for (const { pattern, buildTime, fallback } of group.patterns) {
+    for (const { pattern, buildTime, fallback } of patterns) {
       pattern.lastIndex = 0;
       for (const match of line.matchAll(pattern)) {
         const name = match[1];
@@ -252,16 +292,22 @@ const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql'
  * earned its keep: with two Postgres databases, wiring `DATABASE_URL` to either one is a guess,
  * and a wrong guess is connected-to-the-wrong-database, which is strictly worse than unwired.
  */
-const resolveDependency = (name: string, dependencies: readonly DependencyFact[]): DependencyFact | undefined => {
+const resolveDependency = (
+  name: string,
+  dependencies: readonly DependencyFact[],
+  triggers: ReadonlySet<string>
+): DependencyFact | undefined => {
+  // A name says which kind, not which instance. A plain repository has one bucket, queue or topic per kind, and it is
+  // usually the one that invokes this function: binding the function's own output to it (a thumbnailer writing to
+  // `THUMBNAILS_BUCKET`, a worker sending to `RESULTS_QUEUE_URL`) would invoke it again with every write, forever.
+  const unlessTrigger = (candidates: readonly DependencyFact[]): DependencyFact | undefined =>
+    candidates.length === 1 && !triggers.has(candidates[0]!.name) ? candidates[0] : undefined;
+
   const addressed = dependencies.filter((dependency) => dependency.addressedBy.includes(name));
-  if (addressed.length === 1) return addressed[0];
-  if (addressed.length > 1) return undefined;
+  if (addressed.length > 0) return unlessTrigger(addressed);
 
   const kind = ENV_NAME_TO_KIND.find((entry) => entry.pattern.test(name))?.kind;
-  if (kind !== undefined) {
-    const ofKind = dependencies.filter((dependency) => dependency.kind === kind);
-    return ofKind.length === 1 ? ofKind[0] : undefined;
-  }
+  if (kind !== undefined) return unlessTrigger(dependencies.filter((dependency) => dependency.kind === kind));
 
   // `DATABASE_URL` names no engine, but when the repository holds exactly one database the other
   // probes already settled which one it means — the same reconciliation the assembler applies to
@@ -270,16 +316,24 @@ const resolveDependency = (name: string, dependencies: readonly DependencyFact[]
     const databases = dependencies.filter((dependency) => DATABASE_KINDS.has(dependency.kind));
     return databases.length === 1 ? databases[0] : undefined;
   }
+
+  // An application names its own bucket or topic (`UPLOAD_BUCKET`, `ORDER_EVENTS_TOPIC_ARN`). The suffix says which
+  // kind; with exactly one of that kind it can only be that one. The name alone never creates a dependency.
+  const suffixKind = resourceKindNamedBy(name);
+  if (suffixKind !== undefined)
+    return unlessTrigger(dependencies.filter((dependency) => dependency.kind === suffixKind));
   return undefined;
 };
 
 const classify = (
   name: string,
   occurrence: Occurrence,
-  dependencies: readonly DependencyFact[]
+  dependencies: readonly DependencyFact[],
+  /** Dependencies that invoke the services reading the variable. */
+  triggers: ReadonlySet<string> = new Set()
 ): Pick<EnvironmentVariableUse, 'role' | 'dependencyName'> => {
   if (occurrence.buildTimeRead || BUILD_TIME_PREFIX.test(name)) return { role: 'build-time' };
-  const dependency = resolveDependency(name, dependencies);
+  const dependency = resolveDependency(name, dependencies, triggers);
   if (dependency !== undefined) return { role: 'infra-dependency', dependencyName: dependency.name };
   if (SECRET_NAME.test(name)) return { role: 'third-party-secret' };
   return { role: 'runtime-config' };
@@ -366,6 +420,7 @@ export const enrichEnvironmentUsage = async ({
 
   for (const unit of units) {
     const occurrences = new Map<string, Occurrence>();
+    const presignMethods = new Set<'PUT' | 'POST'>();
     // Sequential on purpose: bounded work, and a deterministic file order keeps citation choice
     // reproducible run to run.
     for (const file of unit.files) {
@@ -373,12 +428,24 @@ export const enrichEnvironmentUsage = async ({
       const contents = await readContents(file);
       if (contents === undefined) continue;
       collectFromFile(file, contents, occurrences);
+      for (const method of presignedUploadMethods(contents)) presignMethods.add(method);
+    }
+    // The same source files, read for the other thing the composer needs from them.
+    if (presignMethods.size > 0) {
+      for (const service of unit.services) service.presignedUploadMethods = [...presignMethods].toSorted();
     }
     if (occurrences.size === 0) continue;
 
+    const triggers = new Set(
+      unit.services.flatMap((service) =>
+        (service.functionTriggers ?? []).flatMap((trigger) =>
+          'dependencyName' in trigger ? [trigger.dependencyName] : []
+        )
+      )
+    );
     const classified: EnvironmentVariableUse[] = [];
     for (const [name, occurrence] of occurrences) {
-      const { role, dependencyName } = classify(name, occurrence, dependencies);
+      const { role, dependencyName } = classify(name, occurrence, dependencies, triggers);
       classified.push({
         name,
         role,
@@ -410,4 +477,40 @@ export const enrichEnvironmentUsage = async ({
       }
     }
   }
+};
+
+/**
+ * The variables one script reads: its entry file and, for JavaScript, what that file imports. Unlike the service scan
+ * this reads files under `scripts/`, because the script is the subject here.
+ */
+export const scriptEnvironmentUsage = async ({
+  entry,
+  dependencies,
+  files,
+  read
+}: {
+  entry: string;
+  dependencies: readonly DependencyFact[];
+  files: readonly string[];
+  read: (repoRelativePath: string) => Promise<SourceRead>;
+}): Promise<EnvironmentVariableUse[]> => {
+  const readContents = async (file: string): Promise<string | undefined> => {
+    const result = await read(file);
+    return result.kind === 'contents' ? result.contents : undefined;
+  };
+  const closure = JS_SOURCE.test(entry)
+    ? ((await importClosure(entry, new Set(files), readContents)) ?? [entry])
+    : [entry];
+  const occurrences = new Map<string, Occurrence>();
+  for (const file of closure) {
+    // oxlint-disable-next-line no-await-in-loop -- a script's import graph is small, and the order keeps citations stable.
+    const contents = await readContents(file);
+    if (contents !== undefined) collectFromFile(file, contents, occurrences);
+  }
+  const uses: EnvironmentVariableUse[] = [];
+  for (const [name, occurrence] of occurrences) {
+    const { role, dependencyName } = classify(name, occurrence, dependencies);
+    uses.push({ name, role, dependencyName, required: !occurrence.alwaysHasFallback, evidence: occurrence.citations });
+  }
+  return uses;
 };

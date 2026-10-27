@@ -11,7 +11,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { detectAgents, type DetectedAgent } from './agent/detect';
 import { modelFlagFor, modelsFor } from './agent/models';
 import { getStacktapeVersion } from '@utils/versioning';
@@ -31,6 +31,7 @@ import {
 import { runAgentSessionWithRetry } from './agent/session-runner';
 import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
+import { projectNameFor } from './project-name';
 import { createRailpackPlanner } from './railpack-planner';
 import { runPreflight } from './preflight/preflight';
 import { createPreflightRunners } from './preflight/runners';
@@ -264,7 +265,7 @@ export const regionForNewConfig = (machineRegion: string | undefined): string =>
 
 export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> => {
   const repositoryRoot = resolve(options.repositoryRoot ?? process.cwd());
-  const projectName = options.projectName ?? basename(repositoryRoot);
+  const projectName = options.projectName ?? (await projectNameFor(repositoryRoot));
   const say = options.onOutput ?? (() => {});
 
   const requested = options.codingAgent ?? 'auto';
