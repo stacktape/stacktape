@@ -2,9 +2,11 @@ import type { SecretListEntry, SecretsManagerClient } from '@aws-sdk/client-secr
 import {
   CreateSecretCommand,
   DeleteSecretCommand,
+  DescribeSecretCommand,
   GetSecretValueCommand,
   ListSecretsCommand,
   RestoreSecretCommand,
+  TagResourceCommand,
   UntagResourceCommand,
   UpdateSecretCommand
 } from '@aws-sdk/client-secrets-manager';
@@ -47,6 +49,18 @@ export class AwsSecrets {
           ...(tags?.length ? { Tags: tags } : {})
         })
       )
+      .catch(handleError);
+  };
+
+  /** Rejects with the SDK's own error, so a caller can tell a missing permission (`AccessDeniedException`) apart. */
+  tag = ({ secretId, tags }: { secretId: string; tags: { Key: string; Value: string }[] }) =>
+    this.#createClient().send(new TagResourceCommand({ SecretId: secretId, Tags: tags }));
+
+  /** The secret's metadata and tags, read again after a change: `list` may return what it was a moment before. */
+  describe = ({ secretId }: { secretId: string }) => {
+    const handleError = this.#getErrorHandler(`Failed to describe secret with id ${secretId}.`);
+    return this.#createClient()
+      .send(new DescribeSecretCommand({ SecretId: secretId }))
       .catch(handleError);
   };
 

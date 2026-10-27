@@ -1,6 +1,7 @@
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { createDevNetworkAws, getDevNetworkName } from '@domain-services/dev-network';
 import { releaseStackLeases } from '@domain-services/dev-network/leases';
+import { createStageHolderStore, getStageHolderParameterName } from '@domain-services/dev-network/holders';
 import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -122,15 +123,23 @@ export const commandDelete = async () => {
   if (wasDevStack) {
     try {
       await releaseStackLeases({ store: createDevNetworkAws().leases, networkName: getDevNetworkName(), stackName });
+      await createStageHolderStore().delete(
+        getStageHolderParameterName({ networkName: getDevNetworkName(), stackName })
+      );
     } catch (err) {
       tui.info(`Could not release the dev network relay ports of ${stackName}: ${err}`);
     }
     try {
-      const deletedSecrets = await deleteDevGeneratedSecrets({ stackName });
-      if (deletedSecrets.length) {
+      const { deleted, kept } = await deleteDevGeneratedSecrets({ stackName });
+      if (deleted.length) {
         tui.info(
-          `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deletedSecrets.join(', ')}. ` +
+          `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deleted.join(', ')}. ` +
             'A deployment or dev session that uses one within 7 days restores it.'
+        );
+      }
+      for (const { name, usedBy } of kept) {
+        tui.info(
+          `Kept secret ${name}, which dev mode generated: ${usedBy.length === 1 ? `the dev stack ${usedBy[0]} still uses` : `the dev stacks ${usedBy.join(' and ')} still use`} it.`
         );
       }
     } catch (err) {

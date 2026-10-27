@@ -6,8 +6,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { deleteDevGeneratedSecrets, ensureMissingSecretsCreated } from '../../src/commands/_utils/secret-preflight';
 
-// The secrets `stacktape dev` generates for a stage (database passwords) are deleted with the stage, but never one that
-// another stage uses, and a stage that still needs one gets it back within the recovery window.
+// The secrets `stacktape dev` generates for a stage (database passwords) are deleted with the last dev stage that uses
+// them, never while another stage uses one, and a stage that still needs one gets it back within the recovery window.
 
 let ministack: MiniStack;
 beforeAll(async () => {
@@ -44,28 +44,93 @@ const useAccount = (account: MiniStackAccount) => {
   return { state, value };
 };
 
-const devTag = (stack: string) => [{ Key: tagNames.devGeneratedSecret(), Value: stack }];
+/** The tags of a secret dev mode generated for `generatedFor` and that the dev stacks `users` use, in any order. */
+const devTags = (generatedFor: string, ...users: string[]) =>
+  expect.arrayContaining([
+    { Key: tagNames.devGeneratedSecret(), Value: generatedFor },
+    ...users.map((user) => ({ Key: tagNames.devSecretUser(user), Value: user }))
+  ]);
+const userCount = (tags: { Key?: string }[]) =>
+  tags.filter(({ Key }) => Key?.startsWith(tagNames.devSecretUserPrefix())).length;
 
-test('a stage deletes only the secrets still tagged for it, and a stage that needs one restores it', async () => {
+test('a stage deletes a secret it alone uses, and a stage that needs one restores it', async () => {
   const { state, value } = useAccount(ministack.account());
 
   referenceSecrets('shop-cache');
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
-  expect(await state('shop-cache')).toEqual({ deleted: false, tags: devTag('shop-alice') });
+  expect((await state('shop-cache'))?.tags).toEqual(devTags('shop-alice', 'shop-alice'));
   const generated = await value('shop-cache');
 
   // Deleting the stage schedules it for deletion; the next session of a stage that uses it restores the same value.
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual(['shop-cache']);
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: ['shop-cache'], kept: [] });
   expect((await state('shop-cache'))?.deleted).toBe(true);
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
-  expect(await state('shop-cache')).toEqual({ deleted: false, tags: devTag('shop-alice') });
+  const restored = await state('shop-cache');
+  expect(restored).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-alice') });
+  expect(userCount(restored!.tags)).toBe(1);
   expect(await value('shop-cache')).toBe(generated);
+});
 
-  // Another stage uses it, so it is no longer the dev stage's to delete.
+// Fifth dogfood (r2cc): two dev stages used one generated secret, and after both were deleted it stayed, with no
+// deletion planned.
+test('a secret two dev stages use is deleted with the last of them, also when both are deleted at once', async () => {
+  const { state } = useAccount(ministack.account());
+  referenceSecrets('shop-session');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
   await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
-  expect(await state('shop-cache')).toEqual({ deleted: false, tags: [] });
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual([]);
-  expect((await state('shop-cache'))?.deleted).toBe(false);
+  expect((await state('shop-session'))?.tags).toEqual(devTags('shop-alice', 'shop-alice', 'shop-bob'));
+
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({
+    deleted: [],
+    kept: [{ name: 'shop-session', usedBy: ['shop-bob'] }]
+  });
+  expect(await state('shop-session')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-bob') });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({ deleted: ['shop-session'], kept: [] });
+  expect((await state('shop-session'))?.deleted).toBe(true);
+
+  // Both stages again, deleted in parallel: whichever removes its tag last schedules the deletion.
+  referenceSecrets('shop-jobs');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
+  await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
+  const results = await Promise.all(
+    ['shop-alice', 'shop-bob'].map((stackName) => deleteDevGeneratedSecrets({ stackName }))
+  );
+  expect(results.flatMap(({ deleted }) => deleted)).toContain('shop-jobs');
+  expect((await state('shop-jobs'))?.deleted).toBe(true);
+});
+
+test('a deployment that is not a dev session takes a dev secret out of dev ownership', async () => {
+  const { state } = useAccount(ministack.account());
+  referenceSecrets('shop-search');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
+  await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
+  await ensureMissingSecretsCreated();
+  expect(await state('shop-search')).toEqual({ deleted: false, tags: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({ deleted: [], kept: [] });
+  expect((await state('shop-search'))?.deleted).toBe(false);
+});
+
+// Review of #369: past 50 tags, a dev start failed. It now keeps such a secret out of dev ownership instead.
+test('a secret shared by more dev stages than its tags can record is kept, and no stage deletes it', async () => {
+  const { state } = useAccount(ministack.account());
+  referenceSecrets('shop-shared');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
+
+  const tag = awsSdkManager.secrets.tag;
+  awsSdkManager.secrets.tag = async () => {
+    throw Object.assign(new Error('Number of tags exceeds the limit of 50 tags for the secret.'), {
+      name: 'ValidationException'
+    });
+  };
+  try {
+    await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
+  } finally {
+    awsSdkManager.secrets.tag = tag;
+  }
+  expect(await state('shop-shared')).toEqual({ deleted: false, tags: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
+  expect((await state('shop-shared'))?.deleted).toBe(false);
 });
 
 test('a deployment that may not untag a dev secret warns and goes on', async () => {
@@ -84,7 +149,7 @@ test('a deployment that may not untag a dev secret warns and goes on', async () 
   } finally {
     awsSdkManager.secrets.untag = untag;
   }
-  expect(await state('shop-db')).toEqual({ deleted: false, tags: devTag('shop-alice') });
+  expect(await state('shop-db')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-alice') });
 });
 
 test('a stage that uses a dev secret only inside $CfFormat restores it and keeps it', async () => {
@@ -93,7 +158,7 @@ test('a stage that uses a dev secret only inside $CfFormat restores it and keeps
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
   const generated = await value('shop-queue');
   for (const key of overridden.splice(0)) delete (configManager as unknown as Record<PropertyKey, unknown>)[key];
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual(['shop-queue']);
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: ['shop-queue'], kept: [] });
 
   configManager.config = {
     resources: {},
@@ -104,6 +169,7 @@ test('a stage that uses a dev secret only inside $CfFormat restores it and keeps
   } finally {
     configManager.reset();
   }
-  expect(await state('shop-queue')).toEqual({ deleted: false, tags: [] });
+  expect(await state('shop-queue')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-bob') });
+  expect(userCount((await state('shop-queue'))!.tags)).toBe(1);
   expect(await value('shop-queue')).toBe(generated);
 });

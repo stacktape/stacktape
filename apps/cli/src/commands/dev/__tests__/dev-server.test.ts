@@ -159,6 +159,17 @@ setTimeout(() => process.exit(1), 100);
     // The other session's record lists the app: refused before it starts.
     const refused = await start();
     expect(refused).toEqual({ status: 'error', error: expected });
+    // Started through MCP, the way out is the tool call that stops that session.
+    await writeFile(join(registry, 'shop-first.json'), JSON.stringify({ ...other, sessionId: 'first-session' }));
+    Object.assign(process.env, { STP_OPERATION_INITIATOR: 'ai-agent', STP_OPERATION_INTERFACE: 'mcp' });
+    try {
+      expect((await start()).error).toContain(
+        'Stop that session (stacktape_dev with action=stop and args.devSessionId=first-session), or run this stage'
+      );
+    } finally {
+      delete process.env.STP_OPERATION_INITIATOR;
+      delete process.env.STP_OPERATION_INTERFACE;
+    }
     // A record without the app (an older session, a renamed workload): Next.js's own refusal names it instead.
     await writeFile(join(registry, 'shop-first.json'), JSON.stringify({ ...other, workloads: [] }));
     const state = await start();

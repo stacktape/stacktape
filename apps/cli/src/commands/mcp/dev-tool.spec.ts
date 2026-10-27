@@ -756,6 +756,69 @@ describe('MCP dev tool arguments', () => {
     }
   });
 
+  // Fifth dogfood (r2cc): a wrapper started the MCP server in the CLI's own directory, and plan without cwd scanned it
+  // instead of the client's project.
+  test('plan and start without cwd use the client root when the server runs outside it', async () => {
+    const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-root-'));
+    const elsewhere = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-server-'));
+    try {
+      await writeFile(
+        join(project, 'package.json'),
+        JSON.stringify({ scripts: { deploy: 'stacktape deploy --stage prod --region eu-west-1' } })
+      );
+      const started: Array<string | undefined> = [];
+      const handler = createDevToolHandler({
+        serverDirectory: () => elsewhere,
+        runCli: async (input) => {
+          started.push(input.cwd);
+          return { ...(await startedDaemon(input)), ok: false, code: 'CONFIG_ERROR', data: undefined };
+        }
+      });
+      const getProjectRoots = async () => [project];
+      const planned = (await handler({ action: 'plan', args: { configPath: 'stacktape.config.ts' }, getProjectRoots }))
+        .structuredContent;
+      expect(planned.data?.args).toMatchObject({ cwd: project, region: 'eu-west-1' });
+      await handler({ action: 'start', args: { stage: 'dev' }, getProjectRoots });
+      expect(started).toEqual([project]);
+      // A server inside the client's root keeps its own directory, which may be a package of that project.
+      const inside = join(project, 'packages', 'api');
+      await mkdir(inside, { recursive: true });
+      const insideHandler = createDevToolHandler({ serverDirectory: () => inside });
+      const insidePlan = (await insideHandler({ action: 'plan', args: { configPath: 'x.ts' }, getProjectRoots }))
+        .structuredContent;
+      expect(insidePlan.data?.args).toMatchObject({ cwd: inside });
+    } finally {
+      await rm(project, { recursive: true, force: true });
+      await rm(elsewhere, { recursive: true, force: true });
+    }
+  });
+
+  test('a destructive reset names the tool argument that confirms it, not a request body field', async () => {
+    const dev = await daemon();
+    try {
+      const handler = createDevToolHandler({
+        runCli: startedDaemon,
+        // The agent's own answer to a reset without confirm (agent-server.ts), as `devApiRequest` unwraps it.
+        requestDevApi: async ({ path }) =>
+          path.startsWith('/reset/')
+            ? {
+                ok: false,
+                code: 'DESTRUCTIVE_OPERATION',
+                message: 'Resetting deletes all data in the local databases.',
+                hint: 'To proceed, set confirm: true in the request body.'
+              }
+            : { ok: true, code: 'OK' }
+      });
+      expect((await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent.ok).toBe(true);
+      const reset = (await handler({ action: 'reset_db' })).structuredContent;
+      expect(reset.code).toBe('DESTRUCTIVE_OPERATION');
+      expect(JSON.stringify(reset)).not.toContain('request body');
+      expect(reset.data?.hint).toBe('To proceed, repeat this call with args.confirm=true.');
+    } finally {
+      await dev.close();
+    }
+  });
+
   test('env and aws go to the agent of the session and name what is missing', async () => {
     const dev = await daemon();
     try {

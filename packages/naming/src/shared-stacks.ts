@@ -29,3 +29,10 @@ export const getDevNetworkStackName = (suffix?: string) =>
 /** Port leases of a dev network: one parameter per (stack, resource), holding the relay port. */
 export const getDevNetworkLeaseParameterPrefix = (networkStackName: string) =>
   `/stacktape/dev-network/${networkStackName}/leases`;
+
+/**
+ * The dev session that holds each stage of a dev network: one parameter per dev stack, which the session refreshes
+ * while it runs, so a start elsewhere can refuse the stage with one read.
+ */
+export const getDevNetworkHolderParameterPrefix = (networkStackName: string) =>
+  `/stacktape/dev-network/${networkStackName}/holders`;

@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localStatePaths } from 'src/config/local-state-paths';
 import type { RelaySessionInfo } from './tunnel-manager';
-import { assertStageNotRunningElsewhere, endSessionForLostStage } from './dev-network-session';
+import { holdStage, type StageHolderStore } from '@domain-services/dev-network/holders';
+import {
+  assertStageNotRunningElsewhere,
+  endSessionForLostStage,
+  refuseStageHeldElsewhere
+} from './dev-network-session';
 
 // The relay's session list as `stacktape dev` reads it before it deploys anything; the relay itself is covered in
 // tunnel-manager/relay.spec.ts.
@@ -110,6 +115,86 @@ describe('the stage check before a dev session deploys', () => {
         }
       })
     ).toBe('started');
+  });
+});
+
+// Fifth dogfood (r2cc): a refusal in a far region took 22 s, because the check ran after the stack metadata and inside the
+// network step. The holder record is one SSM read right after the configuration is loaded.
+describe('the stage holder record', () => {
+  const memoryStore = () => {
+    const records = new Map<string, { value: string; modifiedAt: Date }>();
+    const store: StageHolderStore = {
+      read: async (name) => records.get(name),
+      write: async (name, value) => void records.set(name, { value, modifiedAt: new Date() }),
+      delete: async (name) => void records.delete(name)
+    };
+    return { records, store };
+  };
+  const NAME = '/stacktape/dev-network/stacktape-dev-network-test/holders/shop-alice';
+  const refuse = (store: StageHolderStore, overrides: Partial<Parameters<typeof refuseStageHeldElsewhere>[0]> = {}) =>
+    refuseStageHeldElsewhere({
+      stackName: 'shop-alice',
+      takeOver: false,
+      store,
+      networkName: 'stacktape-dev-network-test',
+      owner,
+      isAlive: () => true,
+      ...overrides
+    }).then(
+      () => 'started',
+      (error: { code?: string; message?: string }) => `${error.code}: ${error.message}`
+    );
+
+  test('a running session is refused at once, in the form its caller uses; a stopped one is not', async () => {
+    const { store } = memoryStore();
+    expect(await refuse(store)).toBe('started');
+    const held = await holdStage({ store, name: NAME, holder: laptop });
+    const refused = await refuse(store);
+    expect(refused).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE: Dev mode for shop-alice already runs in another session');
+    expect(refused).toContain('Alice (alice-laptop)');
+    expect(refused).toContain('run this command again with --take-over');
+    Object.assign(process.env, { STP_OPERATION_INITIATOR: 'ai-agent', STP_OPERATION_INTERFACE: 'mcp' });
+    try {
+      const mcp = await refuse(store);
+      expect(mcp).toContain('call stacktape_dev with action=start and args.takeOver=true');
+      expect(mcp).not.toContain('--take-over');
+    } finally {
+      delete process.env.STP_OPERATION_INITIATOR;
+      delete process.env.STP_OPERATION_INTERFACE;
+    }
+    // --take-over goes on to the relay check, which reports whom it replaces.
+    expect(await refuse(store, { takeOver: true })).toBe('started');
+    await held.release();
+    expect(await refuse(store)).toBe('started');
+  });
+
+  test('a record that stopped changing, or of an exited process in this directory, does not refuse', async () => {
+    const { records, store } = memoryStore();
+    await holdStage({ store, name: NAME, holder: laptop });
+    records.get(NAME)!.modifiedAt = new Date(Date.now() - 4 * 60_000);
+    expect(await refuse(store)).toBe('started');
+    // The same developer, directory and machine, but a process that has exited: killed without its cleanup.
+    const exited = { ...laptop, label: owner.label, session: `999999.${MACHINE}.killed` };
+    await holdStage({ store, name: NAME, holder: exited });
+    expect(await refuse(store, { isAlive: () => false })).toBe('started');
+    expect(await refuse(store, { isAlive: () => true })).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE');
+  });
+
+  test('after a take-over, the new holder keeps the record; the replaced session neither refreshes nor deletes it', async () => {
+    const { records, store } = memoryStore();
+    const replaced = await holdStage({ store, name: NAME, holder: laptop, refreshMs: 5 });
+    const desktop = { ...laptop, session: 'desktop', label: 'Alice (alice-desktop)' };
+    const holder = await holdStage({ store, name: NAME, holder: desktop, refreshMs: 5 });
+    // Until the relay tells it, the replaced session may still refresh over the new holder's record; the new holder's
+    // next refresh writes it back.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    replaced.lose();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(JSON.parse(records.get(NAME)!.value).session).toBe('desktop');
+    await replaced.release();
+    expect(JSON.parse(records.get(NAME)!.value).session).toBe('desktop');
+    await holder.release();
+    expect(records.has(NAME)).toBe(false);
   });
 });
 
