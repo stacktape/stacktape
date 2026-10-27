@@ -4,6 +4,7 @@
  * the description, the cover, Install, the eight things with their screenshots, the teams, Start
  * and License. Every element is a markdown construct a README renderer would draw.
  */
+import type { ComponentProps } from 'astro/types';
 import Cover from '../../components/Cover.astro';
 import { CodeBlock } from './CodeBlock';
 import {
@@ -24,6 +25,7 @@ import {
   TESTIMONIALS_TITLE,
   TRUST_CHIPS
 } from './data';
+import BenchmarkHighlight from './BenchmarkHighlight.astro';
 import Figure from './Figure.astro';
 import Section from './Section.astro';
 import Costs from './screens/Costs.astro';
@@ -54,6 +56,24 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   incidents: [{ screen: Incidents, caption: CAPTIONS.incident }],
   costs: [{ screen: Costs, caption: CAPTIONS.costs }],
   'talk-to-us': [{ screen: Expert, caption: CAPTIONS.expert }]
+};
+
+/** The one benchmark result under the sections whose claims it measures, linking to `/benchmarks`. */
+const BENCHMARK_HIGHLIGHTS: Partial<Record<SectionData['id'], ComponentProps<typeof BenchmarkHighlight>>> = {
+  packages: {
+    comparison: 'packaging',
+    view: 'empty-cache',
+    app: 'lambda-25',
+    headline: 'to package 25 Lambda functions',
+    context: 'Median of 10 runs with an empty build cache, on one EC2 c7i.2xlarge in eu-west-1, 22 October 2026.'
+  },
+  deploys: {
+    comparison: 'lambda-deploy',
+    view: 'handler',
+    app: 'lambda-25',
+    headline: 'to deploy a code change to 25 Lambda functions',
+    context: 'A handler change, timed until the new code serves. Median of 10 runs on one EC2 c7i.2xlarge in eu-west-1, 22 October 2026.'
+  }
 };
 ---
 
@@ -121,15 +141,19 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   </ol>
 
   {
-    SECTIONS.map((section) => (
-      <Section section={section}>
-        {FIGURES[section.id].map(({ screen: Screen, caption, plain }) => (
-          <Figure caption={caption} plain={plain}>
-            <Screen />
-          </Figure>
-        ))}
-      </Section>
-    ))
+    SECTIONS.map((section) => {
+      const highlight = BENCHMARK_HIGHLIGHTS[section.id];
+      return (
+        <Section section={section}>
+          {FIGURES[section.id].map(({ screen: Screen, caption, plain }) => (
+            <Figure caption={caption} plain={plain}>
+              <Screen />
+            </Figure>
+          ))}
+          {highlight && <BenchmarkHighlight {...highlight} />}
+        </Section>
+      );
+    })
   }
 
   <h2 class="rm-h2" id="teams">{TESTIMONIALS_TITLE}</h2>

@@ -1,0 +1,143 @@
+---
+/**
+ * The deploy benchmarks, in the homepage's README language: the repo header, one document with a
+ * tabbed chart (one comparison at a time) and an "About these results" column. The numbers are the
+ * published medians from https://github.com/stacktape/deploy-benchmarks, copied into
+ * `src/data/deploy-benchmarks.json` with the results file each one came from.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { BenchmarkTabs } from '../variants/readme/BenchmarkTabs';
+import { BENCHMARKS } from '../variants/readme/benchmarks';
+import Footer from '../variants/readme/Footer.astro';
+import Header from '../variants/readme/Header.astro';
+import '../variants/readme/readme.css';
+
+const TITLE = 'Deploy benchmarks';
+const DESCRIPTION =
+  'Preliminary results: how long Stacktape, Serverless Framework, SST, AWS CDK, Heroku and Render take to package an application and to get a code change live.';
+const [cliRun, pushRun] = BENCHMARKS.runs;
+---
+
+<BaseLayout title={`${TITLE} — Stacktape`} description={DESCRIPTION} htmlClass="rm-html" noindex={false}>
+  <Fragment slot="head">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+  </Fragment>
+
+  <div class="rm-root">
+    <Header />
+    <div class="rm-container rm-layout">
+      <main class="rm-main">
+        <article class="rm-doc rm-doc--bench" aria-labelledby="rm-title">
+          <h1 class="rm-h1" id="rm-title">
+            <span>{TITLE}</span>
+            <span class="rm-badges" aria-label="Status: preliminary. Measured 22 to 23 October 2026.">
+              <span class="rm-badge rm-badge--warn">
+                <span class="rm-badge__k">status</span>
+                <span class="rm-badge__v">preliminary</span>
+              </span>
+              <span class="rm-badge">
+                <span class="rm-badge__k">measured</span>
+                <span class="rm-badge__v">22–23 Oct 2026</span>
+              </span>
+            </span>
+          </h1>
+
+          <blockquote class="rm-quote rm-quote--note">
+            <p>
+              <b>{BENCHMARKS.status}.</b> Stacktape v4 was built from source, not installed from a release, so the numbers
+              can change before v4 ships.
+            </p>
+          </blockquote>
+
+          <p class="rm-tagline">How long it takes to get a code change live</p>
+          <p class="rm-p rm-lead">
+            Stacktape, Serverless Framework, SST, AWS CDK, Heroku and Render deploy the same applications: the backend
+            of a small online shop as 1, 5 or 25 Lambda functions, and Node.js and Python container APIs. Every tool is
+            set up the way its users would set it up, and every configuration and raw result is public in the <a
+              href={BENCHMARKS.source}>deploy-benchmarks repository</a
+            >.
+          </p>
+
+          <h2 class="rm-h2" id="results">Results</h2>
+          <BenchmarkTabs client:load data={BENCHMARKS} />
+
+          <h2 class="rm-h2" id="method">How we measured</h2>
+          <ul class="rm-list">
+            <li>Every tool gets the same application source and the same dependency lock files.</li>
+            <li>
+              A deploy is timed until the changed code answers requests, not until the command exits. Every run is
+              checked: it serves the new revision, passes the application's business checks and leaves unchanged
+              services on their old code.
+            </li>
+            <li>A bar is the median of ten valid runs unless the chart says otherwise. Hover a bar for its range.</li>
+            <li>
+              <b>{cliRun?.label}:</b> packaging, image size and command-line deploys. {cliRun?.machine}, every tool in one
+              session. Stacktape {cliRun?.stacktape}.
+            </li>
+            <li>
+              <b>{pushRun?.label}:</b> Stacktape's Git push. The Console's build runner was a c7a.2xlarge in eu-west-1.
+              The pushes were timed from a laptop whose clock ran about 5% fast, and every result was corrected against
+              AWS time. Stacktape {pushRun?.stacktape}.
+            </li>
+          </ul>
+
+          <h2 class="rm-h2" id="reproduce">Run it yourself</h2>
+          <p class="rm-p">
+            Each test has its own branch in the repository, named <code>&lt;app&gt;/&lt;tool&gt;</code>, with the
+            tool's version, configuration and commands. You need a disposable AWS account. If you think a tool is set
+            up worse than its users would set it up, <a href={BENCHMARKS.issues}>open an issue</a> and we will rerun
+            the affected tests.
+          </p>
+        </article>
+      </main>
+
+      <aside class="rm-side" aria-label="About these results">
+        <section class="rm-side__block">
+          <h2 class="rm-side__h">About</h2>
+          <p class="rm-side__text">
+            Preliminary results from Stacktape's open benchmark of deployment tools. Lower is better.
+          </p>
+          <a class="rm-side__site" href={BENCHMARKS.source}>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path
+                d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8Z"
+              ></path>
+            </svg>
+            stacktape/deploy-benchmarks
+          </a>
+        </section>
+
+        {
+          BENCHMARKS.runs.map((run) => (
+            <section class="rm-side__block">
+              <h2 class="rm-side__h">{run.label}</h2>
+              <p class="rm-side__text">{run.what}.</p>
+              <ul class="rm-side__facts">
+                <li>{run.machine}</li>
+                <li>Stacktape {run.stacktape}</li>
+                <li>{run.competitors}</li>
+              </ul>
+              <ul class="rm-side__links">
+                <li>
+                  <a href={run.readme}>Method and caveats</a>
+                </li>
+                <li>
+                  <a href={run.files}>Raw results</a>
+                </li>
+              </ul>
+            </section>
+          ))
+        }
+
+        <section class="rm-side__block">
+          <h2 class="rm-side__h">Feedback</h2>
+          <p class="rm-side__text">Think a tool is set up badly? Tell us what you would change.</p>
+          <ul class="rm-side__links">
+            <li><a href={BENCHMARKS.issues}>Open an issue</a></li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+    <Footer />
+  </div>
+</BaseLayout>

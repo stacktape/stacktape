@@ -2752,6 +2752,322 @@ a:hover .rm-arrow {
   margin-left: auto;
 }
 
+/* ── Benchmarks: the tabbed chart on /benchmarks and the one result under 02 and 03 ─────────── */
+
+/*
+ * Horizontal bars on one scale per comparison. Stacktape's bar is the brand teal and every other
+ * tool shares one muted grey, so identity never depends on telling two hues apart; the tool's name
+ * labels every row. Values sit at the bar tips in the text colours, never in the bar colour.
+ */
+.rm-badge--warn .rm-badge__v {
+  background: var(--rm-amber);
+  color: #241600;
+  text-shadow: none;
+}
+
+.rm-doc--bench :where(p, li) > code,
+.rm-bench :where(p, li) > code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: var(--rm-mono);
+  font-size: 0.86em;
+  color: var(--rm-text);
+}
+
+.rm-bench {
+  --rm-bench-label: 112px;
+  --rm-bench-thumb: 14px;
+  --rm-bench-other: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+  border: 1px solid var(--rm-rule-strong);
+  border-radius: 6px;
+  background: var(--rm-code-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+}
+
+.rm-bench__strip {
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 -1px 0 var(--rm-rule);
+}
+
+.rm-bench__tabs {
+  --stp-tabs-border: transparent;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.rm-bench__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.rm-bench__tabs .stp-ui-tab {
+  flex: none;
+  height: 44px;
+  padding: 0 12px;
+  font-size: 13.5px;
+}
+
+.rm-bench__panel {
+  padding: 20px 20px 16px;
+}
+
+.rm-bench__panel:focus-visible {
+  outline: 2px solid var(--rm-brand);
+  outline-offset: -2px;
+}
+
+.rm-bench__title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #fff;
+}
+
+.rm-bench__desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--rm-muted);
+}
+
+.rm-bench__views {
+  margin-top: 16px;
+}
+
+.rm-bench__groups {
+  display: grid;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.rm-bench__app {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--rm-muted);
+}
+
+.rm-bench__app code {
+  font-family: var(--rm-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rm-text);
+}
+
+.rm-bench__rows {
+  display: grid;
+  gap: 4px;
+}
+
+.rm-bench__row {
+  display: grid;
+  grid-template-columns: var(--rm-bench-label) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+
+.rm-bench__tool {
+  overflow: hidden;
+  color: var(--rm-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rm-bench__track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The share of the comparison's slowest value, of the room left once the widest label fits. */
+.rm-bench__bar {
+  flex: none;
+  width: max(2px, calc((100% - 5.5em) * var(--rm-share)));
+  height: var(--rm-bench-thumb);
+  border-radius: 0 4px 4px 0;
+  background: var(--rm-bench-other);
+  transition: background 150ms ease;
+}
+
+.rm-bench__val {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--rm-body);
+  white-space: nowrap;
+}
+
+.rm-bench__best {
+  font-family: var(--rm-sans);
+  font-size: 11.5px;
+  color: var(--rm-faint);
+}
+
+.rm-bench__row--stacktape .rm-bench__tool {
+  font-weight: 600;
+  color: #fff;
+}
+
+.rm-bench__row--stacktape .rm-bench__bar {
+  background: var(--rm-brand);
+}
+
+.rm-bench__row--stacktape .rm-bench__val {
+  font-weight: 600;
+  color: #fff;
+}
+
+.rm-bench__row:hover .rm-bench__tool {
+  color: #fff;
+}
+
+.rm-bench__row:not(.rm-bench__row--stacktape):hover .rm-bench__bar {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.rm-bench__notes {
+  display: grid;
+  gap: 6px;
+  margin: 20px 0 0;
+  padding: 14px 0 0 1.4em;
+  border-top: 1px solid var(--rm-rule);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--rm-muted);
+  list-style: disc;
+}
+
+.rm-bench__notes li::marker {
+  color: var(--rm-faint);
+}
+
+.rm-bench__source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--rm-faint);
+}
+
+.rm-bench__source a {
+  overflow-wrap: anywhere;
+}
+
+.rm-bench__status {
+  color: var(--rm-amber);
+}
+
+/* The homepage's one result: a smaller copy of the chart's card. */
+.rm-bh {
+  --rm-bench-label: 96px;
+  --rm-bench-thumb: 12px;
+  --rm-bench-other: rgba(255, 255, 255, 0.22);
+  margin: 20px 0 0;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--rm-rule-strong);
+  border-radius: 6px;
+  background: var(--rm-code-bg);
+}
+
+.rm-bh__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.rm-bh__kicker {
+  font-family: var(--rm-mono);
+  color: var(--rm-amber);
+}
+
+.rm-bh__more {
+  white-space: nowrap;
+}
+
+.rm-bh__title {
+  margin: 6px 0 12px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--rm-body);
+}
+
+.rm-bh__title b {
+  margin-right: 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.rm-bh__foot {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--rm-faint);
+}
+
+/* The side column on /benchmarks lists a run's facts as plain lines. */
+.rm-side__facts {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  color: var(--rm-muted);
+}
+
+@media (max-width: 639px) {
+  .rm-bench {
+    --rm-bench-label: 84px;
+  }
+
+  .rm-bh {
+    --rm-bench-label: 84px;
+    padding: 12px 12px 10px;
+  }
+
+  .rm-bench__panel {
+    padding: 16px 14px 14px;
+  }
+
+  .rm-bench__row {
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .rm-bench__tabs .stp-ui-tab {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  /* No room at a phone's width for the word beside the value; it stays for screen readers. */
+  .rm-bench__best {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
 /* ── Below 1000px: the sidebar moves under the document ──────────────────────────────────────── */
 
 @media (max-width: 999px) {
