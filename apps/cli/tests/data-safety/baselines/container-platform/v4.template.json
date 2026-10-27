@@ -280,7 +280,6 @@
             "type": "helper-lambda",
             "properties": {
               "digest": "characterization",
-              "artifactPath": "characterization-helper.zip",
               "handler": "index.default",
               "size": 10
             }
@@ -288,7 +287,6 @@
           "artifactName": "cdnOriginRequestLambda",
           "resourceName": "j2-v3-baseline-j2base-stpOReq-eu-west-1",
           "handler": "index.default",
-          "artifactPath": "characterization-helper.zip",
           "type": "edge-lambda-function",
           "timeout": 10,
           "runtime": "nodejs22.x",

@@ -353,15 +353,29 @@ const getDesiredOperations = (
   };
 };
 
+/**
+ * Older CLIs put the artifact's local path, which differs on every command, into `packaging`. Its content is already
+ * covered by `artifactS3Key`, so the path never counts as a change.
+ */
+const comparableParam = (lambdaProps: StpServiceCustomResourceEdgeFunctionProps, paramName: string) => {
+  if (paramName !== 'packaging' || !lambdaProps.packaging?.properties) {
+    return lambdaProps[paramName];
+  }
+  const { artifactPath: _artifactPath, ...properties } = lambdaProps.packaging.properties as Record<string, unknown>;
+  return { ...lambdaProps.packaging, properties };
+};
+
 const paramHasChanged = (
   lambdaProps: StpServiceCustomResourceEdgeFunctionProps,
   oldLambdaProps: StpServiceCustomResourceEdgeFunctionProps,
   paramName: string
 ) => {
-  if (typeof lambdaProps[paramName] === 'string') {
-    return lambdaProps[paramName] !== oldLambdaProps[paramName];
+  const value = comparableParam(lambdaProps, paramName);
+  const oldValue = comparableParam(oldLambdaProps, paramName);
+  if (typeof value === 'string') {
+    return value !== oldValue;
   }
-  return JSON.stringify(lambdaProps[paramName]) !== JSON.stringify(oldLambdaProps[paramName]);
+  return JSON.stringify(value) !== JSON.stringify(oldValue);
 };
 
 const createRole = async (lambdaProps: StpServiceCustomResourceEdgeFunctionProps) => {
@@ -499,9 +513,23 @@ const createFunction = async (
   }
 };
 
+const publishedFields = ['CodeSha256', 'Handler', 'Runtime', 'MemorySize', 'Timeout', 'Role'] as const;
+
+/**
+ * Publishes the function's current code and configuration as a new version, unless the latest version already has
+ * both. A new version changes the distribution's association, and CloudFront then redeploys it (minutes).
+ */
 const publishFunction = async (lambdaResourceName: string) => {
   // wait for lambda to be active/inactive (to be prepared for publishing)
   await waitForFunctionToBeReadyForOperation(lambdaResourceName);
+  const [current, latest] = await Promise.all([
+    lambdaApi.getFunctionConfiguration({ FunctionName: lambdaResourceName }),
+    getLatestVersionOfFunction(lambdaResourceName)
+  ]);
+  if (latest.Version !== '$LATEST' && publishedFields.every((field) => current[field] === latest[field])) {
+    console.info(`Version ${latest.Version} of ${lambdaResourceName} already has its code and configuration.`);
+    return latest;
+  }
   return lambdaApi.publishVersion({
     FunctionName: lambdaResourceName
   });

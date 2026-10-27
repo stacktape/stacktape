@@ -35,7 +35,7 @@ export const getEdgeLambdaCustomResource = (lambdaProps: StpEdgeLambdaFunction |
   templateManager.addFinalTemplateOverrideFn(async (template) => {
     const customResourceProperties = template.Resources[cfLogicalName].Properties as StpServiceCustomResourceProperties;
     customResourceProperties.edgeLambda = {
-      ...customResourceProperties.edgeLambda,
+      ...withoutLocalArtifactPaths(customResourceProperties.edgeLambda),
       artifactS3Key: deploymentArtifactManager.getLambdaS3UploadInfo({
         artifactName: customResourceProperties.edgeLambda.artifactName,
         packaging: customResourceProperties.edgeLambda.packaging
@@ -49,6 +49,26 @@ export const getEdgeLambdaCustomResource = (lambdaProps: StpEdgeLambdaFunction |
     };
   });
   return { cfLogicalName, resource, nameChain: lambdaProps.nameChain };
+};
+
+/**
+ * The local path of a packaged artifact differs on every command, while its S3 key changes only with its content. A
+ * changed property invokes the custom resource, and a new edge Lambda version updates every distribution that uses it
+ * (minutes), so the paths stay out of the template.
+ */
+const withoutLocalArtifactPaths = (
+  props: StpServiceCustomResourceProperties['edgeLambda']
+): StpServiceCustomResourceProperties['edgeLambda'] => {
+  const { artifactPath: _artifactPath, ...stableProps } = props as typeof props & { artifactPath?: string };
+  const packagingProperties = props.packaging?.properties as Record<string, unknown> | undefined;
+  if (!packagingProperties) {
+    return stableProps as StpServiceCustomResourceProperties['edgeLambda'];
+  }
+  const { artifactPath: _packagedArtifactPath, ...stablePackagingProperties } = packagingProperties;
+  return {
+    ...stableProps,
+    packaging: { ...props.packaging, properties: stablePackagingProperties }
+  } as StpServiceCustomResourceProperties['edgeLambda'];
 };
 
 const getEdgeLambdaCustomResourceProperties = (lambdaProps: StpEdgeLambdaFunction | StpHelperEdgeLambdaFunction) => {

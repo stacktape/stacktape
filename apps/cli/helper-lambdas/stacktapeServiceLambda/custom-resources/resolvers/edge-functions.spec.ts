@@ -174,6 +174,8 @@ const stubCreation = ({
           return { State: 'Active', LastUpdateStatus: 'Successful' };
         case 'PublishVersionCommand':
           return { FunctionArn: `arn:aws:lambda:us-east-1:123456789012:function:${edgeFunction.resourceName}:1` };
+        case 'ListVersionsByFunctionCommand':
+          return { Versions: [{ Version: '$LATEST' }] };
         default:
           return {};
       }
@@ -251,6 +253,90 @@ describe('edge functions custom resource creation', () => {
         's3:CreateBucket',
         's3:HeadBucket'
       ]);
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe('edge functions custom resource update', () => {
+  const published = {
+    CodeSha256: 'code-hash',
+    Handler: 'index.default',
+    Runtime: 'nodejs22.x',
+    MemorySize: 256,
+    Timeout: 10,
+    Role: 'arn:aws:iam::123456789012:role/edge'
+  };
+  const latestArn = `arn:aws:lambda:us-east-1:123456789012:function:${edgeFunction.resourceName}:3`;
+
+  /** A deployed function whose latest version 3 has `published`; `$LATEST` has `current`. */
+  const stubDeployed = (current: Partial<typeof published>) => {
+    const writes: string[] = [];
+    const spies = [
+      spyOn(CloudWatchLogs.prototype, 'send').mockImplementation((async () => ({ logGroups: [] })) as never),
+      spyOn(IAM.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+        if (command.constructor.name !== 'ListRolePoliciesCommand') writes.push(`iam:${command.constructor.name}`);
+        return { PolicyNames: [] };
+      }) as never),
+      spyOn(S3.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+        if (command.constructor.name !== 'HeadBucketCommand') writes.push(`s3:${command.constructor.name}`);
+        return {};
+      }) as never),
+      spyOn(Lambda.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+        switch (command.constructor.name) {
+          case 'GetFunctionConfigurationCommand':
+            return { State: 'Active', LastUpdateStatus: 'Successful', ...published, ...current };
+          case 'ListVersionsByFunctionCommand':
+            return {
+              Versions: [
+                { Version: '$LATEST', ...published, ...current },
+                { Version: '3', FunctionArn: latestArn, ...published }
+              ]
+            };
+          case 'PublishVersionCommand':
+            writes.push('lambda:PublishVersion');
+            return { FunctionArn: latestArn.replace(/:3$/, ':4') };
+          default:
+            writes.push(`lambda:${command.constructor.name}`);
+            return {};
+        }
+      }) as never)
+    ];
+    return { writes, restore: () => spies.forEach((spy) => spy.mockRestore()) };
+  };
+
+  test('a redeploy that differs only in local artifact paths changes and publishes nothing', async () => {
+    const withPath = (artifactPath: string) =>
+      ({
+        ...newEdgeFunction,
+        artifactPath,
+        packaging: { type: 'helper-lambda', properties: { digest: 'd1', handler: 'index.default', artifactPath } }
+      }) as unknown as StpServiceCustomResourceEdgeFunctionProps;
+    const { writes, restore } = stubDeployed({});
+    try {
+      const { data } = await edgeFunctions(
+        [withPath('/tmp/run-2/helper.zip')],
+        [withPath('/tmp/run-1/helper.zip')],
+        'Update'
+      );
+      expect(data[edgeFunction.resourceName]).toBe(latestArn);
+      expect(writes.filter((write) => !write.endsWith('TagResourceCommand'))).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  test('new code is published as a new version', async () => {
+    const { writes, restore } = stubDeployed({ CodeSha256: 'new-code-hash' });
+    try {
+      const { data } = await edgeFunctions(
+        [{ ...newEdgeFunction, artifactS3Key: 'cdnOriginRequestLambda/new.zip' }],
+        [newEdgeFunction],
+        'Update'
+      );
+      expect(writes).toContain('lambda:PublishVersion');
+      expect(data[edgeFunction.resourceName]).toEndWith(':4');
     } finally {
       restore();
     }

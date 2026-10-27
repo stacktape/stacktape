@@ -84,4 +84,13 @@ describe('CDN edge Lambdas', () => {
       );
     }
   });
+  test('edge Lambda properties carry no local artifact path, which changes on every command', async () => {
+    const template = await synthesize({ customHeaders: true });
+    for (const logicalName of [requestLambda, responseLambda]) {
+      const { edgeLambda } = (template.Resources[logicalName] as { Properties: { edgeLambda: Record<string, any> } })
+        .Properties;
+      expect(edgeLambda.artifactS3Key).toBeString();
+      expect(JSON.stringify(edgeLambda)).not.toContain('artifactPath');
+    }
+  });
 });
