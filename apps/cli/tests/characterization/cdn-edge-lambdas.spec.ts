@@ -1,15 +1,19 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
   Bucket,
   LambdaFunction,
+  NextjsWeb,
   HttpApiGateway,
   ApplicationLoadBalancer,
   defineConfig
 } from '@stacktape/config-authoring';
 import type { BucketCdnConfiguration } from '@stacktape/config/buckets';
+import { templateManager } from '../../src/domain/template-manager';
 
 import { synthesizeFixture } from './synthesis-fixture';
 
@@ -274,5 +278,42 @@ describe('create only associated origin-request helpers', () => {
     expect(template.Resources[responseLambda]).toBeDefined();
     expect(template.Resources[cfLogicalNames.customResourceEdgeLambdaBucket()]).toBeDefined();
     expect(edgeAssociations(template)).toEqual([responseLambda]);
+  });
+
+  test('a Next.js edge server keeps the resource that deletes its edge deployment bucket', async () => {
+    const appDirectory = mkdtempSync(join(tmpdir(), 'stp-nextjs-edge-'));
+    writeFileSync(join(appDirectory, 'next.config.mjs'), 'export default {};\n');
+    const compiledConfig = defineConfig(() => ({
+      resources: { site: new NextjsWeb({ appDirectory: './', useEdgeLambda: true }) }
+    }))({
+      projectName: 'characterization',
+      stage: 'baseline',
+      region: 'eu-west-1',
+      cliArgs: {} as any,
+      command: 'synth',
+      awsProfile: '',
+      user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
+    });
+    // Finalization needs the OpenNext build output, so the resolved resources are read before it.
+    let template: CloudFormationTemplate | undefined;
+    const resolved = new Error('resolved');
+    await synthesizeFixture({
+      compiledConfig,
+      workingDir: appDirectory,
+      beforeFinalize: () => {
+        template = templateManager.getTemplate();
+        throw resolved;
+      }
+    })
+      .catch((error) => {
+        if (error !== resolved) throw error;
+      })
+      .finally(() => rmSync(appDirectory, { recursive: true, force: true }));
+    if (!template) throw new Error('The Next.js site was not resolved.');
+    expect(template.Resources[requestLambda]).toBeUndefined();
+    expect(
+      Object.keys(template.Resources).filter((logicalName) => logicalName.endsWith('EdgeLambdaCustomResource'))
+    ).toEqual([cfLogicalNames.customResourceEdgeLambda('siteServerEdgeFunction')]);
+    expect(template.Resources[cfLogicalNames.customResourceEdgeLambdaBucket()]).toBeDefined();
   });
 });
