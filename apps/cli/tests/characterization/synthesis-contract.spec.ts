@@ -983,11 +983,23 @@ describe('full synthesis contract', () => {
     expect(devTemplate.Resources[cfLogicalNames.syntheticCanary('homepageFlow')]).toBeUndefined();
   });
 
+  test('a first deploy creates its artifact stack from resources known before the build', async () => {
+    const { templateManager } = await import('../../src/domain/template-manager');
+    const { getArtifactStackTemplate } =
+      await import('../../src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/artifact-stack');
+    await synthesizeDenseFixture({ includeTracing: true });
+    // The early stack must be exactly what the full synthesis marks as the stack's initial resources, so the first
+    // update does not change or replace the bucket, the repository or the log group.
+    expect(JSON.parse(JSON.stringify(getArtifactStackTemplate()))).toEqual(
+      JSON.parse(JSON.stringify(templateManager.initialTemplate))
+    );
+  });
+
   test('synthesizes tracing: layers and env for functions, sidecar and IAM for containers', async () => {
     const template = await synthesizeDenseFixture({ includeTracing: true });
     const resources = template.Resources as Record<string, any>;
 
-    // Account-level enablement exists exactly once, and traced workloads wait for it.
+    // Account-level enablement exists exactly once. Traced workloads do not wait for it to activate.
     expect(resources[cfLogicalNames.customResourceTransactionSearch()]).toMatchObject({
       Type: 'AWS::CloudFormation::CustomResource'
     });
@@ -1007,7 +1019,7 @@ describe('full synthesis contract', () => {
       OTEL_RESOURCE_ATTRIBUTES:
         'stacktape.project=characterization,stacktape.stage=baseline,stacktape.resource=worker,deployment.environment.name=baseline'
     });
-    expect(workerFn.DependsOn).toContain(cfLogicalNames.customResourceTransactionSearch());
+    expect(workerFn.DependsOn ?? []).not.toContain(cfLogicalNames.customResourceTransactionSearch());
     // Active tracing is what gives the OTel distro its UDP export path in traces-only mode; without
     // it the daemon address does not exist and spans vanish silently.
     expect(workerFn.Properties.TracingConfig).toEqual({ Mode: 'Active' });
@@ -1042,13 +1054,13 @@ describe('full synthesis contract', () => {
       OTEL_TRACES_SAMPLER_ARG: '0.3'
     });
 
-    // Task role can write spans; the ECS service waits for Transaction Search.
+    // Task role can write spans; the ECS service does not wait for Transaction Search.
     const taskRole = resources[cfLogicalNames.ecsTaskRole(webWorkloadName)];
     const taskRoleActions = (taskRole.Properties.Policies || [])
       .flatMap((policy: any) => policy.PolicyDocument.Statement)
       .flatMap((statement: any) => statement.Action || []);
     expect(taskRoleActions).toContain('xray:PutSpans');
-    expect(resources[cfLogicalNames.ecsService(webWorkloadName, false)].DependsOn).toContain(
+    expect(resources[cfLogicalNames.ecsService(webWorkloadName, false)].DependsOn ?? []).not.toContain(
       cfLogicalNames.customResourceTransactionSearch()
     );
     // The collector gets its own log group.

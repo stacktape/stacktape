@@ -35,10 +35,11 @@ const createConfig = ({ nat, joinDefaultVpc = true }: { nat?: Nat; joinDefaultVp
     user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
   });
 
-const synthesize = (options: Parameters<typeof createConfig>[0]) =>
+const synthesize = ({ invocationId, ...options }: Parameters<typeof createConfig>[0] & { invocationId?: string }) =>
   synthesizeFixture({
     compiledConfig: createConfig(options),
-    workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+    workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
+    ...(invocationId ? { synthesisContext: { invocationId } } : {})
   });
 
 const resourcesOfType = (template: CloudFormationTemplate, type: string) =>
@@ -109,12 +110,21 @@ describe('NAT configuration', () => {
       });
       expect(natRouteTarget(instance, subnetIndex).NatGatewayId).toBeUndefined();
     }
-    // Every deploy ends by putting the routes back home, after the zones have signalled and the routes exist.
+    // A deploy that replaces instances ends by putting the routes back home, after the zones have signalled and the
+    // routes exist. The reconcile is keyed on the launch template versions, not on the invocation, so a deploy that
+    // changes nothing leaves it unchanged and can take the fast path.
     const reconcile = instance.Resources[cfLogicalNames.customResourceNatRoutes()] as {
       DependsOn: string[];
-      Properties: { natRoutes: { routes: unknown[]; deployment: string } };
+      Properties: { natRoutes: { routes: unknown[]; launchTemplateVersions: unknown[] } };
     };
     expect(reconcile.Properties.natRoutes.routes).toHaveLength(3);
+    expect(reconcile.Properties.natRoutes.launchTemplateVersions).toEqual(
+      [0, 1].map((azIndex) => ({
+        'Fn::GetAtt': [cfLogicalNames.natInstanceLaunchTemplate(azIndex), 'LatestVersionNumber']
+      }))
+    );
+    const nextInvocation = await synthesize({ nat: 'ha-ec2', invocationId: 'another-invocation' });
+    expect(nextInvocation.Resources[cfLogicalNames.customResourceNatRoutes()]).toEqual(reconcile as never);
     expect(reconcile.DependsOn).toEqual(
       expect.arrayContaining([
         cfLogicalNames.natInstanceAutoscalingGroup(0),

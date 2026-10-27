@@ -20,6 +20,8 @@ import type {
   StackResourceSummary
 } from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
+import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
+import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -66,6 +68,7 @@ import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
 import type { CloudformationTag } from '@stacktape/config/shared';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 
 /** Convert CloudFormation stack status to human-readable form */
 const getHumanReadableStackStatus = (status?: string): string => {
@@ -77,7 +80,7 @@ const getHumanReadableStackStatus = (status?: string): string => {
     ROLLBACK_IN_PROGRESS: 'rolling back',
     UPDATE_ROLLBACK_IN_PROGRESS: 'rolling back',
     UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS: 'rollback cleanup',
-    UPDATE_COMPLETE_CLEANUP_IN_PROGRESS: 'cleanup',
+    UPDATE_COMPLETE_CLEANUP_IN_PROGRESS: 'deleting old resources of the last update',
     REVIEW_IN_PROGRESS: 'review',
     IMPORT_IN_PROGRESS: 'importing',
     IMPORT_ROLLBACK_IN_PROGRESS: 'import rollback'
@@ -146,6 +149,60 @@ type StackProgressUpdate = {
   detail?: CloudFormationProgressDetail;
 };
 
+/**
+ * The deletions that failed in the cleanup of the stack's last update, newest first, one per resource. `events` are the
+ * stack's events since that update started.
+ */
+export const findFailedCleanupDeletions = (events: MonitoredStackEvent[]): MonitoredStackEvent[] => {
+  const isStackEvent = (event: MonitoredStackEvent) =>
+    event.ResourceType === 'AWS::CloudFormation::Stack' && event.StackName === event.LogicalResourceId;
+  const cleanupStart = events
+    .filter(
+      (event) =>
+        isStackEvent(event) && (event.ResourceStatus as string) === StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS
+    )
+    .reduce<MonitoredStackEvent | undefined>(
+      (latest, event) => (!latest || event.Timestamp > latest.Timestamp ? event : latest),
+      undefined
+    );
+  if (!cleanupStart) return [];
+  const latestDeletionEvents = uniqBy(
+    events
+      .filter(
+        (event) =>
+          !isStackEvent(event) &&
+          (event.ResourceStatus === ResourceStatus.DELETE_FAILED ||
+            event.ResourceStatus === ResourceStatus.DELETE_COMPLETE) &&
+          event.Timestamp >= cleanupStart.Timestamp
+      )
+      .toSorted((first, second) => second.Timestamp.getTime() - first.Timestamp.getTime()),
+    ({ LogicalResourceId }) => LogicalResourceId
+  );
+  return latestDeletionEvents.filter(({ ResourceStatus: status }) => status === ResourceStatus.DELETE_FAILED);
+};
+
+type StackMonitoringResult = {
+  warningMessages?: string[];
+  /** The update finished while CloudFormation was still deleting about this many removed or replaced resources. */
+  resourcesDeletedInBackground?: number;
+};
+
+/** Resources CloudFormation deletes in the cleanup after an update: those removed from the template and replaced ones. */
+export const countResourcesDeletedDuringCleanup = (templateDiff: TemplateDiff | undefined) => {
+  let count = 0;
+  templateDiff?.resources?.forEachDifference((_logicalId, diff) => {
+    // A removed resource with a Retain policy is only orphaned.
+    if (
+      diff.changeImpact === ResourceImpact.WILL_DESTROY ||
+      diff.changeImpact === ResourceImpact.WILL_REPLACE ||
+      diff.changeImpact === ResourceImpact.MAY_REPLACE
+    ) {
+      count++;
+    }
+  });
+  return count;
+};
+
 class StackManager {
   callerIdentity: AwsCallerIdentity;
   existingStackDetails: StackDetails;
@@ -161,6 +218,11 @@ class StackManager {
    */
   #stackMutationTarget?: string;
   #latestRecordedRelease: string | null = null;
+  /**
+   * The resources this invocation's update removed. The stack keeps listing them while CloudFormation still deletes
+   * them, but they are no longer the stack's resources.
+   */
+  #resourcesRemovedByUpdate: Set<string> | undefined;
   #nextVersionAfterRefetch: string | null = null;
 
   // for polling ECS Service statuses during deploy
@@ -197,6 +259,7 @@ class StackManager {
     this.#stackMutationTarget = undefined;
     this.#latestRecordedRelease = null;
     this.#nextVersionAfterRefetch = null;
+    this.#resourcesRemovedByUpdate = undefined;
 
     // The resources are listed together with the details. A stack that first had to finish another operation is
     // listed again once it has.
@@ -222,11 +285,29 @@ class StackManager {
 
     this.existingStackDetails = stackDetails;
     this.existingStackResources = this.#filterNonExistentResources(stackResources);
-    const [detailedResources] = await Promise.all([
+    const [detailedResources, , failedCleanupDeletions] = await Promise.all([
       this.#getDetailOfSelectedResources(this.existingStackResources),
-      whileLoadingResourceDetails?.()
+      whileLoadingResourceDetails?.(),
+      commandModifiesStack && globalStateManager.command !== 'dev'
+        ? this.#getFailedCleanupDeletionsOfLastUpdate(stackDetails)
+        : []
     ]);
     this.existingStackResources = detailedResources;
+    if (failedCleanupDeletions.length) {
+      const failures = await this.#handleFailedEvents({
+        potentialErrorCausingEvents: Object.fromEntries(
+          failedCleanupDeletions.map((event) => [event.LogicalResourceId, event])
+        )
+      }).catch(() =>
+        failedCleanupDeletions.map(({ LogicalResourceId, ResourceStatusReason }) => ({
+          errorMessage: `${LogicalResourceId}: ${ResourceStatusReason ?? 'deletion failed'}`
+        }))
+      );
+      const plural = failedCleanupDeletions.length > 1;
+      tuiManager.warn(
+        `The last update of this stack could not delete ${plural ? `${failedCleanupDeletions.length} old resources` : 'an old resource'}. ${plural ? 'They are' : 'It is'} no longer part of the stack and ${plural ? 'stay' : 'stays'} in your AWS account until deleted manually:\n${tuiManager.formatComplexStackErrors(failures, 2)}`
+      );
+    }
 
     await operationReporter.finishEvent({
       eventType: 'FETCH_STACK_DATA',
@@ -305,6 +386,7 @@ class StackManager {
       awsSdkManager.cloudFormation
         .getResources(stackName)
         .then(this.#filterNonExistentResources)
+        .then(this.#withoutResourcesBeingCleanedUp)
         .then(this.#getDetailOfSelectedResources)
     ]);
     this.existingStackDetails = existingStackDetails;
@@ -424,7 +506,7 @@ class StackManager {
     };
   };
 
-  createResourcesForArtifacts = async () => {
+  createResourcesForArtifacts = async (template: CloudFormationTemplate = templateManager.initialTemplate) => {
     await operationReporter.startEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
       description: 'Creating AWS resources for deployment artifacts (S3, ECR...)'
@@ -435,20 +517,25 @@ class StackManager {
     // therefore this policy is not valid during stack creation.
     // eslint-disable-next-line
     const { StackPolicyBody, ...onCreateParams } = stackParams;
-    const { StackId } = await awsSdkManager.cloudFormation.create(templateManager.initialTemplate, {
+    const { StackId } = await awsSdkManager.cloudFormation.create(template, {
       ...onCreateParams,
       ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
     });
-    await this.monitorStack('create', StackId, (progress) => {
-      operationReporter.updateEvent({
-        eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
-        additionalMessage: progress.message,
-        detail: progress.detail
-      });
-    });
+    await this.monitorStack(
+      'create',
+      StackId,
+      (progress) => {
+        operationReporter.updateEvent({
+          eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
+          additionalMessage: progress.message,
+          detail: progress.detail
+        });
+      },
+      { createdTemplate: template }
+    );
     await operationReporter.finishEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
-      data: { stackParams, template: templateManager.initialTemplate }
+      data: { stackParams, template }
     });
   };
 
@@ -597,7 +684,7 @@ class StackManager {
     );
   };
 
-  deployStack = async (templateUrl: string) => {
+  deployStack = async (templateUrl: string, { finishWhenCleanupStarts = false } = {}) => {
     await this.validateTemplate({ templateUrl });
     const stackParams = this.getStackParams();
     await operationReporter.startEvent({
@@ -607,16 +694,27 @@ class StackManager {
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
     if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
-      const result = await this.monitorStack('update', stackParams.StackName, (progress) => {
-        operationReporter.updateEvent({
-          eventType: 'UPDATE_STACK',
-          additionalMessage: progress.message,
-          detail: progress.detail
-        });
-      });
-      if (stackParams.StackPolicyBody) {
-        await awsSdkManager.cloudFormation.setPolicy(stackParams);
+      const result = await this.monitorStack(
+        'update',
+        stackParams.StackName,
+        (progress) => {
+          operationReporter.updateEvent({
+            eventType: 'UPDATE_STACK',
+            additionalMessage: progress.message,
+            detail: progress.detail
+          });
+        },
+        { finishWhenCleanupStarts }
+      );
+      if (finishWhenCleanupStarts) {
+        this.#resourcesRemovedByUpdate = new Set(
+          Object.keys(templateManager.oldTemplate.Resources ?? {}).filter(
+            (logicalId) => !(logicalId in templateManager.template.Resources)
+          )
+        );
       }
+      // UpdateStack has already set the stack policy from `StackPolicyBody`. SetStackPolicy would fail while
+      // CloudFormation still deletes old resources. Termination protection can be changed in any state.
       await awsSdkManager.cloudFormation.setTerminationProtection(
         !!stackParams.EnableTerminationProtection,
         stackParams.StackName
@@ -795,8 +893,21 @@ class StackManager {
   monitorStack = async (
     cfStackAction: 'create' | 'update' | 'delete' | 'rollback',
     stackId: string,
-    onProgress: (progress: StackProgressUpdate) => any
-  ): Promise<{ warningMessages?: string[] }> => {
+    onProgress: (progress: StackProgressUpdate) => any,
+    {
+      finishWhenCleanupStarts = false,
+      createdTemplate = templateManager.initialTemplate
+    }: {
+      /** The template a `create` operation creates the stack from. */
+      createdTemplate?: CloudFormationTemplate;
+      /**
+       * An update is finished for the user once CloudFormation starts deleting the resources it removed or replaced:
+       * the stack can no longer roll back and the new resources serve traffic. The cleanup continues in AWS, and the
+       * next command that modifies the stack waits for it.
+       */
+      finishWhenCleanupStarts?: boolean;
+    } = {}
+  ): Promise<StackMonitoringResult> => {
     const handledEvents: string[] = [];
     const potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent } = {};
     const inProgressResources = new Set<string>();
@@ -808,7 +919,7 @@ class StackManager {
     let _isResourceToHandleCountPossiblyInaccurate = false;
     if (cfStackAction === 'create') {
       // when we are creating, we know exactly what amount of resources we need to create
-      resourcesToHandleCount = Object.keys(templateManager.initialTemplate.Resources).length;
+      resourcesToHandleCount = Object.keys(createdTemplate.Resources).length;
     } else if (cfStackAction === 'delete' || cfStackAction === 'rollback') {
       // when we are removing, we know what amount of resources we need to remove
       resourcesToHandleCount = this.existingStackResources.length;
@@ -822,7 +933,7 @@ class StackManager {
       cfStackAction === 'update' ? templateDiff?.resources?.logicalIds.filter(Boolean) : undefined;
     const { totalSeconds } = getStackDeploymentEstimate({
       cfStackAction,
-      template: cfStackAction === 'create' ? templateManager.initialTemplate : templateManager.template,
+      template: cfStackAction === 'create' ? createdTemplate : templateManager.template,
       oldTemplate: templateManager.oldTemplate,
       existingStackResources: this.existingStackResources,
       resourceLogicalNames: updatedResourceLogicalNames
@@ -1135,7 +1246,17 @@ class StackManager {
       });
     };
 
-    const { warningMessages }: { warningMessages?: string[] } = await new Promise((resolve, reject) => {
+    const result: StackMonitoringResult = await new Promise((resolve, reject) => {
+      const finishWhileCleanupRuns = () => {
+        cleanupMonitoring();
+        const resourcesToDelete = countResourcesDeletedDuringCleanup(templateDiff);
+        resolve(resourcesToDelete ? { resourcesDeletedInBackground: resourcesToDelete } : {});
+      };
+      const signalsEarlyFinish = (stackStatus: StackStatus | undefined) =>
+        finishWhenCleanupStarts &&
+        cfStackAction === 'update' &&
+        stackStatus === StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS;
+
       // operations to be executed after we detect stack operation success
       const afterStackOperationSuccess = async () => {
         cleanupMonitoring();
@@ -1205,6 +1326,7 @@ class StackManager {
           // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
           if (!stackEvents.length) {
             if (lastStackActionTimestamp) handleProgress();
+            if (signalsEarlyFinish(stackStatus)) return finishWhileCleanupRuns();
             if (this.#stackStatusSignalsStackOperationSuccess({ stackStatus, cfStackAction })) {
               return afterStackOperationSuccess();
             }
@@ -1277,6 +1399,16 @@ class StackManager {
                 cfStackAction === 'update' &&
                 event.ResourceStatus === (StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS as any)
               ) {
+                // When the same batch already holds the end of the cleanup, its failures can still be reported here.
+                const cleanupAlreadyFinished = filteredEvents.some(
+                  (laterEvent) =>
+                    this.#isCloudformationStackEvent({ stackEvent: laterEvent }) &&
+                    laterEvent.ResourceStatus === StackStatus.UPDATE_COMPLETE
+                );
+                if (signalsEarlyFinish(event.ResourceStatus as StackStatus) && !cleanupAlreadyFinished) {
+                  handleProgress();
+                  return finishWhileCleanupRuns();
+                }
                 cleanupAfterSuccessfulUpdateInProgress = true;
                 _isResourceToHandleCountPossiblyInaccurate = true;
                 inProgressResources.clear();
@@ -1330,6 +1462,7 @@ class StackManager {
           handleProgress();
           // additional checking for stack status
           // if we somehow missed a cloudformation event signaling stack operation end, then operation might be hanging
+          if (signalsEarlyFinish(stackStatus)) return finishWhileCleanupRuns();
           if (this.#stackStatusSignalsStackOperationSuccess({ stackStatus, cfStackAction })) {
             return afterStackOperationSuccess();
           }
@@ -1365,7 +1498,7 @@ class StackManager {
       }, eventPollingIntervalMs);
     });
     cleanupMonitoring();
-    return { warningMessages };
+    return result;
   };
 
   #reactToEvent = ({ stackEvent }: { stackEvent: MonitoredStackEvent }) => {
@@ -1588,6 +1721,25 @@ class StackManager {
         }
       })
     );
+  };
+
+  /**
+   * A deploy finishes when CloudFormation starts deleting old resources (see `monitorStack`), so a deletion that fails
+   * after that is reported by the next command that modifies the stack. Best effort: it never fails the command.
+   */
+  #getFailedCleanupDeletionsOfLastUpdate = async (stackDetails: StackDetails | undefined) => {
+    if (stackDetails?.StackStatus !== StackStatus.UPDATE_COMPLETE || !stackDetails.LastUpdatedTime) return [];
+    const updateStart = new Date(stackDetails.LastUpdatedTime.getTime() - 1000);
+    return awsSdkManager.cloudFormation
+      .getEvents(stackDetails.StackId ?? this.#stackName, updateStart)
+      .then(findFailedCleanupDeletions)
+      .catch(() => []);
+  };
+
+  #withoutResourcesBeingCleanedUp = (resources: StackResourceSummary[]) => {
+    const removedResources = this.#resourcesRemovedByUpdate;
+    if (!removedResources) return resources;
+    return resources.filter(({ LogicalResourceId }) => !removedResources.has(LogicalResourceId));
   };
 
   #filterNonExistentResources = (resources: StackResourceSummary[]) => {

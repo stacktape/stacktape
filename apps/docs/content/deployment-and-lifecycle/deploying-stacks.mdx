@@ -40,6 +40,8 @@ Stacktape uploads packaged artifacts to an S3 deployment bucket and pushes conta
 
 For new stacks, Stacktape creates the CloudFormation stack. For existing stacks, Stacktape submits the updated template and CloudFormation determines which resources need to be created, updated, or deleted. CloudFormation handles dependency ordering and parallelizes independent resource operations. When only code changed, Stacktape updates the changed Lambda functions and container workloads directly through the AWS APIs instead (see [Fast deployments](#fast-deployments)).
 
+An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished, and reports any old resource AWS could not delete, because that resource then stays in your account.
+
 ### Post-deploy
 
 After the stack is stable, Stacktape completes several post-deployment tasks: syncing [hosting buckets](/resources/frontend/static-hosting) with your local build output, invalidating [CDN](/resources/networking/cdn) caches if needed, running any user-defined `afterDeploy` [hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) (commonly used for database migrations), saving stack info to disk if configured, and sending deployment notifications to any configured [alert channels](/observability/alert-channels). On the first deploy of a new stack, the CLI also prompts you to set up [CI/CD](/ci-cd-and-gitops/overview).
@@ -240,7 +242,7 @@ Common causes of slow Stacktape deployments:
 - **Large container images** — Use multi-stage Docker builds or [`js-bundle` packaging](/packaging/containers/js-bundle) for Node.js services to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
 - **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
-- **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.
+- **First deploy of a stage** — The deployment bucket and ECR repository are created while your workloads build, and the rest of the stack is created after the upload.
 
 Run with `--debug` to see detailed timing for each phase.
 

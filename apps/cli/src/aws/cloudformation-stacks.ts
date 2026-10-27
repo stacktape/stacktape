@@ -4,7 +4,6 @@ import type {
   CreateChangeSetInput,
   CreateStackInput,
   ListStackResourcesCommandOutput,
-  SetStackPolicyInput,
   Stack,
   StackEvent,
   StackResourceSummary,
@@ -25,7 +24,6 @@ import {
   ListStackResourcesCommand,
   ListStacksCommand,
   RollbackStackCommand,
-  SetStackPolicyCommand,
   UpdateStackCommand,
   UpdateTerminationProtectionCommand,
   ValidateTemplateCommand
@@ -290,11 +288,6 @@ export class AwsCloudFormationStacks {
     }
 
     return { changes: changeSet.Changes, changeSetId: Id, stackId: StackId };
-  };
-
-  setPolicy = async (input: SetStackPolicyInput) => {
-    const handleError = this.#getErrorHandler('Failed to update stack policy.');
-    return this.#createClient().send(new SetStackPolicyCommand(input)).catch(handleError);
   };
 
   setTerminationProtection = async (enabled: boolean, stackName: string) => {

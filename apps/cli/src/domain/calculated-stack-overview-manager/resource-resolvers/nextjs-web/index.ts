@@ -16,6 +16,7 @@ import {
   getCacheBehaviourTemplateOverride,
   getDistributionRootObjectTemplateOverride,
   getDynamoInsertCustomResource,
+  getDynamoInsertTemplateOverride,
   getHostHeaderRewriteCloudfrontFunction
 } from './utils';
 
@@ -82,6 +83,9 @@ export const resolveNextjsWebs = async () => {
 
     // distribution default root object override
     templateManager.addFinalTemplateOverrideFn(getDistributionRootObjectTemplateOverride(nextjsWeb));
+
+    // the revalidation data is part of the insert function's artifact, which is NOT known before packaging
+    templateManager.addFinalTemplateOverrideFn(getDynamoInsertTemplateOverride(nextjsWeb));
 
     const resource = calculatedStackOverviewManager.getStpResource({ nameChain: nextjsWeb.nameChain });
     const cdnResource = resource._nestedResources.serverFunction || resource._nestedResources.bucket;

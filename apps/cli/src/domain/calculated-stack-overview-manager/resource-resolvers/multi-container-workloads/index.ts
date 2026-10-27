@@ -303,14 +303,9 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     }),
     nameChain
   });
+  // A traced service does not wait for Transaction Search to activate; its non-essential collector drops the spans
+  // exported before that.
   const ecsServiceResource = getEcsService({ workload: definition, blueGreen: isBlueGreen });
-  if (workloadTracing) {
-    // First-deploy ordering: tasks must not start exporting spans before Transaction Search accepts them.
-    ecsServiceResource.DependsOn = [
-      ...(Array.isArray(ecsServiceResource.DependsOn) ? ecsServiceResource.DependsOn : []),
-      cfLogicalNames.customResourceTransactionSearch()
-    ];
-  }
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.ecsService(definition.name, isBlueGreen),
     resource: ecsServiceResource,
