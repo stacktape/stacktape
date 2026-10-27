@@ -144,10 +144,13 @@ type StpServiceCustomResourceTransactionSearchProps = {
   version: number;
 };
 
-/** The home default-route target of each private route table; `deployment` changes every deploy so the check reruns. */
+/**
+ * The home default-route target of each private route table. `launchTemplateVersions` only reruns the check after a
+ * deploy that replaced NAT instances; the handler does not read it.
+ */
 export type StpServiceCustomResourceNatRoutesProps = {
   routes: { routeTableId: string | Intrinsic; networkInterfaceId: string | Intrinsic }[];
-  deployment: string;
+  launchTemplateVersions: (string | Intrinsic)[];
 };
 
 export type StpServiceCustomResourceProperties = {

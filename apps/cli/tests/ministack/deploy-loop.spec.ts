@@ -431,7 +431,7 @@ describe('failed deployment artifacts', () => {
                 throw failure;
               }
             },
-            tui: { warn: () => {} }
+            tui: { info: () => {}, warn: () => {} }
           })
         ).rejects.toBe(failure);
         const keys = ((await s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
@@ -488,7 +488,7 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
         isAutoRollbackEnabled: true,
         deployStack: async () => ({ warningMessages: [] })
       },
-      tui: { warn: () => {} }
+      tui: { info: () => {}, warn: () => {} }
     });
     const keys = ((await s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
       .map(({ Key }) => Key)

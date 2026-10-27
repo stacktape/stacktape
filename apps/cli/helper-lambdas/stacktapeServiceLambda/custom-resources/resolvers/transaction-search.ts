@@ -12,9 +12,9 @@ const RESOURCE_POLICY_NAME = 'StacktapeTransactionSearchXRayAccess';
 const SPANS_LOG_GROUP = 'aws/spans';
 /** Applied only when Stacktape itself enables Transaction Search; an external setup is never touched. */
 const SPANS_RETENTION_DAYS = 90;
-/** AWS documents activation taking up to ~10 minutes; functions deploy after this resource completes. */
-const ACTIVATION_WAIT_MS = 8 * 60_000;
-const ACTIVATION_POLL_INTERVAL_MS = 15_000;
+/** X-Ray creates `aws/spans` within seconds of the switch, long before activation finishes. */
+const LOG_GROUP_WAIT_MS = 2 * 60_000;
+const LOG_GROUP_POLL_INTERVAL_MS = 5_000;
 
 const getPartition = (region: string | undefined) =>
   region?.startsWith('cn-') ? 'aws-cn' : region?.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
@@ -37,40 +37,24 @@ const applyRetentionIfUnset = async (): Promise<boolean> => {
   return true;
 };
 
-const waitUntilActive = async ({ boundRetention }: { boundRetention: boolean }) => {
-  const deadline = Date.now() + ACTIVATION_WAIT_MS;
-  let retentionHandled = !boundRetention;
+const boundRetentionOnceGroupExists = async () => {
+  const deadline = Date.now() + LOG_GROUP_WAIT_MS;
   while (Date.now() < deadline) {
-    if (!retentionHandled) {
-      retentionHandled = await applyRetentionIfUnset().catch(() => false);
-    }
-    const { Status } = await xrayApi.getTraceSegmentDestination({});
-    if (Status === 'ACTIVE') {
-      console.info('Transaction Search is ACTIVE.');
-      if (!retentionHandled) {
-        retentionHandled = await applyRetentionIfUnset().catch(() => false);
-        if (!retentionHandled) {
-          console.info(
-            `The ${SPANS_LOG_GROUP} log group does not exist yet; its retention stays unmanaged until set manually.`
-          );
-        }
-      }
-      return;
-    }
-    console.info(`Transaction Search status: ${Status}; waiting...`);
-    await new Promise((resolve) => setTimeout(resolve, ACTIVATION_POLL_INTERVAL_MS));
+    if (await applyRetentionIfUnset().catch(() => false)) return;
+    await new Promise((resolve) => setTimeout(resolve, LOG_GROUP_POLL_INTERVAL_MS));
   }
-  // The destination is set and will finish activating on its own; failing the whole deployment
-  // over the tail of the activation window would hurt more than a few early untraced invocations.
-  console.info('Transaction Search did not reach ACTIVE within the wait window; continuing.');
+  console.info(
+    `The ${SPANS_LOG_GROUP} log group does not exist yet; its retention stays unmanaged until set manually.`
+  );
 };
 
 /**
  * Enables X-Ray Transaction Search for the account+region so OTel spans land in the `aws/spans`
  * log group. This is an account-level setting with three states:
  *
- * - already sending spans to CloudWatch Logs (enabled by us earlier, or externally): nothing to do —
- *   an external enablement is adopted as-is and never reconfigured (including its retention);
+ * - already sending spans to CloudWatch Logs (enabled by us earlier, or externally, possibly still
+ *   activating): nothing to do — an external enablement is adopted as-is and never reconfigured
+ *   (including its retention);
  * - classic segment mode: grant X-Ray the log-group write policy and switch the destination; X-Ray
  *   then creates `aws/spans` itself, and its retention is bounded afterwards (CloudWatch's default
  *   is keep-forever) unless one was already chosen;
@@ -93,10 +77,7 @@ export const transactionSearch: ServiceLambdaResolver<StpServiceCustomResourcePr
 
   const destination = await xrayApi.getTraceSegmentDestination({});
   if (destination.Destination === 'CloudWatchLogs') {
-    console.info(`Transaction Search already active (status: ${destination.Status}); leaving it untouched.`);
-    if (destination.Status !== 'ACTIVE') {
-      await waitUntilActive({ boundRetention: false });
-    }
+    console.info(`Transaction Search already enabled (status: ${destination.Status}); leaving it untouched.`);
     return { data: {} };
   }
 
@@ -124,9 +105,11 @@ export const transactionSearch: ServiceLambdaResolver<StpServiceCustomResourcePr
     })
   });
   await xrayApi.updateTraceSegmentDestination({ Destination: 'CloudWatchLogs' });
-  // X-Ray creates `aws/spans` itself (the aws/ prefix is reserved); the activation wait bounds its
-  // retention once the group appears, and only when no retention was chosen before.
-  await waitUntilActive({ boundRetention: true });
-  console.info('Enabling X-Ray Transaction Search - SUCCESS');
+  // X-Ray creates `aws/spans` itself (the aws/ prefix is reserved); its retention is bounded once the
+  // group appears, and only when no retention was chosen before.
+  await boundRetentionOnceGroupExists();
+  // Activation then takes several more minutes (AWS documents up to ~10). Nothing waits for it: spans exported
+  // meanwhile are lost, which costs less than holding the first traced deploy of the account and region.
+  console.info('Enabling X-Ray Transaction Search - SUCCESS (activation continues in the background)');
   return { data: {} };
 };

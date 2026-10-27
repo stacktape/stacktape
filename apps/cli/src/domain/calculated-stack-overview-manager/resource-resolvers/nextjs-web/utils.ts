@@ -67,12 +67,34 @@ export const getAssetReplacerResource = (nextjsWeb: StpNextjsWeb) => {
   });
 };
 
+/**
+ * Inserts the build's revalidation tags (the `dynamodb-cache.json` bundled into the insert function) into the
+ * revalidation table. It runs when the build's data or the table changes; `version` is set to the insert function's
+ * artifact digest by {@link getDynamoInsertTemplateOverride}.
+ */
 export const getDynamoInsertCustomResource = (nextjsWeb: StpNextjsWeb) => {
-  return getCustomResource<{ version: number }>({
+  return getCustomResource<{ version: string; table: unknown }>({
     serviceToken: getAtt(nextjsWeb._nestedResources.revalidationInsertFunction.cfLogicalName, 'Arn'),
-    properties: { version: Date.now() }
+    properties: {
+      version: '<<TBD>>',
+      table: ref(cfLogicalNames.dynamoGlobalTable(nextjsWeb._nestedResources.revalidationTable.name))
+    }
   });
 };
+
+// The artifact digest is known only after packaging.
+export const getDynamoInsertTemplateOverride =
+  (nextjsWeb: StpNextjsWeb) => async (template: CloudFormationTemplate) => {
+    const { revalidationInsertFunction } = nextjsWeb._nestedResources;
+    const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({
+      artifactName: revalidationInsertFunction.name,
+      packaging: revalidationInsertFunction.packaging
+    });
+    const properties = template.Resources[cfLogicalNames.openNextDynamoInsertCustomResource(nextjsWeb.name)]
+      .Properties as { version: string };
+    // Without packaging output (synthesis without a build) the insert runs on every deploy, as it always did.
+    properties.version = digest ?? String(Date.now());
+  };
 
 export const getCacheBehaviourTemplateOverride =
   (nextjsWeb: StpNextjsWeb) => async (template: CloudFormationTemplate) => {

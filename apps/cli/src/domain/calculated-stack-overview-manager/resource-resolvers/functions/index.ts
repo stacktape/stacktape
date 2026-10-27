@@ -245,11 +245,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     tuiManager.warn(`Tracing skipped for function \`${name}\`: ${tracedFunction.skippedReason}.`);
   }
   tracedFunction?.warnings?.forEach((warning) => tuiManager.warn(`Tracing for function \`${name}\`: ${warning}.`));
+  // Traced functions do not wait for Transaction Search to activate: spans exported in the first minutes of the
+  // account's first traced deploy are lost, which is cheaper than holding the deploy for up to ten minutes.
   const tracingInstrumentation = tracedFunction?.instrumentation;
-  if (tracingInstrumentation) {
-    // First-deploy ordering: the function must not go live before spans have somewhere to land.
-    lambdaDependsOn.push(cfLogicalNames.customResourceTransactionSearch());
-  }
 
   const lambdaRoleLogicalName = cfLogicalNames.lambdaRole(name);
   calculatedStackOverviewManager.addCfChildResource({

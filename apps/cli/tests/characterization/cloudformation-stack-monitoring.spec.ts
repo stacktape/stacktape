@@ -1,7 +1,12 @@
-import { expect, spyOn, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
+import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type { MonitoredStackEvent } from '../../src/aws/cloudformation-stacks';
 import type { StackDetails } from '../../src/domain/cloudformation-stack-manager/types';
-import { stackManager } from '../../src/domain/cloudformation-stack-manager';
+import {
+  countResourcesDeletedDuringCleanup,
+  findFailedCleanupDeletions,
+  stackManager
+} from '../../src/domain/cloudformation-stack-manager';
 import { templateManager } from '../../src/domain/template-manager';
 import { globalStateManager } from '../../src/app/global-state-manager';
 import { operationReporter } from '../../src/app/operation-manager';
@@ -11,6 +16,17 @@ import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 
 const stackName = 'monitor-test';
 const started = new Date('2026-10-10T10:00:00Z');
+
+const resourceEvent = (logicalId: string, status: string, seconds: number): MonitoredStackEvent => ({
+  StackId: stackName,
+  StackName: stackName,
+  LogicalResourceId: logicalId,
+  ResourceType: 'AWS::CloudFront::Distribution',
+  ResourceStatus: status as MonitoredStackEvent['ResourceStatus'],
+  ResourceStatusReason: status === 'DELETE_FAILED' ? 'Resource is in use' : undefined,
+  Timestamp: new Date(started.getTime() + seconds * 1000),
+  EventId: `${logicalId}-${status}-${seconds}`
+});
 
 const stackEvent = (status: string, seconds = 0): MonitoredStackEvent => ({
   StackId: stackName,
@@ -37,12 +53,17 @@ const withMonitor = async (
     poll: (count?: number) => Promise<void>;
     events: ReturnType<typeof spyOn<typeof awsSdkManager.cloudFormation, 'getEvents'>>;
     getDetails: ReturnType<typeof spyOn<typeof awsSdkManager.cloudFormation, 'getDetails'>>;
-  }) => Promise<void>
+  }) => Promise<void>,
+  { finishWhenCleanupStarts = false, removedResources = [] as string[] } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
     operationReporter.setSilentMode(true);
     templateManager.template = { Resources: {} };
-    templateManager.oldTemplate = { Resources: {} };
+    templateManager.oldTemplate = {
+      Resources: Object.fromEntries(
+        removedResources.map((logicalId) => [logicalId, { Type: 'AWS::CloudFront::Distribution', Properties: {} }])
+      )
+    };
     globalStateManager.rawCommands = ['deploy'];
     globalStateManager.rawArgs = { region: 'eu-west-1' };
     let pollOnce: (() => Promise<void>) | undefined;
@@ -58,7 +79,7 @@ const withMonitor = async (
     );
     let state: 'pending' | 'resolved' | 'rejected' = 'pending';
     try {
-      const monitoring = stackManager.monitorStack('update', stackName, () => {});
+      const monitoring = stackManager.monitorStack('update', stackName, () => {}, { finishWhenCleanupStarts });
       monitoring.then(
         () => (state = 'resolved'),
         () => (state = 'rejected')
@@ -129,4 +150,127 @@ test('repeated stack status failures stop the monitoring with the AWS error', as
     await poll(4);
     await expect(monitoring).rejects.toThrow('AccessDenied');
   });
+});
+
+describe('finishing an update when its cleanup starts', () => {
+  const removedCdn = { finishWhenCleanupStarts: true, removedResources: ['SiteCdn'] };
+
+  test('the deploy finishes at the cleanup event and says how many old resources AWS still deletes', async () => {
+    await withMonitor(async ({ monitoring, poll, events }) => {
+      events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+      await poll();
+      events.mockResolvedValue([
+        stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 30),
+        stackEvent('UPDATE_IN_PROGRESS')
+      ]);
+      await poll();
+      await expect(monitoring).resolves.toEqual({ resourcesDeletedInBackground: 1 });
+    }, removedCdn);
+  });
+
+  test('an update that removes nothing finishes at the cleanup event without a note', async () => {
+    await withMonitor(
+      async ({ monitoring, poll, events }) => {
+        events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+        await poll();
+        events.mockResolvedValue([stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 30)]);
+        await poll();
+        await expect(monitoring).resolves.toEqual({});
+      },
+      { finishWhenCleanupStarts: true }
+    );
+  });
+
+  test('the stack status finishes the deploy when the cleanup event is missed', async () => {
+    await withMonitor(async ({ monitoring, poll, events, getDetails }) => {
+      events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+      await poll();
+      getDetails.mockResolvedValue(stackDetails('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS'));
+      events.mockResolvedValue([]);
+      await poll(2);
+      await expect(monitoring).resolves.toEqual({ resourcesDeletedInBackground: 1 });
+    }, removedCdn);
+  });
+
+  test('a cleanup that already ended in the same batch still reports its failed deletions', async () => {
+    await withMonitor(async ({ monitoring, poll, events }) => {
+      events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+      await poll();
+      events.mockResolvedValue(
+        [
+          stackEvent('UPDATE_IN_PROGRESS'),
+          stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 30),
+          resourceEvent('SiteCdn', 'DELETE_IN_PROGRESS', 31),
+          resourceEvent('SiteCdn', 'DELETE_FAILED', 32),
+          stackEvent('UPDATE_COMPLETE', 33)
+        ].toReversed()
+      );
+      await poll();
+      const result = (await monitoring) as { warningMessages?: string[] };
+      expect(result.warningMessages?.[0]).toContain('errors occurred during old resources CLEANUP');
+    }, removedCdn);
+  });
+
+  test('without the option, other updates still wait for the cleanup to end', async () => {
+    await withMonitor(async ({ settled, monitoring, poll, events }) => {
+      events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+      await poll();
+      events.mockResolvedValue([stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 30)]);
+      await poll();
+      expect(settled()).toBe('pending');
+      events.mockResolvedValue([stackEvent('UPDATE_COMPLETE', 90)]);
+      await poll();
+      await expect(monitoring).resolves.toEqual({});
+    });
+  });
+});
+
+describe('failed deletions of the last cleanup', () => {
+  test('are the DELETE_FAILED events after the last cleanup started, newest per resource', () => {
+    const events = [
+      stackEvent('UPDATE_COMPLETE', 100),
+      resourceEvent('OldCdn', 'DELETE_FAILED', 99),
+      resourceEvent('OldCdn', 'DELETE_IN_PROGRESS', 60),
+      resourceEvent('OldCdn', 'DELETE_FAILED', 50),
+      resourceEvent('OldCdn', 'DELETE_IN_PROGRESS', 41),
+      stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 40),
+      // A deletion that failed during the update itself was retried and is not a cleanup failure.
+      resourceEvent('Replaced', 'DELETE_FAILED', 20),
+      stackEvent('UPDATE_IN_PROGRESS', 0)
+    ];
+    expect(findFailedCleanupDeletions(events).map(({ EventId }) => EventId)).toEqual(['OldCdn-DELETE_FAILED-99']);
+  });
+
+  test('are none when the cleanup deleted everything or there was no cleanup', () => {
+    expect(
+      findFailedCleanupDeletions([
+        stackEvent('UPDATE_COMPLETE', 100),
+        resourceEvent('OldCdn', 'DELETE_COMPLETE', 90),
+        stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 40)
+      ])
+    ).toEqual([]);
+    expect(findFailedCleanupDeletions([stackEvent('CREATE_COMPLETE', 10)])).toEqual([]);
+  });
+});
+
+test('the resources deleted during cleanup are the removed and replaced ones, not the retained ones', () => {
+  const diff = diffTemplate(
+    {
+      Resources: {
+        Removed: { Type: 'AWS::SQS::Queue', Properties: {} },
+        Retained: { Type: 'AWS::SQS::Queue', DeletionPolicy: 'Retain', Properties: {} },
+        Replaced: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'one' } },
+        Updated: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 30 } }
+      }
+    },
+    {
+      Resources: {
+        Replaced: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'two' } },
+        Updated: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 60 } },
+        Added: { Type: 'AWS::SQS::Queue', Properties: {} }
+      }
+    }
+  );
+  expect(countResourcesDeletedDuringCleanup(diff)).toBe(2);
+  expect(countResourcesDeletedDuringCleanup(undefined)).toBe(0);
 });

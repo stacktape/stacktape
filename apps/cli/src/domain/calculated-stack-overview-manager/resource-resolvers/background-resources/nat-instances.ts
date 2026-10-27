@@ -467,7 +467,11 @@ const getRouteReconcileCustomResource = ({
           cfLogicalNames.natInstanceNetworkInterface(Math.min(subnetIndex, availabilityZones - 1))
         )
       })),
-      deployment: calculatedStackOverviewManager.context.invocationId
+      // Instances are replaced, and routes can fail over, only when a launch template changes. Keying the reconcile on
+      // the template versions reruns it after exactly those deploys and leaves other deploys free to take the fast path.
+      launchTemplateVersions: Array.from({ length: availabilityZones }, (_, azIndex) =>
+        getAtt(cfLogicalNames.natInstanceLaunchTemplate(azIndex), 'LatestVersionNumber')
+      )
     }
   });
   resource.DependsOn = [

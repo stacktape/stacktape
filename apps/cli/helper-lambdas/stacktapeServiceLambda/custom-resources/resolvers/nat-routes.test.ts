@@ -34,7 +34,7 @@ describe('natRoutes', () => {
             { routeTableId: 'rtb-0', networkInterfaceId: 'eni-0' },
             { routeTableId: 'rtb-1', networkInterfaceId: 'eni-1' }
           ],
-          deployment: 'inv-1'
+          launchTemplateVersions: ['1']
         },
         undefined,
         'Update'
@@ -55,7 +55,7 @@ describe('natRoutes', () => {
     const stub = stubEc2();
     try {
       await natRoutes(
-        { routes: [{ routeTableId: 'rtb-0', networkInterfaceId: 'eni-0' }], deployment: 'inv-1' },
+        { routes: [{ routeTableId: 'rtb-0', networkInterfaceId: 'eni-0' }], launchTemplateVersions: ['1'] },
         undefined,
         'Delete'
       );

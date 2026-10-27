@@ -5,6 +5,12 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { fsPaths } from 'src/config/runtime-paths';
 import type { StacktapeConfig } from '@stacktape/config';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import {
+  getDynamoInsertCustomResource,
+  getDynamoInsertTemplateOverride
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/nextjs-web/utils';
 
 /**
  * Next.js is the one framework Stacktape does not render as a single server Lambda in front of a bucket. OpenNext
@@ -605,5 +611,32 @@ describe('Next.js web materialization', () => {
       'marketingBucket',
       'docsBucket'
     ]);
+  });
+  test('inserts the revalidation data again only when the build or the table changes', async () => {
+    const nextjsWeb = nextjsWebFor();
+    const insertFunctionName = nextjsWeb._nestedResources.revalidationInsertFunction.name;
+    const logicalName = cfLogicalNames.openNextDynamoInsertCustomResource('site');
+    let digest = 'build-one';
+    deploymentArtifactManager.setPackagingSource({
+      getPackagingOutputForJob: (name: string) =>
+        name === insertFunctionName ? { digest, artifactPath: 'insert.zip', skipped: false } : undefined
+    } as unknown as Parameters<typeof deploymentArtifactManager.setPackagingSource>[0]);
+    const finalizedProperties = async () => {
+      const template = {
+        Resources: { [logicalName]: getDynamoInsertCustomResource(nextjsWeb) }
+      } as unknown as CloudFormationTemplate;
+      await getDynamoInsertTemplateOverride(nextjsWeb)(template);
+      return asCloudformationValue(template.Resources[logicalName].Properties);
+    };
+
+    const deployed = await finalizedProperties();
+    expect(deployed).toMatchObject({
+      version: 'build-one',
+      table: { Ref: cfLogicalNames.dynamoGlobalTable(nextjsWeb._nestedResources.revalidationTable.name) }
+    });
+    // A deploy of the same build changes nothing, so it can take the fast path.
+    expect(await finalizedProperties()).toEqual(deployed);
+    digest = 'build-two';
+    expect((await finalizedProperties()).version).toBe('build-two');
   });
 });
