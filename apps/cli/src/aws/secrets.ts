@@ -4,6 +4,7 @@ import {
   DeleteSecretCommand,
   GetSecretValueCommand,
   ListSecretsCommand,
+  RestoreSecretCommand,
   UntagResourceCommand,
   UpdateSecretCommand
 } from '@aws-sdk/client-secrets-manager';
@@ -49,10 +50,15 @@ export class AwsSecrets {
       .catch(handleError);
   };
 
-  untag = ({ secretId, tagKeys }: { secretId: string; tagKeys: string[] }) => {
-    const handleError = this.#getErrorHandler(`Failed to untag secret with id ${secretId}.`);
+  /** Rejects with the SDK's own error, so a caller can tell a missing permission (`AccessDeniedException`) apart. */
+  untag = ({ secretId, tagKeys }: { secretId: string; tagKeys: string[] }) =>
+    this.#createClient().send(new UntagResourceCommand({ SecretId: secretId, TagKeys: tagKeys }));
+
+  /** Cancels a scheduled deletion. */
+  restore = ({ secretId }: { secretId: string }) => {
+    const handleError = this.#getErrorHandler(`Failed to restore secret with id ${secretId}.`);
     return this.#createClient()
-      .send(new UntagResourceCommand({ SecretId: secretId, TagKeys: tagKeys }))
+      .send(new RestoreSecretCommand({ SecretId: secretId }))
       .catch(handleError);
   };
 
@@ -76,26 +82,34 @@ export class AwsSecrets {
       .catch(handleError);
   };
 
-  /** Without `forceWithoutRecovery`, Secrets Manager keeps the secret, and its name, for a 30-day recovery window. */
-  delete = ({ secretId, forceWithoutRecovery }: { secretId: string; forceWithoutRecovery?: boolean }) => {
+  /** Secrets Manager keeps a deleted secret, and its name, for the recovery window: 30 days unless given. */
+  delete = ({ secretId, recoveryWindowInDays }: { secretId: string; recoveryWindowInDays?: number }) => {
     const handleError = this.#getErrorHandler(`Failed to delete secret with id ${secretId}.`);
     return this.#createClient()
       .send(
         new DeleteSecretCommand({
           SecretId: secretId,
-          ...(forceWithoutRecovery ? { ForceDeleteWithoutRecovery: true } : {})
+          ...(recoveryWindowInDays ? { RecoveryWindowInDays: recoveryWindowInDays } : {})
         })
       )
       .catch(handleError);
   };
 
-  list = async (): Promise<SecretListEntry[]> => {
+  /** With `includePlannedDeletion`, deleted secrets in their recovery window are listed too, with `DeletedDate`. */
+  list = async ({ includePlannedDeletion = false }: { includePlannedDeletion?: boolean } = {}): Promise<
+    SecretListEntry[]
+  > => {
     const handleError = this.#getErrorHandler('Failed to list secrets.');
     const secrets: SecretListEntry[] = [];
     let nextToken: string | undefined;
     do {
       const response = await this.#createClient()
-        .send(new ListSecretsCommand(nextToken ? { NextToken: nextToken } : {}))
+        .send(
+          new ListSecretsCommand({
+            ...(nextToken ? { NextToken: nextToken } : {}),
+            ...(includePlannedDeletion ? { IncludePlannedDeletion: true } : {})
+          })
+        )
         .catch(handleError);
       secrets.push(...(response.SecretList || []));
       nextToken = response.NextToken;

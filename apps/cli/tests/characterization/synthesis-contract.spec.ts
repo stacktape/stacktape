@@ -69,7 +69,8 @@ const createDenseConfig = ({
   includeUptimeCheck = false,
   includeTracing = false,
   includeSyntheticTest = false,
-  webConnectsToRecords = false
+  webConnectsToRecords = false,
+  scopedDatabase = false
 }: {
   includeAppsync?: boolean;
   includeDsql?: boolean;
@@ -84,6 +85,7 @@ const createDenseConfig = ({
   includeTracing?: boolean;
   includeSyntheticTest?: boolean;
   webConnectsToRecords?: boolean;
+  scopedDatabase?: boolean;
 } = {}) =>
   defineConfig(() => {
     const apiGateway = new HttpApiGateway({
@@ -147,6 +149,7 @@ const createDenseConfig = ({
       }
     });
     const database = new RelationalDatabase({
+      ...(scopedDatabase ? { accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' as const } } : {}),
       credentials: {
         masterUserPassword: 'credential-placeholder'
       },
@@ -185,6 +188,8 @@ const createDenseConfig = ({
         entryfilePath: './src/api.ts'
       }),
       memory: 512,
+      // A database scoped to its workloads admits only workloads in the VPC.
+      ...(scopedDatabase ? { joinDefaultVpc: true } : {}),
       connectTo: [
         records,
         files,
@@ -379,6 +384,7 @@ export const synthesizeDenseFixture = async ({
   includeTracing,
   includeSyntheticTest,
   webConnectsToRecords,
+  scopedDatabase,
   remoteResources,
   devSkippedFunctions
 }: {
@@ -398,6 +404,7 @@ export const synthesizeDenseFixture = async ({
   includeTracing?: boolean;
   includeSyntheticTest?: boolean;
   webConnectsToRecords?: boolean;
+  scopedDatabase?: boolean;
   remoteResources?: string[];
   devSkippedFunctions?: string[];
 } = {}) => {
@@ -415,7 +422,8 @@ export const synthesizeDenseFixture = async ({
       includeUptimeCheck,
       includeTracing,
       includeSyntheticTest,
-      webConnectsToRecords
+      webConnectsToRecords,
+      scopedDatabase
     }),
     workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
     synthesisContext,
@@ -1462,6 +1470,25 @@ describe('full synthesis contract', () => {
         expect.arrayContaining(['dynamodb:Get*', 'dynamodb:PutItem', 'dynamodb:Query', 'dynamodb:Scan'])
       );
     }
+  });
+
+  test('a remote database scoped to its workloads admits deployed functions, not containers that run locally', async () => {
+    const template = await synthesizeDenseFixture({
+      command: 'dev',
+      scopedDatabase: true,
+      remoteResources: ['database']
+    });
+    const ingress = (template.Resources[cfLogicalNames.dbSecurityGroup('database')] as any).Properties
+      .SecurityGroupIngress as { SourceSecurityGroupId?: { Ref: string } }[];
+    const sources = ingress.map(({ SourceSecurityGroupId }) => SourceSecurityGroupId?.Ref).filter(Boolean);
+    expect(sources).not.toContain(cfLogicalNames.workloadSecurityGroup('web'));
+    for (const source of sources) expect(template.Resources[source!]).toBeDefined();
+    // A full deployment admits the web service's tasks.
+    const deployed = await synthesizeDenseFixture({ scopedDatabase: true });
+    const deployedSources = (
+      deployed.Resources[cfLogicalNames.dbSecurityGroup('database')] as any
+    ).Properties.SecurityGroupIngress.map(({ SourceSecurityGroupId }: any) => SourceSecurityGroupId?.Ref);
+    expect(deployedSources).toContain(cfLogicalNames.workloadSecurityGroup('web'));
   });
 
   test('keeps a function that a dev session leaves out, without its triggers', async () => {

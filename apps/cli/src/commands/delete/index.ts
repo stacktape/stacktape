@@ -114,7 +114,10 @@ export const commandDelete = async () => {
     try {
       const deletedSecrets = await deleteDevGeneratedSecrets({ stackName });
       if (deletedSecrets.length) {
-        tui.info(`Deleted the secrets dev mode generated for ${stackName}: ${deletedSecrets.join(', ')}.`);
+        tui.info(
+          `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deletedSecrets.join(', ')}. ` +
+            'A deployment or dev session that uses one within 7 days restores it.'
+        );
       }
     } catch (err) {
       tui.info(`Could not delete the secrets dev mode generated for ${stackName}: ${err}`);

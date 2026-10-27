@@ -32,6 +32,12 @@ type DevStackReferenceInput = {
 
 const RESOURCE_PARAM = /\$ResourceParam\(\s*(['"])([^'"]+)\1\s*,\s*(['"])([^'"]+)\3\s*\)/g;
 
+/**
+ * Resources dev synthesis leaves out although they are not emulated: uptime checks and synthetic tests (see
+ * `resolveUptimeChecks` and `resolveSyntheticTests`). Alarms are left out of dev stacks too (`isAlarmFreeStack`).
+ */
+const LEFT_OUT_OF_DEV_STACKS = new Set(['uptime-check', 'synthetic-test']);
+
 /** Container workloads that run locally; the dev stack deploys only their roles (see `resolveDevContainerWorkloadRoles`). */
 const LOCAL_CONTAINER_TYPES = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 
@@ -64,20 +70,27 @@ const getDevStackReferences = ({ resources, remoteResourceNames, skippedFunction
       }
       continue;
     }
-    if (!shouldDeployResourceInDevMode(type, remoteResourceNames.has(name))) continue;
-    if (type !== 'function') {
-      collectReferences({ ...resource, type: undefined }, base, name, references);
+    if (LEFT_OUT_OF_DEV_STACKS.has(type) || !shouldDeployResourceInDevMode(type, remoteResourceNames.has(name))) {
       continue;
     }
-    const { events, ...properties } = resource.properties ?? {};
+    const { events, alarms: _alarms, ...properties } = resource.properties ?? {};
     collectReferences({ ...resource, type: undefined, properties }, base, name, references);
-    if (skippedFunctionNames.has(name) || !Array.isArray(events)) continue;
+    if (type !== 'function' || !Array.isArray(events)) {
+      if (type !== 'function') collectReferences(events, `${base}.properties.events`, name, references);
+      continue;
+    }
+    // A skipped function's triggers are not in the dev stack, but its stream still keeps the table deployed: the
+    // resource picker must not delete a deployed table and its data (see `findStreamTablesToDeploy`).
+    const skipped = skippedFunctionNames.has(name);
     events.forEach((event: { type?: string; properties?: Record<string, unknown> }, index) => {
       const path = `${base}.properties.events[${index}]`;
-      if (event?.type !== 'dynamo-db-stream') return collectReferences(event, path, name, references);
+      if (event?.type !== 'dynamo-db-stream') {
+        if (!skipped) collectReferences(event, path, name, references);
+        return;
+      }
       const { streamArn, ...rest } = event.properties ?? {};
       collectReferences(streamArn, `${path}.properties.streamArn`, name, streamReferences);
-      collectReferences({ ...event, properties: rest }, path, name, references);
+      if (!skipped) collectReferences({ ...event, properties: rest }, path, name, references);
     });
   }
   return {
@@ -87,8 +100,9 @@ const getDevStackReferences = ({ resources, remoteResourceNames, skippedFunction
 };
 
 /**
- * Local DynamoDB tables whose streams deployed functions read, with those functions. A stream trigger needs the
- * deployed table's stream, so `stacktape dev` deploys such a table in the dev stack.
+ * Local DynamoDB tables whose streams functions read, with those functions. A stream trigger needs the deployed table's
+ * stream, so `stacktape dev` deploys such a table in the dev stack. A function left out of the session counts too:
+ * otherwise skipping it would delete the deployed table and its data.
  */
 export const findStreamTablesToDeploy = (input: DevStackReferenceInput): Map<string, string[]> => {
   const tables = new Map<string, string[]>();

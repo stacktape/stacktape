@@ -246,14 +246,22 @@ export class DevBoxConnection {
     this.#deps.onSession?.(this.#session.sessionId);
     const relay = this.#endpoint();
     const deadline = Date.now() + relayTimeoutMs;
+    // The relay is pinged through the session. A session that ends meanwhile cannot answer any more, for example when
+    // the box's profile watcher restarts the SSM agent right after the box gets its instance profile: the attempt ends
+    // at once and `#run` opens a new session, instead of pinging a dead session until `relayTimeoutMs`.
+    let sessionEnded = false;
+    const ended = this.#session.waitForExit().then(() => {
+      sessionEnded = true;
+    });
     for (;;) {
       this.#stopped.signal.throwIfAborted();
+      if (sessionEnded) throw new Error('The SSM session to the dev box ended before its relay answered.');
       try {
         await pingRelay(relay);
         break;
       } catch (error) {
         if (Date.now() > deadline) throw new Error(`The dev box relay did not answer: ${(error as Error).message}`);
-        await delay(pollMs);
+        await Promise.race([delay(pollMs), ended]);
       }
     }
     this.#setStatus({ phase: 'ready', relay });

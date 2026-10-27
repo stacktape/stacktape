@@ -37,6 +37,10 @@ const resources = (overrides: Record<string, object> = {}) => ({
   ...overrides
 });
 
+// The same app with a stream consumer that is not deployed in dev mode at all, so the table can stay local.
+const withoutStream = (overrides: Record<string, object> = {}) =>
+  resources({ orderStream: { type: 'function', properties: {} }, ...overrides });
+
 const LOCAL_TABLE_PARAMS = ['name', 'arn', 'endpoint'];
 
 const check = ({
@@ -68,7 +72,13 @@ describe('tables that dev mode deploys for stream triggers', () => {
       expected: [['mainTable', ['orderStream']]]
     },
     { name: 'a table that is remote already', remote: ['mainTable'], skipped: [], expected: [] },
-    { name: 'a stream trigger of a skipped function', remote: [], skipped: ['orderStream'], expected: [] }
+    // Skipping the consumer must not delete the deployed table and its data.
+    {
+      name: 'a stream trigger of a skipped function',
+      remote: [],
+      skipped: ['orderStream'],
+      expected: [['mainTable', ['orderStream']]]
+    }
   ];
   test.each(cases)('$name', ({ remote, skipped, expected }) => {
     const tables = findStreamTablesToDeploy({
@@ -85,11 +95,11 @@ describe('dev stack references to resources it does not deploy', () => {
     // The table deployed for the stream: everything resolves against it.
     expect(check({ remote: ['mainTable'] })).toBeUndefined();
     // A frontend's and a container's environment are resolved on the developer's machine.
-    expect(check({ skipped: ['orderStream'] })).toBeUndefined();
+    expect(check({ config: withoutStream() })).toBeUndefined();
   });
 
   test('a container role statement on a local table that no function relays names the path and the fix', () => {
-    const error = check({ skipped: ['orderStream'], relayed: {} });
+    const error = check({ config: withoutStream(), relayed: {} });
     expect(error?.code).toBe('DEV_LOCAL_RESOURCE_REFERENCED');
     expect(error?.message).toContain('`mainTable` runs locally in dev mode');
     expect(error?.message).toContain(
@@ -103,20 +113,40 @@ describe('dev stack references to resources it does not deploy', () => {
 
   test('a parameter the relay does not give fails, though the function reaches the table', () => {
     const error = check({
-      config: resources({
+      config: withoutStream({
         orderNotify: {
           type: 'function',
           properties: {
             environment: [{ name: 'STREAM', value: "$Format('{}', $ResourceParam('mainTable','streamArn'))" }]
           }
         }
-      }),
-      skipped: ['orderStream']
+      })
     });
     expect(error?.code).toBe('DEV_LOCAL_RESOURCE_REFERENCED');
     expect(error?.message).toContain(
       "resources.orderNotify.properties.environment[0].value: $ResourceParam('mainTable', 'streamArn')"
     );
+  });
+
+  test('uptime checks, synthetic tests and alarms are left out of dev stacks, so their references are not checked', () => {
+    const config = resources({
+      apiUptime: { type: 'uptime-check', properties: { url: "$ResourceParam('ordersApi', 'url')" } },
+      webFlow: {
+        type: 'synthetic-test',
+        properties: { environment: [{ name: 'URL', value: "$ResourceParam('web', 'url')" }] }
+      },
+      orderNotify: {
+        type: 'function',
+        properties: {
+          alarms: [
+            {
+              notificationTargets: [{ type: 'email', properties: { recipient: "$ResourceParam('mainTable', 'arn')" } }]
+            }
+          ]
+        }
+      }
+    });
+    expect(check({ config, remote: ['mainTable'] })).toBeUndefined();
   });
 
   test('a deployed function cannot reference a container that runs on the machine', () => {

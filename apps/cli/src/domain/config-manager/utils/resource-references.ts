@@ -42,6 +42,13 @@ export const getConnectToReferencesForResource = ({
     if (!connectTo?.includes(resourceReferenceableName)) {
       return;
     }
+    // A container that runs on the developer's machine has no security group in the dev stack to admit.
+    if (
+      activeConfig.deploymentContext.command === 'dev' &&
+      isResourceTypeExcludedInDevMode(scopingResource.configParentResourceType)
+    ) {
+      return;
+    }
     if (type === 'function') {
       getAdmittedLambdaSecurityGroups({ lambda: scopingResource, activeConfig, admittingCfLogicalName }).forEach(
         (scopingCfLogicalNameOfSecurityGroup) => result.push({ scopingResource, scopingCfLogicalNameOfSecurityGroup })

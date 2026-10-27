@@ -77,7 +77,7 @@ The `streamArn` property is required on every `DynamoDbIntegration`. In the exam
 
 In [dev mode](/local-development/dev-mode-overview), DynamoDB tables normally run on your machine in DynamoDB Local, which has no stream that Lambda can read. A stream trigger needs the deployed table, so when a deployed function has a stream trigger on a table, `stacktape dev` deploys that table in the dev stack automatically and says so when it starts. Your local containers and functions then read and write the deployed table, with the permissions their `connectTo` grants, and the stream trigger fires on their writes.
 
-A function left out with `--skip-resources` keeps no triggers in the dev stack, so its stream does not keep the table deployed.
+A function left out with `--skip-resources` has no triggers in the dev stack, but the table stays deployed, so skipping the function does not delete the table and its data.
 
 ## Batching and throughput
 
