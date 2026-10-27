@@ -37,6 +37,7 @@ import type {
 } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
+import { bucketNeedsOriginRequestLambda } from '@domain-services/config-manager/utils/cdn';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
 import { resolveReferenceToBucket } from '@domain-services/config-manager/utils/buckets';
 import { resolveReferenceToEdgeLambdaFunction } from '@domain-services/config-manager/utils/edge-functions';
@@ -1197,7 +1198,7 @@ const determineEdgeFunctionAssociationsForBucketCacheBehaviour = ({
   });
   const filteredPredefinedAssociations: LambdaFunctionAssociation[] = []
     .concat(
-      !disableUrlNormalization || rewriteRoutesForSinglePageApp
+      bucketNeedsOriginRequestLambda({ disableUrlNormalization, rewriteRoutesForSinglePageApp, edgeFunctions })
         ? {
             EventType: 'origin-request',
             IncludeBody: false,

@@ -7,7 +7,9 @@ import { getEdgeLambdaBucketCustomResource, getEdgeLambdaCustomResource } from '
 export const resolveDefaultEdgeLambdas = () => {
   if (configManager.configContainsCdnDistribution) {
     [
-      configManager.stacktapeOriginRequestLambdaProps,
+      ...(configManager.configNeedsStacktapeOriginRequestLambda
+        ? [configManager.stacktapeOriginRequestLambdaProps]
+        : []),
       ...(configManager.configNeedsStacktapeOriginResponseLambda
         ? [configManager.stacktapeOriginResponseLambdaProps]
         : [])
@@ -24,7 +26,11 @@ export const resolveDefaultEdgeLambdas = () => {
 };
 
 export const resolveDefaultEdgeLambdaBucket = () => {
-  if (configManager.configContainsCdnDistribution || configManager.edgeLambdaFunctions.length) {
+  if (
+    configManager.configNeedsStacktapeOriginRequestLambda ||
+    configManager.configNeedsStacktapeOriginResponseLambda ||
+    configManager.edgeLambdaFunctions.length
+  ) {
     calculatedStackOverviewManager.addCfChildResource({
       resource: getEdgeLambdaBucketCustomResource(),
       cfLogicalName: cfLogicalNames.customResourceEdgeLambdaBucket(),
