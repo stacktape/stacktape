@@ -50,7 +50,7 @@ const withDeleteFixture = async (
     globalStateManager.rawArgs = { region: 'eu-west-1' };
     const calls: string[] = [];
     const hooks: ((args: { success: boolean }) => Promise<unknown>)[] = [];
-    const spies = [
+    const spies: { mockRestore: () => void }[] = [
       spyOn(applicationManager, 'registerCleanUpHook').mockImplementation((hook) => {
         hooks.push(hook as (typeof hooks)[number]);
       }),

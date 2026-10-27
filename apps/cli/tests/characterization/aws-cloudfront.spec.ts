@@ -110,7 +110,7 @@ describe('AWS CloudFront operations', () => {
       Enabled: true,
       Origins: { Quantity: 1, Items: [{ Id: 'bucket-origin', DomainName: 'assets.s3.eu-west-1.amazonaws.com' }] }
     };
-    const updates: UpdateDistributionCommand['input'][] = [];
+    const updates: unknown[] = [];
     const cloudFront = cloudFrontWith({
       send: (async (command: GetDistributionConfigCommand | UpdateDistributionCommand) => {
         if (command instanceof GetDistributionConfigCommand) {
