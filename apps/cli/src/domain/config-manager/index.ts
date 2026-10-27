@@ -169,6 +169,8 @@ export class ConfigManager {
   #consoleStageType: ConfigManagerInitContext['consoleStageType'];
   #discoveredConfig: DiscoveredConfig | undefined;
   #cliRemoteResourceNames: readonly string[] = [];
+  #devAutoRemoteResourceNames: readonly string[] = [];
+  #devSkippedFunctionNames: ReadonlySet<string> = new Set();
   #devNetworkPlacement: DevNetworkPlacement | undefined;
   #devTrustStatement: DeveloperTrustStatement | undefined;
 
@@ -323,6 +325,8 @@ export class ConfigManager {
     this.#helperLambdaDetails = undefined;
     this.#securityScanning = {};
     this.#cliRemoteResourceNames = [];
+    this.#devAutoRemoteResourceNames = [];
+    this.#devSkippedFunctionNames = new Set();
     this.#devNetworkPlacement = undefined;
     this.#devTrustStatement = undefined;
     this.#discoveredConfig = undefined;
@@ -331,6 +335,23 @@ export class ConfigManager {
   /** Set by `stacktape dev` before it synthesizes the dev stack; see `DevNetworkPlacement`. */
   setDevNetworkPlacement = (placement: DevNetworkPlacement | undefined) => {
     this.#devNetworkPlacement = placement;
+  };
+
+  /**
+   * Set by `stacktape dev` before it synthesizes the dev stack: locally emulatable resources that the dev stack deploys
+   * although nothing names them remote, because a deployed resource needs them (a DynamoDB stream trigger reads the
+   * deployed table's stream).
+   */
+  setDevAutoRemoteResources = (names: readonly string[]) => {
+    this.#devAutoRemoteResourceNames = [...names];
+  };
+
+  /**
+   * Set by `stacktape dev` before it synthesizes the dev stack: the functions left out of the session. The dev stack
+   * keeps them, so references to them resolve, but without their triggers.
+   */
+  setDevSkippedFunctions = (names: Iterable<string>) => {
+    this.#devSkippedFunctionNames = new Set(names);
   };
 
   /**
@@ -510,6 +531,7 @@ export class ConfigManager {
   get functions() {
     const isDevStack = this.#stackContext?.command === 'dev';
     return this.getResourcesFromConfig('function').map(({ name, packaging: configuredPackaging, ...definition }) => {
+      const withoutTriggers = isDevStack && this.#devSkippedFunctionNames.has(name);
       const packaging = isDevStack ? withSourceMapsInPackage(configuredPackaging) : configuredPackaging;
       return {
         ...definition,
@@ -522,7 +544,7 @@ export class ConfigManager {
         cfLogicalName: cfLogicalNames.lambda(name),
         aliasLogicalName:
           (definition.deployment || definition.provisionedConcurrency) && cfLogicalNames.lambdaStpAlias(name),
-        events: definition.events || [],
+        events: withoutTriggers ? [] : definition.events || [],
         configParentResourceType: 'function'
       } as StpLambdaFunction;
     });
@@ -958,7 +980,10 @@ export class ConfigManager {
     devNetwork?: DevNetworkPlacement;
     devTrustStatement?: DeveloperTrustStatement;
   } {
-    const remoteResourceNames = new Set(this.#cliRemoteResourceNames);
+    const remoteResourceNames = new Set([
+      ...this.#cliRemoteResourceNames,
+      ...(this.stackContext.command === 'dev' ? this.#devAutoRemoteResourceNames : [])
+    ]);
     for (const resource of [
       ...this.databases,
       ...this.redisClusters,

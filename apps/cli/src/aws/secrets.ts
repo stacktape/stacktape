@@ -4,6 +4,7 @@ import {
   DeleteSecretCommand,
   GetSecretValueCommand,
   ListSecretsCommand,
+  UntagResourceCommand,
   UpdateSecretCommand
 } from '@aws-sdk/client-secrets-manager';
 
@@ -27,15 +28,31 @@ export class AwsSecrets {
   create = ({
     name,
     value,
-    description = 'Created by Stacktape'
+    description = 'Created by Stacktape',
+    tags
   }: {
     name: string;
     value: string;
     description?: string;
+    tags?: { Key: string; Value: string }[];
   }) => {
     const handleError = this.#getErrorHandler('Failed to create secret.');
     return this.#createClient()
-      .send(new CreateSecretCommand({ Description: description, Name: name, SecretString: value }))
+      .send(
+        new CreateSecretCommand({
+          Description: description,
+          Name: name,
+          SecretString: value,
+          ...(tags?.length ? { Tags: tags } : {})
+        })
+      )
+      .catch(handleError);
+  };
+
+  untag = ({ secretId, tagKeys }: { secretId: string; tagKeys: string[] }) => {
+    const handleError = this.#getErrorHandler(`Failed to untag secret with id ${secretId}.`);
+    return this.#createClient()
+      .send(new UntagResourceCommand({ SecretId: secretId, TagKeys: tagKeys }))
       .catch(handleError);
   };
 
@@ -59,10 +76,16 @@ export class AwsSecrets {
       .catch(handleError);
   };
 
-  delete = ({ secretId }: { secretId: string }) => {
+  /** Without `forceWithoutRecovery`, Secrets Manager keeps the secret, and its name, for a 30-day recovery window. */
+  delete = ({ secretId, forceWithoutRecovery }: { secretId: string; forceWithoutRecovery?: boolean }) => {
     const handleError = this.#getErrorHandler(`Failed to delete secret with id ${secretId}.`);
     return this.#createClient()
-      .send(new DeleteSecretCommand({ SecretId: secretId }))
+      .send(
+        new DeleteSecretCommand({
+          SecretId: secretId,
+          ...(forceWithoutRecovery ? { ForceDeleteWithoutRecovery: true } : {})
+        })
+      )
       .catch(handleError);
   };
 

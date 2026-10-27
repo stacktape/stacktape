@@ -386,6 +386,8 @@ type AgentReadyPayload = {
   sessionId?: string;
   /** Workloads that failed while dev mode started; a non-empty list means the start failed. */
   failedWorkloads?: { name: string; error: string }[];
+  /** What dev mode decided on its own, such as deploying a table that a stream trigger reads. */
+  notices?: string[];
 };
 
 /**
@@ -824,6 +826,7 @@ export const buildAgentReadyPayload = (data: {
   logFile: string;
   sessionId?: string;
   failedWorkloads?: { name: string; error: string }[];
+  notices?: string[];
 }): AgentReadyPayload => ({
   port: data.port,
   projectName: data.projectName,
@@ -834,7 +837,8 @@ export const buildAgentReadyPayload = (data: {
   logFile: data.logFile,
   tokenFile: localStatePaths.devAgentTokenFile({ port: data.port }),
   ...(data.sessionId ? { sessionId: data.sessionId } : {}),
-  failedWorkloads: data.failedWorkloads ?? []
+  failedWorkloads: data.failedWorkloads ?? [],
+  ...(data.notices?.length ? { notices: data.notices } : {})
 });
 
 /** The AGENT_READY line that signals the daemon finished starting. */

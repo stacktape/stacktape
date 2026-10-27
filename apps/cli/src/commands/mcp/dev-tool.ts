@@ -1117,6 +1117,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             activeDevSessions.delete(devSessionId);
           }
           const succeeded = result.ok && !missingPort;
+          // What dev mode decided on its own, such as deploying a table that a stream trigger reads.
+          const notices = Array.isArray(payload?.notices) ? payload.notices.filter((n) => typeof n === 'string') : [];
           if (runsNotReady) {
             const failedWorkloads = Array.isArray(result.data?.failedWorkloads) ? result.data.failedWorkloads : [];
             finishStartup(
@@ -1147,7 +1149,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           const output: ToolOutput = {
             ok: succeeded,
             code: missingPort ? 'INTERNAL_ERROR' : result.code,
-            message: missingPort ? 'Dev mode started, but the CLI did not report the dev agent port.' : result.message,
+            message: missingPort
+              ? 'Dev mode started, but the CLI did not report the dev agent port.'
+              : notices.length
+                ? `${result.message.replace(/\.?$/, '.')} ${notices.join(' ')}`
+                : result.message,
             data: {
               ...(succeeded ? { session: publicSession(session) } : {}),
               resolvedContext: result.resolvedContext,

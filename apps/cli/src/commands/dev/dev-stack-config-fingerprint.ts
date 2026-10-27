@@ -6,7 +6,8 @@ import { createHash } from 'node:crypto';
 // v4 keeps source maps in dev function packages and runs the functions with `--enable-source-maps`.
 // v5 records a digest of each input separately, so an update can name what changed.
 // v6 leaves alarms out of dev stacks and lets schedule rules name their function by ARN.
-const FINGERPRINT_VERSION = 6;
+// v7 grants connectTo access to remote resources and records the remote resources and the functions without triggers.
+const FINGERPRINT_VERSION = 7;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;
@@ -35,7 +36,15 @@ const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown =>
 };
 
 /** What the dev stack is synthesized from. Each part gets its own digest, so an update can say which one changed. */
-const FINGERPRINT_PARTS = ['config', 'devNetwork', 'localDatabaseAddresses', 'localDatabases', 'devTrust'] as const;
+const FINGERPRINT_PARTS = [
+  'config',
+  'devNetwork',
+  'localDatabaseAddresses',
+  'localDatabases',
+  'devTrust',
+  'remoteResources',
+  'skippedFunctions'
+] as const;
 export type DevStackFingerprintPart = (typeof FINGERPRINT_PARTS)[number];
 
 const digest = (value: unknown) =>
@@ -51,13 +60,19 @@ const digest = (value: unknown) =>
 export const getDevStackConfigFingerprint = ({
   config,
   devNetwork,
-  devTrustStatement
+  devTrustStatement,
+  remoteResourceNames = [],
+  skippedFunctionNames = []
 }: {
   config: unknown;
   /** The dev network placement: its subnets, leases and local passwords end up in the template too. */
   devNetwork?: DevNetworkPlacement;
   /** The trust in the developer that the roles of locally running containers get. */
   devTrustStatement?: unknown;
+  /** The resources the dev stack deploys instead of emulating them locally. */
+  remoteResourceNames?: Iterable<string>;
+  /** The functions left out of the session, which the dev stack keeps without their triggers. */
+  skippedFunctionNames?: Iterable<string>;
 }): string => {
   const { localResources, ...network } = devNetwork ?? {};
   const parts: Record<DevStackFingerprintPart, unknown> = {
@@ -76,7 +91,9 @@ export const getDevStackConfigFingerprint = ({
         ])
       ),
     localDatabases: localResources,
-    devTrust: devTrustStatement
+    devTrust: devTrustStatement,
+    remoteResources: [...remoteResourceNames].sort(),
+    skippedFunctions: [...skippedFunctionNames].sort()
   };
   return `v${FINGERPRINT_VERSION}:${FINGERPRINT_PARTS.map((part) => digest(parts[part])).join('.')}`;
 };
@@ -107,7 +124,9 @@ const PART_REASONS: Record<DevStackFingerprintPart, string> = {
   devNetwork: 'its functions move to other subnets of the dev network',
   localDatabaseAddresses: 'the dev box address or relay ports of the local databases changed',
   localDatabases: 'the local databases have another password',
-  devTrust: 'local containers now use the roles with other AWS credentials'
+  devTrust: 'local containers now use the roles with other AWS credentials',
+  remoteResources: 'other resources run in AWS instead of locally',
+  skippedFunctions: 'other functions are left out of the session, and the dev stack keeps them without triggers'
 };
 
 /**

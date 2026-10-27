@@ -23,6 +23,7 @@ import {
   initializeStackServicesForDevPhase2
 } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { prepareDevStackReferences } from './dev-stack-references';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
@@ -625,7 +626,6 @@ export const commandDev = async () => {
 
   const allWorkloads = getDevCompatibleResources();
   const allEmulateableResources = getLocalEmulateableResources();
-  const remoteResourceNames = configManager.deploymentContext.remoteResourceNames;
 
   // Validate that we have something to run
   if (allWorkloads.length === 0 && allEmulateableResources.length === 0) {
@@ -662,6 +662,21 @@ export const commandDev = async () => {
     tuiManager.info(`[~] Selected resources: ${allNames.join(', ')}`);
   }
 
+  // The dev stack's references to local resources are checked before any AWS work, so such a config error comes back in
+  // seconds. Local DynamoDB tables that stream triggers read are deployed instead.
+  const skippedFunctionNames = new Set(
+    allWorkloads
+      .filter(({ category, name }) => category === 'function' && !selectedResourceNames.has(name))
+      .map(({ name }) => name)
+  );
+  const devStackNotices = prepareDevStackReferences({ noTunnel: Boolean(args.noTunnel), skippedFunctionNames });
+  devStackNotices.forEach((notice, index) => {
+    if (agentEnabled)
+      reportDevStartup({ step: 'DEV_SESSION', key: `notice-${index}`, status: 'completed', message: notice });
+    else tuiManager.info(notice);
+  });
+  const remoteResourceNames = configManager.deploymentContext.remoteResourceNames;
+
   // Phase 2 reads the dev stack and its metadata from AWS. The secret and parameter checks and the dev network need
   // nothing of it, so it runs in the background meanwhile; it is awaited before the dev stack is checked.
   reportDevStartup({
@@ -695,7 +710,7 @@ export const commandDev = async () => {
     status: 'started',
     message: 'Checking the secrets and SSM parameters the configuration references'
   });
-  await ensureMissingSecretsCreated();
+  await ensureMissingSecretsCreated({ devStackName: stackContext.stackName });
   await ensureMissingSsmParamsCreated();
   reportDevStartup({
     step: 'DEV_SESSION',
@@ -778,7 +793,9 @@ export const commandDev = async () => {
   const desiredDevStackConfigFingerprint = getDevStackConfigFingerprint({
     config: configManager.config,
     devNetwork: devNetworkSession?.placement,
-    devTrustStatement
+    devTrustStatement,
+    remoteResourceNames,
+    skippedFunctionNames
   });
   const devStackUpdateCause = getDevStackUpdateCause({
     deployedFingerprint: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.devStackConfigFingerprint()),
@@ -928,7 +945,8 @@ export const commandDev = async () => {
               sessionId: getAgentSessionId(),
               failedWorkloads: state.workloads
                 .filter((w) => w.status === 'error')
-                .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))
+                .map((w) => ({ name: w.name, error: w.error || 'unknown error' })),
+              notices: devStackNotices
             })}\n`,
             // The process that started the daemon reads its output only until now; from here the files are capped.
             () => capDaemonOutputFiles()

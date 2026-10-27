@@ -5,6 +5,7 @@ import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
+import { deleteDevGeneratedSecrets } from '../_utils/secret-preflight';
 import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { initializeDeleteOperation } from '../_utils/initialization';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -109,6 +110,14 @@ export const commandDelete = async () => {
       await releaseStackLeases({ store: createDevNetworkAws().leases, networkName: getDevNetworkName(), stackName });
     } catch (err) {
       tui.info(`Could not release the dev network relay ports of ${stackName}: ${err}`);
+    }
+    try {
+      const deletedSecrets = await deleteDevGeneratedSecrets({ stackName });
+      if (deletedSecrets.length) {
+        tui.info(`Deleted the secrets dev mode generated for ${stackName}: ${deletedSecrets.join(', ')}.`);
+      }
+    } catch (err) {
+      tui.info(`Could not delete the secrets dev mode generated for ${stackName}: ${err}`);
     }
   }
   // CloudFormation deleted the layer versions it published. Those fast deployments published under the stack's layer

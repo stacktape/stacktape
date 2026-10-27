@@ -68,7 +68,8 @@ const createDenseConfig = ({
   subscribeToWorkerLogs = false,
   includeUptimeCheck = false,
   includeTracing = false,
-  includeSyntheticTest = false
+  includeSyntheticTest = false,
+  webConnectsToRecords = false
 }: {
   includeAppsync?: boolean;
   includeDsql?: boolean;
@@ -82,6 +83,7 @@ const createDenseConfig = ({
   includeUptimeCheck?: boolean;
   includeTracing?: boolean;
   includeSyntheticTest?: boolean;
+  webConnectsToRecords?: boolean;
 } = {}) =>
   defineConfig(() => {
     const apiGateway = new HttpApiGateway({
@@ -305,7 +307,7 @@ const createDenseConfig = ({
         cpu: 0.25,
         memory: 512
       },
-      connectTo: [database],
+      connectTo: [database, ...(webConnectsToRecords ? [records] : [])],
       environment: {
         APP_MODE: 'baseline'
       }
@@ -376,7 +378,9 @@ export const synthesizeDenseFixture = async ({
   includeUptimeCheck,
   includeTracing,
   includeSyntheticTest,
-  remoteResources
+  webConnectsToRecords,
+  remoteResources,
+  devSkippedFunctions
 }: {
   synthesisContext?: Partial<StackContext>;
   beforeFinalize?: () => void;
@@ -393,7 +397,9 @@ export const synthesizeDenseFixture = async ({
   includeUptimeCheck?: boolean;
   includeTracing?: boolean;
   includeSyntheticTest?: boolean;
+  webConnectsToRecords?: boolean;
   remoteResources?: string[];
+  devSkippedFunctions?: string[];
 } = {}) => {
   return synthesizeFixture({
     compiledConfig: createDenseConfig({
@@ -408,13 +414,15 @@ export const synthesizeDenseFixture = async ({
       subscribeToWorkerLogs,
       includeUptimeCheck,
       includeTracing,
-      includeSyntheticTest
+      includeSyntheticTest,
+      webConnectsToRecords
     }),
     workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
     synthesisContext,
     beforeFinalize,
     command,
-    remoteResources
+    remoteResources,
+    devSkippedFunctions
   });
 };
 
@@ -1427,6 +1435,43 @@ describe('full synthesis contract', () => {
     expect(
       Object.values(configOptInTemplate.Resources).some(({ Type }) => Type === 'AWS::MSK::ServerlessCluster')
     ).toBe(true);
+  });
+
+  test('grants the deployed function and the local container access to a table that dev mode deploys', async () => {
+    const tableLogicalId = cfLogicalNames.dynamoGlobalTable('records');
+    const tableActionsOf = (template: CloudFormationTemplate, roleName: string) =>
+      normalizeRolePolicies(template.Resources[roleName])
+        .filter(({ resources }: { resources?: unknown[] }) => JSON.stringify(resources ?? []).includes(tableLogicalId))
+        .flatMap(({ actions }: { actions: string[] }) => actions);
+
+    const localTemplate = await synthesizeDenseFixture({ command: 'dev', webConnectsToRecords: true });
+    expect(localTemplate.Resources[tableLogicalId]).toBeUndefined();
+    expect(tableActionsOf(localTemplate, 'ApiRole')).toEqual([]);
+    expect(tableActionsOf(localTemplate, 'WebRole')).toEqual([]);
+
+    const remoteTemplate = await synthesizeDenseFixture({
+      command: 'dev',
+      webConnectsToRecords: true,
+      remoteResources: ['records']
+    });
+    expect(remoteTemplate.Resources[tableLogicalId]?.Type).toBe('AWS::DynamoDB::GlobalTable');
+    // The function is deployed; the web service runs on the developer's machine with its role from the dev stack.
+    expect(remoteTemplate.Resources.WebService).toBeUndefined();
+    for (const roleName of ['ApiRole', 'WebRole']) {
+      expect(tableActionsOf(remoteTemplate, roleName)).toEqual(
+        expect.arrayContaining(['dynamodb:Get*', 'dynamodb:PutItem', 'dynamodb:Query', 'dynamodb:Scan'])
+      );
+    }
+  });
+
+  test('keeps a function that a dev session leaves out, without its triggers', async () => {
+    const queueMappings = (template: CloudFormationTemplate) =>
+      Object.values(template.Resources).filter(({ Type }) => Type === 'AWS::Lambda::EventSourceMapping');
+
+    expect(queueMappings(await synthesizeDenseFixture({ command: 'dev' }))).toHaveLength(1);
+    const skipped = await synthesizeDenseFixture({ command: 'dev', devSkippedFunctions: ['worker'] });
+    expect(queueMappings(skipped)).toEqual([]);
+    expect(skipped.Resources[cfLogicalNames.lambda('worker')]?.Type).toBe('AWS::Lambda::Function');
   });
 
   test('synthesizes a complete WebSocket API with automatic handler access', async () => {
