@@ -15788,6 +15788,7 @@
         "page:/cli/delete#cli-options-stacktape-delete",
         "page:/cli/delete#lifecycle-hooks",
         "page:/cli/delete#termination-protection",
+        "page:/cli/delete#deletion-protection",
         "page:/cli/delete#examples",
         "page:/cli/delete#related-commands",
         "page:/cli/delete#faq",
