@@ -32,6 +32,7 @@ import {
   createFamilyProject,
   describeStackResources,
   getStackTemplate,
+  installedPackageFiles,
   runSourceCli,
   writeProjectFiles
 } from './harness';
@@ -283,17 +284,21 @@ test('a fast deployment that fails partway records the functions it switched', a
 const sharedPayload = 'shared-layer-'.repeat(1024);
 const sharedSource = (revision: string) =>
   `export const shared = ${JSON.stringify(sharedPayload)};\nexport const revision = '${revision}';\n`;
+/** Both functions import this installed package. Rewriting it stands in for upgrading the package. */
+const sharedModule = 'node_modules/fixture-shared/index.js';
+const sharedPackage = (revision: string) =>
+  installedPackageFiles({ name: 'fixture-shared', source: sharedSource(revision) });
 const splitHandler = (name: string, version: string) =>
-  `import { revision, shared } from './shared';\n` +
+  `import { revision, shared } from 'fixture-shared';\n` +
   `export default async () => ({ statusCode: 200, body: \`${name}-${version}:\${revision}:\${shared.length}\` });\n`;
 
 /**
- * A change to code several functions share changes their shared chunk layer. It is deployed without CloudFormation:
- * the deployment publishes the layer version itself, gives every function its new code and the new version, and
- * records the release. CloudFormation takes the layer back on a rollback or a full deployment, and the versions the
- * fast deployments published are deleted once nothing runs them.
+ * A change to a package several functions share changes their shared chunk layer. It is deployed without
+ * CloudFormation: the deployment publishes the layer version itself, gives every function its new code and the new
+ * version, and records the release. CloudFormation takes the layer back on a rollback or a full deployment, and the
+ * versions the fast deployments published are deleted once nothing runs them.
  */
-test('a change to shared code publishes the layer from its S3 object, and CloudFormation takes it back on rollback and full deploys', async () => {
+test('a change to a shared package publishes the layer from its S3 object, and CloudFormation takes it back on rollback and full deploys', async () => {
   const out = await mkdtemp(join(tmpdir(), 'stp-fast-deploy-shared-'));
   const ministack = await startMiniStack({ label: 'fast-deploy-shared' });
   const cloudFormation = new CloudFormationClient(ministack.clientConfig());
@@ -440,8 +445,8 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
   const throughProxy = { ...ministack, endpoint: proxy.url.origin };
   try {
     await writeProjectFiles(project, {
+      ...sharedPackage('s1'),
       'stacktape.yml': config,
-      'shared.ts': sharedSource('s1'),
       'first.ts': splitHandler('first', 'v1'),
       'second.ts': splitHandler('second', 'v1')
     });
@@ -535,8 +540,8 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     expect(initial[1]!.tag).toBe(initial[0]!.tag);
     const identity1 = identityOf(initial[0]!.tag);
 
-    // The shared code changes, but the function ZIPs remain byte-identical: only their layer configuration changes.
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s2') });
+    // The shared package changes, but the function ZIPs remain byte-identical: only their layer configuration changes.
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s2') });
     const shared = await runSourceCli({ project, step: 'update', ministack: throughProxy, logName: 'update-shared' });
     expect(shared.exitCode, shared.tail).toBe(0);
     expect(observedUpdates).toBeGreaterThan(0);
@@ -650,7 +655,7 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     expect(afterRedeploy[0]!.code).toBe(afterOwn[0]!.code);
 
     // A full deployment of a directly published shared change makes CloudFormation publish its own version of it.
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s3') });
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s3') });
     const third = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared-3' });
     expect(third.exitCode, third.tail).toBe(0);
     expect(third.changeSummary).toBeUndefined();
@@ -687,14 +692,14 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     const identity3 = identityOf(afterFull[0]!.tag);
     expect((await layerVersions()).map(({ arn }) => arn)).not.toContain(fastArn3);
 
-    // Shared code that returns to what CloudFormation holds puts the functions back on CloudFormation's version
+    // A shared package that returns to what CloudFormation holds puts the functions back on CloudFormation's version
     // without publishing anything, and the version published in between is deleted.
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s4') });
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s4') });
     const fourth = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared-4' });
     expect(fourth.exitCode, fourth.tail).toBe(0);
     const fastArn4 = (await state())[0]!.layers[0]!;
     expect(fastArn4).not.toBe(cloudFormationAfterFull);
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s3') });
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s3') });
     const back = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared-back' });
     expect(back.exitCode, back.tail).toBe(0);
     expect(back.changeSummary).toBeUndefined();
@@ -706,7 +711,7 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     // CloudFormation leaves a function's layers alone when only its code changes. So a rollback to the release
     // CloudFormation holds, while the functions run a directly published version, makes CloudFormation republish the
     // layer from a copy of the release's object and give the functions the new version with their restored code.
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s5') });
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s5') });
     const fifth = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared-5' });
     expect(fifth.exitCode, fifth.tail).toBe(0);
     const fastArn5 = (await state())[0]!.layers[0]!;
@@ -732,14 +737,14 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     );
 
     // The same for a full deployment of an unrelated change while the functions run a directly published version of
-    // shared code that CloudFormation's template already describes.
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s5') });
+    // the shared package that CloudFormation's template already describes.
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s5') });
     const again = await runSourceCli({ project, step: 'update', ministack, logName: 'update-shared-5-again' });
     expect(again.exitCode, again.tail).toBe(0);
     expect(again.changeSummary).toBeUndefined();
     expect((await state())[0]!.layers[0]).not.toBe(cloudFormationAfterHeld);
     await writeProjectFiles(project, {
-      'shared.ts': sharedSource('s3'),
+      [sharedModule]: sharedSource('s3'),
       'stacktape.yml': { resources: { ...config.resources, files: { type: 'bucket', properties: {} } } }
     });
     const drifted = await runSourceCli({ project, step: 'update', ministack, logName: 'full-deploy-drift' });
@@ -765,7 +770,7 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     const mixedPublicationsBefore = layerPublications.length;
     const mixedCodeBefore = codeUpdates;
     const mixedLayersBefore = layerUpdates;
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('s6'), 'first.ts': splitHandler('first', 'v3') });
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('s6'), 'first.ts': splitHandler('first', 'v3') });
     const mixed = await runSourceCli({
       project,
       step: 'update',
@@ -791,7 +796,7 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     ).toBe(`first-v3:s6:${sharedPayload.length}`);
     // Fail after the final layer is attached, before the code switches. Old code must still run on that layer.
     await writeProjectFiles(project, {
-      'shared.ts': sharedSource('interrupted'),
+      [sharedModule]: sharedSource('interrupted'),
       'first.ts': splitHandler('first', 'retry')
     });
     failCodeUpdate = true;
@@ -852,7 +857,7 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
 
     // Returning to retained content reuses its S3 object. Concurrent consumers must prepare its local ZIP only once.
     await writeProjectFiles(project, {
-      'shared.ts': sharedSource('s6'),
+      [sharedModule]: sharedSource('s6'),
       'first.ts': splitHandler('first', 'v3'),
       'second.ts': splitHandler('second', 'v1')
     });
@@ -873,7 +878,7 @@ test('a change to shared code publishes the layer from its S3 object, and CloudF
     const layersBeforeExport = layerUpdates;
     const publicationsBeforeExport = layerPublications.length;
     await writeProjectFiles(project, {
-      'shared.ts': sharedSource('s7') + 'export const added = () => "new-export";\n',
+      [sharedModule]: sharedSource('s7') + 'export const added = () => "new-export";\n',
       'first.ts': splitHandler('first', 'v4')
         .replace('revision, shared', 'revision, shared, added')
         .replace('${revision}', '${added()}:${revision}'),
@@ -963,6 +968,7 @@ test('failed layer tags and release writes remain retryable through deploy, full
   let deployed = false;
   try {
     await writeProjectFiles(project, {
+      ...sharedPackage('original'),
       'stacktape.yml': {
         resources: Object.fromEntries(
           ['first', 'second'].map((name) => [
@@ -974,7 +980,6 @@ test('failed layer tags and release writes remain retryable through deploy, full
           ])
         )
       },
-      'shared.ts': sharedSource('original'),
       'first.ts': splitHandler('first', 'v1'),
       'second.ts': splitHandler('second', 'v1')
     });
@@ -1009,7 +1014,7 @@ test('failed layer tags and release writes remain retryable through deploy, full
 
     for (const restore of ['deploy', 'fullDeploy', 'rollback'] as const) {
       const before = await state();
-      await writeProjectFiles(project, { 'shared.ts': sharedSource(`changed-${restore}`) });
+      await writeProjectFiles(project, { [sharedModule]: sharedSource(`changed-${restore}`) });
       fault = 'tags';
       rejected = 0;
       const changed = await runSourceCli({
@@ -1026,7 +1031,7 @@ test('failed layer tags and release writes remain retryable through deploy, full
       expect(interrupted.map(({ tags }) => tags['stp:shared-layers'])).toEqual(['updating', 'updating']);
       // Cleanup must keep the version the functions actually run despite their unknown tags.
       expect(await layerVersions()).toContain(interrupted[0]!.layers[0]!);
-      await writeProjectFiles(project, { 'shared.ts': sharedSource('original') });
+      await writeProjectFiles(project, { [sharedModule]: sharedSource('original') });
       const restored = await runSourceCli({
         project,
         step: restore === 'rollback' ? 'rollback' : 'update',
@@ -1041,7 +1046,7 @@ test('failed layer tags and release writes remain retryable through deploy, full
       expect(await layerVersions()).not.toContain(interrupted[0]!.layers[0]!);
     }
 
-    await writeProjectFiles(project, { 'shared.ts': sharedSource('unrecorded') });
+    await writeProjectFiles(project, { [sharedModule]: sharedSource('unrecorded') });
     const releasesBefore = await releaseKeys();
     fault = 'release';
     rejected = 0;
