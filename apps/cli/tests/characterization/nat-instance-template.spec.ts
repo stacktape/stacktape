@@ -1,4 +1,5 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -35,11 +36,15 @@ const createConfig = ({ nat, joinDefaultVpc = true }: { nat?: Nat; joinDefaultVp
     user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
   });
 
-const synthesize = ({ invocationId, ...options }: Parameters<typeof createConfig>[0] & { invocationId?: string }) =>
+const synthesize = (
+  { invocationId, ...options }: Parameters<typeof createConfig>[0] & { invocationId?: string },
+  { existingStackResources }: { existingStackResources?: EnrichedStackResourceInfo[] } = {}
+) =>
   synthesizeFixture({
     compiledConfig: createConfig(options),
     workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
-    ...(invocationId ? { synthesisContext: { invocationId } } : {})
+    ...(invocationId ? { synthesisContext: { invocationId } } : {}),
+    existingStackResources
   });
 
 const resourcesOfType = (template: CloudFormationTemplate, type: string) =>
@@ -132,14 +137,47 @@ describe('NAT configuration', () => {
         cfLogicalNames.natRoute(2)
       ])
     );
-    // The second zone waits for the first: a bad image never takes both zones down at once.
-    const secondGroup = instance.Resources[cfLogicalNames.natInstanceAutoscalingGroup(1)] as { DependsOn: string[] };
-    expect(secondGroup.DependsOn).toContain(cfLogicalNames.natInstanceAutoscalingGroup(0));
     const launchTemplate = instance.Resources[cfLogicalNames.natInstanceLaunchTemplate(0)] as {
       Properties: { LaunchTemplateData: { InstanceType: string; ImageId: string } };
     };
     expect(launchTemplate.Properties.LaunchTemplateData.InstanceType).toBe('t4g.nano');
     expect(launchTemplate.Properties.LaunchTemplateData.ImageId).toContain('arm64');
+  });
+
+  test('zones launch in parallel on create and are replaced one after another once they exist', async () => {
+    const zoneOrder = (template: CloudFormationTemplate) =>
+      [1, 2].map((azIndex) =>
+        (
+          template.Resources[cfLogicalNames.natInstanceAutoscalingGroup(azIndex)] as { DependsOn: string[] }
+        ).DependsOn.filter((name) => /NatInstanceAutoScalingGroup/u.test(name))
+      );
+    const deployedGroup = (azIndex: number) =>
+      ({
+        LogicalResourceId: cfLogicalNames.natInstanceAutoscalingGroup(azIndex),
+        ResourceType: 'AWS::AutoScaling::AutoScalingGroup',
+        PhysicalResourceId: `characterization-baseline-nat-${azIndex}`
+      }) as EnrichedStackResourceInfo;
+
+    // A first deploy (or a switch from gateways): nothing serves through the instances yet.
+    expect(zoneOrder(await synthesize({ nat: { type: 'ha-ec2', availabilityZones: 3 } }))).toEqual([[], []]);
+    // An update: a bad image never takes two zones down at once.
+    expect(
+      zoneOrder(
+        await synthesize(
+          { nat: { type: 'ha-ec2', availabilityZones: 3 } },
+          { existingStackResources: [0, 1, 2].map(deployedGroup) }
+        )
+      )
+    ).toEqual([[cfLogicalNames.natInstanceAutoscalingGroup(0)], [cfLogicalNames.natInstanceAutoscalingGroup(1)]]);
+    // A third zone added to two deployed ones waits for them; the deployed ones keep their order.
+    expect(
+      zoneOrder(
+        await synthesize(
+          { nat: { type: 'ha-ec2', availabilityZones: 3 } },
+          { existingStackResources: [0, 1].map(deployedGroup) }
+        )
+      )
+    ).toEqual([[cfLogicalNames.natInstanceAutoscalingGroup(0)], [cfLogicalNames.natInstanceAutoscalingGroup(1)]]);
   });
 
   test('ec2 is a single zone without a lifecycle hook, but with the probe that keeps its routes home', async () => {
