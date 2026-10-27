@@ -75,9 +75,7 @@ test('code-only deploys update functions directly, record a release and roll bac
     const functionName = resources.find(
       ({ LogicalResourceId }) => LogicalResourceId === 'ApiFunction'
     )!.PhysicalResourceId!;
-    const bucket = resources.find(
-      ({ LogicalResourceId }) => LogicalResourceId === 'StpDeploymentBucket'
-    )!.PhysicalResourceId!;
+    const bucket = project.deploymentBucket;
     const templateAfterCreate = await getStackTemplate(cloudFormation, project.stackName);
     expect(await invoke(functionName)).toBe('first');
 
@@ -457,7 +455,7 @@ test('a change to a shared package publishes the layer from its S3 object, and C
     const physical = (logicalId: string) =>
       resources.find(({ LogicalResourceId }) => LogicalResourceId === logicalId)!.PhysicalResourceId!;
     const functionNames = [physical('FirstFunction'), physical('SecondFunction')];
-    const bucket = physical('StpDeploymentBucket');
+    const bucket = project.deploymentBucket;
     const templateAfterCreate = await getStackTemplate(cloudFormation, project.stackName);
 
     const deployedVersion = async () =>
@@ -990,9 +988,7 @@ test('failed layer tags and release writes remain retryable through deploy, full
     const functionNames = resources
       .filter(({ LogicalResourceId }) => ['FirstFunction', 'SecondFunction'].includes(LogicalResourceId!))
       .map(({ PhysicalResourceId }) => PhysicalResourceId!);
-    const bucket = resources.find(
-      ({ LogicalResourceId }) => LogicalResourceId === 'StpDeploymentBucket'
-    )!.PhysicalResourceId!;
+    const bucket = project.deploymentBucket;
     const state = () =>
       Promise.all(
         functionNames.map(async (FunctionName) => {

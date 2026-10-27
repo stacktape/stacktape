@@ -82,7 +82,7 @@
     "test:security-inventory:ministack": "bun test tests/ministack/security-inventory.spec.ts",
     "test:ministack:deploy": "bun scripts/ministack/run-deploy-lane.ts",
     "test:ministack:deploy:loop": "bun scripts/ministack/run-deploy-lane.ts tests/ministack/deploy-loop.spec.ts",
-    "test:ministack:deploy:operations": "bun scripts/ministack/run-deploy-lane.ts tests/ministack/security-deploy.spec.ts tests/ministack/fast-deploy.spec.ts tests/ministack/domain-cache.spec.ts tests/ministack/domain-add.spec.ts",
+    "test:ministack:deploy:operations": "bun scripts/ministack/run-deploy-lane.ts tests/ministack/artifact-store.spec.ts tests/ministack/security-deploy.spec.ts tests/ministack/fast-deploy.spec.ts tests/ministack/domain-cache.spec.ts tests/ministack/domain-add.spec.ts",
     "test:packaging-archives": "bun test scripts/packaging-archives",
     "test:mcp-docs": "bun test src/commands/mcp",
     "test:mcp-executable": "turbo run build:dev-artifacts --filter=@stacktape/cli && bun scripts/test-mcp-executable.ts",

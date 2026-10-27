@@ -1,21 +1,30 @@
 import type { DirectoryUpload } from '@stacktape/config/buckets';
 import type { Stats } from 'node:fs';
 import type { Readable } from 'node:stream';
-import type { _Object, ObjectIdentifier, ObjectVersion, S3Client } from '@aws-sdk/client-s3';
+import type {
+  _Object,
+  BucketLocationConstraint,
+  CORSRule,
+  ObjectIdentifier,
+  ObjectVersion,
+  S3Client,
+  Tag
+} from '@aws-sdk/client-s3';
 import {
   CopyObjectCommand,
   CreateBucketCommand,
+  DeleteBucketCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
   ListObjectVersionsCommand,
   PutBucketAccelerateConfigurationCommand,
-  PutBucketEncryptionCommand,
+  PutBucketCorsCommand,
   PutBucketPolicyCommand,
+  PutBucketTaggingCommand,
   PutObjectCommand,
-  S3ServiceException,
-  waitUntilBucketExists
+  S3ServiceException
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createWaiter, WaiterState } from '@smithy/util-waiter';
@@ -29,6 +38,27 @@ import { S3Sync } from './s3-sync';
 import { automaticUploadFilterPresets, isS3NativeUploadHeader } from './s3-upload-options';
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
+
+/**
+ * S3 refuses to create or delete a bucket name while an earlier operation on it settles ("OperationAborted"), for
+ * example when a deploy creates the deployment bucket again right after a failed first deploy deleted it.
+ */
+const isRecentBucketOperationConflict = (error: { name?: string }) => error?.name === 'OperationAborted';
+
+const retryWhile = async <T>(
+  isRetryable: (error: { name?: string }) => boolean,
+  operation: () => Promise<T>,
+  { attempts = 15, delayMs = 2000 } = {}
+): Promise<T> => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt >= attempts || !isRetryable(error as { name?: string })) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+};
 
 export type S3SyncInfo = {
   progressPercent: number | string;
@@ -70,47 +100,88 @@ export class AwsS3 {
     this.#getErrorHandler = getErrorHandler;
   }
 
+  /**
+   * Creates a bucket in `region`, or takes the one this account already owns under the name, and applies the given
+   * settings. Every call applies all of them, so a retry completes a bucket an interrupted call left behind. S3 gives
+   * every new bucket SSE-S3 encryption and blocks public access by default.
+   */
   createBucket = async ({
     bucketName,
-    setEncryption,
-    bucketPolicy,
-    enableTransferAcceleration
+    region,
+    corsRules,
+    policy,
+    enableTransferAcceleration,
+    tags
   }: {
     bucketName: string;
-    setEncryption?: boolean;
-    bucketPolicy?: any;
+    region: string;
+    corsRules?: CORSRule[];
+    policy?: Record<string, unknown>;
     enableTransferAcceleration?: boolean;
+    tags?: Tag[];
   }) => {
-    const errorHandler = this.#getErrorHandler(`Error when creating bucket with name ${bucketName}.`);
-    await this.#createClient()
-      .send(new CreateBucketCommand({ Bucket: bucketName }))
-      .catch(errorHandler);
-    if (setEncryption) {
-      await this.#createClient()
-        .send(
-          new PutBucketEncryptionCommand({
+    const errorHandler = this.#getErrorHandler(`Failed to create bucket ${bucketName}.`);
+    const client = this.#createClient();
+    await retryWhile(isRecentBucketOperationConflict, () =>
+      client.send(
+        new CreateBucketCommand({
+          Bucket: bucketName,
+          ObjectOwnership: 'BucketOwnerEnforced',
+          ...(region !== 'us-east-1' && {
+            CreateBucketConfiguration: { LocationConstraint: region as BucketLocationConstraint }
+          })
+        })
+      )
+    ).catch((error) => {
+      if (error?.name === 'BucketAlreadyOwnedByYou') return;
+      return errorHandler(error);
+    });
+    // S3 refuses concurrent configuration of a new bucket ("OperationAborted"), and its SDK retries that only after
+    // seconds, so the settings are applied one after another. A bucket created moments ago can answer "NoSuchBucket".
+    const configure = <T>(send: () => Promise<T>) =>
+      retryWhile((error) => error?.name === 'NoSuchBucket', send, { delayMs: 500 }).catch(errorHandler);
+    if (enableTransferAcceleration) {
+      await configure(() =>
+        client.send(
+          new PutBucketAccelerateConfigurationCommand({
             Bucket: bucketName,
-            ServerSideEncryptionConfiguration: {
-              Rules: [{ ApplyServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }]
-            }
+            AccelerateConfiguration: { Status: 'Enabled' }
           })
         )
-        .catch(errorHandler);
-    }
-    if (bucketPolicy) {
-      await this.#createClient()
-        .send(new PutBucketPolicyCommand({ Bucket: bucketName, Policy: JSON.stringify(bucketPolicy) }))
-        .catch(errorHandler);
-    }
-    if (enableTransferAcceleration) {
-      await this.#createClient().send(
-        new PutBucketAccelerateConfigurationCommand({
-          Bucket: bucketName,
-          AccelerateConfiguration: { Status: 'Enabled' }
-        })
       );
     }
-    await waitUntilBucketExists({ client: this.#createClient(), maxWaitTime: 30 }, { Bucket: bucketName });
+    if (policy) {
+      await configure(() =>
+        client.send(new PutBucketPolicyCommand({ Bucket: bucketName, Policy: JSON.stringify(policy) }))
+      );
+    }
+    if (corsRules) {
+      await configure(() =>
+        client.send(new PutBucketCorsCommand({ Bucket: bucketName, CORSConfiguration: { CORSRules: corsRules } }))
+      );
+    }
+    if (tags?.length) {
+      await configure(() =>
+        client.send(new PutBucketTaggingCommand({ Bucket: bucketName, Tagging: { TagSet: tags } }))
+      );
+    }
+  };
+
+  /** Deletes a bucket with every object version in it. A bucket that does not exist counts as deleted. */
+  deleteBucket = async ({ bucketName }: { bucketName: string }) => {
+    if (!(await this.bucketExists({ bucketName }))) return;
+    // A later pass deletes what was written while the previous one ran.
+    for (let pass = 0; pass < 3; pass++) {
+      const versions = await this.listObjectVersions(bucketName);
+      if (!versions.length) break;
+      await this.deleteObjects(bucketName, versions as ObjectIdentifier[]);
+    }
+    await retryWhile(isRecentBucketOperationConflict, () =>
+      this.#createClient().send(new DeleteBucketCommand({ Bucket: bucketName }))
+    ).catch((error) => {
+      if (error?.name === 'NoSuchBucket') return;
+      return this.#getErrorHandler(`Failed to delete bucket ${bucketName}.`)(error);
+    });
   };
 
   bucketExists = async ({ bucketName }: { bucketName: string }) => {

@@ -306,7 +306,7 @@
       "physicalNames": {
         "RoleName": "characterization-baseline-stacktapeServiceLambda-eu-west-1"
       },
-      "dependencies": ["StacktapeServiceLambdaLogGroup", "StpVpc"]
+      "dependencies": ["StpVpc"]
     },
     "StpApiGatewayAnyRecordsProxyAuthorizer": {
       "type": "AWS::ApiGatewayV2::Authorizer",
@@ -333,13 +333,6 @@
       },
       "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
     },
-    "StpContainerRepository": {
-      "type": "AWS::ECR::Repository",
-      "physicalNames": {
-        "RepositoryName": "xxxxxxxx-stp-multi-container-workload-repo"
-      },
-      "dependencies": []
-    },
     "StpDebugAgentRole": {
       "type": "AWS::IAM::Role",
       "physicalNames": {
@@ -350,17 +343,6 @@
     "StpDefaultDomainCertCustomResource": {
       "type": "AWS::CloudFormation::CustomResource",
       "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
-    },
-    "StpDeploymentBucket": {
-      "type": "AWS::S3::Bucket",
-      "physicalNames": {
-        "BucketName": "stp-deployment-bucket-xxxxxxxx"
-      },
-      "dependencies": []
-    },
-    "StpDeploymentBucketPolicy": {
-      "type": "AWS::S3::BucketPolicy",
-      "dependencies": ["StpDeploymentBucket"]
     },
     "StpDevAgentRole": {
       "type": "AWS::IAM::Role",

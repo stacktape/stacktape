@@ -22,6 +22,7 @@ import {
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
 import { getCustomResource, getStpServiceCustomResource } from '../_utils/custom-resource';
+import { getDeploymentBucketNameInTemplate } from '../background-resources/deployment-bucket';
 import { resolveDirectivesForEnvironmentVariables } from '../_utils/env-vars';
 import { getStaticAssetCachePathPatterns } from '../_utils/ssr-web-shared';
 
@@ -45,7 +46,7 @@ export const getHostHeaderRewriteCloudfrontFunction = (nextjsWeb: StpNextjsWeb) 
 export const getAssetReplacerResource = (nextjsWeb: StpNextjsWeb) => {
   return getStpServiceCustomResource<'assetReplacer'>({
     assetReplacer: {
-      bucketName: ref(cfLogicalNames.deploymentBucket()),
+      bucketName: getDeploymentBucketNameInTemplate(),
       zipFileS3Key: '<<TBD>>',
       replacements: [
         {

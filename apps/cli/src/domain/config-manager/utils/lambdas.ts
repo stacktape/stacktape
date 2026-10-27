@@ -1,6 +1,5 @@
 import type { ResourceLookup } from './resource-lookup';
-import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
-import type { HelperLambdaName } from '@config';
+import { ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
@@ -133,7 +132,6 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   activeConfig: ConfigManager;
   stackContext: StackContext;
 }): StpIamRoleStatement[] => {
-  const serviceLambdaName: HelperLambdaName = 'stacktapeServiceLambda';
   const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
   const { accountId, globallyUniqueStackHash, region, stackName } = stackContext;
   const hasDeployedVpcResources = allResourcesRequiringVpc.some(
@@ -242,9 +240,13 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
       Effect: 'Allow'
     },
     {
-      // deny creating its own log group - otherwise stack might not clean up properly
-
-      Resource: [getAtt(cfLogicalNames.lambdaLogGroup(serviceLambdaName), 'Arn') as unknown as string],
+      // Deny creating its own log group, which the stack owns. The ARN is built from the name rather than read from the
+      // log group, so the role does not wait for it on a new stack; the function still does.
+      Resource: [
+        `arn:${getAwsPartition(region)}:logs:${region}:${accountId}:log-group:${awsResourceNames.lambdaLogGroup({
+          lambdaAwsResourceName: awsResourceNames.stpServiceLambda(stackName)
+        })}:*`
+      ],
       Action: ['logs:CreateLogGroup'],
       Effect: 'Deny'
     },
@@ -695,7 +697,7 @@ export const getStacktapeServiceLambdaIssueDetectionStatements = ({
  * `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` plus the span-write actions used by the
  * X-Ray OTLP endpoint; none of these support resource-level scoping.
  */
-const getAwsPartition = (region: string) =>
+export const getAwsPartition = (region: string) =>
   region.startsWith('cn-') ? 'aws-cn' : region.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
 
 export const getLambdaTracingRoleStatements = ({ region }: { region: string }): StpIamRoleStatement[] => {

@@ -131,6 +131,7 @@ describe('offline deploy loop against MiniStack', () => {
               await family.beforeDelete({
                 endpoint: ministack.endpoint,
                 stackName: project.stackName,
+                deploymentBucket: project.deploymentBucket,
                 resources: previous,
                 clients,
                 ...lookups(previous)
@@ -138,7 +139,7 @@ describe('offline deploy loop against MiniStack', () => {
             }
             if (step === 'rollback') {
               assert.ok(previous);
-              const deploymentBucket = lookups(previous).physical('StpDeploymentBucket');
+              const deploymentBucket = project.deploymentBucket;
               const storedTemplate = await clients.s3.send(
                 new GetObjectCommand({ Bucket: deploymentBucket, Key: getCfTemplateS3Key('v000001') })
               );
@@ -272,6 +273,13 @@ describe('offline deploy loop against MiniStack', () => {
                 );
                 checks.push(`${resource.LogicalResourceId} absent`);
               }
+              // The CLI created the deployment bucket outside the stack, so the delete removes it after the stack.
+              await assert.rejects(
+                absenceProbes['AWS::S3::Bucket']!(clients, ministack.endpoint, project.deploymentBucket),
+                (error) => /NotFound|NoSuchBucket|404/i.test(String(error)),
+                'the deployment bucket still exists after delete'
+              );
+              checks.push('deployment bucket absent');
               family.assertDeleted?.({
                 stackName: project.stackName,
                 controlPlaneCalls: project.controlPlane.calls,
@@ -340,6 +348,7 @@ describe('offline deploy loop against MiniStack', () => {
               version,
               endpoint: ministack.endpoint,
               stackName: project.stackName,
+              deploymentBucket: project.deploymentBucket,
               resources,
               clients,
               controlPlaneCalls: project.controlPlane.calls,
@@ -351,7 +360,7 @@ describe('offline deploy loop against MiniStack', () => {
               const bucket = context.physical('BucketBucket');
               const saved = await clients.s3.send(
                 new GetObjectCommand({
-                  Bucket: context.physical('StpDeploymentBucket'),
+                  Bucket: context.deploymentBucket,
                   Key: 'bucket-sync-manifest/v000001.json'
                 })
               );
@@ -427,6 +436,10 @@ describe('failed deployment artifacts', () => {
             stack: {
               existingStackDetails: stackManager.existingStackDetails,
               isAutoRollbackEnabled: true,
+              stackActionType: 'update',
+              createStack: async () => {
+                throw new Error('The stack exists.');
+              },
               deployStack: async () => {
                 throw failure;
               }
@@ -486,6 +499,10 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
       stack: {
         existingStackDetails: stackManager.existingStackDetails,
         isAutoRollbackEnabled: true,
+        stackActionType: 'update',
+        createStack: async () => {
+          throw new Error('The stack exists.');
+        },
         deployStack: async () => ({ warningMessages: [] })
       },
       tui: { info: () => {}, warn: () => {} }

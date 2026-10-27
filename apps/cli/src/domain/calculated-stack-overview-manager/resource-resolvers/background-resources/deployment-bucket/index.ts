@@ -8,14 +8,26 @@ import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { deploymentBucketPolicyResource, getDeploymentBucketResource } from './utils';
 
+/**
+ * The deployment bucket's name in the template. Where the bucket is a stack resource it stays a reference, so the
+ * templates of older stacks do not change.
+ */
+export const getDeploymentBucketNameInTemplate = () =>
+  deploymentArtifactManager.artifactStoreIsStackResource
+    ? ref(cfLogicalNames.deploymentBucket())
+    : deploymentArtifactManager.deploymentBucketName;
+
 export const resolveDeploymentBucket = () => {
   const deploymentBucketLogicalName = cfLogicalNames.deploymentBucket();
-  calculatedStackOverviewManager.addCfChildResource({
-    nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-    cfLogicalName: deploymentBucketLogicalName,
-    resource: getDeploymentBucketResource(deploymentArtifactManager.deploymentBucketName),
-    initial: true
-  });
+  const isStackResource = deploymentArtifactManager.artifactStoreIsStackResource;
+  if (isStackResource) {
+    calculatedStackOverviewManager.addCfChildResource({
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
+      cfLogicalName: deploymentBucketLogicalName,
+      resource: getDeploymentBucketResource(deploymentArtifactManager.deploymentBucketName),
+      initial: true
+    });
+  }
   calculatedStackOverviewManager.addStackMetadata({
     metaName: stackMetadataNames.deploymentBucket(),
     metaValue: deploymentArtifactManager.deploymentBucketName,
@@ -24,13 +36,15 @@ export const resolveDeploymentBucket = () => {
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'deployment-bucket-contents',
     nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-    linkValue: cfEvaluatedLinks.s3Bucket(ref(deploymentBucketLogicalName), 'objects')
+    linkValue: cfEvaluatedLinks.s3Bucket(getDeploymentBucketNameInTemplate(), 'objects')
   });
 
-  calculatedStackOverviewManager.addCfChildResource({
-    nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-    cfLogicalName: cfLogicalNames.deploymentBucketPolicy(),
-    resource: deploymentBucketPolicyResource(deploymentBucketLogicalName),
-    initial: true
-  });
+  if (isStackResource) {
+    calculatedStackOverviewManager.addCfChildResource({
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
+      cfLogicalName: cfLogicalNames.deploymentBucketPolicy(),
+      resource: deploymentBucketPolicyResource(deploymentBucketLogicalName),
+      initial: true
+    });
+  }
 };

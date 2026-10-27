@@ -7,7 +7,7 @@ seoDescription: 'Remove a deployed Stacktape stack and all its AWS resources wit
 
 # delete
 
-The `stacktape delete` command permanently removes a deployed stack and all its AWS resources. It deletes deployment artifacts recorded for the stack, then deletes the CloudFormation stack. Back up any data you need before running this command — the operation is irreversible.
+The `stacktape delete` command permanently removes a deployed stack and all its AWS resources. It deletes deployment artifacts recorded for the stack, then deletes the CloudFormation stack, and then the stack's deployment bucket and ECR repository. Stacktape creates these outside the stack for new stacks; in older stacks CloudFormation deletes them with the stack. Back up any data you need before running this command — the operation is irreversible.
 
 ## Usage
 

@@ -783,7 +783,11 @@ describe('deletion protection', () => {
     const calls: string[] = [];
     const error = await executeDeleteOperation({
       config: { config: {}, hooks: [] } as never,
-      deploymentArtifacts: { deleteAllArtifacts: async () => calls.push('artifacts:delete') },
+      deploymentArtifacts: {
+        artifactStoreIsStackResource: true,
+        deleteAllArtifacts: async () => calls.push('artifacts:delete'),
+        deleteArtifactStore: async () => calls.push('artifact-store:delete')
+      },
       deployedTemplate: { Resources: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } } } as never,
       lifecycle: {
         registerHooks: async () => {
