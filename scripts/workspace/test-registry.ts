@@ -4240,11 +4240,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
-      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts'
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-lambda-bucket.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/edge-lambdas.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/shared-edge-lambdas-custom-resource.ts'
     ],
     tests: [
       'apps/cli/tests/cli-process/stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
+      'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
     ],
     lanes: [

@@ -30,7 +30,8 @@ export const getEdgeLambdaCustomResource = (lambdaProps: StpEdgeLambdaFunction |
     edgeLambda: getEdgeLambdaCustomResourceProperties(lambdaProps)
   });
 
-  resource.DependsOn = [cfLogicalNames.customResourceEdgeLambdaBucket()];
+  // No DependsOn on the edge deployment bucket resource: the edge Lambda creates the bucket itself when it is missing,
+  // so it does not wait for another custom-resource round trip. Removing a DependsOn updates no resource.
   templateManager.addFinalTemplateOverrideFn(async (template) => {
     const customResourceProperties = template.Resources[cfLogicalName].Properties as StpServiceCustomResourceProperties;
     customResourceProperties.edgeLambda = {

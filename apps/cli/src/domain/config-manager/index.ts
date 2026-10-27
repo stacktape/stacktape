@@ -1864,7 +1864,10 @@ export class ConfigManager {
       res.push(this.batchJobs[0]._nestedResources.triggerFunction);
     }
     if (this.configContainsCdnDistribution) {
-      res.push(this.stacktapeOriginRequestLambdaProps, this.stacktapeOriginResponseLambdaProps);
+      res.push(this.stacktapeOriginRequestLambdaProps);
+    }
+    if (this.configNeedsStacktapeOriginResponseLambda) {
+      res.push(this.stacktapeOriginResponseLambdaProps);
     }
     return res;
   }
@@ -2595,7 +2598,9 @@ export class ConfigManager {
     return {
       stacktapeServiceLambda: this.stacktapeServiceLambdaProps,
       cdnOriginRequestLambda: this.configContainsCdnDistribution ? this.stacktapeOriginRequestLambdaProps : undefined,
-      cdnOriginResponseLambda: this.configContainsCdnDistribution ? this.stacktapeOriginResponseLambdaProps : undefined
+      cdnOriginResponseLambda: this.configNeedsStacktapeOriginResponseLambda
+        ? this.stacktapeOriginResponseLambdaProps
+        : undefined
     };
   }
 
@@ -2627,6 +2632,15 @@ export class ConfigManager {
     return [...this.allBuckets, ...this.allHttpApiGateways, ...this.allApplicationLoadBalancers].some(
       (resource) => resource.cdn?.enabled
     );
+  }
+
+  /**
+   * The origin-response edge Lambda only adds the custom metadata headers of bucket files, so a CDN gets it only when
+   * some bucket uses such headers. It has no CloudFront replicas without an association, so an existing stack that
+   * drops it deletes it at once.
+   */
+  get configNeedsStacktapeOriginResponseLambda(): boolean {
+    return this.configContainsCdnDistribution && this.allBucketsUsingCustomMetadataHeaders.length > 0;
   }
 
   get allVpcPeeringConnections() {
