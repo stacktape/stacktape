@@ -743,6 +743,9 @@ class StackManager {
     );
   };
 
+  /** The stack this command created with `createStack`, so a failed first deploy only ever ends its own creation. */
+  createdStackId: string | undefined;
+
   /**
    * Creates a new stack with its whole template in one operation. Its deployment bucket and image repository exist
    * before it (see `deploymentArtifactManager.createArtifactStore`). With automatic rollback, a failed creation deletes
@@ -759,6 +762,7 @@ class StackManager {
       ...stackParams,
       ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
     });
+    this.createdStackId = StackId;
     const result = await this.monitorStack(
       'create',
       StackId,

@@ -289,8 +289,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   if (artifactStoreCreation) {
     // A build failure is the error to report; this one is reported where the upload waits for it.
     artifactStoreCreation.catch(() => {});
-    application.registerCleanUpHook(async ({ success }) => {
-      if (!success) await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName);
+    application.registerCleanUpHook(async ({ success, interrupted, err }) => {
+      if (success) return;
+      // Not after Ctrl+C, which leaves the creation running, or when monitoring failed and the outcome is unknown.
+      const endCreation =
+        !interrupted && stack.isAutoRollbackEnabled && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
+      await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName, { endCreation });
     });
   }
   // The registry login does not depend on the build, so it runs while the images are built. The upload waits for it

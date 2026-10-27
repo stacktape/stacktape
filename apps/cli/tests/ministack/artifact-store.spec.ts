@@ -93,13 +93,13 @@ test('a new stack gets its deployment bucket and repository before the stack and
       })
     );
     await waitUntilStackCreateComplete({ client: cloudFormation, maxWaitTime: 60 }, { StackName: 'shop-dev' });
-    await deploymentArtifactManager.deleteArtifactStoreOfFailedFirstDeploy('shop-dev');
+    await deploymentArtifactManager.deleteArtifactStoreOfFailedFirstDeploy('shop-dev', { endCreation: true });
     await s3.send(new HeadBucketCommand({ Bucket: bucketName }));
 
     // Once the stack is gone (a failed creation rolls back by deleting it), they go, every object version included.
     await cloudFormation.send(new DeleteStackCommand({ StackName: 'shop-dev' }));
     await waitUntilStackDeleteComplete({ client: cloudFormation, maxWaitTime: 60 }, { StackName: 'shop-dev' });
-    await deploymentArtifactManager.deleteArtifactStoreOfFailedFirstDeploy('shop-dev');
+    await deploymentArtifactManager.deleteArtifactStoreOfFailedFirstDeploy('shop-dev', { endCreation: true });
     await expect(s3.send(new HeadBucketCommand({ Bucket: bucketName }))).rejects.toThrow();
     await expect(ecr.send(new DescribeRepositoriesCommand({ repositoryNames: [repositoryName] }))).rejects.toThrow(
       /RepositoryNotFound|does not exist/
