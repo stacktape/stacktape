@@ -186,7 +186,8 @@ export const executeDeleteOperation = async ({
   // Refusing here, before hooks, artifact deletion and the stack delete, keeps the whole stack as it was.
   const protectedResources = findDeletionProtectedResources({
     resources: stack.existingStackResources,
-    template: deployedTemplate
+    template: deployedTemplate,
+    stackStatus: stack.existingStackDetails.StackStatus
   });
   if (protectedResources.length) {
     throw getDeletionProtectionError({

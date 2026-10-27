@@ -685,6 +685,7 @@ describe('deletion protection', () => {
     name: string;
     resources: EnrichedStackResourceInfo[];
     template: Record<string, unknown>;
+    stackStatus?: string;
     expected: string[];
   }>([
     {
@@ -716,6 +717,31 @@ describe('deletion protection', () => {
       expected: ['DatabaseDbInstance']
     },
     {
+      name: 'AWS reporting protection off wins over the custom resource in the template',
+      resources: [db({ rdsInstanceDetail: { DeletionProtection: false } })],
+      template: {
+        DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' },
+        DatabaseDeletionProtectionCustomResource: protectionCustomResource({
+          instanceId: { Ref: 'DatabaseDbInstance' }
+        })
+      },
+      expected: []
+    },
+    {
+      name: 'a stack whose delete failed: protection turned off in AWS does not show in its template',
+      resources: [resource('AWS::DSQL::Cluster', 'abc123', 'LedgerDsqlCluster')],
+      template: { LedgerDsqlCluster: { Type: 'AWS::DSQL::Cluster', Properties: { DeletionProtectionEnabled: true } } },
+      stackStatus: 'DELETE_FAILED',
+      expected: []
+    },
+    {
+      name: 'a stack whose delete failed still counts what AWS reports',
+      resources: [db({ rdsInstanceDetail: { DeletionProtection: true } })],
+      template: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } },
+      stackStatus: 'DELETE_FAILED',
+      expected: ['DatabaseDbInstance']
+    },
+    {
       name: 'a DSQL cluster with DeletionProtectionEnabled',
       resources: [resource('AWS::DSQL::Cluster', 'abc123', 'LedgerDsqlCluster')],
       template: { LedgerDsqlCluster: { Type: 'AWS::DSQL::Cluster', Properties: { DeletionProtectionEnabled: true } } },
@@ -739,9 +765,9 @@ describe('deletion protection', () => {
       template: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance', DeletionPolicy: 'Retain' } },
       expected: []
     }
-  ])('$name', ({ resources, template, expected }) => {
+  ])('$name', ({ resources, template, stackStatus = 'UPDATE_COMPLETE', expected }) => {
     expect(
-      findDeletionProtectedResources({ resources, template: { Resources: template } as never }).map(
+      findDeletionProtectedResources({ resources, template: { Resources: template } as never, stackStatus }).map(
         ({ logicalId }) => logicalId
       )
     ).toEqual(expected);

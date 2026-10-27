@@ -16,20 +16,25 @@ const isOn = (value: unknown) => value === true || value === 'true';
  * to start while any exists, because everything it does first (emptying buckets, scaling services down, deleting the
  * other resources) cannot be undone, and the stack would end in DELETE_FAILED with the protected resource left.
  *
- * A database counts as protected when AWS reports protection on, when the deployed template sets it, or when the
- * template contains Stacktape's deletion-protection custom resource for it (`deletionProtection: true`), so a database
- * whose details could not be read is still counted. Other resource types count when the deployed template sets
- * `DeletionProtection` or `DeletionProtectionEnabled` (for example DSQL clusters and DynamoDB tables in
- * `cloudformationResources`). A resource that CloudFormation keeps (`DeletionPolicy: Retain`) is not deleted, so it
- * does not count.
+ * For an RDS instance or Aurora cluster, the state AWS reports decides. When it could not be read, the deployed
+ * template decides: Stacktape's deletion-protection custom resource for it (`deletionProtection: true`) or its own
+ * `DeletionProtection` property. Other resource types count when the deployed template sets `DeletionProtection` or
+ * `DeletionProtectionEnabled` (for example DSQL clusters, or DynamoDB tables in `cloudformationResources`).
+ *
+ * The template of a stack whose delete failed can no longer change, so protection turned off in AWS afterwards would
+ * not show in it. For such a stack only the state AWS reports counts. A resource that CloudFormation keeps
+ * (`DeletionPolicy: Retain`) is not deleted, so it never counts.
  */
 export const findDeletionProtectedResources = ({
   resources,
-  template
+  template,
+  stackStatus
 }: {
   resources: EnrichedStackResourceInfo[];
   template: Pick<CloudFormationTemplate, 'Resources'> | undefined;
+  stackStatus: string | undefined;
 }): DeletionProtectedResource[] => {
+  const templateIsCurrent = stackStatus !== 'DELETE_FAILED';
   const templateResources = (template?.Resources || {}) as Record<string, TemplateResource>;
   const protectedByStacktape = new Set(
     Object.values(templateResources).flatMap(({ Properties }) => {
@@ -45,13 +50,19 @@ export const findDeletionProtectedResources = ({
       const deployed = templateResources[LogicalResourceId];
       if (deployed?.DeletionPolicy === 'Retain' || deployed?.DeletionPolicy === 'RetainExceptOnCreate') return [];
       const properties = deployed?.Properties || {};
-      const isProtected =
-        protectedByStacktape.has(LogicalResourceId) ||
-        isOn(properties.DeletionProtection) ||
-        isOn(properties.DeletionProtectionEnabled) ||
-        (ResourceType === 'AWS::Cognito::UserPool' && properties.DeletionProtection === 'ACTIVE') ||
-        (ResourceType === 'AWS::RDS::DBInstance' && !!rdsInstanceDetail?.DeletionProtection) ||
-        (ResourceType === 'AWS::RDS::DBCluster' && !!auroraClusterDetail?.DeletionProtection);
+      const live =
+        ResourceType === 'AWS::RDS::DBInstance'
+          ? rdsInstanceDetail
+          : ResourceType === 'AWS::RDS::DBCluster'
+            ? auroraClusterDetail
+            : undefined;
+      const isProtected = live
+        ? !!live.DeletionProtection
+        : templateIsCurrent &&
+          (protectedByStacktape.has(LogicalResourceId) ||
+            isOn(properties.DeletionProtection) ||
+            isOn(properties.DeletionProtectionEnabled) ||
+            (ResourceType === 'AWS::Cognito::UserPool' && properties.DeletionProtection === 'ACTIVE'));
       return isProtected
         ? [{ logicalId: LogicalResourceId, resourceType: ResourceType, physicalId: PhysicalResourceId }]
         : [];

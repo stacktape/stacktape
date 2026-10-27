@@ -3030,6 +3030,10 @@ Without a configuration file, `beforeDelete` hooks are not executed.
 
 Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. To proceed, first [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
 
+## Deletion protection
+
+Deletion also stops, before anything is deleted, when a resource of the stack has deletion protection on, such as a [relational database](/resources/databases/relational-database) or [Aurora DSQL database](/resources/databases/dsql) with `deletionProtection: true`. The error lists the protected resources. Deploy with `deletionProtection: false`, then run the delete command again. When an earlier delete already failed with `DELETE_FAILED`, the stack cannot be deployed, so turn the protection off in AWS instead.
+
 ## Examples
 
 Delete a staging stack.
@@ -14165,10 +14169,11 @@ Stacktape deletion follows a fixed sequence. Understanding the order helps when 
 3. **Initialize notifications** — The notification manager is initialized so deployment notifications can be sent during the operation.
 4. **Prompt for confirmation** — Stacktape may prompt before proceeding. If the prompt is aborted, the command exits without deleting anything. See the [`stacktape delete` CLI page](/cli/delete) for flags that control this behavior.
 5. **Check termination protection** — If the stack has `terminationProtection` enabled, the command stops with an error. You must redeploy with termination protection disabled before deleting.
-6. **Run configured hooks** — If a configuration was loaded, Stacktape registers configured hooks and processes START hooks before any artifacts or resources are removed.
-7. **Delete deployment artifacts** — Stacktape removes deployment artifacts managed outside the CloudFormation stack.
-8. **Delete CloudFormation stack** — AWS CloudFormation removes all resources defined in the stack template in dependency order.
-9. **Delete data stores early** — As soon as CloudFormation has accepted the delete, Stacktape starts deleting RDS instances, Aurora instances, Redis clusters and OpenSearch domains itself, so they do not wait for the services and functions that use them. It skips any resource that CloudFormation would keep or snapshot (`DeletionPolicy` other than `Delete`), that has deletion protection turned on, or that has read replicas. It deletes nothing early when the stack has a `before:delete` deployment script or a custom resource of your own, which may still need the data, or when the stack uses a CloudFormation service role (`cloudformationRoleArn`). If the stack delete then fails or you stop the command, Stacktape lists the resources it already started deleting.
+6. **Check deletion protection** — If a resource of the stack has deletion protection on, such as a database with `deletionProtection: true`, the command lists those resources and stops before anything is deleted. Deploy with `deletionProtection: false` first. Stacktape never turns deletion protection off as part of a delete, so a stack deleted directly through CloudFormation keeps its protected databases too.
+7. **Run configured hooks** — If a configuration was loaded, Stacktape registers configured hooks and processes START hooks before any artifacts or resources are removed.
+8. **Delete deployment artifacts** — Stacktape removes deployment artifacts managed outside the CloudFormation stack.
+9. **Delete CloudFormation stack** — AWS CloudFormation removes all resources defined in the stack template in dependency order.
+10. **Delete data stores early** — As soon as CloudFormation has accepted the delete, Stacktape starts deleting RDS instances, Aurora instances, Redis clusters and OpenSearch domains itself, so they do not wait for the services and functions that use them. It skips any resource that CloudFormation would keep or snapshot (`DeletionPolicy` other than `Delete`), that has deletion protection turned on, or that has read replicas. It deletes nothing early when the stack has a `before:delete` deployment script or a custom resource of your own, which may still need the data, or when the stack uses a CloudFormation service role (`cloudformationRoleArn`). If the stack delete then fails or you stop the command, Stacktape lists the resources it already started deleting.
 
 
 > **Warning:** Stacktape does not provide an undo for `stacktape delete`. CloudFormation attempts to delete all stack resources, and stateful data (databases, buckets, caches) is lost unless the underlying AWS resource has retention, backups, snapshots, versioning, or another preservation mechanism configured. Export any data you need before deleting.
@@ -34715,7 +34720,7 @@ AWS automatically takes daily backups of your database. The `automatedBackupRete
 
 The `preferredMaintenanceWindow` property sets when AWS applies patches and minor version upgrades (format: `Sun:02:00-Sun:04:00` in UTC). The database may be briefly unavailable during this window. Multi-AZ and Aurora reduce downtime during maintenance. Pick a window during your lowest-traffic period.
 
-Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database.
+Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database. Until then, `stacktape delete` stops before deleting anything and lists the protected databases, and a deploy cannot remove or replace them.
 
 ## Dev mode
 
