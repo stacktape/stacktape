@@ -4,8 +4,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { ANNOUNCEMENTS_ENDPOINT, IS_DEV } from '@config';
 import { jsonFetch } from '@utils/http-client';
 import { startTiming } from '@utils/timings';
-import { getLatestStacktapeVersion, getStacktapeVersion } from '@utils/versioning';
-import { gt } from 'semver';
+import { getLatestStacktapeVersion, getStacktapeVersion, isNewerStacktapeVersion } from '@utils/versioning';
 import { localStatePaths } from 'src/config/local-state-paths';
 
 type Announcement = { message: string; highlight?: boolean };
@@ -122,9 +121,8 @@ class AnnouncementsManager {
     const endTiming = startTiming('notices:print');
     const currentVersion = getStacktapeVersion();
     try {
-      const normalizedCurrentVersion = currentVersion.replace('dev-', '').split('.').slice(0, 3).join('.');
       const latestVersion = notices.latestVersion?.value;
-      if (latestVersion && checksForUpdates() && gt(latestVersion, normalizedCurrentVersion)) {
+      if (latestVersion && checksForUpdates() && isNewerStacktapeVersion(latestVersion, currentVersion)) {
         tuiManager.info(
           `Update available. Current: ${tuiManager.makeBold(currentVersion)}. Latest: ${tuiManager.makeBold(
             latestVersion

@@ -119,7 +119,7 @@ check_alpine_packages() {
     fi
 }
 
-# SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
+# SHA256SUMS is required after 3.7.1, the last release published without it, so pinned v3 releases stay installable.
 # The installer fetches both files from GitHub Releases, so this is an integrity check, not independent authenticity.
 checksum_required_for_version() {
     candidate=${1#v}
@@ -141,7 +141,7 @@ checksum_required_for_version() {
     [ "$major" -lt 3 ] && return 1
     [ "$minor" -gt 7 ] && return 0
     [ "$minor" -lt 7 ] && return 1
-    [ "$patch" -ge 1 ]
+    [ "$patch" -ge 2 ]
 }
 
 cleanup() {
