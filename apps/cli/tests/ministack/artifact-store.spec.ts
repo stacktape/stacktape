@@ -37,6 +37,11 @@ test('a new stack gets its deployment bucket and repository before the stack and
     awsSdkManager.init({ ...clientConfig, region: 'eu-west-1', plugins: [] });
     operationReporter.setSilentMode(true);
     configManager.config = { resources: {}, stackConfig: { tags: [{ name: 'team', value: 'payments' }] } };
+    // MiniStack has no S3 Transfer Acceleration; the region rule needs a full stack context.
+    Object.defineProperty(configManager, 'isS3TransferAccelerationAvailableInDeploymentRegion', {
+      configurable: true,
+      get: () => false
+    });
     globalStateManager.targetStack = {
       stackName: 'shop-dev',
       projectName: 'shop',
@@ -107,6 +112,8 @@ test('a new stack gets its deployment bucket and repository before the stack and
     // Deleting what is already gone succeeds.
     await deploymentArtifactManager.deleteArtifactStore();
   } finally {
+    delete (configManager as { isS3TransferAccelerationAvailableInDeploymentRegion?: boolean })
+      .isS3TransferAccelerationAvailableInDeploymentRegion;
     globalStateManager.targetStack = previousTargetStack;
     s3.destroy();
     ecr.destroy();
