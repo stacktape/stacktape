@@ -329,15 +329,8 @@ class StackManager {
       this.#getDetailOfSelectedResources(this.existingStackResources),
       whileLoadingResourceDetails?.(),
       commandModifiesStack && globalStateManager.command !== 'dev'
-        ? this.#getFailedCleanupDeletionsOfLastUpdate(stackDetails).then((failures) =>
-            takeUnreportedCleanupFailures({
-              failures,
-              deploymentBucketName: this.existingStackResources.find(
-                ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.deploymentBucket()
-              )?.PhysicalResourceId
-            })
-          )
-        : []
+        ? this.#getUnreportedFailedCleanupDeletionsOfLastUpdate(stackDetails)
+        : ([] as MonitoredStackEvent[])
     ]);
     this.existingStackResources = detailedResources;
     if (failedCleanupDeletions.length) {
@@ -1790,6 +1783,16 @@ class StackManager {
       .then(findFailedCleanupDeletions)
       .catch(() => []);
   };
+
+  #getUnreportedFailedCleanupDeletionsOfLastUpdate = async (
+    stackDetails: StackDetails | undefined
+  ): Promise<MonitoredStackEvent[]> =>
+    takeUnreportedCleanupFailures({
+      failures: await this.#getFailedCleanupDeletionsOfLastUpdate(stackDetails),
+      deploymentBucketName: this.existingStackResources.find(
+        ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.deploymentBucket()
+      )?.PhysicalResourceId
+    });
 
   #withoutResourcesBeingCleanedUp = (resources: StackResourceSummary[]) => {
     const removedResources = this.#resourcesRemovedByUpdate;
