@@ -48,29 +48,44 @@ const resourcesOf = (result: GreenfieldResult): Record<string, Resource> => {
   if (!validation.valid) {
     throw new Error(`Generated config was rejected: ${'errorMessage' in validation ? validation.errorMessage : ''}`);
   }
-  const stackContext: StackContext = {
-    accountId: '123456789012',
-    command: 'deploy',
-    globallyUniqueStackHash: 'dev-runnable',
-    invocationId: 'invocation',
-    projectName: config.projectName ?? 'app',
-    region: 'eu-west-2',
-    stackName: `${config.projectName ?? 'app'}-dev`,
-    stage: 'dev',
-    workingDir: '/project'
+  const assess = (stage: string) => {
+    const stackContext: StackContext = {
+      accountId: '123456789012',
+      command: 'deploy',
+      globallyUniqueStackHash: 'dev-runnable',
+      invocationId: 'invocation',
+      projectName: config.projectName ?? 'app',
+      region: 'eu-west-2',
+      stackName: `${config.projectName ?? 'app'}-${stage}`,
+      stage,
+      workingDir: '/project'
+    };
+    const configManager = new ConfigManager();
+    configManager.setStackContext(stackContext);
+    configManager.config = config;
+    return assessSecurityPosture({ configManager, rawConfig: config, stackContext });
   };
-  const configManager = new ConfigManager();
-  configManager.setStackContext(stackContext);
-  configManager.config = config;
-  const { findings } = assessSecurityPosture({ configManager, rawConfig: config, stackContext });
-  // Init keeps the database public and password-protected by default (owner decision, 27 Oct 2026); `validate` rates
-  // that finding HIGH only for production stages once task T lands, so it is not part of this check.
-  expect(
-    findings.filter(
-      ({ severity, ruleId }) =>
-        (severity === 'HIGH' || severity === 'CRITICAL') && ruleId !== 'database-reachable-from-internet'
+  // Init keeps the database public and password-protected by default (owner decision, 27 Oct 2026). That is fine for
+  // a dev stage, so nothing there is HIGH; a production stage rates every public database HIGH.
+  const development = assess('dev');
+  expect(development.stage.purpose).toBe('non-production');
+  expect(development.findings.filter(({ severity }) => severity === 'HIGH' || severity === 'CRITICAL')).toEqual([]);
+  const production = assess('production');
+  expect(production.stage.purpose).toBe('production');
+  const publicDatabases = Object.entries(config.resources ?? {})
+    .filter(
+      ([, resource]) =>
+        resource.type === 'relational-database' &&
+        !(resource.properties as { accessibility?: { accessibilityMode?: string } }).accessibility?.accessibilityMode
     )
-  ).toEqual([]);
+    .map(([name]) => [name, 'HIGH'])
+    .toSorted();
+  expect(
+    production.findings
+      .filter(({ ruleId }) => ruleId === 'database-reachable-from-internet')
+      .map(({ resourceName, severity }) => [resourceName, severity])
+      .toSorted()
+  ).toEqual(publicDatabases);
   return result.composition.config.resources as Record<string, Resource>;
 };
 
