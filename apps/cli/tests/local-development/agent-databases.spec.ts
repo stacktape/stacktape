@@ -5,8 +5,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { CreateTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { readDevAgentToken } from '../../src/commands/dev/agent-daemon';
 import { createDevToolHandler } from '../../src/commands/mcp/dev-tool';
 
@@ -68,7 +68,8 @@ configManager.config = {
     deployedDb: postgres('15.14'),
     mydb: { type: 'relational-database', properties: { engine: { type: 'mysql', properties: { version: '8.0', dbName: 'app', primaryInstance: { instanceSize: 'db.t4g.micro' } } }, credentials: { masterUserName: 'root' } } },
     cache: { type: 'redis-cluster', properties: { instanceSize: 'cache.t4g.micro', engineVersion: '7.2' } },
-    events: { type: 'dynamo-db-table', properties: { primaryKey: { partitionKey: { name: 'pk', type: 'string' }, sortKey: { name: 'sk', type: 'number' } } } }
+    events: { type: 'dynamo-db-table', properties: { primaryKey: { partitionKey: { name: 'pk', type: 'string' }, sortKey: { name: 'sk', type: 'number' } } } },
+    orders: { type: 'dynamo-db-table', properties: { primaryKey: { partitionKey: { name: 'id', type: 'string' } } } }
   },
   scripts: {
     seed: {
@@ -90,6 +91,12 @@ const instances = await startLocalResources(['db', 'mydb', 'cache', 'events']);
 deployedStackOverviewManager.injectLocalResourceInfo(instances.map((r) => ({ name: r.name, resourceType: r.type, referencableParams: r.referencableParams })));
 // The stage's deployed database, as dev mode knows it when the session connects to it with remoteResources.
 deployedStackOverviewManager.stackInfoMap.resources.deployedDb = { resourceType: 'relational-database', referencableParams: { host: { value: DEPLOYED_HOST } } };
+// The dev stack's deployed orders table (a remote resource). Its "AWS" is a second table in the events DynamoDB Local,
+// which this endpoint opts into for this process only; the dummy credentials stand for the dev agent role's.
+process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'false';
+process.env.AWS_ENDPOINT_URL_DYNAMODB = 'http://127.0.0.1:' + instances.find((r) => r.name === 'events').actualPort;
+globalStateManager.credentials = { ...globalStateManager.credentials, accessKeyId: 'local', secretAccessKey: 'local' };
+deployedStackOverviewManager.stackInfoMap.resources.orders = { resourceType: 'dynamo-db-table', referencableParams: { name: { value: '${PROJECT_NAME}-test-orders' } } };
 const probe = createServer();
 await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
 const port = probe.address().port;
@@ -343,4 +350,64 @@ test("another project's MCP server reads through cwd, and the databases refuse i
   });
   expect(await response.json()).toMatchObject({ ok: false, code: 'READ_ONLY' });
   expect((await call('query', { resource: 'cache', command: 'EXISTS r2m' })).data.result).toBe(0);
+}, 120_000);
+
+// r2w dogfood: with its table passed as a remote resource, an agent could not read it through stacktape_dev
+// (NOT_LOCAL_RESOURCE) and had to find the table name for the aws action itself.
+test('an assistant reads a deployed DynamoDB table through stacktape_dev, and reset_db refuses it', async () => {
+  const status = await call('status');
+  expect(status.data.status.deployedDatabases).toEqual([
+    { name: 'orders', type: 'dynamodb', tableName: `${PROJECT_NAME}-test-orders` }
+  ]);
+  const eventsPort = (status.data.status.localResources as Array<{ name: string; port: number }>).find(
+    ({ name }) => name === 'events'
+  )!.port;
+  // The client the agent uses for deployed tables, with its region and credentials, so both see the same table.
+  const client = new DynamoDBClient({
+    endpoint: `http://127.0.0.1:${eventsPort}`,
+    region: 'eu-west-1',
+    credentials: { accessKeyId: 'local', secretAccessKey: 'local' }
+  });
+  const aws = DynamoDBDocumentClient.from(client);
+  await client.send(
+    new CreateTableCommand({
+      TableName: `${PROJECT_NAME}-test-orders`,
+      KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+      AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+      BillingMode: 'PAY_PER_REQUEST'
+    })
+  );
+  for (const id of ['o1', 'o2', 'o3']) {
+    await aws.send(new PutCommand({ TableName: `${PROJECT_NAME}-test-orders`, Item: { id, status: 'notified' } }));
+  }
+
+  const scan = await call('query', { resource: 'orders', limit: 2 });
+  expect(scan, JSON.stringify(scan)).toMatchObject({
+    ok: true,
+    message: `Read orders, the deployed table ${PROJECT_NAME}-test-orders in AWS (read-only).`,
+    data: { deployed: true, table: `${PROJECT_NAME}-test-orders`, region: 'eu-west-1', count: 2, truncated: true }
+  });
+  expect((await call('query', { resource: 'orders', pk: { id: 'o2' } })).data.items).toEqual([
+    { id: 'o2', status: 'notified' }
+  ]);
+  const schema = await call('tables', { resource: 'orders' });
+  expect(schema.data).toMatchObject({ deployed: true, keySchema: { partitionKey: { name: 'id', type: 'S' } } });
+  // Listing every database stays local: a deployed table is read only by name.
+  expect(
+    ((await call('tables')).data.databases as Array<{ resource: string }>).map(({ resource }) => resource)
+  ).not.toContain('orders');
+
+  const reset = await call('reset_db', { resource: 'orders', confirm: true });
+  expect(reset).toMatchObject({ ok: false, code: 'NOT_LOCAL_RESOURCE' });
+  expect(reset.message).toContain(`deployed DynamoDB table ${PROJECT_NAME}-test-orders in eu-west-1`);
+  expect(JSON.stringify(reset)).toContain(`aws dynamodb delete-item --table-name ${PROJECT_NAME}-test-orders`);
+  // The agent's write routes refuse the deployed table too.
+  const put = await fetch(`http://127.0.0.1:${agentPort}/dynamodb/orders/put`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${readDevAgentToken(agentPort)}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ item: { id: 'o4' } })
+  });
+  expect(JSON.stringify(await put.json())).toContain('writes only to local databases');
+  expect((await aws.send(new ScanCommand({ TableName: `${PROJECT_NAME}-test-orders` }))).Count).toBe(3);
+  client.destroy();
 }, 120_000);

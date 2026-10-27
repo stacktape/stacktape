@@ -1,4 +1,19 @@
+import { gzipSync } from 'node:zlib';
 import { DEV_BOX_RELAY_SOURCE } from './relay-source';
+
+/** EC2 refuses user data over 16 KB before base64 encoding, and CloudFormation then fails the network creation. */
+export const EC2_USER_DATA_LIMIT_BYTES = 16_384;
+
+/**
+ * The relay as the boot script carries it: gzip, then base64 in 76-character lines, so the largest part of the user
+ * data fits EC2's limit with room to grow. The gzip header's OS byte is fixed, so every platform builds the same
+ * template.
+ */
+export const encodeRelayForUserData = (source: string) => {
+  const compressed = gzipSync(source, { level: 9 });
+  compressed[9] = 255;
+  return (compressed.toString('base64').match(/.{1,76}/g) ?? []).join('\n');
+};
 
 /**
  * Restarts the box's SSM agent whenever its instance profile is attached. The box starts without the profile, and an
@@ -70,8 +85,8 @@ PRIMARY_IF=$(ip -o link show | awk -v mac="$PRIMARY_MAC" '$0 ~ mac {print $2}' |
 echo "stacktape-devbox: private IP $PRIVATE_IP on $PRIMARY_IF"
 
 mkdir -p /opt/stacktape
-cat > /opt/stacktape/relay.py <<'RELAY'
-${DEV_BOX_RELAY_SOURCE}
+base64 -d <<'RELAY' | gunzip > /opt/stacktape/relay.py
+${encodeRelayForUserData(DEV_BOX_RELAY_SOURCE)}
 RELAY
 cat > /etc/systemd/system/stacktape-relay.service <<UNIT
 [Unit]

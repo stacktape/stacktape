@@ -3,7 +3,8 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DEV_BOX_PROFILE_WATCH_SCRIPT, getDevBoxUserData } from './boot-script';
+import { DEV_BOX_PROFILE_WATCH_SCRIPT, EC2_USER_DATA_LIMIT_BYTES, getDevBoxUserData } from './boot-script';
+import { DEV_BOX_RELAY_SOURCE } from './relay-source';
 
 // The profile watcher of the dev box, run by real bash and curl against a scripted instance metadata server. A fake
 // `systemctl` records the SSM agent restarts, which end every developer's session to the box.
@@ -80,4 +81,21 @@ test('the user data installs the watcher as it is and is valid bash', () => {
   expect(userData).toContain(DEV_BOX_PROFILE_WATCH_SCRIPT);
   const script = userData.slice(userData.indexOf('#!/bin/bash'), userData.indexOf('--==STACKTAPE==--'));
   expect(spawnSync('bash', ['-n'], { input: script }).status).toBe(0);
+});
+
+// r2bb: a relay that grew by 3 KB pushed the user data past EC2's limit, and creating a dev network failed with "User data
+// is limited to 16384 bytes".
+test('the user data fits EC2, and the box writes the relay exactly as the CLI has it', () => {
+  const userData = getDevBoxUserData();
+  expect(Buffer.byteLength(userData)).toBeLessThanOrEqual(EC2_USER_DATA_LIMIT_BYTES);
+  // The boot script's own lines, run by real bash, base64 and gunzip.
+  const start = userData.indexOf("base64 -d <<'RELAY'");
+  const end = userData.indexOf('\nRELAY\n', start) + '\nRELAY\n'.length;
+  expect(start).toBeGreaterThan(0);
+  directory = mkdtempSync(join(tmpdir(), 'stacktape-relay-install-'));
+  const target = join(directory, 'relay.py');
+  const install = userData.slice(start, end).replace('/opt/stacktape/relay.py', target);
+  const result = spawnSync('bash', ['-euo', 'pipefail', '-c', install], { encoding: 'utf8' });
+  expect(result.status, result.stderr).toBe(0);
+  expect(readFileSync(target, 'utf8')).toBe(DEV_BOX_RELAY_SOURCE);
 });

@@ -46,9 +46,10 @@ let database: Server;
 const databaseSockets = new Set<Socket>();
 const stoppedFile = () => join(directory, 'stopped');
 
-const startRelay = async ({ idleSeconds }: { idleSeconds: number }) => {
+const startRelay = async ({ idleSeconds, env = {} }: { idleSeconds: number; env?: Record<string, string> }) => {
   relayProcess = spawn('python3', [join(directory, 'relay.py'), '127.0.0.1'], {
     env: {
+      ...env,
       PATH: process.env.PATH,
       STACKTAPE_RELAY_CONTROL_PORT: String(controlPort),
       STACKTAPE_RELAY_IDLE_SECONDS: String(idleSeconds),
@@ -379,6 +380,64 @@ test('a session that took the stage over does not take it back when it reconnect
     await cleanUpTunnels();
     await stopRelay();
   }
+}, 40_000);
+
+/** A function's connection that sends one request and resolves with the answer, or with how the connection ended. */
+const requestThrough = (port: number, payload: string) =>
+  new Promise<string>((resolve) => {
+    const socket = createConnection({ host: '127.0.0.1', port }, () => socket.write(payload));
+    socket.once('data', (data) => {
+      socket.destroy();
+      resolve(String(data));
+    });
+    socket.once('error', (error: NodeJS.ErrnoException) => resolve(error.code ?? error.message));
+    socket.once('close', () => resolve('closed'));
+  });
+
+// r2w dogfood: a scheduled function ran while `stacktape dev` restarted and got `Connection refused` from the relay.
+test('a function that connects while its session restarts reaches the database once the session is back', async () => {
+  await startRelay({
+    idleSeconds: 3600,
+    env: { STACKTAPE_RELAY_WAIT_SECONDS: '3', STACKTAPE_RELAY_PARK_SECONDS: '5' }
+  });
+  const leasePort = await freePort();
+  const localPort = (database.address() as AddressInfo).port;
+  const lease = { port: leasePort, key: 'shop-dev/db' };
+  await startTunnel({ resourceName: 'db', localPort, lease, owner: alice, relay: relay() });
+  await cleanUpTunnels();
+
+  // The session is gone; the next one leases the same port a second later and gets the waiting connection.
+  const during = requestThrough(leasePort, 'during restart');
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const restarted = { ...alice, session: 'alice-laptop-session-2' };
+  await startTunnel({ resourceName: 'db', localPort, lease, owner: restarted, relay: relay() });
+  expect(await during).toBe('db:during restart');
+  await cleanUpTunnels();
+
+  // A port leased under another key never gets the connections waiting for this lease.
+  const otherStack = requestThrough(leasePort, 'other stack');
+  await startTunnel({
+    resourceName: 'db',
+    localPort,
+    lease: { port: leasePort, key: 'other-dev/db' },
+    owner: bob,
+    relay: relay()
+  });
+  expect(await otherStack).toBe('closed');
+  expect(await requestThrough(leasePort, 'other')).toBe('db:other');
+  await cleanUpTunnels();
+
+  // Without a session, a connection is closed after the wait, and the port closes after the park time.
+  const started = Date.now();
+  expect(await requestThrough(leasePort, 'nobody')).toBe('closed');
+  expect(Date.now() - started).toBeGreaterThanOrEqual(2500);
+  await waitFor(
+    'the parked port to close',
+    async () => (await requestThrough(leasePort, 'late')) === 'ECONNREFUSED',
+    10_000
+  );
+  expect(relayOutput).toContain(`port ${leasePort} closed: no session leased it again within 5 s`);
+  await stopRelay();
 }, 40_000);
 
 test('a tunnel reconnects without an attempt limit after the relay restarts', async () => {

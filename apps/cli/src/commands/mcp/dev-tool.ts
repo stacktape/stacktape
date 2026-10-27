@@ -206,7 +206,7 @@ const selectLocalDatabase = (
       ? {
           ok: false,
           code: 'NOT_LOCAL_RESOURCE',
-          message: `"${requested}" is not a database this dev session runs locally. Database actions reach local databases only, never deployed ones.`,
+          message: `"${requested}" is not a database this dev session runs locally. Database actions reach local databases and read deployed DynamoDB tables; for another deployed resource, use the aws action or \`stacktape query\`.`,
           data: { localDatabases: available }
         }
       : {
@@ -1386,6 +1386,10 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           typeof resource?.name === 'string' && typeof resource?.type === 'string' && resource.type in DATABASE_ROUTE
       );
       const requested = typeof toolArgs.resource === 'string' ? toolArgs.resource : undefined;
+      // A table the dev stack deploys (a remote resource) is read in AWS, by name only: never by default.
+      const deployedTable = (
+        (Array.isArray(status.deployedDatabases) ? status.deployedDatabases : []) as Record<string, unknown>[]
+      ).find(({ name }) => requested !== undefined && name === requested && !databases.some((db) => db.name === name));
 
       if (action === 'tables' && !requested) {
         const results = await Promise.all(
@@ -1413,7 +1417,9 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         });
       }
 
-      const selected = selectLocalDatabase(databases, requested);
+      const selected = deployedTable
+        ? ({ ok: true, database: { name: String(deployedTable.name), type: 'dynamodb' } } as const)
+        : selectLocalDatabase(databases, requested);
       if (selected.ok === false)
         return toToolText({
           ...selected.output,
@@ -1430,7 +1436,9 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         });
         return toToolText(
           toAgentOutput({ ...response, resource: database.name, type: database.type }, sessionResult.session, {
-            ok: `Listed the contents of ${database.name}.`,
+            ok: deployedTable
+              ? `Read the schema of ${database.name}, the deployed table ${String(deployedTable.tableName)} in AWS.`
+              : `Listed the contents of ${database.name}.`,
             failed: `Failed to list the contents of ${database.name}.`
           })
         );
@@ -1446,7 +1454,9 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         { ...response, resource: database.name, type: database.type },
         sessionResult.session,
         {
-          ok: `Queried ${database.name}.`,
+          ok: deployedTable
+            ? `Read ${database.name}, the deployed table ${String(deployedTable.tableName)} in AWS (read-only).`
+            : `Queried ${database.name}.`,
           failed: `Query on ${database.name} failed.`
         }
       );

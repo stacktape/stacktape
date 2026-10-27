@@ -5533,7 +5533,13 @@ stacktape logs myApi --stage prod --region eu-west-1 --since "2h" --filter "ERRO
 
 The command resolves log streams for the target log group, fetches matching events, and either formats them for terminal display or outputs JSON when `--raw` or `--agent` is set.
 
-In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits.
+In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits. `--follow=false` does the same in a terminal.
+
+`--follow` keeps following without a terminal, for example in a coding agent's shell or in CI. Each log line is written as plain text as soon as it arrives. The command ends on Ctrl+C or `SIGTERM`, and when the reading end of its output closes, as with `| head -20`: it notices on the next line it writes. `--follow` cannot be combined with `--raw`.
+
+```bash
+stacktape logs myApi --stage dev --region eu-west-1 --follow --filter "ERROR" > api-errors.log &
+```
 
 ### Insights mode
 
@@ -5711,6 +5717,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
+| `--follow` | no | `boolean` | Follow — If `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by default; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless `--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or when the reading end of the output closes. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -5745,7 +5752,7 @@ The `--since` flag controls how far back the command looks — there is no hard 
 
 ### Does stacktape logs live-tail?
 
-The `stacktape logs` command fetches a snapshot of log events for a time window — it does not live-tail. You can approximate tailing by running the command repeatedly with a short `--since` (e.g., `--since "1m"`). For log viewing in the browser, see [Logs](/observability/logs).
+Yes. In a terminal, `stacktape logs` shows the newest events and then prints new ones as they arrive until you press Ctrl+C. Without a terminal it prints the events once, unless you pass `--follow`. For log viewing in the browser, see [Logs](/observability/logs).
 
 ### How much does CloudWatch Logs cost?
 
@@ -18688,6 +18695,8 @@ dev function (dev network, private subnet) ──► dev box ──► Systems M
 Nothing is published on the internet. Your machine opens the connection to the box, through an AWS Systems Manager session authenticated by your AWS credentials and encrypted. On the box, the relay port of each database admits only dev functions.
 
 The AWS account is the trust boundary. Every dev function in the account's dev network can reach every developer's relay ports, not only the functions of that developer's stage. Local DynamoDB and OpenSearch have no password, and local Redis has one only when its `defaultUserPassword` is set; Postgres and MySQL always have one. The passwords of local databases, including the ones Stacktape generates, are written into the dev functions' environment variables, so they appear in the dev stack's Lambda configuration and CloudFormation template. They are valid only for the databases on your machine. Use a separate AWS account for people who must not reach each other's local databases.
+
+A database's relay port stays open for 2 minutes after its session ends, so a session that restarts finds it open. A function that connects while no session holds the port, for example a schedule that fires during a restart, waits up to 30 seconds for the next session of the stage and then reaches its database. When no session comes back in time, the box closes the connection, and the database client reports a closed connection. A connection is refused when no session has opened the port since the box started, or when the last session ended more than 2 minutes before.
 
 A query takes your machine's round trip to the region plus a few milliseconds; about 45 ms from Central Europe to `eu-west-1`. Bulk transfers are limited to about 0.7 MB/s per developer by Systems Manager, so a query that returns 5 MB takes about 7 s. Seeding or exporting large amounts of data is faster from your machine directly.
 
@@ -48806,7 +48815,7 @@ Yes. The startup message confirms local database data is stored in `.stacktape/d
 
 ### Are destructive database operations safe during AI sessions?
 
-The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `confirm` field. The startup documentation warns that destructive operations require `{"confirm": true}` — without it, the request is rejected. `/reset` always requires it. DynamoDB and OpenSearch delete handlers do not accept a `confirm` parameter; they require the key or document identifier fields directly. All of these endpoints reach only the databases dev mode runs locally.
+The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `confirm` field. The startup documentation warns that destructive operations require `{"confirm": true}` — without it, the request is rejected. `/reset` always requires it. DynamoDB and OpenSearch delete handlers do not accept a `confirm` parameter; they require the key or document identifier fields directly. All of these endpoints reach only the databases dev mode runs locally, except that the DynamoDB `query`, `scan`, `schema` and `sample` endpoints also read a table the dev stack deploys (a remote resource). Their answer then has `deployed: true`, and the write endpoints refuse that table.
 
 ### What happens if a workload fails?
 
@@ -49136,7 +49145,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 - **`env`** returns the environment of a `workload` with secret values masked. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region`) with the dev agent's credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does.
 - **`stop`** terminates the active session.
 
-`query`, `tables` and `reset_db` reach only databases that dev mode runs on your machine. A database connected to its deployed instance with `remoteResources`, or any other deployed resource, returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.
+`query`, `tables` and `reset_db` reach databases that dev mode runs on your machine. The one exception is a DynamoDB table that the dev stack deploys, because it is in `remoteResources` or a deployed function's stream trigger needs it. `query` and `tables` with that table's name in `resource` scan, query or describe the deployed table, read-only, and the result has `deployed: true`, the table name and the region. `reset_db` refuses it with `NOT_LOCAL_RESOURCE`. Any other deployed resource returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`; read it with the `aws` action. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.
 
 `args` is typed in the tool's input schema, with a description of every argument, so an assistant does not have to guess names such as `freshDb` or `awsAccount`.
 

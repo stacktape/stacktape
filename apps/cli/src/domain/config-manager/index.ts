@@ -64,7 +64,7 @@ import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { getDirectiveParams, getIsDirective } from '@utils/directives';
+import { getDirectiveParams, getIsDirective, getNestedDirectiveReferences } from '@utils/directives';
 import { getApexDomain } from '@utils/domains';
 import { startTiming } from '@utils/timings';
 import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
@@ -2089,10 +2089,9 @@ export class ConfigManager {
     const secretNames: string[] = [];
     processAllNodesSync(this.allAlarms, (node) => {
       if (typeof node === 'string') {
-        // if secret is referenced using $Secret directive
-        if (getIsDirective(node) && node.startsWith('$Secret')) {
-          const [secretName] = getDirectiveParams('Secret', node)[0].value.split('.') as string[];
-          secretNames.push(secretName);
+        // if secret is referenced using $Secret directive, on its own or inside another directive
+        if (getIsDirective(node)) {
+          secretNames.push(...getNestedDirectiveReferences(node, 'Secret').map((reference) => reference.split('.')[0]));
           return;
         }
         // secret referenced using dynamic reference
@@ -2114,8 +2113,7 @@ export class ConfigManager {
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();
     const visit = (node: unknown) => {
-      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$Secret')) {
-        const fullRef = getDirectiveParams('Secret', node)[0].value as string;
+      for (const fullRef of getNestedDirectiveReferences(node, 'Secret')) {
         const [secretName, jsonKey] = fullRef.split('.');
         if (!secretRefs.has(secretName)) {
           secretRefs.set(secretName, new Set());
@@ -2187,10 +2185,7 @@ export class ConfigManager {
   get allSsmParamReferencesUsedInConfig() {
     const paramNames = new Set<string>();
     processAllNodesSync(this.config, (node) => {
-      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$SsmParam')) {
-        const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
-        paramNames.add(paramName);
-      }
+      for (const paramName of getNestedDirectiveReferences(node, 'SsmParam')) paramNames.add(paramName);
     });
     return paramNames;
   }
@@ -2199,10 +2194,9 @@ export class ConfigManager {
     const paramNames: string[] = [];
     processAllNodesSync(this.allAlarms, (node) => {
       if (typeof node === 'string') {
-        // $SsmParam directive
-        if (getIsDirective(node) && node.startsWith('$SsmParam')) {
-          const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
-          paramNames.push(paramName);
+        // $SsmParam directive, on its own or inside another directive
+        if (getIsDirective(node)) {
+          paramNames.push(...getNestedDirectiveReferences(node, 'SsmParam'));
           return;
         }
         // SSM dynamic reference

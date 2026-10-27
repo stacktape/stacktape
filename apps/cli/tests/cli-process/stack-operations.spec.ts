@@ -23,6 +23,13 @@ import {
   DescribeStacksCommand,
   UpdateTerminationProtectionCommand
 } from '@aws-sdk/client-cloudformation';
+import {
+  CloudWatchLogsClient,
+  CreateLogGroupCommand,
+  CreateLogStreamCommand,
+  DeleteLogGroupCommand,
+  PutLogEventsCommand
+} from '@aws-sdk/client-cloudwatch-logs';
 import { CreateRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
@@ -688,4 +695,118 @@ describe('cf:rollback', () => {
       }
     );
   }
+});
+
+describe('logs', () => {
+  const logGroupName = awsResourceNames.lambdaLogGroup({
+    lambdaAwsResourceName: awsResourceNames.lambda('api', stackName)
+  });
+
+  /** The `api` function's log group in MiniStack, as the deployed stack names it, with one log stream to write to. */
+  const startLogGroup = async (account: MiniStackAccount) => {
+    const client = new CloudWatchLogsClient(ministack.clientConfig(account));
+    await client.send(new CreateLogGroupCommand({ logGroupName }));
+    await client.send(new CreateLogStreamCommand({ logGroupName, logStreamName: 'stream-1' }));
+    resources.push({
+      close: async () => {
+        await client.send(new DeleteLogGroupCommand({ logGroupName })).catch(() => undefined);
+        client.destroy();
+      }
+    });
+    return async (message: string, timestamp = Date.now()) => {
+      await client.send(
+        new PutLogEventsCommand({ logGroupName, logStreamName: 'stream-1', logEvents: [{ message, timestamp }] })
+      );
+    };
+  };
+
+  const startDeployedFunction = async () => {
+    const stack = await deployedStack('UPDATE_COMPLETE');
+    // Answered by the observer, so the log group resolves to the name the deployed stack reports.
+    stack.status = 'CREATE_COMPLETE';
+    stack.physicalIds = { ...bucketPhysicalIds, ApiLogGroup: logGroupName };
+    const fakes = await startFakes(stack);
+    const write = await startLogGroup(fakes.bucket.account);
+    return { ...fakes, write };
+  };
+
+  /** Starts `stacktape logs api` without a terminal, as an agent's shell runs it, and collects its stdout as it comes. */
+  const spawnLogs = async (
+    { controlPlane, aws, bucket }: { controlPlane: ControlPlaneFake; aws: AwsFake; bucket: StackBuckets },
+    { args, shell }: { args: string[]; shell?: (command: string) => string }
+  ) => {
+    const home = await mkdtemp(join(tmpdir(), 'stacktape-cli-process-home-'));
+    temporaryDirectories.push(home);
+    const command = ['bun', ...cliArguments(['logs', 'api', ...args])];
+    const quote = (part: string) => `'${part.replaceAll("'", "'\\''")}'`;
+    const child = Bun.spawn(shell ? ['sh', '-c', shell(command.map(quote).join(' '))] : command, {
+      cwd: cliRoot,
+      env: cliEnvironment({ home, controlPlane, aws, bucket, tty: false }),
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe'
+    });
+    let stdout = '';
+    const decoder = new TextDecoder();
+    const reading = (async () => {
+      for await (const chunk of child.stdout) stdout += decoder.decode(chunk, { stream: true });
+    })();
+    const stderr = new Response(child.stderr).text();
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 150_000);
+    resources.push({ close: async () => (clearTimeout(timeout), child.kill('SIGKILL')) });
+    const waitFor = async (text: string, seconds = 60) => {
+      for (const deadline = Date.now() + seconds * 1000; !stdout.includes(text); await Bun.sleep(100)) {
+        if (child.exitCode !== null || Date.now() > deadline) {
+          throw new Error(`stacktape logs did not print "${text}":\n${stdout.slice(-3000)}\n${await stderr}`);
+        }
+      }
+    };
+    /** Resolves with the exit code, or undefined when the process is still running after `seconds`. */
+    const exited = async (seconds: number) => {
+      const code = await Promise.race([child.exited, Bun.sleep(seconds * 1000).then(() => undefined)]);
+      if (code !== undefined) await reading;
+      return code;
+    };
+    return { child, waitFor, exited, output: () => stdout };
+  };
+
+  test('--follow without a terminal prints new lines as plain text as they arrive and ends on SIGTERM', async () => {
+    const fakes = await startDeployedFunction();
+    await fakes.write('backlog-line-r2bb', Date.now() - 60_000);
+    const logs = await spawnLogs(fakes, { args: ['--follow'] });
+
+    await logs.waitFor('backlog-line-r2bb', 90);
+    await fakes.write('new-line-r2bb');
+    // The process is still running, so the line arrived while following, not with the final output.
+    await logs.waitFor('new-line-r2bb', 30);
+    expect(logs.child.exitCode).toBeNull();
+    expect(logs.output()).toContain('and following new ones. Stop with Ctrl+C or SIGTERM.');
+    expect(logs.output()).not.toContain(String.fromCharCode(27));
+
+    logs.child.kill('SIGTERM');
+    expect(await logs.exited(15)).toBe(0);
+    expect(fakes.aws.mutations).toEqual([]);
+  });
+
+  test('--follow ends when the reader of its output goes away', async () => {
+    const fakes = await startDeployedFunction();
+    await fakes.write('backlog-line-r2bb', Date.now() - 60_000);
+    // `sed` quits after the backlog line, like `| head`; the CLI notices on its next write.
+    const logs = await spawnLogs(fakes, {
+      args: ['--follow'],
+      shell: (command) => `${command} | sed -n '/backlog-line-r2bb/{p;q;}'`
+    });
+    await logs.waitFor('backlog-line-r2bb', 90);
+    await fakes.write('after-reader-left-r2bb');
+    expect(await logs.exited(30)).toBe(0);
+    expect(logs.output()).not.toContain('after-reader-left-r2bb');
+  });
+
+  test('without a terminal and without --follow, logs prints once and exits', async () => {
+    const fakes = await startDeployedFunction();
+    await fakes.write('backlog-line-r2bb', Date.now() - 60_000);
+    const logs = await spawnLogs(fakes, { args: [] });
+    expect(await logs.exited(90)).toBe(0);
+    expect(logs.output()).toContain('backlog-line-r2bb');
+  });
 });

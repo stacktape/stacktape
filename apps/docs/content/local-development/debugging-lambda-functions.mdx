@@ -174,6 +174,8 @@ Nothing is published on the internet. Your machine opens the connection to the b
 
 The AWS account is the trust boundary. Every dev function in the account's dev network can reach every developer's relay ports, not only the functions of that developer's stage. Local DynamoDB and OpenSearch have no password, and local Redis has one only when its `defaultUserPassword` is set; Postgres and MySQL always have one. The passwords of local databases, including the ones Stacktape generates, are written into the dev functions' environment variables, so they appear in the dev stack's Lambda configuration and CloudFormation template. They are valid only for the databases on your machine. Use a separate AWS account for people who must not reach each other's local databases.
 
+A database's relay port stays open for 2 minutes after its session ends, so a session that restarts finds it open. A function that connects while no session holds the port, for example a schedule that fires during a restart, waits up to 30 seconds for the next session of the stage and then reaches its database. When no session comes back in time, the box closes the connection, and the database client reports a closed connection. A connection is refused when no session has opened the port since the box started, or when the last session ended more than 2 minutes before.
+
 A query takes your machine's round trip to the region plus a few milliseconds; about 45 ms from Central Europe to `eu-west-1`. Bulk transfers are limited to about 0.7 MB/s per developer by Systems Manager, so a query that returns 5 MB takes about 7 s. Seeding or exporting large amounts of data is faster from your machine directly.
 
 ### The dev network

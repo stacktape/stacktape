@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { getDirectiveParams } from './directives';
+import { getDirectiveParams, getNestedDirectiveReferences } from './directives';
 
 /**
  * Directive argument parsing is a rule with many meaningful inputs: nesting, quoting, property paths and literal
@@ -262,5 +262,27 @@ describe('JSON-quoted directive arguments', () => {
     ['$Format("C:\\legacy")', 'C:\\legacy']
   ])('decodes %s as its literal value', (definition, value) => {
     expect(getDirectiveParams('Format', definition)).toEqual([{ value }]);
+  });
+});
+
+// Secret and SSM preflights read these references from the raw config, so a nested one must not be missed.
+describe('getNestedDirectiveReferences', () => {
+  test.each([
+    ["$Secret('cache.password')", ['cache.password']],
+    ["$Format('redis://:{}@{}', $Secret('cache.password'), $ResourceParam('cache', 'host'))", ['cache.password']],
+    ["$Format('{}-{}', $Secret('a'), $Join(',', $Secret('b.key'), 'x'))", ['a', 'b.key']],
+    ['$CfFormat(\'{}\', $Secret("quoted"))', ['quoted']],
+    ["$Format('$Secret(not-a-directive)')", []],
+    ["$Secret($Format('{}-db', $Stage()))", []],
+    ['plain string', []],
+    [42, []]
+  ])('finds the secrets in %p', (node, references) => {
+    expect(getNestedDirectiveReferences(node, 'Secret')).toEqual(references);
+  });
+
+  test('reads another directive by name', () => {
+    expect(getNestedDirectiveReferences("$Format('{}:{}', $SsmParam('/app/host'), $Secret('x'))", 'SsmParam')).toEqual([
+      '/app/host'
+    ]);
   });
 });

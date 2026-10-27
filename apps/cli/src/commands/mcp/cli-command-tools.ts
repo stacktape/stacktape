@@ -528,8 +528,19 @@ const validateMcpSpecificArgs = ({
 // agent's to set; listing them only invites calls that break the run.
 const MCP_MANAGED_ARGS = new Set(['agent', 'outputFormat', 'ui', 'help']);
 
+/** Arguments that would keep a command running past what one MCP call can wait for, with what to use instead. */
+const MCP_REFUSED_ARGS: Partial<Record<StacktapeCommand, Record<string, string>>> = {
+  logs: {
+    follow:
+      '`follow` keeps `stacktape logs` running until it is stopped, so an MCP call would not return. To watch a dev session\'s logs, use the stacktape_dev tool with action "logs"; for a deployed stack, run logs again with a later startTime.'
+  }
+};
+
+const isMcpExcludedArg = (command: StacktapeCommand, argName: string) =>
+  MCP_MANAGED_ARGS.has(argName) || Boolean(MCP_REFUSED_ARGS[command]?.[argName]);
+
 const getMcpAllowedArgs = (command: StacktapeCommand) =>
-  getAllowedArgs(command).filter((argName) => !MCP_MANAGED_ARGS.has(argName));
+  getAllowedArgs(command).filter((argName) => !isMcpExcludedArg(command, argName));
 
 const getMcpRequiredArgs = (command: StacktapeCommand): readonly string[] => {
   const baseRequiredArgs = getRequiredArgs(command);
@@ -585,7 +596,7 @@ export const describeCliCommand = (name: string) => {
     requiredArgs: getMcpRequiredArgs(command),
     allowedArgs: getMcpAllowedArgs(command),
     args: Object.fromEntries(
-      Object.entries(getCommandInfo(command).args).filter(([argName]) => !MCP_MANAGED_ARGS.has(argName))
+      Object.entries(getCommandInfo(command).args).filter(([argName]) => !isMcpExcludedArg(command, argName))
     ),
     // The SDK operation names aws:call accepts per service; inputs are the SDK command's own input shape as JSON.
     ...(command === 'aws:call' ? { acceptedOperations: AWS_READ_ONLY_OPERATIONS } : {})
@@ -659,6 +670,16 @@ export const prepareCliRun = ({
       message: `${publicCommandName(command)} is classified as ${policy.safety}. Re-run with confirm=true to allow execution.`,
       data: { command, args: normalizedArgs, safety: policy.safety, category: policy.category },
       nextActions: ['Review the command and arguments, then set confirm=true if this operation is intended.']
+    };
+  }
+
+  const refusedArg = Object.keys(normalizedArgs).find((argName) => MCP_REFUSED_ARGS[command]?.[argName]);
+  if (refusedArg) {
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      message: MCP_REFUSED_ARGS[command]![refusedArg],
+      data: { refusedArg }
     };
   }
 

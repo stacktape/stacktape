@@ -620,7 +620,7 @@ Yes. The startup message confirms local database data is stored in `.stacktape/d
 
 ### Are destructive database operations safe during AI sessions?
 
-The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `confirm` field. The startup documentation warns that destructive operations require `{"confirm": true}` — without it, the request is rejected. `/reset` always requires it. DynamoDB and OpenSearch delete handlers do not accept a `confirm` parameter; they require the key or document identifier fields directly. All of these endpoints reach only the databases dev mode runs locally.
+The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `confirm` field. The startup documentation warns that destructive operations require `{"confirm": true}` — without it, the request is rejected. `/reset` always requires it. DynamoDB and OpenSearch delete handlers do not accept a `confirm` parameter; they require the key or document identifier fields directly. All of these endpoints reach only the databases dev mode runs locally, except that the DynamoDB `query`, `scan`, `schema` and `sample` endpoints also read a table the dev stack deploys (a remote resource). Their answer then has `deployed: true`, and the write endpoints refuse that table.
 
 ### What happens if a workload fails?
 
