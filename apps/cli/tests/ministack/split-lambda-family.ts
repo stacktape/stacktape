@@ -9,6 +9,7 @@ import { GetFunctionConfigurationCommand, GetLayerVersionByArnCommand } from '@a
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 import type { Family } from './families';
+import { installedPackageFiles } from './harness';
 
 // Large enough to become a shared chunk with default split-layer thresholds.
 const payload = 'shared-layer-'.repeat(1024);
@@ -21,7 +22,7 @@ const snapshots = new Map<
   }
 >();
 
-/** Real source CLI deployment, with only the first function edited on update. */
+/** Real source CLI deployment of two functions sharing a package, with only the first function edited on update. */
 export const splitLambdaFamily: Family = {
   name: 'split-lambda-layers',
   config: () => ({
@@ -38,10 +39,10 @@ export const splitLambdaFamily: Family = {
     )
   }),
   files: (version) => ({
-    'shared.ts': `export const shared = ${JSON.stringify(payload)};`,
-    'first.ts': `import { shared } from './shared'; export default async () => ({ marker: 'first-v${version}', sharedLength: shared.length });`,
+    ...installedPackageFiles({ name: 'fixture-shared', source: `export const shared = ${JSON.stringify(payload)};\n` }),
+    'first.ts': `import { shared } from 'fixture-shared'; export default async () => ({ marker: 'first-v${version}', sharedLength: shared.length });`,
     'second.ts':
-      "import { shared } from './shared'; export default async () => ({ marker: 'second-v1', sharedLength: shared.length });"
+      "import { shared } from 'fixture-shared'; export default async () => ({ marker: 'second-v1', sharedLength: shared.length });"
   }),
   assertEffects: async ({ step, version, clients, physical, checks }) => {
     const names = [physical('FirstFunction'), physical('SecondFunction')];

@@ -19,6 +19,7 @@ import {
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { MiniStack } from '@stacktape/ministack/fixture';
+import { installMarker } from '../../scripts/packaging-archives/split-project-fixture';
 import { buildOfflineQualificationEnvironment } from '../../scripts/qualification/offline-aws';
 import { startControlPlaneFake, type ControlPlaneFake } from '../cli-process/control-plane-fake';
 
@@ -115,6 +116,30 @@ export const writeProjectFiles = async (
       typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`
     );
   }
+};
+
+/**
+ * Project files that declare one package and install it from `source`, with the marker that stops the CLI installing it
+ * from a registry. Shared chunk layers hold installed packages only: functions share a layer through a package like
+ * this, while a project's own shared modules stay in each function's package.
+ */
+export const installedPackageFiles = ({ name, source }: { name: string; source: string }) => {
+  const dependencies = { [name]: '1.0.0' };
+  const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+  const manifest = json({ name: 'ministack-fixture', private: true, type: 'module', dependencies });
+  const lockfile = json({
+    name: 'ministack-fixture',
+    lockfileVersion: 3,
+    requires: true,
+    packages: { '': { name: 'ministack-fixture', dependencies }, [`node_modules/${name}`]: { version: '1.0.0' } }
+  });
+  return {
+    'package.json': manifest,
+    'package-lock.json': lockfile,
+    [`node_modules/${name}/package.json`]: json({ name, version: '1.0.0', type: 'module', main: 'index.js' }),
+    [`node_modules/${name}/index.js`]: source,
+    'node_modules/.stacktape-install-hash': installMarker({ manifest, lockfile })
+  };
 };
 
 const parseTerminalResult = (stdout: string) =>

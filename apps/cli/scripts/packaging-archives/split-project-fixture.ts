@@ -22,16 +22,23 @@ const sha256 = (content: string | Buffer) => createHash('sha256').update(content
  * their PATH.
  */
 export const writeInstallMarker = async (project: string) => {
-  const manifest = await readFile(join(project, 'package.json'));
-  const { dependencies = {} } = JSON.parse(manifest.toString('utf8')) as { dependencies?: Record<string, string> };
-  const marker = {
+  const [manifest, lockfile] = await Promise.all([
+    readFile(join(project, 'package.json')),
+    readFile(join(project, 'package-lock.json'))
+  ]);
+  await mkdir(join(project, 'node_modules'), { recursive: true });
+  await writeFile(join(project, 'node_modules', '.stacktape-install-hash'), installMarker({ manifest, lockfile }));
+};
+
+/** The marker `writeInstallMarker` writes, for a manifest and lockfile with exactly these bytes. */
+export const installMarker = ({ manifest, lockfile }: { manifest: string | Buffer; lockfile: string | Buffer }) => {
+  const { dependencies = {} } = JSON.parse(String(manifest)) as { dependencies?: Record<string, string> };
+  return JSON.stringify({
     version: 3,
-    lockfileSha256: sha256(await readFile(join(project, 'package-lock.json'))),
+    lockfileSha256: sha256(lockfile),
     inputsSha256: sha256(JSON.stringify({ manifestSha256: sha256(manifest), config: {} })),
     installedDirectDependencies: Object.keys(dependencies).toSorted()
-  };
-  await mkdir(join(project, 'node_modules'), { recursive: true });
-  await writeFile(join(project, 'node_modules', '.stacktape-install-hash'), JSON.stringify(marker));
+  });
 };
 
 export const SPLIT_FUNCTIONS = ['native', 'prisma', 'plain'] as const;
