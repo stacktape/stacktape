@@ -23,11 +23,13 @@ You can create CI keys from the [Stacktape Console's API keys page](/stacktape-c
 Stacktape performs these steps when you run `login`:
 
 1. **Authenticates you** — through the interactive Cognito-backed auth flow, or by verifying the API key supplied by a CI secret.
-2. **Stores local auth state** — saves the authentication state needed by subsequent CLI commands on this system.
+2. **Stores local auth state** — keeps the CLI session in the operating system's credential store (macOS Keychain, Windows Credential Manager or the Linux Secret Service). Where that store is unavailable, as is common in WSL, SSH sessions and containers, the session is kept in `~/.stacktape/persisted-state.json`, readable only by your user. Set `STACKTAPE_CREDENTIAL_STORE=file` to always use the file, for example on a machine whose credential store asks for a password on every command.
 3. **Verifies access** — calls the Stacktape API to confirm your user, organization, and permissions.
 4. **Displays your identity** — prints your user name and the organization the current auth state belongs to.
 
 If the API key is invalid, Stacktape clears the key it attempted to save and reports an authentication error.
+
+An interactive login creates a CLI session for the organization you choose. It ends 90 days after login, or after 30 days without use, whichever comes first; the CLI then asks you to run `stacktape login` again. [`stacktape logout`](/cli/logout) ends it immediately. Console-made API keys for CI keep the expiration chosen when they were created.
 
 
 > **Info:** The `login` command itself does not require an existing API key — it is one of the commands that can run without prior authentication.

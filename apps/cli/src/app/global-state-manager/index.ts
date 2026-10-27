@@ -51,7 +51,7 @@ import { loadPersistedState, savePersistedState } from './utils';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 import { selectAwsCredentialProfile } from './credential-source';
-import { getPersistedApiKey, withPersistedApiKey } from './api-key-storage';
+import { loadApiKey, storeApiKey } from './credential-store';
 import { consumeRunnerCredentials } from './runner-credentials';
 import {
   configProvidedArgs,
@@ -232,7 +232,7 @@ export class GlobalStateManager {
     if (!persistedSystemId) {
       await this.saveSystemId();
     }
-    this.apiKey = runnerCredentials.apiKey || getPersistedApiKey({ persistedState: this.persistedState });
+    this.apiKey = runnerCredentials.apiKey || (await this.loadStoredApiKey());
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {
         // Run interactive auth flow (sign up, login, or Google OAuth)
@@ -383,8 +383,18 @@ export class GlobalStateManager {
     return savePersistedState(this.persistedState);
   };
 
-  saveApiKey = async ({ apiKey }: { apiKey: string }) => {
-    this.persistedState = withPersistedApiKey({ persistedState: this.persistedState, apiKey });
+  /** The API key `stacktape login` stored on this machine, never one passed through the environment. */
+  loadStoredApiKey = async () => {
+    const { apiKey, persistedState } = await loadApiKey({ persistedState: this.persistedState });
+    if (persistedState !== this.persistedState) {
+      this.persistedState = persistedState;
+      await savePersistedState(this.persistedState);
+    }
+    return apiKey;
+  };
+
+  saveApiKey = async ({ apiKey }: { apiKey: string | null }) => {
+    this.persistedState = await storeApiKey({ persistedState: this.persistedState, apiKey });
     return savePersistedState(this.persistedState);
   };
 
