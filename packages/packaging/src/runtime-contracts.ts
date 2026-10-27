@@ -204,6 +204,10 @@ export type LoadModuleExport = <T>(input: { filePath: string; exportName: string
 export type LanguageBuildActions = {
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
+  /** Keeps a generated Dockerfile's base image local and pins it, so a build need not ask the registry about the tag. */
+  pinLocalBaseImage?: PinLocalBaseImage | undefined;
+  /** Reports a problem that does not stop the build, such as a packaged file the function's code does not load. */
+  warn?: ((message: string) => void) | undefined;
 };
 
 export type LambdaArtifactActions = LanguageBuildActions & {
@@ -253,6 +257,11 @@ export type StpBuildpackInput = {
    * reads execute bits) is rebuilt rather than reused. Image builds leave it unset and keep their digests.
    */
   lambdaZip?: boolean | undefined;
+  /**
+   * Receives the files the build reads as soon as they are known, before it runs, so a caller can watch them when the
+   * build then fails.
+   */
+  reportSourceFiles?: ((sourceFiles: { path: string }[]) => void) | undefined;
 };
 
 /** A package the bundle leaves out and the artifact gets installed instead. */

@@ -47,6 +47,7 @@ describe('Python uv dependency selectors', () => {
         name: 'handler',
         cwd: root,
         entryfilePath: 'services/api/handler.py',
+        pythonVersion: 3.14,
         distFolderPath: join(root, 'dist'),
         invocationId: 'test',
         existingDigests: [],

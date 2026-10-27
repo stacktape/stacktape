@@ -6,6 +6,12 @@ import type {
 } from '@stacktape/config/deployment-artifacts';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 
+/**
+ * Entry-file extensions whose Lambda build uses the runtime's own language version: the build image, installed native
+ * dependencies and dependency paths differ per version.
+ */
+export const isManagedRuntimeLanguage = (extension: string) => ['py', 'java', 'rb', 'cs'].includes(extension);
+
 export const areBuildAndRuntimeVersionsAligned = (
   configuredVersion: string | number,
   runtimeVersion: string | number

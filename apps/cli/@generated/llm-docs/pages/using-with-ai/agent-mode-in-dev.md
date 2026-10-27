@@ -288,7 +288,7 @@ With `--watch`, dev mode rebuilds a workload when one of its source files change
 
 A workload builds one rebuild at a time. A request for a workload that is rebuilding waits for that build and then builds the current files, and further requests made meanwhile join it. Only the last build sets the workload's status, so the status always reflects the newest files.
 
-Running `stacktape dev --agent` again while the session runs reports the same workloads, URLs and database ports as the start did, with `ready`. When the session waits for a restart, the command fails with `CLI_DEV_RESTART_REQUIRED`.
+Running `stacktape dev --agent` again while the session runs reports the same workloads, URLs and database ports as the start did. When the session waits for a restart, the command fails with `CLI_DEV_RESTART_REQUIRED`. When a workload in it failed, the command fails with `DEV_STARTED_WITH_FAILURES`, and while it still starts, with `DEV_SESSION_NOT_READY`; the session keeps running and the result's `data` carries it with `ready: false` and `failedWorkloads`.
 
 ### Liveness check
 
@@ -624,7 +624,7 @@ The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `con
 
 ### What happens if a workload fails?
 
-If a workload fails while `stacktape dev --agent` starts, the command stops the session and exits with an error that names the workload and its error. Fix the code and start again. After the start, a workload that crashes or fails to rebuild does not stop the session: `/status` reports it in `failedWorkloads` with its error, and `ready` stays false. Fix the code and call `POST /rebuild/{name}` to retry without restarting the session.
+If a function fails to build or deploy while `stacktape dev --agent` starts, the session keeps running and the function keeps its previous code. The command exits with `DEV_STARTED_WITH_FAILURES`, names the function and its error, and its result carries the session with `ready: false`. Fix the code and call `POST /rebuild/{name}`. Any other workload that fails during the start stops the session, and the command exits with `CLI_DEV_WORKLOAD_FAILED`; fix the code and start again. After the start, a workload that crashes or fails to rebuild does not stop the session: `/status` reports it in `failedWorkloads` with its error, and `ready` stays false. Fix the code and call `POST /rebuild/{name}` to retry without restarting the session.
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 

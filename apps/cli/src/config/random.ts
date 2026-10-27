@@ -47,7 +47,10 @@ export const lambdaRuntimesForFileExtension: {
   cts: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   jsx: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   tsx: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
-  py: ['python3.14', 'python3.13', 'python3.12', 'python3.11', 'python3.10'],
+  // The first entry is the default runtime, and the build uses the same version. Python's native wheels are built per
+  // minor version: many packages pinned before late 2025 (psycopg-binary 3.2.3, pydantic-core 2.27, numpy 2.2) have
+  // wheels for 3.13 but not for 3.14, so a 3.14 default would fail their install. 3.13 is also v3's default runtime.
+  py: ['python3.13', 'python3.14', 'python3.12', 'python3.11', 'python3.10'],
   java: ['java25', 'java21', 'java17', 'java11'],
   rb: ['ruby4.0', 'ruby3.4', 'ruby3.3'],
   // PHP runs only as a container (buildpack packaging); no Lambda runtime is offered for it.

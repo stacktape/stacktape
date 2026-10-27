@@ -2,7 +2,6 @@ import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contra
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { getFolder } from '../fs/files';
-import { DEFAULT_PYTHON_VERSION } from '../bundlers/constants';
 import { buildPythonArtifact } from '../bundlers/py';
 import { resolvePythonDependencyFile } from '../bundlers/py/utils';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
@@ -47,8 +46,11 @@ export const buildPythonLambda = async ({
 }: StpBuildpackInput &
   LambdaArtifactActions & {
     python?: PythonBuildpackConfig | undefined;
-    /** From the function's runtime; the buildpack default otherwise. */
-    pythonVersion?: SupportedPythonVersion | undefined;
+    /**
+     * The version of the function's Lambda runtime, the one the template deploys. There is no default here: a default
+     * of its own let the build use another version than the runtime, and native dependencies then failed to load.
+     */
+    pythonVersion: SupportedPythonVersion;
   }): Promise<PackagingOutput> => {
   const sourcePath = resolvePythonLambdaRoot({
     cwd,
@@ -61,7 +63,7 @@ export const buildPythonLambda = async ({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
     lambdaZip: true,
-    pythonVersion: pythonVersion ?? DEFAULT_PYTHON_VERSION,
+    pythonVersion,
     sourcePath,
     entryfilePath: absoluteEntryfilePath,
     rawEntryfilePath: absoluteEntryfilePath,

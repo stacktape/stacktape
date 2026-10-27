@@ -1,7 +1,6 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { DEFAULT_DOTNET_VERSION } from '../bundlers/constants';
 import { buildDotnetArtifact } from '../bundlers/dotnet';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { DotnetBuildpackConfig, SupportedDotnetVersion } from '@stacktape/config/deployment-artifacts';
@@ -19,8 +18,11 @@ export const buildDotnetLambda = async ({
 }: StpBuildpackInput &
   LambdaArtifactActions & {
     dotnet?: DotnetBuildpackConfig | undefined;
-    /** From the function's runtime; the buildpack default otherwise. */
-    dotnetVersion?: SupportedDotnetVersion | undefined;
+    /**
+     * The version of the function's Lambda runtime, the one the template deploys. There is no default here: a default
+     * of its own let the build use another version than the runtime, and native dependencies then failed to load.
+     */
+    dotnetVersion: SupportedDotnetVersion;
   }): Promise<PackagingOutput> => {
   const absoluteSourcePath = languageSpecificConfig?.projectFile
     ? resolveExplicitProjectRoot({ cwd, projectFile: languageSpecificConfig.projectFile })
@@ -37,7 +39,7 @@ export const buildDotnetLambda = async ({
     distFolderPath: otherProps.distFolderPath,
     lambdaZip: true,
     sourcePath: absoluteSourcePath,
-    dotnetVersion: dotnetVersion ?? DEFAULT_DOTNET_VERSION,
+    dotnetVersion,
     entryfilePath: absoluteEntryfilePath,
     rawEntryfilePath: absoluteEntryfilePath,
     name,

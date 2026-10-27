@@ -12,7 +12,6 @@ import { relative } from 'node:path';
 
 import { getBundleDigest, getSourceFiles } from './utils';
 import type { SupportedRubyVersion } from '@stacktape/config/deployment-artifacts';
-import { DEFAULT_RUBY_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
   assertRequiredArtifactFile,
@@ -27,7 +26,7 @@ type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
 export const buildRubyArtifact = async ({
   sourcePath,
   distFolderPath,
-  rubyVersion = DEFAULT_RUBY_VERSION,
+  rubyVersion,
   rawEntryfilePath,
   cwd: _cwd,
   additionalDigestInput,
@@ -41,10 +40,11 @@ export const buildRubyArtifact = async ({
   excludeFiles,
   target = 'lambda',
   createPackagingError,
-  runDocker
+  runDocker,
+  reportSourceFiles
 }: StpBuildpackInput & {
   sourcePath: string;
-  rubyVersion?: SupportedRubyVersion | undefined;
+  rubyVersion: SupportedRubyVersion;
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;
@@ -76,6 +76,7 @@ export const buildRubyArtifact = async ({
     sourceFiles: await getSourceFiles({ rootPath: sourcePath }),
     explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
   });
+  reportSourceFiles?.(sourceFiles);
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',

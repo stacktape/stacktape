@@ -38,6 +38,7 @@ describe('Java artifact build files', () => {
       sourcePath,
       entryfilePath: 'Handler.java',
       rawEntryfilePath: 'Handler.java',
+      javaVersion: 21,
       distFolderPath,
       invocationId: 'test',
       existingDigests: [],
