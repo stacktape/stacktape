@@ -7,6 +7,8 @@ import { packageHelperLambdas } from '../package-helper-lambdas';
 import { loadHelperLambdaDetailsFromDir } from '../../src/utils/helper-lambdas';
 import { HELPER_LAMBDAS_FOLDER_NAME } from '../../src/config/project-paths';
 
+// Each of the three packaging runs also builds and race-tests the Go code-swap supervisor in Docker: about 100 s on a
+// fast workstation and more on a GitHub runner.
 test('helper SDK bundling is optional and produces a self-contained Node artifact', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stp-helper-sdk-'));
   try {
@@ -56,4 +58,4 @@ test('helper SDK bundling is optional and produces a self-contained Node artifac
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 120_000);
+}, 600_000);
