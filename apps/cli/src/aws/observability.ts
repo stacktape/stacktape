@@ -140,6 +140,43 @@ export class AwsObservability {
     return result;
   };
 
+  /** One `FilterLogEvents` request: up to `limit` events, oldest first, and the token of the next page if there is one. */
+  filterLogEventsPage = async ({
+    logGroupName,
+    startTime,
+    endTime,
+    limit,
+    nextToken,
+    filterPattern
+  }: {
+    logGroupName: string;
+    startTime: number;
+    endTime?: number;
+    limit?: number;
+    nextToken?: string;
+    filterPattern?: string;
+  }): Promise<{ events: FilteredLogEvent[]; nextToken?: string }> => {
+    const { events = [], nextToken: next } = await this.#createLogsClient()
+      .send(
+        new FilterLogEventsCommand({
+          logGroupName,
+          startTime,
+          endTime,
+          limit,
+          nextToken,
+          ...(filterPattern ? { filterPattern } : {})
+        })
+      )
+      .catch((error) => {
+        if (error instanceof ResourceNotFoundException) {
+          this.#printer?.debug(`Error when fetching logs: ${error} (${logGroupName})`);
+          return { events: [] as FilteredLogEvent[], nextToken: undefined };
+        }
+        return this.#getErrorHandler('Failed to get log events.')(error);
+      });
+    return { events, nextToken: next };
+  };
+
   getLogGroup = async ({ logGroupName }: { logGroupName: string }) => {
     const { logGroups = [] } = await this.#createLogsClient().send(
       new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName })

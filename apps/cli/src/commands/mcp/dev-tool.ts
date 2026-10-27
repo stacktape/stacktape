@@ -575,7 +575,8 @@ const createSessionRegistry = ({
     }
 
     // After a take-over the replaced session keeps answering; the next call must not reach the session that replaced it.
-    // A session this server started in the same directory after the replaced one is the one the agent works with now.
+    // A session of the same stage this server started in the same directory after the replaced one is the one the agent
+    // works with now; a session of another stage there does not replace it.
     // The replaced session's agent may be found ended only after that start, so a start alone cannot clear its answer.
     for (const entry of new Set(ended.values())) {
       const { session, output } = entry;
@@ -585,6 +586,7 @@ const createSessionRegistry = ({
       const newer = candidates.some(
         (candidate) =>
           candidate.origin === 'started' &&
+          candidate.stage === session.stage &&
           isSameDirectory(candidate.cwd, session.cwd) &&
           candidate.knownSince > session.knownSince
       );

@@ -40,7 +40,15 @@ afterEach(async () => {
  * A dev session as the agent sees it: the real dev TUI state, the agent's mirror of it, the agent server and the
  * rebuilder. Only the builds are stand-ins, and the configuration file is JSON.
  */
-const startSession = async ({ workloads, build }: { workloads: string[]; build: (name: string) => Promise<void> }) => {
+const startSession = async ({
+  workloads,
+  build,
+  retryDelayMs = 20
+}: {
+  workloads: string[];
+  build: (name: string) => Promise<void>;
+  retryDelayMs?: number;
+}) => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-rebuild-results-'));
   const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
   process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
@@ -49,6 +57,7 @@ const startSession = async ({ workloads, build }: { workloads: string[]; build: 
   await writeFile(configPath, JSON.stringify(config));
   const rebuilder = createWorkloadRebuilder({
     rebuild: build,
+    retryDelayMs,
     detectConfigChange: createConfigChangeDetector({
       configPath,
       sessionConfig: config,
@@ -276,6 +285,7 @@ test('a rebuild that fails for a reason other than the build is tried once more;
   let failNext: Error | undefined;
   const { call } = await startSession({
     workloads: ['api'],
+    retryDelayMs: 200,
     build: async (name) => {
       attempts.push(name);
       const error = failNext;
@@ -284,12 +294,59 @@ test('a rebuild that fails for a reason other than the build is tried once more;
     }
   });
   failNext = Object.assign(new Error('EPIPE: broken pipe, write'), { code: 'EPIPE' });
+  const startedAt = Date.now();
   expect(await call('POST', '/rebuild/api')).toMatchObject({ ok: true, data: { rebuilt: ['api'] } });
   expect(attempts).toEqual(['api', 'api']);
+  // Not at once: a function that is still updating refuses the second attempt too.
+  expect(Date.now() - startedAt).toBeGreaterThanOrEqual(150);
   expect((await call('GET', '/status')).data).toMatchObject({ ready: true, failedWorkloads: [] });
 
   attempts.length = 0;
   failNext = buildError();
   expect(await call('POST', '/rebuild/api')).toMatchObject({ ok: false, code: 'REBUILD_FAILED' });
   expect(attempts).toEqual(['api']);
+});
+
+// #343 review: the retry ran even when a newer build already waited, and the two builds deployed one after the other.
+test('a failed rebuild is not tried again when a newer build of the workload waits', async () => {
+  const attempts: string[] = [];
+  /** Hands out the function that makes the first build of a round fail, once that build runs. */
+  let onFailingBuild: (fail: () => void) => void = () => {};
+  const failingBuildRuns = () => new Promise<() => void>((resolve) => (onFailingBuild = resolve));
+  const { rebuilder, call } = await startSession({
+    workloads: ['api'],
+    retryDelayMs: 200,
+    build: async () => {
+      attempts.push(attempts.length === 0 ? 'failing' : 'newer');
+      if (attempts.length === 1) {
+        await new Promise<void>((resolve) => onFailingBuild(resolve));
+        throw Object.assign(new Error('ResourceConflictException: The operation cannot be performed at this time.'), {
+          name: 'ResourceConflictException'
+        });
+      }
+    }
+  });
+  let failing = failingBuildRuns();
+  const first = rebuilder.rebuildWorkloads(['api']);
+  let fail = await failing;
+  const second = rebuilder.rebuildWorkloads(['api']);
+  // The request has joined the queue (after its configuration check) before the running build fails.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  fail();
+  expect(await second).toMatchObject({ ok: true });
+  expect(await first).toMatchObject({ ok: false, code: 'REBUILD_FAILED' });
+  expect(attempts).toEqual(['failing', 'newer']);
+  expect((await call('GET', '/status')).data).toMatchObject({ ready: true });
+
+  // A newer build requested while the failed one waits to try again replaces the second attempt as well.
+  attempts.length = 0;
+  failing = failingBuildRuns();
+  const third = rebuilder.rebuildWorkloads(['api']);
+  fail = await failing;
+  fail();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const fourth = rebuilder.rebuildWorkloads(['api']);
+  expect(await fourth).toMatchObject({ ok: true });
+  expect(await third).toMatchObject({ ok: false });
+  expect(attempts).toEqual(['failing', 'newer']);
 });

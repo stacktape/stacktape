@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { CliError } from '@utils/errors';
 import { updateAgentState, type RebuildResult } from './agent-server';
@@ -30,10 +31,13 @@ type WorkloadQueue = {
  */
 export const createWorkloadRebuilder = ({
   rebuild,
-  detectConfigChange
+  detectConfigChange,
+  retryDelayMs = 3000
 }: {
   rebuild: (name: string) => Promise<void>;
   detectConfigChange: () => Promise<ConfigChange>;
+  /** The wait before the second attempt: Lambda refuses a code update while the function is still updating. */
+  retryDelayMs?: number;
 }) => {
   const queues = new Map<string, WorkloadQueue>();
   const refused = new Set<string>();
@@ -56,8 +60,11 @@ export const createWorkloadRebuilder = ({
         break;
       } catch (err) {
         error = err instanceof Error ? err.message : String(err);
-        if (attempt > 1 || !isRetryableRebuildError(err)) break;
+        // A newer build waits: it builds the current files anyway, and its result is the one reported.
+        if (attempt > 1 || !isRetryableRebuildError(err) || queue.queued) break;
         devTuiManager.log(name, `Rebuild failed (${error}); trying once more.`, 'warn');
+        await delay(retryDelayMs);
+        if (queue.queued) break;
       }
     }
     if (queue.queued) return error;

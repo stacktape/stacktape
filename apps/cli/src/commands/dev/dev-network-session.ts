@@ -1,7 +1,7 @@
 import type { DevNetwork, DevNetworkAws } from '@domain-services/dev-network';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { RelayEndpoint, RelayOwner, RelaySessionInfo } from './tunnel-manager';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { dirname, sep } from 'node:path';
@@ -96,9 +96,26 @@ const getOwner = (): RelayOwner => {
   return {
     id: user?.id || `${process.env.USER || 'developer'}@${hostname()}`,
     label: `${user?.name || user?.email || process.env.USER || 'another developer'} (${hostname()}, ${shownDirectory})`,
-    // The process ID lets a later session on this machine tell that this one has exited (see `isStaleHolder`).
-    session: `${process.pid}.${randomUUID()}`
+    // The process ID and the machine let a later session on this machine tell that this one has exited (see
+    // `isStaleHolder`).
+    session: `${process.pid}.${getMachineId()}.${randomUUID()}`
   };
+};
+
+/**
+ * This machine, told apart from others with the same hostname: a hash of the hostname and the ID this installation
+ * keeps in its local state. The hash keeps the installation's ID out of what other sessions see.
+ */
+const getMachineId = () =>
+  createHash('sha256')
+    .update(`${hostname()}\n${globalStateManager.systemId || randomUUID()}`)
+    .digest('hex')
+    .slice(0, 16);
+
+/** The process ID and the machine in a session ID; sessions of a CLI older than this have no machine. */
+const parseSession = (session: string) => {
+  const match = /^(\d+)\.([0-9a-f]{16})\./.exec(session);
+  return match ? { pid: Number(match[1]), machine: match[2] } : undefined;
 };
 
 const isProcessAlive = (pid: number) => {
@@ -114,6 +131,7 @@ const isProcessAlive = (pid: number) => {
  * A holder the relay still lists although its process has exited: an earlier session of the same user in the same
  * directory on this machine. The relay notices a session's end only once its connections close through SSM, which can
  * take a while after a stop or a kill, and a start right after `stop` was refused because of the stopped session.
+ * The label names the hostname, which another machine can share; only a holder on this machine has a process here.
  */
 export const isStaleHolder = (
   holder: Pick<RelaySessionInfo, 'owner' | 'label' | 'session'>,
@@ -121,8 +139,10 @@ export const isStaleHolder = (
   isAlive: (pid: number) => boolean = isProcessAlive
 ) => {
   if (holder.owner !== owner.id || holder.label !== owner.label) return false;
-  const pid = /^(\d+)\./.exec(holder.session)?.[1];
-  return pid !== undefined && Number(pid) !== process.pid && !isAlive(Number(pid));
+  const held = parseSession(holder.session);
+  const own = parseSession(owner.session);
+  if (!held || !own || held.machine !== own.machine) return false;
+  return held.pid !== own.pid && !isAlive(held.pid);
 };
 
 /** How long the stage check waits for a running box's relay; after that the tunnels' own refusal decides. */

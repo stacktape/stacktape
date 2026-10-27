@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs-extra';
-import { closeSync, openSync, readSync } from 'node:fs';
+import { closeSync, copyFileSync, fstatSync, openSync, readSync, truncateSync } from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -559,27 +559,61 @@ export const followFile = (
   };
 };
 
+/** How large a daemon output file grows before it is moved to `<file>.1` and starts again. */
+const DAEMON_OUTPUT_FILE_MAX_BYTES = 5 * 1024 * 1024;
+
 /**
- * After the daemon reported ready, its own console output goes nowhere: the process that read it has exited, and the
- * agent log already records everything the daemon reports. The output files stay small, and processes the daemon
- * starts still write their output to the files (see `followFile`).
+ * Keeps the output file open as `fd` below `maxBytes`: a larger one is copied to `<path>.1` and emptied. Every writer
+ * appends (see `spawnAgentDaemon`), so after the file is emptied their writes start at its beginning again, without a
+ * gap. A line written between the copy and the truncation is lost.
+ *
+ * The file is emptied through a new handle opened by its path: Windows refuses to truncate through a handle opened for
+ * appending (EPERM, in the process that opened it and in those that inherited it).
  */
-export const muteDaemonConsole = () => {
-  if (process.env.STACKTAPE_AGENT_DAEMON !== '1') return;
-  const drop = ((_chunk: unknown, encoding?: unknown, callback?: unknown) => {
-    const done = typeof encoding === 'function' ? encoding : callback;
-    if (typeof done === 'function') queueMicrotask(() => done());
-    return true;
-  }) as typeof process.stdout.write;
-  process.stdout.write = drop;
-  process.stderr.write = drop;
+export const rotateDaemonOutputFile = ({ fd, path, maxBytes }: { fd: number; path: string; maxBytes: number }) => {
+  try {
+    const stats = fstatSync(fd);
+    if (!stats.isFile() || stats.size <= maxBytes) return;
+    copyFileSync(path, `${path}.1`);
+    truncateSync(path, 0);
+  } catch {
+    // The output files only help debugging; the session must not stop for them.
+  }
+};
+
+/**
+ * Bounds the daemon's output files. All of the daemon's output goes to them: its own (`console.*` under Bun writes to
+ * the descriptor directly), and that of the builds and containers it starts, which inherit the descriptors. A long
+ * `--watch` session would grow them without end; each is checked every `intervalMs` and kept below `maxBytes`, with the
+ * previous part in `<file>.1`.
+ */
+export const capDaemonOutputFiles = ({
+  maxBytes = DAEMON_OUTPUT_FILE_MAX_BYTES,
+  intervalMs = 30_000
+}: {
+  maxBytes?: number;
+  intervalMs?: number;
+} = {}) => {
+  const paths = process.env.STACKTAPE_AGENT_DAEMON === '1' && process.env.STACKTAPE_AGENT_DAEMON_OUTPUT_FILES;
+  if (!paths) return () => {};
+  const { stdout, stderr } = JSON.parse(paths) as { stdout: string; stderr: string };
+  const files = [
+    { fd: 1, path: stdout },
+    { fd: 2, path: stderr }
+  ];
+  const check = () => {
+    for (const file of files) rotateDaemonOutputFile({ ...file, maxBytes });
+  };
+  const timer = setInterval(check, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
 };
 
 /**
  * Spawn the dev agent as a background daemon process.
  *
  * The daemon's stdout and stderr are files (see `followFile`). This process reads them until the AGENT_READY message,
- * then lets go of the daemon and exits while the daemon keeps running.
+ * then lets go of the daemon and exits while the daemon keeps running. The daemon bounds their size from then on.
  *
  * Works on both Windows and Unix.
  */
@@ -618,8 +652,11 @@ export const spawnAgentDaemon = async (args: {
     stderr: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, stream: 'stderr' })
   };
   mkdirSync(dirname(outputFiles.stdout), { recursive: true, mode: 0o700 });
-  const stdoutFd = openSync(outputFiles.stdout, 'w', 0o600);
-  const stderrFd = openSync(outputFiles.stderr, 'w', 0o600);
+  // Emptied, then opened for appending: the daemon empties a file that grew too large while it and its children keep
+  // writing to it (see `capDaemonOutputFiles`).
+  for (const file of Object.values(outputFiles)) writeFileSync(file, '', { mode: 0o600 });
+  const stdoutFd = openSync(outputFiles.stdout, 'a', 0o600);
+  const stderrFd = openSync(outputFiles.stderr, 'a', 0o600);
 
   return new Promise((resolve) => {
     let child: ChildProcess;
@@ -627,7 +664,12 @@ export const spawnAgentDaemon = async (args: {
       child = spawn(command?.executable ?? process.execPath, command?.args ?? spawnArgs, {
         detached: true,
         stdio: ['ignore', stdoutFd, stderrFd],
-        env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1', STP_DISABLE_CONSOLE_INTERCEPT: 'true' },
+        env: {
+          ...process.env,
+          STACKTAPE_AGENT_DAEMON: '1',
+          STACKTAPE_AGENT_DAEMON_OUTPUT_FILES: JSON.stringify(outputFiles),
+          STP_DISABLE_CONSOLE_INTERCEPT: 'true'
+        },
         cwd: command?.cwd ?? childCwd
       });
     } finally {

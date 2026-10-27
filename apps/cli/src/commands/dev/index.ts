@@ -26,7 +26,7 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
-  muteDaemonConsole,
+  capDaemonOutputFiles,
   buildAgentReadyPayload,
   deleteAgentLockFile,
   findOrphanedDevBoxSession,
@@ -957,8 +957,8 @@ export const commandDev = async () => {
                 .filter((w) => w.status === 'error')
                 .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))
             })}\n`,
-            // Nobody reads the daemon's console once it reported ready (see `muteDaemonConsole`).
-            () => muteDaemonConsole()
+            // The process that started the daemon reads its output only until now; from here the files are capped.
+            () => capDaemonOutputFiles()
           );
           tuiManager.printLines(['']);
 

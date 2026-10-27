@@ -67,3 +67,70 @@ test('the daemon keeps writing its output, and its children theirs, after the st
   expect(readFileSync(stdoutFile, 'utf8')).toContain('step 5\nrebuild complete');
   expect(readFileSync(join(directory, 'tokens', '7399.daemon-stderr.log'), 'utf8')).toContain('after the rebuild');
 });
+
+// A stand-in daemon that writes more than the cap with `console.log` (which Bun writes to the descriptor directly), with
+// `process.stdout.write` and through a child process that inherits its output, then reports where the files stand.
+const chattyDaemonScript = (agentDaemonModule: string) => `
+import { spawnSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
+import { capDaemonOutputFiles } from ${JSON.stringify(agentDaemonModule)};
+const result = process.argv[2];
+process.stdout.write('AGENT_READY ' + JSON.stringify({ port: 7398, projectName: 'p', stage: 's', region: 'r', workloads: [], databases: [], logFile: '', tokenFile: '' }) + '\\n', () => {
+  const stop = capDaemonOutputFiles({ maxBytes: 20_000, intervalMs: 20 });
+  let round = 0;
+  const timer = setInterval(() => {
+    round++;
+    for (let line = 0; line < 20; line++) console.log('console round ' + round + ' line ' + line + ' ' + 'x'.repeat(80));
+    process.stdout.write('write round ' + round + '\\n');
+    console.error('stderr round ' + round + ' ' + 'y'.repeat(2_000));
+    spawnSync(process.execPath, ['-e', 'console.log("child round " + process.env.ROUND)'], {
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: { ...process.env, ROUND: String(round) }
+    });
+    if (round === 40) {
+      clearInterval(timer);
+      setTimeout(() => {
+        stop();
+        appendFileSync(result, 'done\\n');
+        process.exit(0);
+      }, 100);
+    }
+  }, 10);
+});
+`;
+
+// #343 review: under Bun `console.*` bypassed the muted `process.stdout.write`, and nothing bounded the files. #346
+// review: on Windows a file opened for appending cannot be truncated through that handle, so the files grew anyway.
+test('all daemon output reaches its files, which stay below the cap during a long session', async () => {
+  const script = join(directory, 'chatty-daemon.mjs');
+  const result = join(directory, 'chatty-result.txt');
+  writeFileSync(script, chattyDaemonScript(join(import.meta.dir, '..', 'agent-daemon.ts')));
+  writeFileSync(result, '');
+  const spawned = await spawnAgentDaemon({
+    explicitArgs: {},
+    customArgs: [],
+    agentPort: 7398,
+    timeoutMs: 10_000,
+    command: { executable: process.execPath, args: [script, result], cwd: directory }
+  });
+  expect(spawned).toMatchObject({ success: true, port: 7398 });
+
+  const deadline = Date.now() + 20_000;
+  while (!readFileSync(result, 'utf8').includes('done') && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  expect(readFileSync(result, 'utf8')).toBe('done\n');
+  const stdoutFile = join(directory, 'tokens', '7398.daemon-stdout.log');
+  const stdout = readFileSync(stdoutFile, 'utf8');
+  const previous = readFileSync(`${stdoutFile}.1`, 'utf8');
+  // Written about 170 kB, each check allows up to one round more than the cap.
+  expect(stdout.length).toBeLessThan(40_000);
+  expect(previous.length).toBeLessThan(40_000);
+  // The file was emptied and written again from its start, with no gap of zero bytes.
+  expect(stdout).not.toContain('\0');
+  expect(stdout).not.toContain('AGENT_READY');
+  for (const kind of ['console round 40 line 19', 'write round 40', 'child round 40']) expect(stdout).toContain(kind);
+  const stderr = readFileSync(join(directory, 'tokens', '7398.daemon-stderr.log'), 'utf8');
+  expect(stderr).toContain('stderr round 40');
+  expect(stderr.length).toBeLessThan(40_000);
+});

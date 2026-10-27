@@ -10,7 +10,8 @@ import { assertStageNotRunningElsewhere, endSessionForLostStage } from './dev-ne
 // tunnel-manager/relay.spec.ts.
 
 const relay = async () => ({ controlHost: '127.0.0.1', controlPort: 40001 });
-const owner = { id: 'user-alice', label: 'Alice (alice-desktop)', session: 'desktop' };
+const MACHINE = '0123456789abcdef';
+const owner = { id: 'user-alice', label: 'Alice (alice-desktop)', session: `${process.pid}.${MACHINE}.desktop` };
 const laptop: RelaySessionInfo = {
   stack: 'shop-alice',
   session: 'laptop',
@@ -47,7 +48,7 @@ describe('the stage check before a dev session deploys', () => {
 
   // r2p dogfood, finding 10: a start right after `stop` was refused because the relay still listed the stopped session.
   test('a holder from this user and directory whose process has exited is replaced, not reported', async () => {
-    const ended: RelaySessionInfo = { ...laptop, session: '999999.old', label: owner.label };
+    const ended: RelaySessionInfo = { ...laptop, session: `999999.${MACHINE}.old`, label: owner.label };
     const replaced = await assertStageNotRunningElsewhere({
       boxState: 'running',
       relay,
@@ -71,10 +72,25 @@ describe('the stage check before a dev session deploys', () => {
     expect(
       await check({ listSessions: async () => [{ ...ended, owner: 'user-bob' }], isAlive: () => false })
     ).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE: ');
-    // A session ID without a process ID (an older CLI) cannot be judged.
-    expect(
-      await check({ listSessions: async () => [{ ...ended, session: 'old-format' }], isAlive: () => false })
-    ).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE: ');
+    // A session ID without a process ID and a machine (an older CLI) cannot be judged.
+    for (const session of ['old-format', '999999.0c9b0a4e-6f2d-4d7c-9a51-2d8f0e7b1c3a']) {
+      expect(await check({ listSessions: async () => [{ ...ended, session }], isAlive: () => false })).toStartWith(
+        'DEV_STAGE_RUNNING_ELSEWHERE: '
+      );
+    }
+  });
+
+  // #343 review: two machines with the same hostname (a default laptop name, two containers) have the same label; a
+  // process ID of the other machine says nothing about whether its session still runs.
+  test('a holder on another machine with the same hostname and directory is a real holder', async () => {
+    const otherMachine: RelaySessionInfo = {
+      ...laptop,
+      session: '999999.fedcba9876543210.old',
+      label: owner.label
+    };
+    expect(await check({ listSessions: async () => [otherMachine], isAlive: () => false })).toStartWith(
+      'DEV_STAGE_RUNNING_ELSEWHERE: '
+    );
   });
 
   test('a box that does not run has no session to ask, and an unreachable relay leaves the decision to the tunnels', async () => {
