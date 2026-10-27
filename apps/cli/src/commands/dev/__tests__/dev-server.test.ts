@@ -137,29 +137,33 @@ setTimeout(() => process.exit(1), 100);
     // The other session's record: a live process (this test's parent) of stage `first` with its agent on port 7399.
     const registry = localStatePaths.devAgentRegistryDirectory({ workingDirectory: directory });
     await mkdir(registry, { recursive: true });
-    await writeFile(
-      join(registry, 'shop-first.json'),
-      JSON.stringify({
-        pid: process.ppid,
-        port: 7399,
-        phase: 'ready',
-        projectName: 'shop',
-        stage: 'first',
-        region: 'eu-west-1',
-        startedAt: '',
-        workloads: ['web'],
-        databases: []
-      })
-    );
+    const other = {
+      pid: process.ppid,
+      port: 7399,
+      phase: 'ready',
+      projectName: 'shop',
+      stage: 'first',
+      region: 'eu-west-1',
+      startedAt: '',
+      workloads: ['web'],
+      databases: []
+    };
+    await writeFile(join(registry, 'shop-first.json'), JSON.stringify(other));
     registerDevServerCleanupHook();
-    const state = await startDevServer({
-      name: 'web',
-      config: { command: './next dev', workingDirectory: directory, framework: 'next' }
-    });
+    const expected = `Next.js runs one dev server per app directory, and the dev session of stage first (agent port 7399, process ${process.ppid}) runs it in ${directory}. Stop that session (\`stacktape dev stop --agent-port 7399\`), or run this stage from another Git worktree.`;
+    const start = () =>
+      startDevServer({
+        name: 'web',
+        config: { command: './next dev', workingDirectory: directory, framework: 'next' }
+      });
+    // The other session's record lists the app: refused before it starts.
+    const refused = await start();
+    expect(refused).toEqual({ status: 'error', error: expected });
+    // A record without the app (an older session, a renamed workload): Next.js's own refusal names it instead.
+    await writeFile(join(registry, 'shop-first.json'), JSON.stringify({ ...other, workloads: [] }));
+    const state = await start();
     expect(state.status).toBe('error');
-    expect(state.error).toBe(
-      `Next.js runs one dev server per app directory, and the dev session of stage first (agent port 7399, process ${process.ppid}) runs it in ${directory}. Stop that session (\`stacktape dev stop --agent-port 7399\`), or run this stage from another Git worktree.`
-    );
+    expect(state.error).toBe(expected);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

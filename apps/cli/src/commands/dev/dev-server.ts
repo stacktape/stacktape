@@ -218,6 +218,17 @@ export const startDevServer = async ({
   let currentState: DevServerState = { status: 'starting', port: targetPort };
   callbacks?.onStateChange?.(currentState);
 
+  // A second `next dev` in the directory prints "Ready", serves for a second and then exits: refuse it before it starts
+  // when another dev session of this project runs the same app.
+  if (framework === 'next') {
+    const holder = findOtherDevSessions().find(({ workloads }) => workloads?.includes(name));
+    if (holder) {
+      currentState = { status: 'error', error: describeNextDevServerHolder(holder, workingDir) };
+      callbacks?.onStateChange?.(currentState);
+      return currentState;
+    }
+  }
+
   const portReady = await ensureTargetPortAvailable();
   if (!portReady) {
     currentState = { status: 'error', error: `Port ${targetPort} is still in use` };
@@ -383,6 +394,23 @@ const EXIT_REASON_LINES = 8;
  * Why a dev server exited, from its last output. Next.js 16 runs one dev server per app directory: when another dev
  * session of this project runs it there, the error names that session.
  */
+type OtherDevSession = { stage: string; port: number; pid: number; workloads?: string[] };
+
+/** Next.js runs one dev server per app directory (16 holds a lock, older versions share `.next`). */
+const describeNextDevServerHolder = (other: OtherDevSession | undefined, workingDir: string) => {
+  const holder = other
+    ? `the dev session of stage ${other.stage} (${other.port ? `agent port ${other.port}, ` : ''}process ${other.pid}) runs it`
+    : 'another process runs it';
+  const stop = other?.port
+    ? `Stop that session (\`stacktape dev stop --agent-port ${other.port}\`)`
+    : `Stop ${other ? 'that session' : 'the other one'}`;
+  return `Next.js runs one dev server per app directory, and ${holder} in ${workingDir}. ${stop}, or run this stage from another Git worktree.`;
+};
+
+/**
+ * Why a dev server exited, from its last output. When Next.js refuses to start because another dev server runs in its
+ * directory, the error names the dev session of this project that runs it.
+ */
 export const describeDevServerExit = ({
   code,
   signal,
@@ -398,19 +426,12 @@ export const describeDevServerExit = ({
   lines: string[];
   framework: FrameworkType;
   workingDir: string;
-  findOtherSessions?: () => { stage: string; port: number; pid: number }[];
+  findOtherSessions?: () => OtherDevSession[];
 }): string => {
   const how = signal ? `was stopped by ${signal}` : `exited with code ${code}`;
   const when = serving ? ' after it was ready' : '';
   if (framework === 'next' && lines.some((line) => /another next dev server is already running/i.test(line))) {
-    const other = findOtherSessions()[0];
-    const holder = other
-      ? `the dev session of stage ${other.stage} (${other.port ? `agent port ${other.port}, ` : ''}process ${other.pid}) runs it`
-      : 'another process runs it';
-    const stop = other?.port
-      ? `Stop that session (\`stacktape dev stop --agent-port ${other.port}\`)`
-      : `Stop ${other ? 'that session' : 'the other one'}`;
-    return `Next.js runs one dev server per app directory, and ${holder} in ${workingDir}. ${stop}, or run this stage from another Git worktree.`;
+    return describeNextDevServerHolder(findOtherSessions()[0], workingDir);
   }
   const output = lines.filter((line) => line.trim()).slice(-EXIT_REASON_LINES);
   return `The dev server ${how}${when}.${output.length ? ` Its last output:\n${output.join('\n')}` : ''}`;

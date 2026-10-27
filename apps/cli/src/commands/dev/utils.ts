@@ -7,7 +7,13 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { getDockerHostAddress, inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@utils/docker';
+import {
+  execDocker,
+  getDockerHostAddress,
+  inspectDockerContainer,
+  listDockerContainers,
+  stopDockerContainer
+} from '@utils/docker';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
@@ -275,12 +281,28 @@ export const resolveRunningContainersWithSamePort = async ({
   }
 };
 
+/** How long a stopped dev container may take to be removed before dev mode removes it itself. */
+const CONTAINER_REMOVAL_WAIT_MS = 10_000;
+
+/**
+ * Stops a dev container and waits until it is gone. `docker run --rm` removes it a moment after it stops, and until then
+ * a new container of the same name fails to start ("The container name ... is already in use").
+ */
 export const gracefullyStopContainer = async (containerName: string) => {
   const containerInfo = await inspectDockerContainer(containerName);
-  if (containerInfo?.State?.Running) {
+  if (!containerInfo?.Id) return;
+  if (containerInfo.State?.Running) {
     const spinner = tuiManager.createSpinner({ text: 'Stopping container' });
     await stopDockerContainer(containerName, getContainerStopWaitTime());
     spinner.success();
+  }
+  const deadline = Date.now() + CONTAINER_REMOVAL_WAIT_MS;
+  while ((await inspectDockerContainer(containerName)).Id) {
+    if (Date.now() > deadline) {
+      await execDocker(['container', 'rm', '--force', containerName], { skipHandleError: true }).catch(() => {});
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 };
 
