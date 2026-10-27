@@ -94,6 +94,10 @@ export const DEPENDENCY_ANCHORS: Record<DependencyKind, AnchorRule> = {
   'websocket-api': {
     patterns: [/websocket/i, /ApiGatewayManagementApi/i, /PostToConnection/i, /connectionId/i, /routeKey/i],
     expectation: 'a WebSocket API handler or a PostToConnection call'
+  },
+  'state-machine': {
+    patterns: [/StartExecution|startExecution|start_execution|stepfunctions|client-sfn|AWS::StepFunctions/i],
+    expectation: 'a Step Functions StartExecution call'
   }
 };
 
@@ -127,6 +131,7 @@ const TRIGGER_PATTERNS: Record<FunctionTrigger['type'], readonly RegExp[]> = {
   schedule: [/Type:\s*Schedule\b/i, /ScheduledEvent|scheduleRate|\brate\s*\(|\bcron\s*\(/i],
   websocket: [/Type:\s*WebSocket\b/i, /APIGatewayProxyWebsocket|routeKey|route_key|connectionId|\$connect/i],
   'dynamodb-stream': [/Type:\s*DynamoDB\b/i, /DynamoDBStream|\bdynamodb\b|NewImage|OldImage|aws:dynamodb/i],
+  url: [/FunctionUrlConfig|AWS::Lambda::Url/i, /LambdaFunctionU(?:RL|rl)(?:Event|Handler|Resolver)/],
   'event-bus': [/Type:\s*EventBridgeRule\b/i, /EventBridge(?:Event|Handler)|detail-type|detailType|detail_type/i],
   unmapped: [/events?\s*:|addEventSource|authorizer|websocket|stream/i]
 };

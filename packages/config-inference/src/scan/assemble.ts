@@ -25,6 +25,7 @@ import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
+import { markMigrationsRunElsewhere } from './migration-runs';
 import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
 import { findLocalScripts } from './local-scripts';
@@ -693,13 +694,17 @@ const SERVICE_ADDRESS_VARIABLE =
 
 /**
  * Point a variable that spells another service's name at that service's URL: `ORDERS_API_URL` read by a Next.js
- * server component, or `NEXT_PUBLIC_ORDERS_URL` read in the browser, addresses the `orders-api` container.
+ * server component, or `NEXT_PUBLIC_ORDERS_URL` read in the browser, addresses the `orders-api` container, and
+ * `STATS_URL` addresses the `stats` function's own URL.
  *
- * Only a container that serves HTTP has a URL of its own to give, and only one service may match the name.
+ * Only a container that serves HTTP or a function with a function URL has a URL of its own to give, and only one
+ * service may match the name.
  */
 const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
   const targets = services.filter(
-    (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
+    (service) =>
+      (service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)) ||
+      (service.functionTriggers ?? []).some((trigger) => trigger.type === 'url')
   );
   for (const service of services) {
     for (const variable of service.environmentVariables ?? []) {
@@ -998,6 +1003,19 @@ export const assembleCandidateFacts = async ({
       migrationsByKey.set(key, { ...migration, serviceName });
     }
   }
+  // A manifest in a service directory names no service: the migrations belong to the one long-running service there.
+  for (const { path, migration } of outputs.flatMap((output) => output.pathMigrations ?? [])) {
+    const owners = services.filter(
+      (service) =>
+        service.path === path &&
+        service.functionEntrypoint === undefined &&
+        (service.processType === undefined || service.processType === 'procfile:web')
+    );
+    if (owners.length !== 1) continue;
+    const key = `${owners[0]!.name}:${migration.tool}`;
+    if (!migrationsByKey.has(key)) migrationsByKey.set(key, { ...migration, serviceName: owners[0]!.name });
+  }
+  await markMigrationsRunElsewhere(context, migrationsByKey.values());
   const migrations = [...migrationsByKey.values()];
 
   const workspaceGlobs = [...new Set(outputs.flatMap((output) => output.workspaceGlobs ?? []))];

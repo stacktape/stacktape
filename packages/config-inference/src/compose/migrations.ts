@@ -112,6 +112,42 @@ const shouldRunOnDeploy = (migration: MigrationFact, assumptions: readonly Assum
   return migration.runsAt === 'ci';
 };
 
+const TOOL_LABELS: Readonly<Record<string, string>> = {
+  alembic: 'Alembic',
+  django: 'Django migrations',
+  rails: 'Rails migrations',
+  prisma: 'Prisma Migrate',
+  drizzle: 'Drizzle Kit',
+  knex: 'Knex migrations',
+  typeorm: 'TypeORM migrations',
+  sequelize: 'Sequelize migrations',
+  ecto: 'Ecto migrations',
+  flyway: 'Flyway',
+  liquibase: 'Liquibase',
+  'golang-migrate': 'golang-migrate'
+};
+const toolLabel = (tool: string): string => TOOL_LABELS[tool] ?? `${tool} migrations`;
+
+/**
+ * A migration tool in the dependencies that nothing runs: no release phase, no decision, and not in the service's own
+ * start command. Its first deploy and its first `stacktape dev` start then serve a database without tables.
+ */
+const runsNowhere = (
+  migration: MigrationFact,
+  assumptions: readonly Assumption[],
+  services: readonly ServiceFact[]
+): boolean => {
+  if (migration.runsAt !== 'unknown') return false;
+  const decided = assumptions.some(
+    (assumption) =>
+      assumption.kind === 'migration-timing-unknown' &&
+      (assumption.parameters as Record<string, unknown>).serviceName === migration.serviceName
+  );
+  if (decided) return false;
+  const startCommand = services.find((service) => service.name === migration.serviceName)?.startCommand;
+  return startCommand === undefined || !startCommand.includes(migration.command.replace(/^npx /, ''));
+};
+
 export const composeMigrationHooks = ({
   migrations,
   services,
@@ -138,7 +174,19 @@ export const composeMigrationHooks = ({
   const taken = new Set<string>();
 
   for (const migration of migrations) {
-    if (!shouldRunOnDeploy(migration, assumptions)) continue;
+    if (!shouldRunOnDeploy(migration, assumptions)) {
+      // A SQLite file is only reachable from inside the app; composition already asks for a start-command migration.
+      const usesSqlite = dependencies.some(
+        (dependency) => dependency.kind === 'sqlite' && dependency.consumedBy.includes(migration.serviceName)
+      );
+      if (!usesSqlite && runsNowhere(migration, assumptions, services)) {
+        gaps.push({
+          subject: `${migration.serviceName}.migrations`,
+          message: `${migration.serviceName} depends on ${toolLabel(migration.tool)}, but nothing we found runs "${migration.command}". Run it before the server starts (at the start of the start command), or add it as a script and an afterDeploy hook.`
+        });
+      }
+      continue;
+    }
 
     if (!isRunnableMigrationCommand(migration.command)) {
       gaps.push({

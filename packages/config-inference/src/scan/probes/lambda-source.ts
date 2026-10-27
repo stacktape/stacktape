@@ -14,6 +14,7 @@ import {
   type ProbeOutput
 } from '../probe';
 import { sliceBalancedBraces } from '../balanced-slice';
+import { objectShape, orderWorkflowSteps, stepShapeOf } from './step-functions';
 
 /**
  * Only exports that are actually handler-shaped.
@@ -25,6 +26,12 @@ import { sliceBalancedBraces } from '../balanced-slice';
  */
 const HANDLER_PATTERN =
   /(?:export\s+(?:const\s+handler|async\s+function\s+handler|function\s+handler)|def\s+(?:lambda_handler|handler)\s*\(|(?:module\.)?exports\.handler\s*=)/;
+
+/**
+ * An async default export in a functions directory: `export default async (input: ScoreInput) =>`. Its siblings there
+ * are handlers, and a step a state machine invokes takes the input it is given rather than an AWS event type.
+ */
+const ASYNC_DEFAULT_EXPORT = /export\s+default\s+async\s+(?:function\s*[\w$]*\s*)?\(/;
 
 /** Entry files a single-function project keeps at its top level. */
 const ENTRY_FILE = /^(?:src\/)?(?:index|handler|lambda|main|app)\.(?:[cm]?js|tsx?|py)$/;
@@ -41,7 +48,17 @@ const LAMBDA_SIGNAL =
  */
 type EventFamily =
   | { trigger: 'http'; payloadFormat: '1.0' | '2.0' }
-  | { trigger: 'queue' | 'topic' | 'object-storage' | 'schedule' | 'websocket' | 'dynamodb-stream' | 'event-bus' }
+  | {
+      trigger:
+        | 'queue'
+        | 'topic'
+        | 'object-storage'
+        | 'schedule'
+        | 'websocket'
+        | 'dynamodb-stream'
+        | 'event-bus'
+        | 'url';
+    }
   | { trigger: 'unmapped'; sourceType: string };
 
 const EVENT_TYPES: ReadonlyArray<{ names: readonly string[]; family: EventFamily }> = [
@@ -52,13 +69,12 @@ const EVENT_TYPES: ReadonlyArray<{ names: readonly string[]; family: EventFamily
       'APIGatewayProxyEventV2WithLambdaAuthorizer',
       'APIGatewayProxyHandlerV2',
       'APIGatewayProxyHandlerV2WithJWTAuthorizer',
-      'APIGatewayProxyHandlerV2WithLambdaAuthorizer',
-      // A function URL receives the same event as an HTTP API with payload format 2.0.
-      'LambdaFunctionURLEvent',
-      'LambdaFunctionURLHandler'
+      'APIGatewayProxyHandlerV2WithLambdaAuthorizer'
     ],
     family: { trigger: 'http', payloadFormat: '2.0' }
   },
+  // The event is an HTTP API 2.0 event, but the handler was written for its own URL, which serves every path.
+  { names: ['LambdaFunctionURLEvent', 'LambdaFunctionURLHandler'], family: { trigger: 'url' } },
   {
     names: [
       'APIGatewayProxyEvent',
@@ -125,6 +141,11 @@ const TYPED_EXPORT = /export\s+(?:default\b|const\s+handler\b|(?:async\s+)?funct
 const SCHEDULED_EVENTBRIDGE = /EventBridge(?:Event|Handler)\s*<\s*['"`]Scheduled Event['"`]/;
 /** A literal schedule expression next to the handler, the only rate the source itself can state. */
 const SCHEDULE_LITERAL = /['"`]((?:rate|cron)\([^'"`)]+\))['"`]/;
+/** A Python module docstring that states the handler's schedule: `"""Runs every minute. Schedule: rate(1 minute)"""`. */
+const DOCSTRING_SCHEDULE = /^(?:\s*#[^\n]*\n)*\s*[rRuU]?("""|''')(?:(?!\1)[\s\S])*?\b((?:rate|cron)\([^)\n]+\))/;
+/** The schedule the source states next to its handler: a quoted literal, or a Python module docstring. */
+const scheduleIn = (raw: string): string | undefined =>
+  SCHEDULE_LITERAL.exec(raw)?.[1] ?? DOCSTRING_SCHEDULE.exec(raw)?.[2];
 
 /** Source files that are part of the application rather than its tests, tooling or build output. */
 const NON_APPLICATION_PATH =
@@ -269,6 +290,9 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) =>
       ])(raw);
     }
   },
+  // Powertools' function URL event and resolver (`LambdaFunctionUrlEvent`, `LambdaFunctionUrlResolver`): the handler
+  // serves its own URL. Its event has the HTTP API 2.0 fields too, so this comes first.
+  { family: { trigger: 'url' }, match: firstMatching([/\bLambdaFunctionUrl(?:Event|Resolver)\b/]) },
   { family: { trigger: 'http', payloadFormat: '2.0' }, match: firstMatching(HTTP_V2_EVENT) },
   {
     family: { trigger: 'http', payloadFormat: '1.0' },
@@ -299,7 +323,7 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) =>
       firstMatching([
         /['"]Scheduled Event['"]/,
         /['"]aws\.events['"]/,
-        ...(CREATES_SCHEDULES.test(raw) ? [] : [SCHEDULE_LITERAL])
+        ...(CREATES_SCHEDULES.test(raw) ? [] : [SCHEDULE_LITERAL, DOCSTRING_SCHEDULE])
       ])(raw)
   },
   // An EventBridge event from a rule on a bus: its `detail-type`, when it is not a schedule's.
@@ -426,6 +450,50 @@ const publisherIn = (path: string, raw: string): Publisher | undefined => {
     : { path, entries, evidence: citeFirstMatchOnly(path, raw, PUBLISHES_EVENTS, 'functionTriggers') };
 };
 
+const START_EXECUTION =
+  /\b(?:StartExecutionCommand|StartSyncExecutionCommand)\b|\.start(?:Sync)?Execution\s*\(|\bstart_(?:sync_)?execution\s*\(/;
+
+/** A call that starts an execution of the state machine whose ARN `variable` holds. */
+type WorkflowStart = {
+  variable: string;
+  /** The top-level keys of the execution input, when the code writes it as an object literal. */
+  inputKeys: string[] | undefined;
+  evidence: Citation | undefined;
+};
+
+/** The object literal that starts at the first `{` after `from`, if it is the next thing there. */
+const objectAt = (raw: string, from: number): string | undefined => {
+  const open = raw.indexOf('{', from);
+  if (open === -1 || raw.slice(from, open).trim() !== '') return undefined;
+  return sliceBalancedBraces(raw, open)?.body;
+};
+
+/**
+ * The executions a file starts: `new StartExecutionCommand({ stateMachineArn: process.env.X, input: JSON.stringify({...}) })`
+ * or `client.start_execution(stateMachineArn=os.environ["X"], input=json.dumps({...}))`. Only an ARN read from a
+ * variable counts: a literal ARN is a state machine somebody else created.
+ */
+const workflowStartsIn = (path: string, raw: string): WorkflowStart[] => {
+  if (!START_EXECUTION.test(raw)) return [];
+  const starts: WorkflowStart[] = [];
+  for (const match of raw.matchAll(new RegExp(START_EXECUTION.source, 'g'))) {
+    // The call's arguments: an ordinary keyword or object argument list fits in the next 1,200 characters.
+    const after = raw.slice(match.index, match.index + 1200);
+    const arn = /\bstateMachineArn\s*[:=]\s*([^,)}\n]+)/.exec(after)?.[1]?.trim();
+    const variable = arn === undefined ? undefined : environmentVariableIn(arn, raw);
+    if (variable === undefined || starts.some((start) => start.variable === variable)) continue;
+    const input = /\binput\s*[:=]\s*(?:JSON\.stringify|json\.dumps)\(\s*/.exec(after);
+    const body = input === null ? undefined : objectAt(after, input.index + input[0].length);
+    const shape = body === undefined ? undefined : objectShape(body);
+    starts.push({
+      variable,
+      inputKeys: shape === undefined || shape.spreads.length > 0 ? undefined : shape.keys,
+      evidence: citeFirstMatchOnly(path, raw, new RegExp(`\\bstateMachineArn\\b[^\\n]*${variable}`), 'dependencies')
+    });
+  }
+  return starts;
+};
+
 /** The detail types code publishes, for the loop check on a handler that also publishes. */
 export const publishedDetailTypes = (raw: string): string[] =>
   PUBLISHES_EVENTS.test(raw) ? [...raw.matchAll(DETAIL_TYPE)].map((match) => match[1]!) : [];
@@ -494,6 +562,14 @@ const uniqueHandlerNames = (paths: readonly string[]): Map<string, string> => {
   return names;
 };
 
+/** `APPROVAL_WORKFLOW_ARN` names the `approvalWorkflow` state machine. */
+const stateMachineNameFor = (variable: string): string => {
+  const words = variable.replace(/_ARN$/, '').toLowerCase().split('_').filter(Boolean);
+  return words.length === 0
+    ? defaultDependencyName('state-machine')
+    : words.map((word, index) => (index === 0 ? word : word[0]!.toUpperCase() + word.slice(1))).join('');
+};
+
 export const lambdaSourceProbe: Probe = {
   name: 'lambda-source',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -527,9 +603,13 @@ export const lambdaSourceProbe: Probe = {
     }> = [];
     const claimed = new Set<string>();
     const publishers = new Map<string, Publisher>();
+    const workflowStarts: WorkflowStart[] = [];
     const notePublisher = (path: string, raw: string) => {
       const publisher = publisherIn(path, raw);
       if (publisher !== undefined) publishers.set(path, publisher);
+      for (const start of workflowStartsIn(path, raw)) {
+        if (!workflowStarts.some((known) => known.variable === start.variable)) workflowStarts.push(start);
+      }
     };
 
     // Files under a handlers directory, and top-level entry files that name Lambda, are functions by their `handler`
@@ -541,7 +621,9 @@ export const lambdaSourceProbe: Probe = {
       // oxlint-disable-next-line no-await-in-loop -- each candidate is small and reads are policy controlled.
       const raw = await readText(context, path, { fullFile: true });
       if (raw !== undefined) notePublisher(path, raw);
-      if (raw === undefined || !HANDLER_PATTERN.test(raw)) continue;
+      if (raw === undefined) continue;
+      const defaultExport = HANDLER_DIRECTORY.test(path) && ASYNC_DEFAULT_EXPORT.test(raw);
+      if (!HANDLER_PATTERN.test(raw) && !defaultExport) continue;
       // An entry file outside a handlers directory counts only when it names Lambda itself: a Hono or Express app
       // wrapped for Lambda exports `handler` from `src/index.ts`, and so does plenty of code that is not a function.
       if (!HANDLER_DIRECTORY.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
@@ -553,7 +635,12 @@ export const lambdaSourceProbe: Probe = {
         raw,
         family: typed?.family ?? inferred?.family,
         triggerEvidence: typed?.citation ?? citeInferred(path, raw, inferred?.pattern),
-        entryEvidence: citeFirstMatch(path, raw, HANDLER_PATTERN, 'functionEntrypoint'),
+        entryEvidence: citeFirstMatch(
+          path,
+          raw,
+          HANDLER_PATTERN.test(raw) ? HANDLER_PATTERN : ASYNC_DEFAULT_EXPORT,
+          'functionEntrypoint'
+        ),
         pythonHandler: untypedExport(path, raw)?.pythonHandler
       });
     }
@@ -592,7 +679,12 @@ export const lambdaSourceProbe: Probe = {
       if (exported === undefined || !exported.eventParameter) continue;
       const inferred = inferEventFamily(raw);
       // `(event, context)` is the Lambda signature itself; a schedule literal alone proves nothing about the export.
-      if (!exported.contextParameter && (inferred === undefined || inferred.pattern === SCHEDULE_LITERAL)) continue;
+      if (
+        !exported.contextParameter &&
+        (inferred === undefined || inferred.pattern === SCHEDULE_LITERAL || inferred.pattern === DOCSTRING_SCHEDULE)
+      ) {
+        continue;
+      }
       handlers.push({
         path,
         raw,
@@ -648,7 +740,7 @@ export const lambdaSourceProbe: Probe = {
             : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
         );
       } else if (family?.trigger === 'schedule') {
-        const rate = SCHEDULE_LITERAL.exec(raw)?.[1];
+        const rate = scheduleIn(raw);
         if (rate === undefined) {
           uncertainties.push({
             kind: 'schedule-unknown',
@@ -663,6 +755,8 @@ export const lambdaSourceProbe: Probe = {
         } else {
           triggers.push({ type: 'schedule', rate });
         }
+      } else if (family?.trigger === 'url') {
+        triggers.push({ type: 'url' });
       } else if (family?.trigger === 'unmapped') {
         triggers.push({ type: 'unmapped', sourceType: family.sourceType });
       } else if (family?.trigger === 'websocket') {
@@ -749,7 +843,39 @@ export const lambdaSourceProbe: Probe = {
       service.name = name;
     }
 
-    return services.length === 0
+    // A state machine for each variable code starts executions with. Its steps are the functions nothing else invokes,
+    // and only when there is one machine and the data flow orders them.
+    const untriggered = services.filter(
+      (service) =>
+        (service.functionTriggers ?? []).length === 0 &&
+        !uncertainties.some(
+          (uncertainty) => uncertainty.kind === 'schedule-unknown' && uncertainty.serviceName === service.name
+        )
+    );
+    for (const start of workflowStarts) {
+      const steps =
+        workflowStarts.length === 1
+          ? orderWorkflowSteps(
+              start.inputKeys,
+              untriggered.map((service) => {
+                const handler = handlers.find((candidate) => candidate.path === service.functionEntrypoint)!;
+                return { name: service.name, shape: stepShapeOf(handler.path, handler.raw) };
+              })
+            )
+          : undefined;
+      dependencies.push({
+        name: stateMachineNameFor(start.variable),
+        kind: 'state-machine',
+        extensions: [],
+        consumedBy: [],
+        addressedBy: [start.variable],
+        ...(steps === undefined ? {} : { workflowSteps: steps.map((step) => step.name) }),
+        evidence: start.evidence === undefined ? [] : [start.evidence],
+        source: 'probe'
+      });
+    }
+
+    return services.length === 0 && dependencies.length === 0
       ? {}
       : {
           services,

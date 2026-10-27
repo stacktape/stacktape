@@ -523,6 +523,26 @@ const environmentFor = (
   return variables;
 };
 
+/** A workflow with nothing to run, for the user to fill in: init never invents business logic. */
+const PLACEHOLDER_DEFINITION = { StartAt: 'Start', States: { Start: { Type: 'Pass', End: true } } };
+
+const stateName = (resourceName: string): string => resourceName.charAt(0).toUpperCase() + resourceName.slice(1);
+
+/** Task states that run the functions in order, each through its ARN. */
+const taskChain = (resourceNames: readonly string[]): Record<string, unknown> => ({
+  StartAt: stateName(resourceNames[0]!),
+  States: Object.fromEntries(
+    resourceNames.map((resourceName, index) => [
+      stateName(resourceName),
+      {
+        Type: 'Task',
+        Resource: `$ResourceParam('${resourceName}', 'arn')`,
+        ...(index === resourceNames.length - 1 ? { End: true } : { Next: stateName(resourceNames[index + 1]!) })
+      }
+    ])
+  )
+});
+
 const composeDependency = (
   dependency: DependencyFact,
   profile: InfrastructureProfile,
@@ -667,6 +687,12 @@ const composeDependency = (
       return {
         resource: { type: 'websocket-api-gateway', properties: {} },
         reason: 'Your functions handle WebSocket connections and messages.'
+      };
+    case 'state-machine':
+      return {
+        // The states are written once the functions have their resource names; a placeholder until then.
+        resource: { type: 'state-machine', properties: { definition: PLACEHOLDER_DEFINITION } },
+        reason: 'Your code starts executions of a Step Functions workflow.'
       };
     case 'queue':
       return {
@@ -1128,6 +1154,47 @@ export const composeConfig = ({
     }
   });
 
+  // A workflow's Task states, now that its functions have resource names. Functions nothing invokes are the candidate
+  // states when the code does not order them; they are named in one item instead of one gap each.
+  const workflowStates = new Set<string>();
+  const untriggeredFunctions = facts.services.filter(
+    (service) =>
+      classifyService(service).resourceType === 'function' &&
+      service.functionTriggers.length === 0 &&
+      service.schedule === undefined
+  );
+  const placeholderWorkflows: Array<{ dependencyName: string; resourceName: string }> = [];
+  for (const dependency of facts.dependencies) {
+    if (dependency.kind !== 'state-machine') continue;
+    const resourceName = dependencyResourceNames.get(dependency.name);
+    const resource = resourceName === undefined ? undefined : resources[resourceName];
+    if (resourceName === undefined || resource === undefined) continue;
+    const steps = (dependency.workflowSteps ?? []).map((serviceName) =>
+      untriggeredFunctions.some((service) => service.name === serviceName)
+        ? serviceResourceNames.get(serviceName)
+        : undefined
+    );
+    if (steps.length > 0 && steps.every((step) => step !== undefined)) {
+      resource.properties.definition = taskChain(steps);
+      for (const serviceName of dependency.workflowSteps!) workflowStates.add(serviceName);
+    } else {
+      placeholderWorkflows.push({ dependencyName: dependency.name, resourceName });
+    }
+  }
+  const candidates = untriggeredFunctions
+    .map((service) => service.name)
+    .filter((serviceName) => !workflowStates.has(serviceName));
+  for (const { dependencyName, resourceName } of placeholderWorkflows) {
+    for (const candidate of candidates) workflowStates.add(candidate);
+    gaps.push({
+      subject: `${dependencyName}.definition`,
+      message:
+        candidates.length === 0
+          ? `Your code starts ${resourceName}, a Step Functions workflow, but init cannot tell which states it runs. Its definition is a Pass placeholder; replace it with your workflow's states before deploying.`
+          : `Your code starts ${resourceName}, a Step Functions workflow, but init cannot tell which states it runs or in which order. Its definition is a Pass placeholder. These functions are invoked by nothing else and may be its Task states: ${candidates.join(', ')}. Add them as Task states with Resource: $ResourceParam('<function>', 'arn').`
+    });
+  }
+
   const dockerfileOwners = facts.services.filter((candidate) => candidate.dockerfile !== undefined);
 
   for (const [index, service] of facts.services.entries()) {
@@ -1361,6 +1428,7 @@ export const composeConfig = ({
       classification.resourceType === 'function' &&
       service.functionTriggers.length === 0 &&
       service.schedule === undefined &&
+      !workflowStates.has(service.name) &&
       !assumptions.some(
         (assumption) =>
           assumption.kind === 'schedule-unknown' &&
@@ -1579,7 +1647,8 @@ const buildServiceResource = ({
   if (resourceType === 'function') {
     const events: Array<{ type: string; properties: Record<string, unknown> }> = [];
     for (const trigger of service.functionTriggers) {
-      if (trigger.type === 'unmapped') continue;
+      // A function URL is a property of the function, below, not an event integration.
+      if (trigger.type === 'unmapped' || trigger.type === 'url') continue;
       if (trigger.type === 'http') {
         if (
           httpApiGatewayName !== undefined &&
@@ -1677,6 +1746,7 @@ const buildServiceResource = ({
           }
         },
         ...(events.length === 0 ? {} : { events }),
+        ...(service.functionTriggers.some((trigger) => trigger.type === 'url') ? { url: { enabled: true } } : {}),
         ...(requiresVpc ? { joinDefaultVpc: true } : {}),
         alarms: [
           {

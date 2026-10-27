@@ -195,6 +195,8 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     eventType: z.string().min(1).optional()
   }),
   z.object({ type: z.literal('schedule'), rate: z.string().min(1) }),
+  /** The function's own HTTPS endpoint (a Lambda function URL), for a handler written for `LambdaFunctionURLEvent`. */
+  z.object({ type: z.literal('url') }),
   z.object({
     type: z.literal('websocket'),
     /** The `websocket-api` dependency whose routes invoke the handler. */

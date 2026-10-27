@@ -25,7 +25,9 @@
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { ServiceFactInput } from '../../facts/service';
+import { posix } from 'node:path';
 import { languageOf } from '../language';
+import { withoutSampleDirectories } from '../service-root';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /**
@@ -417,7 +419,56 @@ const javaVersionOf = (rawByPath: ReadonlyMap<string, string | undefined>): stri
   return fromGradle ?? fromMaven;
 };
 
-export const languageManifestProbe: Probe = {
+/** Manifests whose migration tools are read in service directories below the root. */
+const NESTED_MIGRATION_MANIFESTS = new Set(['requirements.txt', 'pyproject.toml', 'Pipfile', 'Gemfile']);
+const NON_SERVICE_PATH = /(?:^|\/)(?:node_modules|vendor|dist|build|\.venv|venv|site-packages|tests?|docs?)\//;
+const MAX_NESTED_MANIFESTS = 20;
+
+/**
+ * The migration tool a service directory below the root depends on: `api/requirements.txt` listing Alembic. The root
+ * manifest is the application's own and is read below; these belong to whichever service the directory holds.
+ */
+const nestedMigrations = async (context: ProbeContext): Promise<NonNullable<ProbeOutput['pathMigrations']>> => {
+  const paths = withoutSampleDirectories(
+    context.files.filter(
+      (file) =>
+        file.includes('/') && NESTED_MIGRATION_MANIFESTS.has(posix.basename(file)) && !NON_SERVICE_PATH.test(file)
+    )
+  ).slice(0, MAX_NESTED_MANIFESTS);
+  const found: NonNullable<ProbeOutput['pathMigrations']> = [];
+  for (const path of paths) {
+    const directory = posix.dirname(path);
+    if (found.some((entry) => entry.path === directory)) continue;
+    const manifest = MANIFESTS.find(({ files }) => files.includes(posix.basename(path)));
+    // oxlint-disable-next-line no-await-in-loop -- bounded, small files read in a stable order.
+    const raw = manifest === undefined ? undefined : await readText(context, path);
+    if (manifest === undefined || raw === undefined) continue;
+    const names = new Set(manifest.extract(raw).map(normalise));
+    const tool = MIGRATION_TOOLS.find((entry) => entry.packages.some((name) => names.has(name)));
+    if (tool === undefined) continue;
+    const citation = citeFirstMatchOnly(
+      path,
+      raw,
+      new RegExp(
+        tool.packages.find((name) => names.has(name))!,
+        'i'
+      )
+    );
+    found.push({
+      path: directory,
+      migration: {
+        tool: tool.tool,
+        command: tool.command,
+        runsAt: 'unknown',
+        evidence: citation === undefined ? [] : [citation]
+      }
+    });
+  }
+  return found;
+};
+
+/** The repository root's own manifest: its services, dependencies and migrations. */
+const rootManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     const dotnetProjectPaths = context.files
@@ -608,5 +659,14 @@ export const languageManifestProbe: Probe = {
             ]
           })
     };
+  }
+};
+
+export const languageManifestProbe: Probe = {
+  name: 'language-manifests',
+  run: async (context: ProbeContext): Promise<ProbeOutput> => {
+    const root = await rootManifestProbe.run(context);
+    const pathMigrations = await nestedMigrations(context);
+    return pathMigrations.length === 0 ? root : { ...root, pathMigrations };
   }
 };

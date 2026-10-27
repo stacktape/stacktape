@@ -59,6 +59,14 @@ const expectValid = (config: unknown): void => {
   expect(valid).toBe(true);
 };
 
+const workflowVariable = (name: string, dependencyName: string) => ({
+  name,
+  role: 'infra-dependency' as const,
+  dependencyName,
+  required: true,
+  evidence: []
+});
+
 describe('composed configuration conforms to the Stacktape schema', () => {
   it('a service that keeps its SQLite file on a mounted disk', () => {
     expectValid(
@@ -691,5 +699,142 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       { name: 'ORDERS_API_URL', value: "$ResourceParam('ordersApi', 'url')" },
       { name: 'NEXT_PUBLIC_WS_URL', value: "$ResourceParam('websocketApi', 'url')" }
     ]);
+  });
+
+  it('a function URL, and state machines with ordered Task states or a placeholder', () => {
+    const fn = (name: string, overrides: Partial<ServiceFactInput> = {}) =>
+      service({
+        name,
+        path: 'functions',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `functions/${name}.ts`,
+        ...overrides
+      });
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          fn('stats', { functionTriggers: [{ type: 'url' }] }),
+          fn('score'),
+          fn('mark-decision'),
+          service({
+            name: 'api',
+            path: 'api',
+            port: 8000,
+            environmentVariables: [
+              workflowVariable('APPROVAL_WORKFLOW_ARN', 'approvalWorkflow'),
+              workflowVariable('REFUND_WORKFLOW_ARN', 'refundWorkflow')
+            ]
+          }),
+          service({
+            name: 'web',
+            path: 'web',
+            framework: 'sveltekit',
+            devCommand: 'npm run dev',
+            environmentVariables: [
+              {
+                name: 'STATS_URL',
+                role: 'cross-service-reference',
+                targetServiceName: 'stats',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ],
+        dependencies: [
+          {
+            name: 'approvalWorkflow',
+            kind: 'state-machine',
+            consumedBy: ['api'],
+            addressedBy: ['APPROVAL_WORKFLOW_ARN'],
+            workflowSteps: ['score', 'mark-decision'],
+            evidence: [],
+            source: 'probe'
+          },
+          {
+            name: 'refundWorkflow',
+            kind: 'state-machine',
+            consumedBy: ['api'],
+            addressedBy: ['REFUND_WORKFLOW_ARN'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.stats?.properties.url).toEqual({ enabled: true });
+    expect(resources.web?.properties.environment).toEqual([
+      { name: 'STATS_URL', value: "$ResourceParam('stats', 'url')" }
+    ]);
+    expect(resources.approvalWorkflow?.properties.definition).toEqual({
+      StartAt: 'Score',
+      States: {
+        Score: { Type: 'Task', Resource: "$ResourceParam('score', 'arn')", Next: 'MarkDecision' },
+        MarkDecision: { Type: 'Task', Resource: "$ResourceParam('markDecision', 'arn')", End: true }
+      }
+    });
+    // No order for the second one: a placeholder, and one item. Its candidate states would be the functions nothing
+    // invokes, but the first workflow runs both.
+    expect(resources.refundWorkflow?.properties.definition).toEqual({
+      StartAt: 'Start',
+      States: { Start: { Type: 'Pass', End: true } }
+    });
+    expect(resources.api?.properties).toMatchObject({
+      environment: [
+        { name: 'APPROVAL_WORKFLOW_ARN', value: "$ResourceParam('approvalWorkflow', 'arn')" },
+        { name: 'REFUND_WORKFLOW_ARN', value: "$ResourceParam('refundWorkflow', 'arn')" }
+      ],
+      connectTo: ['approvalWorkflow', 'refundWorkflow']
+    });
+    expect(result.gaps).toEqual([
+      {
+        subject: 'refundWorkflow.definition',
+        message:
+          "Your code starts refundWorkflow, a Step Functions workflow, but init cannot tell which states it runs. Its definition is a Pass placeholder; replace it with your workflow's states before deploying."
+      }
+    ]);
+  });
+
+  it('a state machine whose states the code does not order names the functions nothing invokes', () => {
+    const fn = (name: string) =>
+      service({
+        name,
+        path: 'functions',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `functions/${name}.ts`
+      });
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [fn('score'), fn('audit')],
+        dependencies: [
+          {
+            name: 'approvalWorkflow',
+            kind: 'state-machine',
+            consumedBy: [],
+            addressedBy: ['APPROVAL_WORKFLOW_ARN'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    // One item for the workflow instead of a "no event invokes it" item for each function.
+    expect(result.gaps.map((gap) => gap.subject)).toEqual(['approvalWorkflow.definition']);
+    expect(result.gaps[0]!.message).toContain('may be its Task states: score, audit.');
   });
 });

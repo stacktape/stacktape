@@ -558,4 +558,151 @@ describe('the lambda-source probe', () => {
     // The bus is the one the publishers read from `ORDER_EVENTS`, so that variable gets its address.
     expect(output.dependencies).toMatchObject([{ name: 'eventBus', kind: 'event-bus', addressedBy: ['ORDER_EVENTS'] }]);
   });
+
+  it('gives a handler written for its own function URL that URL, not a route on an HTTP API', async () => {
+    const repo = await makeRepo({
+      'functions/stats.ts': [
+        "import type { LambdaFunctionURLEvent, LambdaFunctionURLResult } from 'aws-lambda';",
+        'export default async (_event: LambdaFunctionURLEvent): Promise<LambdaFunctionURLResult> => ({ statusCode: 200 });',
+        ''
+      ].join('\n'),
+      'functions/report.py': [
+        'from aws_lambda_powertools.utilities.data_classes import LambdaFunctionUrlEvent, event_source',
+        '',
+        '@event_source(data_class=LambdaFunctionUrlEvent)',
+        'def handler(event, context):',
+        '    return {"statusCode": 200, "body": event.raw_path}',
+        ''
+      ].join('\n'),
+      // The one HTTP API handler still takes the catch-all route: a function URL is not a second HTTP handler.
+      'functions/api.ts': [
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';",
+        'export default async (event: APIGatewayProxyEventV2) => ({ statusCode: 200, body: event.rawPath });',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+    const triggers = Object.fromEntries(
+      (output.services ?? []).map((service) => [service.functionEntrypoint, service.functionTriggers])
+    );
+
+    expect(triggers).toEqual({
+      'functions/stats.ts': [{ type: 'url' }],
+      'functions/report.py': [{ type: 'url' }],
+      'functions/api.ts': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }]
+    });
+  });
+
+  it("reads a Python job's schedule from its module docstring", async () => {
+    const repo = await makeRepo({
+      'workers/cleanup.py': [
+        '"""Expires receipts stuck in `uploaded`.',
+        '',
+        'Schedule: rate(1 minute)',
+        '"""',
+        'def handler(event, context):',
+        '    pass',
+        ''
+      ].join('\n'),
+      // A rate in a comment further down is not the module's statement.
+      'workers/report.py': [
+        '"""Builds the nightly report."""',
+        '# Ran as rate(5 minutes) before the move.',
+        'def handler(event, context):',
+        '    pass',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+    const triggers = Object.fromEntries(
+      (output.services ?? []).map((service) => [service.functionEntrypoint, service.functionTriggers])
+    );
+
+    expect(triggers).toEqual({
+      'workers/cleanup.py': [{ type: 'schedule', rate: 'rate(1 minute)' }],
+      'workers/report.py': []
+    });
+  });
+
+  const approvalWorkflow = {
+    'api/main.py': [
+      'import json, os',
+      'import boto3',
+      'sfn = boto3.client("stepfunctions")',
+      'def approve(receipt_id, amount):',
+      '    sfn.start_execution(',
+      '        stateMachineArn=os.environ["APPROVAL_WORKFLOW_ARN"],',
+      '        input=json.dumps({"receiptId": receipt_id, "amount": amount}),',
+      '    )',
+      ''
+    ].join('\n'),
+    'functions/score.ts': [
+      'type ScoreInput = { receiptId: string; amount: number };',
+      'export default async (input: ScoreInput) => {',
+      '  const approved = input.amount <= 500;',
+      "  return { ...input, approved, note: approved ? 'auto' : 'manager' };",
+      '};',
+      ''
+    ].join('\n'),
+    'workers/mark_decision.py': [
+      'def handler(event, context):',
+      '    status = "approved" if event["approved"] else "rejected"',
+      '    print(event["receiptId"], event["note"], status)',
+      '    return {"receiptId": event["receiptId"], "status": status}',
+      ''
+    ].join('\n')
+  };
+
+  it('creates the state machine code starts, with Task states in the order the data flows', async () => {
+    const repo = await makeRepo(approvalWorkflow);
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    // The default export in `functions/` is a function even without an aws-lambda type: a state machine invokes it.
+    expect((output.services ?? []).map((service) => [service.name, service.functionTriggers])).toEqual([
+      ['score', []],
+      ['mark_decision', []]
+    ]);
+    expect(output.dependencies).toEqual([
+      expect.objectContaining({
+        name: 'approvalWorkflow',
+        kind: 'state-machine',
+        addressedBy: ['APPROVAL_WORKFLOW_ARN'],
+        // `score` reads what the execution starts with; `mark_decision` reads `approved` and `note`, which only
+        // `score` returns.
+        workflowSteps: ['score', 'mark_decision']
+      })
+    ]);
+  });
+
+  it('leaves the states to the user when the data flow does not order the functions', async () => {
+    const repo = await makeRepo({
+      ...approvalWorkflow,
+      // Reads only what the execution starts with, like `score`: either could run first.
+      'functions/audit.ts': [
+        'export default async (input: { receiptId: string }) => {',
+        '  console.log(input.receiptId);',
+        '  return { audited: true };',
+        '};',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.dependencies).toEqual([
+      expect.objectContaining({
+        name: 'approvalWorkflow',
+        kind: 'state-machine',
+        addressedBy: ['APPROVAL_WORKFLOW_ARN']
+      })
+    ]);
+    expect(output.dependencies![0]!.workflowSteps).toBeUndefined();
+  });
 });

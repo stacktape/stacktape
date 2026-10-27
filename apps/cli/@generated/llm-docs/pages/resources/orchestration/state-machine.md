@@ -27,7 +27,7 @@ Not every coordination problem needs a state machine. For straightforward async 
 
 ## Basic example
 
-This example defines two [Lambda functions](/resources/compute/lambda-function) orchestrated by a state machine. The workflow validates an order, branches on the result, and either processes the order or fails. Task states use CloudFormation intrinsic functions to reference Lambda ARNs at deploy time.
+This example defines two [Lambda functions](/resources/compute/lambda-function) orchestrated by a state machine. The workflow validates an order, branches on the result, and either processes the order or fails. Task states reference each function's ARN with `$ResourceParam`, which resolves at deploy time.
 
 
 Example (TypeScript):
@@ -37,7 +37,8 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  JsBundleLambdaPackaging
+  JsBundleLambdaPackaging,
+  $ResourceParam
 } from 'stacktape';
 export default defineConfig(() => {
   const validateOrder = new LambdaFunction({
@@ -56,7 +57,7 @@ export default defineConfig(() => {
       States: {
         ValidateOrder: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ValidateOrderFunction', 'Arn'] },
+          Resource: $ResourceParam('validateOrder', 'arn'),
           Next: 'CheckValidity',
           Catch: [{ ErrorEquals: ['States.ALL'], Next: 'OrderFailed' }]
         },
@@ -67,7 +68,7 @@ export default defineConfig(() => {
         },
         ProcessOrder: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+          Resource: $ResourceParam('processOrder', 'arn'),
           Retry: [
             {
               ErrorEquals: ['States.TaskFailed'],
@@ -97,7 +98,7 @@ export default defineConfig(() => {
 A state machine definition requires `StartAt` and `States`. `StartAt` names the first state to execute, and `States` maps state names to state objects — each with a `Type` field. Most non-terminal states transition with `Next` or finish with `End: true`; terminal `Succeed` and `Fail` states end execution without needing `Next` or `End`.
 
 
-> **Tip:** Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape synth`](/cli/synth)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
+> **Tip:** Task states reference a Lambda function by its name in your config: `$ResourceParam('validateOrder', 'arn')` resolves to the function's ARN at deploy time. You don't need to look up CloudFormation logical names.
 
 
 ## Workflow definition
@@ -123,16 +124,30 @@ The Stacktape `StateMachine` definition models eight ASL state types: Choice, Fa
 
 ### Referencing Lambda functions
 
-Task states use the `Resource` property to identify a Lambda function or another supported ASL task target. The `Resource` value can be a string or an object. Use an object for CloudFormation intrinsic functions like `Fn::GetAtt` to reference Lambda ARNs that resolve at deploy time. Use a string when you already have a concrete Task `Resource` value, such as a Lambda ARN or an [ASL service integration](https://states-language.net/spec.html) URI.
+Task states use the `Resource` property to identify a Lambda function or another supported ASL task target. For a function in the same config, use the [`$ResourceParam` directive](/configuration/directives) with the function's resource name and its `arn` parameter. Stacktape resolves it to the function's ARN at deploy time.
 
-```json
-{
-  "Type": "Task",
-  "Resource": { "Fn::GetAtt": ["MyFunctionLogicalName", "Arn"] }
-}
+```yaml
+resources:
+  scoreReceipt:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/score-receipt.ts
+  approvalWorkflow:
+    type: state-machine
+    properties:
+      definition:
+        StartAt: ScoreReceipt
+        States:
+          ScoreReceipt:
+            Type: Task
+            Resource: $ResourceParam('scoreReceipt', 'arn')
+            End: true
 ```
 
-Run [`stacktape synth`](/cli/synth) to find the CloudFormation logical name for each resource in your generated template. Do not hard-code logical names without verifying them against the compiled output.
+Use a plain string when you already have a concrete Task `Resource` value, such as the ARN of a function outside this config or an [ASL service integration](https://states-language.net/spec.html) URI. An object with a CloudFormation intrinsic function, such as `Fn::GetAtt`, also works when you need one.
 
 You can also set `TimeoutSeconds` on a Task state to limit how long the state machine waits for the task to complete, and `HeartbeatSeconds` to require periodic heartbeat signals from long-running tasks. The `Parameters` property lets you reshape the input before passing it to the task.
 
@@ -156,7 +171,8 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  JsBundleLambdaPackaging
+  JsBundleLambdaPackaging,
+  $ResourceParam
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -174,7 +190,7 @@ export default defineConfig(() => {
       States: {
         ChargePayment: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ChargePaymentFunction', 'Arn'] },
+          Resource: $ResourceParam('chargePayment', 'arn'),
           Retry: [
             {
               ErrorEquals: ['States.TaskFailed'],
@@ -193,7 +209,7 @@ export default defineConfig(() => {
         },
         NotifySupport: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['NotifySupportFunction', 'Arn'] },
+          Resource: $ResourceParam('notifySupport', 'arn'),
           Next: 'PaymentFailed'
         },
         PaymentFailed: {
@@ -231,7 +247,8 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  JsBundleLambdaPackaging
+  JsBundleLambdaPackaging,
+  $ResourceParam
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -245,7 +262,7 @@ export default defineConfig(() => {
       States: {
         ProcessOrder: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+          Resource: $ResourceParam('processOrder', 'arn'),
           End: true
         }
       }
@@ -372,7 +389,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ### How do I reference Lambda functions in a state machine definition?
 
-Use CloudFormation intrinsic functions in the Task state's `Resource` field — for example, `{ 'Fn::GetAtt': ['MyFunctionLogicalName', 'Arn'] }`. The logical name depends on the compiled CloudFormation template. Run [`stacktape synth`](/cli/synth) to find the exact logical name for each resource in your generated template before referencing them.
+Put the function's ARN in the Task state's `Resource` field with the [`$ResourceParam` directive](/configuration/directives): `Resource: $ResourceParam('processOrder', 'arn')`, where `processOrder` is the function's name in your config. Stacktape resolves it at deploy time, so you don't need CloudFormation logical names.
 
 ### How do I pass the state machine ARN to a Lambda function?
 
