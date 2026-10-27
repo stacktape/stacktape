@@ -732,11 +732,14 @@ export const dockerRun = async ({
   transformStderrPut,
   transformStdoutPut,
   args,
-  onStart
+  onStart,
+  hostNetwork
 }: {
   args: StacktapeArgs;
   name: string;
   image: string;
+  /** Whether the container shares this machine's network; by default only on native Linux Docker (see below). */
+  hostNetwork?: boolean;
   entryPoint?: string[];
   command?: string[];
   volumeMapping?: string;
@@ -769,7 +772,7 @@ export const dockerRun = async ({
   // see here https://github.com/aws/session-manager-plugin/pull/54
   // NOTE: --network host only works properly on Linux. On macOS/Windows, Docker runs in a VM,
   // so host networking only shares the VM's network, not the actual host. Use port mappings instead.
-  const useHostNetwork = await dockerRunUsesHostNetwork();
+  const useHostNetwork = hostNetwork ?? (await dockerRunUsesHostNetwork());
   if (useHostNetwork) {
     dockerArgs.push('--network', 'host');
   }

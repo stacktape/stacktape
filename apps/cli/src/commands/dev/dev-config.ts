@@ -63,9 +63,10 @@ export const DEV_CONFIG = {
   devServer: {
     /** How long to cache port availability results (ms) */
     portCacheTtlMs: 1000,
-    /** Timeout for waiting for ready signal from dev server (ms) */
-    readyTimeoutMs: 10000,
-    /** Delay after ready signal to capture URL and compile time (ms) */
-    readyDelayMs: 300
+    /**
+     * How long a dev server may take from its start until its port accepts connections (ms). One that needs longer is
+     * reported as failed, and becomes running once it serves.
+     */
+    serveTimeoutMs: 120000
   }
 } as const;

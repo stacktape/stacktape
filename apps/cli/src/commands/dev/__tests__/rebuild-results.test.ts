@@ -65,7 +65,7 @@ const startSession = async ({
     })
   });
   setRebuildFunctions(
-    (name) => (workloads.includes(name) ? rebuilder.rebuildWorkloads([name]) : Promise.resolve(undefined)),
+    (name) => rebuilder.rebuildWorkload(name, workloads.includes(name)),
     () => rebuilder.rebuildWorkloads(workloads)
   );
 
@@ -349,4 +349,34 @@ test('a failed rebuild is not tried again when a newer build of the workload wai
   expect(await fourth).toMatchObject({ ok: true });
   expect(await third).toMatchObject({ ok: false });
   expect(attempts).toEqual(['failing', 'newer']);
+});
+
+// r2w: a rebuild of a workload added to the configuration after the start answered NOT_FOUND, which reads as a typo.
+test('a rebuild of a workload the configuration gained after the start says to restart', async () => {
+  const { call, config, writeConfig } = await startSession({ workloads: ['api'], build: async () => {} });
+  const unknown = await call('POST', '/rebuild/worker');
+  expect(unknown.ok).toBeFalse();
+  expect(unknown.code).not.toBe('CONFIG_CHANGED_RESTART_REQUIRED');
+
+  await writeConfig({ resources: { ...config.resources, worker: { type: 'function' } } });
+  const added = await call('POST', '/rebuild/worker');
+  expect(added).toMatchObject({ ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED' });
+  expect(added.message).toStartWith(
+    'worker is not part of this dev session. stacktape.json changed after dev mode started'
+  );
+});
+
+// r2w: a failed Go build came back as 3 KB of BuildKit output twice, in the message and in failedWorkloads.
+test("a failed rebuild's error of several lines is in failedWorkloads only", async () => {
+  const error =
+    'Docker build failed in step `go build`:\n./main.go:78:39: undefined: undefinedVar\nFull build output: /tmp/x';
+  const { call } = await startSession({
+    workloads: ['api'],
+    build: async () => {
+      throw new CliError({ category: 'DOCKER', code: 'DOCKER_ERROR', message: error });
+    }
+  });
+  const failed = await call('POST', '/rebuild/api');
+  expect(failed.message).toBe('Rebuild failed. api: 3 lines in failedWorkloads');
+  expect(failed.data.failedWorkloads).toEqual([{ name: 'api', error }]);
 });

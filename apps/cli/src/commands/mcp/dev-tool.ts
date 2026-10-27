@@ -41,6 +41,8 @@ type DevApiRequest = (input: {
 /** How long a status check waits: one agent that hangs must not block every call that looks for a session. */
 const STATUS_CHECK_TIMEOUT_MS = 3000;
 
+const REBUILD_PROGRESS_INTERVAL_MS = 5000;
+
 type DevToolDependencies = {
   runCli?: typeof runStacktapeCommandJsonl;
   /** The MCP server's working directory: sessions there count as this server's own. Default: the process's. */
@@ -53,6 +55,8 @@ type DevToolDependencies = {
   now?: () => Date;
   /** How long `stop` waits for the agent to exit. */
   stopWaitMs?: number;
+  /** How often a rebuild reports progress. */
+  rebuildProgressIntervalMs?: number;
 };
 
 type StartupProgressEntry = { ts: string; eventType: string; status: string; message: string; instanceId?: string };
@@ -907,6 +911,41 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   });
   const activeDevSessions = registry.active;
   const stopWaitMs = dependencies.stopWaitMs ?? STOP_WAIT_MS;
+  const rebuildProgressIntervalMs = dependencies.rebuildProgressIntervalMs ?? REBUILD_PROGRESS_INTERVAL_MS;
+
+  /**
+   * Reports what a rebuild waits for while its request runs, every `rebuildProgressIntervalMs`: a container that
+   * builds and then waits for its port can take minutes, and clients reset their timeout on progress.
+   */
+  const withRebuildProgress = async <T>(
+    port: number,
+    request: Promise<T>,
+    onProgress: ((event: { message: string }) => void | Promise<void>) | undefined
+  ): Promise<T> => {
+    if (!onProgress) return request;
+    const startedAt = Date.now();
+    let answered = false;
+    const timer = setInterval(async () => {
+      const status = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true', timeoutMs: 2000 }).catch(
+        () => undefined
+      );
+      const rebuilding = (Array.isArray(status?.workloads) ? status.workloads : [])
+        .filter((workload): workload is { name: string; statusMessage?: string } => workload?.status === 'starting')
+        .map(({ name, statusMessage }) => (statusMessage ? `${name}: ${statusMessage}` : name));
+      // A tick that waited for the status while the rebuild answered reports nothing.
+      if (answered) return;
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      await Promise.resolve(
+        onProgress({ message: `Rebuilding${rebuilding.length ? ` ${rebuilding.join('; ')}` : ''} (${seconds} s)` })
+      ).catch(() => {});
+    }, rebuildProgressIntervalMs);
+    try {
+      return await request;
+    } finally {
+      answered = true;
+      clearInterval(timer);
+    }
+  };
 
   /**
    * Whether the agent exited within `stopWaitMs`. Its HTTP server closes early in its cleanup, so with the process ID
@@ -1315,22 +1354,20 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         });
       }
 
-      const response = await requestDevApi({
+      const response = await withRebuildProgress(
         port,
-        method: 'POST',
-        path: `/rebuild/${encodeURIComponent(workload)}`,
-        body: {}
-      });
+        requestDevApi({ port, method: 'POST', path: `/rebuild/${encodeURIComponent(workload)}`, body: {} }),
+        onProgress
+      );
       return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
     }
 
     if (action === 'rebuild_all') {
-      const response = await requestDevApi({
+      const response = await withRebuildProgress(
         port,
-        method: 'POST',
-        path: '/rebuild/all',
-        body: {}
-      });
+        requestDevApi({ port, method: 'POST', path: '/rebuild/all', body: {} }),
+        onProgress
+      );
       return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
     }
 

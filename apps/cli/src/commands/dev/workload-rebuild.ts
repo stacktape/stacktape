@@ -150,5 +150,20 @@ export const createWorkloadRebuilder = ({
     if (refused.size) await rebuildWorkloads([]);
   };
 
-  return { rebuildWorkloads, onConfigFileChange };
+  /**
+   * Rebuilds one workload of the session (`known`); `undefined` for a name the session does not run. A workload added
+   * to the configuration after the start runs only after a restart, which the result says.
+   */
+  const rebuildWorkload = async (name: string, known: boolean): Promise<RebuildResult | undefined> => {
+    if (known) return rebuildWorkloads([name]);
+    const change = await checkConfig();
+    if (!change.changed) return undefined;
+    return {
+      ok: false,
+      code: 'CONFIG_CHANGED_RESTART_REQUIRED',
+      message: `${name} is not part of this dev session. ${change.reason}`
+    };
+  };
+
+  return { rebuildWorkloads, rebuildWorkload, onConfigFileChange };
 };

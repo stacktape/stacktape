@@ -71,13 +71,13 @@ export const startNextjsWebDevServer = async ({
             tuiManager.info(`[${name}] ${status}`);
           }
         } else if (newState.status === 'error') {
-          if (inRebuildPhase) {
-            devTuiManager.setRebuildError(name, newState.error || 'Build failed');
-          } else if (useDevTui) {
+          // A server can fail at any time, also while another workload rebuilds: its status says so either way.
+          if (inRebuildPhase) devTuiManager.setRebuildError(name, newState.error || 'Build failed');
+          if (useDevTui) {
             devTuiManager.setWorkloadStatus(name, 'error', { error: newState.error });
-            devTuiManager.log(name, status);
+            devTuiManager.log(name, status, 'error');
           } else {
-            tuiManager.info(`[${name}] ${status}`);
+            tuiManager.error(`[${name}] ${status}`);
           }
         }
       },

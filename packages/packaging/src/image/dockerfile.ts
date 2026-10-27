@@ -23,8 +23,11 @@ export const buildUsingDockerfile = async ({
   dockerBuildOutputArchitecture,
   cacheFromRef,
   cacheToRef,
-  buildDockerImage
+  buildDockerImage,
+  reportSourceFiles
 }: {
+  /** Receives the files of the build context before the build runs, so a caller can watch them when it fails. */
+  reportSourceFiles?: ((sourceFiles: { path: string }[]) => void) | undefined;
   name: string;
   cwd: string;
   progressLogger: ProgressLogger;
@@ -51,6 +54,7 @@ export const buildUsingDockerfile = async ({
     absoluteBuildContextPath,
     dockerfilePath: effectiveDockerfilePath
   });
+  reportSourceFiles?.(includedFilePaths.map((path) => ({ path })));
   const digest = mergeHashes(
     contextChecksum,
     objectHash({
