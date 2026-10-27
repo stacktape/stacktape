@@ -422,6 +422,8 @@ export const mergeAgentSubmission = ({
     // warning that another tool already deploys this project whenever an agent ran.
     existingDeployments: baseline.existingDeployments,
     migrations,
+    // Not on the agent's schema: read from manifests by the scan.
+    localScripts: baseline.localScripts,
     uncertainties,
     // `notes` stays a probe-and-verifier field. Free prose from something that reads untrusted files
     // has no route to the user, not even an advisory one.

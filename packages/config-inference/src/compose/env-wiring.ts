@@ -94,6 +94,8 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
       ? { kind: 'param', param: 'arn' }
       : { kind: 'none' };
   }
+  // SNS calls take the topic's ARN; a bare `EVENTS_TOPIC` is passed as `TopicArn`.
+  if (kind === 'topic' && name.endsWith('TOPIC')) return { kind: 'param', param: 'arn' };
   if (/(NAME|BUCKET|TABLE|TOPIC|QUEUE)$/.test(name)) {
     return kind === 'object-storage' || kind === 'dynamodb' || kind === 'topic' || kind === 'queue'
       ? { kind: 'param', param: 'name' }

@@ -27,6 +27,7 @@ import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } 
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
 import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
+import { findLocalScripts } from './local-scripts';
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
@@ -757,6 +758,14 @@ export const assembleCandidateFacts = async ({
     for (const serviceName of hasOnlyExampleEnvironmentEvidence(dependency) ? [] : dependency.consumedBy) {
       const service = services.find((candidate) => candidate.name === serviceName);
       if (service === undefined) continue;
+      // A function's address for the queue, bucket or topic that invokes it would feed its output back into itself.
+      if (
+        (service.functionTriggers ?? []).some(
+          (trigger) => 'dependencyName' in trigger && trigger.dependencyName === dependency.name
+        )
+      ) {
+        continue;
+      }
       service.environmentVariables = mergeEnvironmentVariables(
         service.environmentVariables ?? [],
         dependency.addressedBy.map((name) => ({
@@ -875,6 +884,16 @@ export const assembleCandidateFacts = async ({
   applyStacktapeReferences({ services, dependencies });
   linkFrontendApiAddresses(services);
 
+  const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
+    | PackageManager
+    | undefined;
+  const localScripts = await findLocalScripts({
+    files: listing.files,
+    dependencies,
+    packageManager,
+    read: (path) => readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER })
+  });
+
   const uncertainties = new Map<string, Uncertainty>();
   for (const output of outputs) {
     for (const uncertainty of output.uncertainties ?? []) {
@@ -933,9 +952,6 @@ export const assembleCandidateFacts = async ({
   }
   const migrations = [...migrationsByKey.values()];
 
-  const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
-    | PackageManager
-    | undefined;
   const workspaceGlobs = [...new Set(outputs.flatMap((output) => output.workspaceGlobs ?? []))];
   const notes = outputs.flatMap((output) => output.notes ?? []).slice(0, 20);
 
@@ -959,6 +975,7 @@ export const assembleCandidateFacts = async ({
     dependencies,
     existingDeployments,
     migrations,
+    localScripts,
     uncertainties: [...uncertainties.values()],
     notes
   });

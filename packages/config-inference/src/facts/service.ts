@@ -282,6 +282,13 @@ export const serviceShape = {
     })
     .optional(),
 
+  /**
+   * The HTTP methods of the presigned S3 upload URLs the service hands out: PUT for `getSignedUrl` with a
+   * `PutObjectCommand` or boto3's `generate_presigned_url('put_object', ...)`, POST for a presigned POST form. A browser uploading with one needs CORS on the bucket; without
+   * it the upload fails in the browser while the same request works from curl.
+   */
+  presignedUploadMethods: z.array(z.enum(['PUT', 'POST'])).optional(),
+
   // ── How it is built and started ──────────────────────────────────────────────────────────────
   buildCommand: z.string().min(1).optional(),
   startCommand: z.string().min(1).optional(),
