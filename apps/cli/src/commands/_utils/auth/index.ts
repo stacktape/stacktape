@@ -1,12 +1,7 @@
 import { tuiManager } from '@application-services/tui-manager';
+import { openBrowser } from '../browser';
 import { startApiKeyExchange } from './api-key-exchange';
-import {
-  signUpWithEmail,
-  confirmSignUp,
-  authenticateWithPassword,
-  authenticateWithGoogle,
-  resendConfirmationCode
-} from './cognito-client';
+import { startDeviceSignIn, type DeviceSignInFailure } from './device-authorization';
 
 export type AuthResult = {
   success: boolean;
@@ -14,144 +9,111 @@ export type AuthResult = {
   error?: string;
 };
 
-export const runAuthFlow = async ({ command }: { command: string }): Promise<AuthResult> => {
+/** What a failed browser sign-in tells the person: what happened, then what to do. */
+export const deviceSignInFailureMessage = ({ reason, detail }: DeviceSignInFailure): string => {
+  switch (reason) {
+    case 'expired':
+      return 'The sign-in code expired before it was approved. Run stacktape login again.';
+    case 'denied':
+      return 'The sign-in was denied in the Stacktape Console. Run stacktape login again to sign in.';
+    case 'network':
+      return 'Could not reach the Stacktape API. Check your internet connection, then run stacktape login again.';
+    case 'failed':
+      return `The sign-in did not finish${detail ? ` (${detail})` : ''}. Run stacktape login again.`;
+  }
+};
+
+export const runAuthFlow = async ({
+  command,
+  openInBrowser = true
+}: {
+  command: string;
+  /** False with `--noBrowser`: the sign-in address is only printed. */
+  openInBrowser?: boolean;
+}): Promise<AuthResult> => {
   if (command !== 'login') {
     tuiManager.info(tuiManager.makeBold('Authentication required'));
   }
 
   const authMethod = await tuiManager.promptSelect({
-    message: 'How would you like to authenticate?',
+    message: 'How would you like to sign in?',
     options: [
-      { label: 'Continue with Google (Recommended)', value: 'google', description: 'Quick sign-in with Google' },
-      { label: 'Sign up with email', value: 'signup', description: 'Create a new account' },
-      { label: 'Log in with email', value: 'login', description: 'Use existing account' },
-      { label: 'Enter API key manually', value: 'apikey', description: 'Paste an existing API key' }
-    ]
+      {
+        label: 'Sign in with the browser (Recommended)',
+        value: 'browser',
+        description: 'Approve this machine in the Stacktape Console. Works with every sign-in method.'
+      },
+      { label: 'Enter API key manually', value: 'apikey', description: 'Paste an API key created in the Console' }
+    ],
+    // Without a terminal to ask in, the browser sign-in still works: it only prints an address and a code.
+    defaultValue: 'browser'
   });
 
-  if (authMethod === 'google') {
-    return runGoogleAuth();
-  }
-
-  if (authMethod === 'signup') {
-    return runEmailSignUp();
-  }
-
-  if (authMethod === 'login') {
-    return runEmailLogin();
-  }
-
-  // Manual API key entry (fallback)
-  const apiKey = await tuiManager.promptText({
-    isPassword: true,
-    message: 'Enter your API key'
-  });
-
-  return { success: true, apiKey };
-};
-
-/**
- * Google OAuth flow
- */
-const runGoogleAuth = async (): Promise<AuthResult> => {
-  tuiManager.info('Opening browser for Google authentication...');
-
-  const result = await authenticateWithGoogle();
-
-  if (!result.success || !result.idToken) {
-    return { success: false, error: result.error || 'Google authentication failed' };
-  }
-
-  return getApiKeyFromByExchangingIdToken(result.idToken);
-};
-
-/**
- * Email sign-up flow
- */
-const runEmailSignUp = async (): Promise<AuthResult> => {
-  const name = await tuiManager.promptText({ message: 'Your name' });
-  const email = await tuiManager.promptText({ message: 'Email address' });
-  const password = await tuiManager.promptText({
-    message: 'Password (min 8 characters)',
-    isPassword: true
-  });
-
-  const signUpResult = await signUpWithEmail({ email, password, name });
-
-  if (!signUpResult.success) {
-    // If account exists, offer to log in instead
-    if (signUpResult.error?.includes('already exists')) {
-      tuiManager.warn('An account with this email already exists.');
-      const shouldLogin = await tuiManager.promptConfirm({ message: 'Would you like to log in instead?' });
-      if (shouldLogin) {
-        return runEmailLoginWithEmail(email);
-      }
-      return { success: false, error: 'Sign-up cancelled' };
-    }
-    return { success: false, error: signUpResult.error };
-  }
-
-  // Email confirmation required
-  if (!signUpResult.userConfirmed) {
-    tuiManager.info(`Verification code sent to ${email}`);
-    return runEmailConfirmation(email, password);
-  }
-
-  // User confirmed, log in to get tokens
-  return authenticateAndGetApiKey(email, password);
-};
-
-/**
- * Email confirmation flow
- */
-const runEmailConfirmation = async (email: string, password: string): Promise<AuthResult> => {
-  while (true) {
-    const code = await tuiManager.promptText({ message: 'Enter verification code from email' });
-
-    const confirmResult = await confirmSignUp({ email, code });
-
-    if (confirmResult.success) {
-      tuiManager.success('Email verified successfully');
-      return authenticateAndGetApiKey(email, password);
-    }
-
-    tuiManager.warn(confirmResult.error || 'Invalid code');
-
-    const action = await tuiManager.promptSelect({
-      message: 'What would you like to do?',
-      options: [
-        { label: 'Try again', value: 'retry' },
-        { label: 'Resend code', value: 'resend' },
-        { label: 'Cancel', value: 'cancel' }
-      ]
+  if (authMethod === 'apikey') {
+    const apiKey = await tuiManager.promptText({
+      isPassword: true,
+      message: 'Enter your API key'
     });
+    return { success: true, apiKey };
+  }
 
-    if (action === 'cancel') {
-      return { success: false, error: 'Verification cancelled' };
-    }
+  return runBrowserSignIn({ openInBrowser });
+};
 
-    if (action === 'resend') {
-      await resendConfirmationCode({ email });
-      tuiManager.info('New verification code sent');
+const runBrowserSignIn = async ({ openInBrowser }: { openInBrowser: boolean }): Promise<AuthResult> => {
+  const started = await startDeviceSignIn();
+  if (started.ok === false) {
+    return { success: false, error: deviceSignInFailureMessage(started) };
+  }
+
+  tuiManager.info(`To sign in, open ${started.verificationUriComplete}`);
+  tuiManager.info(
+    `Your code is ${tuiManager.makeBold(started.userCode)}. Approve only if the Stacktape Console shows the same code.`
+  );
+  if (openInBrowser) {
+    try {
+      await openBrowser(started.verificationUriComplete);
+      tuiManager.info('Opening your browser. If it does not open, use the address above on any device.');
+    } catch {
+      tuiManager.info('Could not open a browser here. Open the address above on any device.');
     }
+  }
+
+  // Ctrl+C stops polling. Process exit itself is owned by applicationManager's signal handler (TUI teardown,
+  // cleanup hooks); exiting here would preempt it.
+  let interrupted = false;
+  const stop = () => {
+    interrupted = true;
+    started.cancel();
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+
+  const spinner = tuiManager.createSpinner({ text: 'Waiting for approval in the browser' });
+  try {
+    const outcome = await started.completed;
+    if (outcome.ok === false) {
+      spinner.error('Sign-in did not finish');
+      return { success: false, error: deviceSignInFailureMessage(outcome) };
+    }
+    spinner.success({ text: 'Approved in the browser' });
+    return await exchangeForApiKey(outcome.sessionToken);
+  } finally {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+    started.cancel();
+    // An interrupted login reports nothing: the process is already on its way out.
+    if (interrupted) await new Promise<never>(() => {});
   }
 };
 
-/**
- * Email login flow
- */
-const runEmailLogin = async (): Promise<AuthResult> => {
-  const email = await tuiManager.promptText({ message: 'Email address' });
-  return runEmailLoginWithEmail(email);
-};
-
-const runEmailLoginWithEmail = async (email: string): Promise<AuthResult> => {
-  const password = await tuiManager.promptText({ message: 'Password', isPassword: true });
-  return authenticateAndGetApiKey(email, password);
-};
-
-const getApiKeyFromByExchangingIdToken = async (idToken: string): Promise<AuthResult> => {
-  const exchange = await startApiKeyExchange(idToken);
+const exchangeForApiKey = async (sessionToken: string): Promise<AuthResult> => {
+  let exchange: Awaited<ReturnType<typeof startApiKeyExchange>>;
+  try {
+    exchange = await startApiKeyExchange(sessionToken);
+  } catch (error) {
+    return { success: false, error: `Could not create a CLI session: ${(error as Error).message}` };
+  }
 
   if (exchange.status === 'failed') {
     return { success: false, error: exchange.error };
@@ -162,27 +124,14 @@ const getApiKeyFromByExchangingIdToken = async (idToken: string): Promise<AuthRe
 
   const chosen = await tuiManager.promptSelect({
     message: 'Select the organization you want to use.',
-    options: exchange.options.map((option) => ({ label: option.name, value: option.id }))
+    options: exchange.options.map((option) => ({
+      label: option.name.endsWith('-personal-org') ? 'Personal' : option.name,
+      value: option.id
+    }))
   });
-  return exchange.complete(chosen);
-};
-
-const authenticateAndGetApiKey = async (email: string, password: string): Promise<AuthResult> => {
-  const authResult = await authenticateWithPassword({ email, password });
-
-  if (!authResult.success) {
-    // Handle email not confirmed
-    if (authResult.error === 'EMAIL_NOT_CONFIRMED') {
-      tuiManager.warn('Email not verified. Sending new verification code...');
-      await resendConfirmationCode({ email });
-      return runEmailConfirmation(email, password);
-    }
-    return { success: false, error: authResult.error };
+  try {
+    return await exchange.complete(chosen);
+  } catch (error) {
+    return { success: false, error: `Could not create a CLI session: ${(error as Error).message}` };
   }
-
-  if (!authResult.idToken) {
-    return { success: false, error: 'No ID token received' };
-  }
-
-  return getApiKeyFromByExchangingIdToken(authResult.idToken);
 };

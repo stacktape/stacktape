@@ -71,23 +71,24 @@ export type WizardSignInError = { code: string; message: string };
 /**
  * Where signing in to Stacktape from this page has got to, one step at a time.
  *
- * Held by the CLI, so a reload lands on the same step. It never contains a password, a code, a
- * token or the API key: those stay in the CLI's memory.
+ * Held by the CLI, so a reload lands on the same step. It never contains a token or the API key:
+ * those stay in the CLI's memory. The user code is meant to be shown; it cannot sign anyone in.
  */
 export type WizardSignIn =
   | { step: 'signed-out'; error?: WizardSignInError }
-  /** A Google tab is open. The address is here so the tab can be opened again. */
-  | { step: 'google-pending'; authorizationUrl: string }
-  | { step: 'needs-code'; email: string; error?: WizardSignInError }
-  | { step: 'needs-mfa'; email: string; error?: WizardSignInError }
+  /** Waiting for approval in the Console tab. The addresses are here so the tab can be opened again. */
+  | {
+      step: 'waiting';
+      userCode: string;
+      verificationUri: string;
+      verificationUriComplete: string;
+      /** Milliseconds since the epoch. */
+      expiresAt: number;
+    }
   | { step: 'needs-organization'; organizations: Array<{ id: string; name: string }>; error?: WizardSignInError };
 
 /** One step of signing in, as sent to the CLI. The route names the step; the rest is its body. */
-export type SignInRequest =
-  | { route: 'google' | 'cancel' | 'code/resend' }
-  | { route: 'email'; intent: 'sign-up' | 'sign-in'; email: string; password: string }
-  | { route: 'code' | 'mfa'; code: string }
-  | { route: 'organization'; organizationId: string };
+export type SignInRequest = { route: 'start' | 'cancel' } | { route: 'organization'; organizationId: string };
 
 export type WizardState = {
   /** Server-assigned, increasing on every update. See `publish` below for what it is for. */

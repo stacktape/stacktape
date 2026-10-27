@@ -15,15 +15,17 @@ export type {
   StackPriceEstimationResponse
 } from '@stacktape/console-api/anonymous';
 
-const createAnonymousTrpcClient = () => {
-  return createTypedTrpcClient<AnonymousTrpcClient>({ url: STACKTAPE_TRPC_API_ENDPOINT });
-};
-
 export class PublicApiClient {
   #client: AnonymousTrpcClient | null = null;
+  readonly #url: string | undefined;
+
+  /** `url` replaces the configured Stacktape API endpoint, for a caller that was handed a different one. */
+  constructor({ url }: { url?: string } = {}) {
+    this.#url = url;
+  }
 
   init = () => {
-    this.#client = createAnonymousTrpcClient();
+    this.#client = createTypedTrpcClient<AnonymousTrpcClient>({ url: this.#url ?? STACKTAPE_TRPC_API_ENDPOINT });
   };
 
   #ensureInitialized = () => {

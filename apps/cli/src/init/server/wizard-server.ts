@@ -271,10 +271,10 @@ export type WizardServerHooks = {
    */
   onRegion?: (region: string) => Promise<WizardState> | WizardState;
   /**
-   * Called for every step of signing in from the page: starting Google, submitting an email and
-   * password, a code, an organization, or cancelling.
+   * Called for every step of signing in from the page: starting the sign-in, choosing an
+   * organization, or cancelling.
    *
-   * Publishes for itself, like `onDeploy`: Google answers minutes after the request that started it.
+   * Publishes for itself, like `onDeploy`: the approval arrives minutes after the request that started it.
    */
   onSignIn: (action: WizardSignInAction) => Promise<void> | void;
   /** Called when the user asks to connect their coding agent to Stacktape. Publishes for itself, like `onDeploy`. */
@@ -678,8 +678,8 @@ export const startWizardServer = async ({
 
       // Signing in to Stacktape from the page. One prefix for every step, so the CSRF gate cannot be
       // forgotten on one of them; the route names the step and the body is read against that step's
-      // exact shape. A password or a code arrives here and goes no further than the sign-in flow: it
-      // is never logged, never echoed, and never part of the state this replies with.
+      // exact shape. No credential ever arrives here: the person signs in on the Console page, and
+      // the token the CLI receives for it stays in the sign-in flow.
       if (url.pathname.startsWith('/api/sign-in/') && request.method === 'POST') {
         if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
           json(response, 403, { error: 'Missing or invalid CSRF token.' });

@@ -9,7 +9,7 @@
  *
  *   bun --preload scripts/network-guard-preload.ts scripts/init-wizard-fixture/server.ts '<scenario JSON>'
  *
- * The first stdout line is `{"url": "..."}`. Held steps wait for a line on stdin: `scan` finishes a held scan,
+ * The first stdout line is `{"url": "...", "consoleOrigin": "..."}`. Held steps wait for a line on stdin: `scan` finishes a held scan,
  * `deploy` lets a held deploy finish. Closing stdin stops the server.
  */
 
@@ -74,13 +74,92 @@ const main = async () => {
     'multi-container-workload': 18.07
   };
 
+  /** The device sign-in the stand-in API is waiting on: approved from its `/device` page. */
+  const deviceSignIn = { userCode: 'WDJB-MJHT', approved: false };
+
+  /**
+   * The Stacktape API's anonymous surface as the wizard uses it: the price estimate, Better Auth's device routes
+   * (`/auth/device/*`) and the key exchange. `/device` stands in for the Console's approval page.
+   */
   const startPriceApi = async () => {
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(chunk as Buffer);
-      const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const path = url.pathname;
+      const json = (status: number, body: unknown) => {
+        response.writeHead(status, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(body));
+      };
+
+      if (path === '/auth/device/code' && request.method === 'POST') {
+        deviceSignIn.approved = false;
+        const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+        json(200, {
+          device_code: 'fixture-device-code',
+          user_code: deviceSignIn.userCode,
+          verification_uri: `${origin}/device`,
+          verification_uri_complete: `${origin}/device?user_code=${deviceSignIn.userCode}`,
+          expires_in: 600,
+          interval: 0.2
+        });
+        return;
+      }
+      if (path === '/auth/device/token' && request.method === 'POST') {
+        json(
+          deviceSignIn.approved ? 200 : 400,
+          deviceSignIn.approved ? { access_token: 'fixture-session-token' } : { error: 'authorization_pending' }
+        );
+        return;
+      }
+      if (path === '/device') {
+        if (request.method === 'POST') deviceSignIn.approved = true;
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        response.end(
+          deviceSignIn.approved
+            ? '<!doctype html><title>Approved</title><p>Approved. Return to the wizard.</p>'
+            : `<!doctype html><title>Approve sign-in</title><p>Code: <strong>${url.searchParams.get('user_code') ?? ''}</strong></p>` +
+                '<form method="post"><button type="submit">Approve</button></form>'
+        );
+        return;
+      }
+
       // The client batches concurrent calls into one request: `/a,a,a` with inputs keyed "0", "1", ...
       const procedures = path.slice(1).split(',');
+      if (request.method === 'POST' && procedures.length === 1 && procedures[0] === 'exchangeTokenForApiKey') {
+        const input = (JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, Record<string, unknown>>)[
+          '0'
+        ]!;
+        if (input.sessionToken !== 'fixture-session-token') {
+          json(200, [{ result: { data: { success: false, error: 'Invalid session.' } } }]);
+          return;
+        }
+        json(200, [
+          {
+            result: {
+              data:
+                input.listOrganizationsOnly === true
+                  ? { success: true, apiKeys: [], organizations: [{ id: 'org_acme', name: 'Acme' }] }
+                  : {
+                      success: true,
+                      apiKeys: [
+                        {
+                          id: 'fixture-api-key',
+                          createdAt: '2026-10-28T00:00:00.000Z',
+                          updatedAt: '2026-10-28T00:00:00.000Z',
+                          lastUsed: null,
+                          name: 'CLI login',
+                          userId: 'user_dev',
+                          organizationId: 'org_acme',
+                          organizationName: 'Acme'
+                        }
+                      ]
+                    }
+            }
+          }
+        ]);
+        return;
+      }
       if (
         request.method !== 'POST' ||
         procedures.some((procedure) => procedure !== 'stackPriceEstimation') ||
@@ -151,19 +230,21 @@ const main = async () => {
   process.env.STP_CUSTOM_TRPC_API_ENDPOINT = priceApi.url;
 
   const { startWizardSession } = await import('../../src/init/server/wizard-session');
+  const { createWizardSignInDependencies } = await import('../../src/commands/init/wizard-sign-in');
   const { agentOptions } = await import('../../src/init/run-init');
   const { writeComposedConfig } = await import('../../src/init/write-config');
   const { writePipeline } = await import('../../src/init/cicd/write-pipeline');
   const { deployCommandLine } = await import('../../src/init/deploy/run-deploy');
   const { composeConfig } = await import('@stacktape/config-inference/compose');
-  const { checkFactsCompleteness } = await import('@stacktape/config-inference/facts');
+  const { checkFactsCompleteness, projectFactsSchema } = await import('@stacktape/config-inference/facts');
   const { getStackName } = await import('@stacktape/naming/stacks');
   const { INIT_TARGET_SCHEMA_VERSION } = await import('../../src/init/deploy/stack-expectation');
   const versionJson = (await import('@generated/db-engine-versions/versions.json', { with: { type: 'json' } })).default;
 
-  const facts = JSON.parse(
-    readFileSync(join(fixtureDirectory, 'projects', `${scenario.project}.json`), 'utf8')
-  ) as ProjectFacts;
+  // Parsed like a submitted scan, so a recording made before a field was added gets that field's default.
+  const facts: ProjectFacts = projectFactsSchema.parse(
+    JSON.parse(readFileSync(join(fixtureDirectory, 'projects', `${scenario.project}.json`), 'utf8'))
+  );
   const projectName = scenario.projectName ?? scenario.project;
   const repositoryRoot = await mkdtemp(join(tmpdir(), `stacktape-wizard-${projectName}-`));
   const repositoryPath = `/home/dev/code/${projectName}`;
@@ -353,27 +434,12 @@ const main = async () => {
     ...(scenario.account === 'no-page-sign-in'
       ? {}
       : {
-          signIn: {
-            startGoogle: async () => ({
-              ok: true,
-              authorizationUrl: 'https://auth.stacktape.com/oauth2/authorize?identity_provider=Google',
-              completed: new Promise(() => {}),
-              cancel: () => {}
-            }),
-            signUp: async () => ({ ok: true, confirmed: false }),
-            confirmSignUp: async ({ code }) =>
-              code === '123456' ? { ok: true } : { ok: false, code: 'code-mismatch' },
-            resendCode: async () => ({ ok: true }),
-            signIn: async ({ password }) =>
-              password === 'correct-password'
-                ? { ok: true, next: 'authenticated', idToken: 'fixture-id-token' }
-                : { ok: false, code: 'invalid-credentials' },
-            answerMfa: async () => ({ ok: true, idToken: 'fixture-id-token' }),
-            exchange: async () => ({ ok: true, apiKey: 'fixture-api-key' }),
+          // The real device sign-in and key exchange, against the stand-in API above; only saving is scripted.
+          signIn: createWizardSignInDependencies({
             saveApiKey: async () => {
               scenario.account = 'signed-in';
             }
-          }
+          })
         }),
     ...(scenario.gitHost === undefined
       ? {}
@@ -478,7 +544,8 @@ const main = async () => {
     staticRoot: bundle
   });
 
-  console.log(JSON.stringify({ url: session.server.url }));
+  // The stand-in API also serves the stand-in Console device page, which the sign-in opens in a new tab.
+  console.log(JSON.stringify({ url: session.server.url, consoleOrigin: priceApi.url }));
 
   const shutDown = async () => {
     await session.close();

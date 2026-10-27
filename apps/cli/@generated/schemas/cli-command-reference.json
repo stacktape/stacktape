@@ -4065,7 +4065,7 @@
       },
       {
         "name": "noBrowser",
-        "description": "#### No Browser\n---\nIf `true`, `init` starts the wizard and prints its address instead of opening a browser. Use this when the browser you want is not this machine's default, or when the wizard runs behind a forwarded port.",
+        "description": "#### No Browser\n---\nIf `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port.",
         "required": false,
         "allowedTypes": [
           "boolean"
@@ -4155,6 +4155,15 @@
           "error"
         ],
         "flag": "log-level"
+      },
+      {
+        "name": "noBrowser",
+        "description": "#### No Browser\n---\nIf `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "no-browser"
       },
       {
         "name": "profile",

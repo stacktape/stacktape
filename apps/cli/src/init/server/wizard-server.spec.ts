@@ -405,7 +405,7 @@ describe('deploying', () => {
 });
 
 describe('signing in from the page', () => {
-  const ROUTES = ['google', 'email', 'code', 'code/resend', 'mfa', 'organization', 'cancel'];
+  const ROUTES = ['start', 'organization', 'cancel'];
 
   const opened = async () => {
     const { origin, token } = await start();
@@ -428,12 +428,11 @@ describe('signing in from the page', () => {
 
   it('requires the session cookie and the CSRF token on every step', async () => {
     const { post } = await opened();
-    const valid = { intent: 'sign-in', email: 'dev@example.com', password: 'correct horse', code: '123456' };
 
     for (const route of ROUTES) {
-      expect((await post(route, valid, { withCookie: false })).status).toBe(401);
-      // A cookie alone would let any other open tab submit a password or cancel a sign-in.
-      expect((await post(route, valid, { withCsrf: false })).status).toBe(403);
+      expect((await post(route, { organizationId: 'org_1' }, { withCookie: false })).status).toBe(401);
+      // A cookie alone would let any other open tab start or cancel a sign-in.
+      expect((await post(route, { organizationId: 'org_1' }, { withCsrf: false })).status).toBe(403);
     }
     expect(signInActions).toEqual([]);
   });
@@ -441,23 +440,12 @@ describe('signing in from the page', () => {
   it('passes each step through as a closed action', async () => {
     const { post } = await opened();
 
-    expect((await post('google', {})).status).toBe(200);
-    expect(
-      (await post('email', { intent: 'sign-up', email: ' dev@example.com ', password: ' pass word ' })).status
-    ).toBe(200);
-    expect((await post('code', { code: '123 456' })).status).toBe(200);
-    expect((await post('code/resend', {})).status).toBe(200);
-    expect((await post('mfa', { code: '654321' })).status).toBe(200);
+    expect((await post('start', {})).status).toBe(200);
     expect((await post('organization', { organizationId: 'org_1' })).status).toBe(200);
     expect((await post('cancel', {})).status).toBe(200);
 
     expect(signInActions).toEqual([
-      { kind: 'google' },
-      // The address is trimmed; the password is exactly what was typed.
-      { kind: 'email', intent: 'sign-up', email: 'dev@example.com', password: ' pass word ' },
-      { kind: 'code', code: '123456' },
-      { kind: 'resend-code' },
-      { kind: 'mfa', code: '654321' },
+      { kind: 'start' },
       { kind: 'organization', organizationId: 'org_1' },
       { kind: 'cancel' }
     ]);
@@ -466,18 +454,13 @@ describe('signing in from the page', () => {
   it('refuses anything that is not exactly one of those shapes', async () => {
     const { post } = await opened();
     const rejected: Array<[string, unknown]> = [
-      ['email', { intent: 'reset-password', email: 'dev@example.com', password: 'correct horse' }],
-      ['email', { intent: 'sign-in', email: 'not-an-address', password: 'correct horse' }],
-      ['email', { intent: 'sign-in', email: 'dev@example.com' }],
-      ['email', { intent: 'sign-in', email: 'dev@example.com', password: '' }],
-      ['email', { intent: 'sign-in', email: 'dev@example.com', password: 'x'.repeat(257) }],
-      ['email', { intent: 'sign-in', email: `${'a'.repeat(250)}@example.com`, password: 'correct horse' }],
-      ['code', { code: '12345' }],
-      ['code', { code: 'abcdef' }],
-      ['code', { code: 123456 }],
-      ['mfa', {}],
+      // The steps of the removed email sign-in no longer exist.
+      ['email', { intent: 'sign-in', email: 'dev@example.com', password: 'correct horse' }],
+      ['code', { code: '123456' }],
+      ['google', {}],
       ['organization', { organizationId: '' }],
       ['organization', { organizationId: ['org_1'] }],
+      ['organization', { organizationId: 'x'.repeat(201) }],
       ['api-key', { apiKey: 'anything' }]
     ];
 
@@ -485,16 +468,6 @@ describe('signing in from the page', () => {
 
     expect(statuses).toEqual(rejected.map(() => 400));
     expect(signInActions).toEqual([]);
-  });
-
-  it('never echoes what was submitted', async () => {
-    const { post } = await opened();
-
-    const accepted = await post('email', { intent: 'sign-in', email: 'dev@example.com', password: 'correct horse' });
-    const refused = await post('email', { intent: 'nonsense', email: 'dev@example.com', password: 'correct horse' });
-
-    expect(await accepted.text()).not.toContain('correct horse');
-    expect(await refused.text()).not.toContain('correct horse');
   });
 });
 
