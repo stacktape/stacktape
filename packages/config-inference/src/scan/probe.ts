@@ -64,6 +64,11 @@ export type ProbeOutput = {
   disabledDependencyKinds?: DependencyKind[];
   existingDeployments?: ExistingDeploymentFact[];
   migrations?: MigrationFact[];
+  /**
+   * Migrations of whichever service lives in `path`, from a manifest that does not name the service (`api/requirements.txt`
+   * listing Alembic). The assembler attributes them once the services are merged.
+   */
+  pathMigrations?: Array<{ path: string; migration: Omit<MigrationFact, 'serviceName'> }>;
   /** Dockerfiles used exclusively by finite lifecycle hooks such as Compose migration services. */
   lifecycleDockerfiles?: string[];
   /** Multi-stage Dockerfiles whose explicit Compose targets own the runnable services. */

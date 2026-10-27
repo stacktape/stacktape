@@ -27,7 +27,8 @@ export const dependencyKindSchema = z.enum([
   'kafka',
   'nats',
   'event-bus',
-  'websocket-api'
+  'websocket-api',
+  'state-machine'
 ]);
 
 export type DependencyKind = z.infer<typeof dependencyKindSchema>;
@@ -86,7 +87,8 @@ export const defaultDependencyName = (kind: DependencyKind): string =>
     kafka: 'eventStream',
     nats: 'eventBroker',
     'event-bus': 'eventBus',
-    'websocket-api': 'websocketApi'
+    'websocket-api': 'websocketApi',
+    'state-machine': 'stateMachine'
   })[kind];
 
 const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
@@ -167,6 +169,11 @@ export const dependencyFactSchema = z.object({
    * `KeyConditionExpression: 'id = :id'`). A table created with another key rejects every one of them.
    */
   itemKey: z.object({ partitionKey: z.string().min(1), sortKey: z.string().min(1).optional() }).optional(),
+  /**
+   * The services a state machine runs as its Task states, in order, when the code makes the order clear: the input
+   * the code starts an execution with is what the first one reads, and each one's result is what the next one reads.
+   */
+  workflowSteps: z.array(z.string().min(1)).min(1).optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

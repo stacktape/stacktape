@@ -112,6 +112,42 @@ const shouldRunOnDeploy = (migration: MigrationFact, assumptions: readonly Assum
   return migration.runsAt === 'ci';
 };
 
+const TOOL_LABELS: Readonly<Record<string, string>> = {
+  alembic: 'Alembic',
+  django: 'Django migrations',
+  rails: 'Rails migrations',
+  prisma: 'Prisma Migrate',
+  drizzle: 'Drizzle Kit',
+  knex: 'Knex migrations',
+  typeorm: 'TypeORM migrations',
+  sequelize: 'Sequelize migrations',
+  ecto: 'Ecto migrations',
+  flyway: 'Flyway',
+  liquibase: 'Liquibase',
+  'golang-migrate': 'golang-migrate'
+};
+const toolLabel = (tool: string): string => TOOL_LABELS[tool] ?? `${tool} migrations`;
+
+/**
+ * A migration tool in the dependencies that nothing runs: no release phase, no decision, and not in the service's own
+ * start command. Its first deploy and its first `stacktape dev` start then serve a database without tables.
+ */
+const runsNowhere = (
+  migration: MigrationFact,
+  assumptions: readonly Assumption[],
+  services: readonly ServiceFact[]
+): boolean => {
+  if (migration.runsAt !== 'unknown') return false;
+  const decided = assumptions.some(
+    (assumption) =>
+      assumption.kind === 'migration-timing-unknown' &&
+      (assumption.parameters as Record<string, unknown>).serviceName === migration.serviceName
+  );
+  if (decided) return false;
+  const startCommand = services.find((service) => service.name === migration.serviceName)?.startCommand;
+  return startCommand === undefined || !startCommand.includes(migration.command.replace(/^npx /, ''));
+};
+
 export const composeMigrationHooks = ({
   migrations,
   services,
@@ -120,7 +156,8 @@ export const composeMigrationHooks = ({
   assumptions,
   projectName,
   privateDatabaseResourceNames = new Set<string>(),
-  bastionResourceName
+  bastionResourceName,
+  serviceResourceNames
 }: {
   migrations: readonly MigrationFact[];
   services: readonly ServiceFact[];
@@ -130,6 +167,8 @@ export const composeMigrationHooks = ({
   projectName: string | undefined;
   privateDatabaseResourceNames?: ReadonlySet<string>;
   bastionResourceName?: string;
+  /** The config's name for each service, which is what an item tells the user to edit. */
+  serviceResourceNames?: ReadonlyMap<string, string>;
 }): ComposedMigrationHooks => {
   const scripts: Record<string, ComposedScript> = {};
   const afterDeploy: Array<{ scriptName: string }> = [];
@@ -138,7 +177,22 @@ export const composeMigrationHooks = ({
   const taken = new Set<string>();
 
   for (const migration of migrations) {
-    if (!shouldRunOnDeploy(migration, assumptions)) continue;
+    if (!shouldRunOnDeploy(migration, assumptions)) {
+      // A SQLite file is only reachable from inside the app; composition already asks for a start-command migration.
+      const usesSqlite = dependencies.some(
+        (dependency) => dependency.kind === 'sqlite' && dependency.consumedBy.includes(migration.serviceName)
+      );
+      // Only a service the config deploys: the item names the resource to edit.
+      const resourceName = serviceResourceNames?.get(migration.serviceName) ?? migration.serviceName;
+      const deployed = services.some((service) => service.name === migration.serviceName);
+      if (deployed && !usesSqlite && runsNowhere(migration, assumptions, services)) {
+        gaps.push({
+          subject: `${migration.serviceName}.migrations`,
+          message: `${resourceName} depends on ${toolLabel(migration.tool)}, but nothing we found runs "${migration.command}". Run it before the server starts (at the start of ${resourceName}'s start command), or add it as a script and an afterDeploy hook.`
+        });
+      }
+      continue;
+    }
 
     if (!isRunnableMigrationCommand(migration.command)) {
       gaps.push({
@@ -203,6 +257,8 @@ export const composeMigrationHooks = ({
       type: usesPrivateDatabase ? 'local-script-with-bastion-tunneling' : 'local-script',
       properties: {
         executeCommand: migration.command,
+        // Scripts run from the project root; `api/Procfile`'s `python manage.py migrate` needs `api/`.
+        ...(migration.directory === undefined || migration.directory === '.' ? {} : { cwd: migration.directory }),
         ...(usesPrivateDatabase ? { bastionResource: bastionResourceName } : {}),
         ...(databases.length > 0 ? { connectTo: databases.map((entry) => entry.composed.resourceName) } : {}),
         ...(environment.length > 0 ? { environment } : {})
