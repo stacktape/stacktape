@@ -14,6 +14,8 @@ process.env.AWS_EC2_METADATA_DISABLED = 'true';
 process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'true';
 delete process.env.AWS_PROFILE;
 delete process.env.AWS_ENDPOINT_URL;
+// A test's Stacktape login stays in its temporary home, never the machine's credential store.
+process.env.STACKTAPE_CREDENTIAL_STORE = 'file';
 for (const name of Object.keys(process.env)) {
   if (name.startsWith('AWS_ENDPOINT_URL_')) {
     delete process.env[name];

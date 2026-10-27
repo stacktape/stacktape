@@ -251,6 +251,8 @@ export const buildSignedInWizardEnvironment = async ({
     ...result,
     HOME: home,
     USERPROFILE: home,
+    // The seeded key stays in the temporary home's state file, never the developer's credential store.
+    STACKTAPE_CREDENTIAL_STORE: 'file',
     DOCKER_CONFIG: dockerConfig,
     AWS_CONFIG_FILE: env.AWS_CONFIG_FILE ?? join(developerHome, '.aws', 'config'),
     AWS_SHARED_CREDENTIALS_FILE: env.AWS_SHARED_CREDENTIALS_FILE ?? join(developerHome, '.aws', 'credentials')

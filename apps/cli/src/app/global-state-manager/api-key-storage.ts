@@ -1,7 +1,7 @@
 import type { PersistedState } from './types';
 import { STACKTAPE_PRODUCTION_TRPC_API_ENDPOINT, STACKTAPE_TRPC_API_ENDPOINT } from '../../config/params';
 
-const normalizeEndpoint = (endpoint: string) => {
+export const normalizeEndpoint = (endpoint: string) => {
   try {
     return new URL(endpoint).toString().replace(/\/$/, '');
   } catch {

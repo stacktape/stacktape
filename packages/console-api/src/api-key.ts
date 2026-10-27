@@ -702,6 +702,8 @@ export type StackDetailsResponse = {
   description?: string | null;
 };
 
+export type RevokeCurrentCliSessionResponse = { revoked: boolean };
+
 /** The procedures a Stacktape API key may call, and nothing else. */
 export type ApiKeyTrpcClient = {
   /** A job-scoped completion hint; the server verifies AWS completion before releasing the runner. */
@@ -721,6 +723,13 @@ export type ApiKeyTrpcClient = {
   };
   currentUserAndOrgData: {
     query: () => Promise<CurrentUserAndOrgDataResponse>;
+  };
+  /**
+   * Revokes the key making the request when it is a CLI session (`stacktape logout`). Any other key is left as it is
+   * and the response says so: a Console-made or CI key is managed in the Console.
+   */
+  revokeCurrentCliSession: {
+    mutate: (args?: void) => Promise<RevokeCurrentCliSessionResponse>;
   };
   ec2DeployFromCli: {
     mutate: (args: Ec2DeployFromCliParams) => Promise<Ec2DeployFromCliResponse>;

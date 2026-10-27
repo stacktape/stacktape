@@ -140,10 +140,11 @@ export const createWizardSignInDependencies = (): WizardSignInDependencies => ({
   },
 
   saveApiKey: async (apiKey) => {
-    // Written by this process, into the file `stacktape login` writes: the key is never handed to
-    // a child on a command line, where any process on the machine could read it. Re-read first,
-    // because a wizard stays open for a long time and this process's copy of the file is from when
-    // it started — saving that copy would undo a default changed in another terminal meanwhile.
+    // Written by this process, where `stacktape login` stores it (the credential store, or the state file
+    // without one): the key is never handed to a child on a command line, where any process on the machine
+    // could read it. Re-read the state file first, because a wizard stays open for a long time and this
+    // process's copy is from when it started — saving that copy would undo a default changed in another
+    // terminal meanwhile.
     await globalStateManager.reloadPersistedState();
     await globalStateManager.saveApiKey({ apiKey });
   }

@@ -1,6 +1,6 @@
 # logout
 
-The `stacktape logout` command removes the locally stored Stacktape API key from your system. The command takes no required flags — run `stacktape logout` and the stored key is cleared immediately. After logging out, commands that require a Stacktape API key will need credentials configured again via [`stacktape login`](/cli/login). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
+The `stacktape logout` command ends the CLI session that [`stacktape login`](/cli/login) created: Stacktape revokes it, so it stops working everywhere, and the CLI removes it from your system. The command takes no required flags. After logging out, commands that require a Stacktape API key need credentials configured again via [`stacktape login`](/cli/login). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
 
 ## Usage
 
@@ -8,7 +8,10 @@ The `stacktape logout` command removes the locally stored Stacktape API key from
 stacktape logout
 ```
 
-`stacktape logout` clears the stored API key from Stacktape's global state and prints a confirmation.
+`stacktape logout` revokes the stored CLI session, removes it from this system and prints a confirmation.
+
+- When Stacktape cannot be reached, the CLI still removes the session from this system and says so. The session then stays valid until it expires or you revoke it on the Console's [API keys page](/stacktape-console/api-keys).
+- When the stored key is a Console-made API key passed to `login --api-key`, the CLI only removes it from this system. The key stays valid for the pipelines that use it; revoke it in the Console if you no longer need it.
 
 ## When to use
 

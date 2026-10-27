@@ -56,6 +56,7 @@ import type {
   ReportEventParams,
   ResolveSlackChannelsParams,
   ResolveSlackChannelsResponse,
+  RevokeCurrentCliSessionResponse,
   StackDetailsParams,
   StackDetailsResponse,
   SyncUptimeChecksParams,
@@ -126,12 +127,13 @@ export type {
   SyncUptimeChecksResponse
 } from '@stacktape/console-api/api-key';
 
-const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
+const createTrpcApiKeyProtectedClient = ({ apiKey, timeoutMs }: { apiKey: string; timeoutMs?: number }) => {
   return createTypedTrpcClient<ApiKeyTrpcClient>({
     url: STACKTAPE_TRPC_API_ENDPOINT,
     headers: {
       stp_api_key: apiKey
-    }
+    },
+    timeoutMs
   });
 };
 
@@ -149,8 +151,8 @@ export class ApiKeyProtectedClient {
     this.#executeRequest = executeRequest;
   }
 
-  init = async ({ apiKey }: { apiKey: string }) => {
-    this.#client = createTrpcApiKeyProtectedClient({ apiKey });
+  init = async ({ apiKey, timeoutMs }: { apiKey: string; timeoutMs?: number }) => {
+    this.#client = createTrpcApiKeyProtectedClient({ apiKey, timeoutMs });
   };
 
   exchangeGithubActionsToken = async (
@@ -192,6 +194,10 @@ export class ApiKeyProtectedClient {
 
   syncUptimeChecks = async (args: SyncUptimeChecksParams): Promise<SyncUptimeChecksResponse> => {
     return this.#request('syncUptimeChecks', () => this.#ensureInitialized().syncUptimeChecks.mutate(args));
+  };
+
+  revokeCurrentCliSession = async (): Promise<RevokeCurrentCliSessionResponse> => {
+    return this.#request('revokeCurrentCliSession', () => this.#ensureInitialized().revokeCurrentCliSession.mutate());
   };
 
   currentUserAndOrgData = async (): Promise<CurrentUserAndOrgDataResponse> => {

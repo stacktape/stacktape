@@ -310,6 +310,8 @@ const verify = async () => {
       USERPROFILE: home,
       APPDATA: join(home, 'AppData'),
       STP_DISABLE_TELEMETRY: '1',
+      // The seeded key stays in the temporary home's state file, never the machine's credential store.
+      STACKTAPE_CREDENTIAL_STORE: 'file',
       STP_CUSTOM_TRPC_API_ENDPOINT: endpoint,
       AWS_EC2_METADATA_DISABLED: 'true',
       AWS_CONFIG_FILE: join(home, 'absent-config'),

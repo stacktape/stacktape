@@ -838,7 +838,7 @@ To install a specific version instead, pass it as an argument, for example \`sta
   login: {
     description: `Authenticates this system with Stacktape.
 
-In a local terminal, this starts the Stacktape login flow and stores CLI authentication state for subsequent commands. In CI, configure a dedicated Stacktape API key as a masked secret such as \`STACKTAPE_API_KEY\`; do not paste API keys into chat transcripts or command logs. Manual API keys are bearer secrets and are shown only once when created.`,
+In a local terminal, this starts the Stacktape login flow and stores the CLI login session for subsequent commands in the operating system's credential store, or in a file only you can read where no credential store is available. In CI, configure a dedicated Stacktape API key as a masked secret such as \`STACKTAPE_API_KEY\`; do not paste API keys into chat transcripts or command logs. Manual API keys are bearer secrets and are shown only once when created.`,
     args: {
       ...universalArgs,
       apiKey: apiKey.optional()
@@ -847,7 +847,9 @@ In a local terminal, this starts the Stacktape login flow and stores CLI authent
   },
 
   logout: {
-    description: `Removes Stacktape authentication state from the current system.`,
+    description: `Signs this system out of Stacktape.
+
+Revokes the CLI login session on the Stacktape API and removes it from this system. When the API cannot be reached, the session is still removed from this system but stays valid until it expires or is revoked in the Stacktape Console. An API key created in the Console is only removed from this system.`,
     args: {
       ...universalArgs,
       apiKey: apiKey.optional()

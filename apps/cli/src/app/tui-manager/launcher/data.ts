@@ -5,7 +5,7 @@ import { getAllowedArgs, getCommandDescription, getRequiredArgs } from '../../..
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { ApiKeyProtectedClient } from '@stacktape-api/api-key-protected';
 import { loadPersistedState } from '../../global-state-manager/utils';
-import { getPersistedApiKey } from '../../global-state-manager/api-key-storage';
+import { loadApiKey } from '../../global-state-manager/credential-store';
 import type { CommandSuggestion, RecentAction, RecentCommandSuggestion } from './types';
 
 const SENSITIVE_RECENT_ARG_NAMES = new Set([
@@ -66,7 +66,8 @@ export const getLauncherDefaultArgs = async (): Promise<StacktapeArgs> => {
 
 export const fetchRecentCommandSuggestions = async (): Promise<RecentCommandSuggestion[]> => {
   const persistedState = await loadPersistedState();
-  const apiKey = process.env.STACKTAPE_API_KEY || getPersistedApiKey({ persistedState });
+  // The state file is not saved here: the command the launcher starts removes a moved key from it.
+  const apiKey = process.env.STACKTAPE_API_KEY || (await loadApiKey({ persistedState })).apiKey;
   if (!apiKey) {
     return [];
   }
