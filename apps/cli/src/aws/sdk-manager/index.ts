@@ -195,8 +195,7 @@ export class AwsSdkManager {
     });
     this.#email = new AwsEmail({ createClient: () => this.#sesv2(), getErrorHandler: this.#getErrorHandler });
     this.#apiGatewayAccount = new AwsApiGatewayAccount({
-      createClient: () => this.#applyPlugins(new APIGatewayClient(this.#getClientArgs())),
-      getErrorHandler: this.#getErrorHandler
+      createClient: () => this.#applyPlugins(new APIGatewayClient(this.#getClientArgs()))
     });
   }
 

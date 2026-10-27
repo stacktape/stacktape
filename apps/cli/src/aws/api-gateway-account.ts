@@ -1,27 +1,16 @@
 import { type APIGatewayClient, GetAccountCommand, UpdateAccountCommand } from '@aws-sdk/client-api-gateway';
 
-type ErrorHandlerFactory = (message: string) => (error: Error) => never;
-
 /** The regional API Gateway account settings. Its CloudWatch role lets REST and WebSocket stages write logs. */
 export class AwsApiGatewayAccount {
   readonly #createClient: () => APIGatewayClient;
-  readonly #getErrorHandler: ErrorHandlerFactory;
 
-  constructor({
-    createClient,
-    getErrorHandler
-  }: {
-    createClient: () => APIGatewayClient;
-    getErrorHandler: ErrorHandlerFactory;
-  }) {
+  constructor({ createClient }: { createClient: () => APIGatewayClient }) {
     this.#createClient = createClient;
-    this.#getErrorHandler = getErrorHandler;
   }
 
+  /** Rejects with the SDK's error, so a caller can tell a denied read from a failed one. */
   getCloudWatchRoleArn = async () => {
-    const account = await this.#createClient()
-      .send(new GetAccountCommand({}))
-      .catch(this.#getErrorHandler('Failed to read the API Gateway account settings.'));
+    const account = await this.#createClient().send(new GetAccountCommand({}));
     return account.cloudwatchRoleArn || undefined;
   };
 

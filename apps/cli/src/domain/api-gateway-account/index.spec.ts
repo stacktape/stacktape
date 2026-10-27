@@ -1,6 +1,14 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
-import { templateNeedsApiGatewayCloudWatchRole } from './index';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { CliError } from '@utils/errors';
+import {
+  API_GATEWAY_CLOUDWATCH_ROLE_NAME,
+  ensureApiGatewayCloudWatchRole,
+  templateNeedsApiGatewayCloudWatchRole
+} from './index';
 
 const templateWith = (resources: Record<string, { Type: string; Properties?: Record<string, unknown> }>) =>
   ({ Resources: resources }) as unknown as CloudFormationTemplate;
@@ -41,5 +49,91 @@ describe('templateNeedsApiGatewayCloudWatchRole', () => {
     ['no API stages', { Bucket: { Type: 'AWS::S3::Bucket' } }, false]
   ] as const)('%s: %p', (_, resources, expected) => {
     expect(templateNeedsApiGatewayCloudWatchRole(templateWith(resources))).toBe(expected);
+  });
+});
+
+describe('ensureApiGatewayCloudWatchRole', () => {
+  const websocketTemplate = templateWith({ Api: api('WEBSOCKET'), Stage: v2Stage(accessLogs) });
+  const registeredRole = 'arn:aws:iam::123456789012:role/team/api-gateway-logs';
+  let warnings: string[];
+
+  beforeEach(() => {
+    awsSdkManager.init({ credentials: { accessKeyId: 'test', secretAccessKey: 'test' }, region: 'eu-north-1' });
+    warnings = [];
+    spyOn(tuiManager, 'warn').mockImplementation((message: string) => void warnings.push(message));
+    spyOn(tuiManager, 'info').mockImplementation(() => {});
+    // An own property shadows the class getter, which bun's spyOn cannot replace.
+    Object.defineProperty(globalStateManager, 'targetAwsAccount', {
+      configurable: true,
+      value: { awsAccountId: '123456789012' }
+    });
+  });
+  afterEach(() => {
+    mock.restore();
+    delete (globalStateManager as { targetAwsAccount?: unknown }).targetAwsAccount;
+  });
+
+  const denied = () =>
+    Object.assign(new Error('User is not authorized to perform: apigateway:GET'), { name: 'AccessDeniedException' });
+
+  test('warns and continues when the account settings cannot be read', async () => {
+    spyOn(awsSdkManager.apiGatewayAccount, 'getCloudWatchRoleArn').mockRejectedValue(denied());
+    const createRole = spyOn(awsSdkManager.iam, 'createRole');
+
+    await ensureApiGatewayCloudWatchRole(websocketTemplate);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('could not read the API Gateway settings of eu-north-1');
+    expect(createRole).not.toHaveBeenCalled();
+  });
+
+  test('keeps a registered role that exists', async () => {
+    spyOn(awsSdkManager.apiGatewayAccount, 'getCloudWatchRoleArn').mockResolvedValue(registeredRole);
+    const getRole = spyOn(awsSdkManager.iam, 'getRole').mockResolvedValue({ Arn: registeredRole } as never);
+    const setRole = spyOn(awsSdkManager.apiGatewayAccount, 'setCloudWatchRoleArn');
+
+    await ensureApiGatewayCloudWatchRole(websocketTemplate);
+    expect(getRole).toHaveBeenCalledWith({ roleName: 'api-gateway-logs' });
+    expect(setRole).not.toHaveBeenCalled();
+  });
+
+  test('stops before the deployment when the registered role no longer exists, without replacing it', async () => {
+    spyOn(awsSdkManager.apiGatewayAccount, 'getCloudWatchRoleArn').mockResolvedValue(registeredRole);
+    spyOn(awsSdkManager.iam, 'getRole').mockResolvedValue(undefined);
+    const setRole = spyOn(awsSdkManager.apiGatewayAccount, 'setCloudWatchRoleArn');
+
+    const error = await ensureApiGatewayCloudWatchRole(websocketTemplate).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(CliError);
+    expect((error as CliError).code).toBe('API_GATEWAY_CLOUDWATCH_ROLE_MISSING');
+    expect(setRole).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['iam:GetRole is denied', 'arn:aws:iam::123456789012:role/api-gateway-logs'],
+    ['the role belongs to another account', 'arn:aws:iam::999999999999:role/api-gateway-logs']
+  ])('continues when %s', async (_, roleArn) => {
+    spyOn(awsSdkManager.apiGatewayAccount, 'getCloudWatchRoleArn').mockResolvedValue(roleArn);
+    const getRole = spyOn(awsSdkManager.iam, 'getRole').mockRejectedValue(denied());
+
+    await ensureApiGatewayCloudWatchRole(websocketTemplate);
+    expect(getRole).toHaveBeenCalledTimes(roleArn.includes('999999999999') ? 0 : 1);
+  });
+
+  test('creates and registers the Stacktape role when none is set', async () => {
+    const roleArn = `arn:aws:iam::123456789012:role/${API_GATEWAY_CLOUDWATCH_ROLE_NAME}`;
+    spyOn(awsSdkManager.apiGatewayAccount, 'getCloudWatchRoleArn').mockResolvedValue(undefined);
+    spyOn(awsSdkManager.iam, 'getRole').mockResolvedValue(undefined);
+    spyOn(awsSdkManager.iam, 'createRole').mockResolvedValue({
+      Arn: roleArn,
+      RoleName: API_GATEWAY_CLOUDWATCH_ROLE_NAME
+    } as never);
+    const attach = spyOn(awsSdkManager.iam, 'attachManagedPolicyToRole').mockResolvedValue();
+    const setRole = spyOn(awsSdkManager.apiGatewayAccount, 'setCloudWatchRoleArn').mockResolvedValue({} as never);
+
+    await ensureApiGatewayCloudWatchRole(websocketTemplate);
+    expect(attach).toHaveBeenCalledWith({
+      roleName: API_GATEWAY_CLOUDWATCH_ROLE_NAME,
+      policyArn: 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
+    });
+    expect(setRole).toHaveBeenCalledWith(roleArn);
   });
 });

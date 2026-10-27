@@ -12,7 +12,6 @@ import {
   PutRolePolicyCommand,
   SimulatePrincipalPolicyCommand,
   UpdateAssumeRolePolicyCommand,
-  waitUntilPolicyExists,
   waitUntilRoleExists
 } from '@aws-sdk/client-iam';
 
@@ -216,7 +215,6 @@ export class AwsIam {
     await this.#createClient()
       .send(new AttachRolePolicyCommand({ RoleName: roleName, PolicyArn: policyArn }))
       .catch(errorHandler);
-    await waitUntilPolicyExists({ client: this.#createClient(), maxWaitTime: 60 }, { PolicyArn: policyArn });
   };
 
   reconcileInlineRolePolicies = async ({

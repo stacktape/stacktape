@@ -59,6 +59,22 @@ test("Node's uncaught error keeps the source line with its caret and the stack t
   expect(await collect('stderr', crash)).toEqual([{ message: crash.filter(Boolean).join('\n'), level: 'error' }]);
 });
 
+// r2y review: a Go crash is one error entry, including its unindented `goroutine` lines; `log.Panic` logs its message
+// before the panic.
+test('a Go panic and its goroutine dump become one error entry', async () => {
+  const crash = [
+    'panic: runtime error: index out of range [3] with length 3',
+    '',
+    'goroutine 1 [running]:',
+    'main.main()',
+    '\t/app/main.go:12 +0x1d',
+    'exit status 2'
+  ];
+  expect(await collect('stderr', crash)).toEqual([{ message: crash.filter(Boolean).join('\n'), level: 'error' }]);
+  const logPanic = ['2026/10/27 13:18:28 config missing', 'panic: config missing', '', 'goroutine 1 [running]:'];
+  expect(await collect('stderr', logPanic)).toEqual([{ message: logPanic.filter(Boolean).join('\n'), level: 'error' }]);
+});
+
 test('lines that arrive after a pause start a new entry', async () => {
   const entries: string[] = [];
   const grouper = createLogLineGrouper({ stream: 'stdout', onEntry: (message) => entries.push(message), quietMs: 10 });
@@ -93,7 +109,18 @@ test.each([
   ['time=2026-10-27T13:18:28.123+01:00 level=WARN msg="slow scan"', 'stderr', 'warn'],
   ['time=2026-10-27T13:18:28.123+01:00 level=INFO msg="order created"', 'stderr', 'info'],
   ['time="2026-10-27T13:18:28+01:00" level=error msg="scan orders"', 'stdout', 'error'],
-  ['panic: runtime error: index out of range', 'stderr', 'error']
+  ['panic: runtime error: index out of range', 'stderr', 'error'],
+  ['fatal error: concurrent map writes', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 http: panic serving 127.0.0.1:52144: runtime error: invalid memory address', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 failed to open config.yaml: no such file or directory', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 main.go:31: could not connect to redis: connection refused', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 [error] 29#29: *1 connect() failed (111: Connection refused)', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 [crit] 29#29: *1 open() "/var/cache/nginx" failed (13: Permission denied)', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 [emerg] 1#1: bind() to 0.0.0.0:80 failed (98: Address already in use)', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 [alert] 1#1: worker process 30 exited on signal 9', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 [notice] 1#1: start worker processes', 'stderr', 'info'],
+  ['TypeError: cannot read properties of undefined level="debug"', 'stdout', 'error'],
+  ['Traceback (most recent call last): level=info', 'stderr', 'error']
 ] as const)('%s on %s is %s', (line, stream, level) => {
   expect(detectLogLevel(line, stream)).toBe(level);
 });

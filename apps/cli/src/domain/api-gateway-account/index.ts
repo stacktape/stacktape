@@ -1,4 +1,5 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
@@ -73,6 +74,35 @@ const registerRole = async (roleArn: string) => {
   }
 };
 
+const REQUIRED_ACTIONS = `apigateway:GET and apigateway:PATCH on /account, and iam:GetRole, iam:CreateRole, iam:AttachRolePolicy and iam:PassRole on role ${API_GATEWAY_CLOUDWATCH_ROLE_NAME}`;
+const ALTERNATIVES =
+  'Alternatively, set a role in the API Gateway console (Settings) of this region, or set `logging.disabled: true` on the WebSocket API.';
+
+/** Fails when the registered role is in this account and no longer exists; API Gateway would reject the logs then. */
+const checkRegisteredRoleExists = async (roleArn: string) => {
+  const [, , , , accountId, resource = ''] = roleArn.split(':');
+  if (!resource.startsWith('role/')) return;
+  let role: Awaited<ReturnType<typeof awsSdkManager.iam.getRole>>;
+  try {
+    // A role of another account cannot be looked up here.
+    if (accountId !== globalStateManager.targetAwsAccount.awsAccountId) return;
+    role = await awsSdkManager.iam.getRole({ roleName: resource.split('/').at(-1)! });
+  } catch {
+    // Without iam:GetRole the deployment decides.
+    return;
+  }
+  if (role) return;
+  throw new CliError({
+    category: 'AWS',
+    code: 'API_GATEWAY_CLOUDWATCH_ROLE_MISSING',
+    message: `The API Gateway settings of ${awsSdkManager.region} name the CloudWatch Logs role ${roleArn}, which no longer exists. API access logs cannot be written, so the deployment would fail.`,
+    hints: [
+      `Create the role again, with the AWS managed policy AmazonAPIGatewayPushToCloudWatchLogs and a trust policy for apigateway.amazonaws.com, or set another role in the API Gateway console (Settings). Stacktape does not replace a role that someone set.`,
+      'Alternatively, set `logging.disabled: true` on the WebSocket API.'
+    ]
+  });
+};
+
 /**
  * WebSocket and REST API stages with logs fail to deploy until the region's API Gateway account settings name a
  * CloudWatch role, which new accounts do not have. Registers a Stacktape-owned role when none is set; never replaces a
@@ -80,9 +110,23 @@ const registerRole = async (roleArn: string) => {
  */
 export const ensureApiGatewayCloudWatchRole = async (template: CloudFormationTemplate) => {
   if (!templateNeedsApiGatewayCloudWatchRole(template)) return;
-  if (await awsSdkManager.apiGatewayAccount.getCloudWatchRoleArn()) return;
 
   const { region } = awsSdkManager;
+  let registeredRoleArn: string | undefined;
+  try {
+    registeredRoleArn = await awsSdkManager.apiGatewayAccount.getCloudWatchRoleArn();
+  } catch (error) {
+    // A principal without apigateway:GET on /account may still deploy where a role is set.
+    tuiManager.warn(
+      `Stacktape could not read the API Gateway settings of ${region} (${(error as Error).message}), so it cannot check the CloudWatch Logs role that API access logs need. If none is set, the deployment fails on the API stage.`
+    );
+    return;
+  }
+  if (registeredRoleArn) {
+    await checkRegisteredRoleExists(registeredRoleArn);
+    return;
+  }
+
   try {
     const role = await getOrCreateRole();
     const partition = role.Arn.split(':')[1];
@@ -99,10 +143,7 @@ export const ensureApiGatewayCloudWatchRole = async (template: CloudFormationTem
       category: 'AWS',
       code: 'API_GATEWAY_CLOUDWATCH_ROLE_SETUP_FAILED',
       message: `API access logs need a CloudWatch Logs role in the API Gateway settings of ${region}, and Stacktape could not set one up: ${(error as Error).message}`,
-      hints: [
-        `Stacktape needs iam:GetRole, iam:CreateRole, iam:AttachRolePolicy, iam:PassRole on role ${API_GATEWAY_CLOUDWATCH_ROLE_NAME}, and apigateway:PATCH on /account.`,
-        'Alternatively, set the role in the API Gateway console (Settings), or set `logging.disabled: true` on the WebSocket API.'
-      ],
+      hints: [`Stacktape needs ${REQUIRED_ACTIONS}.`, ALTERNATIVES],
       cause: error
     });
   }
