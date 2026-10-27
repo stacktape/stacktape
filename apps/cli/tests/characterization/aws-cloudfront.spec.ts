@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import type { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import {
   CreateInvalidationCommand,
+  GetDistributionConfigCommand,
   GetInvalidationCommand,
-  ListDistributionsCommand
+  ListDistributionsCommand,
+  UpdateDistributionCommand
 } from '@aws-sdk/client-cloudfront';
 import { AwsCloudFront } from '../../src/aws/cloudfront';
 
@@ -99,5 +101,40 @@ describe('AWS CloudFront operations', () => {
     const distributions = await cloudFront.findDistributionsForBucket({ bucketName: 'assets' });
 
     expect(distributions.map(({ Id }) => Id)).toEqual(['matching-first-page', 'matching-second-page']);
+  });
+
+  test('disables a distribution with its full current config and the matching ETag', async () => {
+    const config = {
+      CallerReference: 'stack-cdn',
+      Comment: 'cdn',
+      Enabled: true,
+      Origins: { Quantity: 1, Items: [{ Id: 'bucket-origin', DomainName: 'assets.s3.eu-west-1.amazonaws.com' }] }
+    };
+    const updates: UpdateDistributionCommand['input'][] = [];
+    const cloudFront = cloudFrontWith({
+      send: (async (command: GetDistributionConfigCommand | UpdateDistributionCommand) => {
+        if (command instanceof GetDistributionConfigCommand) {
+          return { DistributionConfig: config, ETag: 'etag-1' };
+        }
+        updates.push(command.input);
+        return {};
+      }) as Send
+    });
+
+    expect(await cloudFront.setDistributionEnabled({ distributionId: 'E2CDN', enabled: false })).toBe(true);
+    expect(updates).toEqual([{ Id: 'E2CDN', IfMatch: 'etag-1', DistributionConfig: { ...config, Enabled: false } }]);
+  });
+
+  test('leaves a distribution that is already in the requested state untouched', async () => {
+    const sent: string[] = [];
+    const cloudFront = cloudFrontWith({
+      send: (async (command: GetDistributionConfigCommand | UpdateDistributionCommand) => {
+        sent.push(command.constructor.name);
+        return { DistributionConfig: { Enabled: false }, ETag: 'etag-1' };
+      }) as Send
+    });
+
+    expect(await cloudFront.setDistributionEnabled({ distributionId: 'E2CDN', enabled: false })).toBe(false);
+    expect(sent).toEqual(['GetDistributionConfigCommand']);
   });
 });

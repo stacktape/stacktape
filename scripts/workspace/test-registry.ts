@@ -539,6 +539,7 @@ export const lanes: readonly Lane[] = [
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
+      'tests/characterization/cloudformation-stack-delete.spec.ts',
       'tests/characterization/stack-event-pagination.spec.ts'
     ],
     level: 'focused',
@@ -559,6 +560,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts'
     ],
     requires: [],
@@ -2544,6 +2546,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/cli-input-parsing.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/config-derived-metadata.spec.ts',
       'apps/cli/tests/characterization/config-error-modernization.spec.ts',
@@ -4241,9 +4244,11 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/tests/cli-process/stack-operations.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
     ],
     lanes: [
+      'deployment-rules',
       'cli-stack-operations',
       'cli-test-helper-lambdas',
       'static-site-live',
