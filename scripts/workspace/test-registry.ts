@@ -4744,6 +4744,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/base-images.test.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
+      'apps/cli/src/utils/docker-builder.spec.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
       'apps/cli/tests/image-builders/docker-build.spec.ts',
       'apps/cli/tests/image-builders/ecr.spec.ts',
