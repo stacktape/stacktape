@@ -247,6 +247,8 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  /** The files each job's build reads, recorded before the build runs, so they are known when it fails. */
+  #attemptedSourceFiles = new Map<string, string[]>();
   // Packaging and transition preparation inspect the same deployed generation before any function mutation.
   #deployedFunctions = new Map<string, ReturnType<typeof awsSdkManager.lambda.getFunctionDeployment>>();
   #deployedFunctionZips = new Map<string, Promise<AdmZip>>();
@@ -436,6 +438,7 @@ export class PackagingManager {
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
+    this.#attemptedSourceFiles.clear();
     this.#deployedFunctions.clear();
     this.#deployedFunctionZips.clear();
     this.#deployedLayerZips.clear();
@@ -443,6 +446,11 @@ export class PackagingManager {
     this.#nativeBinaryLayers = [];
     this.#lambdaLayerMap.clear();
     this.#nativeBinaryLayerByLambda.clear();
+  }
+
+  /** The files the last build of the job reads, when its build reported them; also after a failed build. */
+  getAttemptedSourceFiles(jobName: string) {
+    return this.#attemptedSourceFiles.get(jobName);
   }
 
   getPackagingOutputForJob(jobName: string) {
@@ -1705,6 +1713,12 @@ export class PackagingManager {
       ),
       runDocker: this.#dockerRunners.runDocker,
       pinLocalBaseImage: this.#dockerRunners.pinLocalBaseImage,
+      warn: (message: string) => tuiManager.warn(`${workloadName}: ${message}`),
+      reportSourceFiles: (sourceFiles: { path: string }[]) =>
+        this.#attemptedSourceFiles.set(
+          jobName,
+          sourceFiles.map(({ path }) => path)
+        ),
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 

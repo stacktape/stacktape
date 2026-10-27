@@ -234,6 +234,7 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
       code: errorDetails.code || 'INTERNAL_ERROR',
       message: returnableError.message || 'Command failed',
       data: {
+        ...errorDetails.data,
         ...(errorDetails.errorId ? { errorId: errorDetails.errorId } : {}),
         ...(errorDetails.hints ? { hints: errorDetails.hints } : {})
       }

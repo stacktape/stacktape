@@ -45,7 +45,8 @@ export const buildJavaArtifact = async ({
   target = 'lambda',
   createPackagingError,
   requiresGlibcBinaries,
-  runDocker
+  runDocker,
+  reportSourceFiles
 }: StpBuildpackInput & {
   sourcePath: string;
   javaVersion: SupportedJavaVersion;
@@ -84,6 +85,7 @@ export const buildJavaArtifact = async ({
     sourceFiles: await getSourceFiles({ rootPath: sourcePath }),
     explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
   });
+  reportSourceFiles?.(sourceFiles);
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',

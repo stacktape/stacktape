@@ -77,6 +77,8 @@ const FAILED_START_RETENTION_MS = 60 * 60 * 1000;
 const DEFAULT_WAIT_SECONDS = 50;
 /** The CLI process gets this long in total; the daemon parent itself stops a daemon that stays silent for 10 minutes. */
 const START_TIMEOUT_MS = 30 * 60 * 1000;
+/** Codes of a `dev --agent` result whose session runs but is not ready (`commands/dev/index.ts`). */
+const SESSION_NOT_READY_CODES = new Set(['DEV_STARTED_WITH_FAILURES', 'DEV_SESSION_NOT_READY']);
 
 const getWaitMs = (value: unknown) => {
   const seconds = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
@@ -960,11 +962,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         done: Promise.resolve()
       };
       const forwardCancellation = () => startup.abort.abort();
-      const finishStartup = (output: ToolOutput) => {
+      const finishStartup = (output: ToolOutput, { sessionRuns = output.ok }: { sessionRuns?: boolean } = {}) => {
         startup.output = output;
         startup.state = 'finished';
         startups.delete(devSessionId);
-        if (!output.ok) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
+        if (!sessionRuns) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
       };
       signal?.addEventListener('abort', forwardCancellation, { once: true });
 
@@ -1003,8 +1005,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             (port): port is number => typeof port === 'number'
           );
           const missingPort = result.ok && agentPort === undefined;
+          // The session runs, but a workload failed or it is still starting: it stays usable (rebuild, logs, stop), and
+          // the start is not reported as a success.
+          const runsNotReady = !result.ok && SESSION_NOT_READY_CODES.has(result.code) && agentPort !== undefined;
           session.cwd = result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd;
-          if (result.ok && agentPort !== undefined) {
+          if ((result.ok || runsNotReady) && agentPort !== undefined) {
             session.agentPort = agentPort;
             if (typeof payload?.stage === 'string') session.stage = payload.stage;
             activeDevSessions.set(devSessionId, session);
@@ -1018,6 +1023,33 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             activeDevSessions.delete(devSessionId);
           }
           const succeeded = result.ok && !missingPort;
+          if (runsNotReady) {
+            const failedWorkloads = Array.isArray(result.data?.failedWorkloads) ? result.data.failedWorkloads : [];
+            finishStartup(
+              {
+                ok: false,
+                code: result.code,
+                message: result.message,
+                data: {
+                  session: publicSession(session),
+                  ready: false,
+                  failedWorkloads,
+                  resolvedContext: result.resolvedContext,
+                  ...(result.data ? { cli: result.data } : {})
+                },
+                nextActions: failedWorkloads.length
+                  ? [
+                      'The session runs, but the failed workloads do not run your current code: requests to them reach their previous code or fail. Fix the errors in the messages above.',
+                      `Then call stacktape_dev with action=rebuild, args.devSessionId=${devSessionId} and args.workload=<name> for each failed workload, and test only after it returns ok.`
+                    ]
+                  : [
+                      `Call stacktape_dev with action=status and args.devSessionId=${devSessionId} until ready is true before testing.`
+                    ]
+              },
+              { sessionRuns: true }
+            );
+            return;
+          }
           const output: ToolOutput = {
             ok: succeeded,
             code: missingPort ? 'INTERNAL_ERROR' : result.code,

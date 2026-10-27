@@ -13,7 +13,8 @@ import {
   stopAgentServer
 } from '../agent-server';
 import { createConfigChangeDetector } from '../config-change';
-import { getRunningAgentReadyPayload } from '../index';
+import { getReturnableError, type HandledError } from '@utils/errors';
+import { getRunningAgentReadyPayload, reportRunningAgent } from '../index';
 import { createWorkloadRebuilder } from '../workload-rebuild';
 
 const freePort = async () => {
@@ -119,6 +120,32 @@ test('a failed rebuild or a changed configuration is reported, and the session i
   });
   expect(await call('POST', '/rebuild/all')).toMatchObject({ ok: false, code: 'REBUILD_FAILED' });
   expect(deployed).toEqual([]);
+
+  // `dev --agent` again, as an MCP start that finds the session: it must not report the session as started. The
+  // command result is a distinct non-OK code with the error, `ready: false` and the session, which keeps running.
+  const runningLockFile = {
+    pid: process.pid,
+    port,
+    phase: 'ready' as const,
+    projectName: 'todos',
+    stage: 'dev',
+    region: 'eu-north-1',
+    startedAt: new Date().toISOString(),
+    workloads: ['api'],
+    databases: []
+  };
+  const notReady = await reportRunningAgent(runningLockFile).then(
+    () => undefined,
+    (error: HandledError) => error
+  );
+  expect(notReady).toMatchObject({ code: 'DEV_STARTED_WITH_FAILURES' });
+  expect(notReady?.message).toContain('api: Build failed: Unexpected ;');
+  // What the JSONL result's `data` carries: the session as a ready start reports it, and its readiness on top.
+  expect((getReturnableError(notReady!) as Error & { details: { data: unknown } }).details.data).toMatchObject({
+    ready: false,
+    failedWorkloads: [{ name: 'api', error: 'Build failed: Unexpected ;' }],
+    result: { port, ready: false, tokenFile: expect.any(String) }
+  });
 
   // The fix lands: the rebuild succeeds and the session is ready again.
   source = 'export const handler = () => 201;';

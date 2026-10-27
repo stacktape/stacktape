@@ -65,6 +65,8 @@ export type CliErrorOptions = {
   cause?: unknown;
   userStackTrace?: string;
   detail?: { title: string; codeFrame?: string };
+  /** Machine-readable details the command result carries with the error, such as a session that still runs. */
+  data?: Record<string, unknown>;
 };
 
 export type ErrorDetails = {
@@ -81,6 +83,7 @@ export class CliError extends Error {
   readonly hints: string[];
   readonly userStackTrace?: string;
   readonly errorDetails?: { title: string; codeFrame?: string };
+  readonly data?: Record<string, unknown>;
   details?: ErrorDetails;
 
   // Transitional aliases for catch sites that have not moved to instanceof yet.
@@ -88,7 +91,7 @@ export class CliError extends Error {
   readonly type: ErrorCategory;
   readonly hint?: string | string[];
 
-  constructor({ category, code, message, hints, cause, userStackTrace, detail }: CliErrorOptions) {
+  constructor({ category, code, message, hints, cause, userStackTrace, detail, data }: CliErrorOptions) {
     super(message, cause === undefined ? undefined : { cause });
     this.name = 'CliError';
     this.category = category;
@@ -98,6 +101,7 @@ export class CliError extends Error {
     this.hint = hints;
     this.userStackTrace = userStackTrace;
     this.errorDetails = detail;
+    this.data = data;
   }
 }
 
@@ -172,7 +176,8 @@ export const getReturnableError = (error: HandledError): Error => {
     errorId: details.errorTrackingId,
     errorType: details.errorType,
     code: details.code,
-    hints: hints.length ? hints : null
+    hints: hints.length ? hints : null,
+    ...(error instanceof CliError && error.data ? { data: error.data } : {})
   };
   return res;
 };

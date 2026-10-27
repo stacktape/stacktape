@@ -979,6 +979,53 @@ describe('MCP dev start results', () => {
     expect(received).toEqual([{ stage: 'dev' }, { stage: 'dev', takeOver: true }, { stage: 'dev', takeOver: true }]);
   });
 
+  // r2p's false green: a warm start with a Python syntax error reported ok, and the assistant tested the old code.
+  test('a start whose session runs with a failed function is not a success, and the session takes the rebuild', async () => {
+    const dev = await daemon();
+    try {
+      const failedWorkloads = [{ name: 'api', error: 'api/main.py, line 103: SyntaxError: invalid syntax' }];
+      const handler = createDevToolHandler({
+        // What `dev --agent` returns for such a session (`DEV_STARTED_WITH_FAILURES` in commands/dev/index.ts).
+        runCli: async (input) => {
+          const started = await startedDaemon(input);
+          return {
+            ...started,
+            ok: false,
+            code: 'DEV_STARTED_WITH_FAILURES',
+            message: `Dev mode runs, but functions in it were not deployed and run their previous code:\n  api: ${failedWorkloads[0]!.error}`,
+            data: {
+              result: { ...(started.data!.result as Record<string, unknown>), ready: false, failedWorkloads },
+              ready: false,
+              failedWorkloads,
+              hints: ['Fix the errors, then rebuild.']
+            }
+          };
+        }
+      });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      expect(started).toMatchObject({
+        ok: false,
+        code: 'DEV_STARTED_WITH_FAILURES',
+        data: { ready: false, failedWorkloads }
+      });
+      expect(started.message).toContain('api/main.py, line 103');
+      const session = started.data?.session as { devSessionId: string; agentPort: number };
+      expect(session.agentPort).toBe(dev.port);
+      expect(started.nextActions?.join(' ')).toContain(`action=rebuild, args.devSessionId=${session.devSessionId}`);
+      // Not a failed start: the next call reaches the running session instead of repeating the start's error.
+      expect(
+        (await handler({ action: 'rebuild', args: { devSessionId: session.devSessionId, workload: 'api' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      expect(dev.state.rebuilt).toEqual(['api']);
+      expect(
+        (await handler({ action: 'stop', args: { devSessionId: session.devSessionId } })).structuredContent.ok
+      ).toBe(true);
+    } finally {
+      await dev.close();
+    }
+  });
+
   test('a successful start leaves out the CLI output meant for people', async () => {
     const dev = await daemon();
     try {

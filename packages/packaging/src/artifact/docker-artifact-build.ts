@@ -18,8 +18,7 @@ export const runDockerArtifactBuild = async ({
   distFolderPath,
   dockerBuildOutputArchitecture,
   buildArgs = [],
-  runDocker,
-  describeFailure
+  runDocker
 }: {
   dockerfileContents: string;
   sourcePath: string;
@@ -27,8 +26,6 @@ export const runDockerArtifactBuild = async ({
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   buildArgs?: string[] | undefined;
   runDocker: RunDocker;
-  /** A clearer error for a failed build, when the build's output says what failed; the Docker error otherwise. */
-  describeFailure?: ((error: unknown) => Error | undefined) | undefined;
 }) => {
   const absoluteSourcePath = resolve(sourcePath);
   const absoluteDistFolderPath = resolve(distFolderPath);
@@ -84,6 +81,6 @@ export const runDockerArtifactBuild = async ({
     }
   }
   if ('error' in buildResult) {
-    throw describeFailure?.(buildResult.error) ?? buildResult.error;
+    throw buildResult.error;
   }
 };

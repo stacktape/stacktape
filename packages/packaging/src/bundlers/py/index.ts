@@ -12,7 +12,6 @@ import {
   getPythonDependencyRootPath,
   getPythonUvDependencySelectorBuildArgs,
   getSourceFiles,
-  parsePythonCompileErrors,
   resolvePythonDependencyFile
 } from './utils';
 import type { PythonBuildpackConfig, SupportedPythonVersion } from '@stacktape/config/deployment-artifacts';
@@ -23,6 +22,8 @@ import {
   resolveArtifactFileSelection
 } from '../../artifact/file-selection';
 import { runDockerArtifactBuild } from '../../artifact/docker-artifact-build';
+import { pathExists } from 'fs-extra';
+import { classifyPythonCompileErrors, describePythonCompileError, takePythonCompileReport } from './compile-check';
 
 type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
   Partial<Pick<CreateBundleOutput, 'distIndexFilePath'>>;
@@ -46,7 +47,9 @@ export const buildPythonArtifact = async ({
   target = 'lambda',
   createPackagingError,
   runDocker,
-  pinLocalBaseImage
+  pinLocalBaseImage,
+  warn,
+  reportSourceFiles
 }: StpBuildpackInput & {
   sourcePath: string;
   pythonVersion: SupportedPythonVersion;
@@ -57,6 +60,7 @@ export const buildPythonArtifact = async ({
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
   pinLocalBaseImage?: PinLocalBaseImage | undefined;
+  warn?: ((message: string) => void) | undefined;
 }): Promise<LanguageBundleOutput> => {
   await progressLogger.startEvent({
     eventType: 'CALCULATE_CHECKSUM',
@@ -114,6 +118,7 @@ export const buildPythonArtifact = async ({
     sourceFiles: await getSourceFiles({ rootPath: dependencyRootPath }),
     explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
   });
+  reportSourceFiles?.(sourceFiles);
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
@@ -138,6 +143,7 @@ export const buildPythonArtifact = async ({
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
   const alpine = !requiresGlibcBinaries;
   const baseImage = getPythonArtifactBaseImage({ pythonVersion, alpine, target });
+  const entryPathInArtifact = transformToUnixPath(relative(dependencyRootPath, rawEntryfilePath));
   const dockerfileContents = buildPythonArtifactDockerfile({
     pythonVersion,
     alpine,
@@ -153,22 +159,9 @@ export const buildPythonArtifact = async ({
     sourcePath: dependencyRootPath,
     distFolderPath,
     dockerBuildOutputArchitecture,
-    describeFailure: (error) => {
-      const compileErrors = parsePythonCompileErrors(error instanceof Error ? error.message : String(error));
-      if (!compileErrors.length) return undefined;
-      return createPackagingError({
-        type: 'BUILD_CODE',
-        message: compileErrors
-          .map(
-            ({ file, line, error: description, code }) =>
-              `${transformToUnixPath(relative(cwd, join(dependencyRootPath, file)))}${line === undefined ? '' : `, line ${line}`}: ${description}${code ? `\n    ${code}` : ''}`
-          )
-          .join('\n'),
-        hint: 'Python could not compile these files of the function. Fix them and build again.',
-        cause: error
-      });
-    },
     buildArgs: [
+      '--build-arg',
+      `STP_PY_ENTRY=${entryPathInArtifact}`,
       '--build-arg',
       `STP_PY_DEP_FILE=${dependencyFilePathRelative || ''}`,
       '--build-arg',
@@ -184,6 +177,8 @@ export const buildPythonArtifact = async ({
     ],
     runDocker
   });
+  // Taken before the file selection, which could match it; judged after it, which decides what the artifact keeps.
+  const compileReport = await takePythonCompileReport(distFolderPath);
   await applyArtifactFileSelection({
     cwd,
     outputDirectory: distFolderPath,
@@ -194,10 +189,32 @@ export const buildPythonArtifact = async ({
   });
   await assertRequiredArtifactFile({
     outputDirectory: distFolderPath,
-    relativePath: transformToUnixPath(relative(dependencyRootPath, rawEntryfilePath)),
+    relativePath: entryPathInArtifact,
     description: 'Python entrypoint',
     createPackagingError
   });
+  if (compileReport) {
+    const { blocking, other } = await classifyPythonCompileErrors({
+      report: compileReport,
+      isPackaged: (file) => pathExists(join(distFolderPath, file))
+    });
+    const displayPath = (file: string) => transformToUnixPath(relative(cwd, join(dependencyRootPath, file)));
+    if (blocking.length) {
+      throw createPackagingError({
+        type: 'BUILD_CODE',
+        message: blocking.map((error) => describePythonCompileError(error, displayPath(error.file))).join('\n'),
+        hint: `Python ${pythonVersion} cannot compile these files, which ${transformToUnixPath(relative(cwd, rawEntryfilePath))} imports. Fix them and build again.`
+      });
+    }
+    if (other.length) {
+      const listed = other
+        .slice(0, 5)
+        .map((error) => describePythonCompileError(error, displayPath(error.file), { withCode: false }));
+      warn?.(
+        `Python ${pythonVersion} cannot compile ${other.length} packaged file${other.length === 1 ? '' : 's'} that ${transformToUnixPath(relative(cwd, rawEntryfilePath))} does not import. The function fails if it loads one; leave such files out with excludeFiles if it never does. ${[...listed, ...(other.length > 5 ? [`and ${other.length - 5} more`] : [])].join('; ')}`
+      );
+    }
+  }
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
   return {

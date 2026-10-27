@@ -1146,7 +1146,7 @@ const getFunctionIntegrationInfo = (resourceName: string): { url?: string; statu
   return { statusMessage: eventTypeLabels[eventType] || `${eventType} trigger` };
 };
 
-/** The function's entry file, which a file watcher follows when no build traced the function's files. */
+/** The function's entry file, which a file watcher follows when its failed build did not report its files. */
 const getFunctionEntryFiles = (resourceName: string): string[] => {
   const entryfilePath = (
     configManager.functions.find(({ name }) => name === resourceName)?.packaging?.properties as
@@ -1178,6 +1178,8 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   let packagingOutput: PackagingOutput | undefined;
   let codeUnchanged = false;
   let startError: string | undefined;
+  // The files a failed build reads: the watcher rebuilds the function when one of them changes, as after a success.
+  let attemptedSourceFiles: string[] | undefined;
   try {
     ({ packagingOutput, codeUnchanged } = await buildAndUpdateFunctionCode(resourceName, {
       devMode: true,
@@ -1186,6 +1188,7 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   } catch (error) {
     if (applicationManager.isInterrupted) throw error;
     startError = error instanceof Error ? error.message : String(error);
+    attemptedSourceFiles = packagingManager.getAttemptedSourceFiles(resourceName);
   } finally {
     packagingManager.clearPackagedJobs();
   }
@@ -1252,8 +1255,11 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
     name: resourceName,
     type: 'function',
     resourceType: 'function',
-    // Without a build there is no traced file list; the entry file still rebuilds the function when it changes.
-    sourceFiles: packagingOutput?.sourceFiles.map((f: any) => f.path) ?? getFunctionEntryFiles(resourceName),
+    // A build that failed before it knew its files (a JavaScript bundle) leaves the entry file to watch.
+    sourceFiles:
+      packagingOutput?.sourceFiles.map((f: any) => f.path) ??
+      attemptedSourceFiles ??
+      getFunctionEntryFiles(resourceName),
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 

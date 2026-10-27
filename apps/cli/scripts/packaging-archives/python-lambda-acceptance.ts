@@ -10,7 +10,8 @@
  * For each function the acceptance reads the runtime from the synthesized template (`validate --withPackage`), checks
  * that every compiled extension in the ZIP (`package`) carries that version's ABI tag, and invokes the ZIP in the
  * official Lambda image of that runtime as an unprivileged user: `psycopg` must load its binary implementation. Then a
- * syntax error in a module of `api` must stop `package` with the file and line.
+ * syntax error in a module `api` imports must stop `package` with the file and line, while a broken script it does not
+ * import is only reported.
  *
  * The CLI runs as a child process in an isolated home, with AWS reads on MiniStack. It needs Docker, `unzip` and
  * network access for the build images and wheels; never AWS.
@@ -175,7 +176,9 @@ const main = async () => {
       );
     }
 
-    console.log('Adding a syntax error to api and packaging again...');
+    console.log('Adding a syntax error to a module api imports, and a Python 2 script, and packaging again...');
+    await file(join(project, 'api', 'scripts', 'legacy.py'), 'print "python 2"\n');
+    await file(join(project, 'api', 'main.py'), `import storage\n${HANDLER}`);
     await file(join(project, 'api', 'storage.py'), 'def save(:\n    pass\n');
     const failure = await packageProject('syntax-error', 'package').then(
       () => undefined,
@@ -185,7 +188,24 @@ const main = async () => {
     check(
       'a syntax error stops packaging with its file and line',
       failure?.includes('api/storage.py, line 1: SyntaxError: invalid syntax') === true,
-      failure?.match(/"message":"([^"]*)"/)?.[1] ?? outputTail(failure ?? 'packaging succeeded', 600)
+      failure?.match(/"code":"BUILD_CODE_FAILED","message":"([^"]*)"/)?.[1] ??
+        outputTail(failure ?? 'packaging succeeded', 600)
+    );
+
+    console.log('Fixing the module and packaging again...');
+    await file(join(project, 'api', 'storage.py'), 'def save(item):\n    return item\n');
+    const fixed = await packageProject('script-warning', 'package');
+    const output = `${fixed.processResult.stdout}\n${fixed.processResult.stderr}`;
+    check(
+      'a broken script the handler does not import is reported, not a failure',
+      output.includes('api/scripts/legacy.py, line 1: SyntaxError'),
+      outputTail(output.match(/[^\n]*cannot compile[^\n]*/)?.[0] ?? 'no warning', 600)
+    );
+    invocationDirectories.push(
+      ...fixed.details.packagedWorkloads.flatMap((workload) => {
+        const artifactPath = (workload as { artifactPath?: unknown }).artifactPath;
+        return typeof artifactPath === 'string' ? [dirname(dirname(dirname(artifactPath)))] : [];
+      })
     );
   } finally {
     try {

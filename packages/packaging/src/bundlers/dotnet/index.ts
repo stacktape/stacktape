@@ -43,7 +43,8 @@ export const buildDotnetArtifact = async ({
   excludeFiles,
   target = 'lambda',
   createPackagingError,
-  runDocker
+  runDocker,
+  reportSourceFiles
 }: StpBuildpackInput & {
   sourcePath: string;
   dotnetVersion: SupportedDotnetVersion;
@@ -111,6 +112,7 @@ export const buildDotnetArtifact = async ({
     sourceFiles: await getSourceFiles({ rootPath: buildRootPath }),
     explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
   });
+  reportSourceFiles?.(sourceFiles);
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',

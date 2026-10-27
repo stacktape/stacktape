@@ -91,7 +91,7 @@ Stacktape uses the dependency file nearest to the entry file. The build runs in 
 
 The function's `runtime` property decides the language version. The build uses the Lambda build image of that runtime, so the artifact matches the environment it runs in. When `runtime` is not set, Stacktape selects a default runtime from the entry file's extension: `python3.13`, `java25`, `ruby4.0`, `dotnet10`, or `provided.al2023` for Go and Rust. Python defaults to 3.13 rather than 3.14 because many pinned packages with native code, such as `psycopg-binary` 3.2.3 or `pydantic-core` 2.27, have no wheels for 3.14. Set `runtime` explicitly to pin a version.
 
-A Python build also compiles every `.py` file it packages, except those in virtual environments. A syntax error stops the build with the file and line, instead of failing every request after the deployment.
+A Python build also compiles the `.py` files it packages with the function's Python version. A syntax error in the entry file or in a project module it imports, directly or through other modules, stops the build with the file and line, instead of failing every request after the deployment. A file the entry file does not import, such as a script, a test fixture or a template, only produces a warning; leave it out with `excludeFiles` to silence it. Imports made at run time, for example with `importlib`, are not followed.
 
 <CodeBlock
   intellisense

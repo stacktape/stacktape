@@ -40,7 +40,8 @@ export const buildRubyArtifact = async ({
   excludeFiles,
   target = 'lambda',
   createPackagingError,
-  runDocker
+  runDocker,
+  reportSourceFiles
 }: StpBuildpackInput & {
   sourcePath: string;
   rubyVersion: SupportedRubyVersion;
@@ -75,6 +76,7 @@ export const buildRubyArtifact = async ({
     sourceFiles: await getSourceFiles({ rootPath: sourcePath }),
     explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
   });
+  reportSourceFiles?.(sourceFiles);
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',

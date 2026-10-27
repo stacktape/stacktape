@@ -4,11 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPythonLambda } from '../../buildpacks/py-lambda-buildpack';
-import {
-  canInstallRequirementsWithoutSource,
-  getPythonUvDependencySelectorBuildArgs,
-  parsePythonCompileErrors
-} from './utils';
+import { canInstallRequirementsWithoutSource, getPythonUvDependencySelectorBuildArgs } from './utils';
 
 const createPackagingError = ({ message }: { message: string }) => new Error(message);
 
@@ -115,68 +111,5 @@ describe('requirements installed before the source', () => {
     expect(await canInstallRequirementsWithoutSource(join(root, 'requirements.txt'))).toBe(true);
     await writeFile(join(root, 'pyproject.toml'), '[project]\nname = "app"\n');
     expect(await canInstallRequirementsWithoutSource(join(root, 'requirements.txt'))).toBe(false);
-  });
-});
-
-// `compileall -q` output as BuildKit prints it: once while the step runs (`#13 0.339 `), once in its summary.
-const step = (lines: string[]) => [
-  '#13 [build 4/5] RUN PYTHONPYCACHEPREFIX=/tmp/stp-pycache python -m compileall -q .',
-  ...lines.map((line) => `#13 0.339 ${line}`),
-  '#13 ERROR: process "/bin/sh -c ..." did not complete successfully: exit code: 1',
-  '------',
-  ...lines.map((line) => `0.339 ${line}`),
-  '------',
-  'ERROR: failed to build: failed to solve: process "/bin/sh -c ..." did not complete successfully: exit code: 1'
-];
-
-describe('Python compile errors in the Docker build output', () => {
-  test.each<[string, string[], ReturnType<typeof parsePythonCompileErrors>]>([
-    [
-      'a syntax error, with its line and code',
-      [
-        "*** Error compiling './main.py'...",
-        '  File "./main.py", line 101',
-        '    def broken(:',
-        '               ^',
-        'SyntaxError: invalid syntax',
-        ''
-      ],
-      [{ file: 'main.py', line: 101, error: 'SyntaxError: invalid syntax', code: 'def broken(:' }]
-    ],
-    [
-      'a Python 2 print statement in a subdirectory',
-      [
-        "*** Error compiling './lib/legacy.py'...",
-        '  File "./lib/legacy.py", line 1',
-        '    print "hi"',
-        '    ^^^^^^^^^^',
-        "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?",
-        ''
-      ],
-      [
-        {
-          file: 'lib/legacy.py',
-          line: 1,
-          error: "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?",
-          code: 'print "hi"'
-        }
-      ]
-    ],
-    [
-      'indentation and tab errors, which Python reports on one line',
-      [
-        "*** Error compiling './indent.py'...",
-        'Sorry: IndentationError: unexpected indent (indent.py, line 2)',
-        "*** Error compiling './tabs.py'...",
-        'Sorry: TabError: inconsistent use of tabs and spaces in indentation (tabs.py, line 3)'
-      ],
-      [
-        { file: 'indent.py', line: 2, error: 'IndentationError: unexpected indent' },
-        { file: 'tabs.py', line: 3, error: 'TabError: inconsistent use of tabs and spaces in indentation' }
-      ]
-    ],
-    ['a failure of another step', ['error: Failed to download `psycopg-binary==3.2.10`'], []]
-  ])('%s', (_name, output, expected) => {
-    expect(parsePythonCompileErrors(step(output).join('\n'))).toEqual(expected);
   });
 });

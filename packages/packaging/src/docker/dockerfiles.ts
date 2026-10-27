@@ -1,5 +1,6 @@
 import { dirname } from 'node:path';
 import { transformToUnixPath } from '../fs/files';
+import { PYTHON_COMPILE_CHECK_COMMAND } from '../bundlers/py/compile-check';
 import type { SupportedEsPackageManager } from '../runtime-contracts';
 import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 
@@ -425,12 +426,8 @@ if [ -n "$STP_PY_DEP_FILE" ]; then \
     uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
   fi; \
 fi`;
-  // Compiling the project's own sources reports a syntax error with its file and line while building, instead of when
-  // Lambda or the container imports the module. The bytecode goes to a throwaway directory, so the artifact keeps only
-  // the sources. It runs before dependencies are installed into the same directory; virtual environments and installed
-  // packages are not the project's code and are not compiled.
-  const compileSourcesCommand = `RUN PYTHONPYCACHEPREFIX=/tmp/stp-pycache python -m compileall -q -x '/(\\.?venv|env|site-packages|dist-packages)/' .`;
-  const buildArgs = `ARG STP_PY_DEP_FILE
+  const buildArgs = `ARG STP_PY_ENTRY
+ARG STP_PY_DEP_FILE
 ARG STP_PY_DEP_TYPE
 ARG STP_PY_UV_OPTIONAL_DEPENDENCIES
 ARG STP_PY_UV_WITH_GROUPS
@@ -457,7 +454,7 @@ ${buildArgs}
 RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
-${compileSourcesCommand}
+${PYTHON_COMPILE_CHECK_COMMAND}
 
 COPY --from=deps /dist/ /dist/
 
@@ -479,7 +476,7 @@ ${buildArgs}
 RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
-${compileSourcesCommand}
+${PYTHON_COMPILE_CHECK_COMMAND}
 
 ${installDepsCommand}
 
