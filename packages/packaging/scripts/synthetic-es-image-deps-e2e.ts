@@ -63,6 +63,7 @@ import { join, relative, resolve } from 'node:path';
 import { lstat, readlink } from 'node:fs/promises';
 import { runDockerArtifactBuild } from '../src/artifact/docker-artifact-build';
 import { buildJsBundleImage } from '../src/buildpacks/js-bundle-image';
+import { takePythonCompileReport } from '../src/bundlers/py/compile-check';
 import { buildPythonArtifact } from '../src/bundlers/py/index';
 import { buildEsDockerfile, buildPythonArtifactDockerfile } from '../src/docker/dockerfiles';
 import { buildUsingDockerfile } from '../src/image/dockerfile';
@@ -718,6 +719,8 @@ const packagePythonArtifact = async (label: string): Promise<PythonPackaged> => 
     ],
     runDocker: pythonRunDocker({ owned: false, onBuild: (recorded) => (conservativeBuild = recorded) })
   });
+  // The production bundler takes the build's compile report out of the artifact; so does the conservative layout here.
+  await takePythonCompileReport(conservativeDist);
   return {
     label,
     digest: output.digest,
