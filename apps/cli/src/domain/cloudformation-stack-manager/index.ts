@@ -166,15 +166,19 @@ export const findFailedCleanupDeletions = (events: MonitoredStackEvent[]): Monit
       undefined
     );
   if (!cleanupStart) return [];
-  const failed = events
-    .filter(
-      (event) =>
-        !isStackEvent(event) &&
-        event.ResourceStatus === ResourceStatus.DELETE_FAILED &&
-        event.Timestamp >= cleanupStart.Timestamp
-    )
-    .toSorted((first, second) => second.Timestamp.getTime() - first.Timestamp.getTime());
-  return uniqBy(failed, ({ LogicalResourceId }) => LogicalResourceId);
+  const latestDeletionEvents = uniqBy(
+    events
+      .filter(
+        (event) =>
+          !isStackEvent(event) &&
+          (event.ResourceStatus === ResourceStatus.DELETE_FAILED ||
+            event.ResourceStatus === ResourceStatus.DELETE_COMPLETE) &&
+          event.Timestamp >= cleanupStart.Timestamp
+      )
+      .toSorted((first, second) => second.Timestamp.getTime() - first.Timestamp.getTime()),
+    ({ LogicalResourceId }) => LogicalResourceId
+  );
+  return latestDeletionEvents.filter(({ ResourceStatus: status }) => status === ResourceStatus.DELETE_FAILED);
 };
 
 type StackMonitoringResult = {
@@ -215,10 +219,10 @@ class StackManager {
   #stackMutationTarget?: string;
   #latestRecordedRelease: string | null = null;
   /**
-   * The resources of the template this invocation deployed. While CloudFormation still deletes the resources the
-   * update removed, the stack keeps listing them; only these are the stack's resources.
+   * The resources this invocation's update removed. The stack keeps listing them while CloudFormation still deletes
+   * them, but they are no longer the stack's resources.
    */
-  #deployedTemplateResources: Set<string> | undefined;
+  #resourcesRemovedByUpdate: Set<string> | undefined;
   #nextVersionAfterRefetch: string | null = null;
 
   // for polling ECS Service statuses during deploy
@@ -255,7 +259,7 @@ class StackManager {
     this.#stackMutationTarget = undefined;
     this.#latestRecordedRelease = null;
     this.#nextVersionAfterRefetch = null;
-    this.#deployedTemplateResources = undefined;
+    this.#resourcesRemovedByUpdate = undefined;
 
     // The resources are listed together with the details. A stack that first had to finish another operation is
     // listed again once it has.
@@ -294,7 +298,11 @@ class StackManager {
         potentialErrorCausingEvents: Object.fromEntries(
           failedCleanupDeletions.map((event) => [event.LogicalResourceId, event])
         )
-      });
+      }).catch(() =>
+        failedCleanupDeletions.map(({ LogicalResourceId, ResourceStatusReason }) => ({
+          errorMessage: `${LogicalResourceId}: ${ResourceStatusReason ?? 'deletion failed'}`
+        }))
+      );
       const plural = failedCleanupDeletions.length > 1;
       tuiManager.warn(
         `The last update of this stack could not delete ${plural ? `${failedCleanupDeletions.length} old resources` : 'an old resource'}. ${plural ? 'They are' : 'It is'} no longer part of the stack and ${plural ? 'stay' : 'stays'} in your AWS account until deleted manually:\n${tuiManager.formatComplexStackErrors(failures, 2)}`
@@ -699,7 +707,11 @@ class StackManager {
         { finishWhenCleanupStarts }
       );
       if (finishWhenCleanupStarts) {
-        this.#deployedTemplateResources = new Set(Object.keys(templateManager.template.Resources));
+        this.#resourcesRemovedByUpdate = new Set(
+          Object.keys(templateManager.oldTemplate.Resources ?? {}).filter(
+            (logicalId) => !(logicalId in templateManager.template.Resources)
+          )
+        );
       }
       // UpdateStack has already set the stack policy from `StackPolicyBody`. SetStackPolicy would fail while
       // CloudFormation still deletes old resources. Termination protection can be changed in any state.
@@ -1725,9 +1737,9 @@ class StackManager {
   };
 
   #withoutResourcesBeingCleanedUp = (resources: StackResourceSummary[]) => {
-    const deployedResources = this.#deployedTemplateResources;
-    if (!deployedResources) return resources;
-    return resources.filter(({ LogicalResourceId }) => deployedResources.has(LogicalResourceId));
+    const removedResources = this.#resourcesRemovedByUpdate;
+    if (!removedResources) return resources;
+    return resources.filter(({ LogicalResourceId }) => !removedResources.has(LogicalResourceId));
   };
 
   #filterNonExistentResources = (resources: StackResourceSummary[]) => {

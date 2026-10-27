@@ -250,6 +250,15 @@ describe('failed deletions of the last cleanup', () => {
       ])
     ).toEqual([]);
     expect(findFailedCleanupDeletions([stackEvent('CREATE_COMPLETE', 10)])).toEqual([]);
+    // A retry that deleted the resource after all.
+    expect(
+      findFailedCleanupDeletions([
+        stackEvent('UPDATE_COMPLETE', 100),
+        resourceEvent('OldCdn', 'DELETE_COMPLETE', 90),
+        resourceEvent('OldCdn', 'DELETE_FAILED', 50),
+        stackEvent('UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 40)
+      ])
+    ).toEqual([]);
   });
 });
 
