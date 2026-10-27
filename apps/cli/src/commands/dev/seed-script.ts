@@ -1,6 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { basename } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { getExecutableScriptFunction } from '../script-run/utils';
 import { agentLog } from './agent-logger';
@@ -197,7 +198,7 @@ export const runSeedScript = async (
         }
       },
       onOutputLine: (line) => {
-        output.push(line);
+        output.push(stripVTControlCharacters(line));
         if (output.length > MAX_OUTPUT_LINES) {
           output.shift();
           omittedOutputLines++;

@@ -28,16 +28,18 @@ export const getWebsocketApi = (resource: StpWebSocketApiGateway) =>
 
 export const getWebsocketApiStage = ({
   resource,
-  routeLogicalNames
+  routeLogicalNames,
+  accessLogsEnabled
 }: {
   resource: StpWebSocketApiGateway;
   routeLogicalNames: string[];
+  accessLogsEnabled: boolean;
 }) => {
   const stage = cfnResource('AWS::ApiGatewayV2::Stage', {
     ApiId: ref(cfLogicalNames.websocketApi(resource.name)),
     StageName: WEBSOCKET_API_STAGE_NAME,
     AutoDeploy: true,
-    ...(!resource.logging?.disabled
+    ...(accessLogsEnabled
       ? {
           AccessLogSettings: {
             DestinationArn: getAtt(cfLogicalNames.websocketApiLogGroup(resource.name), 'Arn'),

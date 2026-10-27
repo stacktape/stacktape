@@ -134,6 +134,7 @@
     "@aws-crypto/sha256-browser": "^5.2.0",
     "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-acm": "3.1121.0",
+    "@aws-sdk/client-api-gateway": "3.1121.0",
     "@aws-sdk/client-auto-scaling": "3.1121.0",
     "@aws-sdk/client-budgets": "3.1121.0",
     "@aws-sdk/client-cloudformation": "3.1121.0",

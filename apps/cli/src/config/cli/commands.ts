@@ -205,7 +205,9 @@ The first \`stacktape dev\` that needs it creates one dev network per account an
   'dev:network:delete': {
     description: `Deletes the dev network of an AWS account and region.
 
-Delete the dev stages that use it first (\`stacktape delete --stage <stage>\`); the command refuses while dev functions still run in the network. It also refuses while a \`stacktape dev\` session uses the network, or while a session creates or updates it; \`--force\` deletes it despite live sessions. The next \`stacktape dev\` that needs a dev network creates it again.`,
+Delete the dev stages that use it first (\`stacktape delete --stage <stage>\`); the command refuses while dev functions still run in the network. It also refuses while a \`stacktape dev\` session uses the network, or while a session creates or updates it; \`--force\` deletes it despite live sessions. The next \`stacktape dev\` that needs a dev network creates it again.
+
+The command asks for confirmation. With \`--json\` or outside a terminal it cannot ask, so pass \`--yes\`.`,
     args: {
       ...universalArgs,
       ...stackArgs,
