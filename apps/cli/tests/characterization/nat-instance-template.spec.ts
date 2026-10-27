@@ -180,6 +180,66 @@ describe('NAT configuration', () => {
     ).toEqual([[cfLogicalNames.natInstanceAutoscalingGroup(0)], [cfLogicalNames.natInstanceAutoscalingGroup(1)]]);
   });
 
+  test('a new instance profile is created by the service Lambda; a deployed one keeps its CloudFormation form', async () => {
+    const profileName = cfLogicalNames.natInstanceProfile();
+    const policyName = cfLogicalNames.instanceProfileServiceLambdaPolicy(profileName);
+    const launchTemplateProfile = (template: CloudFormationTemplate) =>
+      (
+        template.Resources[cfLogicalNames.natInstanceLaunchTemplate(0)] as {
+          Properties: { LaunchTemplateData: { IamInstanceProfile: unknown } };
+        }
+      ).Properties.LaunchTemplateData.IamInstanceProfile;
+
+    const created = await synthesize({ nat: 'ec2' });
+    const profile = created.Resources[profileName] as {
+      Type: string;
+      DependsOn: string[];
+      Properties: { ServiceToken: unknown; instanceProfile: Record<string, unknown> };
+    };
+    expect(profile.Type).toBe('AWS::CloudFormation::CustomResource');
+    expect(profile.DependsOn).toEqual([policyName]);
+    expect(profile.Properties.instanceProfile).toEqual({
+      instanceProfileName: 'characterization-baseline-nat-instance-eu-west-1',
+      roleName: { Ref: cfLogicalNames.natInstanceRole() },
+      probeImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}',
+      probeSubnetId: { Ref: cfLogicalNames.subnet(true, 0) }
+    });
+    // The service Lambda may manage exactly this profile and pass exactly this role.
+    const policy = created.Resources[policyName] as {
+      Type: string;
+      Properties: { Roles: unknown[]; PolicyDocument: { Statement: { Action: unknown; Resource: unknown }[] } };
+    };
+    expect(policy.Type).toBe('AWS::IAM::Policy');
+    expect(policy.Properties.Roles).toEqual([{ Ref: cfLogicalNames.lambdaRole('stacktapeServiceLambda') }]);
+    expect(policy.Properties.PolicyDocument.Statement.map(({ Resource }) => Resource)).toEqual([
+      {
+        'Fn::Sub':
+          'arn:${AWS::Partition}:iam::${AWS::AccountId}:instance-profile/characterization-baseline-nat-instance-eu-west-1'
+      },
+      { 'Fn::GetAtt': [cfLogicalNames.natInstanceRole(), 'Arn'] }
+    ]);
+    expect(launchTemplateProfile(created)).toEqual({ Arn: { 'Fn::GetAtt': [profileName, 'Arn'] } });
+
+    const deployed = await synthesize(
+      { nat: 'ec2' },
+      {
+        existingStackResources: [
+          {
+            LogicalResourceId: profileName,
+            ResourceType: 'AWS::IAM::InstanceProfile',
+            PhysicalResourceId: 'characterization-baseline-NatInstanceInstanceProfile-abc'
+          } as EnrichedStackResourceInfo
+        ]
+      }
+    );
+    expect(deployed.Resources[profileName]).toEqual({
+      Type: 'AWS::IAM::InstanceProfile',
+      Properties: { Roles: [{ Ref: cfLogicalNames.natInstanceRole() }] }
+    } as never);
+    expect(deployed.Resources[policyName]).toBeUndefined();
+    expect(launchTemplateProfile(deployed)).toEqual(launchTemplateProfile(created));
+  });
+
   test('ec2 is a single zone without a lifecycle hook, but with the probe that keeps its routes home', async () => {
     const template = await synthesize({ nat: { type: 'ec2', instanceSize: 't4g.micro' } });
     expect(resourcesOfType(template, 'AWS::AutoScaling::AutoScalingGroup')).toEqual([

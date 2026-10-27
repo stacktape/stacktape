@@ -13,6 +13,7 @@ import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformat
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getEventBusRuleLambdaPermission } from '../functions/events/utils';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import { addInstanceProfile } from '../_utils/instance-profile';
 
 /**
  * NAT instances (`stackConfig.nat: ec2 | ha-ec2`): one small arm64 Amazon Linux 2023 instance per availability
@@ -118,9 +119,6 @@ const getInstanceRole = ({ availabilityZones }: { availabilityZones: number }) =
     Tags: stackManager.getTags()
   });
 };
-
-const getInstanceProfile = () =>
-  cfnResource('AWS::IAM::InstanceProfile', { Roles: [ref(cfLogicalNames.natInstanceRole())] });
 
 const getElasticIp = (azIndex: number) => cfnResource('AWS::EC2::EIP', { Domain: 'vpc', Tags: natTags(azIndex) });
 
@@ -546,7 +544,13 @@ export const resolveNatInstances = ({
 
   add(cfLogicalNames.natInstanceSecurityGroup(), getSecurityGroup());
   add(cfLogicalNames.natInstanceRole(), getInstanceRole({ availabilityZones }));
-  add(cfLogicalNames.natInstanceProfile(), getInstanceProfile());
+  addInstanceProfile({
+    cfLogicalName: cfLogicalNames.natInstanceProfile(),
+    roleCfLogicalName: cfLogicalNames.natInstanceRole(),
+    purpose: 'nat-instance',
+    nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
+    cloudformationProperties: { Roles: [ref(cfLogicalNames.natInstanceRole())] }
+  });
 
   for (let azIndex = 0; azIndex < availabilityZones; azIndex += 1) {
     add(cfLogicalNames.natInstanceElasticIp(azIndex), getElasticIp(azIndex));

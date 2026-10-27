@@ -8,12 +8,12 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
+import { addInstanceProfile } from '../_utils/instance-profile';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import {
   getCloudwatchAgentAutoUpdateDocument,
   getCloudwatchAgentAutoUpdateSsmAssociation,
   getEc2AutoscalingGroup,
-  getEc2InstanceProfile,
   getEc2InstanceRole,
   getEc2LaunchTemplate,
   getLogGroup,
@@ -57,10 +57,12 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
     resource: getEc2InstanceRole(),
     nameChain
   });
-  calculatedStackOverviewManager.addCfChildResource({
+  addInstanceProfile({
     cfLogicalName: cfLogicalNames.bastionEc2InstanceProfile(bastion.name),
-    resource: getEc2InstanceProfile({ definition: bastion }),
-    nameChain
+    roleCfLogicalName: cfLogicalNames.bastionRole(bastion.name),
+    purpose: `${bastion.name}-bastion`,
+    nameChain,
+    cloudformationProperties: { Path: '/', Roles: [ref(cfLogicalNames.bastionRole(bastion.name))] }
   });
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.bastionCwAgentSsmAssociation(bastion.name),

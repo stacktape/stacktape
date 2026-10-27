@@ -953,6 +953,14 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::IAM::InstanceProfile' }
     });
   },
+  /** The service Lambda's permission to manage one instance profile it creates (`instanceProfile` custom resource). */
+  instanceProfileServiceLambdaPolicy(instanceProfileLogicalName: string) {
+    return buildCfLogicalName({
+      stpResourceName: instanceProfileLogicalName,
+      specifier: { type: 'ServiceLambda' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Policy' }
+    });
+  },
   natFailoverProbeRule() {
     return buildCfLogicalName({
       specifier: { type: 'StpNatFailoverProbe' },

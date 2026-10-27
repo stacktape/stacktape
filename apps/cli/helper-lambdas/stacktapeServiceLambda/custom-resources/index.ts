@@ -13,6 +13,7 @@ import { edgeFunctions } from './resolvers/edge-functions';
 import { edgeLambda } from './resolvers/edge-lambda';
 import { edgeLambdaBucket } from './resolvers/edge-lambda-bucket';
 import { forceDeleteAsg } from './resolvers/force-delete-asg';
+import { instanceProfile } from './resolvers/instance-profile';
 import { openSearch } from './resolvers/open-search';
 import { publishLambdaVersion } from './resolvers/publish-lambda-version';
 import { s3Events } from './resolvers/s3-event';
@@ -52,6 +53,7 @@ const resolversMap: {
   ssmParameterRetrieve,
   kafkaBootstrapBrokers,
   natRoutes,
+  instanceProfile,
   uptimeMonitoring,
   transactionSearch
 };
