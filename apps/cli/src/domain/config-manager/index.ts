@@ -358,6 +358,10 @@ export class ConfigManager {
     this.#devSkippedFunctionNames = new Set(names);
   };
 
+  get devSkippedFunctionNames(): ReadonlySet<string> {
+    return this.#devSkippedFunctionNames;
+  }
+
   /**
    * Set by `stacktape dev` before it synthesizes the dev stack: the trust in the developer that the roles of locally
    * running containers get, so that AWS accepts it while the stack deploys.

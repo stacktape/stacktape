@@ -13,12 +13,18 @@ import {
   HostingBucket,
   MultiContainerWorkload,
   JsBundleImagePackaging,
+  BuildpackImagePackaging,
+  Bucket,
+  LocalScript,
+  SvelteKitWeb,
   PrivateService,
   WebService,
   WorkerService,
   type CompiledStacktapeConfig
 } from '@stacktape/config-authoring';
+import { configManager } from '../../src/domain/config-manager';
 import { getDevNetworkDemand } from '../../src/commands/dev/dev-network-session';
+import { getDevStackConfigFingerprint } from '../../src/commands/dev/dev-stack-config-fingerprint';
 import { synthesizeFixture } from './synthesis-fixture';
 
 test('local API and UI synthesize support infrastructure without a second data plane', async () => {
@@ -228,4 +234,72 @@ test('dev stacks leave out alarms, and their schedule rules do not wait for the 
   expect(JSON.stringify(dev)).not.toContain('AlarmNotification');
   // The rule names the function by ARN, so CloudFormation creates it while it creates the function.
   expect(scheduleRuleTarget(dev)).toEqual(byArn);
+});
+
+// Fifth dogfood (r2cc): changing a local container's startCommand updated every function of the dev stack. A change
+// that only the local session uses must keep the fingerprint, and it may only do so because the dev stack's template
+// stays the same; a change that reaches the template must change the fingerprint (a skipped update is a false green).
+test('only changes that reach the dev stack template change its fingerprint', async () => {
+  type Variant = {
+    startCommand?: string;
+    devCommand?: string;
+    seedCommand?: string;
+    apiConnectsToBucket?: boolean;
+    workerEnvironment?: string;
+  };
+  const synthesize = async ({
+    startCommand = 'uvicorn main:app',
+    devCommand = 'npm run dev',
+    seedCommand = 'npm run seed',
+    apiConnectsToBucket = false,
+    workerEnvironment = 'one'
+  }: Variant = {}) => {
+    const compiledConfig = defineConfig(() => {
+      const worker = new LambdaFunction({
+        packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
+        environment: { MODE: workerEnvironment }
+      });
+      const files = new Bucket({});
+      const api = new WebService({
+        packaging: new BuildpackImagePackaging({ sourceDirectoryPath: './src', startCommand }),
+        resources: { cpu: 0.25, memory: 512 },
+        connectTo: apiConnectsToBucket ? [files] : []
+      });
+      const web = new SvelteKitWeb({ appDirectory: './src', dev: { command: devCommand } });
+      const seed = new LocalScript({ executeCommand: seedCommand });
+      return { resources: { worker, files, api, web }, scripts: { seed } };
+    })({
+      projectName: 'characterization',
+      stage: 'baseline',
+      region: 'eu-west-1',
+      command: 'dev',
+      awsProfile: '',
+      cliArgs: {}
+    });
+    const template = await synthesizeFixture({
+      compiledConfig,
+      command: 'dev',
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+    });
+    return {
+      template: JSON.stringify(template),
+      fingerprint: getDevStackConfigFingerprint({ config: configManager.config })
+    };
+  };
+
+  const base = await synthesize();
+  for (const localOnly of [
+    { startCommand: 'alembic upgrade head && uvicorn main:app' },
+    { devCommand: 'vite dev --port 5174' },
+    { seedCommand: 'python seed.py' }
+  ]) {
+    const changed = await synthesize(localOnly);
+    expect({ localOnly, sameTemplate: changed.template === base.template }).toEqual({ localOnly, sameTemplate: true });
+    expect(changed.fingerprint).toBe(base.fingerprint);
+  }
+  for (const needed of [{ apiConnectsToBucket: true }, { workerEnvironment: 'two' }]) {
+    const changed = await synthesize(needed);
+    expect({ needed, sameTemplate: changed.template === base.template }).toEqual({ needed, sameTemplate: false });
+    expect(changed.fingerprint).not.toBe(base.fingerprint);
+  }
 });

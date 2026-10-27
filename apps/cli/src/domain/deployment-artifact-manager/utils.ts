@@ -39,3 +39,21 @@ export const parseImageTag = (imageTag: string) => {
   const [jobName, digest, version] = imageTag.split('--');
   return { jobName, digest, version };
 };
+
+/**
+ * Whether a function's stored object, which the template may already reference, is copied under a new key so that
+ * CloudFormation deploys it again. That is needed when the function runs other code than this build: a fast deployment
+ * or a `dev` session changed it without CloudFormation. In a dev stack, the session deploys the code of each function
+ * it runs itself, from its own build (without shared layers), so copying would only update those functions on every
+ * dev stack update. A function the session leaves out gets its code from CloudFormation alone and is copied as usual.
+ */
+export const shouldRedeployStoredFunctionCode = ({
+  devStack,
+  inDevSession,
+  runsOtherCode
+}: {
+  devStack: boolean;
+  /** The function runs in the dev session, which deploys its code. */
+  inDevSession: boolean;
+  runsOtherCode: () => boolean;
+}) => (!devStack || !inDevSession) && runsOtherCode();

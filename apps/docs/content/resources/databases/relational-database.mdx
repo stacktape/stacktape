@@ -629,7 +629,7 @@ AWS automatically takes daily backups of your database. The `automatedBackupRete
 
 The `preferredMaintenanceWindow` property sets when AWS applies patches and minor version upgrades (format: `Sun:02:00-Sun:04:00` in UTC). The database may be briefly unavailable during this window. Multi-AZ and Aurora reduce downtime during maintenance. Pick a window during your lowest-traffic period.
 
-Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database.
+Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database. Until then, `stacktape delete` stops before deleting anything and lists the protected databases, and a deploy cannot remove or replace them.
 
 ## Dev mode
 

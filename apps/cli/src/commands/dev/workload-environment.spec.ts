@@ -1,3 +1,4 @@
+import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -181,6 +182,26 @@ test('a container on its own network gets host.docker.internal only in the value
     AWS_ENDPOINT_URL_DYNAMODB: 'http://host.docker.internal:12200',
     PORT: '3000'
   });
+}, 20_000);
+
+// r2cc finding 1: every boto3 client in a local Python container failed with NoRegionError. ECS sets both variables
+// for a deployed container; botocore and the AWS CLI v1 read only AWS_DEFAULT_REGION.
+test('a local container gets the region in AWS_REGION and AWS_DEFAULT_REGION', async () => {
+  const originalArgs = globalStateManager.rawArgs;
+  globalStateManager.rawArgs = { ...originalArgs, region: 'ap-southeast-2' };
+  try {
+    const environment = await getWorkloadEnvironmentVars({
+      workloadType: 'multi-container-workload',
+      jobName: 'api',
+      workloadName: 'api',
+      jobEnvironment: [],
+      connectTo: [],
+      skipAwsCredentials: true
+    });
+    expect(environment).toMatchObject({ AWS_REGION: 'ap-southeast-2', AWS_DEFAULT_REGION: 'ap-southeast-2' });
+  } finally {
+    globalStateManager.rawArgs = originalArgs;
+  }
 }, 20_000);
 
 test('only a loopback host is replaced, not a name that contains one', () => {

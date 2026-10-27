@@ -56,6 +56,10 @@ export const getMcpOperationInvocationEnv = ({
   };
 };
 
+/** The command runs for a coding agent's MCP tool, so its hints name tool calls rather than CLI flags. */
+export const isMcpInvocation = (env: NodeJS.ProcessEnv = process.env) =>
+  getStacktapeOperationInvocationContext(env) !== undefined;
+
 export const getForwardableOperationInvocationEnv = (env: NodeJS.ProcessEnv = process.env): Record<string, string> => {
   const context = getStacktapeOperationInvocationContext(env);
   if (!context) return {};

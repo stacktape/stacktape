@@ -2801,6 +2801,7 @@ export const lanes: readonly Lane[] = [
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
       'packages/analytics/src/web.test.ts',
+      'packages/aws-read-only/src/executor.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -3088,7 +3089,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test'],
     level: 'focused',
     tier: 'pr',
-    tests: ['packages/aws-read-only/src/operations.test.ts'],
+    tests: ['packages/aws-read-only/src/executor.test.ts', 'packages/aws-read-only/src/operations.test.ts'],
     requires: [],
     release: 'every-candidate'
   },
@@ -4340,6 +4341,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/local-development/container-network.spec.ts',
       'apps/cli/src/commands/dev/container/network.spec.ts',
       'apps/cli/src/commands/dev/container/build-error.spec.ts',
+      'apps/cli/src/commands/dev/container/exit-reason.spec.ts',
+      'apps/cli/src/commands/dev/container/run-readiness.spec.ts',
+      'apps/cli/src/commands/dev/function-logs.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
@@ -4394,7 +4398,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/validate/**',
       'apps/cli/src/aws/**',
       'apps/cli/src/commands/info-stack/agent-contract.ts',
-      'packages/aws-read-only/src/operations.ts'
+      'packages/aws-read-only/src/operations.ts',
+      'packages/aws-read-only/src/executor.ts'
     ],
     tests: [
       'apps/cli/scripts/operations/validate.spec.ts',
@@ -4413,7 +4418,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/diagnostic-command-inputs.spec.ts',
       'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
-      'packages/aws-read-only/src/operations.test.ts'
+      'packages/aws-read-only/src/operations.test.ts',
+      'packages/aws-read-only/src/executor.test.ts'
     ],
     lanes: [
       'cli-operation-rules',
@@ -4871,6 +4877,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/database-deletion-protection.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/force-delete-asg.test.ts',
       'apps/cli/scripts/packaging-archives/asset-replacer-acceptance.ts',
       'packages/packaging/scripts/archive-build-e2e.ts',

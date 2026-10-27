@@ -6,6 +6,8 @@ import { createConnection } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
+import { isResourceTypeExcludedInDevMode } from '@domain-services/config-manager/dev-mode';
 import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -360,6 +362,7 @@ addRoute('GET', '/status', async ({ query }) => {
       workloads: agentState.workloads,
       localResources: agentState.localResources,
       deployedDatabases: getDeployedDynamoTables(),
+      deployedResources: getDeployedResources(),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
       ...getDevBoxStatus(),
@@ -884,6 +887,30 @@ export const getDeployedDynamoTables = (): { name: string; type: 'dynamodb'; tab
     return resource?.resourceType === 'dynamo-db-table' && typeof tableName === 'string' && !findLocalResource(name)
       ? [{ name, type: 'dynamodb' as const, tableName }]
       : [];
+  });
+
+/**
+ * What the dev stack deploys, with the AWS name, ARN and URL of each resource: an agent finds a queue it wants to
+ * inspect with `aws` (a dead-letter queue, for example) without guessing its name. Only these parameters are listed; a
+ * connection string or a password never leaves through status. Workloads and databases that run on this machine are
+ * in `workloads` and `localResources` instead.
+ */
+export const getDeployedResources = (
+  resources: Record<
+    string,
+    { resourceType?: string; referencableParams?: Record<string, { value?: unknown } | undefined> } | undefined
+  > = deployedStackOverviewManager.stackInfoMap?.resources ?? {}
+): { name: string; type: string; awsName?: string; arn?: string; url?: string }[] =>
+  Object.entries(resources).flatMap(([name, resource]) => {
+    const type = resource?.resourceType;
+    if (!type || findLocalResource(name) || isResourceTypeExcludedInDevMode(type as StpResourceType)) return [];
+    const param = (key: string) => {
+      const value = resource.referencableParams?.[key]?.value;
+      return typeof value === 'string' ? value : undefined;
+    };
+    const address = { awsName: param('name'), arn: param('arn'), url: param('url') };
+    if (!address.awsName && !address.arn && !address.url) return [];
+    return [{ name, type, ...Object.fromEntries(Object.entries(address).filter(([, value]) => value !== undefined)) }];
   });
 
 /** A local table, or a deployed one for reading. */

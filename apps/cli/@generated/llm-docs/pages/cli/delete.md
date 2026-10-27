@@ -48,6 +48,10 @@ Without a configuration file, `beforeDelete` hooks are not executed.
 
 Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. To proceed, first [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
 
+## Deletion protection
+
+Deletion also stops, before anything is deleted, when a resource of the stack has deletion protection on, such as a [relational database](/resources/databases/relational-database) or [Aurora DSQL database](/resources/databases/dsql) with `deletionProtection: true`. The error lists the protected resources. Deploy with `deletionProtection: false`, then run the delete command again. When an earlier delete already failed with `DELETE_FAILED`, the stack cannot be deployed, so turn the protection off in AWS instead.
+
 ## Examples
 
 Delete a staging stack.

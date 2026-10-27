@@ -241,8 +241,10 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
         : value.replace(/localhost/g, tunnelHost);
   }
 
+  // ECS sets both region variables; boto3 and the AWS CLI v1 read only AWS_DEFAULT_REGION.
   const environment: Record<string, any> = {
     AWS_REGION: globalStateManager.region,
+    AWS_DEFAULT_REGION: globalStateManager.region,
     ...awsCredentialsEnvVars,
     ...resolvedEnvVars,
     ...substitutedInjectedEnvVars,

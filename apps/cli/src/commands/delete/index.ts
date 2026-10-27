@@ -1,6 +1,7 @@
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { createDevNetworkAws, getDevNetworkName } from '@domain-services/dev-network';
 import { releaseStackLeases } from '@domain-services/dev-network/leases';
+import { createStageHolderStore, getStageHolderParameterName } from '@domain-services/dev-network/holders';
 import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -12,6 +13,12 @@ import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { SHARED_LAYER_NUMBERS } from '@domain-services/deployment-artifact-manager/shared-layers';
 import { deleteSupersededSharedLayerVersions } from '../_utils/fn-deployment';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
+import {
+  findDeletionProtectedResources,
+  getDeletionProtectionError
+} from '@domain-services/cloudformation-stack-manager/deletion-protection';
 
 type DeleteOperation = Awaited<ReturnType<typeof initializeDeleteOperation>>;
 type RetainedSharedResource = { kind: string; identity: string; stackName: string };
@@ -49,12 +56,15 @@ type DeleteExecutionOperation = {
     deleteAllArtifacts: () => Promise<unknown>;
     deleteArtifactStore: () => Promise<unknown>;
   };
+  /** The template CloudFormation would delete. */
+  deployedTemplate: Pick<CloudFormationTemplate, 'Resources'> | undefined;
   lifecycle: Pick<DeleteOperation['lifecycle'], 'processHooks' | 'registerHooks'>;
   notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
   progress: Pick<DeleteOperation['progress'], 'setPhase'>;
   stack: {
     deleteStack: (options: { beforeDelete: () => Promise<unknown> }) => Promise<unknown>;
-    existingStackDetails: { EnableTerminationProtection?: boolean };
+    existingStackDetails: { EnableTerminationProtection?: boolean; StackStatus?: string };
+    existingStackResources: EnrichedStackResourceInfo[];
   };
   stackName: string;
   tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'setPendingCompletion'>;
@@ -100,6 +110,7 @@ export const commandDelete = async () => {
   const result = await executeDeleteOperation({
     config,
     deploymentArtifacts,
+    deployedTemplate: template.oldTemplate,
     lifecycle,
     notification,
     progress,
@@ -112,15 +123,23 @@ export const commandDelete = async () => {
   if (wasDevStack) {
     try {
       await releaseStackLeases({ store: createDevNetworkAws().leases, networkName: getDevNetworkName(), stackName });
+      await createStageHolderStore().delete(
+        getStageHolderParameterName({ networkName: getDevNetworkName(), stackName })
+      );
     } catch (err) {
       tui.info(`Could not release the dev network relay ports of ${stackName}: ${err}`);
     }
     try {
-      const deletedSecrets = await deleteDevGeneratedSecrets({ stackName });
-      if (deletedSecrets.length) {
+      const { deleted, kept } = await deleteDevGeneratedSecrets({ stackName });
+      if (deleted.length) {
         tui.info(
-          `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deletedSecrets.join(', ')}. ` +
+          `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deleted.join(', ')}. ` +
             'A deployment or dev session that uses one within 7 days restores it.'
+        );
+      }
+      for (const { name, usedBy } of kept) {
+        tui.info(
+          `Kept secret ${name}, which dev mode generated: ${usedBy.length === 1 ? `the dev stack ${usedBy[0]} still uses` : `the dev stacks ${usedBy.join(' and ')} still use`} it.`
         );
       }
     } catch (err) {
@@ -154,6 +173,7 @@ export const commandDelete = async () => {
 export const executeDeleteOperation = async ({
   config,
   deploymentArtifacts,
+  deployedTemplate,
   lifecycle,
   notification,
   progress,
@@ -173,6 +193,21 @@ export const executeDeleteOperation = async ({
         'terminationProtection'
       )} property set to false.`
     );
+  }
+
+  // CloudFormation cannot delete a protected resource, and Stacktape must not turn the protection off on its way out.
+  // Refusing here, before hooks, artifact deletion and the stack delete, keeps the whole stack as it was.
+  const protectedResources = findDeletionProtectedResources({
+    resources: stack.existingStackResources,
+    template: deployedTemplate,
+    stackStatus: stack.existingStackDetails.StackStatus
+  });
+  if (protectedResources.length) {
+    throw getDeletionProtectionError({
+      stackName,
+      stackStatus: stack.existingStackDetails.StackStatus,
+      resources: protectedResources
+    });
   }
 
   await notification.sendDeploymentNotification({

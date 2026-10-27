@@ -18,7 +18,20 @@ export type AwsSdkContext = {
   credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
 };
 
-export type AwsSdkResult = { ok: true; data?: unknown } | { ok: false; error: string; hint?: string };
+/**
+ * Why a call failed, for a caller that decides what to do next: `OPERATION_NOT_ALLOWED` is outside the read-only
+ * catalog and never sent, `ACCESS_DENIED` was refused by IAM, and `AWS_ERROR` is any other error AWS returned.
+ */
+export type AwsSdkErrorCode =
+  | 'OPERATION_NOT_ALLOWED'
+  | 'ACCESS_DENIED'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'AWS_ERROR';
+
+export type AwsSdkResult =
+  | { ok: true; data?: unknown }
+  | { ok: false; code: AwsSdkErrorCode; error: string; hint?: string };
 
 type SdkModule = Record<string, unknown>;
 
@@ -95,7 +108,7 @@ export const executeAwsSdkCommand = async (
 ): Promise<AwsSdkResult> => {
   try {
     const refusal = describeAwsCallRefusal(service, command);
-    if (refusal) return { ok: false, error: refusal.message, hint: refusal.hint };
+    if (refusal) return { ok: false, code: 'OPERATION_NOT_ALLOWED', error: refusal.message, hint: refusal.hint };
     // Accepted by the catalog, so the service has a canonical name.
     const canonicalService = resolveAwsServiceName(service)!;
 
@@ -108,7 +121,7 @@ export const executeAwsSdkCommand = async (
     };
 
     if (!ClientClass) {
-      return { ok: false, error: `Client class ${clientClass} not found` };
+      return { ok: false, code: 'AWS_ERROR', error: `Client class ${clientClass} not found` };
     }
 
     // Get command class - try with and without "Command" suffix
@@ -120,6 +133,7 @@ export const executeAwsSdkCommand = async (
       // send anyway.
       return {
         ok: false,
+        code: 'OPERATION_NOT_ALLOWED',
         error: `Unknown command: ${command} for service ${service}`,
         hint: `Accepted commands for ${canonicalService}: ${AWS_READ_ONLY_OPERATIONS[canonicalService].join(', ')}`
       };
@@ -213,6 +227,9 @@ const reviveTimestampInputs = (node: unknown): unknown => {
   );
 };
 
+const IAM_DENIAL_NAME =
+  /^(AccessDenied(Exception)?|UnauthorizedOperation|AuthorizationError(Exception)?|NotAuthorized)$/;
+
 /**
  * Handle AWS SDK errors with helpful messages
  */
@@ -220,9 +237,12 @@ const handleAwsError = (err: unknown): AwsSdkResult => {
   if (err && typeof err === 'object' && 'name' in err) {
     const awsErr = err as { name: string; message: string; Code?: string };
 
-    if (awsErr.name === 'AccessDeniedException' || awsErr.Code === 'AccessDenied') {
+    // Services name an IAM denial differently: `AccessDeniedException`, `AccessDenied` (SQS, S3),
+    // `UnauthorizedOperation` (EC2), `AuthorizationError` (SNS).
+    if ([awsErr.name, awsErr.Code].some((name) => name && IAM_DENIAL_NAME.test(name))) {
       return {
         ok: false,
+        code: 'ACCESS_DENIED',
         error: `Access denied: ${awsErr.message}`,
         hint: 'The AWS role or credentials used for this call do not allow this operation.'
       };
@@ -232,18 +252,19 @@ const handleAwsError = (err: unknown): AwsSdkResult => {
       awsErr.name === 'ResourceNotFoundException' ||
       awsErr.name === 'NoSuchBucket' ||
       awsErr.name === 'NoSuchKey' ||
-      awsErr.name === 'NotFoundException'
+      awsErr.name === 'NotFoundException' ||
+      awsErr.name === 'QueueDoesNotExist'
     ) {
-      return { ok: false, error: `Resource not found: ${awsErr.message}` };
+      return { ok: false, code: 'NOT_FOUND', error: `Resource not found: ${awsErr.message}` };
     }
 
     if (awsErr.name === 'ValidationException' || awsErr.name === 'InvalidParameterException') {
-      return { ok: false, error: `Invalid parameter: ${awsErr.message}` };
+      return { ok: false, code: 'VALIDATION_ERROR', error: `Invalid parameter: ${awsErr.message}` };
     }
 
-    return { ok: false, error: `${awsErr.name}: ${awsErr.message}` };
+    return { ok: false, code: 'AWS_ERROR', error: `${awsErr.name}: ${awsErr.message}` };
   }
 
   const message = err instanceof Error ? err.message : 'Unknown error';
-  return { ok: false, error: message };
+  return { ok: false, code: 'AWS_ERROR', error: message };
 };
