@@ -10,8 +10,16 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
-import { createDevNetworkAws, ensureDevNetwork } from '@domain-services/dev-network';
+import { createDevNetworkAws, ensureDevNetwork, getDevNetworkName } from '@domain-services/dev-network';
 import { ensureLeases } from '@domain-services/dev-network/leases';
+import {
+  createStageHolderStore,
+  getStageHolderParameterName,
+  holdStage,
+  readStageHolder,
+  type StageHolderStore
+} from '@domain-services/dev-network/holders';
+import { isMcpInvocation } from '@application-services/operation-invocation-context';
 import type { StackContext } from '@domain-services/stack-context';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
@@ -44,6 +52,8 @@ export type DevNetworkSession = {
   ready: Promise<void>;
   /** Whether `ready` has settled, and its error once it rejected, so a failed dev stack deployment reports the cause. */
   readyState: () => { settled: boolean; error?: unknown };
+  /** Removes this session's stage holder record (see `holdStage`). */
+  releaseStage: () => Promise<void>;
 };
 
 let session: DevNetworkSession | undefined;
@@ -145,6 +155,62 @@ export const isStaleHolder = (
   return held.pid !== own.pid && !isAlive(held.pid);
 };
 
+/**
+ * The refusal of a stage another session holds. Through MCP, the way to move the stage is the tool's `takeOver`
+ * argument, not the CLI flag.
+ */
+const stageRunningElsewhereError = ({
+  stackName,
+  holders,
+  mcp = isMcpInvocation()
+}: {
+  stackName: string;
+  holders: Pick<RelaySessionInfo, 'label' | 'since'>[];
+  mcp?: boolean;
+}) => {
+  const described = holders
+    .map(({ label, since }) => `${label}, since ${formatTimeWithZone(new Date(since * 1000))}`)
+    .join('; ');
+  const takeOver = mcp
+    ? 'call stacktape_dev with action=start and args.takeOver=true'
+    : 'run this command again with --take-over';
+  return new CliError({
+    category: 'CLI',
+    code: 'DEV_STAGE_RUNNING_ELSEWHERE',
+    // The message carries the way out: `dev --agent` passes on only the message of its daemon's error.
+    message: `Dev mode for ${stackName} already runs in another session: ${described}. Stop that session, or ${takeOver} to move the stage here.`,
+    hints: `With ${mcp ? 'args.takeOver=true' : '`--take-over`'}, deployed functions reach the databases on this machine, and the other session stops itself.`
+  });
+};
+
+/**
+ * Refuses a stage that another running session holds, from its holder record: one SSM read right after the
+ * configuration is loaded, so the refusal does not wait for the dev stack's metadata and the dev network. Without a
+ * fresh record, or with `--take-over`, the relay check in `startDevNetworkSession` decides.
+ */
+export const refuseStageHeldElsewhere = async ({
+  stackName,
+  takeOver,
+  store = createStageHolderStore(),
+  networkName = getDevNetworkName(),
+  owner = getOwner(),
+  isAlive
+}: {
+  stackName: string;
+  takeOver: boolean;
+  store?: StageHolderStore;
+  networkName?: string;
+  owner?: RelayOwner;
+  isAlive?: (pid: number) => boolean;
+}) => {
+  if (takeOver) return;
+  const holder = await readStageHolder({ store, name: getStageHolderParameterName({ networkName, stackName }) }).catch(
+    () => undefined
+  );
+  if (!holder || holder.session === owner.session || isStaleHolder(holder, owner, isAlive)) return;
+  throw stageRunningElsewhereError({ stackName, holders: [holder] });
+};
+
 /** How long the stage check waits for a running box's relay; after that the tunnels' own refusal decides. */
 const STAGE_CHECK_TIMEOUT_MS = 45_000;
 
@@ -197,21 +263,14 @@ export const assertStageNotRunningElsewhere = async ({
     );
     return { replacesStaleSession: true };
   }
-  const holders = others
-    .map(({ label, since }) => `${label}, since ${formatTimeWithZone(new Date(since * 1000))}`)
-    .join('; ');
   if (takeOver) {
+    const holders = others
+      .map(({ label, since }) => `${label}, since ${formatTimeWithZone(new Date(since * 1000))}`)
+      .join('; ');
     tuiManager.info(`Taking over dev mode for ${stackName} from ${holders}.`);
     return none;
   }
-  throw new CliError({
-    category: 'CLI',
-    code: 'DEV_STAGE_RUNNING_ELSEWHERE',
-    // The message carries the way out: `dev --agent` passes on only the message of its daemon's error.
-    message: `Dev mode for ${stackName} already runs in another session: ${holders}. Stop that session, or run this command again with --take-over to move the stage here.`,
-    hints:
-      'With `--take-over`, deployed functions reach the databases on this machine, and the other session stops itself.'
-  });
+  throw stageRunningElsewhereError({ stackName, holders: others });
 };
 
 const COST_EXPLANATION = [
@@ -263,7 +322,7 @@ export const endSessionForLostStage = ({
 };
 
 const registerSessionCleanupHook = createCleanupHook('dev-network', async () => {
-  await session?.connection.stop();
+  await Promise.all([session?.releaseStage().catch(() => {}), session?.connection.stop()]);
   session = undefined;
 });
 
@@ -278,7 +337,8 @@ export const startDevNetworkSession = async ({
   takeOver,
   agentPort,
   orphanedSessionId,
-  aws = createDevNetworkAws()
+  aws = createDevNetworkAws(),
+  holderStore = createStageHolderStore()
 }: {
   stackContext: Pick<StackContext, 'stackName' | 'projectName' | 'stage'>;
   noTunnel: boolean;
@@ -288,6 +348,7 @@ export const startDevNetworkSession = async ({
   /** The SSM session of a killed earlier session of this stage, ended before the new one opens. */
   orphanedSessionId?: string;
   aws?: DevNetworkAws;
+  holderStore?: StageHolderStore;
 }): Promise<DevNetworkSession | undefined> => {
   const { stackName, projectName, stage } = stackContext;
   if (orphanedSessionId) {
@@ -381,6 +442,15 @@ export const startDevNetworkSession = async ({
     localResources
   };
   configManager.setDevNetworkPlacement(placement);
+  // This session holds the stage now; its record lets the next start elsewhere refuse it at once.
+  const heldStage = await holdStage({
+    store: holderStore,
+    name: getStageHolderParameterName({ networkName: network.stackName, stackName }),
+    holder: { owner: owner.id, label: owner.label, session: owner.session, since: Math.floor(Date.now() / 1000) }
+  }).catch((error) => {
+    tuiManager.debug(`Could not record this session as the holder of ${stackName}: ${(error as Error).message}`);
+    return { release: async () => {} };
+  });
   const state: { settled: boolean; error?: unknown } = { settled: false };
   ready.then(
     () => (state.settled = true),
@@ -395,7 +465,8 @@ export const startDevNetworkSession = async ({
     // The tunnels of an ended session may still hold the relay ports; they are replaced like a take-over's.
     takeOver: takeOver || replacesStaleSession,
     ready,
-    readyState: () => ({ ...state })
+    readyState: () => ({ ...state }),
+    releaseStage: heldStage.release
   };
   return session;
 };

@@ -10,7 +10,7 @@
     "./operations": "./src/operations.ts"
   },
   "scripts": {
-    "test": "bun test src/operations.test.ts",
+    "test": "bun test src/operations.test.ts src/executor.test.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test:ministack": "bun test src/executor.ministack.test.ts"
   },

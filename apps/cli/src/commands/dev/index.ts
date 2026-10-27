@@ -70,7 +70,12 @@ import {
   runParallelWorkloads
 } from './parallel-runner';
 import { findAvailablePort } from './port-utils';
-import { startDevNetworkSession, waitForDevNetwork } from './dev-network-session';
+import {
+  getDevNetworkDemand,
+  refuseStageHeldElsewhere,
+  startDevNetworkSession,
+  waitForDevNetwork
+} from './dev-network-session';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
 import { setDevSessionOwner } from './cleanup-utils';
@@ -678,6 +683,12 @@ export const commandDev = async () => {
     else tuiManager.info(notice);
   });
   const remoteResourceNames = configManager.deploymentContext.remoteResourceNames;
+
+  // A stage another session runs is refused before any slower AWS work. Only sessions whose functions use the dev
+  // network hold a stage; the relay check in the network step stays the authority.
+  if (Object.keys(getDevNetworkDemand({ noTunnel: Boolean(args.noTunnel) }).functions).length) {
+    await refuseStageHeldElsewhere({ stackName: stackContext.stackName, takeOver: Boolean(args.takeOver) });
+  }
 
   // Phase 2 reads the dev stack and its metadata from AWS. The secret and parameter checks and the dev network need
   // nothing of it, so it runs in the background meanwhile; it is awaited before the dev stack is checked.

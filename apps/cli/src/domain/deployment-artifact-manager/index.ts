@@ -415,7 +415,13 @@ class DeploymentArtifactManager {
       : undefined;
     // The function may run other code than this build: a fast deployment or `dev` changed it without CloudFormation.
     // Reusing a stored object the template already references would then change nothing, so it is copied instead.
-    if (storedS3Key && this.#functionRunsOtherCode({ artifactName: name, digest })) {
+    // A dev stack is the exception: its session deploys each function's code itself right after the stack, from its own
+    // build (without shared layers), so copying would only update every such function on each dev stack update.
+    if (
+      storedS3Key &&
+      globalStateManager.command !== 'dev' &&
+      this.#functionRunsOtherCode({ artifactName: name, digest })
+    ) {
       return {
         artifactName: name,
         artifactPath: null,

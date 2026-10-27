@@ -43,6 +43,13 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
     showDuringPrint: false
   });
 
+  // An update reuses the stored code of unchanged functions. Dev mode does not list the deployment bucket when it starts
+  // (see `deploymentArtifactManager.init`); without that list, every function and helper Lambda got a new S3 key, and
+  // CloudFormation updated all of them for any change to the configuration.
+  if (stackManager.existingStackDetails) {
+    await deploymentArtifactManager.loadPreviousBucketObjects(deploymentArtifactManager.deploymentBucketName, 'dev');
+  }
+
   // Package workloads (only functions will actually be packaged since containers are excluded)
   await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
 

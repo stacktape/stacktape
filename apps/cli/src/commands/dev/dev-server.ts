@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { isMcpInvocation } from '@application-services/operation-invocation-context';
 import { serialize } from '@utils/misc';
 import { createCleanupHook } from './cleanup-utils';
 import { terminateDevServerProcess } from './dev-server-process';
@@ -394,16 +395,26 @@ const EXIT_REASON_LINES = 8;
  * Why a dev server exited, from its last output. Next.js 16 runs one dev server per app directory: when another dev
  * session of this project runs it there, the error names that session.
  */
-type OtherDevSession = { stage: string; port: number; pid: number; workloads?: string[] };
+type OtherDevSession = { stage: string; port: number; pid: number; workloads?: string[]; sessionId?: string };
 
-/** Next.js runs one dev server per app directory (16 holds a lock, older versions share `.next`). */
-const describeNextDevServerHolder = (other: OtherDevSession | undefined, workingDir: string) => {
+/**
+ * Next.js runs one dev server per app directory (16 holds a lock, older versions share `.next`). Called through MCP, the
+ * way to stop the holder is the `stacktape_dev` tool, not the CLI.
+ */
+const describeNextDevServerHolder = (
+  other: OtherDevSession | undefined,
+  workingDir: string,
+  mcp = isMcpInvocation()
+) => {
   const holder = other
     ? `the dev session of stage ${other.stage} (${other.port ? `agent port ${other.port}, ` : ''}process ${other.pid}) runs it`
     : 'another process runs it';
-  const stop = other?.port
-    ? `Stop that session (\`stacktape dev stop --agent-port ${other.port}\`)`
-    : `Stop ${other ? 'that session' : 'the other one'}`;
+  const stop =
+    mcp && other?.sessionId
+      ? `Stop that session (stacktape_dev with action=stop and args.devSessionId=${other.sessionId})`
+      : other?.port
+        ? `Stop that session (\`stacktape dev stop --agent-port ${other.port}\`)`
+        : `Stop ${other ? 'that session' : 'the other one'}`;
   return `Next.js runs one dev server per app directory, and ${holder} in ${workingDir}. ${stop}, or run this stage from another Git worktree.`;
 };
 

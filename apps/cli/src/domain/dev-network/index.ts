@@ -6,7 +6,11 @@ import {
   type SharedResourceStackAdapter,
   type SharedStackDetails
 } from '@domain-services/shared-resource-stack-manager';
-import { getDevNetworkLeaseParameterPrefix, getDevNetworkStackName } from '@stacktape/naming/shared-stacks';
+import {
+  getDevNetworkHolderParameterPrefix,
+  getDevNetworkLeaseParameterPrefix,
+  getDevNetworkStackName
+} from '@stacktape/naming/shared-stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import type { LeaseStore } from './leases';
@@ -747,7 +751,9 @@ const waitForNetworkDeletion = async ({
   }
   const prefix = getDevNetworkLeaseParameterPrefix(stackName);
   const leases = await aws.leases.list(prefix);
-  if (leases.length) await aws.leases.delete(leases.map(({ name }) => name));
+  // The holder records of the stages go with the network (see `holders.ts`).
+  const holders = await aws.leases.list(getDevNetworkHolderParameterPrefix(stackName));
+  if (leases.length || holders.length) await aws.leases.delete([...leases, ...holders].map(({ name }) => name));
   return { deletedLeases: leases.length, recreated: false };
 };
 

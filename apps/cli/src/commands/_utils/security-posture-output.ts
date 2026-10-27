@@ -105,7 +105,7 @@ export const assessAndPrintSecurityPosture = ({
     tui.hint(
       command === 'deploy'
         ? 'Details and remediation for every finding are in the Stacktape Console under Security > Posture.'
-        : "Each finding's message and remediation are in the `--agent` output, and in the Stacktape Console under Security > Posture after you deploy."
+        : "Each finding's message and remediation are in the machine-readable result (`--json` or `--agent`), and in the Stacktape Console under Security > Posture after you deploy."
     );
   }
   return assessment;
