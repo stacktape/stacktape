@@ -47,6 +47,31 @@ const replaceInstanceAddress = (value: unknown, instanceLogicalName: string, rep
 const propertiesOf = (resource: TemplateResource | undefined) =>
   (resource?.Properties || {}) as Record<string, unknown>;
 
+/** Whether a value references the resource through `Ref`, `Fn::GetAtt` or a `Fn::Sub` placeholder. */
+const referencesResource = (value: unknown, logicalName: string): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some((item) => referencesResource(item, logicalName));
+  const record = value as Record<string, unknown>;
+  if (record.Ref === logicalName) return true;
+  const attribute = record['Fn::GetAtt'];
+  if (Array.isArray(attribute) && attribute[0] === logicalName) return true;
+  if (typeof attribute === 'string' && attribute.startsWith(`${logicalName}.`)) return true;
+  const substitution = record['Fn::Sub'];
+  const substituted = Array.isArray(substitution) ? substitution[0] : substitution;
+  if (
+    typeof substituted === 'string' &&
+    (substituted.includes(`\${${logicalName}}`) || substituted.includes(`\${${logicalName}.`))
+  ) {
+    return true;
+  }
+  return Object.values(record).some((item) => referencesResource(item, logicalName));
+};
+
+const addDependencies = (resource: TemplateResource, logicalNames: string[]) => {
+  const dependsOn = [resource.DependsOn || []].flat() as string[];
+  resource.DependsOn = [...dependsOn, ...logicalNames.filter((logicalName) => !dependsOn.includes(logicalName))];
+};
+
 const referenceOf = (value: unknown) =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).Ref : undefined;
 
@@ -63,9 +88,12 @@ const hasProvisionedConcurrency = (template: CloudFormationTemplate, functionLog
  *
  * A function that receives an instance address (the `hosts` parameter) references the instance, so CloudFormation
  * creates the function only after the instance, which takes about 7 minutes. A function in a VPC then spends another few
- * minutes on its network interfaces. Nothing runs a new function during the deployment, so this rewrites the address
- * from the cluster endpoint and the two waits overlap. Other workloads keep waiting for the instances: a container
- * service starts its tasks during the deployment and its circuit breaker rolls the deployment back when they fail.
+ * minutes on its network interfaces. This rewrites the address from the cluster endpoint, so the two waits overlap.
+ *
+ * Only the function itself is created early. Every resource that references the function keeps waiting for the
+ * instances: its permissions, event source mappings, subscriptions, integrations and the custom resources it backs. So
+ * nothing can invoke the function before the instances exist. Other workloads keep the instance reference: a container
+ * service starts its tasks during the deployment, and its circuit breaker rolls the deployment back when they fail.
  *
  * A function keeps the instance reference when:
  * - it is deployed and is updated to reach an instance that does not exist yet (a new one, or one replaced under a new
@@ -104,6 +132,7 @@ export const deriveAuroraInstanceAddressesForNewFunctions = ({
   });
   if (!instances.length) return;
 
+  const instancesToAwait = new Map<string, string[]>();
   Object.entries(template.Resources).forEach(([functionLogicalName, lambdaFunction]) => {
     if (lambdaFunction.Type !== 'AWS::Lambda::Function' || !lambdaFunction.Properties) return;
     if (hasProvisionedConcurrency(template, functionLogicalName)) return;
@@ -125,6 +154,18 @@ export const deriveAuroraInstanceAddressesForNewFunctions = ({
         instanceLogicalName,
         address
       ) as typeof lambdaFunction.Properties;
+      instancesToAwait.set(functionLogicalName, [
+        ...(instancesToAwait.get(functionLogicalName) || []),
+        instanceLogicalName
+      ]);
+    });
+  });
+
+  Object.entries(template.Resources).forEach(([logicalName, resource]) => {
+    instancesToAwait.forEach((instanceLogicalNames, functionLogicalName) => {
+      if (logicalName !== functionLogicalName && referencesResource(resource.Properties, functionLogicalName)) {
+        addDependencies(resource, instanceLogicalNames);
+      }
     });
   });
 };

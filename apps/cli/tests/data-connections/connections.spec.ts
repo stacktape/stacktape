@@ -702,6 +702,24 @@ test('a new function connected to Aurora is created while the instances are; con
   worker:
     type: function
     properties:${connectedFunction}
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 minute)
+  seedUsers:
+    type: custom-resource-definition
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      connectTo: [orders]
+  users:
+    type: custom-resource-instance
+    properties:
+      definitionName: seedUsers
+      resourceProperties:
+        role: reader
   warm:
     type: function
     properties:${connectedFunction}
@@ -750,6 +768,29 @@ test('a new function connected to Aurora is created while the instances are; con
     'Fn::Join': [',', [derivedAddress('data-test-orders-0'), derivedAddress('data-test-orders-1')]]
   });
   expect(referencesInstance(created.Resources.WorkerFunction)).toBe(false);
+  // Only the function is created early: nothing that can invoke it exists before the instances do.
+  const dependencies = (resource: unknown) => [(resource as { DependsOn?: string | string[] }).DependsOn || []].flat();
+  const invokers = Object.entries(created.Resources).filter(
+    ([logicalName, resource]) =>
+      logicalName !== 'WorkerFunction' && JSON.stringify(resource.Properties).includes('"WorkerFunction"')
+  );
+  expect(invokers.map(([, { Type }]) => Type)).toContain('AWS::Lambda::Permission');
+  for (const [, resource] of invokers) {
+    expect(dependencies(resource)).toEqual(expect.arrayContaining(['OrdersDbInstance0', 'OrdersDbInstance1']));
+  }
+  const customResource = Object.values(created.Resources).find(
+    ({ Type, Properties }) =>
+      Type === 'AWS::CloudFormation::CustomResource' && JSON.stringify(Properties).includes('"role":"reader"')
+  );
+  expect(dependencies(customResource)).toEqual(expect.arrayContaining(['OrdersDbInstance0', 'OrdersDbInstance1']));
+  // The schedule rule itself is created alongside the function; its permission above waits.
+  const rule = Object.values(created.Resources).find(
+    ({ Type, Properties }) =>
+      Type === 'AWS::Events::Rule' &&
+      (Properties as { ScheduleExpression?: string }).ScheduleExpression === 'rate(1 minute)'
+  );
+  expect(JSON.stringify(rule)).not.toContain('"WorkerFunction"');
+  expect(dependencies(rule)).toEqual([]);
   // Provisioned concurrency runs the function's initialization during the deployment; a container service starts tasks.
   expect(hosts(created, 'WarmFunction')).toEqual({
     'Fn::Join': [',', [instanceAddress('OrdersDbInstance0'), instanceAddress('OrdersDbInstance1')]]

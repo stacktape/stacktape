@@ -45,7 +45,25 @@ export const getLambdaRuleTargetArn = ({
   const deployedRule = templateManager.oldTemplate.Resources?.[ruleLogicalName];
   const deployedTargets = (deployedRule?.Properties as { Targets?: unknown } | undefined)?.Targets;
   const deployedTargetArn = Array.isArray(deployedTargets) ? (deployedTargets[0] as { Arn?: unknown })?.Arn : undefined;
-  return isDeepStrictEqual(deployedTargetArn, reference) ? reference : byArn;
+  if (isDeepStrictEqual(deployedTargetArn, reference)) {
+    return reference;
+  }
+  // A resource override can rename the function; the rule then follows the reference instead of a name nobody has.
+  templateManager.addFinalTemplateOverrideFn(async (template) => {
+    const functionProperties = template.Resources[cfLogicalName]?.Properties as { FunctionName?: unknown } | undefined;
+    if (functionProperties?.FunctionName === resourceName) {
+      return;
+    }
+    const ruleProperties = template.Resources[ruleLogicalName]?.Properties as
+      | { Targets?: Array<{ Arn?: unknown }> }
+      | undefined;
+    ruleProperties?.Targets?.forEach((target) => {
+      if (isDeepStrictEqual(target.Arn, byArn)) {
+        target.Arn = reference;
+      }
+    });
+  });
+  return byArn;
 };
 
 export const getEventBusRuleLambdaPermission = ({
